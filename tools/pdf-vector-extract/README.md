@@ -17,7 +17,8 @@ The family extractors currently cover:
 - `extract-razavi-differential-opamp.py`: direct four-terminal amplifier body,
   dual-output edge joins, and polarity marks from Figure 13.48;
 - `extract-razavi-common-assets.py`: NPN/PNP BJT, diode, voltage amplifier,
-  ideal switch, and closed switch.
+  ideal switch, closed switch, and the three-terminal externally controlled
+  switch from Figure 16.38.
 - `extract-razavi-zener.py`: direct Zener diode geometry from Figure 3.44(a)
   of _Fundamentals of Microelectronics_;
 - `extract-razavi-logic-gates.py`: inverter, AND, NAND, NOR, and XOR native

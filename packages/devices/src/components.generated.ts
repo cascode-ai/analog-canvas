@@ -1217,6 +1217,21 @@ export const componentDeviceDescriptors: readonly DeviceDescriptor[] = [
     },
   },
   {
+    id: "externally-controlled-switch",
+    symbolId: "externally-controlled-switch",
+    deviceClass: "switch",
+    referencePrefix: "S",
+    pinOrder: ["P", "N", "CTRL"],
+    targetPolicy: "none",
+    parameters: [],
+    dialects: ["spice", "spectre"],
+    capabilities: {
+      supportsModel: false,
+      supportsBulkBinding: false,
+      supportsValueAnnotation: false,
+    },
+  },
+  {
     id: "ideal-switch",
     symbolId: "ideal-switch",
     deviceClass: "switch",

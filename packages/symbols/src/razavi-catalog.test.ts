@@ -180,6 +180,7 @@ describe("Razavi symbol catalog", () => {
       ["discrete-time-integrator", "reviewed", "razavi-reference-v1"],
       ["quantizer", "reviewed", "razavi-reference-v1"],
       ["diode", "reviewed", "razavi-reference-v1"],
+      ["externally-controlled-switch", "reviewed", "razavi-reference-v1"],
       ["ground", "reviewed", "razavi-reference-v1"],
       ["ideal-switch", "reviewed", "razavi-reference-v1"],
       ["inductor", "reviewed", "razavi-reference-v1"],
@@ -735,7 +736,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(69);
+    expect(razaviCatalogSymbols).toHaveLength(70);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -766,6 +767,7 @@ describe("Razavi symbol catalog", () => {
       "discrete-time-integrator",
       "quantizer",
       "diode",
+      "externally-controlled-switch",
       "ground",
       "ideal-switch",
       "inductor",
@@ -1228,6 +1230,7 @@ describe("Razavi symbol catalog", () => {
       "zener-diode",
       "closed-switch",
       "ideal-switch",
+      "externally-controlled-switch",
       "npn",
       "pnp",
       "voltage-amplifier",

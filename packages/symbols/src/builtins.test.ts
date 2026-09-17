@@ -27,6 +27,7 @@ const PRODUCT_IDS = [
   "discrete-time-integrator",
   "quantizer",
   "diode",
+  "externally-controlled-switch",
   "ground",
   "ideal-switch",
   "inductor",

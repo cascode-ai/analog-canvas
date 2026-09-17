@@ -105,6 +105,12 @@ The product set is exactly the reviewed, Reference-calibrated entries:
   _Fundamentals of Microelectronics_, Figure 3.44(a). Both retain the SPICE D
   electrical contract, but Zener presentation is manual or PDK-mapped because
   ordinary D syntax does not identify breakdown use;
+- `ideal-switch`, `closed-switch`, and `externally-controlled-switch`. The
+  three-terminal external-control form is direct Figure 16.38 (S1) vector
+  evidence: `P`/`N` are the vertical switched path and `CTRL` is the single
+  left-side logic input. It remains manual-only because primitive SPICE `S`
+  requires a differential four-terminal control and cannot honestly encode
+  this single-ended textbook abstraction;
 - the behavioral block family `inverter`, `and-gate`, `or-gate`, `nand-gate`,
   `nor-gate`, `xor-gate`, `xnor-gate`, `buffer`, `delay-cell`,
   `d-flip-flop`, its active-high asynchronous-reset sibling

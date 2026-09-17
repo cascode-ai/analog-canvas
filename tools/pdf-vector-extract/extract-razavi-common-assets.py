@@ -373,6 +373,25 @@ SPECS: dict[str, dict[str, Any]] = {
             "rasterWitness": "direct source-PDF crop registered around the measured contact midpoint; it is not candidate-generated artwork",
         },
     },
+    "externally-controlled-switch": {
+        "pdfPage": 696, "printedPage": 677, "figure": "16.38 (S1)",
+        # S1 contributes one vertical switched path, two hollow contacts, one
+        # diagonal blade, and the Q_A control line entering from the left.
+        # The crop excludes I1, the output trunk, the S1 label, and the PFD.
+        "crop": (260.0, 188.0, 304.0, 216.0),
+        "method": "direct-device-vector-normalization",
+        "witnessStrokeWidths": {"normal": RAZAVI_NORMAL_STROKE},
+        # Compare only the device's normalized pin span. Figure 16.38 places
+        # the S1 designator immediately to the right and surrounding charge-
+        # pump wiring continues left; neither belongs to the Symbol geometry.
+        "witnessWindow": {"width": 88, "height": 164, "minX": -30, "minY": -34},
+        "derivation": {
+            "geometry": "uniformly normalized from Figure 16.38 S1 native main leads, hollow contacts, blade, and Q_A control line",
+            "scale": "native 0.717 pt stroke mapped to the Razavi normal 1.6 logical-unit stroke",
+            "pinExtension": "surrounding charge-pump wiring is excluded; the switched path and single-ended control line terminate at the nearest 10-unit anchors",
+            "semantics": "the source establishes a single-ended logical control terminal, not the four-terminal differential control voltage required by a SPICE S primitive",
+        },
+    },
 }
 
 
@@ -479,6 +498,55 @@ def closed_switch_objects(page: Any, crop: tuple[float, float, float, float]) ->
     widths = {rounded(value.get("linewidth", 0) or 0) for value in selected}
     if widths != {0.717}:
         raise RuntimeError(f"Razavi common extraction: unexpected closed-switch stroke widths {sorted(widths)}")
+    return selected
+
+
+def externally_controlled_switch_objects(
+    page: Any, crop: tuple[float, float, float, float]
+) -> list[dict[str, Any]]:
+    candidates = [obj for obj in [*page.lines, *page.curves] if inside(obj, crop)]
+    lines = [obj for obj in candidates if obj.get("object_type") == "line"]
+    vertical = [
+        value
+        for value in lines
+        if math.isclose(float(value["x0"]), float(value["x1"]), abs_tol=1e-6)
+    ]
+    if len(vertical) != 2:
+        raise RuntimeError("Razavi common extraction: externally controlled switch main leads changed")
+    main_x = sum(float(value["x0"]) for value in vertical) / len(vertical)
+    circles = [
+        obj
+        for obj in candidates
+        if obj.get("object_type") == "curve"
+        and obj.get("stroke") is True
+        and obj.get("fill") is False
+        and 2.8 <= float(obj.get("x1", 0)) - float(obj.get("x0", 0)) <= 2.9
+        and 2.8 <= float(obj.get("bottom", 0)) - float(obj.get("top", 0)) <= 2.9
+        and math.isclose(
+            (float(obj["x0"]) + float(obj["x1"])) / 2,
+            main_x,
+            abs_tol=0.1,
+        )
+    ]
+    if len(lines) != 4 or len(circles) != 2:
+        raise RuntimeError(
+            "Razavi common extraction: expected two main leads, one blade, one control lead, "
+            f"and two contacts for externally-controlled-switch, got {len(lines)} and {len(circles)}"
+        )
+    horizontal = [
+        value
+        for value in lines
+        if math.isclose(float(value["top"]), float(value["bottom"]), abs_tol=1e-6)
+    ]
+    blade = [value for value in lines if value not in horizontal and value not in vertical]
+    if len(horizontal) != 1 or len(vertical) != 2 or len(blade) != 1:
+        raise RuntimeError("Razavi common extraction: externally controlled switch topology changed")
+    selected = [*vertical, horizontal[0], blade[0], *circles]
+    widths = {rounded(value.get("linewidth", 0) or 0) for value in selected}
+    if widths != {0.717}:
+        raise RuntimeError(
+            f"Razavi common extraction: unexpected externally controlled switch stroke widths {sorted(widths)}"
+        )
     return selected
 
 
@@ -661,6 +729,123 @@ def closed_switch_definition(objects: list[dict[str, Any]]) -> dict[str, Any]:
     )
 
 
+def externally_controlled_switch_definition(
+    objects: list[dict[str, Any]],
+) -> dict[str, Any]:
+    lines = [value for value in objects if value.get("object_type") == "line"]
+    contacts = sorted(
+        [value for value in objects if value.get("object_type") == "curve"],
+        key=lambda value: float(value["top"]),
+    )
+    control = next(
+        value
+        for value in lines
+        if math.isclose(float(value["top"]), float(value["bottom"]), abs_tol=1e-6)
+    )
+    blade = next(
+        value
+        for value in lines
+        if not math.isclose(float(value["top"]), float(value["bottom"]), abs_tol=1e-6)
+        and not math.isclose(float(value["x0"]), float(value["x1"]), abs_tol=1e-6)
+    )
+    native_stroke = float(blade["linewidth"])
+    scale = RAZAVI_NORMAL_STROKE / native_stroke
+    centers = [
+        (
+            (float(value["x0"]) + float(value["x1"])) / 2,
+            (float(value["top"]) + float(value["bottom"])) / 2,
+        )
+        for value in contacts
+    ]
+    origin_x = sum(center[0] for center in centers) / len(centers)
+    # The control pin is the one externally driven terminal. Keeping its native
+    # centerline as y=0 preserves the blade/control joint while placing that
+    # terminal exactly on the editor grid.
+    origin_y = float(control["top"])
+
+    def nx(value: float) -> float:
+        return rounded((float(value) - origin_x) * scale)
+
+    def ny(value: float) -> float:
+        return rounded((float(value) - origin_y) * scale)
+
+    def normalized_circle(value: dict[str, Any]) -> dict[str, Any]:
+        center_x = (float(value["x0"]) + float(value["x1"])) / 2
+        center_y = (float(value["top"]) + float(value["bottom"])) / 2
+        diameter = (
+            float(value["x1"]) - float(value["x0"])
+            + float(value["bottom"]) - float(value["top"])
+        ) / 2
+        return circle(nx(center_x), ny(center_y), rounded(diameter * scale / 2))
+
+    top_contact, bottom_contact = [normalized_circle(value) for value in contacts]
+    blade_path = blade.get("path") or []
+    if len(blade_path) != 2:
+        raise RuntimeError("Razavi common extraction: externally controlled switch blade path changed")
+    blade_points = [
+        (nx(float(command[1][0])), ny(float(command[1][1])))
+        for command in blade_path
+    ]
+    blade_points.sort(
+        key=lambda point: math.hypot(
+            point[0] - float(top_contact["center"]["x"]),
+            point[1] - float(top_contact["center"]["y"]),
+        )
+    )
+    blade_start, blade_end = blade_points
+
+    # Match the established open-switch treatment: the source centerline
+    # begins on the hollow contact's inner edge. Move it to the outer ring with
+    # a small bounded overlap so antialiasing cannot reveal a white seam or a
+    # line protruding through the hollow center.
+    center = top_contact["center"]
+    radius = float(top_contact["radius"]) + SWITCH_BLADE_CONTACT_CLEARANCE
+    dx, dy = blade_end[0] - blade_start[0], blade_end[1] - blade_start[1]
+    ox, oy = blade_start[0] - center["x"], blade_start[1] - center["y"]
+    a = dx * dx + dy * dy
+    b = 2 * (ox * dx + oy * dy)
+    c = ox * ox + oy * oy - radius * radius
+    discriminant = b * b - 4 * a * c
+    if a <= 0 or discriminant < 0:
+        raise RuntimeError("Razavi common extraction: cannot clip controlled-switch blade")
+    intersections = sorted(
+        value
+        for value in (
+            (-b - math.sqrt(discriminant)) / (2 * a),
+            (-b + math.sqrt(discriminant)) / (2 * a),
+        )
+        if 0 <= value <= 1
+    )
+    if not intersections:
+        raise RuntimeError("Razavi common extraction: controlled-switch blade misses contact")
+    t = intersections[-1]
+    clipped_start = (
+        rounded(blade_start[0] + t * dx),
+        rounded(blade_start[1] + t * dy),
+    )
+    control_end_x = nx(float(control["x1"]))
+
+    return symbol(
+        "externally-controlled-switch",
+        "Externally Controlled Switch",
+        (-34, -34, 68, 68),
+        [
+            pin("P", "passive", 0, -30, "north"),
+            pin("N", "passive", 0, 30, "south"),
+            pin("CTRL", "input", -30, 0, "west"),
+        ],
+        [
+            line(0, -30, 0, rounded(top_contact["center"]["y"] - top_contact["radius"])),
+            top_contact,
+            line(*clipped_start, *blade_end),
+            line(-30, 0, control_end_x, 0),
+            bottom_contact,
+            line(0, rounded(bottom_contact["center"]["y"] + bottom_contact["radius"]), 0, 30),
+        ],
+        ["pin-controlled-switch", "logic-controlled-switch"],
+    )
+
+
 def closed_switch_origin(objects: list[dict[str, Any]]) -> tuple[float, float]:
     contacts = sorted(
         [value for value in objects if value.get("object_type") == "curve"],
@@ -694,6 +879,23 @@ def ideal_switch_origin(objects: list[dict[str, Any]]) -> tuple[float, float]:
     return (
         (centers[0][0] + centers[1][0]) / 2,
         sum(center[1] for center in centers) / len(centers),
+    )
+
+
+def externally_controlled_switch_origin(
+    objects: list[dict[str, Any]],
+) -> tuple[float, float]:
+    contacts = [value for value in objects if value.get("object_type") == "curve"]
+    control = next(
+        value
+        for value in objects
+        if value.get("object_type") == "line"
+        and math.isclose(float(value["top"]), float(value["bottom"]), abs_tol=1e-6)
+    )
+    return (
+        sum((float(value["x0"]) + float(value["x1"])) / 2 for value in contacts)
+        / len(contacts),
+        float(control["top"]),
     )
 
 
@@ -775,6 +977,9 @@ def extract_one(pdf_path: Path, output_root: Path, asset_id: str, pdftoppm: str,
     elif asset_id == "closed-switch":
         source_objects = closed_switch_objects(page, spec["crop"])
         definition = closed_switch_definition(source_objects)
+    elif asset_id == "externally-controlled-switch":
+        source_objects = externally_controlled_switch_objects(page, spec["crop"])
+        definition = externally_controlled_switch_definition(source_objects)
     else:
         selector = inside if spec.get("selectionMode") == "inside" else overlaps
         source_objects = [obj for obj in [*page.lines, *page.curves, *page.rects] if selector(obj, spec["crop"])]
@@ -787,6 +992,8 @@ def extract_one(pdf_path: Path, output_root: Path, asset_id: str, pdftoppm: str,
     source_origin = (
         closed_switch_origin(source_objects)
         if asset_id == "closed-switch"
+        else externally_controlled_switch_origin(source_objects)
+        if asset_id == "externally-controlled-switch"
         else ideal_switch_origin(source_objects)
         if asset_id == "ideal-switch"
         else spec["sourceOriginPdf"]
@@ -866,8 +1073,7 @@ def main() -> None:
         for asset_id in assets:
             extract_one(pdf_path, output_root, asset_id, args.pdftoppm, source_hash, pdf)
             print(f"Extracted razavi-textbook-{asset_id}")
-    if args.asset == "all":
-        write_geometry_registry(output_root)
+    write_geometry_registry(output_root)
 
 
 if __name__ == "__main__":

@@ -140,6 +140,13 @@ const hash = (value) => createHash("sha256").update(value).digest("hex");
 const entries = [
   ["closed-switch", "Closed Switch", "switch", ["1", "2"], []],
   ["diode", "Diode", "passive", ["A", "K"], ["spice:D"]],
+  [
+    "externally-controlled-switch",
+    "Externally Controlled Switch",
+    "switch",
+    ["P", "N", "CTRL"],
+    [],
+  ],
   ["ideal-switch", "Ideal Switch", "switch", ["1", "2"], []],
   [
     "npn",
@@ -208,7 +215,9 @@ for (const [symbolId, name, category, pinOrder, automaticMappings] of entries) {
           manualOnlyReason:
             symbolId === "ideal-switch" || symbolId === "closed-switch"
               ? "Two-terminal Razavi switch; SPICE S has a four-terminal control contract."
-              : "Textbook gain block has implicit reference nodes and no exact primitive SPICE terminal contract.",
+              : symbolId === "externally-controlled-switch"
+                ? "Three-terminal single-ended control is visually explicit in the textbook but has no exact primitive SPICE S contract."
+                : "Textbook gain block has implicit reference nodes and no exact primitive SPICE terminal contract.",
         }
       : {}),
     assetPath: `${symbolId}.json`,

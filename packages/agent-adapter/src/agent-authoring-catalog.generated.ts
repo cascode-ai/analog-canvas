@@ -464,6 +464,34 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "externally-controlled-switch",
+      name: "Externally Controlled Switch",
+      category: "switch",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      pins: [
+        {
+          name: "P",
+          role: "passive",
+          direction: "north",
+          visibility: "visible",
+        },
+        {
+          name: "N",
+          role: "passive",
+          direction: "south",
+          visibility: "visible",
+        },
+        {
+          name: "CTRL",
+          role: "input",
+          direction: "west",
+          visibility: "visible",
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "ground",
       name: "Ground",
       category: "power",

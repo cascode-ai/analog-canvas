@@ -672,6 +672,40 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "externally-controlled-switch",
+    name: "Externally Controlled Switch",
+    category: "switch",
+    reviewStatus: "reviewed",
+    pinOrder: ["P", "N", "CTRL"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Three-terminal single-ended control is visually explicit in the textbook but has no exact primitive SPICE S contract.",
+    assetPath: "externally-controlled-switch.json",
+    assetHash:
+      "e4fbefba1859d5fd25fae669810aa0cf6ba60758f00ecb7cd4ed8a2c8032435a",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/externally-controlled-switch-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/externally-controlled-switch-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/common-symbol-geometry.json",
+    },
+    generation: {
+      kind: "razavi-pdf-vector-reference",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePath:
+        "fixtures/visual-reference/razavi-reference-v1/externally-controlled-switch-vector-source.json",
+      converterPath: "scripts/generate-razavi-common-assets.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
     symbolId: "ground",
     name: "Ground",
     category: "power",
@@ -5227,6 +5261,155 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: 20,
           y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "externally-controlled-switch",
+    name: "Externally Controlled Switch",
+    viewBox: {
+      x: -34,
+      y: -34,
+      width: 68,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "P",
+        role: "passive",
+        at: {
+          x: 0,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "N",
+        role: "passive",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "CTRL",
+        role: "input",
+        at: {
+          x: -30,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -30,
+        },
+        to: {
+          x: 0,
+          y: -12.41417,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 0,
+          y: -9.215286,
+        },
+        radius: 3.198884,
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -2.635977,
+          y: -6.895603,
+        },
+        to: {
+          x: -13.528591,
+          y: 6.997824,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 0,
+        },
+        to: {
+          x: -7.427615,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 0,
+          y: 11.511074,
+        },
+        radius: 3.198884,
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 14.709958,
+        },
+        to: {
+          x: 0,
+          y: 30,
         },
         style: {
           strokeRole: "normal",

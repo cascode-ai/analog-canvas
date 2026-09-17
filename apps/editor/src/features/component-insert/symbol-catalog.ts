@@ -130,6 +130,7 @@ export function symbolCategory(symbolId: string): string {
     [
       "ideal-switch",
       "closed-switch",
+      "externally-controlled-switch",
       "simple-switch",
       "spdt-switch",
       "voltage-controlled-switch",
@@ -150,6 +151,7 @@ export function symbolCategory(symbolId: string): string {
 const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   "depletion-nmos": "D-NMOS",
   "depletion-pmos": "D-PMOS",
+  "externally-controlled-switch": "Ctrl SW",
   port: "Cell Pin",
   "port-filled": "Cell Pin (filled)",
   "zener-diode": "Zener",
@@ -161,6 +163,8 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "Rising-edge D flip-flop with an active-high asynchronous reset",
   "voltage-controlled-switch":
     "Four-terminal switch: P/N carry the switched path; CP/CN sense the control voltage",
+  "externally-controlled-switch":
+    "Three-terminal switch: P/N carry the path; CTRL is one external logic-control pin",
   port: "A terminal on this Cell interface — the parent circuit connects to it",
   "port-filled": "An independent Cell Pin with a solid appearance",
 };
@@ -203,6 +207,11 @@ const SYMBOL_ORDER: readonly string[] = [
   "capacitor",
   "inductor-compact",
   "inductor",
+  // Switches: textbook two-terminal forms, then explicit-control forms.
+  "ideal-switch",
+  "closed-switch",
+  "externally-controlled-switch",
+  "voltage-controlled-switch",
   // Logic gates likewise: the two single-input gates, then the combinational
   // family, then the sequential blocks that are reached for least often.
   "inverter",
