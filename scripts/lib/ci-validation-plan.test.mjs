@@ -166,6 +166,29 @@ describe("CI validation planning", () => {
     );
   });
 
+  it("routes shared dialog styles and SPICE language sources to their owning browser contracts", () => {
+    const dialogPlan = ciPlan(["apps/editor/src/styles/editor-dialogs.css"]);
+    expect(dialogPlan.mode).toBe("focused");
+    expect(dialogPlan.e2eArgs).toContain(
+      "apps/editor/e2e/manual-editor.spec.ts",
+    );
+
+    const languagePlan = ciPlan(["packages/spice/src/simulation-language.ts"]);
+    expect(languagePlan.mode).toBe("focused");
+    expect(languagePlan.e2eArgs).toContain(
+      "apps/editor/e2e/simulation-code-editor.spec.ts",
+    );
+
+    const syntaxPlan = ciPlan(["packages/spice/src/syntax.ts"]);
+    expect(syntaxPlan.mode).toBe("focused");
+    expect(syntaxPlan.e2eArgs).toEqual(
+      expect.arrayContaining([
+        "apps/editor/e2e/netlist-conversion.spec.ts",
+        "apps/editor/e2e/simulation-code-editor.spec.ts",
+      ]),
+    );
+  });
+
   it("uses the small browser fallback for an unmapped product path", () => {
     const plan = ciPlan(["apps/editor/src/lib/new-helper.ts"]);
     expect(plan.mode).toBe("fallback");
