@@ -124,11 +124,16 @@ export function executeTransaction(
 
   const proposedRevision = document.revision + 1;
   const draft = structuredClone(document);
+  // Removing a Route's geometry states its geometry too: a Junction dragged
+  // onto the pin at the far end of a stub collapses that stub.
   const explicitlyAuthoredRouteIds = new Set(
     transaction.edits.flatMap((edit) =>
-      edit.kind === "set_route_path" || edit.kind === "route_orthogonal"
-        ? [edit.kind === "set_route_path" ? edit.route.id : edit.routeId]
-        : [],
+      edit.kind === "set_route_path"
+        ? [edit.route.id]
+        : edit.kind === "route_orthogonal" ||
+            edit.kind === "remove_route_geometry"
+          ? [edit.routeId]
+          : [],
     ),
   );
   const changedObjectIds = new Set<string>();

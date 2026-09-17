@@ -675,7 +675,7 @@ test("dragging a wire segment onto another wire endpoint connects there", async 
   await expect(page.locator('g[data-layer="junctions"] circle')).toHaveCount(1);
 });
 
-test("dragging a diagonal between two horizontal legs moves it sideways", async ({
+test("a dragged diagonal moves along the pointer axis only", async ({
   page,
 }) => {
   const project = createEmptyProject("diagonal-drag", "Diagonal drag");
@@ -767,6 +767,31 @@ test("dragging a diagonal between two horizontal legs moves it sideways", async 
     { x: 130, y: 200 },
     { x: 180, y: 250 },
     { x: 250, y: 250 },
+  ]);
+
+  // Now pull it mostly down: the horizontal legs travel with it, and both
+  // three-way Junctions slide down their vertical stubs.
+  const [down, below] = await onScreen(canvas, [
+    { x: 153, y: 222 },
+    { x: 156, y: 241 },
+  ]);
+  await page.mouse.move(down!.x, down!.y);
+  await page.mouse.down();
+  await page.mouse.move(below!.x, below!.y, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.getByTestId("revision")).toHaveText(String(revision + 2));
+  expect(
+    await page.getByTestId("route-hit-zig").evaluate((element) =>
+      Array.from((element as SVGPolylineElement).points).map(({ x, y }) => ({
+        x,
+        y,
+      })),
+    ),
+  ).toEqual([
+    { x: 100, y: 220 },
+    { x: 130, y: 220 },
+    { x: 180, y: 270 },
+    { x: 250, y: 270 },
   ]);
 });
 

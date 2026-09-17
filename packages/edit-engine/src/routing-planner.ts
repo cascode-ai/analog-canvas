@@ -523,13 +523,18 @@ function routeEdits(
   });
 }
 
-/** Plan one topology-preserving segment drag as typed transaction edits. */
+/**
+ * Plan one topology-preserving segment drag as typed transaction edits.
+ * `origin` is where the drag began; a 45-degree segment moves along the
+ * dominant axis of the travel from it.
+ */
 export function proposeWireSegmentMove(
   document: SchematicDocument,
   resolver: SymbolResolver,
   routeId: string,
   segmentIndex: number,
   target: Point,
+  origin?: Point,
 ): RouteEditPlan {
   const proposal = proposeWireSegmentDrag(
     document,
@@ -537,6 +542,7 @@ export function proposeWireSegmentMove(
     routeId,
     segmentIndex,
     target,
+    origin,
   );
   const edits: SchematicEdit[] = [
     ...proposal.junctions.map((move): SchematicEdit => ({

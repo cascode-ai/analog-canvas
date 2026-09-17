@@ -27,112 +27,6 @@ describe("direct route segment movement", () => {
     });
   });
 
-  it("moves a direct 45-degree segment with an octilinear dogleg", () => {
-    expect(
-      moveRouteSegment(
-        {
-          points: [
-            { x: 0, y: 0 },
-            { x: 100, y: 100 },
-          ],
-          segmentModes: ["manual"],
-        },
-        0,
-        { x: 50, y: 20 },
-      ),
-    ).toEqual({
-      waypoints: [
-        { x: 0, y: -30 },
-        { x: 100, y: 70 },
-      ],
-      segmentModes: ["manual", "manual", "manual"],
-    });
-  });
-
-  it("slides an interior 45-degree segment along its orthogonal legs", () => {
-    const modes: SegmentMode[] = ["manual", "manual", "manual"];
-    const move = (points: Point[], target: Point) =>
-      moveRouteSegment({ points, segmentModes: modes }, 1, target);
-    // Between two horizontal legs the diagonal moves sideways and both legs
-    // stretch; no jog is added.
-    const horizontal = [
-      { x: 0, y: 0 },
-      { x: 30, y: 0 },
-      { x: 80, y: 50 },
-      { x: 110, y: 50 },
-    ];
-    expect(move(horizontal, { x: 60, y: 20 })).toEqual({
-      waypoints: [
-        { x: 40, y: 0 },
-        { x: 90, y: 50 },
-      ],
-      segmentModes: modes,
-    });
-    // A leg can shrink away, leaving the diagonal on the Route end, but it
-    // never folds back past that end.
-    expect(move(horizontal, { x: 0, y: 0 })).toEqual({
-      waypoints: [{ x: 50, y: 50 }],
-      segmentModes: ["manual", "manual"],
-    });
-    expect(() => move(horizontal, { x: 0, y: 10 })).toThrow("fold back");
-    // Between two vertical legs it moves up or down instead.
-    expect(
-      move(
-        [
-          { x: 0, y: 0 },
-          { x: 0, y: 30 },
-          { x: 50, y: 80 },
-          { x: 50, y: 110 },
-        ],
-        { x: 20, y: 60 },
-      ),
-    ).toEqual({
-      waypoints: [
-        { x: 0, y: 40 },
-        { x: 50, y: 90 },
-      ],
-      segmentModes: modes,
-    });
-    // With one leg of each kind, each end slides along its own leg.
-    const mixed = [
-      { x: 0, y: 0 },
-      { x: 30, y: 0 },
-      { x: 80, y: 50 },
-      { x: 80, y: 100 },
-    ];
-    expect(move(mixed, { x: 60, y: 20 })).toEqual({
-      waypoints: [
-        { x: 40, y: 0 },
-        { x: 80, y: 40 },
-      ],
-      segmentModes: modes,
-    });
-    expect(() => move(mixed, { x: 130, y: 0 })).toThrow("reverse");
-  });
-
-  it("jogs only at the Route end of a 45-degree segment", () => {
-    expect(
-      moveRouteSegment(
-        {
-          points: [
-            { x: 0, y: 0 },
-            { x: 50, y: 50 },
-            { x: 80, y: 50 },
-          ],
-          segmentModes: ["manual", "manual"],
-        },
-        0,
-        { x: 35, y: 25 },
-      ),
-    ).toEqual({
-      waypoints: [
-        { x: 0, y: -10 },
-        { x: 60, y: 50 },
-      ],
-      segmentModes: ["manual", "manual", "manual"],
-    });
-  });
-
   it("moves only an interior segment and rejects protected neighbors", () => {
     const polyline: RouteEditPath = {
       points: [
@@ -157,5 +51,118 @@ describe("direct route segment movement", () => {
         { x: 35, y: 20 },
       ),
     ).toThrow("protected");
+  });
+});
+
+describe("45-degree segment drag", () => {
+  const manual = (count: number): SegmentMode[] =>
+    Array.from({ length: count }, () => "manual");
+  const drag = (
+    points: Point[],
+    segmentIndex: number,
+    delta: Point,
+    carried?: { from?: boolean; to?: boolean },
+  ) =>
+    moveRouteSegment(
+      { points, segmentModes: manual(points.length - 1) },
+      segmentIndex,
+      delta,
+      { origin: { x: 0, y: 0 }, ...(carried ? { carried } : {}) },
+    );
+  // Leg, diagonal, leg: the cross-coupled shape.
+  const zig = [
+    { x: 0, y: 0 },
+    { x: 30, y: 0 },
+    { x: 80, y: 50 },
+    { x: 110, y: 50 },
+  ];
+
+  it("moves sideways between horizontal legs, which stretch", () => {
+    // Mostly horizontal travel picks the horizontal axis; the rest is ignored.
+    expect(drag(zig, 1, { x: 10, y: 2 })).toEqual({
+      waypoints: [
+        { x: 40, y: 0 },
+        { x: 90, y: 50 },
+      ],
+      segmentModes: manual(3),
+    });
+    // A leg may shrink away, but never folds back past its far end.
+    expect(drag(zig, 1, { x: -30, y: 0 }).waypoints).toEqual([
+      { x: 50, y: 50 },
+    ]);
+    expect(() => drag(zig, 1, { x: -40, y: 0 })).toThrow("fold the wire back");
+  });
+
+  it("moves vertically with its perpendicular legs", () => {
+    // Fixed Route ends stay and are reached by vertical jogs.
+    expect(drag(zig, 1, { x: 2, y: 10 })).toEqual({
+      waypoints: [
+        { x: 0, y: 10 },
+        { x: 30, y: 10 },
+        { x: 80, y: 60 },
+        { x: 110, y: 60 },
+      ],
+      segmentModes: manual(5),
+    });
+    // Carried Junction ends travel with the run instead.
+    expect(drag(zig, 1, { x: 0, y: 10 }, { from: true, to: true })).toEqual({
+      waypoints: [
+        { x: 30, y: 10 },
+        { x: 80, y: 60 },
+      ],
+      segmentModes: manual(3),
+    });
+  });
+
+  it("jogs at a pin end along the move and never doubles back there", () => {
+    // Leg, then a diagonal rising to a pin: a cross-coupled gate.
+    const toPin = [
+      { x: 0, y: 50 },
+      { x: 50, y: 50 },
+      { x: 100, y: 0 },
+    ];
+    expect(drag(toPin, 1, { x: -10, y: 0 })).toEqual({
+      waypoints: [
+        { x: 40, y: 50 },
+        { x: 90, y: 0 },
+      ],
+      segmentModes: manual(3),
+    });
+    // Moving right would overshoot the pin and come back to it.
+    expect(() => drag(toPin, 1, { x: 10, y: 0 })).toThrow("fold the wire back");
+  });
+
+  it("keeps a direct diagonal between two fixed ends in place", () => {
+    const direct = [
+      { x: 0, y: 0 },
+      { x: 100, y: 100 },
+    ];
+    // Any one-axis move would double back at one of the ends.
+    for (const delta of [
+      { x: 10, y: 0 },
+      { x: -10, y: 0 },
+      { x: 0, y: 10 },
+      { x: 0, y: -10 },
+    ]) {
+      expect(() => drag(direct, 0, delta)).toThrow("fold the wire back");
+    }
+    expect(drag(direct, 0, { x: 0, y: -30 }, { from: true, to: true })).toEqual(
+      { waypoints: [], segmentModes: manual(1) },
+    );
+  });
+
+  it("moves horizontally when the drag origin is unknown", () => {
+    expect(
+      moveRouteSegment({ points: zig, segmentModes: manual(3) }, 1, {
+        x: 60,
+        y: 20,
+      }),
+    ).toEqual({
+      waypoints: [
+        { x: 40, y: 0 },
+        { x: 90, y: 50 },
+      ],
+      segmentModes: manual(3),
+    });
   });
 });

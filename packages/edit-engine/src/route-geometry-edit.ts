@@ -209,10 +209,153 @@ export function buildOrthogonalEscapeRoute(
   };
 }
 
+export interface DiagonalSegmentDrag {
+  /** Rigid translation of the dragged run, along exactly one axis. */
+  move: Point;
+  /** First and last polyline point indices that travel with the diagonal. */
+  first: number;
+  last: number;
+}
+
+/**
+ * Where a dragged 45-degree segment goes. It never moves diagonally: it
+ * translates along the dominant axis of the pointer's travel from `origin`
+ * (horizontally when no origin is known). An adjacent leg perpendicular to
+ * that axis travels with it, just as an orthogonal segment carries nothing
+ * but stretches its perpendicular neighbors.
+ */
+export function planDiagonalSegmentDrag(
+  points: readonly Point[],
+  segmentIndex: number,
+  target: Point,
+  origin?: Point,
+): DiagonalSegmentDrag {
+  const from = points[segmentIndex]!;
+  const to = points[segmentIndex + 1]!;
+  let move: Point;
+  if (origin) {
+    const dx = target.x - origin.x;
+    const dy = target.y - origin.y;
+    move =
+      Math.abs(dx) >= Math.abs(dy) ? { x: dx || 0, y: 0 } : { x: 0, y: dy };
+  } else {
+    // The horizontal shift that puts the diagonal's line through the target.
+    const slope = Math.sign((to.y - from.y) / (to.x - from.x));
+    const offset = target.y - slope * target.x - (from.y - slope * from.x);
+    move = { x: -slope * offset || 0, y: 0 };
+  }
+  const axis = move.y === 0 ? "x" : "y";
+  let first = segmentIndex;
+  let last = segmentIndex + 1;
+  if (first > 0 && points[first - 1]![axis] === from[axis]) first -= 1;
+  if (last < points.length - 1 && points[last + 1]![axis] === to[axis]) {
+    last += 1;
+  }
+  return { move, first, last };
+}
+
+function acuteTurnCount(points: readonly Point[]): number {
+  let count = 0;
+  for (let index = 1; index + 1 < points.length; index += 1) {
+    const before = points[index - 1]!;
+    const at = points[index]!;
+    const after = points[index + 1]!;
+    const dot =
+      (at.x - before.x) * (after.x - at.x) +
+      (at.y - before.y) * (after.y - at.y);
+    if (dot < 0) count += 1;
+  }
+  return count;
+}
+
+/**
+ * Translate the run of `planDiagonalSegmentDrag` rigidly. Each end of the run
+ * slides when its outside leg lies along the move, and otherwise stays behind
+ * with a jog along the move: at a slanted leg, or at a fixed Route end. A
+ * `carried` Route end moves with the run instead; the caller moves its
+ * Junction by the same translation.
+ */
+function moveDiagonalSegment(
+  points: readonly Point[],
+  modes: readonly SegmentMode[],
+  segmentIndex: number,
+  target: Point,
+  origin: Point | undefined,
+  carried: { from?: boolean; to?: boolean },
+): { waypoints: Point[]; segmentModes: SegmentMode[] } {
+  const { move, first, last } = planDiagonalSegmentDrag(
+    points,
+    segmentIndex,
+    target,
+    origin,
+  );
+  if (
+    modes
+      .slice(Math.max(0, first - 1), last + 1)
+      .some((mode) => mode === "locked" || mode === "trunk")
+  ) {
+    throw new Error("Route segment or its neighbor is protected");
+  }
+  const across = move.y === 0 ? "y" : "x";
+  const lastIndex = points.length - 1;
+  const staysBehind = (index: number, outside: number | null): boolean =>
+    outside === null
+      ? index === 0
+        ? carried.from !== true
+        : carried.to !== true
+      : points[outside]![across] !== points[index]![across];
+  const firstStays = staysBehind(first, first > 0 ? first - 1 : null);
+  const lastStays = staysBehind(last, last < lastIndex ? last + 1 : null);
+  // A lead that leaves its pin is authored wire, no longer a derived stub.
+  const authored = (mode: SegmentMode): SegmentMode =>
+    mode === "escape" ? "manual" : mode;
+  const nextPoints: Point[] = points.slice(0, first);
+  const nextModes: SegmentMode[] = modes.slice(0, first);
+  if (firstStays) {
+    nextPoints.push({ ...points[first]! });
+    nextModes.push(authored(modes[first]!));
+  }
+  for (let index = first; index <= last; index += 1) {
+    nextPoints.push({
+      x: points[index]!.x + move.x,
+      y: points[index]!.y + move.y,
+    });
+    if (index < last) nextModes.push(authored(modes[index]!));
+  }
+  if (lastStays) {
+    nextPoints.push({ ...points[last]! });
+    nextModes.push(authored(modes[last - 1]!));
+  }
+  nextPoints.push(...points.slice(last + 1));
+  nextModes.push(...modes.slice(last));
+  const normalized = normalizeRouteGeometry(nextPoints, nextModes);
+  if (!isOctilinear(normalized.points)) {
+    throw new Error("Diagonal segment move would make geometry non-octilinear");
+  }
+  // A leg shrunk past its far end, or a jog that doubles back against the
+  // diagonal, would fold the wire over itself. The drag holds instead.
+  if (acuteTurnCount(normalized.points) > acuteTurnCount(points)) {
+    throw new Error("Diagonal segment move would fold the wire back");
+  }
+  return {
+    waypoints: normalized.points.slice(1, -1),
+    segmentModes: normalized.segmentModes,
+  };
+}
+
 export function moveRouteSegment(
   polyline: RouteEditPath,
   segmentIndex: number,
   target: Point,
+  {
+    origin,
+    carried = {},
+  }: {
+    /** Where the drag began, which picks a diagonal's axis. */
+    origin?: Point | undefined;
+    /** Route ends whose Junction the caller moves with a diagonal. */
+    carried?: { from?: boolean; to?: boolean };
+  } = {},
 ): { waypoints: Point[]; segmentModes: SegmentMode[] } {
   if (segmentIndex < 0 || segmentIndex >= polyline.points.length - 1) {
     throw new Error(`Route segment index is out of range: ${segmentIndex}`);
@@ -237,61 +380,15 @@ export function moveRouteSegment(
     slanted && Math.abs(to.x - from.x) === Math.abs(to.y - from.y);
   const lastSegmentIndex = points.length - 2;
 
-  // A diagonal segment has one perpendicular degree of freedom.  Express its
-  // translated centreline as y - slope*x = constant.  An interior bend slides
-  // along its orthogonal leg to reach that line, so a diagonal between two
-  // horizontal legs moves sideways and the legs stretch with it.  A Route end,
-  // or a bend whose other leg is slanted, stays put and gets a vertical jog,
-  // which keeps a two-point Route's endpoints intact.
   if (diagonal) {
-    const slope = Math.sign((to.y - from.y) / (to.x - from.x));
-    const offset = target.y - slope * target.x - (from.y - slope * from.x);
-    const slide = (bendIndex: number, legIndex: number): Point | null => {
-      if (bendIndex === 0 || bendIndex === points.length - 1) return null;
-      const bend = points[bendIndex]!;
-      const leg = points[legIndex]!;
-      const axis = leg.y === bend.y ? "x" : leg.x === bend.x ? "y" : null;
-      if (!axis) return null;
-      const slid =
-        axis === "x"
-          ? { x: bend.x - slope * offset, y: bend.y }
-          : { x: bend.x, y: bend.y + offset };
-      // The leg may shrink away, but never fold back past its far end.
-      if (
-        Math.sign(slid[axis] - leg[axis]) === -Math.sign(bend[axis] - leg[axis])
-      ) {
-        throw new Error("Diagonal segment move would fold back its leg");
-      }
-      return slid;
-    };
-    const slidFrom = slide(segmentIndex, segmentIndex - 1);
-    const slidTo = slide(segmentIndex + 1, segmentIndex + 2);
-    const movedFrom = slidFrom ?? { x: from.x, y: from.y + offset };
-    const movedTo = slidTo ?? { x: to.x, y: to.y + offset };
-    if (Math.sign(movedTo.x - movedFrom.x) === -Math.sign(to.x - from.x)) {
-      throw new Error("Diagonal segment move would reverse the segment");
-    }
-    const mode = modes[segmentIndex] ?? "manual";
-    if (slidTo) points[segmentIndex + 1] = slidTo;
-    else {
-      points.splice(segmentIndex + 1, 0, movedTo);
-      modes.splice(segmentIndex, 0, mode);
-    }
-    if (slidFrom) points[segmentIndex] = slidFrom;
-    else {
-      points.splice(segmentIndex + 1, 0, movedFrom);
-      modes.splice(segmentIndex, 0, mode);
-    }
-    const normalized = normalizeRouteGeometry(points, modes);
-    if (!isOctilinear(normalized.points)) {
-      throw new Error(
-        "Diagonal segment move would make geometry non-octilinear",
-      );
-    }
-    return {
-      waypoints: normalized.points.slice(1, -1),
-      segmentModes: normalized.segmentModes,
-    };
+    return moveDiagonalSegment(
+      points,
+      modes,
+      segmentIndex,
+      target,
+      origin,
+      carried,
+    );
   }
 
   // A slanted leg outside the 45-degree family should never survive an

@@ -260,6 +260,76 @@ describe("routing Edit Engine", () => {
     expect(moved.ok).toBe(true);
   });
 
+  it("moves a Junction onto the pin that ends its removed stub", () => {
+    // A carried tap dragged onto the pin at the end of its stub collapses
+    // the stub. Removing that Route's geometry states it explicitly.
+    const document = createEmptyDocument("stub-collapse", "Stub collapse");
+    document.presentation.grid = 10;
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 140, y: 300 }, rotation: 0, mirror: "none" },
+    });
+    const pin = { kind: "terminal" as const, instanceId: "R1", pinName: "1" };
+    document.nets.push({
+      id: "n1",
+      terminals: [{ instanceId: "R1", pinName: "1" }],
+    });
+    const connection = resolveEndpointConnection(document, resolver, pin)!;
+    const contact = connection.contactPoint;
+    const outward = connection.outward!;
+    const along = (distance: number) => ({
+      x: contact.x + outward.x * distance,
+      y: contact.y + outward.y * distance,
+    });
+    document.junctions.push(
+      { id: "tap", netId: "n1", position: along(20) },
+      { id: "end", netId: "n1", position: along(70), role: "route-anchor" },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "stub",
+        netId: "n1",
+        start: { kind: "junction", junctionId: "tap" },
+        end: pin,
+        bends: [],
+        modes: ["manual"],
+      }),
+      createRoutePath({
+        id: "wire",
+        netId: "n1",
+        start: { kind: "junction", junctionId: "tap" },
+        end: { kind: "junction", junctionId: "end" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const moved = executeTransaction(
+      document,
+      transaction(document.id, 0, [
+        { kind: "move_junction", junctionId: "tap", position: contact },
+        routeEdit({
+          routeId: "wire",
+          netId: "n1",
+          from: { kind: "junction", junctionId: "tap" },
+          to: { kind: "junction", junctionId: "end" },
+          waypoints: [],
+          segmentModes: ["manual"],
+        }),
+        { kind: "remove_route_geometry", routeId: "stub" },
+      ]),
+      context,
+    );
+    expect(moved.ok).toBe(true);
+    if (!moved.ok) return;
+    expect(moved.document.routes.map((route) => route.id)).not.toContain(
+      "stub",
+    );
+    expect(moved.document.nets.flatMap((net) => net.terminals)).toEqual([
+      { instanceId: "R1", pinName: "1" },
+    ]);
+  });
+
   it("keeps a tapped VDD rail contiguous when it is resized or moved", () => {
     const document = createEmptyDocument("vdd-manipulation", "VDD edit");
     document.nets.push({
@@ -920,6 +990,103 @@ describe("routing Edit Engine", () => {
         isOrthogonal(points),
       );
     }
+  });
+
+  it("moves a 45-degree run along the drag axis and carries its Junctions", () => {
+    // Leg, diagonal, leg between two three-way tap Junctions.
+    const document = createEmptyDocument("zig", "Zig");
+    document.nets.push({ id: "n", terminals: [] });
+    document.junctions.push(
+      { id: "left", netId: "n", position: { x: 100, y: 200 } },
+      { id: "right", netId: "n", position: { x: 250, y: 250 } },
+    );
+    for (const [tap, id, y] of [
+      ["left", "left-up", 150],
+      ["left", "left-down", 250],
+      ["right", "right-up", 200],
+      ["right", "right-down", 300],
+    ] as const) {
+      document.junctions.push({
+        id,
+        netId: "n",
+        position: { x: tap === "left" ? 100 : 250, y },
+        role: "route-anchor",
+      });
+      document.routes.push(
+        createRoutePath({
+          id: `${id}-stub`,
+          netId: "n",
+          start: { kind: "junction", junctionId: tap },
+          end: { kind: "junction", junctionId: id },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+    }
+    document.routes.push(
+      createRoutePath({
+        id: "zig",
+        netId: "n",
+        start: { kind: "junction", junctionId: "left" },
+        end: { kind: "junction", junctionId: "right" },
+        bends: [
+          { x: 150, y: 200 },
+          { x: 200, y: 250 },
+        ],
+        modes: ["manual", "manual", "manual"],
+      }),
+    );
+    const drag = (delta: Point) => {
+      const origin = { x: 180, y: 230 };
+      const plan = proposeWireSegmentMove(
+        document,
+        resolver,
+        "zig",
+        1,
+        { x: origin.x + delta.x, y: origin.y + delta.y },
+        origin,
+      );
+      const moved = executeTransaction(
+        document,
+        transaction(document.id, 0, plan.edits),
+        context,
+      );
+      if (!moved.ok) throw new Error(JSON.stringify(moved));
+      return moved.document;
+    };
+    const centerline = (moved: typeof document, routeId: string) =>
+      resolveRouteGeometry(
+        moved,
+        resolver,
+        moved.routes.find((route) => route.id === routeId)!,
+      )?.centerline;
+    const at = (moved: typeof document, junctionId: string) =>
+      moved.junctions.find((junction) => junction.id === junctionId)?.position;
+
+    // Sideways: only the diagonal moves; its horizontal legs stretch.
+    const sideways = drag({ x: -20, y: 5 });
+    expect(centerline(sideways, "zig")).toEqual([
+      { x: 100, y: 200 },
+      { x: 130, y: 200 },
+      { x: 180, y: 250 },
+      { x: 250, y: 250 },
+    ]);
+    expect(at(sideways, "left")).toEqual({ x: 100, y: 200 });
+
+    // Down: the legs travel with it and both taps slide down their stubs.
+    const down = drag({ x: 5, y: 20 });
+    expect(centerline(down, "zig")).toEqual([
+      { x: 100, y: 220 },
+      { x: 150, y: 220 },
+      { x: 200, y: 270 },
+      { x: 250, y: 270 },
+    ]);
+    expect(at(down, "left")).toEqual({ x: 100, y: 220 });
+    expect(at(down, "right")).toEqual({ x: 250, y: 270 });
+    expect(centerline(down, "left-up-stub")).toEqual([
+      { x: 100, y: 220 },
+      { x: 100, y: 150 },
+    ]);
   });
 
   it("doglegs a slanted leg between two pins at the dragged coordinate", () => {

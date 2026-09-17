@@ -29,6 +29,7 @@ import {
 import {
   moveRouteSegment,
   normalizeRouteGeometry,
+  planDiagonalSegmentDrag,
   usablePinAxis,
   type PinAxis,
   type RouteEditPath,
@@ -786,6 +787,7 @@ export function proposeWireSegmentDrag(
   routeId: string,
   segmentIndex: number,
   target: Point,
+  origin?: Point,
 ): WireSegmentDragProposal {
   return tidyDragProposal(
     document,
@@ -796,8 +798,69 @@ export function proposeWireSegmentDrag(
       routeId,
       segmentIndex,
       target,
+      origin,
     ),
   );
+}
+
+/** Stretch every other Route at the Junctions a segment drag carries. */
+function stretchRoutesAtMovedJunctions(
+  document: SchematicDocument,
+  routingGeometry: ResolvedDocumentRoutingGeometry,
+  draggedRouteId: string,
+  movedJunctions: ReadonlyMap<string, Point>,
+): RouteStretchProposal[] {
+  const proposals: RouteStretchProposal[] = [];
+  for (const route of document.routes) {
+    if (route.id === draggedRouteId) continue;
+    const fromAnchor = movableSegmentJunctionId(document, route.start);
+    const toAnchor = movableSegmentJunctionId(document, routeEnd(route));
+    const movedFrom = fromAnchor ? movedJunctions.get(fromAnchor) : undefined;
+    const movedTo = toAnchor ? movedJunctions.get(toAnchor) : undefined;
+    if (!movedFrom && !movedTo) continue;
+    const polyline = routeEditPathFromGeometry(routingGeometry, route.id);
+    if (!polyline) throw new Error(`Route ${route.id} has unresolved geometry`);
+    const points = polyline.points.map((point) => ({ ...point }));
+    const modes = [...polyline.segmentModes];
+    if (movedFrom) {
+      stretchRouteEndpoint(
+        route.id,
+        points,
+        modes,
+        "from",
+        polyline.points[0]!,
+        movedFrom,
+      );
+    }
+    if (movedTo) {
+      stretchRouteEndpoint(
+        route.id,
+        points,
+        modes,
+        "to",
+        polyline.points.at(-1)!,
+        movedTo,
+      );
+    }
+    proposals.push(normalizeProposal(route.id, points, modes));
+  }
+  return proposals;
+}
+
+function segmentDragProposal(
+  routes: readonly RouteStretchProposal[],
+  movedJunctions: ReadonlyMap<string, Point>,
+): WireSegmentDragProposal {
+  return {
+    routes: [...routes].sort((left, right) =>
+      left.routeId.localeCompare(right.routeId, "en"),
+    ),
+    junctions: [...movedJunctions.entries()]
+      .map(([junctionId, position]) => ({ junctionId, position }))
+      .sort((left, right) =>
+        left.junctionId.localeCompare(right.junctionId, "en"),
+      ),
+  };
 }
 
 function proposeWireSegmentDragGeometry(
@@ -806,6 +869,7 @@ function proposeWireSegmentDragGeometry(
   routeId: string,
   segmentIndex: number,
   target: Point,
+  origin: Point | undefined,
 ): WireSegmentDragProposal {
   const selectedRoute = document.routes.find((route) => route.id === routeId);
   if (!selectedRoute) throw new Error(`Route not found: ${routeId}`);
@@ -853,73 +917,82 @@ function proposeWireSegmentDragGeometry(
   const rightAnchorId = selectedEndpointJunction(segmentIndex + 1);
 
   if (diagonal) {
-    const slope = Math.sign(
-      (toPoint.y - fromPoint.y) / (toPoint.x - fromPoint.x),
+    // The diagonal and any leg perpendicular to the pointer's axis translate
+    // as one run. A Junction at either end of that run travels with it, and
+    // its other branches stretch, exactly as for an orthogonal segment.
+    const drag = planDiagonalSegmentDrag(
+      selectedPolyline.points,
+      segmentIndex,
+      target,
+      origin,
     );
-    const offset =
-      target.y - slope * target.x - (fromPoint.y - slope * fromPoint.x);
-    const movedJunctions = new Map<string, Point>();
-    for (const anchorId of [leftAnchorId, rightAnchorId]) {
-      if (!anchorId || movedJunctions.has(anchorId)) continue;
-      const junction = document.junctions.find(
-        (candidate) => candidate.id === anchorId,
-      )!;
-      // Vertical translation is an exact perpendicular offset for either
-      // 45-degree heading.  Incident routes are then stretched by the same
-      // shared Junction proposal as an orthogonal drag.
-      movedJunctions.set(anchorId, {
-        x: junction.position.x,
-        y: junction.position.y + offset,
-      });
-    }
-    if (movedJunctions.size > 0) {
-      const planned = proposeJunctionGroupTranslation(
-        document,
-        resolver,
-        [...movedJunctions.entries()].map(([junctionId, position]) => ({
-          junctionId,
-          position,
-        })),
-      );
-      const anchorIds = [leftAnchorId, rightAnchorId].filter(
-        (value): value is string => value !== null,
-      );
-      try {
-        assertJunctionBranchesStayVisible(
-          document,
-          routingGeometry,
-          planned,
-          anchorIds,
-        );
-        return planned;
-      } catch {
-        const doglegged: WireSegmentDragProposal = {
-          routes: [
-            {
-              routeId,
-              ...moveRouteSegment(selectedPolyline, segmentIndex, target),
-            },
-          ],
-          junctions: [],
-        };
-        assertJunctionBranchesStayVisible(
-          document,
-          routingGeometry,
-          doglegged,
-          anchorIds,
-        );
-        return doglegged;
-      }
-    }
-    return {
+    const firstAnchorId = selectedEndpointJunction(drag.first);
+    const lastAnchorId = selectedEndpointJunction(drag.last);
+    const doglegged = (): WireSegmentDragProposal => ({
       routes: [
         {
           routeId,
-          ...moveRouteSegment(selectedPolyline, segmentIndex, target),
+          ...moveRouteSegment(selectedPolyline, segmentIndex, target, {
+            origin,
+          }),
         },
       ],
       junctions: [],
-    };
+    });
+    const anchorIds = [firstAnchorId, lastAnchorId].filter(
+      (value): value is string => value !== null,
+    );
+    if (anchorIds.length === 0) return doglegged();
+    try {
+      const movedJunctions = new Map<string, Point>();
+      for (const anchorId of anchorIds) {
+        const junction = document.junctions.find(
+          (candidate) => candidate.id === anchorId,
+        )!;
+        movedJunctions.set(anchorId, {
+          x: junction.position.x + drag.move.x,
+          y: junction.position.y + drag.move.y,
+        });
+      }
+      const planned = segmentDragProposal(
+        [
+          {
+            routeId,
+            ...moveRouteSegment(selectedPolyline, segmentIndex, target, {
+              origin,
+              carried: {
+                from: firstAnchorId !== null,
+                to: lastAnchorId !== null,
+              },
+            }),
+          },
+          ...stretchRoutesAtMovedJunctions(
+            document,
+            routingGeometry,
+            routeId,
+            movedJunctions,
+          ),
+        ],
+        movedJunctions,
+      );
+      assertJunctionBranchesStayVisible(
+        document,
+        routingGeometry,
+        planned,
+        anchorIds,
+      );
+      return planned;
+    } catch {
+      // As for an orthogonal segment: leave the Junction and jog to it.
+      const fallback = doglegged();
+      assertJunctionBranchesStayVisible(
+        document,
+        routingGeometry,
+        fallback,
+        anchorIds,
+      );
+      return fallback;
+    }
   }
 
   // Ordinary single-Route bends keep the established dogleg behavior. The
@@ -987,56 +1060,18 @@ function proposeWireSegmentDragGeometry(
     selectedModes.splice(modeIndex, 1, mode, mode);
   }
 
-  const proposals = new Map<string, RouteStretchProposal>();
-  proposals.set(
-    routeId,
-    normalizeProposal(routeId, selectedPoints, selectedModes),
-  );
-
-  for (const route of document.routes) {
-    if (route.id === routeId) continue;
-    const fromAnchor = movableSegmentJunctionId(document, route.start);
-    const toAnchor = movableSegmentJunctionId(document, routeEnd(route));
-    const movedFrom = fromAnchor ? movedJunctions.get(fromAnchor) : undefined;
-    const movedTo = toAnchor ? movedJunctions.get(toAnchor) : undefined;
-    if (!movedFrom && !movedTo) continue;
-    const polyline = routeEditPathFromGeometry(routingGeometry, route.id);
-    if (!polyline) throw new Error(`Route ${route.id} has unresolved geometry`);
-    const points = polyline.points.map((point) => ({ ...point }));
-    const modes = [...polyline.segmentModes];
-    if (movedFrom) {
-      stretchRouteEndpoint(
-        route.id,
-        points,
-        modes,
-        "from",
-        polyline.points[0]!,
-        movedFrom,
-      );
-    }
-    if (movedTo) {
-      stretchRouteEndpoint(
-        route.id,
-        points,
-        modes,
-        "to",
-        polyline.points.at(-1)!,
-        movedTo,
-      );
-    }
-    proposals.set(route.id, normalizeProposal(route.id, points, modes));
-  }
-
-  const planned: WireSegmentDragProposal = {
-    routes: [...proposals.values()].sort((leftProposal, rightProposal) =>
-      leftProposal.routeId.localeCompare(rightProposal.routeId, "en"),
-    ),
-    junctions: [...movedJunctions.entries()]
-      .map(([junctionId, position]) => ({ junctionId, position }))
-      .sort((leftMove, rightMove) =>
-        leftMove.junctionId.localeCompare(rightMove.junctionId, "en"),
+  const planned = segmentDragProposal(
+    [
+      normalizeProposal(routeId, selectedPoints, selectedModes),
+      ...stretchRoutesAtMovedJunctions(
+        document,
+        routingGeometry,
+        routeId,
+        movedJunctions,
       ),
-  };
+    ],
+    movedJunctions,
+  );
   // Carrying the Junction is the nicer result while it works — the tap slides
   // and nothing bends. Once it would bury a branch, the Junction stays put and
   // the dragged Route doglegs to reach it instead, so the pointer is still

@@ -271,8 +271,10 @@ Topology operations have these preconditions:
   source-backed Ground repair at the explicit import boundary.
 - `move_junction` preserves topology and must be paired with `set_route_path`
   edits for every incident Route whose geometry changes in the same
-  transaction. GUI movement planners always author those Route edits; Routes
-  protected by locked geometry reject the move.
+  transaction, or with `remove_route_geometry` for a Route the move collapses
+  (for example a stub whose Junction lands on the pin at its far end). GUI
+  movement planners always author those Route edits; Routes protected by
+  locked geometry reject the move.
 - `move_instance` stretches unprotected connected Routes under their existing
   geometry constraint (orthogonal, octilinear, or free; [routing rationale](../adr/routing.md)). A
   Route with a locked/trunk adjacent segment is
