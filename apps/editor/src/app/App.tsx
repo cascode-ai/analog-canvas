@@ -6880,6 +6880,11 @@ export function App({
         wireCornerOrder={wireCornerOrder}
         recoveryLabel={isDirtyWork() ? recoveryStateLabel(recoveryState) : null}
         zoomPercent={zoomPercent}
+        gridVisible={gridDotsVisible}
+        onToggleGrid={() => {
+          setGridDotsVisible(!gridDotsVisible);
+          setStatus(gridDotsVisible ? "Grid off" : "Grid on");
+        }}
         selectionFilterSummary={selectionFilterSummary(selectionFilter)}
         onOpenSelectionFilter={() =>
           editorCommands.execute({ id: "selection.filter.open" })

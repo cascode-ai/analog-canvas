@@ -16,6 +16,8 @@ describe("editor statusbar", () => {
         wireCornerOrder="horizontal-first"
         recoveryLabel="Saved locally"
         zoomPercent={100}
+        gridVisible
+        onToggleGrid={vi.fn()}
         selectionFilterSummary={null}
         onOpenSelectionFilter={vi.fn()}
         onToggleWireOptions={vi.fn()}
@@ -33,8 +35,49 @@ describe("editor statusbar", () => {
     expect(markup).not.toContain('aria-label="Annotation grid"');
     expect(markup).not.toContain('aria-label="Draw angle"');
     expect(markup).not.toContain('aria-label="Scroll wheel"');
-    expect(markup).not.toContain("background dots");
   });
+
+  it.each([
+    [true, "Grid On", "hide"],
+    [false, "Grid Off", "show"],
+  ] as const)(
+    "offers a one-click grid toggle (visible=%s)",
+    (gridVisible, label, action) => {
+      const markup = renderToStaticMarkup(
+        <EditorStatusbar
+          status="Ready"
+          tool="pointer"
+          vddRailMode={false}
+          pendingSymbolId={null}
+          wireOptionsOpen={false}
+          wireRoutingMode="orthogonal"
+          wireCornerOrder="auto"
+          recoveryLabel={null}
+          zoomPercent={100}
+          gridVisible={gridVisible}
+          onToggleGrid={vi.fn()}
+          selectionFilterSummary={null}
+          onOpenSelectionFilter={vi.fn()}
+          onToggleWireOptions={vi.fn()}
+          onWireRoutingModeChange={vi.fn()}
+          onWireCornerOrderChange={vi.fn()}
+          onOpenAnalytics={vi.fn()}
+          onZoomOut={vi.fn()}
+          onZoomIn={vi.fn()}
+          onFitView={vi.fn()}
+        />,
+      );
+      expect(markup).toContain('data-testid="statusbar-grid-toggle"');
+      expect(markup).toContain(`aria-pressed="${gridVisible}"`);
+      // The label is the full-width form; half-width CSS hides it and the
+      // accessible name stays "Grid".
+      expect(markup).toContain(
+        `<span class="statusbar-grid-label">${label}</span>`,
+      );
+      expect(markup).toContain('aria-label="Grid"');
+      expect(markup).toContain(`click to ${action} the background grid`);
+    },
+  );
 
   function statusbarWithIssues(issues: {
     checkStatus?: import("../../app/project-check").ProjectCheckStatus;
@@ -53,6 +96,8 @@ describe("editor statusbar", () => {
         wireCornerOrder="auto"
         recoveryLabel={null}
         zoomPercent={100}
+        gridVisible
+        onToggleGrid={vi.fn()}
         selectionFilterSummary={null}
         onOpenSelectionFilter={vi.fn()}
         issues={issues}
@@ -91,6 +136,8 @@ describe("editor statusbar", () => {
         wireCornerOrder="auto"
         recoveryLabel={null}
         zoomPercent={100}
+        gridVisible
+        onToggleGrid={vi.fn()}
         selectionFilterSummary="Filter: Wires"
         onOpenSelectionFilter={vi.fn()}
         onToggleWireOptions={vi.fn()}

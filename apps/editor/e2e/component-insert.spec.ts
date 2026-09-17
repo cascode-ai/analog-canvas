@@ -12,6 +12,7 @@ import {
   setComponentCodeField,
   expectComponentCodeField,
   readComponentPropertyCode,
+  readDocumentStyleCode,
   recoveryProjectTexts,
 } from "./editor-fixtures.js";
 
@@ -219,6 +220,38 @@ test("blocks destructive browser refresh shortcuts and uses the stronger grid", 
   await expect(page.locator('[data-canvas-hit-kind="instance"]')).toHaveCount(
     0,
   );
+});
+
+test("the status bar toggles the grid, labelled full-width and an icon half-width", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  const toggle = page.getByRole("button", { name: "Grid", exact: true });
+  const label = toggle.locator(".statusbar-grid-label");
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect(label).toHaveText("Grid On");
+  await expect(label).toBeVisible();
+  await expect(page.getByTestId("canvas-grid-dots")).toBeVisible();
+
+  await toggle.click();
+  await expect(page.getByTestId("canvas-grid-dots")).toHaveCount(0);
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await expect(label).toHaveText("Grid Off");
+  // Style settings show the state the status bar set.
+  expect(JSON.parse(await readDocumentStyleCode(page)).canvas.showGrid).toBe(
+    false,
+  );
+  await page.getByTestId("draw-tool-document-style").click();
+
+  // A window snapped to half of a common desktop keeps only the icon.
+  await page.setViewportSize({ width: 960, height: 800 });
+  await expect(label).toBeHidden();
+  expect((await toggle.boundingBox())!.width).toBeLessThanOrEqual(32);
+  await toggle.click();
+  await expect(page.getByTestId("canvas-grid-dots")).toBeVisible();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
 });
 
 test("mirrors component and copy placement previews before their commits", async ({

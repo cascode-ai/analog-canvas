@@ -332,8 +332,11 @@ tool replaces the current interaction atomically after drag and snap cleanup.
 During component or Copy Placement, `R` turns the transient preview by 90 degrees;
 `Shift+R` mirrors it left/right and `Ctrl/Cmd+R` mirrors it top/bottom. Every
 subsequent committed copy receives the same transient orientation, while the
-source selection remains unchanged. The background grid-dot button changes
-only the editor-local canvas paint. Instance reference labels use the first active Document grid line one interval beyond
+source selection remains unchanged. The status bar's grid button, beside the
+zoom controls, shows and hides the background grid dots in one click; it reads
+**Grid On** / **Grid Off** in wide windows and collapses to its icon at
+half-window widths (1100px and below). It is the same editor-local state as
+`canvas.showGrid` in Style settings and changes only the canvas paint. Instance reference labels use the first active Document grid line one interval beyond
 the drawn symbol ink. The padded interaction envelope never contributes to
 that clearance, and placement uses nearest-grid normalization for calibrated
 finite-decimal ink edges rather than directional outward snapping. A 45-degree

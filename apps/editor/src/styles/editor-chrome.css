@@ -911,6 +911,46 @@
   background: var(--icm-surface);
 }
 
+/* The grid toggle sits with the zoom controls at the right end. */
+.statusbar-view-controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--icm-space-2);
+}
+
+/* Background grid on/off, one click from the canvas. Same chip language as
+   the status items; pressed while the grid is shown. */
+.statusbar-grid-toggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--icm-space-1);
+  min-height: 28px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: 999px;
+  color: var(--icm-text-muted);
+  background: var(--icm-surface-muted);
+  box-shadow: none;
+  font-size: var(--icm-font-xs);
+  font-weight: 600;
+  line-height: var(--icm-line-tight);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.statusbar-grid-toggle:hover {
+  background: var(--icm-surface-hover);
+}
+
+.statusbar-grid-toggle[aria-pressed="true"] {
+  border-color: transparent;
+  color: var(--icm-accent);
+  background: var(--icm-accent-tint);
+  box-shadow: none;
+}
+
 .statusbar-analytics {
   margin-left: auto;
   color: var(--icm-text-muted);
@@ -1059,6 +1099,18 @@
   .app-chrome-actions .tokenzhang-link-icon {
     width: 16px;
     height: 16px;
+  }
+
+  /* Half-width windows keep the grid toggle as a round icon button; its
+     tooltip and accessible name stay. */
+  .statusbar-grid-label {
+    display: none;
+  }
+
+  .statusbar-grid-toggle {
+    justify-content: center;
+    width: 28px;
+    padding: 0;
   }
 }
 
