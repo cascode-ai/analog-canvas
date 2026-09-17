@@ -1,6 +1,6 @@
 # Project File Compatibility
 
-The current Project schema version is `56`. It retains schematic-only
+The current Project schema version is `57`. It retains schematic-only
 hierarchy integrity, a Project structural revision, stable formal Cell ports,
 and definition-level Cell symbol presentation. It also has one typed Instance
 netlist authority, formal Cell parameters, and Project-local external
@@ -77,7 +77,7 @@ arrowheads, dots, no head, and legacy open arrowheads. Unset ends preserve the
 previous head style, placement, and scale; v54 content changes only its stamp.
 These additions do not invent intent while upgrading an older Project.
 The original file is never overwritten silently. Schemas older than v24 and
-versions newer than v56 are rejected by the project-file boundary.
+versions newer than v57 are rejected by the project-file boundary.
 
 The canonical-current corpus at
 [`fixtures/projects/compatibility-corpus.json`](../../fixtures/projects/compatibility-corpus.json)
@@ -114,3 +114,8 @@ netlist output. The schema 55 upgrade preserves all existing Route data and
 changes only the version stamp. MOS bulk connections retain their dedicated
 dash pattern. Select a Wire and set `appearance.lineStyle` in its Properties
 code to change it.
+
+Schema 57 makes a locally authored VDD Power Rail an explicit formal Cell Pin.
+Opening a schema-56 Project attaches a stable Cell terminal to each local
+Rail's existing visible label without changing its physical Net or geometry.
+Explicitly Global Rails remain global declarations without Cell Pins.

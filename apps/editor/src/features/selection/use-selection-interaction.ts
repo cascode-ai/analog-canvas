@@ -1486,7 +1486,11 @@ export function useSelectionInteraction(
       (terminal) =>
         terminal.interfaceInstanceIds.some((instanceId) =>
           deletionSeed.instanceIds.includes(instanceId),
-        ),
+        ) ||
+        (terminal.interfaceAnnotationId !== undefined &&
+          deletionPlan.affected.electricalAnnotationIds.includes(
+            terminal.interfaceAnnotationId,
+          )),
     );
     if (formalTerminals.length > 0) {
       if (

@@ -103,6 +103,21 @@ export function applyCellInterfaceEdit(
       }
       if (edit.name !== undefined) {
         terminal.name = edit.name;
+        if (terminal.interfaceAnnotationId) {
+          for (const evidence of draft.connectivityEvidence) {
+            if (
+              evidence.kind === "name-claim" &&
+              evidence.netId === terminal.netId &&
+              evidence.scope === "local" &&
+              evidence.powerDomain === "vdd" &&
+              evidence.owner.kind === "power-marker" &&
+              evidence.owner.objectId === terminal.interfaceAnnotationId
+            ) {
+              evidence.name = edit.name;
+              changedObjectIds.add(evidence.id);
+            }
+          }
+        }
         for (const annotation of draft.annotations) {
           if (
             annotation.binding?.kind === "cell-terminal-name" &&

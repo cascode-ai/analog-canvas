@@ -2,15 +2,15 @@
 
 Status: `accepted`
 
-Project schema: `56`
+Project schema: `57`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
 
 An `.icproj.json` file is canonical JSON for one complete `CircuitProject`.
-The current-only model validates schema 56. The public `parseProject` boundary
-accepts schemas 24 through 56, runs the explicit contiguous upgrade chain, and
-returns only the current shape. Serialization writes only schema 56.
+The current-only model validates schema 57. The public `parseProject` boundary
+accepts schemas 24 through 57, runs the explicit contiguous upgrade chain, and
+returns only the current shape. Serialization writes only schema 57.
 Versions outside that range are rejected.
 
 [The loader](../../packages/project-protocol/src/load.ts) and its adjacent
@@ -35,8 +35,9 @@ an unsolicited bulk conversion of Gallery, Cloud or recovery data.
 ## Current authorities
 
 - `Document.netlist.terminals` defines ordered authored Cell-Pin declarations
-  with stable identity, direction, Net binding, and exactly one ordinary Cell
-  Pin Instance. Equal case-folded names identify one Logical Net without
+  with stable identity, direction, Net binding, and exactly one interface owner:
+  either an ordinary Cell Pin Instance or a visible Power Rail annotation. Equal
+  case-folded names identify one Logical Net without
   physically merging their independently authored Base Nets.
 - `Document.netlist.formalParameters` and project-level
   `externalSubcircuitDefinitions` define exact nonlocal netlist interfaces.
@@ -73,8 +74,8 @@ an unsolicited bulk conversion of Gallery, Cloud or recovery data.
 - A marker claim may classify its Logical Net as `vdd` or `ground`; role never
   substitutes for name identity.
 - A named Power Rail uses an ordinary Base Net, Route/Junction geometry, a
-  local VDD name claim by default, and a bound RichText annotation. Explicitly
-  targeting an existing Global Net retains that Net's scope.
+  local VDD name claim by default, and a bound RichText annotation that owns a
+  formal Cell terminal. An explicitly Global Rail has no formal terminal.
 - Every visible editable label is a RichText annotation. `instance-reference`
   projects only `Instance.reference`; `instance-value`, `net-name`, and
   `cell-terminal-name` project their own typed facts. Other attached labels,
@@ -114,8 +115,8 @@ an unsolicited bulk conversion of Gallery, Cloud or recovery data.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project schema 24 through 56
--> converge to schema 56 -> strict schema-56 validation -> install unbound
+import text -> parse JSON -> require Project schema 24 through 57
+-> converge to schema 57 -> strict schema-57 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -139,7 +140,7 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its `current` entries must all be
-already canonical Project schema 56. Explicit `migrated` witnesses retain their
+already canonical Project schema 57. Explicit `migrated` witnesses retain their
 source bytes and declared source version; loading and saving must produce a
 byte-stable current Project. The rejected corpus names expected validation
 failures. These are test inventory categories, not new Project fields.

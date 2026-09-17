@@ -928,8 +928,8 @@ test("places a vertical Power Rail from I and renames it on the canvas", async (
   await canvas.click({ position: { x: 260, y: 380 } });
   await page.keyboard.press("Escape");
 
-  // The quick pick always lands the default VDD name; the label is the
-  // net-name authority, so editing it renames the rail to AVDD.
+  // The quick pick always lands the default VDD name. The visible label owns
+  // the formal Cell terminal, so editing it renames both the Pin and claim.
   await page.getByTestId("annotation-hit-label-VDD1").dblclick();
   const railEditor = page.getByRole("textbox", { name: "Canvas text editor" });
   await railEditor.fill("AVDD");
@@ -966,7 +966,7 @@ test("places a vertical Power Rail from I and renames it on the canvas", async (
       annotations: Array<{
         kind: string;
         netId: string;
-        binding?: { kind: string; netId?: string };
+        binding?: { kind: string; netId?: string; terminalId?: string };
       }>;
     }>;
   };
@@ -984,7 +984,7 @@ test("places a vertical Power Rail from I and renames it on the canvas", async (
     expect.objectContaining({
       kind: "power-label",
       netId: avdd!.id,
-      binding: { kind: "net-name", netId: avdd!.id },
+      binding: { kind: "cell-terminal-name", terminalId: expect.any(String) },
     }),
   );
 });

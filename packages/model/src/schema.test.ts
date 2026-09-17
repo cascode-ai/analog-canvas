@@ -293,6 +293,46 @@ describe("CircuitProject schema", () => {
     expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
   });
 
+  it("accepts a Power Rail label as the sole owner of a formal Cell terminal", () => {
+    const document = createEmptyProject("rail-cell-pin", "Rail Cell Pin")
+      .documents[0]!;
+    document.nets.push({ id: "net-vdd", terminals: [] });
+    document.annotations.push({
+      id: "rail-vdd-label",
+      kind: "power-label",
+      binding: {
+        kind: "cell-terminal-name",
+        terminalId: "terminal-vdd",
+      },
+      netId: "net-vdd",
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-vdd",
+      name: "VDD",
+      netId: "net-vdd",
+      direction: "inout",
+      interfaceInstanceIds: [],
+      interfaceAnnotationId: "rail-vdd-label",
+    });
+    document.connectivityEvidence.push({
+      id: "claim-vdd",
+      kind: "name-claim",
+      netId: "net-vdd",
+      name: "VDD",
+      scope: "local",
+      powerDomain: "vdd",
+      owner: { kind: "power-marker", objectId: "rail-vdd-label" },
+    });
+    expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
+
+    document.annotations[0]!.netId = "another-net";
+    expect(SchematicDocumentSchema.safeParse(document).success).toBe(false);
+  });
+
   it("holds electrical objects to the Document grid while annotations position freely", () => {
     const document = createEmptyProject("project-grid", "Grid").documents[0]!;
     // Schema 32 retains 1-unit-precise drafting and annotation anchors.

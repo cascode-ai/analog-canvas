@@ -57,6 +57,50 @@ function exported(
 }
 
 describe("netlist export presets", () => {
+  it.each(["spice", "spectre"] as const)(
+    "exports an authored local VDD Rail as a formal Cell Pin in %s",
+    (format) => {
+      const project = circuit();
+      const document = project.documents[0]!;
+      document.annotations.push({
+        id: "rail-vdd-label",
+        kind: "power-label",
+        binding: {
+          kind: "cell-terminal-name",
+          terminalId: "rail-vdd-terminal",
+        },
+        netId: "M2-B",
+        anchor: { kind: "free", position: { x: 0, y: 0 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+      document.connectivityEvidence.push({
+        id: "rail-vdd-claim",
+        kind: "name-claim",
+        netId: "M2-B",
+        name: "VDD",
+        scope: "local",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: "rail-vdd-label" },
+      });
+      document.netlist!.terminals.push({
+        id: "rail-vdd-terminal",
+        name: "VDD",
+        netId: "M2-B",
+        direction: "inout",
+        interfaceInstanceIds: [],
+        interfaceAnnotationId: "rail-vdd-label",
+      });
+
+      const result = exported(project, undefined, format);
+      expect(result.file.text).toContain(
+        format === "spice" ? ".subckt dut VDD\n" : "subckt dut (VDD)\n",
+      );
+      expect(result.file.text).not.toContain("VSS");
+      expect(result.file.text).not.toContain("global VDD");
+    },
+  );
   it.each([false, true])(
     "exports a local supply as a Pin only when formally declared (formal: %s)",
     (formal) => {

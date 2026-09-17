@@ -29,13 +29,28 @@ export const SourceBindingSchema = z.strictObject({
   cellName: z.string().min(1),
   sourceRef: SourceSpanSchema,
 });
-export const CellNetlistTerminalSchema = z.strictObject({
-  id: StableIdSchema,
-  name: NetlistIdentifierSchema,
-  netId: StableIdSchema,
-  direction: z.enum(["input", "output", "inout", "passive"]),
-  interfaceInstanceIds: z.array(StableIdSchema).length(1),
-});
+export const CellNetlistTerminalSchema = z
+  .strictObject({
+    id: StableIdSchema,
+    name: NetlistIdentifierSchema,
+    netId: StableIdSchema,
+    direction: z.enum(["input", "output", "inout", "passive"]),
+    interfaceInstanceIds: z.array(StableIdSchema).max(1),
+    interfaceAnnotationId: StableIdSchema.optional(),
+  })
+  .superRefine((terminal, context) => {
+    if (
+      terminal.interfaceInstanceIds.length +
+        (terminal.interfaceAnnotationId ? 1 : 0) !==
+      1
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Cell terminal requires exactly one interface owner",
+        path: ["interfaceInstanceIds"],
+      });
+    }
+  });
 export const CellNetlistFormalParameterSchema = z.strictObject({
   name: NetlistIdentifierSchema,
   defaultValue: NetlistParameterValueSchema.optional(),
@@ -139,6 +154,7 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
       }
       const terminalIds = new Set<string>();
       const cellPinInstanceIds = new Set<string>();
+      const cellPinAnnotationIds = new Set<string>();
       for (const [
         terminalIndex,
         terminal,
@@ -151,6 +167,61 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
           });
         }
         terminalIds.add(terminal.id);
+        if (terminal.interfaceAnnotationId) {
+          if (cellPinAnnotationIds.has(terminal.interfaceAnnotationId)) {
+            context.addIssue({
+              code: "custom",
+              message: `Cell interface Annotation is assigned to multiple terminals: ${terminal.interfaceAnnotationId}`,
+              path: [
+                "netlist",
+                "terminals",
+                terminalIndex,
+                "interfaceAnnotationId",
+              ],
+            });
+          }
+          cellPinAnnotationIds.add(terminal.interfaceAnnotationId);
+          const annotation = document.annotations.find(
+            (candidate) => candidate.id === terminal.interfaceAnnotationId,
+          );
+          if (
+            annotation?.kind !== "power-label" ||
+            annotation.netId !== terminal.netId
+          ) {
+            context.addIssue({
+              code: "custom",
+              message: `Cell terminal requires a Power Label on Net ${terminal.netId}: ${terminal.interfaceAnnotationId}`,
+              path: [
+                "netlist",
+                "terminals",
+                terminalIndex,
+                "interfaceAnnotationId",
+              ],
+            });
+          }
+          const ownedClaim = document.connectivityEvidence.find(
+            (evidence) =>
+              evidence.kind === "name-claim" &&
+              evidence.netId === terminal.netId &&
+              evidence.name === terminal.name &&
+              evidence.scope === "local" &&
+              evidence.powerDomain === "vdd" &&
+              evidence.owner.kind === "power-marker" &&
+              evidence.owner.objectId === terminal.interfaceAnnotationId,
+          );
+          if (!ownedClaim) {
+            context.addIssue({
+              code: "custom",
+              message: `Power Rail Cell terminal requires a matching local VDD name claim: ${terminal.interfaceAnnotationId}`,
+              path: [
+                "netlist",
+                "terminals",
+                terminalIndex,
+                "interfaceAnnotationId",
+              ],
+            });
+          }
+        }
         for (const [
           markerIndex,
           interfaceInstanceId,
