@@ -98,7 +98,7 @@
     "components:generate": "node scripts/generate-component-library.mjs && node scripts/generate-razavi-symbol-catalog.mjs && node scripts/generate-agent-authoring-catalog.mjs",
     "components:check": "node scripts/generate-component-library.mjs --check && node scripts/generate-razavi-symbol-catalog.mjs --check",
     "agent-docs:generate": "node scripts/generate-agent-docs.mjs",
-    "agent-docs:check": "node scripts/generate-agent-docs.mjs --check && node --test scripts/generate-agent-docs.test.mjs"
+    "agent-docs:check": "node scripts/generate-agent-docs.mjs --check && pnpm test:local scripts/generate-agent-docs.test.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",

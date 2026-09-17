@@ -12,7 +12,7 @@ This is maintainer-only guidance, not a circuit operating resource. See the
 2. Run `pnpm agent-docs:generate`. It reads source files directly, including the
    code-generated symbol catalog and request schema; no adapter build is needed.
 3. Inspect `distribution.generated.json` for source/output SHA-256 and actual
-   destinations. Run `node --test scripts/generate-agent-docs.test.mjs` and
+   destinations. Run `pnpm test:local scripts/generate-agent-docs.test.mjs` and
    affected Kit, resources, CLI and connection-panel tests.
 4. Run `pnpm agent-docs:check` (also in `ci:static`). This is read-only and fails
    on stale output. Commit source, registry and generated output together.
