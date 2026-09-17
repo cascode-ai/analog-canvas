@@ -54,6 +54,17 @@ The acceptance review must cover:
 These are regression and closure obligations, not a new Net protocol, an
 automatic rerouter, or a requirement to restore retired APIs.
 
+## Deferred contract questions
+
+- Durable edit history: decide whether session-only Undo needs persistence,
+  compaction or recovery integration. Any accepted extension must preserve
+  revision/atomicity and the separate Save/recovery boundary; current
+  [session history](../specs/edit-engine.md#session-history) remains in memory.
+- Text portability: decide the required font-embedding and cross-format metric
+  guarantees using representative SVG/PDF renders. Current
+  [formal export](../specs/export.md) remains the accepted behavior; do not
+  infer portable font metrics from a passing browser screenshot alone.
+
 ## Execution discipline
 
 Select a bounded target and its owner before implementation. Use the current

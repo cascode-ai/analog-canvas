@@ -65,29 +65,10 @@ properties are invalid. Export extraction and printers do not read them.
 
 The Project model supplies these normalized facts:
 
-```typescript
-interface CellNetlistInterface {
-  name: string;
-  terminals: Array<{
-    id: StableId;
-    name: string;
-    direction: PortDirection;
-    netId: StableId;
-    interfaceInstanceIds: [StableId];
-  }>;
-  formalParameters: Array<{ name: string; defaultValue?: string }>;
-}
-
-interface InstanceNetlistData {
-  binding?:
-    | { kind: "primitive"; deviceClass: DeviceClass }
-    | { kind: "model"; deviceClass: DeviceClass; name: string }
-    | { kind: "subcircuit"; childDocumentId: StableId }
-    | { kind: "external-subcircuit"; definitionId: StableId }
-    | { kind: "unresolved-subcircuit"; name: string };
-  parameters: Record<string, string>;
-}
-```
+The [model schema](../../packages/model/src/schema.ts) owns persisted Cell
+interfaces and Instance bindings. Export reads ordered terminal declarations,
+raw formal defaults, typed targets and raw Instance parameters; it defines no
+parallel persisted shape.
 
 Cell names, references, target names, parameter names, and raw values are
 length-bounded. The shared first-release identifier subset is ASCII letters,
@@ -160,32 +141,9 @@ in `packages/devices`. Built-in Analog Blocks instead have a black-box
 subcircuit descriptor: a master name and ordered ports, including fixed supply
 ports.
 
-```typescript
-interface DeviceDescriptor {
-  id: string;
-  symbolId: StableId;
-  deviceClass:
-    | "resistor"
-    | "capacitor"
-    | "inductor"
-    | "mos"
-    | "diode"
-    | "bjt"
-    | "voltage-source"
-    | "current-source"
-    | "switch"
-    | "net-marker";
-  mosBulkClass?: "nmos" | "pmos";
-  referencePrefix: string | null;
-  pinOrder: string[];
-  targetPolicy: "builtin" | "required-model" | "child-cell" | "none";
-  sourceWaveformDefault?: "dc" | "pulse" | "sin" | "pwl";
-  parameters: DeviceParameterDefinition[];
-  dialects: ["spice", "spectre"];
-  capabilities: DeviceCapabilities;
-  // plus optional authoring-only pin metadata
-}
-```
+[DeviceDescriptor](../../packages/devices/src/contract.ts) owns canonical pin
+order, invocation policy, parameter metadata and supported dialects. The
+[registry](../../packages/devices/src/registry.ts) supplies reviewed entries.
 
 `DeviceParameterDefinition` is the same descriptor-owned field metadata used
 by Insert and Properties (key, label, requiredness, editor kind, optional unit
@@ -208,9 +166,9 @@ represented structurally. A display string is not a source specification.
 
 ## Net rules
 
-- Base-Net membership and the shared Logical-Net/interface resolver define
-  connectivity. Same-name scoped claims can join physically separate Base Nets;
-  the [schematic model](schematic-model.md#electrical-authority) owns that rule.
+- Extraction consumes the [connectivity contract](connectivity-and-routing.md#net-naming-and-lifecycle)
+  and the [formal interface](schematic-model.md#electrical-authority). It does
+  not reconstruct equivalence from spelling, drawing geometry or source hints.
 - Semantic scope is independent of emitted spelling. Project-global spelling
   is selected from current claims, formal names, declarations and source hints
   in authority order, retaining variants for explanation. The dialect codec
@@ -230,7 +188,6 @@ represented structurally. A display string is not a source specification.
 - Except for the established global SPICE ground reference `0`, one Logical
   Net cannot be both a formal Cell Pin and global; that ambiguity blocks export
   until the interface mode or the conflicting owner is changed.
-- A terminal belongs to at most one Net.
 - An unconnected terminal must carry an explicit `NoConnect`; otherwise export
   is blocked. Each explicit `NoConnect` receives one deterministic,
   collision-free exporter-only local node (`NC0001`, `NC0002`, ...), preserving
@@ -243,42 +200,9 @@ represented structurally. A display string is not a source specification.
 
 The export IR is distinct from the import-oriented `CircuitIR`:
 
-```typescript
-interface DesignNetlistIR {
-  topCellId: StableId;
-  cells: DesignNetlistCell[];
-  externalMasters?: DesignNetlistExternalMaster[];
-  globals: string[];
-}
-
-interface DesignNetlistCell {
-  id: StableId;
-  name: string;
-  ports: Array<{ id: StableId; name: string; netName: string }>;
-  nets: Array<{ id: StableId; name: string; scope: "local" | "global" }>;
-  instances: DesignNetlistInstance[];
-  formalParameters?: Array<{ name: string; defaultValue?: string }>;
-}
-
-// A referenced external or built-in Analog Block interface; never a body.
-interface DesignNetlistExternalMaster {
-  id: StableId;
-  name: string;
-  terminals: Array<{ id: StableId; name: string; direction: PortDirection }>;
-  formalParameters: Array<{ name: string; defaultValue?: string }>;
-}
-
-interface DesignNetlistInstance {
-  id: StableId;
-  reference: string;
-  invocationKind: "primitive" | "subcircuit";
-  reviewedExternalBindingId?: ReviewedExternalBindingId;
-  deviceClass: DeviceClass | "hierarchical";
-  target: string | null;
-  nodes: Array<{ pinName: string; netName: string }>;
-  parameters: Array<{ name: string; rawValue: string }>;
-}
-```
+[DesignNetlistIR](../../packages/netlist/src/ir.ts) owns the transient export
+shape: top Cell, ordered Cells and external masters, globals, named nodes,
+invocation kinds and raw parameters. It is never persisted as Project data.
 
 Extraction validates the entire reachable hierarchy before returning an IR.
 Cells are dependency-first with stable tie breaking. Ports follow the

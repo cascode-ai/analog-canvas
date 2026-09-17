@@ -1,49 +1,5 @@
 # Editor Interaction
 
-## Project-aware copy
-
-Internal `C`, Gallery canvas insertion, and the existing Agent copy command
-use the same Project-aware copy planner. C retains its pointer-following ghost,
-rotation/reflection shortcuts, repeated click placement, and Escape cancellation.
-Gallery selects the source top Cell body; referenced child Cells remain hierarchy
-and are imported as dependencies. Inserting a nonempty hierarchical Gallery entry
-does not replace the current Project.
-
-A transient copy capsule carries the selected objects, Cell parameter context,
-referenced external interfaces, child-Cell closure, symbol-library identity, and
-referenced source-file records. It is not persisted or added to the Agent API.
-Source-file records are provenance, not bundled PDK model contents. Simulation
-folders, simulator configuration, run results and unrelated Cells are not copied.
-
-Every placement allocates new canvas object IDs and collision-free References.
-Compatible external definitions are reused by validated interface and presentation,
-not by coincident source IDs. Incompatible same-name definitions or Cell parameter
-defaults reject before placement. Child imports share one immutable source snapshot;
-a changed source receives a new snapshot identity. A previously imported child that
-was edited in the destination cannot silently substitute for the captured source.
-
-Internal wires of a selected component group travel with the group. A single
-component does not automatically carry its unselected dangling wires. Explicitly
-selected wires can travel alone: unselected terminal endpoints become local free
-wire ends, without bringing the external devices. Route markers remap both Route
-and Leg identity. External visual anchors on copied drafting resolve to free
-positions; bound component labels require their component. Bulk connections are
-materialized as instance-owned connections rather than adopting target defaults.
-Necessary Net names whose original owners were outside the selection receive
-copy-owned labels. Name equality in the target Cell retains its ordinary electrical
-meaning; copying does not introduce an invisible Net namespace.
-
-Source and target must have compatible grid geometry and matching document style
-defaults. The current model cannot represent all symbol-stroke and junction-radius
-defaults per object, so incompatible defaults produce an explicit refusal instead
-of silently changing the drawing or overwriting target presentation.
-
-Dependency planning and preview do not write to the Project. Preview resolves
-symbols using the planned definitions, and placement rechecks the current target.
-Dependencies, instances, wires and interface updates commit as one existing Project
-transaction and one undo unit. Cancelled or rejected copies leave no definitions
-behind. Repeated placements share definitions but own separate canvas objects.
-
 Status: `accepted`
 
 Primary owner: `apps/editor`
@@ -310,52 +266,6 @@ commit. A rail explicitly drawn onto an existing Global supply retains that
 electrical connection. Deleting the rail also deletes its power label and rail-only Junctions;
 an otherwise-unused local Net follows the ordinary orphan lifecycle.
 
-## Project sessions
-
-New, Open, SPICE import, Gallery/built-in example open, and recovery restore are
-Project-session transitions rather than Document edits. A dirty current Project
-always requires an explicit discard or cancel decision before one of these
-transitions commits; a successful browser-recovery write is safety evidence,
-not authorization to replace the foreground Project. Candidate files and
-gallery/recovery payloads are parsed and validated before that decision.
-
-The editor has no Previous Project stack: replacing a live session does not
-retain the outgoing Project in memory for a later swap, and the File menu
-offers no **Previous Project** command.
-
-Project dirty detection covers `structureRevision` and every Document revision,
-not only the active Cell, and compares the content with the last acknowledged
-Cloud baseline so Undo can return to clean. **New Project** creates a new canonical Project with
-one empty Main Cell, no SPICE source manifest entries, and no external
-subcircuit definitions; it does not mutate the previous Project into an empty
-shell. Opening a Cloud Project binds its stable id and revision to the runtime
-session; importing a file does not. After a Cloud Save, **Revert to Last Saved**
-restores that acknowledged content through the same guard. Export and backup
-never establish or advance this baseline.
-
-## Cell reset lifecycle
-
-Cell reset commands live in the selected definition's **Cell Manager → Reset
-Cell** section. The Manager submits the existing Document edit through the
-Project `transact_document` boundary so an inactive Cell can be reset without
-opening it first; one Undo restores the atomic Project transaction. Each command
-previews an exact affected-object count before commit:
-
-- **Clear Drawing** removes authored Route geometry and drafting objects while
-  retaining Instances, Nets, Junction topology, ports, and semantic
-  annotations.
-- **Reset Cell Placement** returns every placed Instance to the Placement Tray,
-  removes Route geometry and placement constraints/groups, and retains the
-  devices, Nets, Junction topology, and formal interface.
-- **Reset Cell Body** removes non-interface electrical and drawing content but
-  retains formal terminals, their interface Port markers, their Nets, and
-  terminal annotations. Existing parent callers therefore keep the same pin
-  contract.
-
-**Delete Cell** remains a Project-structure transaction and is legal only for
-a non-top Cell with no callers. That precondition is checked by the hierarchy
-planner before the transaction is submitted.
-
 ## Interaction states
 
 The canonical reducer owns exactly one exclusive canvas interaction:
@@ -425,98 +335,6 @@ another active interaction. Undo/Redo may mutate the Document and therefore
 cancel a snapshot-dependent active interaction. Shortcut key assignments are
 independent of this state policy and remain unchanged.
 
-## Coordinate normalization
-
-Pointer and drag previews may retain finite float positions. Before an editor
-gesture creates or changes a Project point, it explicitly snaps to the active
-Document grid; preview or SVG geometry is never committed directly. Camera is
-also grid-aligned: Fit expands derived visual bounds outward to the grid, and
-zoom, pan, focus, Document activation, replacement, and Agent semantic focus
-all pass through the same camera normalizer. The viewport remains transient,
-but it cannot carry derived float bounds into the renderer's integer grid
-camera contract.
-
-Frame-zoom is one camera gesture with two entry buttons: right-drag from
-empty canvas, or Alt+left-drag for environments where system software
-(screenshot tools, mouse-driver gestures) hooks the right button before the
-browser receives the drag. A webpage cannot block system-level mouse hooks,
-so the Alt alias is the portable entry. Both draw the same transient frame
-preview and fit the camera to the framed region without touching the
-Document revision; a press that never exceeded one grid cell stays an
-ordinary click.
-
-Escape cancels the active preview without mutation. A committed gesture is one
-atomic transaction. Hover, geometric crossing, selection, and preview never
-change connectivity. A wire endpoint, explicit segment tap, or a moved Route
-segment landing exactly on a visible endpoint creates contact, whether that
-endpoint is a device pin or a Junction at the end of another wire. Two Route
-interiors crossing still do not connect.
-
-## Movement closure
-
-Every direct-manipulation selection move first derives one transient stable-ID
-routing closure. The editor keeps only gesture state; the Edit Engine's
-`planRoutingTransform()` is the shared authority for the semantic preview and
-the typed edits committed on pointer release. Neither object is Project data or
-an Agent API payload, and no pointer handler invents an independent follow set.
-
-Schematic movement follows the Virtuoso pairing. Plain `M` translates the
-selection while internal conductors follow and boundary Routes stretch without
-changing connectivity. `Shift+M` (and its Ctrl/Cmd-drag direct gesture) moves
-the selected Instances without their wires: every routed terminal is first
-replaced by an open Junction stub at the original landing, then the existing
-`disconnect_endpoint` edit removes that terminal from the old Base Net. The
-wire geometry remains byte-for-byte in place and the moved pin is electrically
-open. Both gestures use the same selection-move controller and existing typed
-edits; detached move is not a persisted mode or a second mutation protocol.
-
-The visual marquee is the user's explicit intent. Electrical closure then
-classifies that intent without changing connectivity:
-
-- selected Instances translate together;
-- a Route/Junction component whose terminal endpoints are all selected is
-  internal and translates intact;
-- a Route with exactly one selected Instance endpoint is a boundary Route and
-  is stretched while preserving its external endpoint;
-- an explicitly selected loose Route may translate only together with both of
-  its loose Junction anchors;
-- an ordinary connected Route or Junction that does not meet one of those
-  conditions is fixed for a group move. It is edited through the explicit
-  segment/branch tools, never silently detached or reconnected;
-- object- and route-anchored annotations follow their resolved target; free
-  annotations and free drafting objects translate only when explicitly
-  selected.
-
-The same boundary applies to `C` and Delete. `C` remains the existing modal
-copy-placement gesture (not Ctrl+C/Paste): its preview and commit use one
-preallocated clone mapping, internal routing is copied, and ordinary boundary
-pins are left open. Delete converts the complete visual selection to one graph
-deletion plan, so Route/Junction/attachment cleanup does not require a second
-Delete press. Formal Cell Pins retain their Project-level interface update,
-but its Document edits come from that same deletion plan.
-
-A copied Cell Pin always receives a fresh Instance and terminal identity. Its
-name and direction are preserved; an equal name is legal and affects only the
-read-only Formal Port projection. Copying a completely selected physical Net
-may clone that Net and its internal Routes. A selection boundary never creates
-shared identity from text and never guesses a new electrical connection.
-
-The planner authors the resulting geometry for every planned Route in the
-same transaction. Engine instance-follow remains the safe single-instance
-fallback, not a second progressive planner for a group gesture. Marquee Route
-selection tests actual polyline segments against the rectangle, rather than
-selecting a distant bend solely because its bounding box overlaps the gesture.
-
-The marquee is directional, following the classic drafting-tool pairing. A
-left-to-right drag is a window: an object joins the selection only when its
-geometry is fully contained (an outline rectangle needs all four corners; a
-Route needs its whole centerline). A right-to-left drag is a crossing: any
-geometric overlap selects, which preserves the previous behavior. A Junction
-is its point in both directions. The live preview distinguishes the modes
-(solid window, dashed crossing). Membership is decided by document geometry
-alone: the canvas suppresses native browser text selection, so a drag can
-never highlight or select labels outside the dragged rectangle.
-
 ## Selection alignment
 
 The session-only **Selection Filter** is enforced by one editor-local
@@ -565,6 +383,69 @@ complete alignment commits as one transaction and therefore one Undo step.
 The legacy `align_instances` typed edit remains a compatibility boundary for
 external callers; the GUI does not call it.
 
+## Movement closure
+
+Every direct-manipulation selection move first derives one transient stable-ID
+routing closure. The editor keeps only gesture state; the Edit Engine's
+`planRoutingTransform()` is the shared authority for the semantic preview and
+the typed edits committed on pointer release. Neither object is Project data or
+an Agent API payload, and no pointer handler invents an independent follow set.
+
+Schematic movement follows the Virtuoso pairing. Plain `M` translates the
+selection while internal conductors follow and boundary Routes stretch without
+changing connectivity. `Shift+M` (and its Ctrl/Cmd-drag direct gesture) moves
+the selected Instances without their wires: every routed terminal is first
+replaced by an open Junction stub at the original landing, then the existing
+`disconnect_endpoint` edit removes that terminal from the old Base Net. The
+wire geometry remains byte-for-byte in place and the moved pin is electrically
+open. Both gestures use the same selection-move controller and existing typed
+edits; detached move is not a persisted mode or a second mutation protocol.
+
+The visual marquee is the user's explicit intent. Electrical closure then
+classifies that intent without changing connectivity:
+
+- selected Instances translate together;
+- a Route/Junction component whose terminal endpoints are all selected is
+  internal and translates intact;
+- a Route with exactly one selected Instance endpoint is a boundary Route and
+  is stretched while preserving its external endpoint;
+- an explicitly selected loose Route may translate only together with both of
+  its loose Junction anchors;
+- an ordinary connected Route or Junction that does not meet one of those
+  conditions is fixed for a group move. It is edited through the explicit
+  segment/branch tools, never silently detached or reconnected;
+- object- and route-anchored annotations follow their resolved target; free
+  annotations and free drafting objects translate only when explicitly
+  selected.
+
+The same boundary applies to `C` and Delete. `C` remains the existing modal
+copy-placement gesture (not Ctrl+C/Paste): its preview and commit use one
+preallocated clone mapping, internal routing is copied, and ordinary boundary
+pins are left open. Delete converts the complete visual selection to one graph
+deletion plan, so Route/Junction/attachment cleanup does not require a second
+Delete press. Formal Cell Pins retain their Project-level interface update,
+but its Document edits come from that same deletion plan.
+
+[Project-aware copy](#project-aware-copy) owns cloned identity, dependencies
+and name semantics, including formal Cell Pins. Movement does not define a
+second copy protocol.
+
+The planner authors the resulting geometry for every planned Route in the
+same transaction. Engine instance-follow remains the safe single-instance
+fallback, not a second progressive planner for a group gesture. Marquee Route
+selection tests actual polyline segments against the rectangle, rather than
+selecting a distant bend solely because its bounding box overlaps the gesture.
+
+The marquee is directional, following the classic drafting-tool pairing. A
+left-to-right drag is a window: an object joins the selection only when its
+geometry is fully contained (an outline rectangle needs all four corners; a
+Route needs its whole centerline). A right-to-left drag is a crossing: any
+geometric overlap selects, which preserves the previous behavior. A Junction
+is its point in both directions. The live preview distinguishes the modes
+(solid window, dashed crossing). Membership is decided by document geometry
+alone: the canvas suppresses native browser text selection, so a drag can
+never highlight or select labels outside the dragged rectangle.
+
 ## No-reroute movement boundary
 
 The editor's finite direct-manipulation vocabulary is transient only:
@@ -589,6 +470,75 @@ individually selectable when it is the only hit, and Alt cycling deliberately
 selects an overlapping label. A deliberate double-click is an editing intent,
 not a movement intent: it resolves an overlapping editable annotation directly
 without requiring an Alt cycle.
+
+## Coordinate normalization
+
+Pointer and drag previews may retain finite float positions. Before an editor
+gesture creates or changes a Project point, it explicitly snaps to the active
+Document grid; preview or SVG geometry is never committed directly. Camera is
+also grid-aligned: Fit expands derived visual bounds outward to the grid, and
+zoom, pan, focus, Document activation, replacement, and Agent semantic focus
+all pass through the same camera normalizer. The viewport remains transient,
+but it cannot carry derived float bounds into the renderer's integer grid
+camera contract.
+
+Frame-zoom is one camera gesture with two entry buttons: right-drag from
+empty canvas, or Alt+left-drag for environments where system software
+(screenshot tools, mouse-driver gestures) hooks the right button before the
+browser receives the drag. A webpage cannot block system-level mouse hooks,
+so the Alt alias is the portable entry. Both draw the same transient frame
+preview and fit the camera to the framed region without touching the
+Document revision; a press that never exceeded one grid cell stays an
+ordinary click.
+
+Escape cancels the active preview without mutation. A committed gesture is one
+atomic transaction. Contact acquisition follows the
+[connectivity authoring rules](connectivity-and-routing.md#authoring-rules);
+hover and preview are not electrical mutations.
+
+## Project-aware copy
+
+Internal `C`, Gallery canvas insertion, and the existing Agent copy command
+use the same Project-aware copy planner. C retains its pointer-following ghost,
+rotation/reflection shortcuts, repeated click placement, and Escape cancellation.
+Gallery selects the source top Cell body; referenced child Cells remain hierarchy
+and are imported as dependencies. Inserting a nonempty hierarchical Gallery entry
+does not replace the current Project.
+
+A transient copy capsule carries the selected objects, Cell parameter context,
+referenced external interfaces, child-Cell closure, symbol-library identity, and
+referenced source-file records. It is not persisted or added to the Agent API.
+Source-file records are provenance, not bundled PDK model contents. Simulation
+folders, simulator configuration, run results and unrelated Cells are not copied.
+
+Every placement allocates new canvas object IDs and collision-free References.
+Compatible external definitions are reused by validated interface and presentation,
+not by coincident source IDs. Incompatible same-name definitions or Cell parameter
+defaults reject before placement. Child imports share one immutable source snapshot;
+a changed source receives a new snapshot identity. A previously imported child that
+was edited in the destination cannot silently substitute for the captured source.
+
+Internal wires of a selected component group travel with the group. A single
+component does not automatically carry its unselected dangling wires. Explicitly
+selected wires can travel alone: unselected terminal endpoints become local free
+wire ends, without bringing the external devices. Route markers remap both Route
+and Leg identity. External visual anchors on copied drafting resolve to free
+positions; bound component labels require their component. Bulk connections are
+materialized as instance-owned connections rather than adopting target defaults.
+Necessary Net names whose original owners were outside the selection receive
+copy-owned labels. Name equality in the target Cell retains its ordinary electrical
+meaning; copying does not introduce an invisible Net namespace.
+
+Source and target must have compatible grid geometry and matching document style
+defaults. The current model cannot represent all symbol-stroke and junction-radius
+defaults per object, so incompatible defaults produce an explicit refusal instead
+of silently changing the drawing or overwriting target presentation.
+
+Dependency planning and preview do not write to the Project. Preview resolves
+symbols using the planned definitions, and placement rechecks the current target.
+Dependencies, instances, wires and interface updates commit as one existing Project
+transaction and one undo unit. Cancelled or rejected copies leave no definitions
+behind. Repeated placements share definitions but own separate canvas objects.
 
 ## Text and presentation
 
@@ -698,6 +648,52 @@ by the math profile, without name-equivalence checks or conversion prompts.
 Net and Cell terminal names refuse a non-equivalent formula in
 the Formula panel. Ordinary character edits and formatting commands do not use
 this formula-only decision path.
+
+## Project sessions
+
+New, Open, SPICE import, Gallery/built-in example open, and recovery restore are
+Project-session transitions rather than Document edits. A dirty current Project
+always requires an explicit discard or cancel decision before one of these
+transitions commits; a successful browser-recovery write is safety evidence,
+not authorization to replace the foreground Project. Candidate files and
+gallery/recovery payloads are parsed and validated before that decision.
+
+The editor has no Previous Project stack: replacing a live session does not
+retain the outgoing Project in memory for a later swap, and the File menu
+offers no **Previous Project** command.
+
+Project dirty detection covers `structureRevision` and every Document revision,
+not only the active Cell, and compares the content with the last acknowledged
+Cloud baseline so Undo can return to clean. **New Project** creates a new canonical Project with
+one empty Main Cell, no SPICE source manifest entries, and no external
+subcircuit definitions; it does not mutate the previous Project into an empty
+shell. Opening a Cloud Project binds its stable id and revision to the runtime
+session; importing a file does not. After a Cloud Save, **Revert to Last Saved**
+restores that acknowledged content through the same guard. Export and backup
+never establish or advance this baseline.
+
+## Cell reset lifecycle
+
+Cell reset commands live in the selected definition's **Cell Manager → Reset
+Cell** section. The Manager submits the existing Document edit through the
+Project `transact_document` boundary so an inactive Cell can be reset without
+opening it first; one Undo restores the atomic Project transaction. Each command
+previews an exact affected-object count before commit:
+
+- **Clear Drawing** removes authored Route geometry and drafting objects while
+  retaining Instances, Nets, Junction topology, ports, and semantic
+  annotations.
+- **Reset Cell Placement** returns every placed Instance to the Placement Tray,
+  removes Route geometry and placement constraints/groups, and retains the
+  devices, Nets, Junction topology, and formal interface.
+- **Reset Cell Body** removes non-interface electrical and drawing content but
+  retains formal terminals, their interface Port markers, their Nets, and
+  terminal annotations. Existing parent callers therefore keep the same pin
+  contract.
+
+**Delete Cell** remains a Project-structure transaction and is legal only for
+a non-top Cell with no callers. That precondition is checked by the hierarchy
+planner before the transaction is submitted.
 
 ## Files, recovery, and replacement
 

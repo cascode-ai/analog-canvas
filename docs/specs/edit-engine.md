@@ -15,13 +15,6 @@ validates every edit independently without trusting the planner.
 Define the only committed mutation path for both GUI and Agent operations,
 including revision checks, dry runs, atomicity, results, and diagnostics.
 
-## Consumers
-
-- editor GUI tools
-- Agent adapter
-- history and undo/redo
-- model validators and diagnostics
-
 ## Terminology
 
 | Term        | Meaning                                                                  |
@@ -41,16 +34,10 @@ Document is the only valid full preview; the plan has no untyped preview
 payload and is not persisted. NoConnect and unrelated drafting/presentation
 edits continue to use the ordinary transaction directly.
 
-```typescript
-interface EditTransaction {
-  transactionId: string;
-  documentId: string;
-  expectedRevision: number;
-  actor: { kind: "human" | "agent"; id: string };
-  dryRun?: boolean;
-  edits: SchematicEdit[];
-}
-```
+[The edit schema](../../packages/edit-engine/src/edit-schema.ts) owns the
+transaction envelope and typed union. The envelope identifies the transaction,
+Document, expected revision, human/Agent actor, optional dry run and ordered
+edits.
 
 `packages/edit-engine/src/edit-schema.ts` defines `SchematicEditSchema`
 (re-exported by `transaction.ts`), the sole executable list of typed edit
@@ -308,14 +295,10 @@ Topology operations have these preconditions:
   before removing the source Net.
 - `disconnect_endpoint` requires all route geometry that uses the endpoint to
   be removed explicitly first.
-- `cut_connection` requires one existing unlocked Route. Removing a bridge
-  partitions the affected Base Net by remaining explicit Routes and confirmed
-  direct contacts; global, imported, and logical-name Evidence never suppress
-  that physical split. A redundant cycle keeps the original Base Net.
-  The component containing the deleted Route's `from` endpoint retains the
-  original Base-Net ID; detached components receive deterministic new IDs.
-  Newly orphaned Junction endpoints are removed. Route-anchored annotations
-  must be removed by a preceding typed edit in the same transaction.
+- `cut_connection` requires an existing unlocked Route and explicit prior
+  removal of its Route-anchored annotations. It applies the shared
+  [Wire cut lifecycle](connectivity-and-routing.md#wire-cut-lifecycle), including
+  physical partition and owner reconciliation, in the same atomic transaction.
 - `remove_route_geometry` is the explicit geometry-only operation: it removes
   a Route while preserving logical Net membership. It supports advanced
   rerouting without conflating a persisted mutation with derived guidance.
@@ -369,10 +352,11 @@ protocol exposes only `upsert_schematic_annotation` and
 - atomic no-op and dry-run tests
 - GUI/Agent parity tests for authoring operations
 
-## Open decisions
+## Session history
 
-- In-memory `DocumentHistory` retains at most 64 undo or redo snapshots per
-  opened Document. It is a session-memory budget, not persisted Project data;
-  callers may supply a smaller or larger positive limit for a constrained host.
-- Persistent history, history compaction, and recovery integration remain
-  deferred; history is validated in-memory session state.
+[DocumentHistory](../../packages/edit-engine/src/history.ts) retains at most
+64 undo or redo snapshots per opened Document by default; callers may supply a
+different positive limit. This is session memory, not persisted Project data.
+[History tests](../../packages/edit-engine/src/history.test.ts) protect that
+boundary. Persistent history and compaction are not implemented; their
+acceptance question belongs in the [roadmap](../roadmap/README.md#deferred-contract-questions).

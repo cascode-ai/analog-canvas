@@ -227,6 +227,23 @@ the repaired Document revision once; parsing, Cloud opens and recovery remain
 exact. This is a bounded legacy import repair, not a runtime source-equivalence
 rule. Physical membership and authored geometry are never joined by it.
 
+## Wire cut lifecycle
+
+`cut_connection` requires one existing unlocked Route. Removing a bridge
+partitions the affected Base Net by remaining explicit Routes and confirmed
+direct contacts; global, imported, and logical-name Evidence never suppress
+that physical split. A redundant cycle keeps the original Base Net.
+The component containing the deleted Route's first surviving endpoint retains
+the original Base-Net ID (start before end); if neither endpoint survives,
+the first deterministic component is primary. Detached components receive
+deterministic new IDs. Newly orphaned Junction endpoints are removed unless
+still owned by annotations or layout references. Route-anchored annotations
+must be removed by a preceding typed edit in the same transaction.
+
+The [Edit Engine](edit-engine.md#operations-and-state-transitions) owns
+transaction atomicity, revision and Undo. GUI deletion supplies the annotation
+closure before cutting; geometry-only removal is a distinct explicit edit.
+
 ## Shared read and diagnostic boundary
 
 [ProjectConnectivityIndex](../../packages/derived/src/connectivity-index.ts)
@@ -277,9 +294,17 @@ coordinates.
 
 ## Net naming and lifecycle
 
-Base Nets remain physical connectivity; Logical Nets are derived from
-owner-addressed `name-claim` evidence. Reusing a spelling never merges Route
-geometry.
+Base Nets remain physical connectivity. The pure Logical-Net resolver joins
+distinct Base Nets through folded authoritative names in the same scope or
+matching formal Cell-Pin names. The [model](schematic-model.md#electrical-authority)
+owns those declarations and their marker identities. Reusing a spelling never
+merges Route geometry. `net-name-hint` and `spice-source` are provenance only
+and never join Nets.
+
+Equal-folded local and global claims on an already-connected group derive an
+effective global scope without rewriting either owner. Disconnected
+local/global claims remain separate; different-name scope combinations and
+incompatible power claims remain explicit errors.
 
 The strict `connect_endpoints` primitive does not implicitly merge two Base
 Nets. The authoring planner explicitly emits `merge_nets` first. If their

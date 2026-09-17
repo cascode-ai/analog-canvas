@@ -4,18 +4,11 @@ Status: `accepted`
 
 Primary owner: `packages/render-svg`, `apps/editor`
 
-## Purpose
+## Scope
 
-Define the first formal schematic output style and keep export content separate
-from editor-only interaction overlays.
-
-## Consumers
-
-- native SVG editor canvas
-- `packages/render-svg`
-- symbol compiler and annotation renderer
-- SVG, PNG, and PDF exporters
-- visual diagnostics and golden tests
+The shared formal scene, text/formula composition and transient overlays serve
+the canvas and exporters. [Razavi](razavi-visual-contract.md) owns reviewed
+artwork and style; [export](export.md) owns file-format conversion.
 
 ## Document style composition
 
@@ -48,22 +41,12 @@ silently substitutes a profile. Semantic symbol roles resolve through the
 Razavi profile. Reviewed Razavi assets use semantic roles and retain measured
 finite-decimal geometry.
 
-For Razavi formal output, the reviewed `port` and `port-filled` Symbol assets
-provide explicit hollow and filled interface presentations. Each is an
-ordinary single-pin Instance whose pin `P` uses normal terminal connectivity;
-the renderer does not replace either symbol with a separate model-level Port
-shape. Placed `vdd-port` artwork and drawn Net/Route power rails retain their
-own reviewed presentations; electrical ownership follows the schematic model. Explicit Junctions render independently;
-device-pin anchors, ordinary corners, and geometric crossings never acquire a
-dot from appearance or degree alone.
-An explicit branch Junction on a valid VDD Net that contains a `power-rail`
-Route remains electrically and interactively real but renders without a dot;
-the rail itself uses the supply stroke. This is a Razavi supply-presentation
-exception, not a deletion or weakening of its connectivity record.
-Current and voltage annotation geometry is derived from the annotation kind and
-profile tokens, not text glyphs or editor overlays. Razavi-specific authority,
-construction, and pixel-alignment rules live in
-[`razavi-visual-contract.md`](razavi-visual-contract.md).
+[Interface artwork](razavi-visual-contract.md#interface-symbols-and-node-semantics)
+owns hollow/filled Ports and supply presentation. The renderer consumes
+[confirmed contact evidence](connectivity-and-routing.md#derived-read-models)
+for branch dots, never inferring electrical membership from appearance.
+Current and voltage annotation geometry uses semantic kinds and profile
+tokens rather than text glyphs or editor overlays.
 
 Formal SVG has stable groups for routes, Junctions, symbols, and annotations.
 The editor creates its grid and interaction overlay outside the formal group.
@@ -135,10 +118,9 @@ active symbol variant's visible geometry and clusters repeated overlaps.
 
 ## Invariants
 
-- Formal output defaults to black on white. Explicit authored color overrides
-  are preserved; there are no gradients, shadows, or decorative frames.
-- Symbol geometry uses butt line caps and miter joins unless a reviewed
-  symbol explicitly requires another choice.
+- Profile defaults, primitive caps/joins and stroke scaling follow the
+  [Razavi contract](razavi-visual-contract.md#style-text-and-rendering).
+  Explicit authored color overrides remain preserved.
 - Instance transforms apply rotation, then independent screen-space horizontal
   and/or vertical reflection, then translation. Mirror actions do not rewrite
   the authored rotation.
@@ -158,12 +140,8 @@ active symbol variant's visible geometry and clusters repeated overlaps.
 - SVG is derived output and never becomes connectivity or persistence truth.
 - Formula source is persistence truth; generated glyph paths and formula
   metrics are transient derived output.
-- Razavi formal output scales geometry and strokes together and emits no
-  `vector-effect="non-scaling-stroke"`.
 - Annotation attachment moves with an edited instance while its offset and
   semantic kind remain persisted.
-- Hollow `port`, filled `port-filled`, and supply-rail presentations remain
-  distinct authored objects; presentation never creates another endpoint kind.
 - Instance-label drag is bounded around its symbol and Net-label drag is
   bounded around attached route geometry; free text is unconstrained.
 - Visual goldens use original project fixtures, not copied textbook artwork.
@@ -191,33 +169,12 @@ An exported SVG containing a `hit-target`, `selection`, `editor-overlay`, or
 grid pattern fails formal-layer validation even if the on-screen canvas is
 correct.
 
-## Deterministic validation
+## Evidence
 
-- original SVG golden comparison
-- all rotation/mirror transform tests
-- repeated render equality
-- formal versus overlay structural inspection
-- browser export acceptance
-
-## Open decisions
-
-- Font embedding and cross-format metric calibration remain deferred.
-
-## Analog transconductance blocks
-
-A transconductance relation is drawn as a right-tapered trapezoid with
-renderer-owned formula text centered inside. The single-input form has one west
-input `A` and one east output `Y`. Its taller input edge and narrower output edge
-follow the pinned user-supplied small-signal reference. The differential form
-has west inputs `IN+` and `IN-`, explicit polarity marks, and one east output
-`OUT`. Both live in Analog Blocks and use the canonical default `g_m`; instance
-presentation may express indexed forms such as `g_m1`, `gₘL`, or another safe
-formula without changing electrical pin identity.
-
-The single-input trapezoid, leads, background, hit bounds, and route endpoints
-share the adaptive formula-block layout. Long formulae and explicit minimum
-dimensions grow that body on the 10-unit grid; they never clip or shrink 12-unit
-formula text. The differential form keeps fixed calibrated pin spacing so both
-inputs remain unambiguous. Both blocks are behavioral and manual-only: neither
-their formula nor coefficient implies a SPICE primitive or automatic device
-mapping.
+[Renderer tests](../../packages/render-svg/src/render.test.ts) and
+[drafting tests](../../packages/render-svg/src/drafting-render.test.ts) protect
+deterministic composition, transforms and formal/overlay separation.
+[Style resolution tests](../../packages/derived/src/style-profile.test.ts)
+protect override composition; [export](export.md#validation) owns cross-format
+acceptance. Font embedding and further cross-format metric calibration remain
+[deferred questions](../roadmap/README.md#deferred-contract-questions).

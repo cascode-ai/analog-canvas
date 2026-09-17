@@ -33,6 +33,22 @@ Create a specification when a stable cross-module contract is needed; do not
 create empty files only to mirror this table. Start from
 [`spec.template.md`](spec.template.md).
 
+## Contract ownership
+
+| Boundary                                               | Sole owner                                  | Other consumers                                                       |
+| ------------------------------------------------------ | ------------------------------------------- | --------------------------------------------------------------------- |
+| Persisted electrical objects and formal declarations   | [Schematic model](schematic-model.md)       | Connectivity, editing and export reference these facts                |
+| Logical equivalence, contacts, cut and owner lifecycle | [Connectivity](connectivity-and-routing.md) | Model, transactions and netlist extraction consume the same semantics |
+| Atomic mutation, revisions, failure and Undo           | [Edit Engine](edit-engine.md)               | GUI and Agent supply typed intent                                     |
+| Extraction, dialect printing and export refusal        | [Netlist export](netlist-export.md)         | Does not redefine saved objects or electrical equivalence             |
+| Formal scene, text/formulas and overlays               | [Visual language](visual-language.md)       | Canvas and exporters share composition                                |
+| Reviewed artwork, style and fidelity                   | [Razavi](razavi-visual-contract.md)         | Exact values live in linked executable configuration                  |
+| Gestures, selection, previews and controls             | [Editor interaction](editor-interaction.md) | References model/engine semantics rather than owning them             |
+
+Project file format and persistence/recovery remain separate protocol and
+lifecycle boundaries. Simulation source, execution and numeric results likewise
+remain separate contracts, including their currently supported compatibility.
+
 ## Specification Rules
 
 Follow the [documentation policy](../README.md). A topic owns its contract once;
