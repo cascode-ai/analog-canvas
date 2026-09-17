@@ -2,6 +2,7 @@ import { lazy, Suspense, useMemo, type CSSProperties } from "react";
 import type { CircuitProject } from "@icm/model";
 import {
   createDesignNetlistExport,
+  unfinishedDrawingDiagnostics,
   NETLIST_DEVICE_TARGET_OPTIONS,
   NETLIST_PROFILE_IDS,
   NETLIST_PROFILE_LABELS,
@@ -58,12 +59,17 @@ export function NetlistCodePanel({
           }),
     [project, format, namingProfile, portCase, profile, configurationError],
   );
+  const unfinished = result
+    ? unfinishedDrawingDiagnostics(result.diagnostics)
+    : [];
   const error = configurationError
     ? `Fix Netlist configuration: ${configurationError}`
     : result?.status === "blocked"
       ? (result.diagnostics.find((item) => item.severity === "error")
           ?.message ?? "Resolve the Check Report findings before copying")
-      : null;
+      : // The text below is still what the drawing says; it is just not a
+        // netlist anybody should take away yet.
+        (unfinished[0]?.message ?? null);
   const source = result?.status === "ready" ? result.file.text : "";
   const visibleLines = netlistEditorVisibleLines(source);
   return (

@@ -17,6 +17,33 @@ describe("editor export commands", () => {
     });
   });
 
+  it("blocks a netlist whose drawing has a dead-end node", () => {
+    // A TODO placeholder is a value somebody will bind later; a node only one
+    // pin reaches is a wire nobody drew, and the message names it so the
+    // author can go to it.
+    const project = createEmptyProject("project", "Circuit");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      reference: "R1",
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "resistor" },
+        parameters: { value: "10k" },
+      },
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    document.nets.push(
+      { id: "net-a", terminals: [{ instanceId: "R1", pinName: "1" }] },
+      { id: "net-b", terminals: [{ instanceId: "R1", pinName: "2" }] },
+    );
+    const plan = planDesignNetlistExport({ format: "spice", project });
+    expect(plan.status).toBe("blocked");
+    if (plan.status !== "blocked") return;
+    expect(plan.message).toContain("2 dead-end nodes");
+    expect(plan.message).toContain("only R1.1 reaches it");
+  });
+
   it.each(["spice", "spectre"] as const)(
     "prepares clean %s with findings only in the status",
     (format) => {

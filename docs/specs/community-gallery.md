@@ -33,13 +33,16 @@ restrictive content-security-policy.
   omit the dimensions; clients must then retain their existing natural-size
   fallback.
   Each entry also carries `netlistable`: whether that stored drawing extracts
-  to a netlist, answered by `designExtractsNetlist` through the same tolerant
-  export the editor's Netlist panel uses. The mark is about the drawing, not
-  about a process library — a missing device model or an unbound width exports
-  as a TODO placeholder and leaves the mark standing, while a missing MOS body
-  or an unresolved required pin clears it. It is re-answered whenever an entry
-  is written, so repairing a published circuit lights its mark without an
-  administrator pass.
+  to a netlist, answered by `designExtractsNetlist` through the same export
+  the editor's Netlist panel uses, held to the same standard the editor's own
+  copy/export is held to. The mark is about the drawing, not about a process
+  library — a missing device model or an unbound width exports as a TODO
+  placeholder and leaves the mark standing. A missing MOS body, an unresolved
+  required pin, or a node only one pin reaches
+  (`DEAD_END_NET`, see [netlist export](netlist-export.md)) clears it: those
+  say the drawing is unfinished, which no export option can supply. It is
+  re-answered whenever an entry is written, so repairing a published circuit
+  lights its mark without an administrator pass.
 - `GET /api/gallery/tags` — distinct public tags with counts, most
   frequent first (feeds the multi-select menu).
 - `GET /api/gallery/authors` — non-empty public bylines with their currently

@@ -444,15 +444,25 @@ test("shows and copies a live MOS netlist with explicitly connected bulk termina
         parameters: { w: "1u", l: "150n", nf: "1", m: "1" },
       },
     });
-    for (const pinName of ["D", "G", "S"] as const)
-      document.nets.push({
-        id: `${reference}-${pinName}`,
-        terminals: [
-          { instanceId: reference, pinName },
-          ...(pinName === "S" ? [{ instanceId: reference, pinName: "B" }] : []),
-        ],
-      });
+    // Source and bulk share a node per device — that is what this test is
+    // about. Drain and gate are shared between the two devices, because a
+    // node only one pin reaches is a dead end and the export refuses one.
+    document.nets.push({
+      id: `${reference}-S`,
+      terminals: [
+        { instanceId: reference, pinName: "S" },
+        { instanceId: reference, pinName: "B" },
+      ],
+    });
   }
+  for (const pinName of ["D", "G"] as const)
+    document.nets.push({
+      id: `shared-${pinName}`,
+      terminals: [
+        { instanceId: "M1", pinName },
+        { instanceId: "M2", pinName },
+      ],
+    });
 
   await page.goto("/editor");
   await page.getByTestId("project-file").setInputFiles({

@@ -3,7 +3,11 @@ import { createEmptyProject } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
 import { analyzeDesignNetlist } from "./extract.js";
 import { printDesignNetlist } from "./printers.js";
-import { createDesignNetlistExport, designExtractsNetlist } from "./export.js";
+import {
+  createDesignNetlistExport,
+  designExtractsNetlist,
+  unfinishedDrawingDiagnostics,
+} from "./export.js";
 
 function fixture() {
   const project = createEmptyProject(
@@ -311,10 +315,84 @@ describe("netlist extractability", () => {
   it("gives the same answer as the export the editor performs", () => {
     for (const body of [true, false]) {
       const project = oneTransistor({ body });
+      const result = createDesignNetlistExport(project, { format: "spice" });
       expect(designExtractsNetlist(project)).toBe(
-        createDesignNetlistExport(project, { format: "spice" }).status ===
-          "ready",
+        result.status === "ready" &&
+          unfinishedDrawingDiagnostics(result.diagnostics).length === 0,
       );
     }
+  });
+
+  /** One resistor from the transistor's drain to wherever `tail` says. */
+  function withStub(tail: { dangling?: true; noConnect?: true; named?: true }) {
+    const project = oneTransistor({ body: true });
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      reference: "R1",
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "resistor" },
+        parameters: { value: "10k" },
+      },
+      placement: { position: { x: 40, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    document.nets[0]!.terminals.push({ instanceId: "R1", pinName: "1" });
+    if (tail.noConnect) {
+      document.noConnects.push({
+        id: "nc-1",
+        endpoint: { kind: "terminal", instanceId: "R1", pinName: "2" },
+      });
+      return project;
+    }
+    document.nets.push({
+      id: "net-stub",
+      terminals: [{ instanceId: "R1", pinName: "2" }],
+    });
+    if (tail.named) {
+      document.connectivityEvidence.push({
+        id: "net-stub-name",
+        kind: "net-name-hint",
+        netId: "net-stub",
+        sourceName: "VPROBE",
+        origin: "spice-import",
+      });
+    }
+    return project;
+  }
+
+  it("refuses a drawing whose wire was never finished", () => {
+    // The printed card would name this node once and nothing else in the file
+    // would ever reach it. That is not a value a TODO placeholder can supply
+    // later; it is a wire nobody drew.
+    const project = withStub({ dangling: true });
+    const result = createDesignNetlistExport(project, { format: "spice" });
+    // The printer still says what the drawing says — the refusal is the
+    // caller's, so a preview of work in progress stays possible.
+    expect(result.status).toBe("ready");
+    expect(
+      unfinishedDrawingDiagnostics(result.diagnostics).map(
+        (item) => item.message,
+      ),
+    ).toEqual([
+      "Net net1 is a dead end: only R1.2 reaches it. Connect it, or mark that pin NoConnect",
+    ]);
+    expect(designExtractsNetlist(project)).toBe(false);
+  });
+
+  it("takes an explicit NoConnect as the author's own answer", () => {
+    const project = withStub({ noConnect: true });
+    const result = createDesignNetlistExport(project, { format: "spice" });
+    expect(unfinishedDrawingDiagnostics(result.diagnostics)).toEqual([]);
+    expect(designExtractsNetlist(project)).toBe(true);
+  });
+
+  it("leaves a node somebody named alone", () => {
+    // A named node is a declared signal — a probe point, an imported node —
+    // not leftover geometry, so its single pin is nobody's mistake to guess.
+    const project = withStub({ named: true });
+    const result = createDesignNetlistExport(project, { format: "spice" });
+    expect(unfinishedDrawingDiagnostics(result.diagnostics)).toEqual([]);
+    expect(designExtractsNetlist(project)).toBe(true);
   });
 });

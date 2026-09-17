@@ -1,4 +1,5 @@
 import { deviceDescriptor, requiredParameterNames } from "@icm/devices";
+import { directObjectLocator } from "@icm/derived";
 import type { CircuitProject } from "@icm/model";
 import {
   analyzeDesignNetlist,
@@ -31,6 +32,69 @@ export type DesignNetlistExportResult = {
       externalMasterCount: number;
     }
 );
+
+/**
+ * Nodes that a single pin touches. The printed card names such a node once
+ * and nothing else in the file ever reaches it, so what a simulator meets is
+ * a floating node rather than a circuit: the drawing is unfinished, which is
+ * a different thing from a gap the export can fill with a TODO placeholder.
+ * The legitimate single-pin nodes are excluded by construction — a Cell port
+ * carries its node outward to whoever instantiates the Cell, a global net is
+ * shared with the rest of the design, an explicit NoConnect is the author
+ * saying that this pin ends here on purpose, and a node somebody named (or
+ * that a SPICE import named) is a declared signal rather than leftover
+ * geometry. What remains is an unnamed node one pin reaches: a wire that was
+ * drawn and never finished.
+ *
+ * This is deliberately the export's own gate rather than an extraction error:
+ * the analyzer also serves formal-interface derivation and simulation-source
+ * compilation, where a deliberately partial fragment is legitimate input.
+ */
+function deadEndNodeDiagnostics(
+  project: CircuitProject,
+  ir: DesignNetlistIR,
+  analysed: readonly NetlistDiagnostic[],
+): NetlistDiagnostic[] {
+  // "Nobody named it" is already answered once, by the warning the analysis
+  // raises when it has to invent a node name. Reuse that answer instead of
+  // re-deriving name authority here.
+  const unnamed = new Set(
+    analysed.flatMap((item) =>
+      item.code === "GENERATED_NET_NAME" ? item.objectIds.slice(0, 1) : [],
+    ),
+  );
+  const diagnostics: NetlistDiagnostic[] = [];
+  for (const cell of ir.cells) {
+    const document = project.documents.find((item) => item.id === cell.id);
+    if (!document) continue;
+    const contacts = new Map<string, string[]>();
+    for (const instance of cell.instances) {
+      for (const node of instance.nodes) {
+        const pins = contacts.get(node.netName);
+        const pin = `${instance.reference}.${node.pinName}`;
+        if (pins) pins.push(pin);
+        else contacts.set(node.netName, [pin]);
+      }
+    }
+    const ports = new Set(cell.ports.map((port) => port.netName));
+    const declared = new Set(document.noConnects.map((item) => item.id));
+    for (const net of cell.nets) {
+      if (net.scope === "global" || ports.has(net.name)) continue;
+      if (declared.has(net.id) || !unnamed.has(net.id)) continue;
+      const pins = contacts.get(net.name);
+      if (!pins || pins.length !== 1) continue;
+      diagnostics.push({
+        code: NETLIST_DEAD_END_NET,
+        severity: "error",
+        documentId: document.id,
+        objectIds: [net.id],
+        primary: directObjectLocator(document.id, "net", net.id),
+        message: `Net ${net.name} is a dead end: only ${pins[0]} reaches it. Connect it, or mark that pin NoConnect`,
+      });
+    }
+  }
+  return diagnostics;
+}
 
 /** Change only formal interface spelling and the internal nodes they own. */
 function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
@@ -78,9 +142,13 @@ export function designExtractsNetlist(
   project: CircuitProject,
   options: DesignNetlistAnalysisOptions = {},
 ): boolean {
+  const result = createDesignNetlistExport(project, {
+    format: "spice",
+    ...options,
+  });
   return (
-    createDesignNetlistExport(project, { format: "spice", ...options })
-      .status === "ready"
+    result.status === "ready" &&
+    unfinishedDrawingDiagnostics(result.diagnostics).length === 0
   );
 }
 
@@ -197,6 +265,10 @@ export function createDesignNetlistExport(
     ir = analyzeDesignNetlist(draft, analysisOptions).ir;
     if (!ir) return blocked;
   }
+  // Reported, not refused. This printer's job is to say what the drawing
+  // says; whether the drawing is finished enough to hand out is the caller's
+  // question, and `unfinishedDrawingDiagnostics` is how a caller asks it.
+  const deadEnds = deadEndNodeDiagnostics(project, ir, analysis.diagnostics);
   if (options.portCase) applyPortCase(ir, options.portCase);
   const file = printDesignNetlist(format, ir);
   // Presentation export omits the strict printer's title. Keep that printer
@@ -221,10 +293,31 @@ export function createDesignNetlistExport(
   if (format === "spice") file.text = `\n${file.text}`;
   return {
     status: "ready",
-    diagnostics: analysis.diagnostics,
+    diagnostics: [...analysis.diagnostics, ...deadEnds],
     file,
     placeholders,
     cellCount: ir.cells.length,
     externalMasterCount: ir.externalMasters?.length ?? 0,
   };
+}
+
+/**
+ * The code for a node only one pin reaches. A missing model or an unbound
+ * width is a gap the export fills with a TODO placeholder — the drawing is
+ * done and the values come later. This one says the opposite: the drawing
+ * itself is unfinished, and no placeholder can stand in for a wire nobody
+ * drew.
+ */
+export const NETLIST_DEAD_END_NET = "DEAD_END_NET";
+
+/**
+ * The findings that say "this drawing is not finished", as distinct from the
+ * ones that say "these values are not bound yet". Surfaces that hand a
+ * netlist to somebody — the editor's export, the Gallery's mark — refuse on
+ * these; a preview of what the drawing currently says need not.
+ */
+export function unfinishedDrawingDiagnostics(
+  diagnostics: readonly NetlistDiagnostic[],
+): NetlistDiagnostic[] {
+  return diagnostics.filter((item) => item.code === NETLIST_DEAD_END_NET);
 }

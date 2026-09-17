@@ -326,6 +326,28 @@ The returned structured placeholder list and diagnostics identify incomplete out
 The sidebar and Check Report show that state outside the copied text. The
 projection never writes placeholders into the Project or changes simulation readiness.
 
+### Unfinished drawings
+
+A TODO placeholder answers "this value is not bound yet". The opposite
+condition — the drawing itself is not finished — is reported as
+`DEAD_END_NET`, one per node that a single instance pin reaches. Such a node
+is printed once and nothing else in the file ever reaches it, so a simulator
+meets a floating node rather than a circuit, and no placeholder can stand in
+for a wire nobody drew. Four single-pin nodes are not dead ends and carry no
+finding: a Cell port (its node continues outward to every instantiation), a
+global Net (shared with the rest of the design), an explicit `NoConnect` (the
+author saying the pin ends here), and a node with an authored or imported name
+(a declared signal such as a probe point, not leftover geometry — the test is
+that extraction did not have to invent the name).
+
+`createDesignNetlistExport` reports these findings without withholding
+output: its job is to say what the drawing currently says, so a preview of
+work in progress stays possible. Whether a netlist is fit to hand out is the
+caller's question, and `unfinishedDrawingDiagnostics` is how a caller asks
+it. The editor's Check Report, its live netlist panel, and the copy/export
+command all refuse on a non-empty answer, and `designExtractsNetlist` — the
+Gallery's mark ([community gallery](community-gallery.md)) — answers `false`.
+
 Existing conflicting bindings, missing hierarchy interfaces, unsupported devices,
 invalid waveforms, and incomplete connections remain blocking. This projection
 never exports the permissive authoring IR. It cannot omit an invalid device or invent a model definition. Numerical defaults

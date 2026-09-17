@@ -1,5 +1,8 @@
 import { createFormalExportSource, safeExportBaseName } from "@icm/exporters";
-import { createDesignNetlistExport } from "@icm/netlist";
+import {
+  createDesignNetlistExport,
+  unfinishedDrawingDiagnostics,
+} from "@icm/netlist";
 import type {
   NetlistFormat,
   NetlistNamingProfile,
@@ -84,6 +87,19 @@ export function planDesignNetlistExport({
     return {
       status: "blocked",
       message: "Resolve the Check Report findings before export",
+    };
+  }
+  // An unbound model or width is handed out as a TODO placeholder; a node
+  // only one pin reaches is not a value somebody can fill in later, so this
+  // netlist is not something to hand out at all.
+  const unfinished = unfinishedDrawingDiagnostics(result.diagnostics);
+  if (unfinished.length > 0) {
+    return {
+      status: "blocked",
+      message:
+        unfinished.length === 1
+          ? unfinished[0]!.message
+          : `${unfinished.length} dead-end nodes. ${unfinished[0]!.message}`,
     };
   }
   const printed = result.file;
