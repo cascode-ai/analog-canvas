@@ -1,5 +1,9 @@
 import { createRoutePath } from "@icm/model";
-import { resolveDocumentRoutingGeometry } from "@icm/derived";
+import {
+  deriveVisibleConnectivity,
+  resolveDocumentRoutingGeometry,
+  resolveEndpointConnection,
+} from "@icm/derived";
 import type { WireSource } from "@icm/edit-engine";
 import { createEmptyDocument } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
@@ -142,6 +146,76 @@ describe("wire canvas snap", () => {
       ).toBe(true);
     },
   );
+
+  it.each([false, true])(
+    "captures an existing T-Junction as one endpoint (active wire=%s)",
+    (activeWire) => {
+      const document = createEmptyDocument("tee", "Tee");
+      document.presentation.grid = 10;
+      document.nets.push({ id: "net", terminals: [] });
+      document.junctions.push({
+        id: "tee",
+        netId: "net",
+        position: { x: 50, y: 0 },
+        role: "branch",
+      });
+      for (const [id, position] of [
+        ["west", { x: 0, y: 0 }],
+        ["east", { x: 100, y: 0 }],
+        ["south", { x: 50, y: 50 }],
+      ] as const) {
+        document.junctions.push({
+          id: `${id}-end`,
+          netId: "net",
+          position,
+          role: "route-anchor",
+        });
+        document.routes.push(
+          createRoutePath({
+            id,
+            netId: "net",
+            start: { kind: "junction", junctionId: "tee" },
+            end: { kind: "junction", junctionId: `${id}-end` },
+            bends: [],
+            modes: ["manual"],
+          }),
+        );
+      }
+      const endpoint = { kind: "junction" as const, junctionId: "tee" };
+      const junction: WireSource = {
+        endpoint,
+        netId: "net",
+        preludeEdits: [],
+        connection: resolveEndpointConnection(document, resolver, endpoint)!,
+      };
+      const routing = resolveDocumentRoutingGeometry(document, resolver);
+      const result = resolveWireCanvasSnap(
+        {
+          document,
+          resolver,
+          wiringEndpoints: [junction],
+          routeGeometryRecords: document.routes.map((route) => ({
+            route,
+            geometry: routing.routes.get(route.id)!,
+          })),
+          contactComponents: deriveVisibleConnectivity(
+            document,
+            resolver,
+          ).flatMap((net) => net.components),
+          wireSource: activeWire ? source({ x: 200, y: -100 }) : null,
+          wireWaypoints: [],
+          captureTolerance: 7,
+        },
+        { x: 51, y: 1 },
+        false,
+      );
+      // Its two collinear arms are the same conductor as the Junction.
+      expect(result.ambiguous).toBeUndefined();
+      expect(result.point).toEqual({ x: 50, y: 0 });
+      expect(result.endpoint?.endpoint).toEqual(endpoint);
+    },
+  );
+
   it("uses only the grid while snap suppression is active", () => {
     const document = createEmptyDocument("document", "Document");
     document.presentation.grid = 10;

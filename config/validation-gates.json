@@ -78,6 +78,7 @@
     "editorWiring": [
       "apps/editor/src/canvas/editor-wiring-overlay*",
       "apps/editor/src/features/wiring/**",
+      "packages/derived/src/contact-target*",
       "apps/editor/e2e/wiring-semantics.spec.ts"
     ],
     "placementNearMiss": [

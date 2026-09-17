@@ -268,6 +268,42 @@ test("clicking a junction dot selects it and Delete disconnects the tap", async 
   );
 });
 
+test("the wire tool starts a new branch from an existing junction dot", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 260, y: 200 });
+  await placeComponent(page, "resistor", { x: 260, y: 420 });
+  await placeComponent(page, "resistor", { x: 460, y: 310 });
+  await placeComponent(page, "resistor", { x: 80, y: 310 });
+  const ids = await instanceIds(page);
+  await page.keyboard.press("w");
+  await page.getByTestId(`terminal-${ids[0]}-2`).click();
+  await page.getByTestId(`terminal-${ids[1]}-1`).click();
+  const route = page.locator('[data-canvas-hit-kind="route"]').first();
+  const box = (await route.boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.getByTestId(`terminal-${ids[2]}-1`).click();
+  const dot = page.locator('g[data-layer="junctions"] circle');
+  await expect(dot).toHaveCount(1);
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(3);
+
+  // The tee's two collinear arms are the same conductor as the dot, so the
+  // click is not an ambiguous crossing: it starts the wire at the junction.
+  const dotBox = (await dot.boundingBox())!;
+  await page.mouse.click(
+    dotBox.x + dotBox.width / 2,
+    dotBox.y + dotBox.height / 2,
+  );
+  await expect(page.getByTestId("status")).toContainText(
+    "Wire source: junction:",
+  );
+  await page.getByTestId(`terminal-${ids[3]}-2`).click();
+  await expect(page.getByTestId("status")).toContainText("Committed route");
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(4);
+  await expect(dot).toHaveCount(1);
+});
+
 for (const fixedVerticalLeg of [false, true]) {
   test(`middle clicks reach 45 degrees after one corner flip${fixedVerticalLeg ? " after a fixed vertical leg" : ""}`, async ({
     page,

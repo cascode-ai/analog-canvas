@@ -89,4 +89,64 @@ describe("electrical contact target collapse", () => {
       resolveElectricalContactTargets(fixture(true), resolver, candidates()),
     ).toHaveLength(2);
   });
+
+  it("treats a T-Junction and its collinear arms as one conductor", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.nets.push({ id: "net-1", terminals: [] });
+    document.junctions.push(
+      { id: "tee", netId: "net-1", position: { x: 50, y: 0 }, role: "branch" },
+      ...(
+        [
+          ["left", { x: 0, y: 0 }],
+          ["right", { x: 100, y: 0 }],
+          ["down", { x: 50, y: 50 }],
+        ] as const
+      ).map(([id, position]) => ({
+        id,
+        netId: "net-1",
+        position,
+        role: "route-anchor" as const,
+      })),
+    );
+    for (const [id, far] of [
+      ["west", "left"],
+      ["east", "right"],
+      ["stem", "down"],
+    ] as const) {
+      document.routes.push(
+        createRoutePath({
+          id,
+          netId: "net-1",
+          start: { kind: "junction", junctionId: "tee" },
+          end: { kind: "junction", junctionId: far },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+    }
+    const point = { x: 50, y: 0 };
+    const targets = resolveElectricalContactTargets(document, resolver, [
+      {
+        kind: "endpoint",
+        id: "junction:tee",
+        point,
+        netId: "net-1",
+        endpoint: { kind: "junction", junctionId: "tee" },
+      },
+      ...["west", "east", "stem"].map((routeId) => ({
+        kind: "route" as const,
+        id: `route:${routeId}:0`,
+        point,
+        netId: "net-1",
+        routeId,
+        segmentIndex: 0,
+      })),
+    ]);
+    expect(targets).toHaveLength(1);
+    expect(targets[0]!.endpoint?.endpoint).toEqual({
+      kind: "junction",
+      junctionId: "tee",
+    });
+    expect(targets[0]!.candidates).toHaveLength(4);
+  });
 });

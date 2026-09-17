@@ -322,7 +322,9 @@ grid/arrival quantization happens only after selecting it. A captured target
 has a distinct preview marker and one click completes the connection. A free
 canvas click fixes a step; double-click or Enter finishes a free end. Alt
 suppresses electrical capture, and ambiguous coincident Nets require a clearer
-target instead of an arbitrary connection.
+target instead of an arbitrary connection. A Junction and every Route arm that
+meets it, including two collinear arms, are one target, so a wire starts or
+ends on an existing Junction dot.
 
 Activating the same tool is idempotent: repeated C, W, or selection of the
 same Library item preserves the active session. Activating a different creation

@@ -37,9 +37,10 @@ export interface ElectricalContactTarget {
 /**
  * Collapse raw SVG/snap hits into electrical conductors.
  *
- * Two segments at one Route corner, or a pin plus its incident Route, are one
- * target. Two geometrically crossing but visibly disconnected components stay
- * separate even when storage happens to assign them the same Net id.
+ * Two segments at one Route corner, a pin plus its incident Route, or a
+ * Junction plus all of its branches are one target. Two geometrically crossing
+ * but visibly disconnected components stay separate even when storage happens
+ * to assign them the same Net id.
  */
 export function resolveElectricalContactTargets(
   document: SchematicDocument,
@@ -92,28 +93,56 @@ export function resolveElectricalContactTargets(
     if (!signature) continue;
     collinearCounts.set(signature, (collinearCounts.get(signature) ?? 0) + 1);
   }
-  const grouped = new Map<string, ElectricalContactCandidate[]>();
-  for (const candidate of candidates) {
+  // A candidate joins its visible component, and a collinear same-Net overlap
+  // joins its overlapping partners. Overlap only merges: the two collinear
+  // arms of a T-Junction must stay one target with the Junction and its
+  // perpendicular arm, not become a second target beside them.
+  const parent = candidates.map((_, index) => index);
+  const root = (index: number): number => {
+    while (parent[index] !== index) index = parent[index]!;
+    return index;
+  };
+  const keys = candidates.map(() => [] as string[]);
+  const firstByKey = new Map<string, number>();
+  candidates.forEach((candidate, index) => {
     const signature =
       candidate.kind === "route" ? collinearSignature(candidate) : null;
     const componentId =
       candidate.kind === "endpoint"
         ? endpointComponents.get(endpointKey(candidate.endpoint))
         : routeComponents.get(candidate.routeId);
-    const conductorId =
-      signature && (collinearCounts.get(signature) ?? 0) > 1
-        ? `collinear:${signature}`
-        : (componentId ??
-          (candidate.kind === "endpoint"
-            ? `endpoint:${endpointKey(candidate.endpoint)}`
-            : `route:${candidate.routeId}`));
-    grouped.set(conductorId, [...(grouped.get(conductorId) ?? []), candidate]);
-  }
-  return [...grouped.entries()]
-    .map(([conductorId, group]) => {
-      const sorted = [...group].sort((left, right) =>
-        left.id.localeCompare(right.id, "en"),
-      );
+    const candidateKeys = [
+      componentId ??
+        (candidate.kind === "endpoint"
+          ? `endpoint:${endpointKey(candidate.endpoint)}`
+          : `route:${candidate.routeId}`),
+      ...(signature && (collinearCounts.get(signature) ?? 0) > 1
+        ? [`collinear:${signature}`]
+        : []),
+    ];
+    for (const key of candidateKeys) {
+      keys[index]!.push(key);
+      const first = firstByKey.get(key);
+      if (first === undefined) {
+        firstByKey.set(key, index);
+        continue;
+      }
+      const [left, right] = [root(first), root(index)];
+      if (left !== right) parent[Math.max(left, right)] = Math.min(left, right);
+    }
+  });
+  const grouped = new Map<number, number[]>();
+  candidates.forEach((_, index) => {
+    const group = root(index);
+    grouped.set(group, [...(grouped.get(group) ?? []), index]);
+  });
+  return [...grouped.values()]
+    .map((members) => {
+      // The smallest key names the conductor, independent of candidate order.
+      const conductorId = members.flatMap((index) => keys[index]!).sort()[0]!;
+      const sorted = members
+        .map((index) => candidates[index]!)
+        .sort((left, right) => left.id.localeCompare(right.id, "en"));
       const endpoint = sorted.find(
         (
           candidate,

@@ -96,10 +96,12 @@ describe("CI validation planning", () => {
     });
   });
 
-  it("keeps wire editing on its dedicated browser contract", () => {
-    const plan = ciPlan([
-      "apps/editor/src/features/wiring/wire-edit-controller.ts",
-    ]);
+  it.each([
+    "apps/editor/src/features/wiring/wire-edit-controller.ts",
+    // The contact resolver decides which conductor a wire click captures.
+    "packages/derived/src/contact-target.ts",
+  ])("keeps wire editing on its dedicated browser contract (%s)", (path) => {
+    const plan = ciPlan([path]);
     expect(plan.mode).toBe("focused");
     expect(plan.e2eArgs).toEqual(["apps/editor/e2e/wiring-semantics.spec.ts"]);
   });
