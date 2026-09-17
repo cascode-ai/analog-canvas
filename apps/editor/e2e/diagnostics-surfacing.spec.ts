@@ -102,7 +102,7 @@ test("signed-out Save does not suppress ERC or visual check results", async ({
   await expect(page.getByTestId("project-unsaved-indicator")).toBeVisible();
 });
 
-test("repairs non-standard wire angles in one undoable action", async ({
+test("accepts free angles and optionally straightens them in one undoable action", async ({
   page,
 }) => {
   const project = createEmptyProject("angled-wire-project", "Angled wires");
@@ -149,9 +149,9 @@ test("repairs non-standard wire angles in one undoable action", async ({
   await expect(diagonalRoute).toHaveAttribute("points", "300,200 330,230");
 
   await clickNetlistWorkflowCommand(page, "check-and-save");
-  await expect(page.getByTestId("project-diagnostics")).toContainText(
-    "VISUAL_NON_STANDARD_WIRE_ANGLE",
-  );
+  await expect(
+    page.getByText("VISUAL_NON_STANDARD_WIRE_ANGLE", { exact: false }),
+  ).toHaveCount(0);
   await page.getByTestId("repair-angled-wires").click();
   await expect(page.getByTestId("status")).toContainText(
     "Straightened 1 non-standard angled wire segment",

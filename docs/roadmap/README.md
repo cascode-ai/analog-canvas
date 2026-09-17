@@ -22,30 +22,6 @@ acceptance reviews, not missing feature implementations. Candidate receipts and
 commits carry their evidence. Investigate concrete gaps revealed by those reviews;
 do not recreate an already implemented subsystem.
 
-## Free-angle diagnostic decision
-
-Free-angle routing is supported, but the current visual diagnostic classifies
-`VISUAL_NON_STANDARD_WIRE_ANGLE` as structural, high-confidence and gate-eligible
-for segments that are neither orthogonal nor 45 degrees. This can turn a valid
-authoring choice into a gate objective. Decide whether it should be advisory or
-conditional on an explicit routing constraint; do not change the accepted
-drawing mode or silently suppress the check during documentation cleanup.
-
-## Net-join naming decision
-
-The current direct-contact planner retires ordinary Net Label claims and their
-annotations on the participating Base Nets when their resolved names differ,
-then plans the merge. It does not remove formal Cell Pins or power-marker claims;
-incompatible domains and remaining conflicts still reject atomically.
-See [the current boundary](../specs/connectivity-and-routing.md#authoring-rules).
-
-This is implemented behavior, not a settled general conflict policy. Removing
-labels can also remove name-based connections to other physical components.
-Review whether the current gesture adequately communicates that effect, and
-cover local/global labels, repeated names elsewhere, formal terminals, power
-markers and undo before changing or endorsing the broader policy. This review
-does not authorize removing existing safety checks.
-
 ## Connectivity and naming acceptance
 
 Use the current [connectivity](../specs/connectivity-and-routing.md),

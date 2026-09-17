@@ -269,10 +269,11 @@ formal Cell interfaces, and labels on other Base Nets remain. Incompatible
 power domains are rejected, and any unresolved contract conflict still rejects
 the atomic transaction.
 
-This describes the implemented boundary, not a settled policy that joining
-should always discard names. In particular, retiring a label can change remote
-name-based connectivity; the [Net-join naming decision](../roadmap/README.md#net-join-naming-decision)
-remains open.
+This is the accepted explicit-join behavior: neither conflicting ordinary Label
+is chosen as the surviving name. Retiring these owners can remove name-based
+connections to remote Base Nets; those remote Labels are not themselves deleted.
+The resulting Logical Nets are derived from the remaining owners. Label removal
+and connection are one atomic, undoable operation.
 
 Name claims resolve by scope and folded name inside the containing Document.
 Flattened Document composition copies those owner-addressed claims into the
