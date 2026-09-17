@@ -25,7 +25,7 @@ the local stage unless the user explicitly requests a later stage.
 2. **Delivery.** When the user asks to deliver, open one pull request for the
    completed change or batch, run the mainline delivery gate, wait for the
    required PR checks, merge, and verify the deployed channel. The pull
-   request's `preview` label chooses that channel (ADR 0057): without it, the
+   request's `preview` label chooses that channel (Deployment rationale): without it, the
    merge deploys directly to Production; with it, every push deploys the pull
    request to Preview and the merge deploys to Preview only. Label large or
    risky changes, work a collaborator debugs on Preview, and anything someone
@@ -204,7 +204,7 @@ Merging a pull request labeled `preview` deploys only the **preview** channel;
 merging any other pull request deploys directly to the public site. A
 promotion deploys only from a `v*` release tag, or a manual dispatch of an
 accepted ref, whose commit is on `main` and already has a green preview
-deploy; see ADR 0057 and `docs/deployment.md`.
+deploy; see Deployment rationale and `docs/deployment.md`.
 
 Before a non-document change is merged or pushed to `main`:
 

@@ -87,7 +87,7 @@ export interface GlobalNetGroup {
 }
 
 /**
- * Project-level object identity (ADR 0052). Direct-document locators carry an
+ * Project-level object identity (Net connectivity rationale). Direct-document locators carry an
  * empty hierarchy path; C6 later supplies non-empty paths for navigation.
  */
 export interface ProjectObjectIndex {
@@ -124,7 +124,7 @@ const documentIndexCache = new WeakMap<
  * Returns routing guidance whose `from`/`to` are ordered by `endpointKey` and
  * whose `id` is recomputed from the ordered keys, so the same logical guide
  * yields the same id regardless of how the visible wire is partitioned into
- * Routes (ADR 0052).
+ * Routes (Net connectivity rationale).
  */
 function normalizeRoutingGuidance(line: RoutingGuide): RoutingGuide {
   const swap =

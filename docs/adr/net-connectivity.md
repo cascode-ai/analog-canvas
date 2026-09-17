@@ -1,4 +1,4 @@
-# 0052 - Net Identity and Connectivity Evidence
+# Net Identity and Connectivity Evidence
 
 Status: `accepted`
 

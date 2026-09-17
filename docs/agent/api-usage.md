@@ -99,7 +99,7 @@ rejects a body `apiVersion` other than `3.0`.
 ## Web session example (published editor)
 
 The published browser editor exposes the same Circuit API over a browser-
-authorized relay (ADR 0007). The human clicks **Agent** to create a
+authorized relay (Agent rationale). The human clicks **Agent** to create a
 connection with full circuit editing, file and simulation access, then gives
 the Agent a short-lived claim code. The Agent never needs
 repository source — only this document and the claim code.

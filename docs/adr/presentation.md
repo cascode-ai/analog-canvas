@@ -1,4 +1,4 @@
-# 0021 - Presentation and Coordinate Domains
+# Presentation and Coordinate Domains
 
 Status: `accepted`
 

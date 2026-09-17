@@ -3,7 +3,7 @@ import type { PreviewAcceptanceEnv } from "./preview-acceptance";
 /**
  * Which release channel this deployment is, and what that changes.
  *
- * Two channels exist (ADR 0057): the public site and a preview that every
+ * Two channels exist (Deployment rationale): the public site and a preview that every
  * merge to main deploys. They are one build, told apart by `ICM_CHANNEL`.
  * Production leaves it unset, so every check below is free there and the
  * preview rules cannot reach the public site by accident.

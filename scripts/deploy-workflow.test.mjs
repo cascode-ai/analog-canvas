@@ -21,7 +21,7 @@ function step(name) {
   return workflow.slice(start, next === -1 ? undefined : next);
 }
 
-describe("production entrances (ADR 0057)", () => {
+describe("production entrances (Deployment rationale)", () => {
   it("deploys unlabeled merges directly and promotes tags or selected refs", () => {
     expect(workflow).toMatch(/branches:\s*\n\s*- main/u);
     expect(workflow).toMatch(/tags:\s*\n\s*- "v\*"/u);
@@ -115,7 +115,7 @@ describe("production entrances (ADR 0057)", () => {
 
   it("has no staging job and deploys no environment", () => {
     // env.staging inherited the production custom domain on 2026-09-03 and
-    // took the public site down; the preview replaced it (ADR 0057).
+    // took the public site down; the preview replaced it (Deployment rationale).
     expect(workflow).not.toContain("Deploy staging");
     expect(workflow).not.toContain("--env");
     expect(workflow).not.toContain("STAGING_ACCESS_KEY");

@@ -1,4 +1,4 @@
-# 0049 - Persistence and Compatibility
+# Persistence and Compatibility
 
 Status: `accepted`
 

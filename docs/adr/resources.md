@@ -1,4 +1,4 @@
-# 0024 - Component Resources and Evidence
+# Component Resources and Evidence
 
 Status: `accepted`
 

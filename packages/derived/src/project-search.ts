@@ -6,7 +6,7 @@ import { directObjectLocator, type ObjectLocator } from "./object-locator.js";
 import { resolveDocumentLogicalNets } from "./logical-net.js";
 
 /**
- * Deterministic project-wide search index (ADR 0052).
+ * Deterministic project-wide search index (Net connectivity rationale).
  * Case-insensitive exact/prefix/substring matching over instances and nets,
  * returning `ObjectLocator`s ranked exact > prefix > substring with no
  * fuzzy ranking. Pure backend consumed by search and hierarchy navigation.

@@ -4,7 +4,7 @@
 
 Local work stays local until someone delivers it. Delivery is one pull request,
 and its `preview` label chooses the channel
-([ADR 0057](adr/0057-release-channels-preview-and-production.md)):
+([Deployment rationale](adr/deployment.md)):
 
 | Route      | Trigger                                          | What happens                                                                                                               |
 | ---------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
@@ -70,7 +70,7 @@ bindings, routes,
 secrets, queues, buckets and Durable Object namespaces remain channel-specific;
 they are applied by the destination Wrangler configuration rather than baked
 into the candidate.
-[ADR 0057](adr/0057-release-channels-preview-and-production.md) explains the choice.
+[Deployment rationale](adr/deployment.md) explains the choice.
 
 The release build keeps the behavior of the deployed `main` commit.
 The shared build action explicitly enables the Simulation and Agent workflows

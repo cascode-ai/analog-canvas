@@ -4,7 +4,7 @@ Status: `accepted`
 
 Primary owners: `packages/render-svg`, `packages/exporters`
 
-Related ADR: [`0014-resolved-route-geometry.md`](../adr/0014-resolved-route-geometry.md).
+Related ADR: [`routing.md`](../adr/routing.md).
 Formal export consumes the resolved route geometry (centerline + endpoint joins)
 and, as today, excludes editor overlays, flightlines, selection, and
 diagnostics.

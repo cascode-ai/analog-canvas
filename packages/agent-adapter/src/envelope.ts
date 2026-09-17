@@ -3,7 +3,7 @@
  * Cloudflare relay. They never import Node builtins.
  *
  * Contract source: [`docs/specs/web-agent-session.md`](../../../docs/specs/web-agent-session.md)
- * and [`ADR 0007`](../../../docs/adr/0007-snapshot-driven-agent-workflow.md).
+ * and [`Agent rationale`](../../../docs/adr/agent.md).
  * The Circuit API payload carried by these messages is defined in `schema.ts`.
  */
 

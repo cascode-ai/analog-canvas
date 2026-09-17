@@ -21,7 +21,7 @@ import { planBrowserAgentCommand } from "./browser-agent-command";
 
 /**
  * Adapts a live {@link EditorDocumentController} to the
- * {@link AgentOperationHost} contract (ADR 0007). The Agent Circuit
+ * {@link AgentOperationHost} contract (Agent rationale). The Agent Circuit
  * service reads the current Project/resolver and dispatches Agent transactions
  * through the controller's single `dispatchTransaction` write path.
  *

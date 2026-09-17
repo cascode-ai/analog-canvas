@@ -1,7 +1,7 @@
 export interface Schema36To37MigrationReport {
   /**
    * Schema 37 adds the optional Project `simulation` field, the persisted
-   * `SimulationSetup` of ADR 0055. No schema-36 Project has authored one, and
+   * `SimulationSetup` of Simulation rationale. No schema-36 Project has authored one, and
    * an absent field is exactly what "no setup" means, so no payload field is
    * rewritten, backfilled, or inferred from the circuit.
    */

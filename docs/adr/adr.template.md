@@ -1,4 +1,4 @@
-# NNNN - Decision Title
+# Topic Title
 
 Status: `proposed`
 

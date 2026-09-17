@@ -1,4 +1,4 @@
-# 0057 - Deployment Channels and Release Routing
+# Deployment Channels and Release Routing
 
 Status: `accepted`
 

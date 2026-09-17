@@ -15,7 +15,7 @@ import type { Diagnostic, DiagnosticSeverity } from "./diagnostic.js";
 /**
  * Electrical checks share endpoint assessment and the Diagnostic envelope.
  * Electrical findings remain distinct from visual observations; observation
- * counts are not evidence of electrical correctness (ADR 0052).
+ * counts are not evidence of electrical correctness (Net connectivity rationale).
  */
 
 /** Compatibility aliases for ERC consumers; their protocol is Diagnostic. */

@@ -363,7 +363,7 @@ describe("simulation deck assembly", () => {
     expect(deck).toContain(
       '.lib "/opt/sky130/sky130A/libs.tech/ngspice/sky130.lib.spice" tt',
     );
-    // ADR 0055: we ship no templates and infer no intent. Nothing analysis-
+    // Simulation rationale: we ship no templates and infer no intent. Nothing analysis-
     // shaped may appear that the author did not write.
     expect(deck).toContain(testbench);
     const ours = deck.replace(testbench, "").replace(netlist, "");

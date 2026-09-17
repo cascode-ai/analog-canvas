@@ -1,6 +1,6 @@
 name: Deploy Preview
 
-# The preview channel (ADR 0057, routed by ADR 0058) at
+# The preview channel (Deployment rationale) at
 # analog-canvas-preview.tokenzhang.com. A pull request labeled `preview` is
 # deployed here on every push for debugging; merging it deploys the merge
 # commit here and nowhere else. Unlabeled merges go straight to Production in

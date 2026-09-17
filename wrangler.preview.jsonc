@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
-  // The preview channel (ADR 0057). Its own file on purpose: an environment
+  // The preview channel (Deployment rationale). Its own file on purpose: an environment
   // inside wrangler.jsonc inherits every key it does not override, and that is
   // how a staging deploy took the production custom domain on 2026-09-03.
   // Nothing here inherits from anything.

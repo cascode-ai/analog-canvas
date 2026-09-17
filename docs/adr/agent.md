@@ -1,4 +1,4 @@
-# 0007 - Agent and Resource Boundaries
+# Agent and Resource Boundaries
 
 Status: `accepted`
 

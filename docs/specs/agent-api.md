@@ -129,7 +129,7 @@ remain valid only while their objects survive the edit lifecycle and are not
 exposed as an alternate Agent naming protocol.
 
 `wireIntent` has the same Route planner as interactive Wire. Its optional
-`routingMode` is `orthogonal` (default), `octilinear`, or `free` ([ADR 0014](../adr/0014-resolved-route-geometry.md));
+`routingMode` is `orthogonal` (default), `octilinear`, or `free` ([Routing rationale](../adr/routing.md));
 an optional
 `cornerOrder` selects the deterministic diagonal/orthogonal pair used when an
 exact 45-degree leg cannot reach the target. It never creates a diagonal-only

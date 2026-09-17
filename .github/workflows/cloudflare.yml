@@ -1,6 +1,6 @@
 name: Deploy Cloudflare
 
-# Production (ADR 0057, routed by ADR 0058) has two entrances:
+# Production (Deployment rationale) has two entrances:
 # - a merge to main whose pull request does not carry the `preview` label
 #   builds that merge commit once and deploys it directly;
 # - a v* tag, or a manual dispatch selecting a ref on main, promotes a commit
@@ -92,7 +92,7 @@ jobs:
           fi
           echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
       # A promoted commit was looked at on Preview before the public sees it
-      # (ADR 0057). A commit that never deployed there, or deployed and
+      # (Deployment rationale). A commit that never deployed there, or deployed and
       # failed, cannot be promoted.
       - name: The release must have a green preview deploy
         if: env.DIRECT_RELEASE != 'true'

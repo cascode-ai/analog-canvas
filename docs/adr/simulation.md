@@ -1,4 +1,4 @@
-# 0055 - Simulation Architecture
+# Simulation Architecture
 
 Status: `accepted`
 

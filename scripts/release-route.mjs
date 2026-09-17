@@ -1,4 +1,4 @@
-// Decide whether a push to main releases to Preview or Production (ADR 0057).
+// Decide whether a push to main releases to Preview or Production (Deployment rationale).
 //
 // Usage (GitHub Actions):
 //   node scripts/release-route.mjs --sha "$GITHUB_SHA" --github-output

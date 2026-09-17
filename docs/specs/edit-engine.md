@@ -4,8 +4,8 @@ Status: `accepted`
 
 Primary owner: `packages/edit-engine`
 
-Design rationale: [Net](../adr/0052-owner-explainable-net-authority.md) and
-[routing](../adr/0014-resolved-route-geometry.md).
+Design rationale: [Net](../adr/net-connectivity.md) and
+[routing](../adr/routing.md).
 Routing planners read the unified connectivity index and resolved route
 geometry as read-only input; the Edit Engine remains the sole mutation path and
 validates every edit independently without trusting the planner.
@@ -287,7 +287,7 @@ Topology operations have these preconditions:
   transaction. GUI movement planners always author those Route edits; Routes
   protected by locked geometry reject the move.
 - `move_instance` stretches unprotected connected Routes under their existing
-  geometry constraint (orthogonal, octilinear, or free; [routing rationale](../adr/0014-resolved-route-geometry.md)). A
+  geometry constraint (orthogonal, octilinear, or free; [routing rationale](../adr/routing.md)). A
   Route with a locked/trunk adjacent segment is
   skipped; if the caller does not re-point it in the same transaction, the
   post-loop validation rejects with `INVALID_RESULT` naming the Route. The

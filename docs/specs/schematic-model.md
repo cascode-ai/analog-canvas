@@ -10,7 +10,7 @@ no compatibility shape.
 
 ## Coordinate domains
 
-ADR 0021 separates persisted grid coordinates from transient and derived
+Presentation rationale separates persisted grid coordinates from transient and derived
 geometry. Every persisted page Point in a Document is a finite integer multiple
 of that Document's `presentation.grid`: Instance placements, Junctions, Route
 bends, persisted VisualAnchor point fields, and drafting points/controls/
@@ -225,7 +225,7 @@ one Reference and materializes distinct visible text as an Annotation. The
 35→36 step repairs reference-shaped labels that were materialized as literal
 text, maps them to the owning Reference, and retains their RichText styling.
 The 36→37 step adds the optional Project `simulation` field, the persisted
-`SimulationSetup` of ADR 0055 and the [simulation spec](simulation.md), and
+`SimulationSetup` of Simulation rationale and the [simulation spec](simulation.md), and
 rewrites nothing: an absent field already means no authored setup. The setup
 is Project-level authored intent, not a Document fact; it names a Testbench
 root Cell and never creates, removes, or renames connectivity.

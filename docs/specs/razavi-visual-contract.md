@@ -358,6 +358,6 @@ distinct. This is the sole Razavi-specific visual contract.
 
 Related decisions and explanatory evidence:
 
-- [`../adr/0024-built-in-device-and-project-boundaries.md`](../adr/0024-built-in-device-and-project-boundaries.md)
+- [`../adr/resources.md`](../adr/resources.md)
 - [`symbol-dsl.md`](symbol-dsl.md)
 - [`visual-language.md`](visual-language.md)

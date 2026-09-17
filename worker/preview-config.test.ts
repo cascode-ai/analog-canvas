@@ -46,7 +46,7 @@ function readConfig(file: string): {
   return JSON.parse(stripped) as ReturnType<typeof readConfig>;
 }
 
-describe("the preview channel configuration (ADR 0057)", () => {
+describe("the preview channel configuration (Deployment rationale)", () => {
   const preview = readConfig("wrangler.preview.jsonc");
   const production = readConfig("wrangler.jsonc");
 

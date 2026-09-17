@@ -4,7 +4,7 @@ Status: `accepted`
 
 Primary owner: `packages/netlist`
 
-Related ADR: [`0017-deterministic-design-netlist-boundary.md`](../adr/0017-deterministic-design-netlist-boundary.md)
+Related ADR: [`hierarchy-netlist.md`](../adr/hierarchy-netlist.md)
 
 ## Purpose
 

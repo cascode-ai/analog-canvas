@@ -5,7 +5,7 @@ Status: accepted
 Owners: `packages/model`, `packages/edit-engine`, `packages/spice`,
 `packages/netlist`, `packages/simulation-service`, `apps/editor`
 
-Related decision: [ADR 0055](../adr/0055-simulation-is-part-of-the-product.md).
+Related decision: [Simulation rationale](../adr/simulation.md).
 
 ## Contract map
 

@@ -9,7 +9,7 @@ import { findHierarchyPaths } from "./hierarchy-navigation.js";
 import type { HierarchyFrame } from "./object-locator.js";
 
 /**
- * Net highlight and occurrence-aware cross-Cell trace (ADR 0052).
+ * Net highlight and occurrence-aware cross-Cell trace (Net connectivity rationale).
  * Pure computation over the Project connectivity index.
  */
 

@@ -22,7 +22,7 @@ interface ManifestResource {
 }
 
 /**
- * Contract test (ADR 0007): MCP Resources must project from the exact sources
+ * Contract test (Agent rationale): MCP Resources must project from the exact sources
  * the manifest declares — repository docs and the published Agent operating
  * kit — with no copied or drifting knowledge.
  */

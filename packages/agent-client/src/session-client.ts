@@ -123,7 +123,7 @@ function baseRequest(requestId: string): {
 }
 
 /**
- * Unified Agent-side Helper (ADR 0007). Owns claim/resume, token and session
+ * Unified Agent-side Helper (Agent rationale). Owns claim/resume, token and session
  * state, capabilities/revision caches, exact-payload request-ID retry, the
  * Snapshot cache, and compilation-plus-execution of high-level actions.
  * Bearer tokens remain process-local and are sent only in Authorization

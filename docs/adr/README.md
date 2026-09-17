@@ -4,18 +4,18 @@ Specs own current rules. These topic documents explain consequential choices
 and accepted costs; they do not repeat schemas, operation lists or release
 history. Start with the topic, then follow its Decision links to the contracts.
 
-| Topic                 | Rationale                                                                                                |
-| --------------------- | -------------------------------------------------------------------------------------------------------- |
-| Product core          | [Shared model and transaction authority](0002-typescript-core-and-tool-boundary.md)                      |
-| Resources             | [Component ownership and visual/research evidence](0024-built-in-device-and-project-boundaries.md)       |
-| Presentation          | [Coordinates, style composition and formal output](0021-coordinate-domains-and-grid-normalization.md)    |
-| Net                   | [Physical membership, logical identity and diagnostic evidence](0052-owner-explainable-net-authority.md) |
-| Routing               | [Shared geometry, stable identities and evaluated operations](0014-resolved-route-geometry.md)           |
-| Hierarchy and netlist | [Interfaces, references and deterministic export](0017-deterministic-design-netlist-boundary.md)         |
-| Agent                 | [Browser authority, transports and scoped resources](0007-snapshot-driven-agent-workflow.md)             |
-| Persistence           | [Save, recovery and file compatibility](0049-cloud-project-save-boundary.md)                             |
-| Simulation            | [Authored experiment, execution and result boundaries](0055-simulation-is-part-of-the-product.md)        |
-| Deployment            | [Channel isolation, routing and candidate promotion](0057-release-channels-preview-and-production.md)    |
+| Topic                 | Rationale                                                                            |
+| --------------------- | ------------------------------------------------------------------------------------ |
+| Product core          | [Shared model and transaction authority](product-core.md)                            |
+| Resources             | [Component ownership and visual/research evidence](resources.md)                     |
+| Presentation          | [Coordinates, style composition and formal output](presentation.md)                  |
+| Net                   | [Physical membership, logical identity and diagnostic evidence](net-connectivity.md) |
+| Routing               | [Shared geometry, stable identities and evaluated operations](routing.md)            |
+| Hierarchy and netlist | [Interfaces, references and deterministic export](hierarchy-netlist.md)              |
+| Agent                 | [Browser authority, transports and scoped resources](agent.md)                       |
+| Persistence           | [Save, recovery and file compatibility](persistence.md)                              |
+| Simulation            | [Authored experiment, execution and result boundaries](simulation.md)                |
+| Deployment            | [Channel isolation, routing and candidate promotion](deployment.md)                  |
 
 ## Retention test
 
@@ -36,5 +36,6 @@ owner before those sections.
 Update a topic in place instead of adding an amendment ADR. Git owns chronology.
 Do not retain superseded bodies, copied field definitions, compatibility-step
 histories, validation checklists or archive indexes. Unresolved behavior belongs
-in the roadmap, not an accepted rationale. Numbered filenames remain stable
-identifiers; they are not a sequence of implementation tasks.
+in the roadmap, not an accepted rationale. Use short, descriptive lowercase
+kebab-case filenames without numeric prefixes; titles name the topic, not a
+decision number. References use the topic name and link to its document.

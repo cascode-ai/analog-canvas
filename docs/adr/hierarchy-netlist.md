@@ -1,4 +1,4 @@
-# 0017 - Hierarchy and Electrical Authoring
+# Hierarchy and Electrical Authoring
 
 Status: `accepted`
 

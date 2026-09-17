@@ -630,7 +630,7 @@ export function App({
   const cameraRuntime = cameraRuntimeRef.current;
   useEffect(() => () => cameraRuntime.dispose(), [cameraRuntime]);
   const [gridDotsVisible, setGridDotsVisible] = useState(true);
-  // Which channel serves this build (ADR 0057). Asked once; anything but a
+  // Which channel serves this build (Deployment rationale). Asked once; anything but a
   // clear "preview" is production, so the public site never wears its badge.
   const [releaseChannel, setReleaseChannel] =
     useState<ReleaseChannel>("production");
@@ -4647,7 +4647,7 @@ export function App({
         }
         publishGalleryOpen={publishGalleryOpen}
         onPublishGallery={() => {
-          // The preview reads the gallery and never writes it (ADR 0057);
+          // The preview reads the gallery and never writes it (Deployment rationale);
           // saying so here beats a sign-in dialog with nowhere to sign in.
           if (releaseChannel === "preview") {
             setStatus(

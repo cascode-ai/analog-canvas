@@ -1,4 +1,4 @@
-# 0002 - Product Core
+# Product Core
 
 Status: `accepted`
 

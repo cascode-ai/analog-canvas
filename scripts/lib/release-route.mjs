@@ -1,5 +1,5 @@
 /**
- * Where a merge to main is released (ADR 0057).
+ * Where a merge to main is released (Deployment rationale).
  *
  * The route is an explicit, visible choice on the pull request, never the
  * identity of whoever merged it: a merged pull request carrying the

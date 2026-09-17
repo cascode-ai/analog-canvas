@@ -1,4 +1,4 @@
-# 0014 - Routing Geometry and Operations
+# Routing Geometry and Operations
 
 Status: `accepted`
 
