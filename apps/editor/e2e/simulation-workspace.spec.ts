@@ -1414,7 +1414,7 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     "write out.raw",
     "tran 1e-9 1e-6 0 5e-10",
     "meas tran at_one_tau FIND v(vout) AT=1e-9",
-    "* @spec at_one_tau <= 2 unit=V",
+    '* @spec at_one_tau <= 2 unit=V label={"runs":[{"kind":"text","value":"V"},{"kind":"span","style":"subscript","children":[{"kind":"text","value":"out"}]}]}',
     "write out.raw",
     "noise v(vout) VINP dec 10 1 1e6",
     "write out.raw",
@@ -1484,9 +1484,28 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
   await expect(panel.locator(".simulation-console-view > pre")).toBeVisible();
   await panel.getByRole("tab", { name: "Specs", exact: true }).click();
   const specs = panel.getByRole("region", { name: "Specification results" });
+  const measurementRow = specs.getByRole("row").filter({ hasText: "Vout" });
+  await expect(measurementRow).toContainText("Pass");
+  await expect(measurementRow.locator("sub")).toHaveText("out");
   await expect(
-    specs.getByRole("row").filter({ hasText: "at_one_tau" }),
-  ).toContainText("Pass");
+    measurementRow.locator(".simulation-spec-unit").first(),
+  ).toHaveText("mV");
+  await expect(
+    measurementRow.locator(".simulation-spec-number").first(),
+  ).toHaveCSS("text-align", "right");
+  const cells = await measurementRow.locator("th, td").evaluateAll((elements) =>
+    elements.map((element) => {
+      const rect = element.getBoundingClientRect();
+      return { top: rect.top, height: rect.height };
+    }),
+  );
+  expect(
+    cells.every(
+      (cell) =>
+        Math.abs(cell.top - cells[0]!.top) < 1 &&
+        Math.abs(cell.height - cells[0]!.height) < 1,
+    ),
+  ).toBe(true);
   await expect(
     panel.getByRole("tab", { name: /^(Plot|Operating Point|Compare)$/ }),
   ).toHaveCount(0);

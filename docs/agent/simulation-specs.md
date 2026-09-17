@@ -10,15 +10,36 @@ evaluates specifications from the captured execution input, never live edits.
 * @spec bandwidth >= 1e6 unit=Hz
 * @spec bias range 0.4 0.6 unit=V
 * @spec delay target 1e-6 tol 1e-8 unit=s
+* @spec zmag_1mhz unit=Ohm label="Input impedance at 1 MHz"
+* @spec cin unit=F label={"runs":[{"kind":"text","value":"C"},{"kind":"span","style":"subscript","children":[{"kind":"text","value":"in"}]}]}
 ```
 
-The grammar is `* @spec NAME CONDITION [unit=LABEL]`. Conditions are `< N`,
+The grammar is `* @spec NAME [CONDITION] [unit=UNIT] [label=JSON]`. Conditions are `< N`,
 `<= N`, `> N`, `>= N`, `range MIN MAX` (inclusive), or
 `target VALUE tol ABSOLUTE_TOLERANCE`. Numbers use decimal/scientific notation;
 SPICE suffixes, expressions and implicit conversions are deliberately unsupported.
 Units are the author's declaration of the measurement's numerical unit, not an
 inferred dimension check. For example a result measured in seconds uses `1e-6
 unit=s`, not `1 unit=us` unless the code explicitly computed microseconds.
+
+A measurement-only annotation may omit the condition if it declares a unit or
+label; it remains `unconstrained` (GUI: **Measured only**), not Pass. Keep all
+metadata and any condition in one annotation per measurement. `label` is last
+and accepts a JSON string or a compact single-line subset of canonical RichText:
+up to 16 text/style runs (bold, italic, subscript, superscript or overbar with
+text children), or one inline `math` run. Text/formula strings are limited to
+256 characters; use inline math for fractions rather than nested document
+layouts. No HTML or new markup language is interpreted. The
+machine measurement name is unchanged. Invalid metadata is `invalid-spec`.
+Optional labels are captured in reports, not read back from live source.
+
+The compact four-column table uses engineering prefixes for base electrical
+units (e.g. `36.27 MΩ`, `4.39 fF`) and the same scale for a row's expected value.
+Unit `1` explicitly means dimensionless; absent units display `?` with an
+explanation, never a guess from the measurement name. Hover exposes the original
+unrounded numerical value and declared unit. Clicking a name still opens its
+source. Rendering/rounding does not change evaluation or the stored numbers.
+Historical reports without labels keep their original names and units.
 
 Each measurement name has at most one specification. Multiple declarations with
 the same measurement name are ambiguous; use distinct names. Repeated reports
@@ -30,7 +51,10 @@ report: runId, preparedId, inputDigest and results with source path/line/text,
 measurement name, occurrence, numeric value, unit, structured expected condition,
 judgment, reason and logLine. Retrieve artifacts through the existing authorized
 file API; no new authority or UI interaction is required. `specs.csv` preserves
-the result and provenance for external tools. Raw and analysis CSV remain intact.
+the result and provenance for external tools, with an appended plain-text label
+column (formula-leading labels are escaped for spreadsheet safety). Raw and
+analysis CSV remain intact. Clients consuming strict report schemas must support
+the optional RichText `label` field before receiving newly labeled reports.
 
 The GUI file tree presents `specs.csv`; `specs.json` remains available through
 File Resource and diagnostic export. Waveforms live in `result.data` or

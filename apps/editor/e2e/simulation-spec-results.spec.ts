@@ -28,10 +28,23 @@ test("Specs retain captured judgments and source navigation at narrow and maximi
           (judgment, i) => ({
             id: String(i),
             name: ["peak", "delay", "missing", "bias"][i],
+            ...(i === 3
+              ? {
+                  label: {
+                    runs: [
+                      {
+                        kind: "math",
+                        latex: "Z_{\\mathrm{in}}",
+                        display: "inline",
+                      },
+                    ],
+                  },
+                }
+              : {}),
             occurrence: 1,
             source: { path: "run.cir", line: i + 2, text: "captured source" },
-            value: i === 2 ? null : i + 0.5,
-            unit: "V",
+            value: i === 2 ? null : i === 3 ? 36.2705e6 : i + 0.5,
+            unit: i === 3 ? "Ohm" : "V",
             expected:
               i === 3 ? null : { kind: "limit", operator: "<=", value: 1 },
             judgment,
@@ -49,6 +62,15 @@ test("Specs retain captured judgments and source navigation at narrow and maximi
     });
   });
   const table = page.getByRole("table");
+  await expect(
+    table.getByRole("img", { name: "Z_{\\mathrm{in}}" }),
+  ).toBeVisible();
+  await expect(table).toContainText("36.2705 MΩ");
+  await expect(table).toContainText("Measured only");
+  await expect(table.locator(".simulation-spec-number").first()).toHaveCSS(
+    "text-align",
+    "right",
+  );
   await expect(table.getByRole("columnheader")).toHaveText([
     "Spec",
     "Sim result",
@@ -81,6 +103,18 @@ test("Specs retain captured judgments and source navigation at narrow and maximi
         .locator("#spec-regression")
         .evaluate((element) => element.scrollWidth <= element.clientWidth),
     ).toBe(true);
+    const layout = await table.evaluate((element) => {
+      const cells = [
+        ...element.querySelectorAll("tbody tr:first-child > *"),
+      ].map((cell) => cell.getBoundingClientRect());
+      return cells.every(
+        (cell, index) => !index || cell.left >= cells[index - 1]!.right - 1,
+      );
+    });
+    expect(layout).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`spec-results-${width}.png`),
+    });
   }
   await page.screenshot({ path: test.info().outputPath("spec-results.png") });
 });
