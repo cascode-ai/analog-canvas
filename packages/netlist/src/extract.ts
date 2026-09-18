@@ -1687,8 +1687,7 @@ function extractCell(
   for (const instance of [...document.instances].sort((left, right) =>
     left.id.localeCompare(right.id),
   )) {
-    if (instance.reference || !subcircuitDescriptor(instance.symbolId))
-      continue;
+    if (instance.reference) continue;
     const policy = referenceIndex.policyByInstanceId.get(instance.id);
     if (!policy) continue;
     const reference = nextReference(referenceIndex, policy, {
@@ -1736,11 +1735,17 @@ function extractCell(
   const cellPinInstanceIds = new Set(
     interfaceProjection.ports.flatMap((port) => port.interfaceInstanceIds),
   );
-  for (const instance of [...document.instances].sort((a, b) => {
+  for (const source of [...document.instances].sort((a, b) => {
     const left = a.reference ?? syntheticReferences.get(a.id) ?? a.id;
     const right = b.reference ?? syntheticReferences.get(b.id) ?? b.id;
     return compareText(left, right) || a.id.localeCompare(b.id);
   })) {
+    // Older/Agent-authored drawings can omit references on primitive devices
+    // too. Allocate only in this read-only projection, before dialect prefixes.
+    const generatedReference = syntheticReferences.get(source.id);
+    const instance = generatedReference
+      ? { ...source, reference: generatedReference }
+      : source;
     if (cellPinInstanceIds.has(instance.id)) continue;
     const binding = instance.netlist?.binding;
     const builtInSubcircuit = subcircuitDescriptor(instance.symbolId);

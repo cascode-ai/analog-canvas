@@ -85,6 +85,33 @@ function resistorProject(parameters: Record<string, string>) {
 }
 
 describe("current formal cell interface", () => {
+  it.each(["spice", "spectre"] as const)(
+    "allocates collision-free %s references for unnamed legacy devices without editing the drawing",
+    (format) => {
+      const project = resistorProject({ value: "1k" });
+      const document = project.documents[0]!;
+      document.instances.push({
+        ...structuredClone(document.instances[0]!),
+        id: "unnamed-device",
+      });
+      delete document.instances[1]!.reference;
+      for (const net of document.nets)
+        net.terminals.push({
+          ...net.terminals[0]!,
+          instanceId: "unnamed-device",
+        });
+      const before = structuredClone(project);
+      const result = analyzeDesignNetlist(project, { format });
+      expect(
+        result.diagnostics.filter((item) => item.severity === "error"),
+      ).toEqual([]);
+      expect(
+        result.ir?.cells[0]?.instances.map((instance) => instance.reference),
+      ).toEqual(["R1", "R2"]);
+      expect(project).toEqual(before);
+    },
+  );
+
   it("derives a portable netlist identifier from a readable Cell name", () => {
     const project = resistorProject({ value: "10k" });
     const document = project.documents[0]!;
