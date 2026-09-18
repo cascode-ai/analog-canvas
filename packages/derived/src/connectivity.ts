@@ -164,7 +164,11 @@ export function deriveNetConnectivity(
         (candidate) => candidate.id === binding.annotationId,
       )!;
     const label = flattenRichText(
-      resolveAnnotationText(document, annotation),
+      resolveAnnotationText(
+        document,
+        annotation,
+        context?.logicalNetResolution,
+      ),
     ).trim();
     const key = endpointKey(binding.endpoint);
     if (label.length === 0 || !nodes.has(key)) continue;
@@ -184,7 +188,11 @@ export function deriveNetConnectivity(
     const key = endpointKey(binding.endpoint);
     if (!nodes.has(key)) continue;
     const label = flattenRichText(
-      resolveAnnotationText(document, annotation),
+      resolveAnnotationText(
+        document,
+        annotation,
+        context?.logicalNetResolution,
+      ),
     ).trim();
     if (label.length === 0) continue;
     const group = labeledEndpoints.get(label) ?? [];

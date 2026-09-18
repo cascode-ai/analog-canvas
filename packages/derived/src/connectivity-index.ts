@@ -19,7 +19,10 @@ import { endpointKey, isVisibleEndpoint, netEndpoints } from "./endpoint.js";
 import { directObjectLocator, type ObjectLocator } from "./object-locator.js";
 import type { ResolvedNetLabelBinding } from "./net-label.js";
 import { resolveAnnotationText } from "./annotation-text.js";
-import { resolveDocumentLogicalNets } from "./logical-net.js";
+import {
+  resolveDocumentLogicalNets,
+  type ResolvedDocumentLogicalNets,
+} from "./logical-net.js";
 import type { DocumentDerivedContext } from "./document-derived-context.js";
 
 /**
@@ -302,6 +305,7 @@ function buildNetRecord(
     document,
     net,
     connectivityContext.netLabelBindingsByNetId.get(net.id) ?? [],
+    connectivityContext.logicalNetResolution,
   );
 
   return {
@@ -327,6 +331,7 @@ function deriveLabelVirtualEdges(
   document: SchematicDocument,
   net: Net,
   bindings: readonly ResolvedNetLabelBinding[],
+  logicalNets: ResolvedDocumentLogicalNets,
 ): VirtualConnectivityEdge[] {
   const groups = new Map<
     string,
@@ -337,7 +342,7 @@ function deriveLabelVirtualEdges(
       (candidate) => candidate.id === binding.annotationId,
     )!;
     const label = flattenRichText(
-      resolveAnnotationText(document, annotation),
+      resolveAnnotationText(document, annotation, logicalNets),
     ).trim();
     if (label.length === 0) continue;
     const group = groups.get(label) ?? {
@@ -356,7 +361,7 @@ function deriveLabelVirtualEdges(
     );
     if (!binding) continue;
     const label = flattenRichText(
-      resolveAnnotationText(document, annotation),
+      resolveAnnotationText(document, annotation, logicalNets),
     ).trim();
     if (label.length === 0) continue;
     const group = groups.get(label) ?? {

@@ -801,8 +801,13 @@ export function diagnoseVisualQuality(
   const annotationBounds = document.annotations
     .filter(
       (annotation) =>
-        flattenRichText(resolveAnnotationText(document, annotation)).trim()
-          .length > 0,
+        flattenRichText(
+          resolveAnnotationText(
+            document,
+            annotation,
+            options.logicalNetResolution,
+          ),
+        ).trim().length > 0,
     )
     .map((annotation) => {
       return {
