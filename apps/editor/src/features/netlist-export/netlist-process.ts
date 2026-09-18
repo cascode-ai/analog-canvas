@@ -173,37 +173,6 @@ export function planNetlistProcess(
       const external =
         instance.netlist!.binding?.kind === "external-subcircuit";
       if (target || external || descriptor.targetPolicy === "required-model") {
-        const prefix = descriptor.referencePrefix!;
-        const body = external
-          ? instance.reference!.replace(/^x/iu, "")
-          : instance.reference!;
-        const desired = reviewed
-          ? external
-            ? instance.reference!
-            : `X${body}`
-          : body.toUpperCase().startsWith(prefix)
-            ? body
-            : `${prefix}${body}`;
-        const used = new Set(
-          document.instances
-            .filter((item) => item.id !== instance.id)
-            .map((item) => item.reference?.toLowerCase()),
-        );
-        if (used.has(desired.toLowerCase())) {
-          let index = 1;
-          while (
-            used.has(`${prefix}${index}`.toLowerCase()) ||
-            used.has(`X${prefix}${index}`.toLowerCase())
-          )
-            index++;
-          transact(documentId, [
-            {
-              kind: "set_instance_reference",
-              instanceId: instance.id,
-              reference: `${external ? "X" : ""}${prefix}${index}`,
-            },
-          ]);
-        }
         stage(
           planSetDeviceModelTarget(working, documentId, instance.id, target),
         );

@@ -1486,6 +1486,46 @@ function groundPortIndex(
   return index;
 }
 
+/** Allocate dialect names without changing authored references. Reserve existing
+ * legal names first so M1 and an imported XM1 remain two distinct devices.
+ * The shared IR supplies both exported cards and simulator signal paths.
+ */
+function projectSpiceReferences(cell: DesignNetlistCell): void {
+  const prefixes: Record<DesignNetlistInstance["deviceClass"], string> = {
+    mos: "M",
+    resistor: "R",
+    capacitor: "C",
+    inductor: "L",
+    diode: "D",
+    bjt: "Q",
+    "voltage-source": "V",
+    "current-source": "I",
+    switch: "S",
+    hierarchical: "X",
+    "net-marker": "",
+  };
+  const prefixFor = (instance: DesignNetlistInstance) =>
+    instance.invocationKind === "subcircuit"
+      ? "X"
+      : prefixes[instance.deviceClass];
+  const needsPrefix = (instance: DesignNetlistInstance) =>
+    !instance.reference.toUpperCase().startsWith(prefixFor(instance));
+  const used = new Set(
+    cell.instances
+      .filter((instance) => !needsPrefix(instance))
+      .map((instance) => instance.reference.toLowerCase()),
+  );
+  for (const instance of cell.instances) {
+    if (!needsPrefix(instance)) continue;
+    const base = `${prefixFor(instance)}${instance.reference}`;
+    let reference = base;
+    for (let suffix = 2; used.has(reference.toLowerCase()); suffix++)
+      reference = `${base}_${suffix}`;
+    used.add(reference.toLowerCase());
+    instance.reference = reference;
+  }
+}
+
 function extractCell(
   project: CircuitProject,
   document: SchematicDocument,
@@ -1838,7 +1878,10 @@ function analyzeDesign(
       resolvedOptions,
       diagnostics,
     );
-    if (cell) cells.push(cell);
+    if (cell) {
+      if (resolvedOptions.format === "spice") projectSpiceReferences(cell);
+      cells.push(cell);
+    }
   }
   diagnostics.sort(
     (left, right) =>

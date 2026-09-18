@@ -208,7 +208,7 @@ test("one live JSON edit combines model, dimensions and appearance in one undo b
     code.parameters.w = "5u";
     code.appearance.color = [20, 30, 40];
   });
-  await expectComponentCodeField(page, "netlistName", "XM1");
+  await expectComponentCodeField(page, "netlistName", "M1");
   await expectComponentCodeField(page, "parameters.w", "5u");
   await expectComponentCodeField(page, "appearance.color", [20, 30, 40]);
   await clickCommand(page, "Edit", "Undo");
@@ -216,7 +216,7 @@ test("one live JSON edit combines model, dimensions and appearance in one undo b
   await expectComponentCodeField(page, "parameters.w", "1u");
   await expectComponentCodeField(page, "appearance.color", "auto");
   await clickCommand(page, "Edit", "Redo");
-  await expectComponentCodeField(page, "netlistName", "XM1");
+  await expectComponentCodeField(page, "netlistName", "M1");
   await expectComponentCodeField(page, "parameters.w", "5u");
 });
 
@@ -1476,7 +1476,7 @@ test("selects a reviewed SKY130 MOS through the inline Target netlist field", as
     "netlistTarget",
     "sky130_fd_pr__nfet_01v8",
   );
-  await expectComponentCodeField(page, "netlistName", "XM1");
+  await expectComponentCodeField(page, "netlistName", "M1");
   await expectComponentCodeField(page, "parameters.nf", "1");
   await expectComponentCodeField(page, "parameters.m", "1");
 
@@ -1493,7 +1493,7 @@ test("selects a reviewed SKY130 MOS through the inline Target netlist field", as
     "netlistTarget",
     "sky130_fd_pr__nfet_01v8",
   );
-  await expectComponentCodeField(page, "netlistName", "XM1");
+  await expectComponentCodeField(page, "netlistName", "M1");
 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -1514,7 +1514,7 @@ test("selects a reviewed SKY130 MOS through the inline Target netlist field", as
   expect(saved.documents[0].instances[0]).toMatchObject({
     id: "M1",
     symbolId: "nmos",
-    reference: "XM1",
+    reference: "M1",
     netlist: {
       parameters: { w: "1u", l: "150n", nf: "1", m: "1" },
       binding: { kind: "external-subcircuit" },
@@ -1539,7 +1539,7 @@ test("keeps the exact SKY130 PNP on its three-terminal model interface", async (
     "sky130_fd_pr__pnp_05v5_W0p68L0p68",
   );
   await expect(properties.getByLabel("Substrate Net")).toHaveCount(0);
-  await expectComponentCodeField(page, "netlistName", "XQ1");
+  await expectComponentCodeField(page, "netlistName", "Q1");
 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -1571,7 +1571,7 @@ test("derives NPN substrate from its exact Model", async ({ page }) => {
     "sky130_fd_pr__npn_05v5_W1p00L1p00",
   );
   await expect(properties.getByLabel("Substrate Net")).toBeVisible();
-  await expectComponentCodeField(page, "netlistName", "XQ1");
+  await expectComponentCodeField(page, "netlistName", "Q1");
 
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -1595,7 +1595,7 @@ for (const fixture of [
     externalParameter: "mult",
     primitiveParameter: "value",
     nativeReference: "R1",
-    externalReference: "XR1",
+    externalReference: "R1",
   },
   {
     symbolId: "capacitor",
@@ -1603,7 +1603,7 @@ for (const fixture of [
     externalParameter: "mf",
     primitiveParameter: "value",
     nativeReference: "C1",
-    externalReference: "XC1",
+    externalReference: "C1",
   },
 ] as const) {
   test(`switches ${fixture.symbolId} Model parameters immediately and clears through None`, async ({

@@ -40,7 +40,8 @@ export function referencePolicyForInstance(
   if (
     binding?.kind === "subcircuit" ||
     binding?.kind === "unresolved-subcircuit" ||
-    binding?.kind === "external-subcircuit" ||
+    (binding?.kind === "external-subcircuit" &&
+      !deviceDescriptor(instance.symbolId)?.referencePrefix) ||
     subcircuitDescriptor(instance.symbolId)
   ) {
     return hierarchyReferencePolicy;
@@ -95,7 +96,15 @@ export function createReferenceIndex(
       issues.push({ code: "MISSING_REFERENCE", instanceId: instance.id });
       continue;
     }
-    if (!reference.toUpperCase().startsWith(policy.prefix.toUpperCase())) {
+    // Keep imported/previously authored X references across model transitions.
+    // New native devices, including PDK wrappers, still allocate M/R/C/etc.
+    const retainedExternalReference =
+      Boolean(deviceDescriptor(instance.symbolId)?.referencePrefix) &&
+      /^x/iu.test(reference);
+    if (
+      !reference.toUpperCase().startsWith(policy.prefix.toUpperCase()) &&
+      !retainedExternalReference
+    ) {
       issues.push({
         code: "WRONG_REFERENCE_PREFIX",
         instanceId: instance.id,

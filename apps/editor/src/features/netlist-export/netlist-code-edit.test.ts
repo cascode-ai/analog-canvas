@@ -188,3 +188,89 @@ describe.each<NetlistFormat>(["spice", "spectre"])(
     });
   },
 );
+
+it.each([
+  ["spice", "XM_load", "M_load", false],
+  ["spectre", "M_load", "M_load", false],
+  ["spice", "X_load", "X_load", false],
+  ["spice", "XM_load_2", "M_load", true],
+] as const)(
+  "maps a %s rename to %s back to %s (collision: %s)",
+  async (format, printedName, authoredName, collision) => {
+    const { project } = await fixture(format);
+    const { planSetDeviceModelTarget } = await import("@icm/edit-engine");
+    const leaf = project.documents.find((d) => d.netlist?.name === "leaf")!;
+    const mos = leaf.instances.find((i) => i.reference === "M1")!;
+    const mapped = executeProjectTransaction(project, {
+      transactionId: "sky130",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: planSetDeviceModelTarget(
+        project,
+        leaf.id,
+        mos.id,
+        "sky130_fd_pr__nfet_01v8",
+      ),
+    });
+    if (!mapped.ok) throw new Error(mapped.error.message);
+    if (collision) {
+      const document = mapped.project.documents.find((d) => d.id === leaf.id)!;
+      document.instances.push({
+        ...structuredClone(document.instances.find((i) => i.id === mos.id)!),
+        id: "existing-x",
+        reference: "XM1",
+        placement: null,
+      });
+      for (const pinName of ["D", "G", "S", "B"])
+        document.noConnects.push({
+          id: `existing-x-${pinName}`,
+          endpoint: { kind: "terminal", instanceId: "existing-x", pinName },
+        });
+    }
+    const baseline = createDesignNetlistExport(mapped.project, {
+      format,
+      includeLocations: true,
+    });
+    if (baseline.status !== "ready") throw new Error(JSON.stringify(baseline));
+    const prefix = format === "spice" ? "X" : "";
+    const originalName = `${prefix}M1${collision ? "_2" : ""}`;
+    expect(baseline.file.text).toContain(`${originalName} `);
+    if (format === "spice")
+      expect(
+        planNetlistCodeEdit(
+          mapped.project,
+          baseline,
+          baseline.file.text.replace(`${originalName} `, "M_bad "),
+        ).ok,
+      ).toBe(false);
+    const source = baseline.file.text
+      .replace(`${originalName} `, `${printedName} `)
+      .replace("w=1", "w=2");
+    const plan = planNetlistCodeEdit(mapped.project, baseline, source);
+    if (!plan.ok) throw new Error(plan.message);
+    expect(
+      netlistInstanceAtLine(source, source.indexOf(printedName), plan.instances)
+        ?.instanceId,
+    ).toBe(mos.id);
+    const result = executeProjectTransaction(mapped.project, {
+      transactionId: "rename",
+      projectId: project.id,
+      expectedStructureRevision: mapped.project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: plan.edits,
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    expect(
+      result.project.documents
+        .find((d) => d.id === leaf.id)!
+        .instances.find((i) => i.id === mos.id)!.reference,
+    ).toBe(authoredName);
+    const next = createDesignNetlistExport(result.project, { format });
+    if (next.status !== "ready") throw new Error(JSON.stringify(next));
+    expect(next.file.text).toContain(
+      `${authoredName.startsWith("X") ? "" : prefix}${authoredName} `,
+    );
+    expect(next.file.text).not.toContain("XXM_load");
+  },
+);

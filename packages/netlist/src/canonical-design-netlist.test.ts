@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { createDesignNetlistExport } from "./export.js";
 import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
+import { ngspiceSimulationDevices } from "./simulation-ngspice-devices.js";
 
 function copiedExternalMosProject() {
   const project = createEmptyProject("project", "Copied SKY130", "dut");
@@ -74,4 +75,45 @@ describe("canonical design-netlist authority", () => {
       expect.objectContaining({ code: "EXPORT_REFERENCE_CONFLICT" }),
     );
   });
+});
+
+it("projects SPICE names without changing canvas names and reserves authored X names", () => {
+  const { project, folder } = copiedExternalMosProject();
+  const document = project.documents[0]!;
+  document.instances[0]!.reference = "M1";
+  document.instances[1]!.reference = "xm1";
+  const before = structuredClone(project);
+  const spice = createDesignNetlistExport(project, {
+    format: "spice",
+    includeLocations: true,
+  });
+  const spectre = createDesignNetlistExport(project, { format: "spectre" });
+  const simulation = compileNgspiceSourceSimulation(project, folder);
+  expect(spice.status, JSON.stringify(spice.diagnostics)).toBe("ready");
+  expect(spectre.status).toBe("ready");
+  expect(simulation.ok, JSON.stringify(simulation)).toBe(true);
+  if (spice.status !== "ready" || spectre.status !== "ready" || !simulation.ok)
+    return;
+  expect(spice.file.text).toMatch(/^XM1_2 .*sky130_fd_pr__nfet_01v8/mu);
+  expect(spice.file.text).toMatch(/^xm1 .*sky130_fd_pr__nfet_01v8/mu);
+  expect(spectre.file.text).toMatch(/^M1 \(/mu);
+  expect(spectre.file.text).toMatch(/^xm1 \(/mu);
+  const cards = (text: string) =>
+    text.split("\n").filter((line) => /^xm1(?:_2)? /iu.test(line));
+  expect(cards(simulation.generated[0]!.text)).toEqual(cards(spice.file.text));
+  const field = spice.locations.fields.find(
+    (f) => f.instanceId === "original" && f.kind === "reference",
+  )!;
+  expect(spice.file.text.slice(field.startOffset, field.endOffset)).toBe(
+    "XM1_2",
+  );
+  expect(field.rawValue).toBe("XM1_2");
+  const devices = ngspiceSimulationDevices(project, folder.input);
+  expect(
+    devices.find((device) => device.instanceId === "original")?.nativeDevice,
+  ).toBe("m.xm1_2.msky130_fd_pr__nfet_01v8");
+  expect(
+    devices.find((device) => device.instanceId === "copy")?.nativeDevice,
+  ).toBe("m.xm1.msky130_fd_pr__nfet_01v8");
+  expect(project).toEqual(before);
 });

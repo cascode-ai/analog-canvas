@@ -114,6 +114,11 @@ describe("persisted netlist process authoring", () => {
     expect(scs).toContain("simulator lang=spectre");
     expect(scs).not.toContain("simulator lang=spice");
     expect(scs).not.toContain("TODO");
+    expect(scs).toMatch(/^M1 \(.*sky130_fd_pr__nfet_01v8 /mu);
+    const names = (p: CircuitProject) =>
+      p.documents[0]!.instances.map((i) => i.reference);
+    expect(names(project)).toEqual(names(source));
+    expect(names(apply(project))).toEqual(names(source));
     expect(exported(apply(project))).toMatch(/^M1 .* NMOS /mu);
   });
 
@@ -124,7 +129,7 @@ describe("persisted netlist process authoring", () => {
     );
     const document = project.documents[0]!;
     const source = document.instances.find(
-      (instance) => instance.reference === "XM1",
+      (instance) => instance.reference === "M1",
     )!;
     const copy = {
       ...structuredClone(source),
@@ -144,7 +149,11 @@ describe("persisted netlist process authoring", () => {
         onlyMissing: true,
       }),
     ).toEqual([]);
+    const before = project.documents[0]!.instances.map((i) => i.reference);
     project = apply(project);
+    expect(project.documents[0]!.instances.map((i) => i.reference)).toEqual(
+      before,
+    );
     const references = project.documents[0]!.instances.flatMap((instance) =>
       instance.reference ? [instance.reference] : [],
     );
@@ -211,7 +220,7 @@ describe("persisted netlist process authoring", () => {
     "authors physical %s geometry and property terminals without stray visible labels",
     (family, target) => {
       const project = createEmptyProject("passive", "passive");
-      const id = family[0]!.toUpperCase() + "1";
+      const id = { resistor: "R", capacitor: "C", inductor: "L" }[family] + "1";
       project.documents[0]!.instances.push({
         id,
         reference: id,

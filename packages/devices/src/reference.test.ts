@@ -43,7 +43,7 @@ describe("ReferencePolicy and ReferenceIndex", () => {
     ).toBe("M2");
   });
 
-  it("uses the ngspice X sequence for every external-subcircuit call", () => {
+  it("allocates native device references for wrappers and accepts existing X names", () => {
     const document = createEmptyDocument("main", "Main");
     document.instances.push({
       id: "reviewed-mos",
@@ -59,9 +59,12 @@ describe("ReferencePolicy and ReferenceIndex", () => {
       },
     });
     const policy = referencePolicyForInstance(document.instances[0]!);
-    expect(policy).toEqual({ kind: "required", prefix: "X" });
-    expect(nextReference(createReferenceIndex(document), policy)).toBe("X1");
+    expect(policy).toEqual({ kind: "required", prefix: "M" });
     expect(createReferenceIndex(document).issues).toEqual([]);
+    expect(nextReference(createReferenceIndex(document), policy)).toBe("M1");
+    document.instances[0]!.reference = "M1";
+    expect(createReferenceIndex(document).issues).toEqual([]);
+    expect(nextReference(createReferenceIndex(document), policy)).toBe("M2");
   });
 
   // All three switches designate `S`, so they draw from one sequence: the

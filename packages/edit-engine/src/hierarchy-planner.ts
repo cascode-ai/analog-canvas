@@ -362,10 +362,8 @@ function removedPropertyTerminalEdits(
 
 /**
  * Switches a native device between its ordinary binding and one exact reviewed
- * external target. The ngspice card designator is the persisted Reference, so
- * this transaction changes M/R/C to X and restores the native prefix when the
- * external target is removed without changing object identity or graphical
- * pins.
+ * external target without renaming the schematic Instance. Invocation prefixes
+ * belong to the derived SPICE netlist, not to process/model authoring.
  */
 export function planSetDeviceModelTarget(
   project: CircuitProject,
@@ -444,19 +442,6 @@ export function planSetDeviceModelTarget(
       );
     }
     const symbolId = verified.symbolId;
-    const reference = instance.reference!.toUpperCase().startsWith("X")
-      ? instance.reference!
-      : `X${instance.reference!}`;
-    const referenceOwner = document.instances.find(
-      (candidate) =>
-        candidate.id !== instanceId &&
-        candidate.reference?.toLowerCase() === reference.toLowerCase(),
-    );
-    if (referenceOwner) {
-      throw new Error(
-        `Cannot set external target because Reference ${reference} is already used`,
-      );
-    }
     const documentEdits: DocumentEdits = removedPropertyTerminalEdits(
       document,
       instanceId,
@@ -491,7 +476,6 @@ export function planSetDeviceModelTarget(
     if (
       JSON.stringify(instance.netlist.binding ?? null) !==
         JSON.stringify(binding) ||
-      instance.reference !== reference ||
       Object.keys(set).length > 0 ||
       unset.length > 0
     ) {
@@ -500,7 +484,6 @@ export function planSetDeviceModelTarget(
         assignments: [
           {
             instanceId,
-            reference,
             binding,
             ...(Object.keys(set).length ? { set } : {}),
             ...(unset.length ? { unset } : {}),
@@ -523,26 +506,6 @@ export function planSetDeviceModelTarget(
   }
 
   const symbolId = sourceSymbolId;
-  const nativePrefix = sourceDescriptor.referencePrefix;
-  if (!nativePrefix) {
-    throw new Error(`The selected ${sourceSymbolId} has no netlist Reference`);
-  }
-  const externalBody = currentExternal
-    ? instance.reference!.replace(/^x/iu, "")
-    : instance.reference!;
-  const reference = externalBody.toUpperCase().startsWith(nativePrefix)
-    ? externalBody
-    : `${nativePrefix}${externalBody}`;
-  const referenceOwner = document.instances.find(
-    (candidate) =>
-      candidate.id !== instanceId &&
-      candidate.reference?.toLowerCase() === reference.toLowerCase(),
-  );
-  if (referenceOwner) {
-    throw new Error(
-      `Cannot clear external target because Reference ${reference} is already used`,
-    );
-  }
   if (normalizedName && sourceDescriptor.targetPolicy !== "required-model") {
     throw new Error(
       `${symbolId} supports only the reviewed model suggestion in this release`,
@@ -580,7 +543,6 @@ export function planSetDeviceModelTarget(
   if (
     JSON.stringify(instance.netlist.binding ?? null) !==
       JSON.stringify(binding ?? null) ||
-    instance.reference !== reference ||
     unset.length > 0
   ) {
     documentEdits.push({
@@ -588,7 +550,6 @@ export function planSetDeviceModelTarget(
       assignments: [
         {
           instanceId,
-          reference,
           binding: binding ?? null,
           ...(unset.length ? { unset } : {}),
         },

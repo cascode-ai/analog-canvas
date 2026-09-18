@@ -59,15 +59,21 @@ test("restores process and device choices, applies defaults and keeps copy/edit/
   const code = page.getByLabel("Netlist code", { exact: true });
   await expect(code).toContainText("NMOS");
   await expect(code).not.toContainText("TODO");
+  const mosLabel = page.locator(
+    '[data-layer="annotations"] [data-object-id="instance-label-M1"]',
+  );
+  await expect(mosLabel).toHaveText("M1");
   const process = page.getByLabel("Netlist process", { exact: true });
   await process.selectOption("sky130");
   await expect(code).toContainText("sky130_fd_pr__nfet_01v8");
   await expect(code).toContainText("XM1");
+  await expect(mosLabel).toHaveText("M1");
   await clickCommand(page, "Edit", "Undo");
   await expect(code).toContainText("NMOS");
   await expect(code).not.toContainText("XM1");
   await clickCommand(page, "Edit", "Redo");
   await expect(code).toContainText("XM1");
+  await expect(mosLabel).toHaveText("M1");
   await page
     .getByLabel("Netlist format", { exact: true })
     .selectOption("spectre");
@@ -77,6 +83,8 @@ test("restores process and device choices, applies defaults and keeps copy/edit/
   await expect(code).toContainText("simulator lang=spectre");
   await expect(code).not.toContainText("simulator lang=spice");
   await expect(code).toContainText("sky130_fd_pr__nfet_01v8_lvt");
+  await expect(code).not.toContainText("XM1");
+  await expect(mosLabel).toHaveText("M1");
   await page.getByTestId("copy-netlist-panel").click();
   const nonemptyLines = (text: string) =>
     text.split(/\r?\n/u).filter((line) => line.trim());
@@ -101,6 +109,19 @@ test("restores process and device choices, applies defaults and keeps copy/edit/
   await configuration.fill(JSON.stringify(preferences));
   await page.getByTestId("netlist-panel-toggle").click();
   await expect(code).toContainText("sky130_fd_pr__nfet_01v8_lvt");
+  await page
+    .getByLabel("Netlist format", { exact: true })
+    .selectOption("spectre");
+  await page
+    .getByLabel("Netlist format", { exact: true })
+    .selectOption("spice");
+  await code.fill((await code.innerText()).replace(/^XM1 /mu, "XM_load "));
+  await code.press("Enter");
+  await expect(mosLabel).toHaveText("M_load");
+  await expect(code).toContainText("XM_load");
+  await clickCommand(page, "Edit", "Undo");
+  await expect(mosLabel).toHaveText("M1");
+  await expect(code).toContainText("XM1");
   await page
     .getByLabel("Netlist format", { exact: true })
     .selectOption("spectre");

@@ -705,7 +705,7 @@ describe("reviewed external MOS model targets", () => {
     });
     expect(instance).toMatchObject({
       symbolId: "nmos",
-      reference: "XM1",
+      reference: "M1",
       netlist: {
         parameters: { w: "2u", l: "150n", m: "2" },
         binding: { kind: "external-subcircuit" },
@@ -862,7 +862,7 @@ describe("reviewed external MOS model targets", () => {
       if (!result.ok) continue;
       expect(result.project.documents[0]!.instances[0]).toMatchObject({
         symbolId: fixture.symbolId,
-        reference: `X${fixture.reference}`,
+        reference: fixture.reference,
         netlist: {
           binding: { kind: "external-subcircuit" },
           parameters: fixture.parameters,
@@ -927,7 +927,7 @@ describe("reviewed external MOS model targets", () => {
     if (!external.ok) return;
     expect(external.project.documents[0]!.instances[0]).toMatchObject({
       symbolId: "pnp",
-      reference: "XQ1",
+      reference: "Q1",
       netlist: {
         binding: { kind: "external-subcircuit" },
         parameters: {},
@@ -962,7 +962,7 @@ describe("reviewed external MOS model targets", () => {
     });
   });
 
-  it("refuses a Model transition when its canonical X reference is occupied", () => {
+  it("does not rename devices when an exported X reference would be occupied", () => {
     const project = projectWithNmos();
     project.documents[0]!.instances.push({
       id: "existing-external",
@@ -971,14 +971,23 @@ describe("reviewed external MOS model targets", () => {
       reference: "XM1",
       netlist: { parameters: {} },
     });
-
-    expect(() =>
-      planSetMosModelTarget(
-        project,
-        project.topDocumentId,
-        "M1",
-        "sky130_fd_pr__nfet_01v8",
-      ),
-    ).toThrow(/Reference XM1 is already used/u);
+    const edits = planSetMosModelTarget(
+      project,
+      project.topDocumentId,
+      "M1",
+      "sky130_fd_pr__nfet_01v8",
+    );
+    const result = executeProjectTransaction(project, {
+      transactionId: "preserve-names",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok)
+      expect(
+        result.project.documents[0]!.instances.map((i) => i.reference),
+      ).toEqual(["M1", "XM1"]);
   });
 });

@@ -102,7 +102,25 @@ export function planNetlistCodeEdit(
           message:
             "Device names must start with a letter and contain only letters, digits or underscores.",
         };
-      assignment.reference = value;
+      // A SPICE-only prefix must not become a new schematic name on an
+      // ordinary rename (XM1 -> XM2 edits M1 -> M2). An explicit X-style
+      // name such as X_load remains a valid authored name as before.
+      let reference = value;
+      if (field.rawValue !== instance.reference) {
+        const prefix = field.rawValue[0]!;
+        if (value[0]!.toLowerCase() !== prefix.toLowerCase())
+          return {
+            ok: false,
+            message: `This SPICE device name must start with ${prefix}.`,
+          };
+        const suffix = field.rawValue.slice(1 + instance.reference!.length);
+        let body = value.slice(1);
+        if (suffix && body.endsWith(suffix))
+          body = body.slice(0, -suffix.length);
+        if (body[0]?.toLowerCase() === instance.reference![0]!.toLowerCase())
+          reference = body;
+      }
+      assignment.reference = reference;
     } else if (field.kind === "parameter") {
       if (!expressionIsStructurallyValid(value))
         return {

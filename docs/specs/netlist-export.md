@@ -120,11 +120,16 @@ stable local pins with different names. The released SKY130 resistor maps
 only in Properties and never a Symbol pin, Route endpoint, or NoConnect. The
 reviewed MIM capacitor maps `C0/C1` from the frozen capacitor pins `1/2`.
 
-`Instance.reference` is the exact ngspice designator. Selecting a reviewed
-external target atomically changes `M1/R1/C1` to `XM1/XR1/XC1`; clearing that
-target restores the native prefix. Imported X calls are retained unchanged,
-and all References remain case-insensitively unique before output. Reviewed
-SKY130 `l/w` values are stored canonically as metre-valued SPICE strings and
+`Instance.reference` is the authored schematic name. Selecting or clearing a
+reviewed external target preserves it. SPICE extraction adds the invocation
+prefix only in derived IR (`M1/R1/C1` become `XM1/XR1/XC1` for subcircuit
+bindings); Spectre uses the authored spelling. Existing legal SPICE names are
+reserved first; projected collisions receive `_2`, `_3`, etc. Export and
+simulation consume this same IR, including native signal paths. The code editor
+maps an ordinary rename back to the authored portion (`XM1` to `XM2`
+updates `M1` to `M2`); explicitly authored X-style names remain supported.
+Imported X names remain valid and are never rewritten by a process switch. All
+authored References remain case-insensitively unique per Cell. Reviewed SKY130 `l/w` values are stored canonically as metre-valued SPICE strings and
 projected to plain micrometre numbers by extraction for both SPICE and Spectre
 output.
 
@@ -392,9 +397,9 @@ remain the default; selecting a reviewed physical passive uses its geometry,
 not a numerical conversion of an ideal resistance/capacitance/inductance.
 Authored W/L and values survive process changes, and reviewed SKY130 calls use
 the existing canonical unit/interface conversion. TSMC 28 maps `m` to `multi`;
-switching back restores `m`. Reference collisions allocate a free designator
-without changing stable instance IDs. Custom external blocks keep their own
-interfaces. Default restores Abstract mapping and output preferences without
+switching back restores `m`. Process selection preserves names and stable
+instance IDs; dialect naming happens only during extraction. Custom external
+blocks keep their own interfaces. Default restores Abstract mapping and output preferences without
 overwriting authored parameter values. These choices are remembered locally.
 The adjacent menu offers Configuration…, Instances…, Check Report…, and Check
 and Save; it has no format choice. Clipboard rejection leaves selectable code

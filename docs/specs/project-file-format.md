@@ -45,9 +45,14 @@ an unsolicited bulk conversion of Gallery, Cloud or recovery data.
   terminals, raw formal defaults, interface status and optional block
   presentation. It has no internal Document body.
 - `Instance.reference` is the sole authored Reference for an ordinary
-  referenced Instance and is both displayed and emitted. Its stored prefix is
-  the ngspice invocation designator, including `X` for external subcircuit
-  calls. Cell Pins use `CellTerminal.name` and never display a `P#` reference.
+  referenced Instance and is displayed by default. Process/model selection
+  preserves it. SPICE extraction adds the required invocation prefix when
+  needed (for example, `M1` becomes `XM1` for a PDK subcircuit); Spectre
+  preserves the authored name. Derived names reserve existing legal names and
+  add a numeric suffix on collision. Export and simulation share this mapping;
+  code-editor renames edit the authored portion. Imported `X` references remain
+  valid through model transitions. Cell Pins use `CellTerminal.name` and never
+  display a `P#` reference.
   `Instance.netlist` contains only binding and typed parameter values for
   emitting Instances.
   Import source
