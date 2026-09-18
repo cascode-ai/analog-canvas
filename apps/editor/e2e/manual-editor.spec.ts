@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { createEmptyProject } from "@icm/model";
 import { createRoutingDemoProject } from "../src/demos/routing-demo.js";
 import {
+  closeProjectTools,
   revealPropertiesShelf,
   awaitEditorReady,
   chooseComponent,
@@ -530,6 +531,9 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(project)),
   });
+  // Opening a Project brings the dock back; the canvas needs the width for
+  // the Net label this test picks from.
+  await closeProjectTools(page);
 
   await expect(
     page.getByLabel("Place Digital Clock", { exact: true }),

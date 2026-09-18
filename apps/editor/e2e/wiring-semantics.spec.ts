@@ -4,6 +4,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
   chooseComponent,
   clickDrawTool,
+  closeProjectTools,
   clickNetlistWorkflowCommand,
 } from "./editor-fixtures";
 
@@ -949,6 +950,7 @@ test("the preview draws the wire the release commits, contacts and all", async (
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(project)),
   });
+  await closeProjectTools(page);
   const canvas = page.getByTestId("schematic-canvas");
   const [start, end] = await onScreen(canvas, [
     { x: 40, y: 100 },

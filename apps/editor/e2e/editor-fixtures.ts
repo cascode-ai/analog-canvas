@@ -5,23 +5,33 @@ export async function awaitEditorReady(page: Page): Promise<void> {
   await page.getByTestId("schematic-canvas").waitFor();
 }
 
-/** Enter the Properties workspace before interacting with its shelf. */
-export async function revealPropertiesShelf(page: Page): Promise<void> {
+/**
+ * Give the canvas the whole workspace.
+ *
+ * The editor opens with the project dock showing, so a test that reaches for
+ * document coordinates near the right edge — or for a floating window the
+ * dock pushes over them — has to close it first, exactly as a reader would.
+ */
+export async function closeProjectTools(page: Page): Promise<void> {
   await awaitEditorReady(page);
   const close = page.getByRole("button", {
     name: "Close project tools",
     exact: true,
   });
-  if (await close.isVisible()) {
-    await close.click();
-    await page.locator(".app-workspace").evaluate(async (element) => {
-      await Promise.all(
-        element
-          .getAnimations()
-          .map((animation) => animation.finished.catch(() => {})),
-      );
-    });
-  }
+  if (!(await close.isVisible())) return;
+  await close.click();
+  await page.locator(".app-workspace").evaluate(async (element) => {
+    await Promise.all(
+      element
+        .getAnimations()
+        .map((animation) => animation.finished.catch(() => {})),
+    );
+  });
+}
+
+/** Enter the Properties workspace before interacting with its shelf. */
+export async function revealPropertiesShelf(page: Page): Promise<void> {
+  await closeProjectTools(page);
   await expect(page.getByTestId("selection-shelf")).toBeVisible();
 }
 
