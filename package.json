@@ -36,6 +36,7 @@
     "mcp:package": "pnpm build && node scripts/package-mcp.mjs",
     "mcp:release:package": "pnpm build && node scripts/package-mcp.mjs --verify-declared-release-sha",
     "mcp:distribution:check": "node scripts/check-mcp-distribution.mjs",
+    "mcp:release:bump": "node scripts/mcp-release-bump.mjs",
     "mcp:smoke": "node scripts/mcp-release-smoke.mjs",
     "sim:accept:roundtrip": "pnpm build && node scripts/simulation-acceptance.mjs",
     "dev": "pnpm --filter @icm/editor dev",

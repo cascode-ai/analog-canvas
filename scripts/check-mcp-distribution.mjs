@@ -24,6 +24,17 @@ if (!/^[a-f0-9]{64}$/u.test(distribution.release.sha256))
 if (distribution.npmPublished !== false && distribution.npmPublished !== true)
   failures.push("npmPublished must be boolean");
 
+// The declared version is the single source of truth; the workspace package
+// version is decorative and drifts silently when bumps skip it.
+const workspacePackage = JSON.parse(
+  await readFile(resolve(root, "apps/mcp-server/package.json"), "utf8"),
+);
+if (workspacePackage.version !== distribution.version)
+  failures.push(
+    `apps/mcp-server/package.json version ${workspacePackage.version} must ` +
+      `match the distribution version ${distribution.version}`,
+  );
+
 if (failures.length > 0) {
   throw new Error(`Invalid MCP distribution:\n- ${failures.join("\n- ")}`);
 }

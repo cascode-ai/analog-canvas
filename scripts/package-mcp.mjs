@@ -43,7 +43,12 @@ await build({
 
 const executable = resolve(binDirectory, "analog-canvas-mcp.mjs");
 const source = await readFile(executable, "utf8");
-if (source.includes(distribution.release.sha256)) {
+// An unstamped declaration (empty digest while a bump awaits its Linux
+// build) must not trip the self-embedding guard.
+if (
+  distribution.release.sha256 &&
+  source.includes(distribution.release.sha256)
+) {
   throw new Error("MCP bundle must not embed its own release digest");
 }
 await writeFile(

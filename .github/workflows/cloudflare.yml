@@ -252,6 +252,11 @@ jobs:
             --retry 5 --retry-delay 2 --retry-all-errors \
             --max-time 20 \
             https://analog-canvas.tokenzhang.com/api/agent/mcp-manifest.json >/dev/null
+          # A 200 manifest is not enough: it pins a GitHub Release asset that
+          # only exists after Publish MCP ran. A distribution bump merged
+          # before that release would serve installers a 404, so require the
+          # pinned asset to answer with bytes and to match this checkout.
+          node scripts/verify-agent-manifest.mjs https://analog-canvas.tokenzhang.com
           agent_session="$(curl --fail --silent --show-error \
             --retry 5 --retry-delay 2 --retry-all-errors \
             --max-time 20 \

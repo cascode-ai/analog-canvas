@@ -211,4 +211,17 @@ describe("Cloudflare deploy workflow", () => {
     );
     expect(verifySection).toContain("analog-canvas.tokenzhang.com/editor");
   });
+
+  it("requires the served MCP manifest's pinned asset to exist", () => {
+    // The manifest answering 200 says nothing about the GitHub Release asset
+    // it pins. A distribution bump merged before Publish MCP ran would serve
+    // installers a 404; the verification must catch it and trigger rollback.
+    const verifySection = workflow.slice(
+      workflow.indexOf("Verify production deployment"),
+      workflow.indexOf("Roll back a failed deployment"),
+    );
+    expect(verifySection).toContain(
+      "node scripts/verify-agent-manifest.mjs https://analog-canvas.tokenzhang.com",
+    );
+  });
 });
