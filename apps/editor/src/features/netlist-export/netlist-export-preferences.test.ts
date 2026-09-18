@@ -52,6 +52,23 @@ describe("netlist authoring preferences", () => {
     expect(restored.profiles.tsmc180.devices.pmos.target).toBe("pch");
   });
 
+  it("moves a stored Abstract default to SKY130 exactly once", () => {
+    const stored = createDefaultNetlistExportPreferences();
+    const legacy = JSON.stringify({
+      ...stored,
+      selected: "abstract",
+      defaultProcess: undefined,
+    });
+    const moved = readNetlistExportPreferences(legacy);
+    expect(moved.selected).toBe("sky130");
+
+    // Abstract chosen after the move is a choice, and it stays.
+    const chosen = readNetlistExportPreferences(
+      JSON.stringify({ ...moved, selected: "abstract" }),
+    );
+    expect(chosen.selected).toBe("abstract");
+  });
+
   it("retains complete legacy customized process templates", () => {
     const preferences = createDefaultNetlistExportPreferences();
     preferences.selected = "custom";

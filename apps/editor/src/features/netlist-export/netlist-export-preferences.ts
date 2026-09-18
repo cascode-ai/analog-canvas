@@ -11,8 +11,21 @@ import {
 import type { NetlistFormat, NetlistPortCase } from "@icm/netlist";
 
 export const NETLIST_EXPORT_PREFERENCES_KEY = "icm.netlist-export.v1";
+
+/**
+ * Which default process a stored preference has already been told about.
+ *
+ * Abstract was the default nobody chose; the editor now works in SKY130. A
+ * stored preference still carrying the old default therefore moves once, so a
+ * reader who never picked a process gets the new one. Anyone who does mean
+ * Abstract picks it again and keeps it: the marker below is what stops the
+ * move from happening a second time.
+ */
+const DEFAULT_PROCESS_GENERATION = 2;
 export interface NetlistExportPreferences {
   selected: NetlistProfileId;
+  /** The default-process generation this preference has been moved to. */
+  defaultProcess?: number;
   format: NetlistFormat;
   portCase: NetlistPortCase;
   profiles: Record<NetlistProfileId, NetlistExportProfile>;
@@ -21,6 +34,7 @@ export interface NetlistExportPreferences {
 export function createDefaultNetlistExportPreferences(): NetlistExportPreferences {
   return {
     selected: "sky130",
+    defaultProcess: DEFAULT_PROCESS_GENERATION,
     format: "spice",
     portCase: "upper",
     profiles: Object.fromEntries(
@@ -46,10 +60,15 @@ function migrateStoredNetlistExportPreferences(raw: string): string {
   for (const id of ["tsmc28", "tsmc180"] as const) {
     profiles[id] ??= createNetlistExportProfile(id);
   }
+  const moved =
+    (parsed.defaultProcess ?? 1) < DEFAULT_PROCESS_GENERATION &&
+    parsed.selected === "abstract";
   return JSON.stringify({
     format: "spice",
     portCase: "upper",
     ...parsed,
+    ...(moved ? { selected: "sky130" as const } : {}),
+    defaultProcess: DEFAULT_PROCESS_GENERATION,
     profiles,
   });
 }
