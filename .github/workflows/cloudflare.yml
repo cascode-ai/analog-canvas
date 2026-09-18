@@ -348,13 +348,11 @@ jobs:
           # TRAN, DC and Noise, using no installed workspace package.
           node scripts/preview-simulation-smoke.mjs \
             https://analog-canvas.tokenzhang.com --production-smoke
-          # The numerical baseline above protects ngspice's full advertised
-          # scope. This public MCP journey additionally proves that both
-          # Profile-selected engines are discoverable and execute through the
-          # Production managed queue with their own credentials.
-          ICM_ACCEPTANCE_MCP_SOURCE=published \
-            node scripts/preview-dual-engine-smoke.mjs \
-              https://analog-canvas.tokenzhang.com --production
+          # Preview already accepted the public MCP/managed-queue journey.
+          # Promotion intentionally does not install workspace dependencies,
+          # so prove Production's two direct Profile routes with Node alone.
+          node scripts/production-dual-engine-smoke.mjs \
+            https://analog-canvas.tokenzhang.com
 
       # Detection without recovery is what turned a bad deploy into twenty
       # minutes of 500s: the pipeline saw them, went red, and left production
