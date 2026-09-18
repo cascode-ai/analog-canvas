@@ -192,7 +192,12 @@ Pasting a supply marker settles a body default the target Cell does not have
 yet, exactly as placing that marker does, and never overrules one it has. A
 body left alone on a Net that its own policy binding named, with no geometry,
 no name claim and no Cell terminal, is policy residue from a paste or from a
-deleted marker: reconciliation returns it to the configured default.
+deleted marker, and it is read as residue rather than as a connection: the
+body resolves through the ordinary order above, so a matched pair cannot end
+up with one body on the supply and the other on a node nothing else reaches.
+Reading it that way changes no membership — the Net stays until an edit prunes
+it — and reconciliation returns the body to the configured default on the next
+edit.
 Netlist extraction uses actual membership, including materialized defaults,
 and resolves a body that policy answers but never materialized through the
 same order above; `MISSING_PIN_NET` is reported for an omitted B without
@@ -203,7 +208,8 @@ Deleting the explicit route may reconcile only an explicitly configured cell
 default. Source-bound/imported MOS instances keep their fourth-node evidence;
 when absent, the same missing-terminal rule applies. `supply-default` is a resolution status derived on
 read, not authored state: nothing writes a new `supply-default` binding, and
-persisted ones from an earlier release stay readable compatibility data. Cross-Document composition materializes an effective source
+persisted ones from an earlier release stay readable compatibility data —
+which is why a body carrying one is never read as residue. Cross-Document composition materializes an effective source
 `cell-default` as an `instance-override`: the copied B membership remains fixed
 to its copied Base Net and neither consumes nor changes the target Document's
 Cell default.

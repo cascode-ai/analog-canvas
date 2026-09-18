@@ -226,7 +226,14 @@ export function resolveMosBulkConnection(
         terminal.instanceId === instance.id && terminal.pinName === "B",
     ),
   );
-  if (connectedNet) {
+  // A body alone on the Net its own policy binding named, with no geometry,
+  // no name and no Cell terminal, is what a paste or a deleted supply marker
+  // left behind — not a connection anybody drew. Reading it as one strands
+  // the body on a node nothing else reaches: the netlist writes that node
+  // once and a matched pair ends up with one body on ground and the other on
+  // nothing. Reclaim it here the way reconciliation does on an edit.
+  const residue = strandedMosBulkNet(document, instance);
+  if (connectedNet && !residue) {
     const origin = hasExplicitMosBulkRoute(document, instance.id)
       ? undefined
       : instance.mosBulkBinding;
@@ -319,6 +326,11 @@ export function strandedMosBulkNet(
       ? document.instances.find((candidate) => candidate.id === instanceOrId)
       : instanceOrId;
   if (!instance?.mosBulkBinding || !mosBulkKind(instance)) return undefined;
+  // A legacy `supply-default` binding is the old materialized supply
+  // connection, readable compatibility data rather than something a paste or
+  // a deleted marker left behind. Residue is what this editor writes for a
+  // Cell's policy or for one instance.
+  if (instance.mosBulkBinding.origin === "supply-default") return undefined;
   const net = document.nets.find((candidate) =>
     candidate.terminals.some(
       (terminal) =>

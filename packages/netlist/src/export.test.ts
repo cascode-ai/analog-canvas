@@ -546,6 +546,37 @@ describe("netlist extractability", () => {
     expect(result.file.text).toMatch(/M1 \S+ \S+ VSS VSS /u);
   });
 
+  it("writes a stranded body on the supply, not on the Net it was left on", () => {
+    // The shape a paste leaves: the body carries a binding to a Net nothing
+    // else reaches. Printed as it stands, that node appears once in the whole
+    // file and the pair is asymmetric — one body on ground, one on nothing.
+    const project = oneTransistor({ body: false });
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "GND1",
+      symbolId: "ground",
+      placement: { position: { x: 0, y: 40 }, rotation: 0, mirror: "none" },
+    });
+    document.nets[1]!.terminals.push({ instanceId: "GND1", pinName: "0" });
+    document.nets.push({
+      id: "net-residue",
+      terminals: [{ instanceId: "M1", pinName: "B" }],
+    });
+    document.instances[0] = {
+      ...document.instances[0]!,
+      mosBulkBinding: { origin: "cell-default", netId: "net-residue" },
+    };
+
+    const result = createDesignNetlistExport(project, { format: "spice" });
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    // Drain, gate, source, body: source and body both on the ground node,
+    // which the Cell states as its own pin.
+    expect(result.file.text).toMatch(/M1 \S+ \S+ VSS VSS /u);
+    expect(unfinishedDrawingDiagnostics(result.diagnostics)).toEqual([]);
+    expect(designExtractsNetlist(project)).toBe(true);
+  });
+
   it("answers no while connectivity is still missing", () => {
     // A body on no Net is not a process choice: SPICE has no fourth node to
     // write, and no export option supplies one.

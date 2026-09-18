@@ -122,6 +122,47 @@ describe("MOS bulk resolution", () => {
     expect(resolveMosBulkConnection(document, "M2")?.net?.id).toBe("net-vdd");
   });
 
+  it("reclaims a body left alone on the Net its own binding named", () => {
+    // What a paste or a deleted supply marker leaves behind: the body sits on
+    // a Net nothing else reaches, named by its own policy binding. Read as a
+    // connection it strands the body — a matched pair ends up with one body
+    // on ground and the other on a node the netlist writes exactly once.
+    const document = withSupplyMarkers();
+    document.nets.push({
+      id: "net-residue",
+      terminals: [{ instanceId: "M1", pinName: "B" }],
+    });
+    document.instances[0] = {
+      ...document.instances[0]!,
+      mosBulkBinding: { origin: "cell-default", netId: "net-residue" },
+    };
+
+    const resolution = resolveMosBulkConnection(document, "M1");
+    expect(resolution?.status).toBe("supply-default");
+    expect(resolution?.net?.id).toBe("net-gnd");
+    // Nothing is rewritten: reclaiming is a reading, and the Document still
+    // holds the Net until an edit prunes it.
+    expect(document.nets.some((net) => net.id === "net-residue")).toBe(true);
+  });
+
+  it("keeps a body bias Net that more than one body shares", () => {
+    // Two bodies on one Net is a bias node somebody authored, not residue,
+    // even when a binding names it.
+    const document = withSupplyMarkers();
+    document.nets.push({
+      id: "net-bias",
+      terminals: [
+        { instanceId: "M1", pinName: "B" },
+        { instanceId: "M2", pinName: "B" },
+      ],
+    });
+    document.instances[0] = {
+      ...document.instances[0]!,
+      mosBulkBinding: { origin: "cell-default", netId: "net-bias" },
+    };
+    expect(resolveMosBulkConnection(document, "M1")?.net?.id).toBe("net-bias");
+  });
+
   it("stays silent when the drawing offers more than one supply", () => {
     // AVDD beside VDD is a question for the author. Guessing between them
     // would be exactly the inference this policy refuses to make.

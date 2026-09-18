@@ -771,25 +771,23 @@ function terminalNetName(
   context: CellNetContext,
   diagnostics: NetlistDiagnostic[],
 ): string | null {
-  const net = context.netByTerminal.get(`${instance.id}\u0000${pinName}`);
+  // A MOS body has one authority, and membership is not always it: a body
+  // left alone on the Net its own policy binding named is residue from a
+  // paste or a deleted marker, and writing that node would strand the body
+  // where nothing else reaches it. Ask the authority first; for an explicitly
+  // wired body it answers the same Net membership does.
+  const bodyNet =
+    pinName === "B" && mosBulkKind(instance)
+      ? resolveMosBulkConnection(document, instance)?.net
+      : undefined;
+  const net =
+    bodyNet ?? context.netByTerminal.get(`${instance.id}\u0000${pinName}`);
   const name = net ? context.nameByNetId.get(net.id) : undefined;
   const noConnectName = context.noConnectNameByTerminal.get(
     `${instance.id}\u0000${pinName}`,
   );
   if (noConnectName) return noConnectName;
   if (name) return name;
-  // A body nobody wired is the one pin with a stated policy behind it: the
-  // Cell's own default, or the supply marker the author drew. Both are facts
-  // the drawing already carries, so the fourth node is written from them
-  // rather than refused. `nameByNetId` is keyed by base Net, which is what
-  // the policy answers with.
-  if (pinName === "B" && mosBulkKind(instance)) {
-    const policyNet = resolveMosBulkConnection(document, instance)?.net;
-    const policyName = policyNet
-      ? context.nameByNetId.get(policyNet.id)
-      : undefined;
-    if (policyName) return policyName;
-  }
   // Missing connectivity is an error, not permission to infer a supply from
   // device polarity or a matching Net name elsewhere in the Cell.
   if (!name) {
