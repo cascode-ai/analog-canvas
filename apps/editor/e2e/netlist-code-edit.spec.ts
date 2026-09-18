@@ -49,6 +49,32 @@ function fixture() {
 const label = (page: import("@playwright/test").Page) =>
   page.locator('[data-layer="annotations"] [data-object-id="label-R1"]');
 
+test("opens a built-in formatted device name with alias off and follows netlist renames", async ({
+  page,
+}) => {
+  await page.goto("/editor?example=common-source-amplifier");
+  await awaitEditorReady(page);
+  await expect(page.getByTestId("status")).toContainText("Opened example:");
+  const capacitorLabel = page.locator(
+    '[data-layer="annotations"] [data-object-id="instance-label-C1"]',
+  );
+  await expect(capacitorLabel).toContainText("CGS");
+  await page.getByTestId("annotation-hit-instance-label-C1").dblclick();
+  await expect(
+    page.getByRole("checkbox", { name: "Use display alias" }),
+  ).not.toBeChecked();
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  const code = page.getByLabel("Netlist code", { exact: true });
+  await expect(code).toHaveAttribute("contenteditable", "true");
+  await code.fill((await code.innerText()).replace(/^CGS /mu, "C_input "));
+  await code.press("Enter");
+  await expect(capacitorLabel).toContainText("C_input");
+  await page.getByTestId("annotation-hit-instance-label-C1").dblclick();
+  await expect(
+    page.getByRole("checkbox", { name: "Use display alias" }),
+  ).not.toBeChecked();
+});
+
 test("explicit component and Issues inspection replaces the default netlist panel", async ({
   page,
 }) => {

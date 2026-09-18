@@ -4,12 +4,17 @@ import { readFileSync } from "node:fs";
 import {
   buildProjectConnectivityIndex,
   evaluateSubmissionGates,
+  pointOnSegment,
+  resolveAnnotationText,
   resolveDocumentLogicalNets,
+  resolveDocumentRoutingGeometry,
+  resolveEndpointPoint,
   resolveVisualAnchor,
   runErcChecks,
 } from "@icm/derived";
 import {
   CURRENT_PROJECT_SCHEMA_VERSION,
+  flattenRichText,
   readSimulationExperimentConfig,
 } from "@icm/model";
 import type { CircuitProject } from "@icm/model";
@@ -22,6 +27,7 @@ import {
 import { serializeProject } from "@icm/project-protocol";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
+import { createTextEditingSession } from "../features/text-editing/text-editing";
 
 import {
   createLibraryExampleProject,
@@ -106,6 +112,121 @@ describe("bundled Library Project examples", () => {
         ),
         example.id,
       ).toEqual([]);
+    }
+  });
+
+  it("defaults device labels to live netlist names, without display aliases", () => {
+    for (const example of libraryProjectExamples) {
+      for (const document of example.project.documents) {
+        for (const annotation of document.annotations) {
+          if (
+            annotation.kind !== "instance-label" ||
+            annotation.anchor.kind !== "object"
+          )
+            continue;
+          const instanceId = annotation.anchor.objectId;
+          const instance = document.instances.find(
+            (item) => item.id === instanceId,
+          );
+          if (!instance?.reference) continue;
+          const context = `${example.id}:${annotation.id}`;
+          expect(annotation.binding, context).toEqual({
+            kind: "instance-reference",
+            instanceId,
+          });
+          expect(
+            flattenRichText(resolveAnnotationText(document, annotation)),
+            context,
+          ).toBe(instance.reference);
+          expect(
+            createTextEditingSession(
+              { owner: "annotation", object: annotation },
+              document,
+            ).displayAlias,
+            context,
+          ).toBe(false);
+        }
+      }
+    }
+  });
+
+  it("draws a physical connection at every connected port, not just net membership", () => {
+    for (const example of libraryProjectExamples) {
+      const resolver = projectResolver(example.project);
+      for (const document of example.project.documents) {
+        const routing = resolveDocumentRoutingGeometry(document, resolver);
+        for (const port of document.instances.filter(
+          (item) => item.symbolId === "port",
+        )) {
+          const net = document.nets.find((item) =>
+            item.terminals.some((terminal) => terminal.instanceId === port.id),
+          );
+          if (!net || net.terminals.length < 2) continue;
+          const point = resolveEndpointPoint(document, resolver, {
+            kind: "terminal",
+            instanceId: port.id,
+            pinName: "P",
+          });
+          expect(point, `${example.id}:${port.id}`).not.toBeNull();
+          if (!point) continue;
+          const touchesWire = [...routing.routes.values()].some(
+            (route) =>
+              route.netId === net.id &&
+              route.segments.some((segment) =>
+                pointOnSegment(point, segment.from, segment.to),
+              ),
+          );
+          const touchesPin = net.terminals.some((terminal) => {
+            if (terminal.instanceId === port.id) return false;
+            const other = resolveEndpointPoint(document, resolver, {
+              kind: "terminal",
+              ...terminal,
+            });
+            return other?.x === point.x && other?.y === point.y;
+          });
+          expect(
+            touchesWire || touchesPin,
+            `${example.id}:${document.id}:${port.id}: disconnected port artwork`,
+          ).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("keeps the two-stage input separate from its output and negative feedback", () => {
+    const project = createLibraryExampleProject("two-stage-op-amp")!;
+    const document = project.documents[0]!;
+    const input = document.netlist!.terminals.find(
+      (terminal) => terminal.name === "Vin",
+    )!;
+    const output = document.netlist!.terminals.find(
+      (terminal) => terminal.name === "Vout",
+    )!;
+    expect(input.netId).not.toBe(output.netId);
+    expect(
+      document.nets.find((net) => net.id === input.netId)!.terminals,
+    ).toEqual(
+      expect.arrayContaining([
+        { instanceId: "P13", pinName: "P" },
+        { instanceId: "X7", pinName: "IN+" },
+      ]),
+    );
+    expect(
+      document.nets.find((net) => net.id === output.netId)!.terminals,
+    ).toEqual(
+      expect.arrayContaining([
+        { instanceId: "P12", pinName: "P" },
+        { instanceId: "X7", pinName: "IN-" },
+        { instanceId: "X8", pinName: "OUT" },
+      ]),
+    );
+    for (const format of ["spice", "spectre"] as const) {
+      const exported = createDesignNetlistExport(project, { format });
+      expect(exported.status, JSON.stringify(exported.diagnostics)).toBe(
+        "ready",
+      );
+      if (exported.status !== "ready") continue;
+      expect(exported.file.text).toMatch(/X1\s+\(?VDD VSS Vin Vout /u);
     }
   });
 

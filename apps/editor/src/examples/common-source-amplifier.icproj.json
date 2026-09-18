@@ -16,7 +16,12 @@
             },
             "objectId": "C1"
           },
-          "content": {
+          "id": "instance-label-C1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0,
+          "sizeScale": 1.1,
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -46,11 +51,10 @@
               }
             ]
           },
-          "id": "instance-label-C1",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
-          "sizeScale": 1.1
+          "binding": {
+            "kind": "instance-reference",
+            "instanceId": "C1"
+          }
         },
         {
           "alignment": "middle",
@@ -66,7 +70,12 @@
             },
             "objectId": "C1-copy-1"
           },
-          "content": {
+          "id": "instance-label-C1-copy-1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0,
+          "sizeScale": 1.1,
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -96,11 +105,10 @@
               }
             ]
           },
-          "id": "instance-label-C1-copy-1",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
-          "sizeScale": 1.1
+          "binding": {
+            "kind": "instance-reference",
+            "instanceId": "C1-copy-1"
+          }
         },
         {
           "alignment": "start",
@@ -176,7 +184,12 @@
             },
             "objectId": "R3"
           },
-          "content": {
+          "id": "instance-label-R3",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0,
+          "sizeScale": 1.1,
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -206,11 +219,10 @@
               }
             ]
           },
-          "id": "instance-label-R3",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
-          "sizeScale": 1.1
+          "binding": {
+            "kind": "instance-reference",
+            "instanceId": "R3"
+          }
         },
         {
           "alignment": "middle",
@@ -226,7 +238,12 @@
             },
             "objectId": "R3-copy-5"
           },
-          "content": {
+          "id": "instance-label-R3-copy-5",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0,
+          "sizeScale": 1.1,
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -256,11 +273,10 @@
               }
             ]
           },
-          "id": "instance-label-R3-copy-5",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
-          "sizeScale": 1.1
+          "binding": {
+            "kind": "instance-reference",
+            "instanceId": "R3-copy-5"
+          }
         },
         {
           "alignment": "end",
@@ -276,7 +292,12 @@
             },
             "objectId": "V6"
           },
-          "content": {
+          "id": "instance-label-V6",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0,
+          "sizeScale": 1.1,
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -306,11 +327,10 @@
               }
             ]
           },
-          "id": "instance-label-V6",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
-          "sizeScale": 1.1
+          "binding": {
+            "kind": "instance-reference",
+            "instanceId": "V6"
+          }
         },
         {
           "alignment": "start",
@@ -603,7 +623,7 @@
             },
             "rotation": 0
           },
-          "reference": "C1",
+          "reference": "CGS",
           "symbolId": "capacitor"
         },
         {
@@ -623,7 +643,7 @@
             },
             "rotation": 90
           },
-          "reference": "C2",
+          "reference": "CGD",
           "symbolId": "capacitor"
         },
         {
@@ -664,7 +684,7 @@
             },
             "rotation": 0
           },
-          "reference": "R1",
+          "reference": "RD",
           "symbolId": "resistor"
         },
         {
@@ -732,7 +752,7 @@
             },
             "rotation": 90
           },
-          "reference": "R2",
+          "reference": "RS",
           "symbolId": "resistor"
         },
         {
@@ -748,7 +768,7 @@
             },
             "rotation": 0
           },
-          "reference": "V1",
+          "reference": "Vin",
           "symbolId": "voltage-source"
         }
       ],

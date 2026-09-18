@@ -16,18 +16,15 @@
             },
             "objectId": "X7"
           },
-          "content": {
-            "runs": [
-              {
-                "kind": "text",
-                "value": " "
-              }
-            ]
-          },
           "id": "instance-label-X7",
           "kind": "instance-label",
           "locked": false,
-          "rotation": 0
+          "rotation": 0,
+          "visible": false,
+          "binding": {
+            "kind": "instance-reference",
+            "instanceId": "X7"
+          }
         },
         {
           "alignment": "middle",
@@ -43,18 +40,15 @@
             },
             "objectId": "X8"
           },
-          "content": {
-            "runs": [
-              {
-                "kind": "text",
-                "value": " "
-              }
-            ]
-          },
           "id": "instance-label-X8",
           "kind": "instance-label",
           "locked": false,
-          "rotation": 0
+          "rotation": 0,
+          "visible": false,
+          "binding": {
+            "kind": "instance-reference",
+            "instanceId": "X8"
+          }
         },
         {
           "alignment": "start",
@@ -70,7 +64,12 @@
             },
             "objectId": "C9"
           },
-          "content": {
+          "id": "instance-label-C9",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0,
+          "sizeScale": 1,
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -100,11 +99,10 @@
               }
             ]
           },
-          "id": "instance-label-C9",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
-          "sizeScale": 1
+          "binding": {
+            "kind": "instance-reference",
+            "instanceId": "C9"
+          }
         },
         {
           "alignment": "middle",
@@ -120,7 +118,12 @@
             },
             "objectId": "C10"
           },
-          "content": {
+          "id": "instance-label-C10",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0,
+          "sizeScale": 1,
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -150,11 +153,10 @@
               }
             ]
           },
-          "id": "instance-label-C10",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
-          "sizeScale": 1
+          "binding": {
+            "kind": "instance-reference",
+            "instanceId": "C10"
+          }
         },
         {
           "alignment": "start",
@@ -170,7 +172,12 @@
             },
             "objectId": "P12"
           },
-          "content": {
+          "id": "instance-label-P12",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0,
+          "sizeScale": 1,
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -200,11 +207,10 @@
               }
             ]
           },
-          "id": "instance-label-P12",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
-          "sizeScale": 1
+          "binding": {
+            "kind": "cell-terminal-name",
+            "terminalId": "cell-terminal-p12"
+          }
         },
         {
           "alignment": "end",
@@ -220,7 +226,12 @@
             },
             "objectId": "P13"
           },
-          "content": {
+          "id": "instance-label-P13",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0,
+          "sizeScale": 1,
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -250,21 +261,13 @@
               }
             ]
           },
-          "id": "instance-label-P13",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0,
-          "sizeScale": 1
+          "binding": {
+            "kind": "cell-terminal-name",
+            "terminalId": "cell-terminal-p13"
+          }
         }
       ],
       "connectivityEvidence": [
-        {
-          "id": "connectivity-evidence-b1565547153d949f",
-          "kind": "net-name-hint",
-          "netId": "net-global-vdd",
-          "origin": "legacy-explicit-net-property",
-          "sourceName": "VDD"
-        },
         {
           "id": "connectivity-evidence-4f697832b597ca42",
           "kind": "name-claim",
@@ -333,7 +336,7 @@
             },
             "rotation": 0
           },
-          "reference": "C1",
+          "reference": "CL",
           "symbolId": "capacitor"
         },
         {
@@ -353,7 +356,7 @@
             },
             "rotation": 270
           },
-          "reference": "C2",
+          "reference": "CC",
           "symbolId": "capacitor"
         },
         {
@@ -432,23 +435,19 @@
             "direction": "passive",
             "id": "cell-terminal-p12",
             "interfaceInstanceIds": ["P12"],
-            "name": "P1",
+            "name": "Vout",
             "netId": "net-contact-p13"
           },
           {
             "direction": "passive",
             "id": "cell-terminal-p13",
             "interfaceInstanceIds": ["P13"],
-            "name": "P2",
-            "netId": "net-contact-p13"
+            "name": "Vin",
+            "netId": "net-split-f9c443f2edef6e67"
           }
         ]
       },
       "nets": [
-        {
-          "id": "net-global-vdd",
-          "terminals": []
-        },
         {
           "id": "net-contact-gnd11",
           "terminals": [
@@ -483,10 +482,6 @@
           "id": "net-contact-p13",
           "terminals": [
             {
-              "instanceId": "P13",
-              "pinName": "P"
-            },
-            {
               "instanceId": "X7",
               "pinName": "IN-"
             },
@@ -514,6 +509,10 @@
             {
               "instanceId": "X7",
               "pinName": "IN+"
+            },
+            {
+              "instanceId": "P13",
+              "pinName": "P"
             }
           ]
         }
@@ -770,6 +769,29 @@
             "kind": "terminal",
             "pinName": "2"
           }
+        },
+        {
+          "id": "route-example-p13-lead",
+          "netId": "net-split-f9c443f2edef6e67",
+          "start": {
+            "kind": "terminal",
+            "instanceId": "P13",
+            "pinName": "P"
+          },
+          "legs": [
+            {
+              "id": "route-leg-af3a5a5320ebd5c8",
+              "to": {
+                "kind": "endpoint",
+                "endpoint": {
+                  "kind": "terminal",
+                  "instanceId": "X7",
+                  "pinName": "IN+"
+                }
+              },
+              "mode": "manual"
+            }
+          ]
         }
       ],
       "sourceStatus": "connectivity-modified"

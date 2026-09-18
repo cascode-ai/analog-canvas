@@ -516,7 +516,11 @@
             },
             "objectId": "I1"
           },
-          "content": {
+          "id": "instance-label-I1",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0,
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -552,10 +556,10 @@
               }
             ]
           },
-          "id": "instance-label-I1",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0
+          "binding": {
+            "kind": "instance-reference",
+            "instanceId": "I1"
+          }
         },
         {
           "alignment": "start",
@@ -571,7 +575,11 @@
             },
             "objectId": "I2"
           },
-          "content": {
+          "id": "instance-label-I2",
+          "kind": "instance-label",
+          "locked": false,
+          "rotation": 0,
+          "formatOverride": {
             "runs": [
               {
                 "children": [
@@ -617,10 +625,10 @@
               }
             ]
           },
-          "id": "instance-label-I2",
-          "kind": "instance-label",
-          "locked": false,
-          "rotation": 0
+          "binding": {
+            "kind": "instance-reference",
+            "instanceId": "I2"
+          }
         }
       ],
       "connectivityEvidence": [
@@ -1036,7 +1044,7 @@
             },
             "rotation": 0
           },
-          "reference": "I1",
+          "reference": "ISS1",
           "symbolId": "current-source"
         },
         {
@@ -1056,7 +1064,7 @@
             },
             "rotation": 0
           },
-          "reference": "I2",
+          "reference": "ISS2",
           "symbolId": "current-source"
         },
         {
@@ -2479,6 +2487,52 @@
             "junctionId": "junction-ui-60",
             "kind": "junction"
           }
+        },
+        {
+          "id": "route-example-p1-lead",
+          "netId": "net-ui-34",
+          "start": {
+            "kind": "terminal",
+            "instanceId": "P1",
+            "pinName": "P"
+          },
+          "legs": [
+            {
+              "id": "route-leg-2f8c1e18297b8300",
+              "to": {
+                "kind": "endpoint",
+                "endpoint": {
+                  "kind": "terminal",
+                  "instanceId": "M5",
+                  "pinName": "G"
+                }
+              },
+              "mode": "manual"
+            }
+          ]
+        },
+        {
+          "id": "route-example-p2-lead",
+          "netId": "net-ui-35",
+          "start": {
+            "kind": "terminal",
+            "instanceId": "P2",
+            "pinName": "P"
+          },
+          "legs": [
+            {
+              "id": "route-leg-13465b00b3cbbf2b",
+              "to": {
+                "kind": "endpoint",
+                "endpoint": {
+                  "kind": "terminal",
+                  "instanceId": "M8",
+                  "pinName": "G"
+                }
+              },
+              "mode": "manual"
+            }
+          ]
         }
       ],
       "sourceStatus": "connectivity-modified"

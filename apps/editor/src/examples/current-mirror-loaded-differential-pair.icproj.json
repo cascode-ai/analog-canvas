@@ -1263,6 +1263,75 @@
             "junctionId": "junction-ui-18",
             "kind": "junction"
           }
+        },
+        {
+          "id": "route-example-p1-lead",
+          "netId": "net-contact-p1",
+          "start": {
+            "kind": "terminal",
+            "instanceId": "P1",
+            "pinName": "P"
+          },
+          "legs": [
+            {
+              "id": "route-leg-2f8c1e18297b8300",
+              "to": {
+                "kind": "endpoint",
+                "endpoint": {
+                  "kind": "terminal",
+                  "instanceId": "M3",
+                  "pinName": "G"
+                }
+              },
+              "mode": "manual"
+            }
+          ]
+        },
+        {
+          "id": "route-example-p2-lead",
+          "netId": "net-contact-p2",
+          "start": {
+            "kind": "terminal",
+            "instanceId": "P2",
+            "pinName": "P"
+          },
+          "legs": [
+            {
+              "id": "route-leg-13465b00b3cbbf2b",
+              "to": {
+                "kind": "endpoint",
+                "endpoint": {
+                  "kind": "terminal",
+                  "instanceId": "M4",
+                  "pinName": "G"
+                }
+              },
+              "mode": "manual"
+            }
+          ]
+        },
+        {
+          "id": "route-example-p4-lead",
+          "netId": "net-contact-p4",
+          "start": {
+            "kind": "terminal",
+            "instanceId": "P4",
+            "pinName": "P"
+          },
+          "legs": [
+            {
+              "id": "route-leg-fe62a38a6dd97d01",
+              "to": {
+                "kind": "endpoint",
+                "endpoint": {
+                  "kind": "terminal",
+                  "instanceId": "M5",
+                  "pinName": "G"
+                }
+              },
+              "mode": "manual"
+            }
+          ]
         }
       ],
       "sourceStatus": "connectivity-modified"
