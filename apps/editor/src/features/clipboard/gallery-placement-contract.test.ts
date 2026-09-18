@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 import {
   executeProjectTransaction,
+  planRoutingDeletion,
   planRemoveCellTerminals,
 } from "@icm/edit-engine";
 import { createEmptyProject } from "@icm/model";
@@ -11,7 +12,6 @@ import { parseProject } from "@icm/project-protocol";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { expect, test } from "vitest";
 
-import { proposeVisualSelectionDeletion } from "../selection/delete-selection";
 import { captureDocumentComposition, proposePaste } from "./clipboard";
 
 interface PlacedScene {
@@ -97,12 +97,14 @@ function deleteScene(
       ? [terminal.id]
       : [],
   );
-  const deletionEdits = proposeVisualSelectionDeletion(
-    document,
-    createProjectSymbolResolver(project, builtInSymbols),
-    scene,
-    sequence,
-  );
+  const deletionEdits = [
+    ...planRoutingDeletion(
+      document,
+      createProjectSymbolResolver(project, builtInSymbols),
+      scene,
+      sequence,
+    ).edits,
+  ];
   const result = executeProjectTransaction(project, {
     transactionId: `delete-gallery-scene-${sequence}`,
     projectId: project.id,
