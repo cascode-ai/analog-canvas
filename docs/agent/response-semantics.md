@@ -11,7 +11,8 @@ not visual quality or electrical performance.
 `resolvedRoutes` gives their normalized route polylines; inspect it after moving
 instances or editing paths. Do not count a dry-run as a committed change.
 
-MCP receipts also identify stages such as compile, dry-run and commit. A
+MCP receipts also identify stages such as compile and commit; an explicit
+`dryRun` request is not committed and reports `applied: false`. A
 `STATE_CHANGED` receipt means re-inspect and reconsider; it is not a transport
 retry instruction. Raw HTTP callers separately manage exact-payload retries.
 

@@ -647,7 +647,9 @@ describe("mcp tool surface", () => {
     );
 
     expect(parseText(result)).toMatchObject({ ok: true, transactions: 1 });
-    expect(transacts).toHaveLength(2);
+    // One relayed request: the commit carries the wireIntent and validates
+    // atomically, with no client-side dry-run pass ahead of it.
+    expect(transacts).toHaveLength(1);
     for (const request of transacts) {
       expect(request.edits).toBeUndefined();
       expect(request.wireIntent).toMatchObject({

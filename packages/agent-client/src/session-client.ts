@@ -101,7 +101,7 @@ export interface ApplyActionsReport {
   semantic?: AgentTransactResponse["semantic"];
   resolvedRoutes?: AgentTransactResponse["resolvedRoutes"];
   ok: boolean;
-  stage: "compile" | "dry-run" | "commit" | "done";
+  stage: "compile" | "commit" | "done";
   /** Machine code for a failure (`STATE_CHANGED`, engine code, ...). */
   code?: string;
   message?: string;
@@ -469,8 +469,9 @@ export class AgentSessionClient {
 
   /**
    * Compile high-level actions against a fresh Snapshot, require one atomic
-   * transaction, dry-run it, then commit it. A concurrent human edit surfaces
-   * as `STATE_CHANGED` with the objects that moved, never as a blind overwrite.
+   * transaction, then commit it in a single request. The commit validates
+   * atomically, so a concurrent human edit surfaces as `STATE_CHANGED` with
+   * the objects that moved, never as a blind overwrite.
    */
   async applyActions(
     actions: readonly unknown[],
@@ -521,7 +522,6 @@ export class AgentSessionClient {
             : { wireIntent: transaction.wireIntent };
     return this.submitTransaction(entry, payload, {
       dryRun: options.dryRunOnly ?? false,
-      preview: true,
     });
   }
 
@@ -579,7 +579,7 @@ export class AgentSessionClient {
   private async submitTransaction(
     entry: CachedSnapshot,
     payload: unknown,
-    options: { dryRun?: boolean; preview?: boolean },
+    options: { dryRun?: boolean },
   ): Promise<ApplyActionsReport> {
     const parsed = AgentTransactionPayloadSchema.safeParse(payload);
     if (!parsed.success)
@@ -599,24 +599,9 @@ export class AgentSessionClient {
       dryRun,
       ...parsed.data,
     });
-    if (options.preview && !options.dryRun && !parsed.data.semanticIntent) {
-      const preview = await this.send(request(true));
-      if (!preview.ok) {
-        if (
-          preview.error.code === "STALE_REVISION" ||
-          preview.error.code === "STALE_STRUCTURE_REVISION"
-        )
-          return this.stateChangedReport(entry, preview.error.message);
-        return {
-          ok: false,
-          stage: "dry-run",
-          code: preview.error.code,
-          message: preview.error.message,
-          diagnostics: preview.diagnostics,
-          revision: entry.revision,
-        };
-      }
-    }
+    // One request, no client-side dry-run pass: the commit validates the
+    // whole transaction atomically and returns the same diagnostics a
+    // dry-run would, without the extra relayed round trip per edit.
     const response = await this.send(request(options.dryRun ?? false));
     if (!response.ok) {
       if (

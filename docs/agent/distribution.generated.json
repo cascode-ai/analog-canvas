@@ -33,7 +33,7 @@
     },
     {
       "source": "docs/agent/response-semantics.md",
-      "sha256": "c009b38a03afe575a857e87af2a710e404a0aa5c04baf6400521f52bbf035fc5"
+      "sha256": "4ace05b796fb2dffd30d7106f0cae8101dea511f28d0baf2651f02f7db1d61ae"
     },
     {
       "source": "docs/agent/knowledge/route-tree-shapes.md",
@@ -613,7 +613,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/knowledge/patterns.md"
       ],
-      "sha256": "c837143716f1f7b48f15826350941154ac1649d28db4f036b538335e56dbb800"
+      "sha256": "848ae53d732c1ebaca95123e6fa27a53e665f232fd3225f2d883710a20148638"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -642,7 +642,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/knowledge/patterns.md"
       ],
-      "sha256": "68e292ead289a1ec06a8a83eaad9b14e238fb1fc89e26764cf5d86fe7384a966"
+      "sha256": "5bbe3e86d4277fd286658ade447d69fabe4304895c7b752d898104dcbac35b44"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",

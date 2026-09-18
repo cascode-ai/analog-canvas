@@ -430,10 +430,9 @@ describe("agent session client", () => {
     expect(report.stage).toBe("done");
     expect(report.transactions).toBe(1);
     expect(report.revision).toBe(6);
-    expect(transactCalls).toEqual([
-      { dryRun: true, expectedRevision: 5 },
-      { dryRun: false, expectedRevision: 5 },
-    ]);
+    // One relayed request per edit: the commit validates atomically, so no
+    // client-side dry-run pass precedes it.
+    expect(transactCalls).toEqual([{ dryRun: false, expectedRevision: 5 }]);
     // The API diff is authoritative, even if a later Snapshot would differ.
     expect(report.changedObjectIds).toEqual(["instance-3"]);
     expect(report.errors).toBe(0);
@@ -512,7 +511,7 @@ describe("agent session client", () => {
     expect(client.summary("main")?.revision).toBe(9);
   });
 
-  it("uses the explicitly selected document for refresh, dry-run, and commit", async () => {
+  it("uses the explicitly selected document for refresh and commit", async () => {
     const child = testSnapshot();
     child.document.id = "child";
     child.document.name = "Child";
@@ -577,7 +576,7 @@ describe("agent session client", () => {
         ? [call.request.documentId]
         : [],
     );
-    expect(documentIds.slice(-3)).toEqual(["child", "child", "child"]);
+    expect(documentIds.slice(-2)).toEqual(["child", "child"]);
   });
 
   it("retries the exact same request payload once on a network failure", async () => {
