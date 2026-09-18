@@ -12,7 +12,16 @@ export async function revealPropertiesShelf(page: Page): Promise<void> {
     name: "Close project tools",
     exact: true,
   });
-  if (await close.isVisible()) await close.click();
+  if (await close.isVisible()) {
+    await close.click();
+    await page.locator(".app-workspace").evaluate(async (element) => {
+      await Promise.all(
+        element
+          .getAnimations()
+          .map((animation) => animation.finished.catch(() => {})),
+      );
+    });
+  }
   await expect(page.getByTestId("selection-shelf")).toBeVisible();
 }
 

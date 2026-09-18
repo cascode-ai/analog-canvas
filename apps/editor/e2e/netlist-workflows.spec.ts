@@ -407,6 +407,7 @@ test("copies structural SPICE and Spectre netlists while exposing instance autho
   );
 
   await placeComponent(page, "nmos", { x: 360, y: 220 });
+  await page.getByTestId("netlist-panel-toggle").click();
   await expect(
     page.getByRole("textbox", { name: "Netlist code", exact: true }),
   ).toHaveText("");

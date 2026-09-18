@@ -1358,6 +1358,7 @@ test("authors components and connectivity manually from an empty canvas", async 
   page,
 }) => {
   await page.goto("/editor");
+  await awaitEditorReady(page);
   // A flat Project has no hierarchy to navigate, so that row stays hidden.
   await expect(page.getByTestId("cell-navigation")).toHaveCount(0);
   await expect(page.getByTestId("revision")).toHaveText("0");
@@ -5027,12 +5028,12 @@ test("dismisses a command menu on outside click or Escape", async ({
 
 test("selecting an object does not change canvas width", async ({ page }) => {
   await page.goto("/editor");
+  await revealPropertiesShelf(page);
   const canvas = page.getByTestId("schematic-canvas");
   const widthBefore = (await canvas.boundingBox())!.width;
 
-  // placeComponent selects the placed instance, which before E opened a right
-  // Properties column and shrank the canvas. With the inspector in the left
-  // dock, the canvas column count and width must stay constant.
+  // Selecting a placed component leaves the explicitly collapsed inspector
+  // collapsed; it must not change the canvas width.
   await placeComponent(page, "resistor", { x: 280, y: 180 });
   await expect(page.getByTestId("hit-R1")).toBeVisible();
 
