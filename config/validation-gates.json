@@ -256,9 +256,16 @@
       "apps/editor/src/features/selection/**",
       "apps/editor/src/features/text-editing/**",
       "apps/editor/src/document/**",
+      "apps/editor/src/examples/*.icproj.json",
+      "apps/editor/src/features/project-code/project-text-editor.tsx",
       "packages/spice/src/syntax.ts",
       "packages/netlist/src/extract.ts",
+      "packages/netlist/src/export.ts",
+      "packages/netlist/src/printed-netlist.ts",
+      "packages/netlist/src/printers.ts",
       "packages/derived/src/mos-bulk.ts",
+      "apps/editor/e2e/editor-fixtures.ts",
+      "apps/editor/e2e/netlist-code-edit.spec.ts",
       "apps/editor/e2e/netlist-workflows.spec.ts",
       "apps/editor/e2e/netlist-conversion.spec.ts",
       "apps/editor/e2e/manual-editor-fixtures.ts"
@@ -431,11 +438,13 @@
       "command": [
         "pnpm",
         "test:e2e:local",
+        "apps/editor/e2e/netlist-code-edit.spec.ts",
         "apps/editor/e2e/netlist-workflows.spec.ts",
         "apps/editor/e2e/netlist-conversion.spec.ts"
       ],
       "ci": {
         "e2eArgs": [
+          "apps/editor/e2e/netlist-code-edit.spec.ts",
           "apps/editor/e2e/netlist-workflows.spec.ts",
           "apps/editor/e2e/netlist-conversion.spec.ts"
         ]

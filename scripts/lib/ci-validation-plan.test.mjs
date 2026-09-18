@@ -153,6 +153,27 @@ describe("CI validation planning", () => {
     }
   });
 
+  it("keeps editable netlists and bundled examples on their browser regressions", () => {
+    const spec = "apps/editor/e2e/netlist-code-edit.spec.ts";
+    const paths = [
+      spec,
+      "apps/editor/e2e/editor-fixtures.ts",
+      "apps/editor/src/examples/two-stage-op-amp.icproj.json",
+      "apps/editor/src/features/project-code/project-text-editor.tsx",
+      "packages/netlist/src/export.ts",
+      "packages/netlist/src/printed-netlist.ts",
+      "packages/netlist/src/printers.ts",
+    ];
+    for (const changed of [...paths.map((path) => [path]), paths]) {
+      const plan = ciPlan(changed);
+      expect(plan.mode, changed.join(", ")).toBe("focused");
+      expect(plan.e2eArgs).toContain(spec);
+      expect(plan.e2eArgs).toContain(
+        "apps/editor/e2e/netlist-workflows.spec.ts",
+      );
+    }
+  });
+
   it("keeps shared model changes on their mapped browser contracts", () => {
     const plan = ciPlan(["packages/model/src/schema/document.ts"]);
     expect(plan).toMatchObject({
