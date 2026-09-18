@@ -171,10 +171,6 @@ export const CircuitIRSchema = z
     }
   });
 
-export const CircuitIRJsonSchema = z.toJSONSchema(CircuitIRSchema, {
-  target: "draft-2020-12",
-});
-
 export type SpiceDialectId = z.infer<typeof SpiceDialectIdSchema>;
 export type CircuitPortIR = z.infer<typeof CircuitPortIRSchema>;
 export type CircuitNetIR = z.infer<typeof CircuitNetIRSchema>;

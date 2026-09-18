@@ -12,27 +12,16 @@ import { CanvasTextEditorOverlay } from "../features/text-editing/canvas-text-ed
 import type { WireDraftPreview } from "../features/wiring/wire-draft-preview";
 import { serializePolylinePoints } from "./canvas-geometry";
 
-export function EditorWiringOverlay({
-  netLabelPlacement,
-  onNetLabelTextChange,
-  onNetLabelSubmit,
-  onNetLabelEscape,
-  flightlines,
-  onFlightlineClick,
-  wireDraftPreview,
-  wireSnapTarget,
-  bulkRoutePreview,
-  snapGuideLayerRef,
-  viewBox,
-  styleProfile = razaviTextbookProfile,
-}: {
-  netLabelPlacement: {
-    phase: "naming" | "placing";
-    content: RichTextDocument;
-    sizeScale: number;
-    alignment: "start" | "middle" | "end";
-    position: Point;
-  } | null;
+export interface NetLabelPlacementState {
+  phase: "naming" | "placing";
+  content: RichTextDocument;
+  sizeScale: number;
+  alignment: "start" | "middle" | "end";
+  position: Point;
+}
+
+export interface EditorWiringOverlayProps {
+  netLabelPlacement: NetLabelPlacementState | null;
   onNetLabelTextChange: (
     change: Partial<{
       content: RichTextDocument;
@@ -53,42 +42,77 @@ export function EditorWiringOverlay({
   snapGuideLayerRef: Ref<SVGGElement>;
   viewBox: GridRect;
   styleProfile?: SchematicStyleProfile;
-}) {
+}
+
+type NetLabelEditorOverlayProps = Pick<
+  EditorWiringOverlayProps,
+  | "netLabelPlacement"
+  | "onNetLabelTextChange"
+  | "onNetLabelSubmit"
+  | "onNetLabelEscape"
+  | "viewBox"
+>;
+
+/**
+ * The naming surface is composed separately at the end of the SVG overlay.
+ * Keeping it out of the wiring layer prevents later transparent hit targets
+ * from intercepting text selection and toolbar gestures.
+ */
+export function NetLabelEditorOverlay({
+  netLabelPlacement,
+  onNetLabelTextChange,
+  onNetLabelSubmit,
+  onNetLabelEscape,
+  viewBox,
+}: NetLabelEditorOverlayProps) {
+  if (netLabelPlacement?.phase !== "naming") return null;
+  return (
+    <g data-testid="net-label-editor" data-layer="net-label-editor-overlay">
+      <CanvasTextEditorOverlay
+        session={{
+          owner: "annotation",
+          id: "pending-net-label",
+          content: netLabelPlacement.content,
+          sizeScale: netLabelPlacement.sizeScale,
+          alignment: netLabelPlacement.alignment,
+          defaultBold: true,
+          defaultItalic: true,
+          bound: true,
+          bindingKind: "net-name",
+        }}
+        bounds={{
+          x: netLabelPlacement.position.x,
+          y: netLabelPlacement.position.y,
+          width: 1,
+          height: 1,
+        }}
+        viewBox={viewBox}
+        disabled={false}
+        onUpdate={onNetLabelTextChange}
+        onCommit={onNetLabelSubmit}
+        onCancel={onNetLabelEscape}
+        onEscape={onNetLabelEscape}
+        onDelete={onNetLabelEscape}
+        showDelete={false}
+      />
+    </g>
+  );
+}
+
+export function EditorWiringOverlay({
+  netLabelPlacement,
+  flightlines,
+  onFlightlineClick,
+  wireDraftPreview,
+  wireSnapTarget,
+  bulkRoutePreview,
+  snapGuideLayerRef,
+  styleProfile = razaviTextbookProfile,
+}: EditorWiringOverlayProps) {
   const previewFontSize =
     styleProfile.typography.netFontSize * (netLabelPlacement?.sizeScale ?? 1);
   return (
     <>
-      {netLabelPlacement?.phase === "naming" ? (
-        <g data-testid="net-label-editor">
-          <CanvasTextEditorOverlay
-            session={{
-              owner: "annotation",
-              id: "pending-net-label",
-              content: netLabelPlacement.content,
-              sizeScale: netLabelPlacement.sizeScale,
-              alignment: netLabelPlacement.alignment,
-              defaultBold: true,
-              defaultItalic: true,
-              bound: true,
-              bindingKind: "net-name",
-            }}
-            bounds={{
-              x: netLabelPlacement.position.x,
-              y: netLabelPlacement.position.y,
-              width: 1,
-              height: 1,
-            }}
-            viewBox={viewBox}
-            disabled={false}
-            onUpdate={onNetLabelTextChange}
-            onCommit={onNetLabelSubmit}
-            onCancel={onNetLabelEscape}
-            onEscape={onNetLabelEscape}
-            onDelete={onNetLabelEscape}
-            showDelete={false}
-          />
-        </g>
-      ) : null}
       {netLabelPlacement?.phase === "placing" ? (
         <g data-testid="net-label-placement-preview" pointerEvents="none">
           <text

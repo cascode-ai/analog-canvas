@@ -670,11 +670,3 @@ export function evaluateRoutingOperationPlan(
     },
   };
 }
-
-export function emptyRoutingAffectedClosure(): RoutingAffectedClosure {
-  return EMPTY_CLOSURE;
-}
-
-export function emptyOperationIdRemap(): OperationIdRemap {
-  return EMPTY_ID_REMAP;
-}

@@ -29,12 +29,6 @@ export type TransformOperation =
       readonly axis: "x" | "y";
     };
 
-function stable(values: Iterable<string>): string[] {
-  return [...new Set(values)].sort((left, right) =>
-    left.localeCompare(right, "en"),
-  );
-}
-
 /**
  * Plan one topology-preserving transform from a stable selection seed.
  * Internal conductors move rigidly, boundary conductors are locally stretched
@@ -129,16 +123,4 @@ export function planRoutingTransform(
     edits: [...edits],
     diagnostics: [],
   });
-}
-
-export function routingTransformChangedObjectIds(
-  plan: RoutingOperationPlan,
-): readonly string[] {
-  return stable([
-    ...plan.affected.instances,
-    ...plan.affected.internalRoutes,
-    ...plan.affected.boundaryRoutes,
-    ...plan.affected.internalJunctions,
-    ...plan.affected.electricalAnnotationIds,
-  ]);
 }

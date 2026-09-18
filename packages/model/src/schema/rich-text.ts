@@ -98,7 +98,3 @@ function richTextDocumentSchema(depth: number): z.ZodTypeAny {
 export const RichTextDocumentSchema = richTextDocumentSchema(
   0,
 ) as z.ZodType<RichTextDocument>;
-export const RichTextRunSchema = richTextRunSchema(
-  0,
-  true,
-) as z.ZodType<RichTextRun>;

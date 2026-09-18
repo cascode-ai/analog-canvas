@@ -659,35 +659,6 @@ export function planCreateCell(
   return [{ kind: "add_document", document }];
 }
 
-export function planCreateCellFromDraftingObject(
-  project: CircuitProject,
-  parentDocumentId: string,
-  child: SchematicDocument,
-  instance: SchematicDocument["instances"][number],
-  draftingObjectId: string,
-): ProjectStructureEdit[] {
-  const parent = requireDocument(project, parentDocumentId);
-  if (project.documents.some((document) => document.id === child.id)) {
-    throw new Error(`Document already exists: ${child.id}`);
-  }
-  const binding = instance.netlist?.binding;
-  if (binding?.kind !== "subcircuit" || binding.childDocumentId !== child.id) {
-    throw new Error("Created hierarchy Instance must bind the new child Cell");
-  }
-  return [
-    { kind: "add_document", document: child },
-    {
-      kind: "transact_document",
-      documentId: parent.id,
-      expectedRevision: parent.revision,
-      edits: [
-        { kind: "remove_drafting_object", objectId: draftingObjectId },
-        { kind: "add_instance", instance },
-      ],
-    },
-  ];
-}
-
 export function planRenameCell(
   project: CircuitProject,
   documentId: string,
@@ -1319,39 +1290,6 @@ export function planRenameExternalSubcircuitTerminal(
   return edits;
 }
 
-export function planReorderExternalSubcircuitTerminal(
-  project: CircuitProject,
-  definitionId: string,
-  terminalId: string,
-  delta: -1 | 1,
-): ProjectStructureEdit[] {
-  const definition = project.externalSubcircuitDefinitions.find(
-    (candidate) => candidate.id === definitionId,
-  );
-  if (!definition)
-    throw new Error(`External subcircuit does not exist: ${definitionId}`);
-  const index = definition.terminals.findIndex(
-    (terminal) => terminal.id === terminalId,
-  );
-  const nextIndex = index + delta;
-  if (index < 0)
-    throw new Error(
-      `External terminal does not exist: ${definitionId}.${terminalId}`,
-    );
-  if (nextIndex < 0 || nextIndex >= definition.terminals.length) return [];
-  const terminals = [...definition.terminals];
-  [terminals[index], terminals[nextIndex]] = [
-    terminals[nextIndex]!,
-    terminals[index]!,
-  ];
-  return [
-    {
-      kind: "upsert_external_subcircuit_definition",
-      definition: { ...definition, terminals },
-    },
-  ];
-}
-
 export function planSetCellTerminalPlacement(
   project: CircuitProject,
   documentId: string,
@@ -1566,29 +1504,6 @@ export function planEditCellTerminalAnnotation(
       ? { ...edit, edits: [...edit.edits, annotationEdit] }
       : edit,
   );
-}
-
-export function planExposePortInstance(
-  project: CircuitProject,
-  documentId: string,
-  terminal: {
-    id: string;
-    name: string;
-    netId: string;
-    direction: "input" | "output" | "inout" | "passive";
-    interfaceInstanceIds: string[];
-  },
-): ProjectStructureEdit[] {
-  const document = project.documents.find((item) => item.id === documentId);
-  if (!document) throw new Error(`Document does not exist: ${documentId}`);
-  return [
-    {
-      kind: "transact_document",
-      documentId,
-      expectedRevision: document.revision,
-      edits: [{ kind: "add_cell_terminal", terminal }],
-    },
-  ];
 }
 
 export function planRemoveCellTerminal(

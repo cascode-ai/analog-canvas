@@ -23,13 +23,6 @@ export interface ExpandedDeviceCatalogEntry {
     typeof HIGH_VOLTAGE_DEVICE_SUBCATEGORY | typeof MOS_VARIANT_SUBCATEGORY;
 }
 
-export const nChannelDmosSymbol = expandedComponentSymbols.find(
-  (symbol) => symbol.id === "ndmos",
-)!;
-export const pChannelDmosSymbol = expandedComponentSymbols.find(
-  (symbol) => symbol.id === "pdmos",
-)!;
-
 export const expandedDeviceSymbols: readonly SymbolDefinition[] =
   expandedComponentSymbols;
 

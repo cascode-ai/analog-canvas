@@ -1,4 +1,3 @@
-import { planProjectCellImport } from "@icm/edit-engine";
 import type { CircuitProject } from "@icm/model";
 import { builtInSymbols, findUnsupportedProjectSymbolIds } from "@icm/symbols";
 
@@ -37,12 +36,4 @@ export async function loadCloudProjectForCellImport(
     };
   }
   return { ok: true, project: staged.project };
-}
-
-export function planLoadedCloudCellImport(
-  destination: CircuitProject,
-  source: CircuitProject,
-  sourceDocumentId: string,
-) {
-  return planProjectCellImport(destination, source, sourceDocumentId);
 }

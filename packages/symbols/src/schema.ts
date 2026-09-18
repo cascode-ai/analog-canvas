@@ -343,13 +343,6 @@ export const SymbolDefinitionSchema = z
     }
   });
 
-export const SymbolDefinitionJsonSchema = z.toJSONSchema(
-  SymbolDefinitionSchema,
-  {
-    target: "draft-2020-12",
-  },
-);
-
 export type SymbolPin = z.infer<typeof SymbolPinSchema>;
 export type SymbolFormulaPresentation = z.infer<
   typeof SymbolFormulaPresentationSchema

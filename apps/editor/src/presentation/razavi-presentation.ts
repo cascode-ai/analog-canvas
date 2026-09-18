@@ -120,13 +120,6 @@ export function materializeRazaviProjectBulkConnections(
   return { project: nextProject, instanceCount };
 }
 
-export function razaviBulkAnchorIsVisible(
-  document: SchematicDocument,
-  instanceId: string,
-): boolean {
-  return mosBulkShouldBeVisible(document, instanceId);
-}
-
 export function razaviMosPresentationEdits(
   document: SchematicDocument,
 ): SchematicEdit[] {
