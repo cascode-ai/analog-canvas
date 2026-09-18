@@ -14,9 +14,9 @@ export function NetlistProfileCode({
     >
       <h2>Netlist configuration</h2>
       <p>
-        Edit or paste the complete output JSON. Format and formal-port spelling
-        are presentation choices; device bindings and parameters always come
-        from the Project.
+        Edit or paste the complete JSON. The selected process maps device
+        targets and fills missing parameters in the Project. Existing values
+        stay unchanged. Format and port case control output spelling.
       </p>
       <textarea
         aria-label="Netlist configuration JSON"
@@ -34,7 +34,9 @@ export function NetlistProfileCode({
         </p>
       ) : (
         <p>
-          Saved in this browser. It never changes the circuit being exported.
+          Templates are saved in this browser. Applied device mappings are saved
+          with the circuit and can be undone. Model library files belong in the
+          Simulation source configuration.
         </p>
       )}
     </section>

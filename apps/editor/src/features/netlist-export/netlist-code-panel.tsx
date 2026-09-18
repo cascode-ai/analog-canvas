@@ -16,6 +16,22 @@ import {
 import type { PrintedNetlistInstance } from "@icm/netlist";
 import type { CircuitProject } from "@icm/model";
 import {
+  inferNetlistProcess,
+  netlistFamilyTarget,
+  planNetlistProcess,
+} from "./netlist-process";
+import {
+  NETLIST_PROFILE_IDS,
+  NETLIST_PROFILE_LABELS,
+  NETLIST_QUICK_TARGET_FAMILIES,
+  NETLIST_DEVICE_TARGET_OPTIONS,
+  setNetlistDefaultTarget,
+  createNetlistExportProfile,
+  type NetlistExportProfile,
+  type NetlistProfileId,
+  type NetlistQuickTargetFamily,
+} from "./netlist-process-presets";
+import {
   createDesignNetlistExport,
   unfinishedDrawingDiagnostics,
   type NetlistFormat,
@@ -40,6 +56,10 @@ export function NetlistCodePanel({
   configurationError,
   onApply,
   onFocusInstance,
+  profiles,
+  selectedProcess,
+  onProcessChange,
+  onDeviceTargetChange,
 }: {
   project: CircuitProject;
   format: NetlistFormat;
@@ -52,7 +72,48 @@ export function NetlistCodePanel({
   configurationError: string | null;
   onApply(edits: ProjectStructureEdit[]): boolean;
   onFocusInstance(instance: PrintedNetlistInstance | null): void;
+  profiles: Record<NetlistProfileId, NetlistExportProfile>;
+  selectedProcess: NetlistProfileId;
+  onProcessChange(id: NetlistProfileId): void;
+  onDeviceTargetChange(
+    family: NetlistQuickTargetFamily,
+    target: string,
+    process: NetlistProfileId,
+  ): void;
 }) {
+  const process =
+    selectedProcess === "custom"
+      ? "custom"
+      : inferNetlistProcess(project, selectedProcess);
+  const profile = profiles[process];
+  const [processError, setProcessError] = useState<string | null>(null);
+  function applyProcess(
+    next: NetlistExportProfile,
+    options: Parameters<typeof planNetlistProcess>[2] = {},
+  ) {
+    try {
+      const edits = planNetlistProcess(project, next, options);
+      if (edits.length && !onApply(edits))
+        throw new Error(
+          "Could not apply device mappings. The circuit has not changed.",
+        );
+      setProcessError(null);
+      return true;
+    } catch (error) {
+      setProcessError(
+        error instanceof Error ? error.message : "Could not apply process",
+      );
+      return false;
+    }
+  }
+  // The panel is keyed by Project session. Fill unbound native devices once;
+  // reopening or undoing must never remap authored external models.
+  const initialized = useRef(false);
+  useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+    applyProcess(profiles[selectedProcess], { onlyMissing: true });
+  }, []);
   const result = useMemo(
     () =>
       configurationError
@@ -158,6 +219,24 @@ export function NetlistCodePanel({
             <option value="spectre">SCS</option>
           </select>
         </label>
+        <label>
+          <span>Process</span>
+          <select
+            aria-label="Netlist process"
+            value={process}
+            disabled={dirty}
+            onChange={(event) => {
+              const id = event.currentTarget.value as NetlistProfileId;
+              if (applyProcess(profiles[id])) onProcessChange(id);
+            }}
+          >
+            {NETLIST_PROFILE_IDS.map((id) => (
+              <option key={id} value={id}>
+                {NETLIST_PROFILE_LABELS[id]}
+              </option>
+            ))}
+          </select>
+        </label>
         <button
           type="button"
           className="netlist-code-copy"
@@ -218,6 +297,62 @@ export function NetlistCodePanel({
         className="netlist-device-mapping"
         aria-label="Netlist output options"
       >
+        {NETLIST_QUICK_TARGET_FAMILIES.map((family) => {
+          const label =
+            family === "resistor"
+              ? "R"
+              : family === "capacitor"
+                ? "C"
+                : family === "inductor"
+                  ? "L"
+                  : family.toUpperCase();
+          const mapped = netlistFamilyTarget(project, family);
+          const current =
+            mapped === undefined ? profile.devices[family].target : mapped;
+          const target = current ?? "__mixed__";
+          return (
+            <label key={family}>
+              <span>{label}</span>
+              <select
+                aria-label={`${label} netlist target`}
+                value={target}
+                title={current ?? "Mixed or custom targets"}
+                disabled={dirty}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  if (
+                    applyProcess(
+                      setNetlistDefaultTarget(profile, family, value),
+                      { family },
+                    )
+                  ) {
+                    onDeviceTargetChange(family, value, process);
+                  }
+                }}
+              >
+                {current === null ? (
+                  <option value="__mixed__" disabled>
+                    Mixed / custom
+                  </option>
+                ) : null}
+                {[
+                  ...new Set([
+                    ...(current === null ? [] : [current]),
+                    ...NETLIST_DEVICE_TARGET_OPTIONS[process][family],
+                    profile.devices[family].target,
+                  ]),
+                ].map((value) => (
+                  <option key={value} value={value}>
+                    {value.replace(/^sky130_fd_pr__/u, "") ||
+                      (family === "nmos" || family === "pmos"
+                        ? "Unspecified"
+                        : "Ideal")}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        })}
         <div className="netlist-mapping-actions">
           <button
             type="button"
@@ -233,7 +368,11 @@ export function NetlistCodePanel({
           <button
             type="button"
             className="netlist-default-action"
-            onClick={onReset}
+            disabled={dirty}
+            onClick={() => {
+              if (applyProcess(createNetlistExportProfile("abstract")))
+                onReset();
+            }}
           >
             Default
           </button>
@@ -255,6 +394,7 @@ export function NetlistCodePanel({
         </div>
       ) : null}
       {editError ? <p role="alert">{editError}</p> : null}
+      {processError ? <p role="alert">{processError}</p> : null}
       <p className="netlist-edit-hint">
         Edit names, models and values · Enter to apply
       </p>

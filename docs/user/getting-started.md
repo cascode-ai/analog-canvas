@@ -281,8 +281,12 @@ remain listed for manual repair. **File / Save** and **Ctrl+S** remain save-only
 
 Click the top **Netlist** copy button to put the netlist on the clipboard and
 open its live code in the right sidebar. That panel's **Format** (SPICE or SCS)
-and port-name case controls choose only how the authored circuit is printed and
-are remembered in this browser; **Default** restores those output preferences.
+and **Process** selectors are independent. Choose Abstract, SKY130, TSMC 28,
+TSMC 180 or Custom, then optionally choose NMOS/PMOS/R/C/L targets below the
+code. Process changes update the circuit and can be undone; existing values
+are retained. Unbound native devices use the cached template's defaults when
+the panel opens. **Default** restores Abstract mapping and output preferences.
+The selected templates, format and port-name case are remembered in this browser.
 Editing the circuit refreshes the visible code. Clipboard failures leave the
 code selectable for manual copy.
 

@@ -514,8 +514,8 @@ test("shows and copies a live MOS netlist with explicitly connected bulk termina
   const codeViewport = panel.locator(".netlist-code-viewport");
   await expect(codeViewport).toHaveAttribute("data-visible-lines", "10");
   await expect(codeViewport.locator(".cm-lineNumbers")).toBeVisible();
-  await expect(panel.getByLabel("Netlist process")).toHaveCount(0);
-  await expect(panel.getByText("netlist target")).toHaveCount(0);
+  await expect(panel.getByLabel("Netlist process")).toBeVisible();
+  await expect(panel.getByLabel("NMOS netlist target")).toBeVisible();
   const portCase = panel.getByRole("button", {
     name: "Port names: uppercase",
   });
@@ -561,7 +561,7 @@ test("shows and copies a live MOS netlist with explicitly connected bulk termina
   )
     await page.getByTestId("netlist-panel-toggle").click();
   await expect(panel.getByLabel("Netlist format")).toHaveValue("spice");
-  await expect(panel.getByLabel("Netlist process")).toHaveCount(0);
+  await expect(panel.getByLabel("Netlist process")).toBeVisible();
 });
 
 test("caps a long live netlist at twenty visible lines with internal scrolling", async ({
@@ -632,7 +632,11 @@ test("edits output configuration without creating another electrical authority",
   await expect(panel.getByRole("combobox")).toHaveCount(0);
   await expect(panel.getByRole("button")).toHaveCount(0);
   const config = JSON.parse(await code.inputValue());
-  expect(config).toEqual({ format: "spice", portCase: "upper" });
+  expect(config).toMatchObject({
+    format: "spice",
+    portCase: "upper",
+    selected: "abstract",
+  });
   config.format = "spectre";
   config.portCase = "lower";
   await code.fill(JSON.stringify(config, null, 2));
@@ -662,7 +666,7 @@ test("edits output configuration without creating another electrical authority",
   expect(netlist).toContain("simulator lang=spectre");
 });
 
-test("copies an incomplete netlist in one click and previews its TODO fields", async ({
+test("retains copyable TODO fields when the user clears a template default", async ({
   page,
 }) => {
   const project = createEmptyProject("draft-project", "Draft Circuit");
@@ -684,6 +688,12 @@ test("copies an incomplete netlist in one click and previews its TODO fields", a
     })),
   );
   await page.goto("/editor");
+  await clickCommand(page, "Netlist", "Configuration…");
+  const configuration = page.getByLabel("Netlist configuration JSON");
+  const preferences = JSON.parse(await configuration.inputValue());
+  preferences.profiles.abstract.devices.resistor.parameters = {};
+  await configuration.fill(JSON.stringify(preferences));
+  await page.getByTestId("netlist-panel-toggle").click();
   await page.getByTestId("project-file").setInputFiles({
     name: "draft.icproj.json",
     mimeType: "application/json",

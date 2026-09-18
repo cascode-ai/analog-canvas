@@ -2,6 +2,7 @@ import { InstanceCodePanel } from "../features/properties/instance-code-panel";
 import { NetlistCodePanel } from "../features/netlist-export/netlist-code-panel";
 import { NetlistProfileCode } from "../features/netlist-export/netlist-profile-code";
 import { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
+import { planNetlistProcess } from "../features/netlist-export/netlist-process";
 import {
   DEFAULT_ARROW_PRESET,
   type ArrowPreset,
@@ -5440,7 +5441,26 @@ export function App({
                   <NetlistProfileCode
                     text={netlistPreferences.text}
                     error={netlistPreferences.error}
-                    onChange={netlistPreferences.changeText}
+                    onChange={(text) =>
+                      netlistPreferences.changeText(text, (next) => {
+                        const previous = netlistPreferences.preferences;
+                        if (
+                          next.selected === previous.selected &&
+                          JSON.stringify(next.profiles[next.selected]) ===
+                            JSON.stringify(previous.profiles[previous.selected])
+                        )
+                          return;
+                        const edits = planNetlistProcess(
+                          project,
+                          next.profiles[next.selected],
+                        );
+                        if (
+                          edits.length &&
+                          !commitStructure("edit-netlist-process", edits)
+                        )
+                          throw new Error("Could not apply device mappings");
+                      })
+                    }
                   />
                 ) : projectPanel === "netlist" ? (
                   <NetlistCodePanel
@@ -5459,6 +5479,10 @@ export function App({
                     portCase={netlistPreferences.portCase}
                     onFormatChange={netlistPreferences.selectFormat}
                     onPortCaseChange={netlistPreferences.selectPortCase}
+                    profiles={netlistPreferences.preferences.profiles}
+                    selectedProcess={netlistPreferences.selected}
+                    onProcessChange={netlistPreferences.selectProfile}
+                    onDeviceTargetChange={netlistPreferences.setDeviceTarget}
                     onReset={netlistPreferences.reset}
                     onCopy={() =>
                       exportDesignNetlist(

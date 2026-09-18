@@ -49,6 +49,82 @@ function fixture() {
 const label = (page: import("@playwright/test").Page) =>
   page.locator('[data-layer="annotations"] [data-object-id="label-R1"]');
 
+test("restores process and device choices, applies defaults and keeps copy/edit/undo consistent", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/editor?example=current-mirror-loaded-differential-pair");
+  await awaitEditorReady(page);
+  const code = page.getByLabel("Netlist code", { exact: true });
+  await expect(code).toContainText("NMOS");
+  await expect(code).not.toContainText("TODO");
+  const process = page.getByLabel("Netlist process", { exact: true });
+  await process.selectOption("sky130");
+  await expect(code).toContainText("sky130_fd_pr__nfet_01v8");
+  await expect(code).toContainText("XM1");
+  await clickCommand(page, "Edit", "Undo");
+  await expect(code).toContainText("NMOS");
+  await expect(code).not.toContainText("XM1");
+  await clickCommand(page, "Edit", "Redo");
+  await expect(code).toContainText("XM1");
+  await page
+    .getByLabel("Netlist format", { exact: true })
+    .selectOption("spectre");
+  await page
+    .getByLabel("NMOS netlist target", { exact: true })
+    .selectOption("sky130_fd_pr__nfet_01v8_lvt");
+  await expect(code).toContainText("simulator lang=spectre");
+  await expect(code).not.toContainText("simulator lang=spice");
+  await expect(code).toContainText("sky130_fd_pr__nfet_01v8_lvt");
+  await page.getByTestId("copy-netlist-panel").click();
+  const nonemptyLines = (text: string) =>
+    text.split(/\r?\n/u).filter((line) => line.trim());
+  expect(
+    nonemptyLines(await page.evaluate(() => navigator.clipboard.readText())),
+  ).toEqual(nonemptyLines(await code.innerText()));
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(
+    saved.externalSubcircuitDefinitions.some(
+      (definition: { name: string }) =>
+        definition.name === "sky130_fd_pr__nfet_01v8_lvt",
+    ),
+  ).toBe(true);
+  await clickCommand(page, "Netlist", "Configuration…");
+  const configuration = page.getByLabel("Netlist configuration JSON");
+  const preferences = JSON.parse(await configuration.inputValue());
+  preferences.format = "spice";
+  await configuration.fill(JSON.stringify(preferences));
+  await page.getByTestId("netlist-panel-toggle").click();
+  await expect(code).toContainText("sky130_fd_pr__nfet_01v8_lvt");
+  await page
+    .getByLabel("Netlist format", { exact: true })
+    .selectOption("spectre");
+  await process.selectOption("tsmc28");
+  await expect(code).toContainText("nch_ulvt_mac");
+  await expect(code).toContainText("simulator lang=spectre");
+  await process.selectOption("tsmc180");
+  await expect(code).toContainText(" nch ");
+  await process.selectOption("abstract");
+  await expect(code).toContainText("NMOS");
+  await code.fill((await code.innerText()).replace(/^M1 /mu, "M_load "));
+  await code.press("Enter");
+  await expect(
+    page.locator(
+      '[data-layer="annotations"] [data-object-id="instance-label-M1"]',
+    ),
+  ).toContainText("M_load");
+  await page.getByRole("button", { name: "Default", exact: true }).click();
+  await expect(page.getByLabel("Netlist format", { exact: true })).toHaveValue(
+    "spice",
+  );
+  await expect(code).toContainText("M_load");
+});
+
 test("opens a built-in formatted device name with alias off and follows netlist renames", async ({
   page,
 }) => {
