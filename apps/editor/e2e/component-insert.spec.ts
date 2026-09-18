@@ -412,6 +412,7 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
   page,
 }) => {
   await page.goto("/editor");
+  await revealPropertiesShelf(page);
   await awaitEditorReady(page);
   const quickStart = page.getByTestId("canvas-empty-state");
   await expect(quickStart).toBeVisible();
@@ -2266,6 +2267,7 @@ test("opens named full-width Project examples from the toolbar", async ({
 }) => {
   await page.setViewportSize({ width: 1024, height: 720 });
   await page.goto("/editor");
+  await revealPropertiesShelf(page);
 
   const libraryToggle = page.getByTestId("library-toggle");
   const examplesToggle = page.getByTestId("examples-toggle");

@@ -378,3 +378,21 @@ export function planNetlistProcess(
     })),
   ];
 }
+
+/** Defaults belong to creating an example, never to mounting a reader of a saved Project. */
+export function prepareNetlistExample(
+  project: CircuitProject,
+  profile: NetlistExportProfile,
+): CircuitProject {
+  const edits = planNetlistProcess(project, profile, { onlyMissing: true });
+  if (!edits.length) return project;
+  const result = executeProjectTransaction(project, {
+    transactionId: "prepare-netlist-example",
+    projectId: project.id,
+    expectedStructureRevision: project.structureRevision,
+    actor: { kind: "human", id: "netlist-process" },
+    edits,
+  });
+  if (!result.ok) throw new Error(result.error.message);
+  return result.project;
+}

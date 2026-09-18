@@ -2,7 +2,10 @@ import { InstanceCodePanel } from "../features/properties/instance-code-panel";
 import { NetlistCodePanel } from "../features/netlist-export/netlist-code-panel";
 import { NetlistProfileCode } from "../features/netlist-export/netlist-profile-code";
 import { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
-import { planNetlistProcess } from "../features/netlist-export/netlist-process";
+import {
+  planNetlistProcess,
+  prepareNetlistExample,
+} from "../features/netlist-export/netlist-process";
 import {
   DEFAULT_ARROW_PRESET,
   type ArrowPreset,
@@ -927,6 +930,7 @@ export function App({
   );
   const openAnalogSimulation = (): void => {
     if (!publicSimulationUiEnabled) return;
+    setProjectPanel(null);
     setAnalogSimulationState("open");
   };
   const minimizeAnalogSimulation = (): void => {
@@ -1222,6 +1226,11 @@ export function App({
   const { openGalleryEntryById, openLibraryExample, insertGalleryEntryById } =
     createGalleryExampleCommands({
       defaultViewBox: DEFAULT_VIEWBOX,
+      prepareLibraryExample: (example) =>
+        prepareNetlistExample(
+          example,
+          netlistPreferences.preferences.profiles[netlistPreferences.selected],
+        ),
       replaceActiveProject,
       guardDirtyReplacement,
       beginCopyPlacement: (clipboard, anchor) => {
@@ -3360,7 +3369,15 @@ export function App({
         (candidate) => candidate.id === exampleId,
       );
       if (exampleProject && example) {
-        replaceActiveProject(exampleProject, DEFAULT_VIEWBOX);
+        replaceActiveProject(
+          prepareNetlistExample(
+            exampleProject,
+            netlistPreferences.preferences.profiles[
+              netlistPreferences.selected
+            ],
+          ),
+          DEFAULT_VIEWBOX,
+        );
         setStatus(`Opened example: ${example.name}`);
       }
     }

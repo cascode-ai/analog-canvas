@@ -341,9 +341,7 @@ export async function copyNetlistText(
   const toggle = page.getByTestId("netlist-panel-toggle");
   if (
     (await toggle.getAttribute("aria-pressed")) !== "true" ||
-    (await page
-      .getByRole("region", { name: "Netlist configuration", exact: true })
-      .isVisible())
+    !(await panel.isVisible())
   )
     await toggle.click();
   await expect(panel).toBeVisible();

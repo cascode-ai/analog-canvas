@@ -106,14 +106,6 @@ export function NetlistCodePanel({
       return false;
     }
   }
-  // The panel is keyed by Project session. Fill unbound native devices once;
-  // reopening or undoing must never remap authored external models.
-  const initialized = useRef(false);
-  useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
-    applyProcess(profiles[selectedProcess], { onlyMissing: true });
-  }, []);
   const result = useMemo(
     () =>
       configurationError

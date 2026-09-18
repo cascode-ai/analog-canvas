@@ -524,6 +524,7 @@ test("opens one digital simulation window and picks a Net from the canvas", asyn
     locked: false,
   });
   await page.goto("/editor");
+  await revealPropertiesShelf(page);
   await page.getByTestId("project-file").setInputFiles({
     name: "digital-simulation-pick.icproj.json",
     mimeType: "application/json",
@@ -4668,6 +4669,7 @@ test("keeps component insertion and inspection from resizing the canvas", async 
   page,
 }) => {
   await page.goto("/editor");
+  await revealPropertiesShelf(page);
   const canvas = page.getByTestId("schematic-canvas");
   const beforePlaceCanvas = await canvas.boundingBox();
   if (!beforePlaceCanvas) throw new Error("Canvas is not measurable");

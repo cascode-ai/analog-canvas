@@ -785,7 +785,15 @@ test("Netlist keeps format selection in the project panel while File keeps drawi
       .evaluateAll((selects) =>
         selects.map((select) => select.getAttribute("aria-label")),
       ),
-  ).toEqual(["Netlist format"]);
+  ).toEqual([
+    "Netlist format",
+    "Netlist process",
+    "NMOS netlist target",
+    "PMOS netlist target",
+    "R netlist target",
+    "C netlist target",
+    "L netlist target",
+  ]);
   await expect(
     page
       .getByRole("complementary", { name: "Project tools", exact: true })

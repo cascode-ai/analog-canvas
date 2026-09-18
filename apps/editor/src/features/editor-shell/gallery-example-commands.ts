@@ -37,6 +37,7 @@ interface GalleryEntryPayload {
 
 export interface GalleryExampleCommandDependencies {
   defaultViewBox: GridRect;
+  prepareLibraryExample?: (project: CircuitProject) => CircuitProject;
   replaceActiveProject: (
     project: CircuitProject,
     viewBox?: GridRect,
@@ -63,6 +64,7 @@ export interface GalleryExampleCommandDependencies {
  */
 export function createGalleryExampleCommands({
   defaultViewBox,
+  prepareLibraryExample = (project) => project,
   replaceActiveProject,
   guardDirtyReplacement,
   beginCopyPlacement,
@@ -149,11 +151,12 @@ export function createGalleryExampleCommands({
   };
 
   const openLibraryExample = (example: LibraryProjectExample): void => {
-    const exampleProject = createLibraryExampleProject(example.id);
-    if (!exampleProject) {
+    const source = createLibraryExampleProject(example.id);
+    if (!source) {
       setStatus(`Example is unavailable: ${example.name}`);
       return;
     }
+    const exampleProject = prepareLibraryExample(source);
     if (beginProjectImportPlacement(exampleProject, example.name)) return;
     void guardDirtyReplacement(`Open ${example.name} example`, () => {
       replaceActiveProject(exampleProject);

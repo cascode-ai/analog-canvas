@@ -201,6 +201,7 @@ test("keeps every line of a multi-line note on its own line", async ({
   page,
 }) => {
   await page.goto("/editor");
+  await revealPropertiesShelf(page);
   await placeText(page, { x: 400, y: 220 });
   const editable = page.getByRole("textbox", { name: "Canvas text editor" });
   await editable.click();
@@ -1630,6 +1631,7 @@ test("the Library Circle creates a selectable shape with one radial handle and n
   page,
 }) => {
   await page.goto("/editor");
+  await revealPropertiesShelf(page);
   await awaitEditorReady(page);
   await clickDrawTool(page, "circle");
   await clickCreate(page, { x: 260, y: 260 }, { x: 340, y: 260 });

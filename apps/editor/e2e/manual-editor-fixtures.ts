@@ -7,6 +7,7 @@ export async function placeComponent(
   symbolId: string,
   position: { x: number; y: number },
 ): Promise<void> {
+  await revealPropertiesShelf(page);
   await chooseComponent(page, symbolId);
   await page.getByTestId("schematic-canvas").click({ position });
   await page.keyboard.press("Escape");

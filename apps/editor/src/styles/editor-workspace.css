@@ -663,6 +663,13 @@
 }
 
 @media (max-width: 860px) {
+  /* The project dock floats over the canvas on compact screens. An active
+     text editor must keep all formatting controls clickable; restore the
+     same dock immediately after text editing ends. */
+  .app-workspace:has(.canvas-text-editor-overlay) .project-tool-dock,
+  .app-workspace:has(.canvas-text-editor-overlay) .properties-resize-handle {
+    visibility: hidden;
+  }
   .editor-right-dock {
     display: contents;
   }

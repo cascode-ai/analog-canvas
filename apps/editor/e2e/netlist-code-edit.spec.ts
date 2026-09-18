@@ -324,3 +324,34 @@ test("rejects duplicate names atomically and retains a draft when the canvas cha
   await page.getByRole("button", { name: "Reload", exact: true }).click();
   await expect(code).toContainText("R_canvas");
 });
+
+test("opening and reopening Netlist preserves incomplete imported device data", async ({
+  page,
+}) => {
+  const project = fixture();
+  delete project.documents[0]!.instances[0]!.netlist!.parameters.value;
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "incomplete.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  const code = page.getByLabel("Netlist code", { exact: true });
+  await expect(code).toContainText("TODO");
+  const revision = await page.getByTestId("revision").textContent();
+  await page
+    .getByRole("button", { name: "Close project tools", exact: true })
+    .click();
+  await page.getByTestId("netlist-panel-toggle").click();
+  await expect(code).toContainText("TODO");
+  await expect(page.getByTestId("revision")).toHaveText(revision!);
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(saved.documents[0].instances[0].netlist.parameters).not.toHaveProperty(
+    "value",
+  );
+});

@@ -280,9 +280,11 @@ Netlist configuration stores `format`, `portCase`, the selected process and
 editable device templates for Abstract, SKY130, TSMC 28, TSMC 180 and Custom.
 Format and case are output preferences. Process/device selection is an
 undoable Project transaction that writes ordinary typed bindings and parameters
-before any consumer extracts the circuit. On opening the panel, unbound native
-devices receive the cached template's model and missing parameter defaults;
-existing explicit models and external interfaces remain intact. Templates are
+before any consumer extracts the circuit. Creating a bundled example applies
+missing native-device defaults from the cached template while retaining
+explicit models and external interfaces. Opening or reopening a saved Project's
+panel does not edit it, refill deliberately missing parameters, or interfere
+with recovery. Templates are
 cached in the browser; applied bindings travel with the Project. Simulation Profiles select engines,
 dependencies and corners and validate persisted targets; they do not rewrite
 them.
