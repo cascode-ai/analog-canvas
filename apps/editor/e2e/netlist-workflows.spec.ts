@@ -513,7 +513,10 @@ test("shows and copies a live MOS netlist with explicitly connected bulk termina
     ).toBeLessThanOrEqual(2);
   }
   const codeViewport = panel.locator(".netlist-code-viewport");
-  await expect(codeViewport).toHaveAttribute("data-visible-lines", "10");
+  await expect(codeViewport.locator(".project-source-editor")).toHaveCSS(
+    "height",
+    "214px",
+  );
   await expect(codeViewport.locator(".cm-lineNumbers")).toBeVisible();
   await expect(panel.getByLabel("Netlist process")).toBeVisible();
   await expect(panel.getByLabel("NMOS netlist target")).toBeVisible();
@@ -565,57 +568,95 @@ test("shows and copies a live MOS netlist with explicitly connected bulk termina
   await expect(panel.getByLabel("Netlist process")).toBeVisible();
 });
 
-test("caps a long live netlist at twenty visible lines with internal scrolling", async ({
+test("grows and shrinks the live netlist with content, scrolling only at the viewport limit", async ({
   page,
 }) => {
-  const project = createEmptyProject("long-netlist", "Long Netlist");
-  const document = project.documents[0]!;
-  for (let index = 1; index <= 24; index++) {
-    const id = `R${index}`;
-    document.instances.push({
-      id,
-      reference: id,
-      symbolId: "resistor",
-      placement: null,
-      netlist: { parameters: { value: `${index}k` } },
-    });
-    for (const pinName of ["1", "2"])
-      document.nets.push({
-        id: `${id}-${pinName}`,
-        terminals: [{ instanceId: id, pinName }],
-      });
-  }
-
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/editor");
-  await page.getByTestId("project-file").setInputFiles({
-    name: "long-netlist.icproj.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
-  });
-  if (
-    (await page
-      .getByTestId("netlist-panel-toggle")
-      .getAttribute("aria-pressed")) !== "true"
-  )
-    await page.getByTestId("netlist-panel-toggle").click();
   const panel = page.getByRole("region", { name: "Live netlist", exact: true });
   const viewport = panel.locator(".netlist-code-viewport");
-  await expect(viewport).toHaveAttribute("data-visible-lines", "20");
-  await expect(viewport.locator(".cm-lineNumbers")).toBeVisible();
+  const editor = viewport.locator(".project-source-editor");
+  const options = panel.getByLabel("Netlist output options");
+  const code = panel.getByLabel("Netlist code", { exact: true });
+  const height = () =>
+    editor.evaluate((element) => element.getBoundingClientRect().height);
+  const checkOptionsFollow = async () => {
+    const viewportBox = (await viewport.boundingBox())!;
+    const optionsBox = (await options.boundingBox())!;
+    expect(optionsBox.y).toBeGreaterThanOrEqual(
+      viewportBox.y + viewportBox.height,
+    );
+    expect(
+      optionsBox.y - (viewportBox.y + viewportBox.height),
+    ).toBeLessThanOrEqual(12);
+  };
+  const load = async (count: number) => {
+    const project = createEmptyProject("growing-netlist", "Growing Netlist");
+    const document = project.documents[0]!;
+    for (let index = 1; index <= count; index++) {
+      const id = `R${index}`;
+      document.instances.push({
+        id,
+        reference: id,
+        symbolId: "resistor",
+        placement: null,
+        netlist: { parameters: { value: `${index}k` } },
+      });
+      for (const pinName of ["1", "2"])
+        document.nets.push({
+          id: `${id}-${pinName}`,
+          terminals: [{ instanceId: id, pinName }],
+        });
+    }
+    await page.getByTestId("project-file").setInputFiles({
+      name: "growing-netlist.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(project)),
+    });
+    await expect(viewport).toHaveAttribute(
+      "data-line-count",
+      String(count + 4),
+    );
+    await expect(viewport.locator(".cm-lineNumbers")).toBeVisible();
+    await checkOptionsFollow();
+  };
+  await load(2);
+  expect(await height()).toBeCloseTo(214, 0);
+  await load(8);
+  const twelveLinesHeight = await height();
+  expect(twelveLinesHeight).toBeGreaterThan(214);
+  const shortSource = await code.innerText();
+  // An in-progress code draft grows too, before it is applied to the canvas.
+  await code.fill(
+    shortSource +
+      "\n" +
+      Array(12).fill("* draft comment").join("\n") +
+      "\nINVALID",
+  );
+  await expect.poll(height).toBeGreaterThan(twelveLinesHeight + 200);
+  await checkOptionsFollow();
+  await code.fill(shortSource);
+  await expect.poll(height).toBeCloseTo(twelveLinesHeight, 0);
+  await load(22);
+  expect(await height()).toBeGreaterThan(500);
+  expect(await height()).toBeLessThan(600);
+  await load(60);
+  expect(await height()).toBeCloseTo(600, 0);
+  const scroller = viewport.locator(".cm-scroller");
   expect(
-    await viewport
-      .locator(".cm-scroller")
-      .evaluate((scroller) => scroller.scrollHeight > scroller.clientHeight),
+    await scroller.evaluate(
+      (element) => element.scrollHeight > element.clientHeight,
+    ),
   ).toBe(true);
-  const viewportBox = await viewport.boundingBox();
-  const optionsBox = await panel
-    .getByLabel("Netlist output options")
-    .boundingBox();
-  expect(viewportBox).not.toBeNull();
-  expect(optionsBox).not.toBeNull();
-  expect(
-    optionsBox!.y - (viewportBox!.y + viewportBox!.height),
-  ).toBeLessThanOrEqual(12);
+  await scroller.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await expect(code).toContainText(".ends");
+  await page.setViewportSize({ width: 720, height: 600 });
+  await expect.poll(height).toBeCloseTo(360, 0);
+  await checkOptionsFollow();
+  await load(2);
+  expect(await height()).toBeCloseTo(214, 0);
 });
 
 test("edits output configuration without creating another electrical authority", async ({

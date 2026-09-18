@@ -191,7 +191,7 @@ export function NetlistCodePanel({
   const editError = conflict
     ? "The canvas or Agent changed the netlist. Reload before applying your draft."
     : applyError;
-  const visibleLines = netlistEditorVisibleLines(draft);
+  const lineCount = draft.split(/\r\n?|\n/u).length;
   return (
     <section
       className="netlist-profile-code netlist-live-code"
@@ -252,10 +252,10 @@ export function NetlistCodePanel({
       </div>
       <div
         className="netlist-code-viewport"
-        data-visible-lines={visibleLines}
+        data-line-count={lineCount}
         style={
           {
-            "--netlist-editor-height": `${visibleLines * 19.2 + 22}px`,
+            "--netlist-editor-height": `${lineCount * 19.2 + 22}px`,
           } as CSSProperties
         }
       >
@@ -400,9 +400,4 @@ export function NetlistCodePanel({
       ) : null}
     </section>
   );
-}
-
-export function netlistEditorVisibleLines(source: string): number {
-  const lineCount = source.split(/\r\n?|\n/u).length;
-  return Math.max(10, Math.min(20, lineCount));
 }

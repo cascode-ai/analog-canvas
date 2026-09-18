@@ -365,11 +365,14 @@
   background: color-mix(in srgb, var(--icm-accent) 7%, transparent);
 }
 .netlist-code-viewport {
+  flex: 0 0 auto;
   min-height: 0;
 }
 .netlist-code-viewport > .project-source-editor,
 .netlist-code-viewport > textarea {
-  height: var(--netlist-editor-height);
+  /* Grow with the code, including beyond twenty lines. Keep ten lines for
+     short drafts and reserve screen space for the controls below it. */
+  height: clamp(214px, var(--netlist-editor-height), 60dvh);
   min-height: 0;
 }
 .netlist-device-mapping {

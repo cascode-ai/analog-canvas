@@ -3,10 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createEmptyProject } from "@icm/model";
 import { createDefaultNetlistExportPreferences } from "./netlist-export-preferences";
-import {
-  NetlistCodePanel,
-  netlistEditorVisibleLines,
-} from "./netlist-code-panel";
+import { NetlistCodePanel } from "./netlist-code-panel";
 
 describe("live netlist controls", () => {
   it("offers independent format, process and compact device mapping controls", () => {
@@ -48,17 +45,6 @@ describe("live netlist controls", () => {
       /aria-label="Netlist output options"[\s\S]*aria-label="Port names: uppercase"[\s\S]*>Default<\/button><\/div>/u,
     );
     expect(markup).toContain('class="netlist-code-viewport"');
-    expect(markup).toContain('data-visible-lines="10"');
     expect(markup).not.toContain("<h2>Netlist</h2>");
-  });
-
-  it("sizes the code viewport from ten through twenty visible lines", () => {
-    expect(netlistEditorVisibleLines("")).toBe(10);
-    expect(netlistEditorVisibleLines(Array(15).fill("line").join("\n"))).toBe(
-      15,
-    );
-    expect(netlistEditorVisibleLines(Array(21).fill("line").join("\n"))).toBe(
-      20,
-    );
   });
 });
