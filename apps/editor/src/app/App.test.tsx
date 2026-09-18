@@ -275,15 +275,17 @@ describe("editor shell", () => {
     expect(markup.indexOf('href="/analytics"')).toBeGreaterThan(statusbar);
   });
 
-  it("keeps Properties docked with shapes quick-place, not a searchable catalog", () => {
+  it("opens Netlist beside shapes quick-place without a searchable catalog", () => {
     const project = createEmptyProject("selection-shelf", "Selection Shelf");
     const markup = renderToStaticMarkup(<App project={project} />);
 
     expect(markup).toContain(
-      '<section class="selection-shelf" aria-label="Selection">',
+      '<section class="selection-shelf" aria-label="Project tools">',
     );
-    expect(markup).toContain('data-testid="selection-shelf"');
-    expect(markup).toContain('aria-label="Properties"');
+    expect(markup).toContain('aria-label="Live netlist"');
+    expect(markup).toContain('aria-label="Close project tools"');
+    expect(markup).not.toContain('data-testid="selection-shelf"');
+    expect(markup).not.toContain('aria-label="Properties"');
     // The panel toggles live in the horizontal toolbar; there is no rail.
     expect(markup).not.toContain('aria-label="Tool rail"');
     expect(markup).toContain('aria-label="Shapes"');
