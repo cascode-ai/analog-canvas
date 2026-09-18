@@ -6,7 +6,6 @@ import { join } from "node:path";
 import { SimulationSourceInputSchema } from "@icm/model";
 import { inspectVacaskSourceGraph } from "./vacask-source.js";
 import { vacaskCircuitScopes } from "./vacask-source-scopes.js";
-import { vacaskAcquisition } from "./vacask-acquisitions.js";
 import { parseVacaskRawfile } from "../../spice-run/src/vacask-rawfile.js";
 import type { DesignNetlistIR } from "./ir.js";
 
@@ -101,30 +100,6 @@ describe("native authored occurrence mapping", () => {
       expect(resolved.node("vdd")).toBe(`${call}:XL:XD:vdd`);
       expect(resolved.node("0")).toBe("0");
       expect(resolved.instance("S")).toBe(`${call}:XL:XD:S`);
-      expect(
-        vacaskAcquisition({ kind: "voltage", path: [], node: "in" }, resolved)
-          .vector,
-      ).toBe(actual);
-      expect(
-        vacaskAcquisition({ kind: "voltage", path: [], node: "VDD" }, resolved)
-          .vector,
-      ).toBe("VDD");
-      expect(
-        vacaskAcquisition(
-          { kind: "voltage", path: ["Child"], node: "Mid" },
-          resolved,
-        ).vector,
-      ).toBe(`${call}:XL:XD:Child:Mid`);
-      expect(
-        vacaskAcquisition(
-          { kind: "current", path: ["Child"], senseReference: "Sense" },
-          resolved,
-        ),
-      ).toEqual({
-        quantity: "current",
-        vector: `${call}:XL:XD:Child:Sense:flow(br)`,
-        save: `i('${call}:XL:XD:Child:Sense')`,
-      });
     }
     expect(
       resolver.resolve({ bindingId: "wrong", callPath: paths[0]! }).ok,

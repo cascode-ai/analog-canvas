@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nativeMeasurementResults } from "./native-measurements.js";
+import { ngspiceMeasurementResults } from "./ngspice-measurements.js";
 import { simulationSpecReport, simulationSpecsToCsv } from "./spec-results.js";
 import { SimulationOutputDataSchema } from "./contract.js";
 import { SimulationSpecReportSchema } from "./spec-contract.js";
@@ -14,7 +14,7 @@ function evaluate(rule: string, log = "peak = 1.8", completed = true) {
   return simulationSpecReport(
     files,
     "run.cir",
-    nativeMeasurementResults(files, "run.cir", log),
+    ngspiceMeasurementResults(files, "run.cir", log),
     identity,
     completed,
   );
@@ -211,7 +211,7 @@ describe("source Spec v1", () => {
     const report = simulationSpecReport(
       files,
       "run.cir",
-      nativeMeasurementResults(files, "run.cir", "peak = 1"),
+      ngspiceMeasurementResults(files, "run.cir", "peak = 1"),
       identity,
       true,
     );
