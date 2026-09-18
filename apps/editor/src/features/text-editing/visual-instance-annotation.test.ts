@@ -257,7 +257,7 @@ describe("one visual annotation, one electrical authority", () => {
   });
 
   it.each([false, true])(
-    "copies %s custom content without confusing it with allocated references",
+    "creates a fresh live name when the source display alias is %s",
     (custom) => {
       const content: RichTextDocument = {
         runs: [
@@ -281,9 +281,11 @@ describe("one visual annotation, one electrical authority", () => {
         kind: "object",
         objectId: copied.id,
       });
-      if (custom) expect(label.content).toEqual(content);
-      else
-        expect(flattenRichText(resolveAnnotationText(after, label))).toBe("R2");
+      expect(label.content).toBeUndefined();
+      expect(flattenRichText(resolveAnnotationText(after, label))).toBe("R2");
+      expect(instanceLabelAnnotationFor(before, "device-1")?.content).toEqual(
+        custom ? content : undefined,
+      );
     },
   );
 

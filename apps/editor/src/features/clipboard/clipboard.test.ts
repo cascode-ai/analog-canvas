@@ -457,7 +457,7 @@ describe("schematic clipboard", () => {
       interfaceInstanceIds: ["P1"],
     });
     expect(copiedTerminal).toMatchObject({
-      name: "VIN",
+      name: "Vin2",
       direction: "input",
       interfaceInstanceIds: ["P1-copy-1"],
     });
@@ -678,7 +678,11 @@ describe("schematic clipboard", () => {
       locked: false,
     });
 
-    const copied = copySelection(document, ["R1", "R2", "label-signal"]);
+    const copied = copySelection(document, ["R1", "R2"], [], {
+      routeIds: ["route-signal"],
+      junctionIds: [],
+      annotationIds: ["label-signal"],
+    });
     expect(copied?.routes).toHaveLength(1);
     const proposal = proposePaste(document, copied!, { x: 20, y: 20 }, 1);
     const result = executeTransaction(
@@ -912,9 +916,7 @@ describe("schematic clipboard", () => {
       y: 0,
     });
 
-    expect(preview.connectivityEvidence).toEqual([
-      expect.objectContaining({ id: "claim-r1", netId: "net-r1" }),
-    ]);
+    expect(preview.connectivityEvidence).toEqual([]);
     expect(preview.mosBulkDefaults).toBeUndefined();
     expect(preview.layoutGroups).toEqual([]);
     expect(preview.constraints).toEqual([]);
@@ -1201,7 +1203,7 @@ describe("schematic clipboard", () => {
     expect(pasted.instanceIds).toEqual(["R1-copy-2"]);
   });
 
-  it("preserves hand-edited label text on paste", () => {
+  it("resets a copied display alias to the fresh instance reference", () => {
     const document = createEmptyDocument("document-main", "Custom label");
     document.instances.push(resistorInstance("R1", "R1"));
     document.annotations.push(instanceLabel("R1", "R_load", false));
@@ -1212,7 +1214,7 @@ describe("schematic clipboard", () => {
       { x: 20, y: 0 },
       1,
     );
-    // "R" + subscript "load" is not the copied reference R1, so it survives.
+    // A copied device starts with the same live-name projection as Insert.
     const pastedLabel = proposal.edits.find(
       (
         edit,
@@ -1221,7 +1223,14 @@ describe("schematic clipboard", () => {
         { kind: "upsert_schematic_annotation" }
       > => edit.kind === "upsert_schematic_annotation",
     );
-    expect(flattenRichText(pastedLabel!.annotation.content!)).toBe("R_load");
+    expect(pastedLabel!.annotation.content).toBeUndefined();
+    expect(pastedLabel!.annotation.binding).toEqual({
+      kind: "instance-reference",
+      instanceId: proposal.instanceIds[0],
+    });
+    expect(
+      proposal.edits.find((edit) => edit.kind === "add_instance"),
+    ).toMatchObject({ instance: { reference: "R2" } });
     expect(proposal.instanceIds).toEqual(["R1-copy-1"]);
   });
 
@@ -1256,7 +1265,7 @@ describe("schematic clipboard", () => {
     });
   });
 
-  it("remaps an internal NoConnect to the copied instance", () => {
+  it("starts copied pins without source NoConnect declarations", () => {
     const document = createEmptyDocument("document-main", "NoConnect copy");
     document.instances.push({
       id: "R1",
@@ -1273,7 +1282,7 @@ describe("schematic clipboard", () => {
     });
 
     const copied = copySelection(document, ["R1"]);
-    expect(copied?.noConnects).toEqual(document.noConnects);
+    expect(copied?.noConnects).toEqual([]);
     const result = executeTransaction(
       document,
       {
@@ -1287,13 +1296,10 @@ describe("schematic clipboard", () => {
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.document.noConnects).toContainEqual({
-      id: "nc-r1-1-copy-1",
-      endpoint: { kind: "terminal", instanceId: "R1-copy-1", pinName: "1" },
-    });
+    expect(result.document.noConnects).toEqual(document.noConnects);
   });
 
-  it("keeps an implicit copied MOS bulk binding as a Cell-policy exception", () => {
+  it("does not carry a source MOS bulk binding into a fresh instance", () => {
     const document = createEmptyDocument("document-main", "Shared MOS bulk");
     document.instances.push(
       {
@@ -1352,12 +1358,8 @@ describe("schematic clipboard", () => {
     expect(result.document.nets[0]?.terminals).toEqual([
       { instanceId: "M1", pinName: "B" },
       { instanceId: "M2", pinName: "B" },
-      { instanceId: "M1-copy-1", pinName: "B" },
     ]);
-    expect(result.document.instances[2]?.mosBulkBinding).toEqual({
-      origin: "supply-default",
-      netId: "net-global-0",
-    });
+    expect(result.document.instances[2]?.mosBulkBinding).toBeUndefined();
   });
 
   it("leaves an ordinary copied boundary terminal disconnected", () => {
@@ -2457,7 +2459,7 @@ describe("a copy stands on its own", () => {
       result.document.netlist?.terminals.find((terminal) =>
         terminal.interfaceInstanceIds.includes(copyId),
       )?.name,
-    ).toBe("P12");
+    ).toBe("Vin");
 
     const secondProposal = proposePaste(
       result.document,
@@ -2483,7 +2485,7 @@ describe("a copy stands on its own", () => {
       secondResult.document.netlist?.terminals.find((terminal) =>
         terminal.interfaceInstanceIds.includes(secondCopyId),
       )?.name,
-    ).toBe("P12");
+    ).toBe("Vin2");
   });
 
   it("keeps a copied drafting snapshot as one layout group", () => {

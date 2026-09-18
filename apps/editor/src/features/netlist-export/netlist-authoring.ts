@@ -1,4 +1,5 @@
 import type {
+  Instance,
   InstanceNetlistBinding,
   InstanceNetlistData,
   SchematicDocument,
@@ -8,6 +9,7 @@ import {
   deviceDescriptor,
   nextReference,
   referencePolicyForSymbol,
+  referencePolicyForInstance,
   subcircuitDescriptor,
 } from "@icm/devices";
 
@@ -50,6 +52,68 @@ export function nextInstanceReference(
     createReferenceIndex(document),
     referencePolicyForSymbol(symbolId),
   );
+}
+
+/** Insert and Copy both create a fresh device from authored settings only. */
+export function createNewInstance(
+  document: SchematicDocument,
+  template: Pick<
+    Instance,
+    | "symbolId"
+    | "symbolVariantId"
+    | "placement"
+    | "netlist"
+    | "styleOverride"
+    | "signalFlowParameters"
+  >,
+  options: { id?: string | undefined; reference?: string | undefined } = {},
+): Instance {
+  const {
+    symbolId,
+    symbolVariantId,
+    placement,
+    netlist,
+    styleOverride,
+    signalFlowParameters,
+  } = structuredClone(template);
+  const instance: Instance = {
+    id: options.id ?? nextInstanceId(document, symbolId),
+    symbolId,
+    placement,
+    ...(symbolVariantId ? { symbolVariantId } : {}),
+    ...(netlist ? { netlist } : {}),
+    ...(styleOverride ? { styleOverride } : {}),
+    ...(signalFlowParameters ? { signalFlowParameters } : {}),
+  };
+  const reference =
+    options.reference ??
+    nextReference(
+      createReferenceIndex(document),
+      referencePolicyForInstance(instance),
+    );
+  if (reference) instance.reference = reference;
+  return instance;
+}
+
+export function nextCellPinName(
+  document: SchematicDocument,
+  reservedNames: ReadonlySet<string> = new Set(),
+): string {
+  const occupied = new Set(
+    (document.netlist?.terminals ?? []).map((terminal) =>
+      terminal.name.trim().toLowerCase(),
+    ),
+  );
+  let ordinal = 1;
+  while (true) {
+    const name = ordinal === 1 ? "Vin" : `Vin${ordinal}`;
+    if (
+      !occupied.has(name.toLowerCase()) &&
+      !reservedNames.has(name.toLowerCase())
+    )
+      return name;
+    ordinal += 1;
+  }
 }
 
 function rawParameters(

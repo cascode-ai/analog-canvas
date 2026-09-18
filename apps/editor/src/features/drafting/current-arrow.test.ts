@@ -70,7 +70,11 @@ describe("route-attached current arrows", () => {
       locked: false,
     });
 
-    const copied = copySelection(document, ["R1", "R2"]);
+    const copied = copySelection(document, ["R1", "R2"], [], {
+      routeIds: ["route-signal"],
+      junctionIds: [],
+      annotationIds: [],
+    });
     expect(copied?.annotations).toHaveLength(1);
 
     const proposal = proposePaste(document, copied!, { x: 20, y: 20 }, 1);
@@ -151,7 +155,11 @@ describe("route-attached current arrows", () => {
       locked: false,
     });
 
-    const copied = copySelection(document, ["R1", "R2"]);
+    const copied = copySelection(document, ["R1", "R2"], [], {
+      routeIds: ["route-signal"],
+      junctionIds: [],
+      annotationIds: [],
+    });
     expect(copied?.annotations).toHaveLength(1);
 
     const proposal = proposePaste(document, copied!, { x: 20, y: 20 }, 1);

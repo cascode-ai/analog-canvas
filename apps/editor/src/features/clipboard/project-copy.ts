@@ -18,8 +18,8 @@ import {
   hierarchicalSymbolId,
 } from "@icm/symbols";
 import {
-  captureRoutingCopyFragment,
   executeProjectTransaction,
+  executeTransaction,
   gateRoutingOperationPlan,
   planExternalCopyDependencies,
   planProjectCellImport,
@@ -37,6 +37,8 @@ import {
   type SchematicClipboard,
 } from "./clipboard";
 
+import { planInsertedInstanceConnections } from "../component-insert/placement-connectivity";
+
 /** Session-only dependency capsule. No Project schema or transport contract. */
 export interface CopyContext extends CopyDependencySource {
   documents: SchematicDocument[];
@@ -51,20 +53,13 @@ export function captureProjectCopy(
     draftingIds: readonly string[];
   },
 ): SchematicClipboard | null {
-  const closure =
-    selection && selection.instanceIds.length > 1
-      ? captureRoutingCopyFragment(document, selection)
-      : undefined;
   const clipboard = selection
-    ? copySelection(document, selection.instanceIds, selection.draftingIds, {
-        ...selection,
-        routeIds: [
-          ...new Set([
-            ...selection.routeIds,
-            ...(closure?.affected.internalRoutes ?? []),
-          ]),
-        ],
-      })
+    ? copySelection(
+        document,
+        selection.instanceIds,
+        selection.draftingIds,
+        selection,
+      )
     : captureDocumentComposition(document);
   if (!clipboard) return null;
   const resolver = createProjectSymbolResolver(project, builtInSymbols);
@@ -184,81 +179,85 @@ export function captureProjectCopy(
       clipboard.cellTerminals.some((t) => t.id === binding.terminalId)
     );
   });
-  // Bulk defaults and overrides are actual electrical dependencies, not copied boundary wires.
-  const whole = captureDocumentComposition(document);
-  for (const instance of clipboard.instances) {
-    const materialized = whole?.instances.find((i) => i.id === instance.id);
-    const binding = materialized?.mosBulkBinding;
-    if (!binding) continue;
-    instance.mosBulkBinding = { ...binding, origin: "instance-override" };
-    if (!netIds.has(binding.netId)) {
-      const net = whole?.nets.find((n) => n.id === binding.netId);
-      if (!net) throw new Error(`Missing bulk Net ${binding.netId}`);
-      clipboard.nets.push({
-        ...structuredClone(net),
-        terminals: net.terminals.filter((t) =>
-          selectedInstances.has(t.instanceId),
-        ),
-      });
-      netIds.add(net.id);
-    }
-    const copiedNet = clipboard.nets.find((net) => net.id === binding.netId)!;
-    if (
-      !copiedNet.terminals.some(
-        (terminal) =>
-          terminal.instanceId === instance.id && terminal.pinName === "B",
+  // Whole-document composition preserves its electrical contract. A selected
+  // device is a new insertion and must never inherit off-selection dependencies.
+  if (!selection) {
+    // Bulk defaults and overrides are actual electrical dependencies, not copied boundary wires.
+    const whole = captureDocumentComposition(document);
+    for (const instance of clipboard.instances) {
+      const materialized = whole?.instances.find((i) => i.id === instance.id);
+      const binding = materialized?.mosBulkBinding;
+      if (!binding) continue;
+      instance.mosBulkBinding = { ...binding, origin: "instance-override" };
+      if (!netIds.has(binding.netId)) {
+        const net = whole?.nets.find((n) => n.id === binding.netId);
+        if (!net) throw new Error(`Missing bulk Net ${binding.netId}`);
+        clipboard.nets.push({
+          ...structuredClone(net),
+          terminals: net.terminals.filter((t) =>
+            selectedInstances.has(t.instanceId),
+          ),
+        });
+        netIds.add(net.id);
+      }
+      const copiedNet = clipboard.nets.find((net) => net.id === binding.netId)!;
+      if (
+        !copiedNet.terminals.some(
+          (terminal) =>
+            terminal.instanceId === instance.id && terminal.pinName === "B",
+        )
       )
-    )
-      copiedNet.terminals.push({ instanceId: instance.id, pinName: "B" });
+        copiedNet.terminals.push({ instanceId: instance.id, pinName: "B" });
+    }
+    // A name is an electrical dependency even when its original visible owner lies
+    // outside the selection. Give the copied Net its own label, not a foreign owner.
+    const logicalNets = resolveDocumentLogicalNets(document);
+    for (const net of clipboard.nets) {
+      if (
+        clipboard.cellTerminals.some((t) => t.netId === net.id) ||
+        clipboard.connectivityEvidence.some(
+          (e) => e.kind === "name-claim" && e.netId === net.id,
+        )
+      )
+        continue;
+      const logical = logicalNets.byBaseNetId.get(net.id);
+      if (!logical?.name) continue;
+      if (logical.conflicts.length)
+        throw new Error(
+          `Copied Net ${logical.name} has conflicting source name semantics`,
+        );
+      const route = clipboard.routes.find((r) => r.netId === net.id);
+      const terminal = net.terminals[0];
+      const position = (route
+        ? geometry.routes.get(route.id)?.centerline[0]
+        : undefined) ??
+        clipboard.instances.find((i) => i.id === terminal?.instanceId)
+          ?.placement?.position ?? { x: 0, y: 0 };
+      const id = deriveStableId("copy-net-name", net.id);
+      clipboard.annotations.push({
+        id,
+        kind: "net-label",
+        netId: net.id,
+        binding: { kind: "net-name", netId: net.id },
+        anchor: { kind: "free", position: { ...position } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+      clipboard.connectivityEvidence.push({
+        id: deriveStableId("copy-net-claim", net.id),
+        kind: "name-claim",
+        netId: net.id,
+        name: logical.name,
+        scope: logical.scope ?? "local",
+        owner: { kind: "net-label", annotationId: id },
+        ...(logical.powerDomain === "vdd" || logical.powerDomain === "ground"
+          ? { powerDomain: logical.powerDomain }
+          : {}),
+      });
+    }
   }
   const documents = new Map<string, SchematicDocument>();
-  // A name is an electrical dependency even when its original visible owner lies
-  // outside the selection. Give the copied Net its own label, not a foreign owner.
-  const logicalNets = resolveDocumentLogicalNets(document);
-  for (const net of clipboard.nets) {
-    if (
-      clipboard.cellTerminals.some((t) => t.netId === net.id) ||
-      clipboard.connectivityEvidence.some(
-        (e) => e.kind === "name-claim" && e.netId === net.id,
-      )
-    )
-      continue;
-    const logical = logicalNets.byBaseNetId.get(net.id);
-    if (!logical?.name) continue;
-    if (logical.conflicts.length)
-      throw new Error(
-        `Copied Net ${logical.name} has conflicting source name semantics`,
-      );
-    const route = clipboard.routes.find((r) => r.netId === net.id);
-    const terminal = net.terminals[0];
-    const position = (route
-      ? geometry.routes.get(route.id)?.centerline[0]
-      : undefined) ??
-      clipboard.instances.find((i) => i.id === terminal?.instanceId)?.placement
-        ?.position ?? { x: 0, y: 0 };
-    const id = deriveStableId("copy-net-name", net.id);
-    clipboard.annotations.push({
-      id,
-      kind: "net-label",
-      netId: net.id,
-      binding: { kind: "net-name", netId: net.id },
-      anchor: { kind: "free", position: { ...position } },
-      alignment: "start",
-      rotation: 0,
-      locked: false,
-    });
-    clipboard.connectivityEvidence.push({
-      id: deriveStableId("copy-net-claim", net.id),
-      kind: "name-claim",
-      netId: net.id,
-      name: logical.name,
-      scope: logical.scope ?? "local",
-      owner: { kind: "net-label", annotationId: id },
-      ...(logical.powerDomain === "vdd" || logical.powerDomain === "ground"
-        ? { powerDomain: logical.powerDomain }
-        : {}),
-    });
-  }
   const visit = (instances: SchematicDocument["instances"]): void => {
     for (const instance of instances) {
       const binding = instance.netlist?.binding;
@@ -466,6 +465,42 @@ export function planProjectCopyPlacement(
       ],
     },
   ];
+  if (clipboard.intent === "clone-selection") {
+    let projected = gate.evaluated.finalDocument;
+    for (const id of proposal.instanceIds) {
+      const instance = projected.instances.find(
+        (candidate) => candidate.id === id,
+      )!;
+      const connections = planInsertedInstanceConnections(
+        projected,
+        prepared.resolver,
+        instance,
+      );
+      if (!connections.edits.length) continue;
+      // Contact planning reads canonical endpoint bonds after insertion. Keep
+      // that stage boundary inside one atomic, undoable Project transaction.
+      const step: ProjectStructureEdit = {
+        kind: "transact_document",
+        documentId: document.id,
+        expectedRevision: projected.revision,
+        edits: connections.edits,
+      };
+      const result = executeTransaction(
+        projected,
+        {
+          transactionId: "copy-insert-contact",
+          documentId: projected.id,
+          expectedRevision: projected.revision,
+          actor: { kind: "human", id: "copy-insert" },
+          edits: connections.edits,
+        },
+        { symbolResolver: prepared.resolver },
+      );
+      if (!result.ok) throw new Error(result.error.message);
+      projected = result.document;
+      edits.push(step);
+    }
+  }
   if (edits.length > 256)
     throw new Error("Copy exceeds the atomic Project transaction limit");
   return { edits, instanceIds: proposal.instanceIds };

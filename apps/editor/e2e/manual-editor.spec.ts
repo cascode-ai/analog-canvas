@@ -3990,6 +3990,60 @@ test("R rotates a selected component instead of entering Rectangle", async ({
   await expect(page.getByTestId("revision")).toHaveText("4");
 });
 
+test("C inserts a fresh device instead of copying its name alias and source connections", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 280, y: 240 });
+  await placeComponent(page, "resistor", { x: 560, y: 240 });
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-R1-2").click();
+  await page.getByTestId("terminal-R2-2").click();
+  await page.keyboard.press("Escape");
+  await page.getByTestId("hit-R1").click({ button: "right" });
+  await openSelectionShelf(page);
+  await setComponentCodeField(page, "netlistName", "R99");
+  await setComponentCodeField(page, "displayName", "Old_alias");
+  await page.getByTestId("hit-R1").click();
+  await copySelectionAt(page, { x: 560, y: 420 });
+  await expect(page.getByTestId("instance-count")).toHaveText("3");
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  const document = saved.documents[0] as SchematicDocument;
+  const copy = document.instances.find(
+    (instance) => instance.id !== "R1" && instance.id !== "R2",
+  )!;
+  expect(copy.reference).toBe("R1");
+  expect(
+    document.nets
+      .flatMap((net) => net.terminals)
+      .some((terminal) => terminal.instanceId === copy.id),
+  ).toBe(false);
+  expect(document.routes).toHaveLength(1);
+  const annotation = document.annotations.find(
+    (item) =>
+      item.anchor.kind === "object" &&
+      item.anchor.objectId === copy.id &&
+      item.kind === "instance-label",
+  )!;
+  expect(annotation.content).toBeUndefined();
+  expect(annotation.binding).toEqual({
+    kind: "instance-reference",
+    instanceId: copy.id,
+  });
+  await expect(
+    page.locator(
+      `[data-layer="annotations"] [data-object-id="${annotation.id}"]`,
+    ),
+  ).toContainText("R1");
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Control+z");
+  await expect(page.getByTestId("instance-count")).toHaveText("2");
+});
+
 test("C previews one copy and Escape cancels without a revision", async ({
   page,
 }) => {
@@ -4050,8 +4104,9 @@ test("copy ghost follows each pointer position and commits over existing geometr
     target.y + target.height / 2,
   );
   await expect(page.getByTestId("instance-count")).toHaveText("3");
-  await expect(page.getByTestId("revision")).toHaveText("3");
   await page.keyboard.press("Escape");
+  await page.keyboard.press("Control+z");
+  await expect(page.getByTestId("instance-count")).toHaveText("2");
 });
 
 test("R rotates a copy preview before committing the copied component", async ({
