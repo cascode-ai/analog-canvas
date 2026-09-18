@@ -10,7 +10,6 @@ export const previewAcceptanceGroups = [
         args: ["--ota", "--failures"],
         env: { ICM_ACCEPTANCE_MCP_SOURCE: "published" },
       },
-      { script: "scripts/preview-simulation-smoke.mjs", args: [] },
     ],
   },
   {
@@ -28,6 +27,14 @@ export const previewAcceptanceGroups = [
       },
     ],
   },
+];
+
+// This legacy numerical qualification uses the direct /api/simulate route.
+// Keep it out of the parallel managed-queue lanes: both transports reach the
+// same one-slot operator host, so concurrent acceptance can manufacture a 502
+// even when the deployed service is healthy.
+export const deepPreviewSerialCommands = [
+  { script: "scripts/preview-simulation-smoke.mjs", args: [] },
 ];
 
 export const fastPreviewAcceptanceGroups = [
@@ -100,6 +107,12 @@ export async function runPreviewAcceptance(
   );
   if (failures.length > 0)
     throw new AggregateError(failures, "Preview acceptance failed");
+  if (mode === "deep") {
+    logger.log("Starting Preview deep acceptance lane: direct-numerical");
+    for (const command of deepPreviewSerialCommands)
+      await runCommand(command, origin, { spawnProcess, environment });
+    logger.log("Completed Preview deep acceptance lane: direct-numerical");
+  }
 }
 
 async function main() {

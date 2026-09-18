@@ -3,6 +3,7 @@ import { EventEmitter } from "node:events";
 import { describe, expect, it } from "vitest";
 
 import {
+  deepPreviewSerialCommands,
   fastPreviewAcceptanceGroups,
   previewAcceptanceGroups,
   previewAcceptanceGroupsForMode,
@@ -18,15 +19,15 @@ describe("Preview acceptance runner", () => {
         group.commands.map((command) => command.script),
       ),
     ).toEqual([
-      [
-        "scripts/preview-dual-engine-smoke.mjs",
-        "scripts/preview-simulation-smoke.mjs",
-      ],
+      ["scripts/preview-dual-engine-smoke.mjs"],
       [
         "scripts/preview-agent-simulation-journey.mjs",
         "scripts/preview-source-gui-journey.mjs",
         "scripts/preview-cross-project-simulation-journey.mjs",
       ],
+    ]);
+    expect(deepPreviewSerialCommands).toEqual([
+      { script: "scripts/preview-simulation-smoke.mjs", args: [] },
     ]);
   });
 
@@ -72,16 +73,17 @@ describe("Preview acceptance runner", () => {
     children[1].emit("exit", 0, null);
     await flush();
     expect(started.slice(2)).toEqual([
-      "scripts/preview-simulation-smoke.mjs",
       "scripts/preview-source-gui-journey.mjs",
     ]);
 
     children[2].emit("exit", 0, null);
-    children[3].emit("exit", 0, null);
     await flush();
     expect(started.at(-1)).toBe(
       "scripts/preview-cross-project-simulation-journey.mjs",
     );
+    children[3].emit("exit", 0, null);
+    await flush();
+    expect(started.at(-1)).toBe("scripts/preview-simulation-smoke.mjs");
     children[4].emit("exit", 0, null);
     await running;
   });
