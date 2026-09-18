@@ -73,10 +73,12 @@ function pointKey(point: Point): string {
 function directContactPairs(
   document: SchematicDocument,
   resolver: SymbolResolver,
+  evidence?: DocumentContactEvidence,
 ): DirectContactPair[] {
   const pairs: DirectContactPair[] = [];
-  for (const contact of deriveDocumentContactEvidence(document, resolver)
-    .contacts) {
+  for (const contact of (
+    evidence ?? deriveDocumentContactEvidence(document, resolver)
+  ).contacts) {
     for (let leftIndex = 0; leftIndex < contact.endpoints.length; leftIndex++) {
       for (
         let rightIndex = leftIndex + 1;
@@ -108,9 +110,13 @@ export function deriveDirectContactDelta(
   before: SchematicDocument,
   after: SchematicDocument,
   resolver: SymbolResolver,
+  evidence?: {
+    before?: DocumentContactEvidence;
+    after?: DocumentContactEvidence;
+  },
 ): DirectContactDelta {
-  const beforePairs = directContactPairs(before, resolver);
-  const afterPairs = directContactPairs(after, resolver);
+  const beforePairs = directContactPairs(before, resolver, evidence?.before);
+  const afterPairs = directContactPairs(after, resolver, evidence?.after);
   const beforeById = new Map(beforePairs.map((pair) => [pair.id, pair]));
   const afterById = new Map(afterPairs.map((pair) => [pair.id, pair]));
   return {

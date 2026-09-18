@@ -17,6 +17,7 @@ import {
   resolveDocumentLogicalNets,
   resolveEndpointConnection,
 } from "@icm/derived";
+import type { DocumentContactEvidence } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { SchematicEdit } from "./edit-schema.js";
@@ -70,6 +71,7 @@ export function netEndpointGroups(
   document: SchematicDocument,
   netId: string,
   resolver?: SymbolResolver,
+  contactEvidence?: DocumentContactEvidence,
 ): string[][] {
   const net = document.nets.find((candidate) => candidate.id === netId);
   if (!net) return [];
@@ -103,8 +105,12 @@ export function netEndpointGroups(
   // Name claims and other Logical-Net Evidence are intentionally excluded:
   // they express logical identity, not one physical Base-Net component.
   if (resolver) {
-    for (const contact of deriveDocumentContactEvidence(document, resolver)
-      .contacts) {
+    // A caller that already holds this Document's evidence passes it: deriving
+    // it here ran once per call, and the direct-contact reconciliation asks
+    // this question once per lost pair.
+    const evidence =
+      contactEvidence ?? deriveDocumentContactEvidence(document, resolver);
+    for (const contact of evidence.contacts) {
       if (contact.netId !== netId || contact.endpoints.length < 2) continue;
       const [first, ...rest] = contact.endpoints.map(endpointKey);
       for (const key of rest) union(first!, key);
