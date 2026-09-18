@@ -3725,6 +3725,16 @@ export function App({
     report: setStatus,
     onChunkLoadFailure: setChunkLoadFailure,
   });
+  // `canBeginKeyboardSelectionMove` runs `planSelectionMove`, a full move
+  // plan, and the command router asks for enablement on every render — from
+  // two call sites, editor-command.ts:188 and :307. The plan reads exactly
+  // these two inputs, so a re-render that changes neither does not need to
+  // re-plan the whole selection. `canBeginKeyboardSelectionMove` itself is a
+  // fresh closure every render and so cannot be the dependency.
+  const hasMoveSelection = useMemo(
+    () => canBeginKeyboardSelectionMove(),
+    [document, visualSelection],
+  );
   const editorCommands = createEditorCommandRouter({
     getContext: () => ({
       interactionMode: getCurrentInteractionState().kind,
@@ -3733,7 +3743,7 @@ export function App({
         hasVisualSelection(visualSelection) && !visualClipboard.busy,
       hasDeletableSelection:
         hasVisualSelection(visualSelection) || selectedEndpoint !== null,
-      hasMoveSelection: canBeginKeyboardSelectionMove(),
+      hasMoveSelection,
       hasAlignableSelection: alignmentParticipantCount >= 2,
       hasRotatableSelection,
       hasMirrorableSelection,
