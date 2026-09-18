@@ -30,28 +30,6 @@ The browser template accepts only origin, serialized claim, manifest URL and
 Kit URL placeholders. Replacement is a single callback pass, never evaluation.
 Do not add tokens, private Project data, machine paths or example live claims.
 
-## Migration decisions
-
-| Old authority | Replacement | Reason |
-| --- | --- | --- |
-| `resource-manifest.json` and `codex-fallback` flags | `distribution.json` | Old flags did not actually distribute Kit/Skill |
-| Kit prose embedded in adapter TypeScript | `http-kit/` and `shared/` | Runtime code is not a second prose source |
-| MCP generator importing built Kit | Direct-source compiler | Remove build ordering and reversed ownership |
-| Server instructions / tool help / browser message literals | `mcp/` and `entrypoints/` templates | Same review and generation boundary |
-| Hand-maintained Skill and reference manifest | `repo-skill/` plus generated registry reading map | One task map, no copied operating policy |
-| Developer preflight in circuit workflow | This maintainer guide | Operating Agents should not build the editor |
-| Long MCP quickstart with CLI/version history | Short entry plus MCP tools/simulation and CLI guide | Load the right transport and task |
-| Shared authoring's copied Specs/handoff paragraphs | Topic links and shared simulation workflow | Prevent independently changing result rules |
-| Twelve knowledge files including an index and repeated policy | Five task cards, shared diagnostics and workflow | Keep evidence cues; remove repeated rituals and textbook introductions |
-| RouteGraph internals in operating tools/recovery | Repository-only RouteGraph reference | Optional library is not a MCP tool or raw request form |
-| Version history in MCP installation | Git/release record; current bootstrap manifest | Installed Agents need current setup, not old release chronology |
-
-Content review also exposed ngspice-specific commands presented as generic
-native-source instructions. Guides now distinguish Profile-selected VACASK
-Python reporting from ngspice commands. The existing Spec extractor remains
-SPICE-oriented; documentation must not promise unsupported native syntax or
-acceptance-rule coverage. This change does not modify either executor/parser.
-
 Old files are removed, not left as editable compatibility authorities. Existing
 public resource URIs and Kit entry paths remain valid. A generated package is
 immutable once released: local generation does not publish a package or update

@@ -122,7 +122,7 @@ Every implementation pull request keeps two required checks:
   release goldens, production smoke, packaging, and
   `performance-baseline.mjs` budgets.
 - `Browser tests` runs the specs mapped to the changed shipped-product paths
-  with four workers. An unmapped browser-product path runs the small component
+  with three workers. An unmapped browser-product path runs the small component
   insertion and runtime-crash fallback. A non-browser implementation change
   skips this required job successfully without allocating a runner. GitHub's
   runner Chrome avoids downloading a separate browser image. `ci:e2e` first

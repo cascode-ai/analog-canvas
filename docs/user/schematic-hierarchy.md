@@ -116,7 +116,7 @@ simulation permission: the Agent Project resource (`list-projects`,
 `list-cells`, `import-cell`) requires the `project.import` scope.
 
 Hierarchy presentation is saved as definition-level size and pin-placement
-intent in current Project schema 56. Schema-24 through schema-55 projects open
+intent in current Project schema 57. Schema-24 through schema-56 projects open
 through the chained upgrade; schema-23 and older files remain unsupported. The
 block uses a closed polygon body and the shared Razavi rich-text renderer for
 pin and Cell names; it is compatible with that visual grammar rather than a

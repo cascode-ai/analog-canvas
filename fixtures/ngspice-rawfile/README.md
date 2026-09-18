@@ -1,10 +1,12 @@
 # ngspice ASCII rawfile fixtures
 
-Seven rawfiles written by ngspice 46, each beside the deck that produced it.
-They exist so a parser is tested against output a simulator actually wrote,
-not against output someone believed it writes.
+Seven rawfiles written by ngspice 46 sit beside the decks that produced them.
+An eighth, `native-scalars-ac.raw`, is an explicitly synthetic arithmetic
+shape fixture. Together they test the parser against real simulator output
+while isolating one scalar-shape contract that ngspice does not emit directly.
 
-Regenerate any of them with `ngspice -b <name>.deck.spi` from this directory.
+Regenerate any of the seven simulator fixtures with
+`ngspice -b <name>.deck.spi` from this directory.
 
 | file                                   | plot                        | flags       | vars           | points |
 | -------------------------------------- | --------------------------- | ----------- | -------------- | ------ |
@@ -15,6 +17,7 @@ Regenerate any of them with `ngspice -b <name>.deck.spi` from this directory.
 | `rc-tran.raw`                          | Transient Analysis          | real        | 4              | 79     |
 | `resistor-noise-ngspice46.raw`         | Noise spectrum + integrated | real        | 3 + 2          | 7 + 1  |
 | `resistor-current-noise-ngspice46.raw` | Noise spectrum + integrated | real        | 3 + 2          | 7 + 1  |
+| `native-scalars-ac.raw`                | AC scalar shape (synthetic) | **complex** | 5              | 3      |
 
 ## What each one is for
 
@@ -72,6 +75,11 @@ density as `current-density` and the integrated input total as current, while
 the output remains voltage-referred. Both noise fixtures were generated with
 the official ngspice 46 Windows console build. The command and two-plot write
 sequence follow the official manual: https://ngspice.sourceforge.io/docs/ngspice-46-manual.pdf
+
+**`native-scalars-ac`** — a synthetic complex AC record that keeps one swept
+vector beside scalar-shaped values. It exists only to exercise scalar result
+classification and arithmetic; unlike the seven simulator fixtures, it has no
+generating deck and is not evidence of ngspice output syntax.
 
 ## One thing the format does that the header does not announce
 

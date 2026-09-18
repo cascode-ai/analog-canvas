@@ -74,7 +74,7 @@ update this roster or switch the session to another Project. The Agent uses only
 `sessionId` and `documentIds` returned by the latest successful claim. Switching
 the active browser Document never retargets a request.
 
-Open, Import, Restore, or demo replacement revokes the old session. File
+Open, Import, Restore, or example replacement revokes the old session. File
 Resource staging is isolated and does not replace the Project. A valid staged
 candidate can replace it only after explicit human approval in the editor;
 replacement then revokes the session and requires a new authorization.

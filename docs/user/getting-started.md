@@ -352,7 +352,9 @@ DC/AC/PULSE/SIN/PWL sources and simple OP/AC/DC/TRAN analyses. It preserves a
 SPICE-language section in SCS. Unsupported parameters, native model syntax,
 behavioral expressions and ngspice control scripts cannot be translated into
 native Spectre; they produce an error instead of a partial circuit. Simulation
-source folders remain the place for complete original testbenches.
+source folders remain the place for complete original testbenches. See the
+[SPICE compatibility guide](spice-compatibility.md) for the current import and
+export support matrix.
 
 ## Portable release
 

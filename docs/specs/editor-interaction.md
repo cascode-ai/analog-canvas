@@ -732,7 +732,7 @@ planner before the transaction is submitted.
 
 ## Files, recovery, and replacement
 
-Open, demo load, restore, and human-approved staged import replace the entire
+Open, example load, restore, and human-approved staged import replace the entire
 Project through one replacement boundary; they are not Edit Engine
 transactions. Replacement cancels pending recovery for the outgoing Project
 and terminates its Agent session. A complete Project covered by the schema

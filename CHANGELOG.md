@@ -14,7 +14,9 @@ using the product, not the commits that got there.
   while leaving an ordinary crossing through the middle of another wire
   electrically separate.
 
-Project schema 56 is unchanged. Existing Projects are not rewritten when opened.
+Project schema 57 makes a locally authored VDD Power Rail an explicit formal
+Cell Pin. Opening a schema-56 Project attaches a stable terminal to each local
+Rail's existing label without changing its physical Net or drawing geometry.
 
 ## 0.9.1 (Preview candidate)
 
@@ -400,8 +402,8 @@ simulation is saved into the project file.
 Existing project files are unaffected. There is no schema change and no
 migration. A file that opened yesterday opens identically today.
 
-See ADR 0055 for the reasoning behind the scope change and the alternatives
-weighed against it.
+See the [simulation architecture decision](docs/adr/simulation.md) for the
+reasoning behind the scope change and the alternatives weighed against it.
 
 ## 0.1.0
 

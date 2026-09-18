@@ -1,5 +1,5 @@
-* A five-transistor OTA in Sky130, used as the fixture for ADR 0055's
-* acceptance check. The topology is the textbook one: XM1/XM2 are the input
+* A five-transistor OTA in Sky130, used by the current simulation acceptance
+* checks. The topology is the textbook one: XM1/XM2 are the input
 * pair, XM3/XM4 the mirror load, XM5 the tail source, XM6 the diode-connected
 * bias replica that sets it.
 *
