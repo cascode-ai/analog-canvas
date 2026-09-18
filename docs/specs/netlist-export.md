@@ -248,7 +248,10 @@ invocation and output. Required error coverage includes:
 - unconnected required terminal without `NoConnect`, including an omitted MOS B;
 - unnamed global Net or duplicate explicit Net name;
 - unknown or multiply assigned terminal;
-- missing device definition, required pin, reference, target, or parameter;
+- missing device definition, required pin, reference, target, or parameter —
+  an Instance carrying no netlist record at all is read as an empty one, since
+  it binds nothing and sets no parameter, so its target and parameters follow
+  the ordinary missing-value rules rather than reporting the drawing broken;
 - wrong reference prefix;
 - unresolved or mismatched child cell and hierarchy cycle;
 - unsupported dialect/device combination;

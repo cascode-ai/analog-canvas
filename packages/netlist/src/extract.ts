@@ -1175,17 +1175,12 @@ function extractDeviceInstance(
     );
     return null;
   }
-  const netlist = instance.netlist;
-  if (!netlist) {
-    diagnostic(
-      diagnostics,
-      document.id,
-      "MISSING_INSTANCE_NETLIST",
-      `Instance ${instance.id} has no netlist data`,
-      [instance.id],
-    );
-    return null;
-  }
+  // A device whose authoring data was never written binds nothing and sets no
+  // parameter — which is what an empty record says. Older Projects, imports
+  // and Agent-authored instances reach here without one, and refusing the
+  // whole netlist over an absent object would report the drawing as broken
+  // when what is missing is a model target the export already writes as TODO.
+  const netlist = instance.netlist ?? { parameters: {} };
   if (!isIdentifier(instance.reference!)) {
     diagnostic(
       diagnostics,

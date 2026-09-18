@@ -227,8 +227,10 @@ export function createDesignNetlistExport(
       for (const instance of document.instances) {
         if (!affected.get(document.id)?.has(instance.id)) continue;
         const definition = deviceDescriptor(instance.symbolId);
-        const netlist = instance.netlist;
-        if (!definition || !netlist || !document.netlist) return blocked;
+        // Same reading as extraction: an absent record is an empty one, and
+        // the placeholders below are exactly what fills it.
+        const netlist = (instance.netlist ??= { parameters: {} });
+        if (!definition || !document.netlist) return blocked;
         const placeholder = (field: string) => {
           const base = `TODO_${document.netlist!.name}_${instance.reference}_${field}`;
           let token = base;

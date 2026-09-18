@@ -382,6 +382,28 @@ describe("netlist extractability", () => {
     return project;
   }
 
+  it("reads an absent netlist record as an empty one", () => {
+    // Older Projects, imports and Agent-authored instances reach the exporter
+    // with no netlist object at all. It binds nothing and sets no parameter —
+    // exactly what an empty record says — so the export writes the model and
+    // width as TODO instead of reporting the drawing as broken.
+    const project = oneTransistor({ body: true });
+    const instance = project.documents[0]!.instances[0]!;
+    delete (instance as { netlist?: unknown }).netlist;
+
+    expect(designExtractsNetlist(project)).toBe(true);
+    const result = createDesignNetlistExport(project, { format: "spice" });
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.placeholders.map((item) => item.field).sort()).toEqual([
+      "l",
+      "model",
+      "w",
+    ]);
+    // The Project itself is untouched; placeholders live in the copy.
+    expect(instance.netlist).toBeUndefined();
+  });
+
   it("refuses a drawing whose wire was never finished", () => {
     // The printed card would name this node once and nothing else in the file
     // would ever reach it. That is not a value a TODO placeholder can supply
