@@ -136,7 +136,10 @@ describe("the preview deploy", () => {
       "uses: ./.github/actions/build-deployment-candidate",
     );
     expect(buildAction).toContain("deployment-candidate.mjs create");
-    expect(buildAction).toContain("deployment-candidate.mjs verify");
+    // Packaging validates its inputs while creating the candidate; the
+    // destination checks provenance/inventory once before deployment.
+    expect(buildAction).not.toContain("deployment-candidate.mjs verify");
+    expect(production).toContain("deployment-candidate.mjs verify");
     expect(preview).toContain("preview-candidate-${{ env.RELEASE_SHA }}");
     expect(preview).toContain("--no-bundle");
   });
