@@ -361,6 +361,29 @@ source folders remain the place for complete original testbenches. See the
 [SPICE compatibility guide](spice-compatibility.md) for the current import and
 export support matrix.
 
+## Finding duplicate circuits
+
+On the Community Gallery, click **Check duplicates** to scan every public
+circuit, independently of the current search, author or tag filters. The scan
+runs in a cancellable background worker. Results show duplicate groups with
+previews and links, the number of extra copies (a group of three contributes
+two), and badges on matching Gallery cards. Nothing is deleted or saved back
+to the library. Results are a snapshot; scan again after library changes.
+
+Comparison uses the extracted electrical netlist, not titles or drawing JSON.
+Instance names, internal node names, drawing positions and instance order do
+not matter. Device classes, models, values, terminal roles and the ordered
+external port contract do. Equivalent numeric spellings such as `1k` and
+`1000` match. Unset model/value fields match only the same unset fields, with
+NMOS and PMOS kept distinct. The check does not apply a viewer's PDK preset or
+claim that externally supplied models have identical implementations.
+
+Simple hierarchy is expanded for comparison. Parameterized hierarchy,
+behavioral references, circuits without usable connectivity, and comparisons
+that exceed bounded computation are listed under **Unable to compare**, with
+a reason; they are never silently classified as unique. Candidate summaries
+only narrow the search: duplicates require an exact electrical graph match.
+
 ## Portable release
 
 Build the versioned bundle and start it with Node 24:

@@ -45,6 +45,8 @@ import { fetchSessionUser } from "./account";
 import { GalleryChrome } from "./gallery-chrome";
 import { Masonry } from "./masonry";
 import { ShelfWall } from "./shelf-wall";
+import { GalleryDuplicateCheck } from "./gallery-duplicate-check";
+import type { GalleryDuplicateReport } from "../gallery-duplicates";
 
 /**
  * How many tags the bar shows before it offers the rest. One row at a typical
@@ -483,6 +485,8 @@ export function GalleryFeed({
     setFilters((previous) => ({ ...previous, ...patch }));
   }
   const [showAllTags, setShowAllTags] = useState(false);
+  const [duplicateReport, setDuplicateReport] =
+    useState<GalleryDuplicateReport | null>(null);
   const [signedIn, setSignedIn] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [ownerBusy, setOwnerBusy] = useState<string | null>(null);
@@ -847,6 +851,21 @@ export function GalleryFeed({
             (!everyTagSelected && selectedTags.includes(option.tag)),
         );
   const hiddenTagCount = matchingTags.length - visibleTags.length;
+  const duplicates = new Map(
+    duplicateReport?.groups.flatMap((group, index) =>
+      group.map(
+        (entry) =>
+          [
+            entry.id,
+            {
+              group: index + 1,
+              count: group.length,
+              revision: entry.previewRevision,
+            },
+          ] as const,
+      ),
+    ) ?? [],
+  );
 
   return (
     <main className="gallery-shell" data-testid="gallery-feed">
@@ -904,6 +923,7 @@ export function GalleryFeed({
 
       {view === "gallery" ? (
         <>
+          <GalleryDuplicateCheck onReport={setDuplicateReport} />
           {tagOptions.length > 0 ||
           entries.length > 0 ||
           netlistableOnly ||
@@ -1092,6 +1112,17 @@ export function GalleryFeed({
                           <span className="gallery-tile-copy">
                             <span className="gallery-tile-name">
                               {entry.name}
+                              {duplicates.has(entry.id) &&
+                              duplicates.get(entry.id)!.revision ===
+                                entry.previewRevision ? (
+                                <span
+                                  className="gallery-duplicate-badge"
+                                  title={`Same netlist as ${duplicates.get(entry.id)!.count - 1} other circuits. See duplicate group ${duplicates.get(entry.id)!.group}.`}
+                                >
+                                  Duplicate · group{" "}
+                                  {duplicates.get(entry.id)!.group}
+                                </span>
+                              ) : null}
                               {entry.netlistable ? (
                                 <span
                                   className="gallery-tile-netlist"

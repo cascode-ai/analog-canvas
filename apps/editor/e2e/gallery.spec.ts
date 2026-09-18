@@ -32,6 +32,93 @@ const ENTRY = {
 /** Match the list path with or without filters and a paging cursor. */
 const galleryListUrl = (url: URL): boolean => url.pathname === "/api/gallery";
 
+test("checks duplicates across the full Gallery in a real worker", async ({
+  page,
+  context,
+}) => {
+  const project = createEmptyProject("duplicate-fixture", "Circuit");
+  const document = project.documents[0]!;
+  document.instances = ["R1", "R2"].map((id) => ({
+    id,
+    reference: id,
+    symbolId: "resistor",
+    placement: null,
+    netlist: {
+      binding: { kind: "primitive" as const, deviceClass: "resistor" as const },
+      parameters: { value: "1k" },
+    },
+  }));
+  document.nets = ["1", "2"].map((pinName) => ({
+    id: pinName,
+    terminals: document.instances.map(({ id }) => ({
+      instanceId: id,
+      pinName,
+    })),
+  }));
+  const renamed = structuredClone(project);
+  renamed.documents[0]!.instances[0]!.reference = "R99";
+  const entries = [
+    { ...ENTRY, id: "original", name: "Resistor pair" },
+    { ...ENTRY, id: "redrawn", name: "Completely different title" },
+    { ...ENTRY, id: "unfinished", name: "Unfinished circuit" },
+  ];
+  const projects = [project, renamed, createEmptyProject("empty", "Empty")];
+  // Context routes also intercept the dedicated worker's fetch requests.
+  await context.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("preview.svg"))
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60"><path d="M10 30h20l5 -10 10 20 10 -20 10 20 5 -10h20" fill="none" stroke="black"/></svg>',
+      });
+    if (url.pathname === "/api/gallery")
+      return route.fulfill({
+        json: {
+          entries: url.searchParams.has("author") ? [entries[0]] : entries,
+          total: url.searchParams.has("author") ? 1 : 3,
+          nextCursor: null,
+        },
+      });
+    if (url.pathname.endsWith("/tags"))
+      return route.fulfill({ json: { tags: [] } });
+    const index = entries.findIndex((entry) =>
+      url.pathname.endsWith(`/${entry.id}`),
+    );
+    if (index >= 0)
+      return route.fulfill({
+        json: {
+          status: "public",
+          entry: entries[index],
+          projectText: serializeProject(projects[index]!),
+        },
+      });
+    return route.fulfill({ json: {} });
+  });
+  await page.goto("/?author=tz");
+  await expect(page.getByTestId("gallery-tile-original")).toBeVisible();
+  await page.getByTestId("gallery-check-duplicates").click();
+  const panel = page.getByTestId("gallery-duplicates");
+  await expect(panel.getByRole("status")).toContainText(
+    "Scan finished: 3 checked · 1 extra copy in 1 group · 1 unable to compare",
+  );
+  await expect(
+    panel.getByRole("link", { name: "Completely different title tz" }),
+  ).toHaveAttribute("href", "/g/redrawn");
+  await expect(page.getByTestId("gallery-tile-original")).toContainText(
+    "Duplicate · group 1",
+  );
+  await panel.getByText("Unable to compare · 1").click();
+  await expect(panel.getByText("No netlist devices to compare")).toBeVisible();
+  await page.screenshot({
+    path: "plan/gallery-duplicates.png",
+    fullPage: true,
+  });
+  await panel.getByRole("button", { name: "Hide results" }).click();
+  await expect(
+    panel.getByText("Group 1 · 2 circuits · same netlist"),
+  ).not.toBeVisible();
+});
+
 function hierarchicalPublishProject() {
   const project = createEmptyProject("hierarchical-publish", "Hierarchical");
   const top = project.documents[0]!;

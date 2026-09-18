@@ -1349,3 +1349,62 @@ div.gallery-contributor-status {
 .mine-card-delete {
   color: var(--icm-error);
 }
+
+.gallery-duplicates {
+  margin: 0 22px 14px;
+  font-size: 13px;
+}
+.gallery-duplicates-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.gallery-duplicates-results {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-border, #d5d9df);
+  border-radius: 10px;
+  max-height: 65vh;
+  overflow: auto;
+}
+.gallery-duplicates-results > p {
+  margin: 0 0 10px;
+}
+.gallery-duplicate-group {
+  margin: 8px 0;
+}
+.gallery-duplicate-group summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 6px 0;
+}
+.gallery-duplicate-circuits {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+  margin: 8px 0 16px;
+}
+.gallery-duplicate-circuits a {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.gallery-duplicate-circuits img {
+  width: 100%;
+  height: 120px;
+  object-fit: contain;
+  background: white;
+  border-radius: 6px;
+}
+.gallery-duplicate-badge {
+  font-size: 11px;
+  color: #8a530c;
+  background: #fff2cf;
+  border-radius: 4px;
+  padding: 2px 5px;
+  margin-left: 6px;
+}
