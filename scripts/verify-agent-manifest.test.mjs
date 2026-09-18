@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { verifyAgentManifest } from "./verify-agent-manifest.mjs";
+import {
+  verifyAgentManifest,
+  verifyMcpAsset,
+} from "./verify-agent-manifest.mjs";
 
 /**
  * The manifest answering 200 is the check that existed before; these tests
@@ -63,7 +66,7 @@ describe("verify-agent-manifest", () => {
       }
       if (request.url === "/asset.tgz") {
         response.statusCode = state.assetStatus;
-        response.end(state.assetStatus < 500 ? "x" : "no");
+        response.end(state.assetBytes);
         return;
       }
       response.statusCode = 404;
@@ -84,7 +87,12 @@ describe("verify-agent-manifest", () => {
   }
 
   function freshState() {
-    return { manifestStatus: 200, manifest: manifest(), assetStatus: 206 };
+    return {
+      manifestStatus: 200,
+      manifest: manifest(),
+      assetStatus: 200,
+      assetBytes: "asset-bytes",
+    };
   }
 
   it("passes when the pinned asset answers and the declaration matches", async () => {
@@ -94,16 +102,45 @@ describe("verify-agent-manifest", () => {
     ).resolves.toMatchObject({
       version: VERSION,
       assetUrl: PINNED_URL,
-      assetStatus: 206,
+      assetStatus: 200,
     });
   });
 
-  it("accepts a 200 asset answer as well as a range answer", async () => {
+  it("rejects wrong archive bytes even when the server answers 200", async () => {
     state = freshState();
-    state.assetStatus = 200;
+    state.assetBytes = "wrong archive bytes";
     await expect(
       verifyAgentManifest({ baseUrl, distribution, fetchImpl }),
-    ).resolves.toMatchObject({ assetStatus: 200 });
+    ).rejects.toThrow(/bytes do not match/su);
+  });
+
+  it("rejects a partial response instead of treating it as a complete archive", async () => {
+    state = freshState();
+    state.assetStatus = 206;
+    await expect(verifyMcpAsset({ distribution, fetchImpl })).rejects.toThrow(
+      /answered 206/su,
+    );
+  });
+
+  it("checks the candidate asset before the new manifest is deployed", async () => {
+    state = freshState();
+    state.manifestStatus = 503;
+    await expect(
+      verifyMcpAsset({ distribution, fetchImpl }),
+    ).resolves.toMatchObject({ version: VERSION, assetStatus: 200 });
+  });
+
+  it("checks the serving declaration without a second GitHub dependency", async () => {
+    state = freshState();
+    state.assetStatus = 503;
+    await expect(
+      verifyAgentManifest({
+        baseUrl,
+        distribution,
+        fetchImpl,
+        verifyAsset: false,
+      }),
+    ).resolves.toMatchObject({ version: VERSION, assetUrl: PINNED_URL });
   });
 
   it("fails with the release-ordering remedy when the pinned asset is missing", async () => {

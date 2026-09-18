@@ -2,7 +2,10 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { publishedMcpDeclaration } from "./lib/published-mcp.mjs";
+import {
+  publishedMcpDeclaration,
+  verifyPublishedMcpBytes,
+} from "./lib/published-mcp.mjs";
 
 const MANIFEST_PATH = "/api/agent/mcp-manifest.json";
 const RETRIES = 5;
@@ -10,7 +13,7 @@ const RETRY_DELAY_MS = 2000;
 const REQUEST_TIMEOUT_MS = 30_000;
 
 const usage =
-  "usage: node scripts/verify-agent-manifest.mjs <baseUrl> [--config <path>]\n";
+  "usage: node scripts/verify-agent-manifest.mjs <baseUrl> [--manifest-only] [--config <path>] | --asset-only [--config <path>]\n";
 
 function sleep(ms) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
@@ -48,6 +51,7 @@ export async function fetchWithRetry(
       });
       if (response.ok || !retryOnStatus(response.status)) return response;
       lastError = new Error(`${url} answered ${response.status}`);
+      await response.body?.cancel();
     } catch (error) {
       lastError = error;
     }
@@ -61,6 +65,7 @@ export async function verifyAgentManifest({
   distribution,
   fetchImpl = fetch,
   retryDelayMs = RETRY_DELAY_MS,
+  verifyAsset = true,
 }) {
   const manifestResponse = await fetchWithRetry(
     new URL(MANIFEST_PATH, baseUrl),
@@ -84,22 +89,41 @@ export async function verifyAgentManifest({
         `declares ${distribution.release.sha256}; the manifest is stale.`,
     );
 
-  // Range keeps the existence probe cheap when the CDN honors it; a 200 means
-  // the range was ignored, and either status proves the asset exists.
+  if (verifyAsset)
+    return verifyMcpAsset({ distribution, fetchImpl, retryDelayMs });
+  return { version: declaration.version, assetUrl: declaration.url };
+}
+
+export async function verifyMcpAsset({
+  distribution,
+  fetchImpl = fetch,
+  retryDelayMs = RETRY_DELAY_MS,
+}) {
+  const declaration = publishedMcpDeclaration({
+    format: "analog-canvas-mcp-bootstrap-v1",
+    version: distribution.version,
+    distribution: {
+      downloadUrl: `https://github.com/${distribution.release.repository}/releases/download/${distribution.release.tag}/${distribution.release.asset}`,
+      sha256: distribution.release.sha256,
+    },
+  });
   const assetResponse = await fetchWithRetry(
     declaration.url,
-    { headers: { Range: "bytes=0-0" } },
+    {},
     transient,
     fetchImpl,
     retryDelayMs,
   );
-  if (assetResponse.status !== 200 && assetResponse.status !== 206)
+  if (assetResponse.status !== 200)
     throw new Error(
-      `The served manifest advertises ${declaration.url}, which answered ` +
+      `The declared asset ${declaration.url} answered ` +
         `${assetResponse.status}; installers would fail. Create the GitHub ` +
         `Release for ${distribution.release.tag} before deploying this commit.`,
     );
-  await assetResponse.body?.cancel();
+  verifyPublishedMcpBytes(
+    Buffer.from(await assetResponse.arrayBuffer()),
+    declaration,
+  );
   return {
     version: declaration.version,
     assetUrl: declaration.url,
@@ -109,20 +133,30 @@ export async function verifyAgentManifest({
 
 async function main(argv) {
   const base = argv[0];
-  if (!base || base.startsWith("--")) throw new Error(usage);
+  const assetOnly = base === "--asset-only";
+  if (!base || (base.startsWith("--") && !assetOnly)) throw new Error(usage);
+  let manifestOnly = false;
   let configPath = resolve(
     import.meta.dirname,
     "../config/agent-mcp-distribution.json",
   );
-  for (let index = 1; index < argv.length; index += 2) {
-    if (argv[index] === "--config") configPath = resolve(argv[index + 1]);
+  for (let index = 1; index < argv.length; index += 1) {
+    if (argv[index] === "--config" && argv[index + 1])
+      configPath = resolve(argv[++index]);
+    else if (argv[index] === "--manifest-only" && !assetOnly)
+      manifestOnly = true;
     else throw new Error(`${usage}unknown argument: ${argv[index]}`);
   }
   const distribution = JSON.parse(await readFile(configPath, "utf8"));
-  const result = await verifyAgentManifest({ baseUrl: base, distribution });
+  const result = assetOnly
+    ? await verifyMcpAsset({ distribution })
+    : await verifyAgentManifest({
+        baseUrl: base,
+        distribution,
+        verifyAsset: !manifestOnly,
+      });
   process.stdout.write(
-    `Agent MCP manifest ${result.version} verified: pinned asset answers ` +
-      `${result.assetStatus} and matches the declared distribution.\n`,
+    `Agent MCP ${result.version}: ${manifestOnly ? "served manifest matches the declaration" : "published asset SHA-256 verified"}.\n`,
   );
 }
 

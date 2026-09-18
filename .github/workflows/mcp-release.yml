@@ -40,6 +40,10 @@ jobs:
         run: pnpm mcp:package
       - if: ${{ !inputs.package_only }}
         run: pnpm mcp:release:package
+      # Candidate builds compute the digest before distribution validation.
+      # Published builds must match the committed digest and never restamp it.
+      - if: inputs.package_only
+        run: pnpm mcp:release:bump -- --stamp
       - run: pnpm mcp:distribution:check
       - uses: actions/upload-artifact@v4
         with:

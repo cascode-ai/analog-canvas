@@ -35,6 +35,28 @@ public resource URIs and Kit entry paths remain valid. A generated package is
 immutable once released: local generation does not publish a package or update
 installed MCP hosts. Delivery and package release require separate authorization.
 
+## MCP package release
+
+`config/agent-mcp-distribution.json` owns the immutable release identity.
+Run `pnpm mcp:release:bump -- --version <version>` to update the declaration
+and workspace package together. This clears the old digest deliberately;
+normal distribution validation remains red until the new digest is recorded.
+
+Build on Linux with the Node/npm version pinned by `mcp-release.yml`, then run
+`pnpm mcp:release:bump -- --stamp` and `pnpm mcp:distribution:check`.
+Alternatively, dispatch **Publish MCP** on the candidate branch with
+`package_only=true`: it builds and stamps on Linux before validation and
+uploads the archive, `SHA256SUMS.txt`, and `mcp-bootstrap-release.json`.
+Record that candidate digest in the source declaration before delivery.
+Candidate mode does not publish a release. Normal publication verifies the
+committed digest and never restamps it.
+
+Publish the immutable GitHub Release before deploying a site that advertises
+it. Production downloads the complete declared archive and verifies SHA-256
+before changing the serving Worker. After deployment it checks that the live
+manifest matches the accepted declaration, without downloading the archive
+again. A manifest HTTP 200 alone is not package acceptance.
+
 ## Preflight without command churn
 
 For repository work, run commands from the repository root. Inspect state once
