@@ -165,8 +165,15 @@ export function resolveDraftingObjectGeometry(
   document: SchematicDocument,
   resolver: SymbolResolver,
   object: DraftingObject,
+  resolvedRoutingGeometry?: ResolvedDocumentRoutingGeometry,
 ): ResolvedDraftingGeometry {
-  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
+  // Resolving this per object rebuilt the whole Document's route geometry once
+  // for every drafting object: a Project with 200 of them paid to resolve 1070
+  // Routes 200 times, and the Scene build does it in both the bounds pass and
+  // the render pass. Callers that already hold the Document's geometry pass it.
+  const routingGeometry =
+    resolvedRoutingGeometry ??
+    resolveDocumentRoutingGeometry(document, resolver);
   switch (object.kind) {
     case "text":
       return resolveText(document, resolver, object, routingGeometry);

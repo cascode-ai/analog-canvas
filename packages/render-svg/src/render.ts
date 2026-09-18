@@ -958,7 +958,12 @@ function deriveBounds(
   // Resolved geometry is derived.
   for (const object of document.drafting?.objects ?? []) {
     if (objectIds && !objectIds.has(object.id)) continue;
-    const geometry = resolveDraftingObjectGeometry(document, resolver, object);
+    const geometry = resolveDraftingObjectGeometry(
+      document,
+      resolver,
+      object,
+      routingGeometry,
+    );
     bounds.push(geometry.bounds);
   }
   if (bounds.length === 0) {
@@ -1462,7 +1467,7 @@ export function buildSvgScene(
 
   return {
     viewBox,
-    formalBody: `<g data-layer="formal">${renderDraftingLayer(document, resolver, profile, "background", objectIds)}<g data-layer="routes">${routes}${junctionBridges}</g><g data-layer="junctions">${junctions}</g><g data-layer="symbols">${symbols}</g>${noConnectLayer}<g data-layer="annotations">${annotations}</g>${renderDraftingLayer(document, resolver, profile, "foreground", objectIds)}</g>`,
+    formalBody: `<g data-layer="formal">${renderDraftingLayer(document, resolver, profile, routingGeometry, "background", objectIds)}<g data-layer="routes">${routes}${junctionBridges}</g><g data-layer="junctions">${junctions}</g><g data-layer="symbols">${symbols}</g>${noConnectLayer}<g data-layer="annotations">${annotations}</g>${renderDraftingLayer(document, resolver, profile, routingGeometry, "foreground", objectIds)}</g>`,
   };
 }
 
@@ -1519,6 +1524,7 @@ function renderDraftingLayer(
   document: SchematicDocument,
   resolver: SymbolResolver,
   profile: SchematicStyleProfile,
+  routingGeometry: ResolvedDocumentRoutingGeometry,
   layer: "background" | "foreground",
   objectIds?: ReadonlySet<string>,
 ): string {
@@ -1539,6 +1545,7 @@ function renderDraftingLayer(
         document,
         resolver,
         object,
+        routingGeometry,
       );
       const unresolved =
         geometry.diagnostics.length > 0 ? ' data-anchor-resolved="false"' : "";
