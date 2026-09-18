@@ -1203,14 +1203,6 @@ export function proposeLocalStretch(
   );
 }
 
-export function proposeGroupStretch(
-  document: SchematicDocument,
-  resolver: SymbolResolver,
-  moves: readonly InstanceMoveProposal[],
-): RouteStretchProposal[] {
-  return proposeGroupMove(document, resolver, moves).routes;
-}
-
 /**
  * Lead axes for a Route whose whole body is one segment, read from the
  * post-move document so the pins are where the drag left them. Longer Routes

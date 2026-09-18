@@ -34,11 +34,6 @@ export function canonicalPowerName(domain: PowerDomain): "0" | "VDD" {
   return domain === "ground" ? "0" : "VDD";
 }
 
-/** Stable IDs remain useful for import/migration, never for electrical lookup. */
-export function preferredPowerNetId(domain: PowerDomain): string {
-  return domain === "ground" ? "net-global-0" : "net-global-vdd";
-}
-
 /**
  * Power, Ground, VDD and named supplies use the ordinary named-Net marker
  * protocol. The planner never merges Base Nets and never writes Net.name.

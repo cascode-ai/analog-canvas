@@ -200,18 +200,6 @@ export function resolveDocumentRoutingGeometry(
   };
 }
 
-export function resolveJunctionJoins(
-  document: SchematicDocument,
-  resolver: SymbolResolver,
-): EndpointJoin[] {
-  const routes = new Map<string, ResolvedRouteGeometry>();
-  for (const route of document.routes) {
-    const geometry = resolveRouteGeometry(document, resolver, route);
-    if (geometry) routes.set(route.id, geometry);
-  }
-  return resolveJunctionJoinsFromGeometry(document, routes);
-}
-
 function resolveJunctionJoinsFromGeometry(
   document: SchematicDocument,
   routes: ReadonlyMap<string, ResolvedRouteGeometry>,
