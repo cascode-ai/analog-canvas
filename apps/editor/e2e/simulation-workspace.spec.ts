@@ -20,6 +20,7 @@ import {
 } from "@icm/netlist";
 
 import {
+  revealPropertiesShelf,
   clickNetlistWorkflowCommand,
   downloadBytes,
   readRecoveryRecords,
@@ -1915,6 +1916,7 @@ test("Simulation and Properties remain independent through minimization", async 
     name: "Simulation source editor",
   });
   await editor.fill("* independent draft\n");
+  await revealPropertiesShelf(page);
   const shelf = page.getByTestId("selection-shelf");
   if ((await shelf.getAttribute("aria-expanded")) !== "true")
     await shelf.click();

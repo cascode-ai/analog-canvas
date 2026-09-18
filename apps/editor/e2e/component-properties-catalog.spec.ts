@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  revealPropertiesShelf,
   chooseComponent,
   expectComponentCodeField,
 } from "./editor-fixtures.js";
@@ -34,6 +35,7 @@ for (const symbolId of componentSymbolIds) {
     const instance = page.locator('[data-canvas-hit-kind="instance"]');
     await expect(instance).toHaveCount(1);
     await instance.click();
+    await revealPropertiesShelf(page);
     const shelf = page.getByTestId("selection-shelf");
     if ((await shelf.getAttribute("aria-expanded")) === "true") {
       await shelf.click();

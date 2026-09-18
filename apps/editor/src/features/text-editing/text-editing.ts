@@ -45,16 +45,21 @@ export interface TextEditingSession {
   bindingKind?: AnnotationTextBinding["kind"];
   /** Route markers are literal single-line fields, not semantic name bindings. */
   plainTextKind?: "route-marker";
-  /** Instance whose visual annotation is being edited; never a rename target. */
+  /** Instance whose name or explicit display alias is being edited. */
   visualInstanceId?: string;
-  /** Explicit restoration requested within the session, committed by Apply. */
-  restoreReference?: boolean;
+  /** False follows/edits the electrical Reference; true owns display text. */
+  displayAlias?: boolean;
   /** Symbol body text only: what the Symbol draws with no override. */
   defaultFormula?: string;
 }
 
 export type TextEditingCommitProposal =
-  | { kind: "update"; edit: SchematicEdit; id: string }
+  | {
+      kind: "update";
+      edit: SchematicEdit;
+      beforeEdits?: SchematicEdit[];
+      id: string;
+    }
   | { kind: "delete"; edit: SchematicEdit; id: string }
   | { kind: "unchanged" }
   | { kind: "blocked" };
@@ -92,7 +97,7 @@ export function createTextEditingSession(
         (instance) => instance.id === instanceId && instance.reference,
       ) &&
       (!annotation.binding || annotation.binding.kind === "instance-reference")
-        ? { visualInstanceId: instanceId! }
+        ? { visualInstanceId: instanceId!, displayAlias: !annotation.binding }
         : {}),
     };
   }
@@ -133,14 +138,6 @@ export function updateTextEditingSession(
     ...session,
     ...change,
     ...(change.content ? { contentEdited: true } : {}),
-    ...(change.content && session.restoreReference
-      ? {
-          restoreReference:
-            isNamePresentation(change.content.runs) &&
-            flattenRichText(change.content) ===
-              flattenRichText(session.content),
-        }
-      : {}),
   };
 }
 
@@ -251,6 +248,8 @@ export function proposeTextEditingCommit(
     emptyTarget?.owner === "drafting" &&
     emptyTarget.object.kind === "text" &&
     Boolean(emptyTarget.object.polarity);
+  if (emptied && session.visualInstanceId && !session.displayAlias)
+    return { kind: "blocked" };
   if (emptied && !polarityKeepsObject) {
     return {
       kind: "delete",
@@ -269,7 +268,7 @@ export function proposeTextEditingCommit(
     const annotation = target.object;
     if (
       annotation.binding?.kind === "instance-reference" ||
-      session.restoreReference
+      session.visualInstanceId
     ) {
       const instanceId =
         annotation.binding?.kind === "instance-reference"
@@ -285,11 +284,19 @@ export function proposeTextEditingCommit(
         formatOverride: _format,
         ...rest
       } = annotation;
-      const follows =
-        session.restoreReference ||
-        (isNamePresentation(session.content.runs) &&
-          flattenRichText(session.content) === reference);
-      const defaultContent = semanticTextDocument(reference, "instance-label");
+      const follows = !session.displayAlias;
+      const name = flattenRichText(session.content).trim();
+      if (
+        follows &&
+        (!isNamePresentation(session.content.runs) ||
+          !/^[A-Za-z][A-Za-z0-9_]*$/u.test(name))
+      )
+        return { kind: "blocked" };
+      const beforeEdits: SchematicEdit[] =
+        follows && name !== reference
+          ? [{ kind: "set_instance_reference", instanceId, reference: name }]
+          : [];
+      const defaultContent = semanticTextDocument(name, "instance-label");
       const next: Annotation = {
         ...rest,
         sizeScale: session.sizeScale,
@@ -304,6 +311,7 @@ export function proposeTextEditingCommit(
           : { content: session.content }),
       };
       if (
+        beforeEdits.length === 0 &&
         (annotation.sizeScale ?? 1) === next.sizeScale &&
         annotation.alignment === next.alignment &&
         JSON.stringify(annotation.binding) === JSON.stringify(next.binding) &&
@@ -315,6 +323,7 @@ export function proposeTextEditingCommit(
       return {
         kind: "update",
         id: annotation.id,
+        ...(beforeEdits.length ? { beforeEdits } : {}),
         edit: { kind: "upsert_schematic_annotation", annotation: next },
       };
     }

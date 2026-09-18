@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { chooseComponent } from "./editor-fixtures.js";
+import { revealPropertiesShelf, chooseComponent } from "./editor-fixtures.js";
 
 export async function placeComponent(
   page: Page,
@@ -13,6 +13,7 @@ export async function placeComponent(
 }
 
 export async function openSelectionShelf(page: Page): Promise<void> {
+  await revealPropertiesShelf(page);
   const shelf = page.getByTestId("selection-shelf");
   await expect(shelf).toBeVisible();
   if ((await shelf.getAttribute("aria-expanded")) !== "true") {

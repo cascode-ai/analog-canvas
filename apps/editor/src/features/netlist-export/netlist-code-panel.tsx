@@ -1,4 +1,19 @@
-import { lazy, Suspense, useMemo, type CSSProperties } from "react";
+import {
+  lazy,
+  Suspense,
+  useMemo,
+  useLayoutEffect,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import type { ProjectStructureEdit } from "@icm/edit-engine";
+import {
+  planNetlistCodeEdit,
+  netlistInstanceAtLine,
+} from "./netlist-code-edit";
+import type { PrintedNetlistInstance } from "@icm/netlist";
 import type { CircuitProject } from "@icm/model";
 import {
   createDesignNetlistExport,
@@ -23,6 +38,8 @@ export function NetlistCodePanel({
   onCopy,
   onReset,
   configurationError,
+  onApply,
+  onFocusInstance,
 }: {
   project: CircuitProject;
   format: NetlistFormat;
@@ -33,6 +50,8 @@ export function NetlistCodePanel({
   onCopy(): void;
   onReset(): void;
   configurationError: string | null;
+  onApply(edits: ProjectStructureEdit[]): boolean;
+  onFocusInstance(instance: PrintedNetlistInstance | null): void;
 }) {
   const result = useMemo(
     () =>
@@ -42,6 +61,7 @@ export function NetlistCodePanel({
             format,
             namingProfile,
             portCase,
+            includeLocations: true,
           }),
     [project, format, namingProfile, portCase, configurationError],
   );
@@ -57,7 +77,68 @@ export function NetlistCodePanel({
         // netlist anybody should take away yet.
         (unfinished[0]?.message ?? null);
   const source = result?.status === "ready" ? result.file.text : "";
-  const visibleLines = netlistEditorVisibleLines(source);
+  const [draft, setDraft] = useState(source);
+  const [editBaseline, setEditBaseline] = useState(source);
+  const [applyError, setApplyError] = useState<string | null>(null);
+  const ownApply = useRef(false);
+  const dirty = draft !== editBaseline;
+  const conflict = dirty && source !== editBaseline;
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const focusRef = useRef(onFocusInstance);
+  focusRef.current = onFocusInstance;
+  useEffect(() => () => focusRef.current(null), []);
+  useLayoutEffect(() => {
+    if (!dirty || ownApply.current) {
+      setDraft(source);
+      setEditBaseline(source);
+      setApplyError(null);
+    }
+    ownApply.current = false;
+  }, [source]);
+  function apply() {
+    if (!dirty || conflict || result?.status !== "ready") return;
+    const plan = planNetlistCodeEdit(project, result, draftRef.current);
+    if (!plan.ok) {
+      setApplyError(plan.message);
+      return;
+    }
+    if (!plan.edits.length) {
+      setDraft(source);
+      setEditBaseline(source);
+      setApplyError(null);
+      return;
+    }
+    ownApply.current = true;
+    if (!onApply(plan.edits)) {
+      ownApply.current = false;
+      setApplyError(
+        "Edit rejected. Check the device prefix and duplicate names; the circuit keeps the last valid values.",
+      );
+      return;
+    }
+    setApplyError(null);
+  }
+  const applyRef = useRef(apply);
+  applyRef.current = apply;
+  useEffect(() => {
+    if (!dirty || conflict) return;
+    const timer = setTimeout(() => applyRef.current(), 500);
+    return () => clearTimeout(timer);
+  }, [draft, dirty, conflict]);
+  function focus(position: number) {
+    if (result?.status !== "ready") return onFocusInstance(null);
+    const plan = planNetlistCodeEdit(project, result, draftRef.current);
+    onFocusInstance(
+      plan.ok
+        ? netlistInstanceAtLine(draftRef.current, position, plan.instances)
+        : null,
+    );
+  }
+  const editError = conflict
+    ? "The canvas or Agent changed the netlist. Reload before applying your draft."
+    : applyError;
+  const visibleLines = netlistEditorVisibleLines(draft);
   return (
     <section
       className="netlist-profile-code netlist-live-code"
@@ -83,6 +164,7 @@ export function NetlistCodePanel({
           data-testid="copy-netlist-panel"
           aria-label="Copy netlist"
           title="Copy netlist"
+          disabled={dirty}
           onClick={onCopy}
         >
           <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -110,7 +192,7 @@ export function NetlistCodePanel({
           fallback={
             <textarea
               aria-label="Loading Netlist code editor"
-              value={source}
+              value={draft}
               readOnly
             />
           }
@@ -118,9 +200,17 @@ export function NetlistCodePanel({
           <ProjectTextEditor
             ariaLabel="Netlist code"
             language="netlist"
-            value={source}
-            readOnly
-            invalid={!!error}
+            value={draft}
+            invalid={!!error || !!editError}
+            onChange={(text) => {
+              draftRef.current = text;
+              setDraft(text);
+              setApplyError(null);
+            }}
+            onEnter={apply}
+            onModEnter={apply}
+            onBlur={() => applyRef.current()}
+            onCursorChange={focus}
           />
         </Suspense>
       </div>
@@ -149,6 +239,25 @@ export function NetlistCodePanel({
           </button>
         </div>
       </div>
+      {dirty ? (
+        <div className="project-code-actions">
+          <button
+            type="button"
+            onClick={() => {
+              setDraft(source);
+              setEditBaseline(source);
+              setApplyError(null);
+              onFocusInstance(null);
+            }}
+          >
+            Reload
+          </button>
+        </div>
+      ) : null}
+      {editError ? <p role="alert">{editError}</p> : null}
+      <p className="netlist-edit-hint">
+        Edit names, models and values · Enter to apply
+      </p>
       {error ? (
         <p role="alert">{error}</p>
       ) : result?.status === "ready" && result.placeholders.length ? (

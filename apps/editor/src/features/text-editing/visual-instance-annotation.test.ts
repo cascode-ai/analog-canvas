@@ -70,7 +70,11 @@ function apply(document: SchematicDocument, edits: SchematicEdit[]) {
   if (!result.ok) throw new Error(JSON.stringify(result.diagnostics));
   return result.document;
 }
-function edit(document: SchematicDocument, content: RichTextDocument) {
+function edit(
+  document: SchematicDocument,
+  content: RichTextDocument,
+  displayAlias = true,
+) {
   const session = updateTextEditingSession(
     createTextEditingSession(
       { owner: "annotation", object: document.annotations[0]! },
@@ -78,15 +82,37 @@ function edit(document: SchematicDocument, content: RichTextDocument) {
     ),
     { content },
   );
-  const proposal = proposeTextEditingCommit(document, session);
+  const proposal = proposeTextEditingCommit(document, {
+    ...session,
+    displayAlias,
+  });
   if (proposal.kind !== "update") throw new Error(proposal.kind);
-  return apply(document, [proposal.edit]);
+  return apply(document, [...(proposal.beforeEdits ?? []), proposal.edit]);
 }
 const text = (value: string): RichTextDocument => ({
   runs: [{ kind: "text", value }],
 });
 
 describe("one visual annotation, one electrical authority", () => {
+  it("defaults to synchronized names and renames without moving or detaching the label", () => {
+    const before = fixture();
+    const session = createTextEditingSession(
+      { owner: "annotation", object: before.annotations[0]! },
+      before,
+    );
+    expect(session.displayAlias).toBe(false);
+    const after = edit(before, text("R8"), false);
+    expect(after.instances[0]!.reference).toBe("R8");
+    expect(after.annotations[0]!.binding).toEqual({
+      kind: "instance-reference",
+      instanceId: "device-1",
+    });
+    expect(after.annotations[0]!.anchor).toEqual(before.annotations[0]!.anchor);
+    expect(
+      flattenRichText(resolveAnnotationText(after, after.annotations[0]!)),
+    ).toBe("R8");
+  });
+
   it.each<RichTextDocument>([
     text("R2"),
     text("input_pair_left"),
@@ -156,7 +182,7 @@ describe("one visual annotation, one electrical authority", () => {
         },
       ],
     };
-    const before = edit(fixture(), styled);
+    const before = edit(fixture(), styled, false);
     expect(before.annotations[0]).toMatchObject({
       binding: { kind: "instance-reference" },
       formatOverride: styled,
@@ -185,7 +211,7 @@ describe("one visual annotation, one electrical authority", () => {
     expect(renamed.annotations[0]!.content).toEqual(text("load"));
   });
 
-  it("requires explicit restore; typing the reference does not rebind custom content", () => {
+  it("keeps aliases explicit and restores the live binding when alias is disabled", () => {
     const custom = edit(edit(fixture(), text("load")), text("R1"));
     expect(custom.annotations[0]).not.toHaveProperty("binding");
     const session = {
@@ -194,7 +220,7 @@ describe("one visual annotation, one electrical authority", () => {
         custom,
       ),
       content: semanticTextDocument("R1", "instance-label"),
-      restoreReference: true,
+      displayAlias: false,
     };
     expect(session).toMatchObject({
       bound: false,
@@ -211,10 +237,6 @@ describe("one visual annotation, one electrical authority", () => {
     });
     expect(restored.annotations[0]).not.toHaveProperty("content");
     expect(restored.annotations[0]).not.toHaveProperty("formatOverride");
-    expect(
-      updateTextEditingSession(session, { content: text("new") })
-        .restoreReference,
-    ).toBe(false);
     const formatted = updateTextEditingSession(session, {
       content: {
         runs: [
@@ -232,11 +254,6 @@ describe("one visual annotation, one electrical authority", () => {
       binding: { kind: "instance-reference", instanceId: "device-1" },
       formatOverride: formatted.content,
     });
-    expect(
-      updateTextEditingSession(session, {
-        content: { runs: [{ kind: "math", latex: "R1", display: "inline" }] },
-      }).restoreReference,
-    ).toBe(false);
   });
 
   it.each([false, true])(

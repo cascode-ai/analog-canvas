@@ -7,6 +7,7 @@ import { serializeProject } from "@icm/project-protocol";
 
 import { AgentHttpClient } from "../../../packages/agent-client/src/http-client.js";
 import {
+  revealPropertiesShelf,
   clickCommand,
   clickDrawTool,
   readComponentPropertyCode,
@@ -750,6 +751,7 @@ test("copies a working handoff through the normal local dev relay", async ({
 
   await panel.getByRole("button", { name: "Close Agent dialog" }).click();
   await page.getByTestId("hit-Rlocal").click();
+  await revealPropertiesShelf(page);
   const shelf = page.getByTestId("selection-shelf");
   if ((await shelf.getAttribute("aria-expanded")) === "true")
     await shelf.click();

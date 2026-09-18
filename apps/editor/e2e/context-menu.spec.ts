@@ -767,7 +767,12 @@ test("Netlist keeps format selection in the project panel while File keeps drawi
       exact: true,
     }),
   ).toHaveCount(0);
-  await page.getByTestId("netlist-panel-toggle").click();
+  if (
+    (await page
+      .getByTestId("netlist-panel-toggle")
+      .getAttribute("aria-pressed")) !== "true"
+  )
+    await page.getByTestId("netlist-panel-toggle").click();
   const projectPanel = page.getByRole("region", {
     name: "Live netlist",
     exact: true,

@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { createEmptyProject, createRoutePath } from "@icm/model";
 
 import {
+  revealPropertiesShelf,
   awaitEditorReady,
   chooseComponent,
   clickCommand,
@@ -17,6 +18,7 @@ import {
 } from "./editor-fixtures.js";
 
 async function openSelectionShelf(page: import("@playwright/test").Page) {
+  await revealPropertiesShelf(page);
   const shelf = page.getByTestId("selection-shelf");
   await expect(shelf).toBeVisible();
   if ((await shelf.getAttribute("aria-expanded")) !== "true") {
@@ -306,6 +308,7 @@ test("writes an Instance Reference through post-placement Properties", async ({
 
   // The quick pick carries no reference field; naming happens in Properties.
   await page.getByTestId("hit-R1").click();
+  await revealPropertiesShelf(page);
   await page.getByTestId("selection-shelf").click();
   await editComponentPropertyCode(page, (code) => {
     code.netlistName = "R7";
@@ -325,6 +328,7 @@ test("keeps the Placement Tray out of the manual component workflow", async ({
   await canvas.click({ position: { x: 320, y: 220 } });
   await page.keyboard.press("Escape");
   await page.getByTestId("hit-R1").click();
+  await revealPropertiesShelf(page);
   await page.getByTestId("selection-shelf").click();
 
   await expect(
@@ -544,6 +548,7 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("hit-R1")).toBeVisible();
   await expect(quickStart).toHaveCount(0);
+  await revealPropertiesShelf(page);
   await page.getByTestId("selection-shelf").click();
   await expect(page.getByTestId("selection-shelf")).toContainText(
     "R1 · resistor",
@@ -1421,6 +1426,7 @@ test("carries a default and manual Value through placement and Q property editin
   await canvas.click({ position: { x: 360, y: 230 } });
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("revision")).toHaveText("1");
+  await revealPropertiesShelf(page);
   await expect(page.getByTestId("selection-shelf")).toHaveAttribute(
     "aria-expanded",
     "false",
@@ -1551,6 +1557,7 @@ test("merges amplifier body marks into one Library entry and property", async ({
     .click({ position: { x: 360, y: 230 } });
   await page.keyboard.press("Escape");
   await page.getByTestId("hit-X1").click();
+  await revealPropertiesShelf(page);
   await page.getByTestId("selection-shelf").click();
 
   const amplifierActions = page.getByLabel("Amplifier placement actions");
@@ -1600,6 +1607,7 @@ test("keeps comparator polarity independent from input swapping", async ({
     .click({ position: { x: 360, y: 230 } });
   await page.keyboard.press("Escape");
   await page.getByTestId("hit-X1").click();
+  await revealPropertiesShelf(page);
   await page.getByTestId("selection-shelf").click();
 
   await expectComponentCodeField(page, "appearance.inputPolarity", true);
@@ -1781,6 +1789,7 @@ test("keeps the workspace inside the viewport and exposes low-interference zoom 
   await page.getByRole("button", { name: "Fit view" }).click();
 
   const canvas = page.getByTestId("schematic-canvas");
+  await revealPropertiesShelf(page);
   const canvasBefore = await canvas.boundingBox();
   await page.getByTestId("selection-shelf").click();
   await expect
@@ -2413,6 +2422,7 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
   const openWidth = (await canvas.boundingBox())?.width ?? 0;
   expect(openWidth).toBeGreaterThan(450);
 
+  await revealPropertiesShelf(page);
   await page.getByTestId("selection-shelf").click();
   await expect(panel).toHaveAttribute("data-open", "false");
   await expect(page.getByTestId("selection-shelf")).toHaveAttribute(
@@ -2447,6 +2457,7 @@ test("double-clicking a placed device reveals Properties without entering typing
   await canvas.click({ position: { x: 360, y: 230 } });
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("hit-R1")).toBeVisible();
+  await revealPropertiesShelf(page);
   await expect(page.getByTestId("selection-shelf")).toHaveAttribute(
     "aria-expanded",
     "false",

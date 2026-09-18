@@ -3,6 +3,7 @@ import { razaviProductSymbols } from "@icm/symbols";
 import { expect, test } from "@playwright/test";
 import { createEmptyProject } from "@icm/model";
 import {
+  revealPropertiesShelf,
   awaitEditorReady,
   clickCommand,
   clickDrawTool,
@@ -525,6 +526,7 @@ test("Q opens a text-first Properties editor with one-click exact draft copy", a
 }) => {
   await page.goto("/editor");
   await placeComponent(page, "pmos", { x: 360, y: 220 });
+  await revealPropertiesShelf(page);
   const shelf = page.getByTestId("selection-shelf");
   if ((await shelf.getAttribute("aria-expanded")) === "true")
     await shelf.click();

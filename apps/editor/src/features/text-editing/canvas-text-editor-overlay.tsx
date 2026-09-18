@@ -28,7 +28,9 @@ export interface CanvasTextEditorOverlayProps {
   onDelete(): void;
   deleteLabel?: string;
   showDelete?: boolean;
-  onRestoreReference?(): TextEditingSession["content"] | undefined;
+  onDisplayAliasChange?(
+    enabled: boolean,
+  ): TextEditingSession["content"] | undefined;
 }
 
 /**
@@ -171,7 +173,7 @@ export function CanvasTextEditorOverlay({
   onDelete,
   deleteLabel,
   showDelete,
-  onRestoreReference,
+  onDisplayAliasChange,
 }: CanvasTextEditorOverlayProps) {
   const anchorRef = useRef<SVGGElement | null>(null);
   const [canvasSize, setCanvasSize] = useState<{
@@ -240,6 +242,7 @@ export function CanvasTextEditorOverlay({
     // syntax. Offering bold, an overbar or the formula tool on a field that
     // cannot store any of them would promise formatting the commit drops.
     session.owner === "instance-formula" ||
+    (Boolean(session.visualInstanceId) && !session.displayAlias) ||
     (session.bound &&
       session.bindingKind !== "net-name" &&
       session.bindingKind !== "cell-terminal-name");
@@ -339,8 +342,11 @@ export function CanvasTextEditorOverlay({
           {...(session.bound && !sourceOnly
             ? { formulaSemanticText: flattenRichText(session.content) }
             : {})}
-          {...(session.visualInstanceId && onRestoreReference
-            ? { onRestoreReference }
+          {...(session.visualInstanceId && onDisplayAliasChange
+            ? {
+                displayAlias: session.displayAlias ?? false,
+                onDisplayAliasChange,
+              }
             : {})}
           onLayoutHeightChange={handleLayoutHeightChange}
         />

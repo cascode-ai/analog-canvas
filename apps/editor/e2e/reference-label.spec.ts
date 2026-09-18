@@ -37,6 +37,10 @@ test("canvas edits one visual annotation without changing the Netlist Reference"
     (a: { id: string }) => a.id === "instance-label-R1",
   );
   await page.getByTestId("annotation-hit-instance-label-R1").dblclick();
+  await expect(
+    page.getByRole("checkbox", { name: "Use display alias" }),
+  ).not.toBeChecked();
+  await page.getByRole("checkbox", { name: "Use display alias" }).check();
   const editor = page.getByRole("textbox", { name: "Canvas text editor" });
   await expect(
     page.getByRole("button", { name: "Bold", exact: true }),
@@ -50,7 +54,6 @@ test("canvas edits one visual annotation without changing the Netlist Reference"
       page.getByRole("button", { name: "Apply text changes" }),
       page.getByRole("button", { name: "Cancel text changes" }),
       page.getByRole("button", { name: "Delete text" }),
-      page.getByRole("button", { name: "Use netlist name", exact: true }),
     ].map(async (control) => {
       const bounds = await control.boundingBox();
       if (!bounds) throw new Error("Text editor control is not measurable");
@@ -114,10 +117,11 @@ test("Properties renames the electrical identity explicitly; restore is an in-pl
 }) => {
   await placeResistor(page);
   await page.getByTestId("annotation-hit-instance-label-R1").dblclick();
+  await page.getByRole("checkbox", { name: "Use display alias" }).check();
   await page.getByRole("textbox", { name: "Canvas text editor" }).fill("load");
   await page.getByRole("button", { name: "Apply text changes" }).click();
   await page.getByTestId("hit-R1").click();
-  await page.getByTestId("selection-shelf").click();
+  await page.keyboard.press("q");
   const properties = page.getByRole("complementary", { name: "Properties" });
   await expectComponentCodeField(page, "displayName", "load");
   await expectComponentCodeField(page, "netlistName", "R1");
@@ -150,14 +154,16 @@ test("Properties renames the electrical identity explicitly; restore is an in-pl
   await expect(visual(page)).toContainText("RL");
 
   await page.getByTestId("annotation-hit-instance-label-R1").dblclick();
-  const restore = page.getByRole("button", {
-    name: "Use netlist name",
+  const restore = page.getByRole("checkbox", {
+    name: "Use display alias",
     exact: true,
   });
-  await restore.click();
+  await expect(restore).toBeChecked();
+  await restore.uncheck();
+  await expect(visual(page)).toContainText("R7");
   await expect(
     page.getByRole("textbox", { name: "Canvas text editor" }),
-  ).toHaveText("R7");
+  ).toHaveValue("R7");
   await page.getByRole("button", { name: "Apply text changes" }).click();
   await expect(visual(page)).toContainText("R7");
   const saved = await projectFile(page);

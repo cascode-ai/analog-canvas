@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { createEmptyProject } from "@icm/model";
 
 import {
+  revealPropertiesShelf,
   awaitEditorReady,
   clickCommand,
   clickDrawTool,
@@ -177,6 +178,7 @@ test("digital gates align from their left outline and keep wired terminals throu
   // The moving NAND inputs and output must remain named-pin connections,
   // including when placement rotates and mirrors the new asymmetric body.
   await page.getByTestId("hit-U8").click();
+  await revealPropertiesShelf(page);
   await page.getByTestId("selection-shelf").click();
   await editComponentPropertyCode(page, (code) => {
     const placement = code.placement as Record<string, unknown>;

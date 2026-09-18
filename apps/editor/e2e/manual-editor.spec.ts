@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { createEmptyProject } from "@icm/model";
 import { createRoutingDemoProject } from "../src/demos/routing-demo.js";
 import {
+  revealPropertiesShelf,
   awaitEditorReady,
   chooseComponent,
   clickCommand,
@@ -288,6 +289,7 @@ async function instanceLabelVector(
 }
 
 async function closeSelectionShelf(page: Page): Promise<void> {
+  await revealPropertiesShelf(page);
   const shelf = page.getByTestId("selection-shelf");
   if ((await shelf.getAttribute("aria-expanded")) === "true") {
     await shelf.click();
@@ -805,6 +807,7 @@ test("a switch changes contact style in place, keeping its wires", async ({
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
 
   await page.locator('[data-canvas-hit-kind="instance"]').first().click();
+  await revealPropertiesShelf(page);
   await page.getByTestId("selection-shelf").click();
 
   // The plain drawing is a state of this component, not a second part: the
@@ -2418,6 +2421,7 @@ test("keeps DMOS bulk hidden until drawing an explicit bulk route", async ({
     return { x: screen.x, y: screen.y };
   });
   await page.mouse.click(bulkSegmentPoint.x, bulkSegmentPoint.y);
+  await revealPropertiesShelf(page);
   await expect(page.getByTestId("selection-shelf")).toContainText("Bulk · M1");
   await expect(page.getByLabel("MOS bulk route actions")).toContainText(
     "Follows M1 line color",
@@ -3002,6 +3006,7 @@ test("selects an attached label without selecting its host", async ({
   await expect(
     page.getByTestId("annotation-hit-instance-label-R1"),
   ).toHaveClass(/selected/u);
+  await revealPropertiesShelf(page);
   await expect(page.getByTestId("selection-shelf")).toContainText(
     "Annotation · instance-label",
   );
@@ -3131,6 +3136,7 @@ test("edits instance, electrical Net, and free text with bounded label handles",
 
   await page.getByTestId("hit-R1").click();
   await page.getByTestId("annotation-hit-instance-label-R1").dblclick();
+  await page.getByRole("checkbox", { name: "Use display alias" }).check();
   const referenceEditor = page.getByRole("textbox", {
     name: "Canvas text editor",
   });
@@ -3166,6 +3172,7 @@ test("edits instance, electrical Net, and free text with bounded label handles",
   await expect(page.locator('[data-layer="annotations"]')).toContainText(
     "Vref",
   );
+  await revealPropertiesShelf(page);
   await page.getByTestId("selection-shelf").click();
 
   await placeComponent(page, "resistor", { x: 280, y: 320 });
@@ -3894,6 +3901,7 @@ test("selects and moves multiple instances while viewport gestures stay transien
   );
   await page.mouse.up();
   await openSelectionShelf(page);
+  await revealPropertiesShelf(page);
   await expect(page.getByTestId("selection-shelf")).toContainText(
     "2 components",
   );
@@ -4678,6 +4686,7 @@ test("keeps component insertion and inspection from resizing the canvas", async 
   await expect(
     page.getByRole("complementary", { name: "Properties" }),
   ).toBeVisible();
+  await revealPropertiesShelf(page);
   await page.getByTestId("selection-shelf").click();
   // Opening the dock changes its CSS width through a short transition. Poll
   // the resulting canvas geometry rather than sampling before that transition

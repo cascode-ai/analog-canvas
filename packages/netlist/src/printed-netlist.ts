@@ -11,3 +11,15 @@ export interface PrintedNetlistParameter extends PrintedNetlistInstance {
   /** The exact generated value at this range, not the original project spelling. */
   rawValue: string;
 }
+
+/** Editable fields in a design export, tied to stable schematic identities. */
+export interface PrintedNetlistField extends PrintedNetlistInstance {
+  kind: "reference" | "target" | "parameter";
+  parameter?: string;
+  rawValue: string;
+}
+
+export interface DesignNetlistLocations {
+  instances: PrintedNetlistInstance[];
+  fields: PrintedNetlistField[];
+}

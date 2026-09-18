@@ -19,6 +19,7 @@ import {
   history,
   historyKeymap,
   indentWithTab,
+  insertNewline,
 } from "@codemirror/commands";
 import {
   bracketMatching,
@@ -40,6 +41,9 @@ interface Props {
   invalid?: boolean;
   onChange?(source: string): void;
   onModEnter?(): void;
+  onEnter?(): void;
+  onCursorChange?(position: number): void;
+  onBlur?(): void;
 }
 
 const externalUpdate = Annotation.define<boolean>();
@@ -64,11 +68,24 @@ export default function ProjectTextEditor(props: Props) {
           highlightActiveLineGutter(),
           drawSelection(),
           highlightActiveLine(),
+          EditorView.domEventHandlers({
+            blur: () => {
+              read().onBlur?.();
+            },
+          }),
           history(),
           bracketMatching(),
           syntaxHighlighting(defaultHighlightStyle),
           configuration.current.of(configuredExtensions(read())),
           keymap.of([
+            { key: "Shift-Enter", run: insertNewline },
+            {
+              key: "Enter",
+              run: () => {
+                read().onEnter?.();
+                return Boolean(read().onEnter);
+              },
+            },
             {
               key: "Mod-Enter",
               run: () => {
@@ -90,6 +107,14 @@ export default function ProjectTextEditor(props: Props) {
               )
             )
               read().onChange?.(update.state.doc.toString());
+            if (
+              update.selectionSet ||
+              update.docChanged ||
+              update.focusChanged
+            ) {
+              if (update.view.hasFocus)
+                read().onCursorChange?.(update.state.selection.main.head);
+            }
           }),
         ],
       }),

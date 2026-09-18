@@ -175,7 +175,7 @@ export function EditorInteractionPreviews({
   onTextCommit,
   onTextCancel,
   onTextDelete,
-  onRestoreReference,
+  onDisplayAliasChange,
 }: {
   boxPreview: BoxPreview | null;
   draftingSource: Point | null;
@@ -194,7 +194,7 @@ export function EditorInteractionPreviews({
   onTextCommit: () => void;
   onTextCancel: () => void;
   onTextDelete: () => void;
-  onRestoreReference?: CanvasTextEditorOverlayProps["onRestoreReference"];
+  onDisplayAliasChange?: CanvasTextEditorOverlayProps["onDisplayAliasChange"];
 }) {
   return (
     <>
@@ -245,7 +245,7 @@ export function EditorInteractionPreviews({
           onCommit={onTextCommit}
           onCancel={onTextCancel}
           onDelete={onTextDelete}
-          {...(onRestoreReference ? { onRestoreReference } : {})}
+          {...(onDisplayAliasChange ? { onDisplayAliasChange } : {})}
         />
       ) : null}
     </>

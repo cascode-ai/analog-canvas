@@ -6,8 +6,14 @@ import {
   type DesignNetlistAnalysisOptions,
 } from "./extract.js";
 import type { DesignNetlistIR, NetlistDiagnostic } from "./ir.js";
-import { printDesignNetlist, type NetlistFileDescriptor } from "./printers.js";
+import {
+  locateDesignNetlist,
+  printDesignNetlist,
+  type NetlistFileDescriptor,
+} from "./printers.js";
 import type { NetlistPortCase } from "./net-name-codec.js";
+
+import type { DesignNetlistLocations } from "./printed-netlist.js";
 
 export interface NetlistExportPlaceholder {
   cellName: string;
@@ -23,6 +29,7 @@ export type DesignNetlistExportResult = {
   | {
       status: "ready";
       file: NetlistFileDescriptor;
+      locations: DesignNetlistLocations;
       placeholders: NetlistExportPlaceholder[];
       cellCount: number;
       externalMasterCount: number;
@@ -172,6 +179,8 @@ export function createDesignNetlistExport(
   project: CircuitProject,
   options: DesignNetlistAnalysisOptions & {
     portCase?: NetlistPortCase;
+    /** Only interactive source editors need field-level locations. */
+    includeLocations?: boolean;
   } = {},
 ): DesignNetlistExportResult {
   const format = options.format ?? "spice";
@@ -284,6 +293,9 @@ export function createDesignNetlistExport(
     diagnostics: [...analysis.diagnostics, ...deadEnds],
     file,
     placeholders,
+    locations: options.includeLocations
+      ? locateDesignNetlist(format, ir, file.text)
+      : { instances: [], fields: [] },
     cellCount: ir.cells.length,
     externalMasterCount: ir.externalMasters?.length ?? 0,
   };

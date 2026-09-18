@@ -590,30 +590,24 @@ deliberately customized literal content remains custom. A Cell Pin receives only
 and displayable.
 Properties exposes **Netlist Reference** for explicit electrical renaming:
 case-insensitive Document uniqueness and device-prefix validation still apply.
-The canvas exposes **Visual annotation**. Changing its characters or inserting
-a formula replaces `binding`/`formatOverride` with literal RichText `content`
-on the same Annotation, preserving ID, anchor, size, alignment, color, and
-visibility. Even another valid Reference such as `R2` is a visual edit, never
-an electrical rename. Formatting-only changes retain the live binding when
-their plain characters are unchanged. Custom text stays custom even if the
-author later types the current Netlist Reference.
+The canvas exposes **Visual annotation**. Instance labels follow
+`Instance.reference` by default. Editing an unaliased name changes that
+Reference through the same prefix and uniqueness validation as Properties and
+the editable netlist; its Annotation ID, anchor and presentation stay intact.
 
-**Edit annotation** in Properties opens the same floating rich editor; there
-is no second optional Label field. Bold, italic, scripts, overbar, symbols,
-alignment, the existing multiline shortcut (Shift+Enter), and formula tool are available.
-Shift+Enter breaks the line through the browser's own line-break command, so
-the caret continues on the new line and native undo keeps the step; the break
-arrives in the editable as a newline under `pre-wrap`. Reading the editable
-treats a newline in text exactly as a `<br>` — one `line-break` run — because
-rich text carries breaks as their own run and SVG text has no newline of its
-own, so a literal one left in a value would flatten the lines into one. Pasted
-multi-line text lands as the same lines for the same reason.
-**Use netlist name** restores the live binding and default content styling
-within the editing session; the editor's normal finish action commits it. This
-preserves position and other presentation properties. Copy allocates a unique
-Netlist Reference: following annotations update, custom content copies exactly.
-Old additional annotations are retained as user-authored content rather than
-silently deleted; new edits never generate a hidden/default plus custom pair.
+**Use display alias** is an explicit checkbox in the floating label editor.
+Checking it keeps literal RichText on the same Annotation, independent of the
+netlist name. Existing literal annotations open with it checked. Alias mode
+supports bold, italic, scripts, overbar, symbols, alignment, Shift+Enter and
+formulas. Plain synchronized names do not accept arbitrary formatted aliases.
+Unchecking immediately restores the live Reference binding and default content
+styling, retaining position, size, alignment, color and visibility. The toggle
+is undoable; Cancel discards subsequent text edits, not a toggle already made.
+Typing the Reference into a checked alias does not implicitly disable alias mode.
+Copy allocates a unique Reference: following annotations update, aliases copy
+exactly. Old additional annotations remain user-authored content; no hidden
+second label is created.
+
 For a Cell Pin, a character edit renames the terminal while a formatting-only
 edit persists a same-text annotation `formatOverride`. Its name is edited on
 the canvas and its interface direction is managed in Cell Manager; Properties

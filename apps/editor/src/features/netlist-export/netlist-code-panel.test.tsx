@@ -18,6 +18,8 @@ describe("live netlist controls", () => {
         onFormatChange={vi.fn()}
         onPortCaseChange={vi.fn()}
         onCopy={vi.fn()}
+        onApply={vi.fn()}
+        onFocusInstance={vi.fn()}
         onReset={vi.fn()}
         configurationError={null}
       />,

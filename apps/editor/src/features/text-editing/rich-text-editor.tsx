@@ -49,8 +49,8 @@ export interface RichTextEditorProps {
   onDelete(): void;
   /** Electrical name represented by this editor, when Formula is constrained. */
   formulaSemanticText?: string;
-  /** Restore this visual annotation to its live Netlist Reference. */
-  onRestoreReference?(): RichTextDocument | undefined;
+  displayAlias?: boolean;
+  onDisplayAliasChange?(enabled: boolean): RichTextDocument | undefined;
   onLayoutHeightChange?(height: number): void;
 }
 
@@ -566,7 +566,8 @@ export function RichTextEditor({
   onEscape,
   onDelete,
   formulaSemanticText,
-  onRestoreReference,
+  displayAlias,
+  onDisplayAliasChange,
   onLayoutHeightChange,
 }: RichTextEditorProps) {
   const shellRef = useRef<HTMLDivElement>(null);
@@ -1166,23 +1167,25 @@ export function RichTextEditor({
             {deleteLabel}
           </button>
         ) : null}
-        {onRestoreReference ? (
-          <button
-            type="button"
-            disabled={disabled}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => {
-              const restored = onRestoreReference();
-              if (restored && editableRef.current) {
-                editableRef.current.innerHTML = toEditableHtml(restored);
-                selectionRangeRef.current = null;
-              }
-              closeFormulaEditor();
-            }}
-            title="Replace this annotation with the live netlist instance name"
-          >
-            Use netlist name
-          </button>
+        {onDisplayAliasChange ? (
+          <label className="rich-text-display-alias">
+            <input
+              type="checkbox"
+              checked={displayAlias ?? false}
+              disabled={disabled}
+              onChange={(event) => {
+                const restored = onDisplayAliasChange(
+                  event.currentTarget.checked,
+                );
+                if (restored && editableRef.current) {
+                  editableRef.current.innerHTML = toEditableHtml(restored);
+                  selectionRangeRef.current = null;
+                }
+                closeFormulaEditor();
+              }}
+            />
+            Use display alias
+          </label>
         ) : null}
       </div>
       {formulaOpen && !sourceOnly ? (

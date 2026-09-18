@@ -5,6 +5,17 @@ export async function awaitEditorReady(page: Page): Promise<void> {
   await page.getByTestId("schematic-canvas").waitFor();
 }
 
+/** Enter the Properties workspace before interacting with its shelf. */
+export async function revealPropertiesShelf(page: Page): Promise<void> {
+  await awaitEditorReady(page);
+  const close = page.getByRole("button", {
+    name: "Close project tools",
+    exact: true,
+  });
+  if (await close.isVisible()) await close.click();
+  await expect(page.getByTestId("selection-shelf")).toBeVisible();
+}
+
 /** Wait for the recovery coordinator to finish creating its owned IDB store. */
 export async function awaitRecoveryStoreReady(page: Page): Promise<void> {
   await page.waitForFunction(async () => {
@@ -327,10 +338,15 @@ export async function copyNetlistText(
     name: "Live netlist",
     exact: true,
   });
-  if (!(await panel.isVisible())) {
-    await page.getByTestId("netlist-panel-toggle").click();
-    await expect(panel).toBeVisible();
-  }
+  const toggle = page.getByTestId("netlist-panel-toggle");
+  if (
+    (await toggle.getAttribute("aria-pressed")) !== "true" ||
+    (await page
+      .getByRole("region", { name: "Netlist configuration", exact: true })
+      .isVisible())
+  )
+    await toggle.click();
+  await expect(panel).toBeVisible();
   if (format) await panel.getByLabel("Netlist format").selectOption(format);
   await panel.getByTestId("copy-netlist-panel").click();
   await expect

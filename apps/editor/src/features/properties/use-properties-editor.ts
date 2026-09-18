@@ -1040,7 +1040,11 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     }
     const proposal = proposeTextEditingCommit(options.document, textEditing);
     if (proposal.kind === "blocked") {
-      options.setStatus("This text can no longer be edited");
+      options.setStatus(
+        textEditing.visualInstanceId && !textEditing.displayAlias
+          ? "Enter a valid netlist name, or enable Use display alias for free text"
+          : "This text can no longer be edited",
+      );
       return;
     }
     if (proposal.kind === "delete" && textEditing.owner === "annotation") {
@@ -1075,7 +1079,13 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       setTextEditing(null);
       return;
     }
-    if (!options.transact([proposal.edit]).ok) return;
+    if (
+      !options.transact([
+        ...(proposal.kind === "update" ? (proposal.beforeEdits ?? []) : []),
+        proposal.edit,
+      ]).ok
+    )
+      return;
     if (proposal.kind === "delete") {
       options.clearSelectionKinds(["annotation", "drafting"]);
       options.setStatus(`Deleted text ${proposal.id}`);
@@ -1085,23 +1095,31 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     setTextEditing(null);
   };
 
-  const restoreTextReference = (): RichTextDocument | undefined => {
+  const setTextDisplayAlias = (
+    enabled: boolean,
+  ): RichTextDocument | undefined => {
     if (!textEditing?.visualInstanceId) return;
     const reference = options.document.instances.find(
       (instance) => instance.id === textEditing.visualInstanceId,
     )?.reference;
     if (!reference) return;
-    const content = semanticTextDocument(reference, "instance-label");
-    setTextEditing({
-      ...textEditing,
-      content,
-      restoreReference: true,
-    });
+    const content = enabled
+      ? textEditing.content
+      : semanticTextDocument(reference, "instance-label");
+    const next = { ...textEditing, content, displayAlias: enabled };
+    const proposal = proposeTextEditingCommit(options.document, next);
+    if (proposal.kind === "blocked" || proposal.kind === "delete") return;
+    if (
+      proposal.kind === "update" &&
+      !options.transact([...(proposal.beforeEdits ?? []), proposal.edit]).ok
+    )
+      return;
+    setTextEditing(next);
     return content;
   };
 
   return {
-    restoreTextReference,
+    setTextDisplayAlias,
     additionalParameterDraft,
     additionalParameterDraftChanges: !sameAdditionalParameterDrafts(
       additionalParameterDraft,

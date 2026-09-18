@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-import { clickCommand, downloadBytes } from "./editor-fixtures.js";
+import {
+  revealPropertiesShelf,
+  clickCommand,
+  downloadBytes,
+} from "./editor-fixtures.js";
 import { placeComponent } from "./manual-editor-fixtures.js";
 
 async function runCellCommand(
@@ -284,6 +288,7 @@ test("declares and places a Cell Pin on a new local Net", async ({ page }) => {
   });
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
 
+  await revealPropertiesShelf(page);
   await page.getByTestId("selection-shelf").click();
   await expect(page.getByLabel("Cell Pin properties")).toHaveCount(0);
   await expect(page.getByLabel("Cell Pin name")).toHaveCount(0);
@@ -467,6 +472,7 @@ test("declares a top Formal Cell Pin and exports the top interface", async ({
     position: { x: 300, y: 180 },
   });
   await page.getByTestId("hit-P1").click();
+  await revealPropertiesShelf(page);
   const shelf = page.getByTestId("selection-shelf");
   if ((await shelf.getAttribute("aria-expanded")) === "false") {
     await shelf.click();
@@ -496,6 +502,7 @@ test("copies and independently deletes Formal Cell Pins", async ({ page }) => {
   });
 
   await page.getByTestId("hit-P1").click();
+  await revealPropertiesShelf(page);
   const shelf = page.getByTestId("selection-shelf");
   if ((await shelf.getAttribute("aria-expanded")) === "false") {
     await shelf.click();
@@ -547,6 +554,7 @@ test("edits a Cell Pin name and RichText presentation in place", async ({
     page.getByTestId("annotation-hit-instance-reference-P1"),
   ).toHaveCount(0);
   await page.getByTestId("hit-P1").click();
+  await revealPropertiesShelf(page);
   const shelf = page.getByTestId("selection-shelf");
   if ((await shelf.getAttribute("aria-expanded")) === "false") {
     await shelf.click();
@@ -596,6 +604,7 @@ test("keeps the Placement Tray out of the manually authored Cell Pin workflow", 
     page.getByTestId("annotation-hit-instance-reference-P1"),
   ).toHaveCount(0);
   await page.getByTestId("hit-P1").click();
+  await revealPropertiesShelf(page);
   const shelf = page.getByTestId("selection-shelf");
   if ((await shelf.getAttribute("aria-expanded")) === "false") {
     await shelf.click();

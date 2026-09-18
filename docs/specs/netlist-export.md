@@ -386,6 +386,27 @@ The adjacent menu offers Configuration…, Instances…, Check Report…, and Ch
 and Save; it has no format choice. Clipboard rejection leaves selectable code
 and a status message, without a download fallback.
 
+The right Netlist editor is open by default. Its SPICE and SCS source allows
+editing device References, model targets and existing printed parameter values.
+A valid edit applies after a short typing pause or Enter (Shift+Enter inserts a
+line break). The printer supplies stable Document/Instance locations, including
+SPICE continuation lines; the caret highlights the corresponding canvas Instance
+and opens its Cell when necessary. It does not infer identity from Reference
+spelling, which may repeat across Cells.
+Explicit inspector actions (Q, double-clicking a component, Issues and import
+review) replace the default netlist panel. Canvas editing never requires closing
+the netlist first.
+
+Source edits use one atomic Project transaction with per-Document revisions.
+Renaming preserves layout, wiring and IDs, updates bound labels, and leaves
+explicit display aliases unchanged. Duplicate names, invalid prefixes, malformed
+values and unsupported structure changes retain the draft with an error and
+leave the circuit unchanged. Connections, ports and device structure are edited
+on the canvas or in Project Code. Dirty source is never silently overwritten by
+canvas or Agent changes: conflicting live netlist changes require Reload. Copy
+in this panel is disabled until the draft is applied or discarded. The printed
+source and the circuit share undo/redo through those same transactions.
+
 The copy/export projection removes the strict printer's generated title and
 adds no diagnostic, preset, TODO-summary or library comments. It also accepts
 an optional `portCase` (`upper` or `lower`), which the editor always supplies

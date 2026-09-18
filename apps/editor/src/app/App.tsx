@@ -722,7 +722,16 @@ export function App({
   const canvasContextMenuSuppressed = useRef(false);
   const [netlistPreflightOpen, setNetlistPreflightOpen] = useState(false);
   const [projectPanel, setProjectPanel] =
-    useState<EditorProjectPanelMode | null>(null);
+    useState<EditorProjectPanelMode | null>("netlist");
+  const [netlistFocusedInstance, setNetlistFocusedInstance] = useState<{
+    documentId: string;
+    instanceId: string;
+  } | null>(null);
+  useEffect(() => {
+    // Explicit inspector actions (Q, double-click, Issues, import review)
+    // take precedence over the Netlist panel opened at startup.
+    if (selectionOpen) setProjectPanel(null);
+  }, [selectionOpen]);
   const propertiesOpenBeforeProjectPanelRef = useRef(false);
   const [netlistNamingProfile, setNetlistNamingProfile] = useState<
     "native" | "cadence-bang"
@@ -2049,7 +2058,7 @@ export function App({
     },
   });
   const {
-    restoreTextReference,
+    setTextDisplayAlias,
     applyRouteProperties,
     beginAnnotationTextEditing,
     beginDraftingTextEditing,
@@ -5435,6 +5444,15 @@ export function App({
                   />
                 ) : projectPanel === "netlist" ? (
                   <NetlistCodePanel
+                    key={projectSessionId}
+                    onApply={(edits) =>
+                      commitStructure("edit-netlist-code", edits)
+                    }
+                    onFocusInstance={(instance) => {
+                      if (instance && instance.documentId !== document.id)
+                        selectDocumentFromHierarchy(instance.documentId);
+                      setNetlistFocusedInstance(instance);
+                    }}
                     project={project}
                     format={netlistPreferences.format}
                     namingProfile={netlistNamingProfile}
@@ -6371,7 +6389,16 @@ export function App({
             document,
             resolver,
             styleProfile,
-            selectedInstanceIds: selectedIds,
+            selectedInstanceIds:
+              netlistFocusedInstance?.documentId === document.id &&
+              projectPanel === "netlist"
+                ? [
+                    ...new Set([
+                      ...selectedIds,
+                      netlistFocusedInstance.instanceId,
+                    ]),
+                  ]
+                : selectedIds,
             wouldMoveIds,
           }}
           cellSymbolLayout={
@@ -6791,7 +6818,7 @@ export function App({
               setStatus("Cancelled text changes");
             },
             onTextDelete: deleteTextEditing,
-            onRestoreReference: restoreTextReference,
+            onDisplayAliasChange: setTextDisplayAlias,
           }}
         />
         {canvasContextMenu ? (
