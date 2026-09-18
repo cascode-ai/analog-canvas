@@ -592,6 +592,13 @@ author later types the current Netlist Reference.
 **Edit annotation** in Properties opens the same floating rich editor; there
 is no second optional Label field. Bold, italic, scripts, overbar, symbols,
 alignment, the existing multiline shortcut (Shift+Enter), and formula tool are available.
+Shift+Enter breaks the line through the browser's own line-break command, so
+the caret continues on the new line and native undo keeps the step; the break
+arrives in the editable as a newline under `pre-wrap`. Reading the editable
+treats a newline in text exactly as a `<br>` — one `line-break` run — because
+rich text carries breaks as their own run and SVG text has no newline of its
+own, so a literal one left in a value would flatten the lines into one. Pasted
+multi-line text lands as the same lines for the same reason.
 **Use netlist name** restores the live binding and default content styling
 within the editing session; the editor's normal finish action commits it. This
 preserves position and other presentation properties. Copy allocates a unique

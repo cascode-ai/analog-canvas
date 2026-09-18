@@ -196,6 +196,49 @@ async function controlTop(locator: Locator): Promise<number> {
 }
 
 // The canvas-local toolbar creates RichText AST without exposing raw markup.
+test("keeps every line of a multi-line note on its own line", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeText(page, { x: 400, y: 220 });
+  const editable = page.getByRole("textbox", { name: "Canvas text editor" });
+  await editable.click();
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.type("Bias network");
+  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.type("second line");
+  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.type("third line");
+
+  // Typing after a break must continue on the new line. Placing the break by
+  // hand used to leave the caret on an empty text node that Chromium gives no
+  // visual position, so the next characters went back onto the line above and
+  // the note collapsed into one flattened line.
+  await expect
+    .poll(() =>
+      editable.evaluate((element) =>
+        (element.textContent ?? "").replace(/\u00a0/gu, " "),
+      ),
+    )
+    .toBe("Bias network\nsecond line\nthird line");
+
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  const note = page.locator('[data-kind="draft-text"]').first();
+  await expect(note).toBeVisible();
+  // Three lines: each break resets x and steps the baseline down by one line.
+  await expect(note.locator('tspan[data-text-run="line-break"]')).toHaveCount(
+    2,
+  );
+  const box = await note.boundingBox();
+  expect(box?.height).toBeGreaterThan(40);
+
+  // Reopening edits the same three lines rather than one run of joined text.
+  await note.dblclick({ force: true });
+  const reopened = page.getByRole("textbox", { name: "Canvas text editor" });
+  await expect(reopened).toBeVisible();
+  await expect(reopened.locator("br")).toHaveCount(2);
+});
+
 test("adds formatted drafting text and undo/redo restores it", async ({
   page,
 }) => {

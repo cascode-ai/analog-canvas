@@ -207,10 +207,22 @@ function readChildren(
 function readNode(node: Node, bold = false, italic = false): RichTextRun[] {
   if (node.nodeType === Node.TEXT_NODE) {
     if (!node.textContent) return [];
-    let text: RichTextRun = { kind: "text", value: node.textContent };
-    if (bold) text = { kind: "span", style: "bold", children: [text] };
-    if (italic) text = { kind: "span", style: "italic", children: [text] };
-    return [text];
+    // The editable wraps as `pre-wrap`, so a newline inside a text node is a
+    // line the author can see — whether the browser put it there for a
+    // line-break command or it arrived in pasted text. Rich text carries
+    // breaks as their own run, and SVG text has no newline of its own, so a
+    // literal one left in a value would silently flatten the line.
+    const wrap = (value: string): RichTextRun => {
+      let text: RichTextRun = { kind: "text", value };
+      if (bold) text = { kind: "span", style: "bold", children: [text] };
+      if (italic) text = { kind: "span", style: "italic", children: [text] };
+      return text;
+    };
+    const segments = node.textContent.split("\n");
+    return segments.flatMap((segment, index) => [
+      ...(index === 0 ? [] : [{ kind: "line-break" as const }]),
+      ...(segment ? [wrap(segment)] : []),
+    ]);
   }
   if (!isElement(node)) return [];
   const tag = node.tagName.toLowerCase();
@@ -755,6 +767,16 @@ export function RichTextEditor({
     const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
     if (!range || !editableRef.current.contains(range.commonAncestorContainer))
       return;
+    // Let the browser break the line. Placing the <br> by hand leaves the
+    // caret on the empty text node after it, which Chromium treats as having
+    // no visual position of its own: the next character is then typed back
+    // onto the previous line and the break slides to the end of the text.
+    // The browser also keeps its own trailing placeholder and native undo.
+    if (globalThis.document.execCommand("insertLineBreak")) {
+      rememberSelection();
+      sync();
+      return;
+    }
     range.deleteContents();
     const lineBreak = globalThis.document.createElement("br");
     range.insertNode(lineBreak);
