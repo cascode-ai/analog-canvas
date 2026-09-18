@@ -106,6 +106,13 @@ describe("the preview channel configuration (Deployment rationale)", () => {
       preview.vars?.SIMULATION_UPSTREAM_URL,
     );
     expect(production.vars?.SIMULATION_DEFAULT_EXECUTOR).toBe("operator-host");
+    expect(preview.vars?.VACASK_PROFILE_ID).toBe("vacask-sky130-candidate");
+    expect(production.vars?.VACASK_PROFILE_ID).toBe(
+      preview.vars?.VACASK_PROFILE_ID,
+    );
+    expect(production.vars?.VACASK_UPSTREAM_URL).toBe(
+      preview.vars?.VACASK_UPSTREAM_URL,
+    );
     expect(
       preview.durable_objects?.bindings.some((b) => b.name === "NGSPICE"),
     ).toBe(false);
@@ -122,6 +129,17 @@ describe("the preview channel configuration (Deployment rationale)", () => {
     expect(
       production.durable_objects?.bindings.some((b) => b.name === "NGSPICE"),
     ).toBe(false);
+  });
+
+  it("rotates the native gateway credential for both hosted channels", () => {
+    const deploy = readFileSync(
+      resolve(process.cwd(), "containers/vacask/host/deploy-preview.sh"),
+      "utf8",
+    );
+    expect(deploy).toContain(
+      "for worker in interactive-circuit-maker-preview interactive-circuit-maker",
+    );
+    expect(deploy).toContain("workers/scripts/$worker/secrets");
   });
 
   it("bounds managed runs to the operator host's single execution slot", () => {

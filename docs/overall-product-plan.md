@@ -59,7 +59,7 @@ human UI / authorized Agent
   └─ prepare / run / read / cancel
        → SimulationService ← immutable snapshot of selected authored input
        → configured executor / managed admission
-       → ngspice + qualified models, or Preview's native VACASK candidate
+       → ngspice + qualified models, or the hosted native VACASK candidate
        → parsed results / artifacts → UI and Agent
 ```
 

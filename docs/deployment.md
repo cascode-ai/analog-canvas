@@ -215,15 +215,16 @@ because it cannot prove a timed-out process is gone.
 `execution.target` identifies transport. A request naming an unconfigured
 executor is refused, not redirected.
 
-Preview also routes the native VACASK Profile named by `VACASK_PROFILE_ID` to a
-separate gateway at `VACASK_UPSTREAM_URL`, using the Preview secret
-`VACASK_UPSTREAM_TOKEN`. The Simulator host workflow's `vacask-preview` action
-builds that isolated candidate on the operator host from
+Both hosted channels route the native VACASK Profile named by
+`VACASK_PROFILE_ID` to a separate gateway at `VACASK_UPSTREAM_URL`, using each
+Worker's `VACASK_UPSTREAM_TOKEN` secret. The Simulator host workflow's
+historically named `vacask-preview` action builds that isolated candidate on the operator host from
 [`containers/vacask/host/compose.yaml`](../containers/vacask/host/compose.yaml)
-with its own Compose project, Tunnel and hostname, installs the secret, and
-leaves the shared ngspice stack unchanged; it does not deploy Worker code.
-Production configures no VACASK engine. The requested Profile selects the
-engine, ngspice remains the default, and neither engine falls back to the other.
+with its own Compose project, Tunnel and hostname, rotates the same gateway
+bearer into the isolated Preview and Production Workers, and leaves the shared
+ngspice stack unchanged; it does not deploy Worker code. The requested Profile
+selects the engine, ngspice remains the default, and neither engine falls back
+to the other.
 
 ### Managed and direct transport
 

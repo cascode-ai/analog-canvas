@@ -17,6 +17,10 @@
   "vars": {
     "SIMULATION_UPSTREAM_URL": "https://sim-fra.analog-canvas.tokenzhang.com",
     "SIMULATION_DEFAULT_EXECUTOR": "operator-host",
+    // The second engine is selected only by its Profile. It has its own
+    // gateway credential and never falls back to the ngspice route.
+    "VACASK_UPSTREAM_URL": "https://vacask-preview-sim.tokenzhang.com",
+    "VACASK_PROFILE_ID": "vacask-sky130-candidate",
   },
   "assets": {
     // The binding the Worker fetches through. Its absence is what produced

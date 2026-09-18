@@ -14,21 +14,33 @@ const { unzipSync } = createRequire(
   new URL("../apps/editor/package.json", import.meta.url),
 )("fflate");
 
-// Real browser relay + published or source-built MCP + managed Preview transport.
+// Real browser relay + published or source-built MCP + managed hosted transport.
 // No page routing, fake executor, direct gateway run or numerical comparison
 // between engines. Each divider independently has the analytic answer 0.5 V.
+const production = process.argv.includes("--production");
 const origin = new URL(
-  process.argv[2] ?? "https://analog-canvas-preview.tokenzhang.com",
+  process.argv[2] ??
+    (production
+      ? "https://analog-canvas.tokenzhang.com"
+      : "https://analog-canvas-preview.tokenzhang.com"),
 ).origin;
 assert.equal(
   origin,
-  "https://analog-canvas-preview.tokenzhang.com",
-  "Preview-only smoke",
+  production
+    ? "https://analog-canvas.tokenzhang.com"
+    : "https://analog-canvas-preview.tokenzhang.com",
+  production
+    ? "Production smoke requires the public origin"
+    : "Preview-only smoke",
 );
 const ota = process.argv.includes("--ota");
 const failures = process.argv.includes("--failures");
 const output = resolve(
-  ota ? "test-results/preview-dual-ota" : "test-results/preview-dual-engine",
+  production
+    ? "test-results/production-dual-engine"
+    : ota
+      ? "test-results/preview-dual-ota"
+      : "test-results/preview-dual-engine",
 );
 await mkdir(output, { recursive: true });
 const scratch = await mkdtemp(join(tmpdir(), "icm-dual-mcp-"));
@@ -179,7 +191,7 @@ try {
   await rpc("initialize", {
     protocolVersion: "2025-03-26",
     capabilities: {},
-    clientInfo: { name: "preview-dual-engine-smoke", version: "1" },
+    clientInfo: { name: "hosted-dual-engine-smoke", version: "1" },
   });
   child.stdin.write(
     JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) +

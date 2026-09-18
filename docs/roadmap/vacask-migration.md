@@ -1,16 +1,18 @@
 # VACASK Qualification
 
-Status: active
+Status: accepted for hosted dual-engine release; broader model authoring remains
+separate work.
 
 Owners: simulation integration and release owners.
 
 ## Outcome and current boundary
 
-Qualify VACASK as a second, Profile-selected engine beside ngspice, preserving
-the shared GUI/MCP source and result workflow. Current source preparation
-dispatches by engine; Preview registers `vacask-sky130-candidate` in
-`wrangler.preview.jsonc`. Production's `wrangler.jsonc` has no VACASK endpoint.
-Neither code registration nor a local successful run proves Production readiness.
+VACASK is a second, Profile-selected engine beside ngspice, preserving the
+shared GUI/MCP source and result workflow. Source preparation dispatches by
+engine; both hosted channel configurations register
+`vacask-sky130-candidate`. Production release verification must discover and
+execute both engines through the public MCP and managed queue; configuration
+or a local successful run alone is not acceptance.
 
 The current contracts belong to [simulation](../specs/simulation.md),
 [execution](../specs/simulation-execution.md) and

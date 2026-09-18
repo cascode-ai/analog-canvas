@@ -46,7 +46,7 @@ explicit and must not block unrelated editing or saving.
 
 ## Recurring candidate acceptance
 
-The Preview workflow already executes the dual-engine (ngspice/VACASK) smoke
+The hosted release workflows execute the dual-engine (ngspice/VACASK) smoke
 and source GUI, public Agent/MCP and cross-Project journeys. Their maintained
 scripts and retained receipts own the candidate evidence.
 
@@ -69,7 +69,7 @@ tolerances. Broader lifecycle and security checks remain in the
   archives and bounded server retention.
 - Monte Carlo, optimization, automatic circuit modification, a simulator beyond
   ngspice and VACASK, uploaded Verilog-A compilation and general model
-  marketplaces require their own product decisions and qualification. VACASK's remaining qualification as a second Preview engine is
+  marketplaces require their own product decisions and qualification. VACASK's hosted Profile qualification is
   tracked in [VACASK migration](vacask-migration.md).
 - Arbitrary lossless two-way raw-SPICE/Canvas topology synchronization is not a
   promised capability.

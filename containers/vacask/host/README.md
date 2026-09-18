@@ -45,12 +45,13 @@ on the host, and starts only Compose project `icm-vacask-preview` under
 `~/analog-canvas-vacask-preview/releases/<commit>`.
 
 That opt-in action owns tunnel `analog-canvas-vacask-preview`, DNS
-`vacask-preview-sim.tokenzhang.com`, and Preview secret `VACASK_UPSTREAM_TOKEN`.
-It never edits the shared ngspice stack or Production. Gateway and tunnel tokens
-stay outside the executor and the image. A mismatching existing DNS record is
-refused rather than overwritten. `/health` must match the supplied pinned
-fingerprint, and anonymous `/run` must return 401. The action does **not** deploy
-Worker/editor code or certify an Agent journey; those are subsequent acceptance.
+`vacask-preview-sim.tokenzhang.com`, and the `VACASK_UPSTREAM_TOKEN` secrets on
+both hosted channel Workers. It never edits the shared ngspice stack. Gateway
+and tunnel tokens stay outside the executor and the image. A mismatching
+existing DNS record is refused rather than overwritten. `/health` must match
+the supplied pinned fingerprint, and anonymous `/run` must return 401. The
+action does **not** deploy Worker/editor code or certify an Agent journey; those
+are subsequent acceptance.
 Failed candidates remain isolated for diagnosis; use only this candidate's
 Compose project for recovery, never a shared-host prune or reset.
 The gateway source is mounted read-only from the checkout, so record the code
