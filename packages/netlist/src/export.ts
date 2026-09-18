@@ -142,8 +142,12 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
  * refuses, a Block supply that is now declared. Bump this whenever a change
  * can turn a stored answer stale, and everything that keeps marks can find
  * the ones it has to ask again.
+ *
+ * 3 answers with logic Blocks carrying a subcircuit interface, persisted
+ * bindings read for every circuit, a Cell stating its ground as its own VSS
+ * pin, and a stranded MOS body read as residue.
  */
-export const NETLIST_MARK_RULE_VERSION = 2;
+export const NETLIST_MARK_RULE_VERSION = 3;
 
 export function designExtractsNetlist(
   project: CircuitProject,
