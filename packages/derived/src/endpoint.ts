@@ -9,6 +9,7 @@ import type {
 } from "@icm/model";
 import { resolveSignalFlowPinAt, type SymbolResolver } from "@icm/symbols";
 import { mosBulkShouldBeVisible } from "./mos-bulk.js";
+import type { ResolvedDocumentLogicalNets } from "./logical-net.js";
 
 export interface EndpointRoutingGeometry {
   /** Exact transformed artwork contact used by render and pointer hit. */
@@ -43,6 +44,14 @@ export interface EndpointObjectLookup {
     string,
     SchematicDocument["junctions"][number]
   >;
+  /**
+   * Optional, and only read for a variant-hidden MOS bulk pin. That path asks
+   * the bulk policy, which resolves the whole Document's Logical Nets when it
+   * is not handed them — once per endpoint, which is what made a commit spend
+   * seconds deciding whether a body lead is visible. A builder that resolves
+   * them once per index sets this.
+   */
+  readonly logicalNets?: ResolvedDocumentLogicalNets;
 }
 
 function samePoint(left: DerivedPoint, right: DerivedPoint): boolean {
@@ -241,7 +250,7 @@ export function isVisibleEndpoint(
     return Boolean(
       endpoint.pinName === "B" &&
       resolved.variant.auxiliaryPins?.some((pin) => pin.name === "B") &&
-      mosBulkShouldBeVisible(document, instance),
+      mosBulkShouldBeVisible(document, instance, lookup?.logicalNets),
     );
   }
   const pin = resolved.definition.pins.find(

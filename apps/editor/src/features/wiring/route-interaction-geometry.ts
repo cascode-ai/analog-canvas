@@ -3,6 +3,7 @@ import {
   displayableInstanceValue,
   endpointKey,
   measureRichTextDocument,
+  resolveDocumentLogicalNets,
   richTextMetrics,
   resolveAnnotationPresentation,
   resolveAnnotationText,
@@ -165,6 +166,9 @@ export function buildEndpointObjectIndex(
     ),
     netIdByTerminalKey,
     netIdByJunctionId,
+    // Resolved once for the index rather than once per endpoint that asks the
+    // MOS bulk policy whether a hidden body lead is visible.
+    logicalNets: resolveDocumentLogicalNets(document),
   };
 }
 

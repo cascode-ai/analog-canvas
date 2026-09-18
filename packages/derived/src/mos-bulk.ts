@@ -7,7 +7,10 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import { routeEnd } from "@icm/model";
-import { resolveDocumentLogicalNets } from "./logical-net.js";
+import {
+  resolveDocumentLogicalNets,
+  type ResolvedDocumentLogicalNets,
+} from "./logical-net.js";
 import { supplyMarkerForSymbol, type SupplyDomain } from "./supply-marker.js";
 
 export type MosBulkKind = "nmos" | "pmos";
@@ -156,9 +159,14 @@ export function isMosBulkRoute(
 export function drawnSupplyNet(
   document: SchematicDocument,
   domain: SupplyDomain,
+  logicalNets?: ResolvedDocumentLogicalNets,
 ): Net | undefined {
   const netIds = new Set<string>();
-  for (const group of resolveDocumentLogicalNets(document).groups) {
+  // A caller that already holds this Document's Logical Nets passes them: the
+  // fallback below runs once per MOS instance without one, and resolved the
+  // whole Document every time.
+  for (const group of (logicalNets ?? resolveDocumentLogicalNets(document))
+    .groups) {
     if (group.powerDomain !== domain) continue;
     // Any Base Net of the group is the same node; take a stable one so the
     // answer does not depend on document order.
@@ -198,8 +206,13 @@ export function drawnSupplyNet(
 export function supplyDefaultMosBulkNet(
   document: SchematicDocument,
   kind: MosBulkKind,
+  logicalNets?: ResolvedDocumentLogicalNets,
 ): Net | undefined {
-  return drawnSupplyNet(document, kind === "nmos" ? "ground" : "vdd");
+  return drawnSupplyNet(
+    document,
+    kind === "nmos" ? "ground" : "vdd",
+    logicalNets,
+  );
 }
 
 /**
@@ -213,6 +226,7 @@ export function supplyDefaultMosBulkNet(
 export function resolveMosBulkConnection(
   document: SchematicDocument,
   instanceOrId: Instance | string,
+  logicalNets?: ResolvedDocumentLogicalNets,
 ): MosBulkResolution | undefined {
   const instance =
     typeof instanceOrId === "string"
@@ -289,7 +303,7 @@ export function resolveMosBulkConnection(
     };
   }
 
-  const supply = supplyDefaultMosBulkNet(document, kind);
+  const supply = supplyDefaultMosBulkNet(document, kind, logicalNets);
   if (supply) {
     return {
       status: "supply-default",
@@ -421,8 +435,13 @@ export function resolveDetachedMosBulkDefault(
 export function mosBulkShouldBeVisible(
   document: SchematicDocument,
   instanceOrId: Instance | string,
+  logicalNets?: ResolvedDocumentLogicalNets,
 ): boolean {
-  const resolution = resolveMosBulkConnection(document, instanceOrId);
+  const resolution = resolveMosBulkConnection(
+    document,
+    instanceOrId,
+    logicalNets,
+  );
   if (resolution?.status !== "explicit") return false;
   // Imported fourth-node membership is electrical evidence, not a request to
   // draw a body-bias lead. The configured Cell default stays implicit unless

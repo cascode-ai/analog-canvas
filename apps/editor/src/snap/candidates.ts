@@ -1,4 +1,8 @@
-import { resolveDraftingObjectGeometry } from "@icm/derived";
+import {
+  resolveDocumentRoutingGeometry,
+  resolveDraftingObjectGeometry,
+} from "@icm/derived";
+import type { ResolvedDocumentRoutingGeometry } from "@icm/derived";
 import type { WireSource } from "@icm/edit-engine";
 import type { Point, Rect, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
@@ -71,8 +75,16 @@ function draftingGeometryPoints(
   document: SchematicDocument,
   resolver: SymbolResolver,
   object: NonNullable<SchematicDocument["drafting"]>["objects"][number],
+  routingGeometry?: ResolvedDocumentRoutingGeometry,
 ): Point[] {
-  const geometry = resolveDraftingObjectGeometry(document, resolver, object);
+  // Resolving this per object rebuilt the whole Document's route geometry once
+  // per drafting object; a caller that already holds it passes it.
+  const geometry = resolveDraftingObjectGeometry(
+    document,
+    resolver,
+    object,
+    routingGeometry,
+  );
   switch (geometry.kind) {
     case "text":
     case "floating-symbol":
@@ -103,15 +115,19 @@ export function buildDraftingAnchors(
   resolver: SymbolResolver,
   objectIds?: ReadonlySet<string>,
 ): SnapAnchor[] {
+  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
   return (document.drafting?.objects ?? []).flatMap((object) => {
     if (objectIds && !objectIds.has(object.id)) return [];
-    return draftingGeometryPoints(document, resolver, object).map(
-      (point, index): SnapAnchor => ({
-        id: `drafting:${object.id}:${index}`,
-        point,
-        kind: "drafting",
-      }),
-    );
+    return draftingGeometryPoints(
+      document,
+      resolver,
+      object,
+      routingGeometry,
+    ).map((point, index): SnapAnchor => ({
+      id: `drafting:${object.id}:${index}`,
+      point,
+      kind: "drafting",
+    }));
   });
 }
 
@@ -126,9 +142,15 @@ export function buildRectangleEdgeSnapAnchors(
     { id: "two-thirds", value: 2 / 3 },
     { id: "three-quarters", value: 3 / 4 },
   ] as const;
+  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
   return (document.drafting?.objects ?? []).flatMap((object) => {
     if (object.kind !== "rectangle") return [];
-    const geometry = resolveDraftingObjectGeometry(document, resolver, object);
+    const geometry = resolveDraftingObjectGeometry(
+      document,
+      resolver,
+      object,
+      routingGeometry,
+    );
     if (geometry.kind !== "rectangle") return [];
     return geometry.corners.flatMap((corner, index): SnapAnchor[] => {
       const next = geometry.corners[(index + 1) % geometry.corners.length]!;
@@ -211,9 +233,15 @@ export function buildDraftingProjectionSnapTargets(
       kind: "drafting",
     });
   };
+  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
   for (const object of document.drafting?.objects ?? []) {
     if (excludedDraftingIds.has(object.id)) continue;
-    const geometry = resolveDraftingObjectGeometry(document, resolver, object);
+    const geometry = resolveDraftingObjectGeometry(
+      document,
+      resolver,
+      object,
+      routingGeometry,
+    );
     if (geometry.kind === "arrow" || geometry.kind === "construction-line") {
       for (let index = 0; index < geometry.vertices.length - 1; index += 1) {
         segment(
@@ -332,6 +360,9 @@ export function buildSceneSnapTargetIndex(
   resolver: SymbolResolver,
   visibleEndpoints: readonly WireSource[],
 ): SceneSnapTargetIndex {
+  // One derivation for every drafting object below. Without it each object
+  // re-resolved the whole Document's route geometry, which dominated a commit.
+  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
   const targets: IndexedSceneSnapTarget[] = [];
   for (const instance of document.instances) {
     for (const anchor of buildInstanceGeometryAnchors(instance, resolver)) {
@@ -351,6 +382,7 @@ export function buildSceneSnapTargetIndex(
       document,
       resolver,
       object,
+      routingGeometry,
     ).entries()) {
       const anchor: SnapAnchor = {
         id: `drafting:${object.id}:${index}`,

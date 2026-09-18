@@ -12,6 +12,7 @@ import {
   resolveMosBulkConnection,
   resolveDocumentLogicalNets,
   type ProjectedNetName,
+  type ResolvedDocumentLogicalNets,
   type ResolvedLogicalNet,
 } from "@icm/derived";
 import type {
@@ -202,6 +203,12 @@ interface CellNetContext {
   netByTerminal: Map<string, ResolvedLogicalNet>;
   noConnectNameByTerminal: Map<string, string>;
   nets: DesignNetlistCell["nets"];
+  /**
+   * This Cell's resolved Logical Nets. A body with no explicit wiring asks the
+   * bulk policy per pin, and that policy resolves the whole Document when it
+   * is not handed this — once per terminal of every MOS.
+   */
+  logicalNets: ResolvedDocumentLogicalNets;
 }
 
 export interface DesignNetlistAnalysisOptions {
@@ -698,6 +705,7 @@ function buildNetContext(
     ),
     netByTerminal,
     noConnectNameByTerminal,
+    logicalNets,
     nets: [
       ...logicalNets.groups.flatMap((logicalNet) => {
         const name = nameByNetId.get(logicalNet.baseNetIds[0]!);
@@ -778,7 +786,7 @@ function terminalNetName(
   // wired body it answers the same Net membership does.
   const bodyNet =
     pinName === "B" && mosBulkKind(instance)
-      ? resolveMosBulkConnection(document, instance)?.net
+      ? resolveMosBulkConnection(document, instance, context.logicalNets)?.net
       : undefined;
   const net =
     bodyNet ?? context.netByTerminal.get(`${instance.id}\u0000${pinName}`);

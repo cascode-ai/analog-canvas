@@ -111,9 +111,17 @@ export function buildDocumentDerivedContext(
     document.annotations,
     (item) => item.netId,
   );
+  // Resolved here rather than at the context literal below: the lookup is
+  // handed to endpoint resolution, whose hidden-MOS-bulk-pin branch asks the
+  // bulk policy, and the contact evidence derived a few lines down runs that
+  // resolution for every endpoint. Carrying the resolution means that branch
+  // reads the one pass this function already made instead of resolving the
+  // whole Document per endpoint.
+  const logicalNetResolution = resolveDocumentLogicalNets(document);
   const endpointLookup: EndpointObjectLookup = {
     instancesById,
     junctionsById,
+    logicalNets: logicalNetResolution,
   };
   const endpoints = new Map(
     [
@@ -198,7 +206,7 @@ export function buildDocumentDerivedContext(
     contactEvidence,
     contactsByNetId: groupedBy(contactEvidence.contacts, (item) => item.netId),
     netLabelBindingsByNetId,
-    logicalNetResolution: resolveDocumentLogicalNets(document),
+    logicalNetResolution,
     spatialIndex: buildDocumentSpatialIndex(document, routingGeometry),
   };
   contextCache.set(document, {
