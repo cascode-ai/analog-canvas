@@ -321,9 +321,3 @@ export const CircuitProjectSchema = z
 export const CircuitProjectJsonSchema = z.toJSONSchema(CircuitProjectSchema, {
   target: "draft-2020-12",
 });
-export const SchematicDocumentJsonSchema = z.toJSONSchema(
-  SchematicDocumentSchema,
-  {
-    target: "draft-2020-12",
-  },
-);

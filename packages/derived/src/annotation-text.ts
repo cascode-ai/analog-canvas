@@ -82,16 +82,3 @@ export function resolveAnnotationText(
     }
   }
 }
-
-/** Route operations use this instead of a copied annotation netId. */
-export function annotationBoundNetId(
-  annotation: Annotation,
-): string | undefined {
-  return annotation.binding?.kind === "net-name"
-    ? annotation.binding.netId
-    : annotation.netId;
-}
-
-export function annotationAllowsMultiline(annotation: Annotation): boolean {
-  return annotation.binding === undefined;
-}
