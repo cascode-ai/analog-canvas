@@ -75,8 +75,13 @@ function analogBlockProject(
 
 describe("built-in Analog Block subcircuits", () => {
   it.each([undefined, createNetlistExportProfile("abstract")])(
-    "blocks absent block supplies without synthesizing interfaces (profile: %s)",
+    "declares an undrawn block supply as a global without synthesizing interfaces (profile: %s)",
     (profile) => {
+      // A Block used at the abstract level with nothing above it yet: its
+      // library interface states that it needs these nodes, so the netlist
+      // declares them as globals of the declared name and says so. It still
+      // adds no Cell port, claims no Net in the Document, and leaves the
+      // drawing exactly as it was.
       const project = analogBlockProject(
         ["opamp-differential"],
         differentialNets,
@@ -94,12 +99,19 @@ describe("built-in Analog Block subcircuits", () => {
         project,
         profile ? { profile } : {},
       );
-      expect(result.status).toBe("blocked");
+      expect(result.status).toBe("ready");
+      if (result.status !== "ready") return;
       expect(
-        result.diagnostics.filter(
-          (diagnostic) => diagnostic.code === "MISSING_BLOCK_SUPPLY",
-        ),
-      ).toHaveLength(2);
+        result.diagnostics
+          .filter((diagnostic) => diagnostic.code === "DECLARED_BLOCK_SUPPLY")
+          .map((diagnostic) => diagnostic.severity),
+      ).toEqual(["warning", "warning"]);
+      expect(result.file.text).toContain(".global VDD VSS");
+      expect(result.file.text).toContain(
+        "X1 VDD VSS plus_node minus_node positive_out negative_out opamp_differential",
+      );
+      // No Cell interface was invented for it.
+      expect(result.file.text).toContain(".subckt dut\n");
       expect(project).toEqual(before);
     },
   );
@@ -149,9 +161,9 @@ describe("built-in Analog Block subcircuits", () => {
     expect(project).toEqual(before);
   });
 
-  it("still refuses a Block whose supply was never drawn", () => {
-    // Ground alone leaves the positive supply unanswered, and inventing one
-    // would connect a Block to a node nobody authored.
+  it("takes the drawn ground and declares only what is missing", () => {
+    // Ground is on the page, so VSS follows it; the positive supply is not,
+    // so only that one is declared as a global.
     const project = analogBlockProject(
       ["opamp-differential"],
       differentialNets,
@@ -175,12 +187,50 @@ describe("built-in Analog Block subcircuits", () => {
     });
 
     const result = createDesignNetlistExport(project);
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(
+      result.diagnostics
+        .filter((diagnostic) => diagnostic.code === "DECLARED_BLOCK_SUPPLY")
+        .map((diagnostic) => diagnostic.message),
+    ).toEqual([
+      "Analog Block X1 has no VDD Net in this Cell; its declared supply exports as global node VDD",
+    ]);
+    expect(result.file.text).toContain(
+      "X1 VDD 0 plus_node minus_node positive_out negative_out opamp_differential",
+    );
+  });
+
+  it("refuses when that supply token is already some other node", () => {
+    // An imported Net can carry the spelling VDD without being an authored
+    // supply. Declaring a global of the same name would put two different
+    // nodes under one token, so the Block's supply stays missing instead.
+    const project = analogBlockProject(
+      ["opamp-differential"],
+      differentialNets,
+    );
+    const document = project.documents[0]!;
+    document.netlist!.terminals = [];
+    document.instances = document.instances.filter(
+      (instance) => !["VDD", "VSS"].includes(instance.id),
+    );
+    document.nets = document.nets.filter(
+      (net) => !["VDD", "VSS"].includes(net.id),
+    );
+    document.connectivityEvidence = document.connectivityEvidence.map(
+      (evidence) =>
+        evidence.kind === "net-name-hint" && evidence.netId === "block-1-IN+"
+          ? { ...evidence, sourceName: "VDD" }
+          : evidence,
+    );
+
+    const result = createDesignNetlistExport(project);
     expect(result.status).toBe("blocked");
     const missing = result.diagnostics.filter(
       (diagnostic) => diagnostic.code === "MISSING_BLOCK_SUPPLY",
     );
     expect(missing).toHaveLength(1);
-    expect(missing[0]!.message).toContain("requires a VDD Net");
+    expect(missing[0]!.message).toContain("already spells VDD for a local Net");
   });
 
   it.each([

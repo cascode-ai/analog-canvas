@@ -303,10 +303,16 @@ supply, the same reading a MOS body uses for its fourth node
 ([connectivity](connectivity-and-routing.md)). The declared name states the
 port's role, not a Net spelling the author has to reproduce: nobody names a
 Net `VSS` when they have drawn a ground symbol. A Cell with no Net in that
-domain, or with more than one, produces `MISSING_BLOCK_SUPPLY` — never a
-synthetic Net or port, because connecting a Block to a node nobody authored
-would be inventing connectivity. For different supply domains, use an explicit
-external definition with the intended terminal mapping.
+domain, or with more than one, falls back to the Block's own declaration: the
+netlist declares a global node of the declared name and reports
+`DECLARED_BLOCK_SUPPLY` (warning) naming the Block and the node. That is the
+Block's library interface stating what it needs, so it adds no Cell port,
+claims no Net in the Document, and changes no membership — the drawing is
+untouched and the report says what the netlist declared. When that token is
+already some other node in the Cell, declaring it would put two nodes under
+one name, so the supply stays missing and `MISSING_BLOCK_SUPPLY` says which
+Net holds the spelling. For different supply domains, use an explicit external
+definition with the intended terminal mapping.
 
 Explicit physical R/C targets use reviewed W/L parameters, never infer geometry
 from an ideal value, and warn when replacing that value. A resistor's existing

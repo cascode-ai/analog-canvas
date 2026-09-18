@@ -682,6 +682,52 @@ function buildNetContext(
   };
 }
 
+/**
+ * The node a built-in Block's declared supply exports to when the Cell drew
+ * no supply of that domain at all — a Block used at the abstract level with
+ * nothing above it yet.
+ *
+ * The Block's library interface states that it needs this node; declaring it
+ * as a global of the same name says exactly that and nothing more. It adds no
+ * Cell port, claims no Net in the Document, and changes no membership: the
+ * drawing is unchanged and a warning records what the netlist declared. When
+ * the Cell already spells that name for a local Net, the declaration would be
+ * two different nodes under one token, so the supply stays missing instead.
+ */
+function declaredBlockSupplyName(
+  document: SchematicDocument,
+  instance: Instance,
+  supply: "VDD" | "VSS",
+  context: CellNetContext,
+  options: ResolvedDesignNetlistAnalysisOptions,
+  diagnostics: NetlistDiagnostic[],
+): string | undefined {
+  const encoded = encodeCandidate(supply, "global", options);
+  if (!encoded.ok) return undefined;
+  const taken = context.nets.find(
+    (net) =>
+      encodedNetNameCollisionKey(net.name, options.format) ===
+      encoded.collisionKey,
+  );
+  if (taken && taken.scope !== "global") return undefined;
+  if (!taken) {
+    context.nets.push({
+      id: deriveStableId("netlist", "block-supply", document.id, supply),
+      name: encoded.token,
+      scope: "global",
+    });
+  }
+  diagnostic(
+    diagnostics,
+    document.id,
+    "DECLARED_BLOCK_SUPPLY",
+    `Analog Block ${instance.reference ?? instance.id} has no ${supply} Net in this Cell; its declared supply exports as global node ${encoded.token}`,
+    [instance.id],
+    "warning",
+  );
+  return encoded.token;
+}
+
 function terminalNetName(
   document: SchematicDocument,
   instance: Instance,
@@ -1020,6 +1066,7 @@ function extractBuiltInSubcircuitInstance(
   definition: BuiltInSubcircuitDescriptor,
   reference: string,
   context: CellNetContext,
+  options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
 ): DesignNetlistInstance | null {
   const netlist = instance.netlist;
@@ -1075,11 +1122,22 @@ function extractBuiltInSubcircuitInstance(
       );
       const drawnName = drawn ? context.nameByNetId.get(drawn.id) : undefined;
       if (drawnName) return [{ pinName: port.name, netName: drawnName }];
+      // Nothing of that domain is drawn: declare the node the Block's own
+      // interface asks for, as a global, and say so.
+      const declared = declaredBlockSupplyName(
+        document,
+        instance,
+        port.supply,
+        context,
+        options,
+        diagnostics,
+      );
+      if (declared) return [{ pinName: port.name, netName: declared }];
       diagnostic(
         diagnostics,
         document.id,
         "MISSING_BLOCK_SUPPLY",
-        `Analog Block ${reference} requires a ${port.supply} Net; draw the ${port.supply === "VDD" ? "positive supply" : "ground"}, name a Net ${port.supply}, or use an external definition with the intended interface`,
+        `Analog Block ${reference} requires a ${port.supply} Net; the Cell already spells ${port.supply} for a local Net, so draw the ${port.supply === "VDD" ? "positive supply" : "ground"} or rename that Net`,
         [instance.id],
       );
       return [];
@@ -1474,6 +1532,7 @@ function extractCell(
           builtInSubcircuit,
           instance.reference ?? syntheticReferences.get(instance.id)!,
           context,
+          options,
           diagnostics,
         )
       : binding?.kind === "subcircuit"
