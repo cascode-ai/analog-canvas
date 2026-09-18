@@ -1,4 +1,5 @@
 import type { SchematicDocument } from "@icm/model";
+import type { DocumentContactEvidence } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { SchematicEdit } from "./edit-schema.js";
@@ -65,8 +66,29 @@ export interface RejectedTransaction {
 
 export type EditTransactionResult = AppliedTransaction | RejectedTransaction;
 
+/**
+ * A Document's already-derived contact evidence, offered by a caller that holds
+ * it for the revision being edited.
+ *
+ * The engine uses it only when the Document is the very object it is about to
+ * transform, compared by identity. `DocumentContactEvidence` carries no
+ * document id or revision of its own, so identity is the only guard available
+ * here; a hint for any other Document is ignored, and the engine derives what
+ * it needs rather than answering from the wrong revision.
+ */
+export interface ContactEvidenceHint {
+  document: SchematicDocument;
+  evidence: DocumentContactEvidence;
+}
+
 export interface EditExecutionContext {
   symbolResolver?: SymbolResolver;
+  /**
+   * Optional. The editor already derives this for the committed Document when
+   * it builds its connectivity index, and contact reconciliation would
+   * otherwise derive it a second time for the same revision.
+   */
+  beforeContactEvidence?: ContactEvidenceHint;
 }
 
 export function rejectTransaction(

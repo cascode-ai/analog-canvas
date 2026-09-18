@@ -19,6 +19,7 @@ import {
   resolveElectricalContactTargets,
   resolveEndpointConnection,
   type RoutedComponent,
+  type DocumentContactEvidence,
   deriveNetConnectivityContext,
 } from "@icm/derived";
 import {
@@ -81,6 +82,7 @@ export function createSelectionMoveController({
   sceneSnapTargetIndex,
   transactConnectivity,
   setStatus,
+  contactEvidence,
 }: {
   document: SchematicDocument;
   resolver: SymbolResolver;
@@ -95,6 +97,13 @@ export function createSelectionMoveController({
   ) => TransactionResult | null;
   setStatus: (status: string) => void;
   nextRoutingSuffix: () => number;
+  /**
+   * This Document's contact evidence, as the editor's connectivity index
+   * already derived it. The per-frame routing plan gate runs a transaction
+   * over that same Document, and contact reconciliation would otherwise
+   * re-derive the whole Document's evidence on every pointer frame.
+   */
+  contactEvidence?: DocumentContactEvidence;
 }) {
   const visualMoveEdits = (
     movePlan: SelectionMovePlan,
@@ -609,6 +618,17 @@ export function createSelectionMoveController({
     else {
       const gate = gateRoutingOperationPlan(sourceDocument, plan, {
         symbolResolver: resolver,
+        // Only for the Document the hint describes. The engine checks the same
+        // identity again, so a stale hint can never answer for another
+        // revision.
+        ...(contactEvidence && sourceDocument === document
+          ? {
+              beforeContactEvidence: {
+                document: sourceDocument,
+                evidence: contactEvidence,
+              },
+            }
+          : {}),
       });
       if (!gate.ok) throw new Error(gate.message);
       finalDocument = gate.evaluated.finalDocument;

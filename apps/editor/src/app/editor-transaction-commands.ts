@@ -11,6 +11,7 @@ import type {
   ExpectedElectricalEffect,
   RoutingOperationIntent,
 } from "@icm/edit-engine";
+import type { DocumentContactEvidence } from "@icm/derived";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -29,6 +30,15 @@ export interface EditorTransactionCommandDependencies {
   project: CircuitProject;
   document: SchematicDocument;
   resolver?: SymbolResolver;
+  /**
+   * This Document's contact evidence, as the editor's connectivity index
+   * already derived it. The routing plan gate runs a transaction over the same
+   * Document, and contact reconciliation would otherwise derive this again for
+   * the same revision. Omitted evidence costs the old derivation, never a
+   * wrong answer: the engine only uses a hint whose Document matches by
+   * identity.
+   */
+  contactEvidence?: DocumentContactEvidence;
   dispatchProjectTransaction: (
     request: ProjectTransaction,
     activeDocumentId?: string,
@@ -73,6 +83,7 @@ export function createEditorTransactionCommands({
   project,
   document,
   resolver,
+  contactEvidence,
   dispatchProjectTransaction,
   transactDocument,
   getCurrentInteractionKind,
@@ -187,6 +198,9 @@ export function createEditorTransactionCommands({
     });
     const gate = gateRoutingOperationPlan(document, proposal, {
       ...(resolver ? { symbolResolver: resolver } : {}),
+      ...(contactEvidence
+        ? { beforeContactEvidence: { document, evidence: contactEvidence } }
+        : {}),
     });
     if (!gate.ok) {
       // Say which rule refused, the way applyResult does for direct edits:

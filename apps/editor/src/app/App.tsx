@@ -1165,11 +1165,19 @@ export function App({
           cornerOrder: "auto" as const,
         };
   };
+  // Already derived for this revision by the connectivity index above; the
+  // routing plan gate would otherwise derive it again over the same Document.
+  const documentContactEvidence = projectConnectivityIndex.documents.get(
+    document.id,
+  )?.contactEvidence;
   const { commitStructure, transact, transactConnectivity } =
     createEditorTransactionCommands({
       project,
       document,
       resolver,
+      ...(documentContactEvidence
+        ? { contactEvidence: documentContactEvidence }
+        : {}),
       dispatchProjectTransaction,
       transactDocument,
       getCurrentInteractionKind: () => getCurrentInteractionState().kind,
@@ -2428,6 +2436,9 @@ export function App({
     transactConnectivity,
     setStatus,
     nextRoutingSuffix,
+    ...(documentContactEvidence
+      ? { contactEvidence: documentContactEvidence }
+      : {}),
   });
   const {
     rotate: rotateSelected,

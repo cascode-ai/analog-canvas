@@ -18,6 +18,7 @@ import {
   endpointOwnerNetId,
   netEndpointGroups,
 } from "./transaction-routing.js";
+import type { ContactEvidenceHint } from "./transaction-result.js";
 
 export interface DirectContactReconciliation {
   geometryChanged: boolean;
@@ -128,6 +129,7 @@ export function reconcileTransformDirectContacts(
   resolver: SymbolResolver,
   transactionId: string,
   changedObjectIds: Set<string>,
+  beforeContactEvidence?: ContactEvidenceHint,
 ): DirectContactReconciliation {
   // The reconciliation below asks `netEndpointGroups` — which derives the whole
   // Document's contact evidence to answer one Net's question — once per lost
@@ -136,6 +138,11 @@ export function reconcileTransformDirectContacts(
   // grows with how many contacts the edit breaks.
   const draftContactEvidence = deriveDocumentContactEvidence(draft, resolver);
   const delta = deriveDirectContactDelta(before, draft, resolver, {
+    // Only an identity match is safe: the payload carries no revision of its
+    // own, and evidence from another Document would answer from stale geometry.
+    ...(beforeContactEvidence?.document === before
+      ? { before: beforeContactEvidence.evidence }
+      : {}),
     after: draftContactEvidence,
   });
   let geometryChanged = false;

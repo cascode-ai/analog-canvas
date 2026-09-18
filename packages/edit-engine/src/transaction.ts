@@ -686,6 +686,7 @@ export function executeTransaction(
         resolver,
         transaction.transactionId,
         changedObjectIds,
+        context.beforeContactEvidence,
       );
       geometryChanged ||= directContact.geometryChanged;
       for (const routeId of directContact.changedRouteIds) {
