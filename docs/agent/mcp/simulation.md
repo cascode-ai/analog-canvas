@@ -6,6 +6,10 @@ Connecting from the editor includes `simulation.run`; there is no per-run
 approval or mandatory helper-reading gate. GUI and MCP use the same source,
 File and Run resources.
 
+Authoring helpers are optional. Agents retain direct native source editing and
+execution within existing authorization; helper use does not restrict parameters,
+analyses or code. Basic OP/DC/AC/TRAN code needs no dedicated helper call.
+
 1. `simulation` / `capabilities` discovers the Profile, qualified analyses,
    parser support, declared rawfile collection and resource limits without
    starting an execution. Read the actual engine and language, not a remembered
@@ -27,13 +31,16 @@ File and Run resources.
 4. `prepare` with
    `source:{kind:"project-folder",folderId,expectedStructureRevision}` freezes the
    input and returns `prepared.id`, `digest`, vectors and artifacts.
-   Inspect the returned prepared input artifacts, entry and source maps;
-   do not invent an artifact name or file extension for another engine.
+   On a successful preparation, proceed to start. Read input artifacts and source
+   maps when investigating a discrepancy, not as a mandatory second check.
+   Use returned references rather than inventing artifact names or extensions.
 5. `start` uses `preparedId` and `digest`, returning `run.id` immediately.
    Reuse the same outer request ID and payload for a transport retry.
    `read` / `cancel` use `runId`; each new poll has a new request ID.
    `inputStatus` reports later edits without rewriting that run's evidence.
-6. `export` lists artifact references. `simulation_files` with
+6. Use complete `result.data` directly. Run receipts already carry artifact
+   references; `export` is only needed to obtain a missing or refreshed inventory.
+   `simulation_files` with
    `request:{action:"artifact",artifactId}` reads paged content; `outputPath`
    saves complete bytes after length/SHA-256 verification. Deck, rawfile,
    JSON, log and CSV share this File Resource. Large receipts set
@@ -41,7 +48,28 @@ File and Run resources.
    For result fields, measurement verdicts and canonical output files, read
    [Spec rules](../simulation-specs.md). Browser visibility, archival limits
    and durable delivery follow [result handoff](../simulation-result-handoff.md).
-   A preview receipt is not the complete result.
+   `resultPreview` means the receipt is shortened, not that the underlying data
+   was truncated. Read a complete artifact when needed; do not download a second
+   copy of data already returned in full. Poll only while a run is active, with
+   bounded backoff. After interruption, resume reading the same run.
+
+### Device facts and numerical results
+
+Use `prepared.deviceOperatingPoints` to match `documentId`, `instanceId` and
+`occurrence`. For each acquisition expression in `values`, join its
+`acquisitionId` to `prepared.vectors[].probeId` to obtain the exact vector.
+The value record supplies the parameter and unit. Multiple primitive records
+are separate candidates, not quantities to sum. This is the known mapping,
+not a complete inventory of every model parameter. Missing entries do not prove
+a parameter is unsupported: inspect model/engine facts before authoring it.
+Do not guess an internal path from a display reference.
+
+Execution completion alone does not promise waveform capture. For ngspice,
+an informational diagnostic identifies a completed run without requested rawfile
+capture; log-only and scalar-measurement runs remain valid. Requested but missing,
+unreadable or truncated rawfiles are explained by existing result diagnostics.
+Use raw/result JSON/analysis CSV for arrays, rather than parsing printed log tables.
+Keep full vector names, original axes, complex values and unknown units intact.
 
 ### File ownership and editing
 

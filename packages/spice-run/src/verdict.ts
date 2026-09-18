@@ -237,6 +237,21 @@ export function evaluateSimulationRun(
     timedOut: observation.timedOut,
     timeoutMs: options.timeoutMs,
   });
+  if (
+    expectations.rawfile === "not-required" &&
+    data === undefined &&
+    (outcome.status === "completed" ||
+      outcome.status === "completed-with-dropped-input")
+  ) {
+    diagnostics.push({
+      severity: "info",
+      text:
+        "No rawfile capture was requested; no structured waveform data is available. " +
+        "Log-only or scalar-measurement runs are valid. For waveform data, save the " +
+        "required vectors before analysis and write an ASCII rawfile afterwards; " +
+        "print only produces log text.",
+    });
+  }
   return {
     outcome,
     diagnostics,

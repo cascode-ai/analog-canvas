@@ -9,11 +9,11 @@ export const agentToolHelp = {
   project_cells:
     "List Cloud Projects, inspect reusable Cell interfaces, or atomically copy a Cell and its dependency closure into the open Project. No live cross-Project link. Requires account access; see analog-canvas://reference/mcp-tools.",
   simulation:
-    "Discover Profiles/native authoring help; prepare, start, read, cancel or export runs and batches. Retain the SAME requestId and payload for an uncertain start retry. Source owns analyses and measurements. Results: outputData.specs for verdicts, result.data for raw numbers. Read analog-canvas://reference/mcp-simulation; retrieve full artifacts when resultPreview is true.",
+    "Prepare, start and read runs; export only when an artifact inventory is needed. Retain the SAME requestId and payload for an uncertain start retry. Native source editing remains available; authoring help is optional. Results: outputData.specs for verdicts, result.data for numbers; completion alone does not promise waveform capture. Use returned artifacts for full data when resultPreview is true. Device/vector mapping: analog-canvas://reference/mcp-simulation.",
   simulation_files:
     "Read/update simulation source or retrieve immutable artifacts. Owner is project-folder or session-workspace; updates require its current revision. Do not overwrite generated files. outputPath saves verified artifacts, not source. Ownership, patches and circuit-field mapping: analog-canvas://reference/mcp-simulation.",
   export_file:
-    "Export the browser Project or Canvas SVG/PNG/PDF to an explicit local path. Canvas exports require documentId. Simulation results use simulation export to list artifacts, then simulation_files artifact with outputPath to save raw/CSV/Spec files after digest verification. simulation-plot is retired and returns SIMULATION_PLOT_RETIRED; plot externally from raw/CSV.",
+    "Export the browser Project or Canvas SVG/PNG/PDF to an explicit local path. Canvas exports require documentId. Simulation results use returned run artifact references (or simulation export when an inventory is needed), then simulation_files artifact with outputPath to save raw/CSV/Spec files after digest verification. simulation-plot is retired and returns SIMULATION_PLOT_RETIRED; plot externally from raw/CSV.",
   import_file:
     "Stage a local Analog Canvas project or structural SPICE bundle, inspect/discard the candidate, or request browser approval. Staging never replaces the open project by itself.",
   get_context:

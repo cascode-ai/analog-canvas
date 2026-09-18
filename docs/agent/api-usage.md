@@ -67,10 +67,12 @@ cached response is gone: reconcile current state, do not replay the mutation.
    `source:{kind:"project-folder",folderId,expectedStructureRevision}` or
    `source:{kind:"workspace",workspaceId,expectedRevision}`.
    Fields are at the HTTP body's root, not inside MCP's `request` wrapper.
-4. Inspect prepared input; `start` with returned `preparedId` and `digest`.
+4. On successful preparation, `start` with returned `preparedId` and `digest`.
+   Inspect prepared input artifacts only when needed to investigate the input.
    Retain the entire request before sending. Retry an uncertain start unchanged.
    Each new `read` poll uses a new request ID and returned `runId`.
-5. `export` lists artifact references. File simulation-input
+5. Use complete returned data or the run's artifact references directly; `export`
+   is an optional inventory lookup. File simulation-input
    `input:{action:"artifact",artifactId,...}` retrieves content using the
    advertised paging fields. Verify byte length and SHA-256 before saving.
    Large receipts may be previews: retrieve complete raw/result/Spec artifacts.
