@@ -733,8 +733,7 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
     "shapes-chip-annotation-ellipsis",
   ]);
 
-  // Annotation drawing tools live in the Library instead of crowding the
-  // toolbar with duplicate entry points.
+  // Library annotations remain available alongside the compact toolbar menu.
   await annotations.getByTestId("shapes-chip-annotation-arrow").click();
   await expect(page.getByTestId("status")).toContainText(
     "Arrow: click the canvas to start",
@@ -2523,4 +2522,76 @@ test("double-clicking a catalog item applies it immediately", async ({
     "Place Resistor on the canvas",
   );
   await page.keyboard.press("Escape");
+});
+
+test("places every Library annotation from the compact Annotation menu", async ({
+  page,
+}) => {
+  await page.goto("/editor?new=1");
+  await awaitEditorReady(page);
+  const libraryEntries = await page
+    .getByTestId("shapes-category-annotations")
+    .getByRole("button")
+    .evaluateAll((buttons) =>
+      buttons.map((button) => button.getAttribute("aria-label")),
+    );
+  await page.getByTestId("library-toggle").click();
+  await page.getByTestId("netlist-panel-toggle").click();
+  const menu = page.getByTestId("annotation-menu");
+  const canvas = page.getByTestId("schematic-canvas");
+  await menu.locator("summary").click();
+  expect(
+    await menu
+      .getByRole("button")
+      .evaluateAll((buttons) =>
+        buttons.map((button) => button.getAttribute("aria-label")),
+      ),
+  ).toEqual(libraryEntries);
+  await page.keyboard.press("Escape");
+  const drawingTools = [
+    ["arrow", "arrow"],
+    ["line", "construction-line"],
+    ["rectangle", "rectangle"],
+    ["circle", "circle"],
+  ];
+  for (const [index, [symbol, tool]] of drawingTools.entries()) {
+    await menu.locator("summary").click();
+    await menu.getByTestId(`annotation-shortcut-annotation-${symbol}`).click();
+    await expect(menu).not.toHaveAttribute("open");
+    await expect(page.getByTestId("active-tool")).toHaveText(tool!);
+    await canvas.click({ position: { x: 160 + index * 150, y: 400 } });
+    await canvas.click({ position: { x: 240 + index * 150, y: 470 } });
+    if (symbol === "arrow" || symbol === "line")
+      await page.keyboard.press("Enter");
+    await page.keyboard.press("Escape");
+    await expect(canvas.locator('[data-testid^="drafting-hit-"]')).toHaveCount(
+      index + 1,
+    );
+  }
+  for (const [index, symbol] of [
+    "polarity-both",
+    "text-plus",
+    "text-minus",
+    "ellipsis",
+  ].entries()) {
+    await menu.locator("summary").click();
+    await menu.getByTestId(`annotation-shortcut-annotation-${symbol}`).click();
+    await expect(menu).not.toHaveAttribute("open");
+    await canvas.hover({ position: { x: 160 + index * 150, y: 560 } });
+    // A minus is a stroked horizontal line with a zero-height SVG geometry
+    // box; Playwright's visibility heuristic excludes it despite the stroke.
+    await expect(page.getByTestId("text-placement-preview")).toBeAttached();
+    await canvas.click({ position: { x: 160 + index * 150, y: 560 } });
+    if (symbol === "polarity-both") {
+      await page.getByRole("button", { name: "Apply text changes" }).click();
+    }
+    await page.keyboard.press("Escape");
+    await expect(canvas.locator('[data-testid^="drafting-hit-"]')).toHaveCount(
+      index + 5,
+    );
+  }
+  await expect(canvas.locator('[data-polarity="both"]')).toBeVisible();
+  await expect(canvas.locator('[data-polarity="positive"]')).toBeVisible();
+  await expect(canvas.locator('[data-polarity="negative"]')).toBeVisible();
+  await expect(canvas.locator('[data-layer="drafting"]')).toContainText("...");
 });

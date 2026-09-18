@@ -355,3 +355,53 @@ test("opening and reopening Netlist preserves incomplete imported device data", 
     "value",
   );
 });
+
+test("opens a shared editable circuit and each replacement with Netlist, without forcing it during edits", async ({
+  page,
+}) => {
+  await page.route("**/api/gallery/shared-netlist", (route) =>
+    route.fulfill({
+      json: {
+        entry: { name: "Another author's circuit" },
+        ownerUserId: "another-author",
+        projectText: JSON.stringify(fixture()),
+      },
+    }),
+  );
+  await page.goto("/g/shared-netlist");
+  await expect(page.getByTestId("status")).toContainText(
+    "Opened gallery circuit:",
+  );
+  const code = page.getByLabel("Netlist code", { exact: true });
+  await expect(code).toBeVisible();
+  await expect(code).toContainText("R1");
+  await expect(code).toHaveAttribute("contenteditable", "true");
+  await page.getByTestId("netlist-panel-toggle").click();
+  await expect(code).toHaveCount(0);
+  await page.getByTestId("hit-R1").dblclick();
+  await expect(
+    page.getByRole("complementary", { name: "Properties", exact: true }),
+  ).toBeVisible();
+  await page.getByTestId("project-file").setInputFiles({
+    name: "replacement.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(fixture())),
+  });
+  await expect(code).toBeVisible();
+  await expect(code).toContainText("R2");
+  await page.getByTestId("project-code-toggle").click();
+  await expect(code).toHaveCount(0);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "reopened.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(fixture())),
+  });
+  await expect(code).toBeVisible();
+  await page.getByTestId("netlist-panel-toggle").click();
+  await page.getByTestId("project-name-input").fill("Changed circuit name");
+  await page.getByTestId("project-name-input").press("Enter");
+  await expect(page.getByTestId("project-name-input")).toHaveValue(
+    "Changed circuit name",
+  );
+  await expect(code).toHaveCount(0);
+});

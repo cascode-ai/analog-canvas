@@ -2,6 +2,8 @@ import { useId, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { EditorTool } from "../../interaction/interaction-state";
 import { ToolIcon } from "./tool-icon";
+import type { InsertLaunch } from "../component-insert/insert-launch";
+import { AnnotationMenu } from "./annotation-menu";
 
 interface ToolbarCommand {
   enabled: boolean;
@@ -14,6 +16,8 @@ export interface DrawingToolbarProps {
   projectPanel: "netlist" | "project-code" | null;
   leftPanelsDisabled?: boolean;
   tool: EditorTool;
+  styleProfileId: string;
+  onStartInsert: (launch: InsertLaunch) => void;
   documentSettingsOpen: boolean;
   undo: ToolbarCommand;
   redo: ToolbarCommand;
@@ -101,6 +105,8 @@ export function DrawingToolbar({
   projectPanel,
   leftPanelsDisabled = false,
   tool,
+  styleProfileId,
+  onStartInsert,
   documentSettingsOpen,
   undo,
   redo,
@@ -122,34 +128,64 @@ export function DrawingToolbar({
       aria-label="Drawing tools"
       data-testid="draw-toolbar"
     >
-      <ImmediatePanelButton
-        testId="examples-toggle"
-        label="Circuit gallery"
-        tooltip={
-          examplesOpen ? "Hide the circuit gallery" : "Show the circuit gallery"
-        }
-        pressed={examplesOpen}
-        controls="examples-panel"
-        disabled={leftPanelsDisabled}
-        onClick={onToggleExamples}
-      >
-        <ToolIcon name="examples" />
-        <span>Gallery</span>
-      </ImmediatePanelButton>
-      <ImmediatePanelButton
-        testId="library-toggle"
-        label="Component library"
-        tooltip={
-          libraryPanelOpen ? "Hide component library" : "Show component library"
-        }
-        pressed={libraryOpen}
-        controls="shapes-library-panel"
-        disabled={leftPanelsDisabled}
-        onClick={onToggleLibrary}
-      >
-        <ToolIcon name="library" />
-        <span>Library</span>
-      </ImmediatePanelButton>
+      <div className="draw-toolbar-panels" role="group" aria-label="Panels">
+        <ImmediatePanelButton
+          testId="examples-toggle"
+          label="Circuit gallery"
+          tooltip={
+            examplesOpen
+              ? "Hide the circuit gallery"
+              : "Show the circuit gallery"
+          }
+          pressed={examplesOpen}
+          controls="examples-panel"
+          disabled={leftPanelsDisabled}
+          onClick={onToggleExamples}
+        >
+          <ToolIcon name="examples" />
+          <span>Gallery</span>
+        </ImmediatePanelButton>
+        <ImmediatePanelButton
+          testId="library-toggle"
+          label="Component library"
+          tooltip={
+            libraryPanelOpen
+              ? "Hide component library"
+              : "Show component library"
+          }
+          pressed={libraryOpen}
+          controls="shapes-library-panel"
+          disabled={leftPanelsDisabled}
+          onClick={onToggleLibrary}
+        >
+          <ToolIcon name="library" />
+          <span>Library</span>
+        </ImmediatePanelButton>
+        <ImmediatePanelButton
+          testId="netlist-panel-toggle"
+          label="Netlist"
+          tooltip={projectPanel === "netlist" ? "Hide Netlist" : "Show Netlist"}
+          pressed={projectPanel === "netlist"}
+          onClick={onToggleNetlist}
+        >
+          <ToolIcon name="netlist" />
+          <span>Netlist</span>
+        </ImmediatePanelButton>
+        <ImmediatePanelButton
+          testId="project-code-toggle"
+          label="Project Code"
+          tooltip={
+            projectPanel === "project-code"
+              ? "Hide Project Code"
+              : "Show Project Code"
+          }
+          pressed={projectPanel === "project-code"}
+          onClick={onToggleProjectCode}
+        >
+          <ToolIcon name="project-code" />
+          <span>Project Code</span>
+        </ImmediatePanelButton>
+      </div>
       <span className="draw-toolbar-divider" aria-hidden="true" />
       <button
         type="button"
@@ -196,6 +232,10 @@ export function DrawingToolbar({
         <ToolIcon name="text" />
         <span>Text</span>
       </button>
+      <AnnotationMenu
+        styleProfileId={styleProfileId}
+        onStartInsert={onStartInsert}
+      />
       <span className="toolbar-divider" aria-hidden="true" />
       <button
         type="button"
@@ -221,32 +261,6 @@ export function DrawingToolbar({
           <span>Simulation</span>
         </button>
       ) : null}
-      <span className="draw-toolbar-project-spacer" aria-hidden="true" />
-      <span className="toolbar-divider" aria-hidden="true" />
-      <ImmediatePanelButton
-        testId="netlist-panel-toggle"
-        label="Netlist"
-        tooltip={projectPanel === "netlist" ? "Hide Netlist" : "Show Netlist"}
-        pressed={projectPanel === "netlist"}
-        onClick={onToggleNetlist}
-      >
-        <ToolIcon name="netlist" />
-        <span>Netlist</span>
-      </ImmediatePanelButton>
-      <ImmediatePanelButton
-        testId="project-code-toggle"
-        label="Project Code"
-        tooltip={
-          projectPanel === "project-code"
-            ? "Hide Project Code"
-            : "Show Project Code"
-        }
-        pressed={projectPanel === "project-code"}
-        onClick={onToggleProjectCode}
-      >
-        <ToolIcon name="project-code" />
-        <span>Project Code</span>
-      </ImmediatePanelButton>
     </div>
   );
 }

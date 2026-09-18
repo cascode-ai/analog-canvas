@@ -1036,6 +1036,12 @@ export function App({
       setDocumentStack([]);
       setViewBox(nextViewBox, nextDocument.presentation.grid);
       resetInteractionState();
+      // Each newly opened circuit starts with its netlist. Ordinary edits and
+      // user-driven panel changes do not reset the workspace.
+      propertiesOpenBeforeProjectPanelRef.current = false;
+      setSelectionOpen(false);
+      setProjectPanel("netlist");
+      if (compactLayout) setCompactLibraryPanelOpen(false);
       return nextDocument;
     },
   });
@@ -4716,6 +4722,9 @@ export function App({
                 ? "netlist"
                 : null,
           leftPanelsDisabled: false,
+          styleProfileId: document.presentation.styleProfileId,
+          onStartInsert: (launch) =>
+            editorCommands.execute({ id: "insert.start", launch }),
           tool,
           documentSettingsOpen,
           undo: {

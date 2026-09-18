@@ -41,9 +41,11 @@
   background: var(--icm-surface);
 }
 
-.draw-toolbar-project-spacer {
-  flex: 1 1 auto;
-  min-width: var(--icm-space-2);
+.draw-toolbar-panels {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
 }
 
 .draw-tool {
@@ -681,6 +683,34 @@
   font-weight: 500;
   text-align: left;
   white-space: nowrap;
+}
+
+.annotation-menu {
+  flex: 0 0 auto;
+}
+
+.annotation-menu > summary {
+  font-size: var(--icm-font-sm);
+}
+
+.annotation-palette {
+  grid-template-columns: repeat(4, 40px);
+  min-width: 0;
+  left: auto;
+  right: 0;
+  gap: 4px;
+}
+
+.annotation-palette button {
+  justify-content: center;
+  height: 40px;
+  padding: 5px;
+}
+
+.annotation-palette-art {
+  display: block;
+  width: 28px;
+  height: 28px;
 }
 
 .command-popover .export-submenu {
