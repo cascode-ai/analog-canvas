@@ -24,7 +24,9 @@ import type {
 import type { SymbolResolver } from "@icm/symbols";
 
 import {
+  buildEndpointObjectIndex,
   endpointNetId,
+  type EndpointObjectIndex,
   type RouteGeometryRecord,
 } from "../features/wiring/route-interaction-geometry";
 
@@ -98,6 +100,7 @@ export function displayedRoutingGuidance(
 function visibleWireSources(
   document: SchematicDocument,
   resolver: SymbolResolver,
+  index: EndpointObjectIndex,
 ): WireSource[] {
   return [
     ...document.instances.flatMap((instance) => {
@@ -109,11 +112,16 @@ function visibleWireSources(
       if (!resolved) return [];
       return resolved.definition.pins
         .filter((pin) =>
-          isVisibleEndpoint(document, resolver, {
-            kind: "terminal",
-            instanceId: instance.id,
-            pinName: pin.name,
-          }),
+          isVisibleEndpoint(
+            document,
+            resolver,
+            {
+              kind: "terminal",
+              instanceId: instance.id,
+              pinName: pin.name,
+            },
+            index,
+          ),
         )
         .flatMap((pin): WireSource[] => {
           const endpoint: RouteEndpoint = {
@@ -125,13 +133,14 @@ function visibleWireSources(
             document,
             resolver,
             endpoint,
+            index,
           );
           return connection
             ? [
                 {
                   endpoint,
                   connection,
-                  netId: endpointNetId(document, endpoint),
+                  netId: endpointNetId(document, endpoint, index),
                   preludeEdits: [],
                   ...(isMosBulkTerminal(document, endpoint)
                     ? { routePresentation: "bulk-dashed" as const }
@@ -155,6 +164,7 @@ function visibleWireSources(
           document,
           resolver,
           endpoint,
+          index,
         );
         return connection
           ? [
@@ -174,6 +184,7 @@ function visibleBulkWireSources(
   document: SchematicDocument,
   resolver: SymbolResolver,
   bulkDrawInstanceId: string | null,
+  index: EndpointObjectIndex,
 ): WireSource[] {
   return document.instances.flatMap((instance): WireSource[] => {
     if (!instance.placement || bulkDrawInstanceId !== instance.id) return [];
@@ -182,13 +193,18 @@ function visibleBulkWireSources(
       instanceId: instance.id,
       pinName: "B",
     };
-    const connection = resolveEndpointConnection(document, resolver, endpoint);
+    const connection = resolveEndpointConnection(
+      document,
+      resolver,
+      endpoint,
+      index,
+    );
     return connection
       ? [
           {
             endpoint,
             connection,
-            netId: endpointNetId(document, endpoint),
+            netId: endpointNetId(document, endpoint, index),
             preludeEdits: [],
             routePresentation: "bulk-dashed",
           },
@@ -310,13 +326,23 @@ export function useEditorDerivedModel({
       ),
     [document, documentConnectivity, resolver],
   );
+  const endpointIndex = useMemo(
+    () => buildEndpointObjectIndex(document),
+    [document],
+  );
   const visibleEndpoints = useMemo(
-    () => visibleWireSources(document, resolver),
-    [document, resolver],
+    () => visibleWireSources(document, resolver, endpointIndex),
+    [document, endpointIndex, resolver],
   );
   const visibleBulkEndpoints = useMemo(
-    () => visibleBulkWireSources(document, resolver, bulkDrawInstanceId),
-    [bulkDrawInstanceId, document, resolver],
+    () =>
+      visibleBulkWireSources(
+        document,
+        resolver,
+        bulkDrawInstanceId,
+        endpointIndex,
+      ),
+    [bulkDrawInstanceId, document, endpointIndex, resolver],
   );
   const wiringEndpoints = useMemo(() => {
     const byKey = new Map<string, WireSource>();
