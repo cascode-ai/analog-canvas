@@ -1,4 +1,8 @@
-import { createEmptyProject, type CircuitProject } from "@icm/model";
+import {
+  createEmptyProject,
+  createRoutePath,
+  type CircuitProject,
+} from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
@@ -182,6 +186,83 @@ describe("ERC engine", () => {
       },
     ];
     expect(run(project)).toEqual([]);
+  });
+
+  it("reports a pin a wire of another Net passes straight through", () => {
+    // Geometry never makes a connection and a Crossing is not a Junction, so
+    // nothing repairs this: the author sees a wire reaching the pin and the
+    // netlist sees a pin on a different Net. Nothing else says so.
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    // I1 sits at the origin: L at (-20, 0), R at (20, 0).
+    document.instances = [
+      instance("I1", "M1"),
+      {
+        id: "I2",
+        symbolId: "dual",
+        reference: "M2",
+        netlist: { parameters: {} },
+        placement: {
+          position: { x: 0, y: -40 },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+      },
+    ];
+    document.nets = [
+      {
+        id: "net-pins",
+        terminals: [
+          { instanceId: "I1", pinName: "L" },
+          { instanceId: "I1", pinName: "R" },
+        ],
+      },
+      {
+        id: "net-wire",
+        terminals: [
+          { instanceId: "I2", pinName: "L" },
+          { instanceId: "I2", pinName: "R" },
+        ],
+      },
+    ];
+    // A wire of net-wire that detours down through both of I1's pins.
+    document.routes = [
+      createRoutePath({
+        id: "route-through",
+        netId: "net-wire",
+        start: { kind: "terminal", instanceId: "I2", pinName: "L" },
+        end: { kind: "terminal", instanceId: "I2", pinName: "R" },
+        bends: [
+          { x: -20, y: 0 },
+          { x: 20, y: 0 },
+        ],
+        modes: ["manual", "manual", "manual"],
+      }),
+    ];
+
+    const findings = run(project).filter(
+      (diagnostic) => diagnostic.code === "ERC_TOUCHING_NOT_CONNECTED",
+    );
+    expect(
+      findings.map((diagnostic) => diagnostic.parameters?.["pinName"]),
+    ).toEqual(["L", "R"]);
+    expect(findings[0]!.message).toContain("belongs to a different Net");
+    expect(findings[0]!.parameters?.["routeId"]).toBe("route-through");
+
+    // The same wire on the same Net is the ordinary connected case.
+    document.nets[0]!.id = "net-wire-2";
+    document.routes[0]!.netId = "net-wire-2";
+    document.nets[1]!.terminals.push(
+      { instanceId: "I1", pinName: "L" },
+      { instanceId: "I1", pinName: "R" },
+    );
+    document.nets = [document.nets[1]!];
+    document.routes[0]!.netId = document.nets[0]!.id;
+    expect(
+      run(project).filter(
+        (diagnostic) => diagnostic.code === "ERC_TOUCHING_NOT_CONNECTED",
+      ),
+    ).toEqual([]);
   });
 
   it("flags unconnected visible pins and suppresses them via NoConnect", () => {

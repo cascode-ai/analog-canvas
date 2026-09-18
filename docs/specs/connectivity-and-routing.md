@@ -279,7 +279,14 @@ revision-scoped representatives and must be refreshed after edits.
 Endpoint readiness separates physical membership from accepted intent, so a
 singleton pin is not connected merely because it has a Base Net. ERC and
 downstream checks consume the shared assessment rather than another stored
-status. The [diagnostic envelope](../../packages/derived/src/diagnostics/diagnostic.ts)
+status. One ERC check reads geometry rather than membership:
+`ERC_TOUCHING_NOT_CONNECTED` reports an instance pin whose contact point lies
+on a Route of a different Logical Net. Geometry never creates a connection and
+a Crossing is not a Junction, so nothing repairs that arrangement and nothing
+else reports it — the author sees a wire reaching the pin while the netlist
+sees the pin on another Net or on nothing. It judges terminals only: two
+Routes crossing is the ordinary case the model already names, and a pin the
+author declared `NoConnect` has been answered for. The [diagnostic envelope](../../packages/derived/src/diagnostics/diagnostic.ts)
 keeps domains, confidence, severity and gate eligibility distinct.
 [Editor interaction](editor-interaction.md) owns explicit checking and stale
 result/navigation behavior; checks do not veto Save.

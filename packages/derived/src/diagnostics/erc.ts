@@ -9,6 +9,9 @@ import {
   validateLogicalNetContract,
 } from "../logical-net.js";
 import { resolveMosBulkConnection } from "../mos-bulk.js";
+import { resolveEndpointPoint } from "../endpoint.js";
+import { resolveDocumentRoutingGeometry } from "../resolved-route-geometry.js";
+import { findRouteSegmentsAtPoint } from "../route-query.js";
 import { directObjectLocator, type ObjectLocator } from "../object-locator.js";
 import type { Diagnostic, DiagnosticSeverity } from "./diagnostic.js";
 
@@ -465,6 +468,14 @@ export function runErcChecks(
         });
       }
     }
+
+    reportPinsTouchingAnotherNet(
+      document,
+      docIndex,
+      logicalNets,
+      resolver,
+      diagnostics,
+    );
   }
 
   // A child interface can be shared by several parent instances. Preserve the
@@ -565,4 +576,102 @@ export function runErcChecks(
       a.code.localeCompare(b.code, "en") ||
       a.primary.objectId.localeCompare(b.primary.objectId, "en"),
   );
+}
+
+/**
+ * A pin the picture shows as wired while the model says it is not: its contact
+ * point sits exactly on another Net's wire or Junction dot.
+ *
+ * Drawing geometry never creates a connection, and a Crossing is not a
+ * Junction — so nothing repairs this and nothing else reports it. To the
+ * author the wire visibly reaches the pin; to the netlist the pin is on
+ * nothing, or on a different Net entirely. Only a terminal is judged: two
+ * Routes crossing is the ordinary, deliberate case the model already names.
+ */
+function reportPinsTouchingAnotherNet(
+  document: CircuitProject["documents"][number],
+  docIndex: ReturnType<ProjectConnectivityIndex["documents"]["get"]>,
+  logicalNets: ReturnType<typeof resolveDocumentLogicalNets>,
+  resolver: SymbolResolver,
+  diagnostics: ErcDiagnostic[],
+): void {
+  if (document.routes.length === 0 || document.instances.length === 0) return;
+  const geometry =
+    docIndex?.routingGeometry ??
+    resolveDocumentRoutingGeometry(document, resolver);
+  const routeById = new Map(document.routes.map((route) => [route.id, route]));
+  const logicalIdOf = (baseNetId: string | undefined): string | undefined =>
+    baseNetId ? logicalNets.byBaseNetId.get(baseNetId)?.id : undefined;
+  const netIdByTerminalKey = new Map<string, string>();
+  for (const net of document.nets)
+    for (const terminal of net.terminals)
+      netIdByTerminalKey.set(
+        `${terminal.instanceId}\u0000${terminal.pinName}`,
+        net.id,
+      );
+  const declaredOpen = new Set(
+    document.noConnects.flatMap((item) =>
+      item.endpoint.kind === "terminal"
+        ? [`${item.endpoint.instanceId}\u0000${item.endpoint.pinName}`]
+        : [],
+    ),
+  );
+
+  for (const instance of [...document.instances].sort((left, right) =>
+    left.id.localeCompare(right.id, "en"),
+  )) {
+    const resolved = resolver.resolve(
+      instance.symbolId,
+      instance.symbolVariantId,
+    );
+    if (!resolved) continue;
+    const hidden = new Set(resolved.variant?.hiddenPinNames ?? []);
+    for (const pin of resolved.definition.pins) {
+      if (hidden.has(pin.name)) continue;
+      const key = `${instance.id}\u0000${pin.name}`;
+      // An author who marked the pin open has already answered for it.
+      if (declaredOpen.has(key)) continue;
+      const point = resolveEndpointPoint(document, resolver, {
+        kind: "terminal",
+        instanceId: instance.id,
+        pinName: pin.name,
+      });
+      if (!point) continue;
+      const pinLogicalId = logicalIdOf(netIdByTerminalKey.get(key));
+      const foreign = findRouteSegmentsAtPoint(geometry, point).flatMap(
+        (address) => {
+          const route = routeById.get(address.routeId);
+          if (!route) return [];
+          const routeLogicalId = logicalIdOf(route.netId);
+          return routeLogicalId && routeLogicalId !== pinLogicalId
+            ? [{ route, netId: route.netId }]
+            : [];
+        },
+      );
+      const first = foreign[0];
+      if (!first) continue;
+      diagnostics.push({
+        id: `erc:touching-not-connected:${document.id}:${instance.id}:${pin.name}`,
+        domain: "erc",
+        code: "ERC_TOUCHING_NOT_CONNECTED",
+        severity: "warning",
+        confidence: "high",
+        gateEligible: false,
+        message: pinLogicalId
+          ? `Pin ${instance.id}.${pin.name} sits on a wire of Net ${first.netId} but belongs to a different Net`
+          : `Pin ${instance.id}.${pin.name} sits on a wire of Net ${first.netId} without being connected to it`,
+        primary: terminalLocator(document.id, instance.id, pin.name),
+        related: [
+          directObjectLocator(document.id, "route", first.route.id),
+          directObjectLocator(document.id, "net", first.netId),
+        ],
+        parameters: {
+          instanceId: instance.id,
+          pinName: pin.name,
+          routeId: first.route.id,
+          netId: first.netId,
+        },
+      });
+    }
+  }
 }
