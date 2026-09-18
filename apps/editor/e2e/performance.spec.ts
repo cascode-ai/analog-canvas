@@ -100,27 +100,61 @@ test.describe("editor latency on a large Project", () => {
     const canvas = page.getByTestId("schematic-canvas");
     const box = await canvas.boundingBox();
     if (!box) throw new Error("schematic canvas has no box");
-    const centre = {
-      x: box.x + box.width / 2,
-      y: box.y + box.height / 2,
-    };
-    await page.mouse.move(centre.x, centre.y);
 
+    // The move drag runs *before* the pan. An opened Project is auto-fitted, so
+    // the content is on screen now; panning first moves the camera off it, and
+    // the press would land on empty sheet. That is what this measured before,
+    // and it was not a component drag at all.
+    //
+    // The press point is chosen by asking the page, not by taking the first
+    // instance hit target: Routes sit above Instances in the hit order, so an
+    // instance's own centre is often covered by a wire and a press there starts
+    // a route drag instead. Walk the instance hit targets and take the first
+    // whose centre the topmost hit element resolves back to an instance.
+    const grab = await page.evaluate(() => {
+      for (const element of document.querySelectorAll(
+        '[data-canvas-hit-kind="instance"]',
+      )) {
+        const rect = element.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) continue;
+        const x = rect.x + rect.width / 2;
+        const y = rect.y + rect.height / 2;
+        if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight)
+          continue;
+        const top = document
+          .elementFromPoint(x, y)
+          ?.closest("[data-canvas-hit-kind]");
+        if (top?.getAttribute("data-canvas-hit-kind") === "instance") {
+          return { x, y };
+        }
+      }
+      return null;
+    });
+    if (!grab) {
+      throw new Error("no instance is pressable without a Route on top of it");
+    }
+
+    const dragStart = await page.evaluate(() => performance.now());
+    await page.mouse.move(grab.x, grab.y);
+    await page.mouse.down();
+    // Past the drag session's start threshold, so the gesture is actually live.
+    await page.mouse.move(grab.x + 24, grab.y + 12);
+    // Set whenever an instance move preview exists, on both the imperative and
+    // the rebuild path, so it proves the press picked up a component.
+    await expect(canvas).toHaveClass(/semantic-move-preview/);
+    for (let step = 2; step <= 30; step += 1) {
+      await page.mouse.move(grab.x + step * 4, grab.y + step * 2);
+    }
+    await page.mouse.up();
+    const dragEnd = await page.evaluate(() => performance.now());
+
+    // Pan from the same camera. A wheel over the sheet pans it.
     const panStart = await page.evaluate(() => performance.now());
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     for (let step = 0; step < 40; step += 1) {
       await page.mouse.wheel(0, 40);
     }
     const panEnd = await page.evaluate(() => performance.now());
-
-    // A semantic move: press on a component's body and drag it.
-    const dragStart = await page.evaluate(() => performance.now());
-    await page.mouse.move(centre.x, centre.y);
-    await page.mouse.down();
-    for (let step = 1; step <= 30; step += 1) {
-      await page.mouse.move(centre.x + step * 4, centre.y + step * 2);
-    }
-    await page.mouse.up();
-    const dragEnd = await page.evaluate(() => performance.now());
 
     const collected = await page.evaluate(() => {
       const perf = (
@@ -184,6 +218,8 @@ test.describe("editor latency on a large Project", () => {
       ...(projectPath ? {} : { fixture: BROWSER_PERFORMANCE_COUNTS }),
       pan: windowStats(panStart, panEnd),
       drag: windowStats(dragStart, dragEnd),
+      draggedWhat:
+        "an instance whose hit target is topmost at its own centre, asserted to start a move preview",
       note: "Machine-dependent. Compare against a previous run on the same machine, never across machines.",
     };
 
