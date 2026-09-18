@@ -20,6 +20,7 @@ jobs:
     outputs:
       heavy: ${{ steps.plan.outputs.heavy }}
       browser: ${{ steps.plan.outputs.browser }}
+      browser_shards: ${{ steps.plan.outputs.browser_shards }}
       mode: ${{ steps.plan.outputs.mode }}
       e2e_args: ${{ steps.plan.outputs.e2e_args }}
     steps:
@@ -100,9 +101,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard:
-          - 1/2
-          - 2/2
+        # Broad batches need more parallelism, not a larger per-job timeout.
+        shard: ${{ fromJSON(needs.changes.outputs.browser_shards) }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

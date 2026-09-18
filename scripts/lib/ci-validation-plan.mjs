@@ -120,6 +120,15 @@ export function planCiValidation(plan, { forceFull = false } = {}) {
   };
 }
 
+/** Spread broad affected selections without charging small changes for four runners. */
+export function browserShardMatrix(plan) {
+  const specs = plan.e2eArgs.filter((argument) =>
+    argument.endsWith(".spec.ts"),
+  );
+  const count = plan.mode === "full" || specs.length >= 12 ? 4 : 2;
+  return Array.from({ length: count }, (_, index) => `${index + 1}/${count}`);
+}
+
 export function formatCiValidationPlan(plan) {
   const lines = [
     "CI validation plan",

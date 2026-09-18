@@ -76,9 +76,10 @@ still selects every consumer. The full component catalog is checked by
 capabilities and the VDD exception rather than repeating the same UI for every
 symbol. Keep specialized history, rejection, hierarchy and terminal tests.
 
-PR browser contracts run as two balanced Playwright shards with three workers
+PR browser contracts use two balanced Playwright shards, or four when the
+affected selection contains at least twelve spec files, with three workers
 per runner. A lightweight `Browser tests` aggregation job preserves the required
-check name and succeeds only after both shards pass. This keeps broad but
+check name and succeeds only after all selected shards pass. This keeps broad but
 legitimate focused selections within the PR wall-clock budget without raising
 per-runner Chromium contention; nightly and manual audits retain their separate
 four-shard full-suite route.

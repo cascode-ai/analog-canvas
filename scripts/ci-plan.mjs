@@ -1,6 +1,7 @@
 import { appendFile } from "node:fs/promises";
 
 import {
+  browserShardMatrix,
   formatCiValidationPlan,
   formatCiValidationPlanMarkdown,
   planCiValidation,
@@ -43,6 +44,7 @@ if (githubOutput) {
     [
       `heavy=${String(ciPlan.heavy)}`,
       `browser=${String(ciPlan.browser)}`,
+      `browser_shards=${JSON.stringify(browserShardMatrix(ciPlan))}`,
       `mode=${ciPlan.mode}`,
       `e2e_args=${ciPlan.e2eArgs.join(" ")}`,
       "",

@@ -23,6 +23,19 @@ describe("CI workflow", () => {
     expect(workflow).not.toContain("playwright install --with-deps chromium");
   });
 
+  it("uses the planner's shard count while aggregating every shard into the required check", () => {
+    expect(workflow).toContain(
+      "browser_shards: ${{ steps.plan.outputs.browser_shards }}",
+    );
+    expect(workflow).toContain(
+      "shard: ${{ fromJSON(needs.changes.outputs.browser_shards) }}",
+    );
+    expect(workflow).toContain(
+      "SHARD_RESULT: ${{ needs.browser_shard.result }}",
+    );
+    expect(workflow).toContain('test "$SHARD_RESULT" = "success"');
+  });
+
   it("keeps scheduled and manual audits on complete validation", () => {
     expect(workflow).toContain("workflow_dispatch:");
     expect(workflow).toContain("schedule:");
