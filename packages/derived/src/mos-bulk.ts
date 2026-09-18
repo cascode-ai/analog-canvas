@@ -7,7 +7,8 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import { routeEnd } from "@icm/model";
-import { supplyMarkerForSymbol } from "./supply-marker.js";
+import { resolveDocumentLogicalNets } from "./logical-net.js";
+import { supplyMarkerForSymbol, type SupplyDomain } from "./supply-marker.js";
 
 export type MosBulkKind = "nmos" | "pmos";
 export type MosBulkResolution =
@@ -139,41 +140,66 @@ export function isMosBulkRoute(
 }
 
 /**
- * The Net a MOS body follows when nobody has said otherwise: the supply the
- * author already drew. A ground marker is what an NMOS body sits on and a
- * VDD marker is what a PMOS body sits on, because that is what those symbols
- * mean — so the answer needs no per-Cell setting, survives copy/paste into
- * any Cell that has the marker, and holds for drawings made before the
- * policy existed.
+ * The Cell's one Net in a supply domain, or nothing.
  *
- * This reads an explicit placement. It never infers a supply from device
- * polarity, from a Net's spelling, or from proximity, and several candidates
- * (AVDD and DVDD, AGND and DGND) is an ambiguity rather than a vote: the
- * answer is then nothing, and the Cell's own default has to name one.
+ * "The supply the author drew" is an explicit classification, never a guess:
+ * a placed `ground` or `vdd-port` marker, or a name claim that says which
+ * power domain a Net belongs to (a rail, a formal Cell Pin declared as a
+ * supply). Nothing here reads a Net's spelling, a device's polarity, or what
+ * a wire happens to pass near.
+ *
+ * Several candidates (AVDD beside DVDD, AGND beside DGND) is a question for
+ * the author rather than a vote, so the answer is then nothing and whoever
+ * asked has to be told to name one. A marker nobody wired yet names no Net,
+ * so it neither answers nor competes.
+ */
+export function drawnSupplyNet(
+  document: SchematicDocument,
+  domain: SupplyDomain,
+): Net | undefined {
+  const netIds = new Set<string>();
+  for (const group of resolveDocumentLogicalNets(document).groups) {
+    if (group.powerDomain !== domain) continue;
+    // Any Base Net of the group is the same node; take a stable one so the
+    // answer does not depend on document order.
+    const [first] = [...group.baseNetIds].sort((left, right) =>
+      left.localeCompare(right, "en"),
+    );
+    if (first) netIds.add(first);
+  }
+  if (netIds.size === 0) {
+    // Logical identity needs a name claim. A marker that was placed and wired
+    // without one still says which supply it is.
+    for (const instance of document.instances) {
+      const marker = supplyMarkerForSymbol(instance.symbolId);
+      if (marker?.domain !== domain) continue;
+      const net = document.nets.find((candidate) =>
+        candidate.terminals.some(
+          (terminal) =>
+            terminal.instanceId === instance.id &&
+            terminal.pinName === marker.pinName,
+        ),
+      );
+      if (net) netIds.add(net.id);
+    }
+  }
+  if (netIds.size !== 1) return undefined;
+  const [netId] = [...netIds];
+  return document.nets.find((net) => net.id === netId);
+}
+
+/**
+ * The Net a MOS body follows when nobody has said otherwise: the supply the
+ * author already drew — ground under an NMOS body, VDD under a PMOS body,
+ * because that is what those symbols mean. The answer needs no per-Cell
+ * setting, survives copy/paste into any Cell that has the supply, and holds
+ * for drawings made before the policy existed.
  */
 export function supplyDefaultMosBulkNet(
   document: SchematicDocument,
   kind: MosBulkKind,
 ): Net | undefined {
-  const domain = kind === "nmos" ? "ground" : "vdd";
-  const netIds = new Set<string>();
-  for (const instance of document.instances) {
-    const marker = supplyMarkerForSymbol(instance.symbolId);
-    if (marker?.domain !== domain) continue;
-    const net = document.nets.find((candidate) =>
-      candidate.terminals.some(
-        (terminal) =>
-          terminal.instanceId === instance.id &&
-          terminal.pinName === marker.pinName,
-      ),
-    );
-    // A marker nobody wired yet names no supply; it is not an ambiguity
-    // either, so it simply does not vote.
-    if (net) netIds.add(net.id);
-  }
-  if (netIds.size !== 1) return undefined;
-  const [netId] = [...netIds];
-  return document.nets.find((net) => net.id === netId);
+  return drawnSupplyNet(document, kind === "nmos" ? "ground" : "vdd");
 }
 
 /**

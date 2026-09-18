@@ -292,10 +292,18 @@ and their ordering in hierarchy calls. It never adds VDD/VSS ports, promotes a
 local rail to a formal Pin, or rewrites a Global marker to local. Ground remains
 node `0`; it does not imply a VSS interface.
 
-Built-in Analog Blocks retain their library-declared fixed supply names, but
-those names must resolve to authored named Nets in the Cell. Missing supplies
-produce `MISSING_BLOCK_SUPPLY`, not synthetic Nets or ports. For different supply
-domains, use an explicit external definition with the intended terminal mapping.
+Built-in Analog Blocks retain their library-declared fixed supply names. Such
+a name resolves first to an authored named Net in the Cell, and failing that
+to the supply the author drew — the Cell's single Net in that power domain, a
+`VSS` port therefore sitting on the ground and a `VDD` port on the positive
+supply, the same reading a MOS body uses for its fourth node
+([connectivity](connectivity-and-routing.md)). The declared name states the
+port's role, not a Net spelling the author has to reproduce: nobody names a
+Net `VSS` when they have drawn a ground symbol. A Cell with no Net in that
+domain, or with more than one, produces `MISSING_BLOCK_SUPPLY` — never a
+synthetic Net or port, because connecting a Block to a node nobody authored
+would be inventing connectivity. For different supply domains, use an explicit
+external definition with the intended terminal mapping.
 
 Explicit physical R/C targets use reviewed W/L parameters, never infer geometry
 from an ideal value, and warn when replacing that value. A resistor's existing

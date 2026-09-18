@@ -7,6 +7,7 @@ import {
 import {
   deriveProjectNetNameProjection,
   directObjectLocator,
+  drawnSupplyNet,
   mosBulkKind,
   resolveMosBulkConnection,
   resolveDocumentLogicalNets,
@@ -1063,11 +1064,22 @@ function extractBuiltInSubcircuitInstance(
       // a Net or a Cell interface. Resolve authored identity before encoding.
       const netName = context.nameByAuthoredName.get(foldNetName(port.supply));
       if (netName) return [{ pinName: port.name, netName }];
+      // Failing that, the supply the author drew: a Block's VSS sits on the
+      // Cell's ground and its VDD on the Cell's positive supply, the same
+      // reading a MOS body uses for its fourth node. Nobody names a Net
+      // "VSS" when they have drawn a ground symbol, and the Block asking for
+      // one by spelling was never an electrical requirement.
+      const drawn = drawnSupplyNet(
+        document,
+        port.supply === "VDD" ? "vdd" : "ground",
+      );
+      const drawnName = drawn ? context.nameByNetId.get(drawn.id) : undefined;
+      if (drawnName) return [{ pinName: port.name, netName: drawnName }];
       diagnostic(
         diagnostics,
         document.id,
         "MISSING_BLOCK_SUPPLY",
-        `Analog Block ${reference} requires an authored ${port.supply} Net; declare its supply explicitly or use an external definition with the intended interface`,
+        `Analog Block ${reference} requires a ${port.supply} Net; draw the ${port.supply === "VDD" ? "positive supply" : "ground"}, name a Net ${port.supply}, or use an external definition with the intended interface`,
         [instance.id],
       );
       return [];

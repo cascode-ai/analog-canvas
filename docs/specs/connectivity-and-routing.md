@@ -175,13 +175,15 @@ kernel, stable leg identity, and Route transaction.
 Routes may present as `wire`, `bulk-dashed`, or `power-rail`; presentation does
 not alter Net identity. `bulk-dashed` is used for explicit MOS B routing.
 A manual MOS instance without explicit B membership resolves its body in a
-fixed order: a configured cell-default Net, and failing that the supply marker
-the author already drew — a `ground` marker for an NMOS body, a `vdd-port`
-marker for a PMOS body, reported as `supply-default`. That fallback needs no
-per-Cell configuration, which is what makes a pasted copy, an imported
-drawing, and a drawing made before the policy existed all behave like one
-drawn today. It reads a placed marker and nothing else: never a Net's
-spelling, never device polarity, never proximity. A Cell holding no wired
+fixed order: a configured cell-default Net, and failing that the supply the author
+already drew — the Cell's single Net in that power domain, ground for an NMOS
+body and the positive supply for a PMOS body, reported as `supply-default`.
+That fallback needs no per-Cell configuration, which is what makes a pasted
+copy, an imported drawing, and a drawing made before the policy existed all
+behave like one drawn today. A Net is in a power domain because something
+authored says so — a placed `ground` or `vdd-port` marker, or a name claim
+carrying that domain (a rail, a formal Cell Pin declared as a supply). It is
+never read from a Net's spelling, from device polarity, or from proximity. A Cell holding no wired
 marker of that domain, or more than one (AVDD beside VDD, AGND beside DGND),
 has no answer — the body stays unresolved and the Cell default must name one,
 because choosing between two authored supplies is the author's decision. An

@@ -103,6 +103,86 @@ describe("built-in Analog Block subcircuits", () => {
       expect(project).toEqual(before);
     },
   );
+  it("follows the supplies the author drew rather than their spelling", () => {
+    // Nobody names a Net "VSS" when they have drawn a ground symbol, and a
+    // positive rail is as often called VDDA as VDD. The Block's declared
+    // supply names its role, not the Net the author has to produce.
+    const project = analogBlockProject(
+      ["opamp-differential"],
+      differentialNets,
+    );
+    const document = project.documents[0]!;
+    document.netlist!.terminals = [];
+    document.instances = document.instances.filter(
+      (instance) => !["VDD", "VSS"].includes(instance.id),
+    );
+    document.nets = document.nets.filter(
+      (net) => !["VDD", "VSS"].includes(net.id),
+    );
+    document.instances.push(
+      { id: "GND1", symbolId: "ground", placement: null },
+      { id: "VDD1", symbolId: "vdd-port", placement: null },
+    );
+    document.nets.push(
+      { id: "net-gnd", terminals: [{ instanceId: "GND1", pinName: "0" }] },
+      { id: "net-rail", terminals: [{ instanceId: "VDD1", pinName: "P" }] },
+    );
+    document.connectivityEvidence.push({
+      id: "rail-claim",
+      kind: "name-claim",
+      netId: "net-rail",
+      name: "VDDA",
+      scope: "global",
+      powerDomain: "vdd",
+      owner: { kind: "power-marker", objectId: "VDD1" },
+    });
+    const before = structuredClone(project);
+
+    const result = createDesignNetlistExport(project);
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    // Declared order stays VDD, VSS, then the signals; the nodes are the ones
+    // on the page.
+    expect(result.file.text).toContain(
+      "X1 VDDA 0 plus_node minus_node positive_out negative_out opamp_differential",
+    );
+    expect(project).toEqual(before);
+  });
+
+  it("still refuses a Block whose supply was never drawn", () => {
+    // Ground alone leaves the positive supply unanswered, and inventing one
+    // would connect a Block to a node nobody authored.
+    const project = analogBlockProject(
+      ["opamp-differential"],
+      differentialNets,
+    );
+    const document = project.documents[0]!;
+    document.netlist!.terminals = [];
+    document.instances = document.instances.filter(
+      (instance) => !["VDD", "VSS"].includes(instance.id),
+    );
+    document.nets = document.nets.filter(
+      (net) => !["VDD", "VSS"].includes(net.id),
+    );
+    document.instances.push({
+      id: "GND1",
+      symbolId: "ground",
+      placement: null,
+    });
+    document.nets.push({
+      id: "net-gnd",
+      terminals: [{ instanceId: "GND1", pinName: "0" }],
+    });
+
+    const result = createDesignNetlistExport(project);
+    expect(result.status).toBe("blocked");
+    const missing = result.diagnostics.filter(
+      (diagnostic) => diagnostic.code === "MISSING_BLOCK_SUPPLY",
+    );
+    expect(missing).toHaveLength(1);
+    expect(missing[0]!.message).toContain("requires a VDD Net");
+  });
+
   it.each([
     {
       symbolId: "voltage-amplifier",

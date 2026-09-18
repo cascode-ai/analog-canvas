@@ -8,6 +8,7 @@ import {
   isMosBulkTerminal,
   mosBulkKind,
   mosBulkShouldBeVisible,
+  drawnSupplyNet,
   resolveMosBulkConnection,
   supplyDefaultMosBulkNet,
 } from "./mos-bulk.js";
@@ -83,6 +84,31 @@ describe("MOS bulk resolution", () => {
     // Policy explains membership; it never writes it, and it draws no lead.
     expect(nmos?.materialized).toBe(false);
     expect(mosBulkShouldBeVisible(document, "M1")).toBe(false);
+  });
+
+  it("follows a supply the author named rather than marked", () => {
+    // A rail or a formal Cell Pin declared as the positive supply is the same
+    // statement as a placed marker: it says which power domain the Net is.
+    // Plenty of drawings express their supplies only this way.
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push(mos("M1", "pmos"));
+    document.nets.push(
+      { id: "net-rail", terminals: [{ instanceId: "M1", pinName: "S" }] },
+      { id: "net-out", terminals: [{ instanceId: "M1", pinName: "D" }] },
+    );
+    document.connectivityEvidence.push({
+      id: "rail-claim",
+      kind: "name-claim",
+      netId: "net-rail",
+      name: "VDD",
+      scope: "global",
+      powerDomain: "vdd",
+      owner: { kind: "power-marker", objectId: "M1" },
+    });
+    expect(drawnSupplyNet(document, "vdd")?.id).toBe("net-rail");
+    expect(resolveMosBulkConnection(document, "M1")?.net?.id).toBe("net-rail");
+    // The other domain was never drawn, so there is nothing to follow.
+    expect(drawnSupplyNet(document, "ground")).toBeUndefined();
   });
 
   it("lets the Cell's own default outrank the marker", () => {
