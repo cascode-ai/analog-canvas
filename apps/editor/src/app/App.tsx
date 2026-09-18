@@ -6,6 +6,7 @@ import {
   planNetlistProcess,
   prepareNetlistExample,
 } from "../features/netlist-export/netlist-process";
+import { netlistDeviceFamily } from "../features/netlist-export/netlist-process-presets";
 import {
   DEFAULT_ARROW_PRESET,
   type ArrowPreset,
@@ -2415,6 +2416,15 @@ export function App({
     transactConnectivity,
     transactProject: (transactionId, edits) =>
       commitStructure(transactionId, edits),
+    // A device drawn while working in a process is that process's device.
+    processModelTarget: (symbolId) => {
+      const family = netlistDeviceFamily(symbolId);
+      if (family !== "nmos" && family !== "pmos") return undefined;
+      return (
+        netlistPreferences.preferences.profiles[netlistPreferences.selected]
+          .devices[family].target || undefined
+      );
+    },
     selectOnly,
     cancelAllTransientInteraction,
     cancelCanvasDrag: () => canvasDragSessionRef.current?.cancel(),

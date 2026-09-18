@@ -281,11 +281,14 @@ remain listed for manual repair. **File / Save** and **Ctrl+S** remain save-only
 
 Click the top **Netlist** copy button to put the netlist on the clipboard and
 open its live code in the right sidebar. That panel's **Format** (SPICE or SCS)
-and **Process** selectors are independent. Choose Abstract, SKY130, TSMC 28,
-TSMC 180 or Custom, then optionally choose NMOS/PMOS/R/C/L targets below the
-code. Process changes update the circuit and can be undone; existing values
-are retained. Unbound native devices use the cached template's defaults when
-the panel opens. **Default** restores Abstract mapping and output preferences.
+and **Process** selectors are independent. The editor starts in SKY130, and a
+transistor you draw is bound to the selected process as you place it. Choose
+Abstract, SKY130, TSMC 28, TSMC 180 or Custom, then optionally choose
+NMOS/PMOS/R/C/L targets below the code. Process changes update the circuit and
+can be undone; existing values are retained. Unbound native devices use the
+cached template's defaults when the panel opens. **Default** restores the
+SKY130 mapping and output preferences. The code area is as tall as the netlist,
+up to the room the sidebar has, and scrolls inside itself beyond that.
 The selected templates, format and port-name case are remembered in this browser.
 Editing the circuit refreshes the visible code. Clipboard failures leave the
 code selectable for manual copy.

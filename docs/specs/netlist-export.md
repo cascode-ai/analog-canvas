@@ -283,6 +283,10 @@ remains an `M` card everywhere.
 
 Netlist configuration stores `format`, `portCase`, the selected process and
 editable device templates for Abstract, SKY130, TSMC 28, TSMC 180 and Custom.
+The editor works in SKY130 until told otherwise, and a native device placed
+while a process is selected is bound to that process's model as part of the
+placement, so a drawn circuit exports as that process rather than as TODO
+model fields nobody asked for.
 Format and case are output preferences. Process/device selection is an
 undoable Project transaction that writes ordinary typed bindings and parameters
 before any consumer extracts the circuit. Creating a bundled example applies
@@ -405,8 +409,8 @@ Authored W/L and values survive process changes, and reviewed SKY130 calls use
 the existing canonical unit/interface conversion. TSMC 28 maps `m` to `multi`;
 switching back restores `m`. Process selection preserves names and stable
 instance IDs; dialect naming happens only during extraction. Custom external
-blocks keep their own interfaces. Default restores Abstract mapping and output preferences without
-overwriting authored parameter values. These choices are remembered locally.
+blocks keep their own interfaces. Default restores the SKY130 mapping and output
+preferences without overwriting authored parameter values. These choices are remembered locally.
 The adjacent menu offers Configuration…, Instances…, Check Report…, and Check
 and Save; it has no format choice. Clipboard rejection leaves selectable code
 and a status message, without a download fallback.

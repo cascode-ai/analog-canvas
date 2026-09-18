@@ -41,8 +41,10 @@ describe("netlist authoring preferences", () => {
     const restored = readNetlistExportPreferences(
       JSON.stringify({ format: "spectre", portCase: "lower" }),
     );
+    // The regression's storage says nothing about a process, so the restored
+    // preference is the default one a fresh editor starts in.
     expect(restored).toMatchObject({
-      selected: "abstract",
+      selected: "sky130",
       format: "spectre",
       portCase: "lower",
     });

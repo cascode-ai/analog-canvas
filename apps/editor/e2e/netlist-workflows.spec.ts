@@ -432,7 +432,12 @@ test("copies structural SPICE and Spectre netlists while exposing instance autho
   await expect(properties.getByLabel("Cell netlist name")).toHaveCount(0);
   await expect(properties.getByLabel("Cell netlist port order")).toHaveCount(0);
   await expectComponentCodeField(page, "netlistName", "M1");
-  await expectComponentCodeField(page, "netlistTarget", "");
+  // Drawn while working in SKY130, so it is already that process's device.
+  await expectComponentCodeField(
+    page,
+    "netlistTarget",
+    "sky130_fd_pr__nfet_01v8",
+  );
   await expect(properties.getByText(/^Model:/u)).toHaveCount(0);
 });
 
@@ -640,8 +645,27 @@ test("grows and shrinks the live netlist with content, scrolling only at the vie
   await load(22);
   expect(await height()).toBeGreaterThan(500);
   expect(await height()).toBeLessThan(600);
+  // Past the room the dock has, the code stops growing and scrolls inside
+  // itself: it takes the whole panel rather than a share of the window, and
+  // the options stay where they are instead of being pushed out of sight.
+  const dockScrolls = () =>
+    panel.evaluate((element) => {
+      const dock = element.parentElement!;
+      return dock.scrollHeight > dock.clientHeight + 1;
+    });
   await load(60);
-  expect(await height()).toBeCloseTo(600, 0);
+  const filled = await height();
+  expect(await dockScrolls()).toBe(false);
+  await checkOptionsFollow();
+  // A taller window is more room for the code, not the same share of a bigger
+  // screen: the dock hands over everything the controls do not need.
+  await page.setViewportSize({ width: 1440, height: 1400 });
+  await expect.poll(height).toBeGreaterThan(filled + 300);
+  expect(await height()).toBeGreaterThan(0.6 * 1400);
+  expect(await dockScrolls()).toBe(false);
+  await checkOptionsFollow();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect.poll(height).toBeCloseTo(filled, 0);
   const scroller = viewport.locator(".cm-scroller");
   expect(
     await scroller.evaluate(
@@ -653,7 +677,8 @@ test("grows and shrinks the live netlist with content, scrolling only at the vie
   });
   await expect(code).toContainText(".ends");
   await page.setViewportSize({ width: 720, height: 600 });
-  await expect.poll(height).toBeCloseTo(360, 0);
+  await expect.poll(height).toBeLessThan(filled);
+  expect(await dockScrolls()).toBe(false);
   await checkOptionsFollow();
   await load(2);
   expect(await height()).toBeCloseTo(214, 0);
@@ -677,7 +702,7 @@ test("edits output configuration without creating another electrical authority",
   expect(config).toMatchObject({
     format: "spice",
     portCase: "upper",
-    selected: "abstract",
+    selected: "sky130",
   });
   config.format = "spectre";
   config.portCase = "lower";

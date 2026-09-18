@@ -1811,6 +1811,8 @@ test("batch Code edits common resistor values and colors atomically and reopens 
   );
   await page.getByTestId("hit-R1").click();
   await page.getByTestId("hit-R2").click({ modifiers: ["Shift"] });
+  // Opening the Project brought the project dock back over Properties.
+  await openSelectionShelf(page);
   expect(JSON.parse(await readComponentPropertyCode(page))).toMatchObject({
     symbol: "resistor",
     parameters: { value: "10k", tc: "" },

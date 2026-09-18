@@ -102,6 +102,8 @@ export interface UseComponentPlacementOptions {
     object: Extract<DraftingObject, { kind: "text" }>,
   ) => void;
   nextId: (prefix: string) => string;
+  /** The model the process in hand names for this device, if it takes one. */
+  processModelTarget: (symbolId: string) => string | undefined;
   rotateComponentPlacement: (delta: 45 | -45 | 90 | -90) => void;
   mirrorComponentPlacement: (direction: ScreenFlip) => void;
   componentPlacementRotation: NonNullable<
@@ -159,7 +161,11 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
           rotation: options.componentPlacementRotation,
           mirror: options.componentPlacementMirror,
         },
-        netlist: initialInstanceNetlist(symbolId, placementRequest.parameters),
+        netlist: initialInstanceNetlist(
+          symbolId,
+          placementRequest.parameters,
+          options.processModelTarget(symbolId),
+        ),
       },
       { reference: placementRequest.referenceText ?? undefined },
     );

@@ -148,13 +148,25 @@ function defaultBinding(symbolId: string): InstanceNetlistBinding | undefined {
   return undefined;
 }
 
+/**
+ * The netlist record a freshly placed Instance carries.
+ *
+ * `modelTarget` is the model the process in hand names for this device, so a
+ * transistor drawn while working in a process is bound to that process from
+ * the moment it lands, rather than exporting as a TODO until someone opens the
+ * Netlist panel and picks the process again. A device that takes no explicit
+ * model ignores it.
+ */
 export function initialInstanceNetlist(
   symbolId: string,
   parameterValues: Readonly<Record<string, string>>,
+  modelTarget?: string,
 ): InstanceNetlistData | undefined {
   const policy = referencePolicyForSymbol(symbolId);
   if (policy.kind === "none") return undefined;
-  const binding = defaultBinding(symbolId);
+  const binding = modelTarget
+    ? bindingForEditedModel(symbolId, modelTarget)
+    : defaultBinding(symbolId);
   return {
     ...(binding ? { binding } : {}),
     parameters: rawParameters(parameterValues),

@@ -364,15 +364,23 @@
 .project-source-editor .cm-activeLineGutter {
   background: color-mix(in srgb, var(--icm-accent) 7%, transparent);
 }
+/* The live netlist takes the room the dock has. Its code area grows with the
+   netlist — ten lines at least — and stops growing only where the controls
+   under it begin, rather than at a share of the window that leaves the panel
+   half empty on a tall screen and scrolls on a short one. */
+.netlist-live-code {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
 .netlist-code-viewport {
-  flex: 0 0 auto;
-  min-height: 0;
+  /* As tall as the netlist, as far as the dock allows, ten lines at least. */
+  flex: 0 1 var(--netlist-editor-height);
+  min-height: 214px;
 }
 .netlist-code-viewport > .project-source-editor,
 .netlist-code-viewport > textarea {
-  /* Grow with the code, including beyond twenty lines. Keep ten lines for
-     short drafts and reserve screen space for the controls below it. */
-  height: clamp(214px, var(--netlist-editor-height), 60dvh);
+  height: 100%;
   min-height: 0;
 }
 .netlist-device-mapping {

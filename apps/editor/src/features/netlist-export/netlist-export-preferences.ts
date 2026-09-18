@@ -20,7 +20,7 @@ export interface NetlistExportPreferences {
 
 export function createDefaultNetlistExportPreferences(): NetlistExportPreferences {
   return {
-    selected: "abstract",
+    selected: "sky130",
     format: "spice",
     portCase: "upper",
     profiles: Object.fromEntries(

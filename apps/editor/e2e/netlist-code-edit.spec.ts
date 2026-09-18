@@ -57,13 +57,16 @@ test("restores process and device choices, applies defaults and keeps copy/edit/
   await page.goto("/editor?example=current-mirror-loaded-differential-pair");
   await awaitEditorReady(page);
   const code = page.getByLabel("Netlist code", { exact: true });
-  await expect(code).toContainText("NMOS");
+  // The editor works in SKY130, so the example opens bound to that process.
+  await expect(code).toContainText("sky130_fd_pr__nfet_01v8");
   await expect(code).not.toContainText("TODO");
   const mosLabel = page.locator(
     '[data-layer="annotations"] [data-object-id="instance-label-M1"]',
   );
   await expect(mosLabel).toHaveText("M1");
   const process = page.getByLabel("Netlist process", { exact: true });
+  await process.selectOption("abstract");
+  await expect(code).toContainText("NMOS");
   await process.selectOption("sky130");
   await expect(code).toContainText("sky130_fd_pr__nfet_01v8");
   await expect(code).toContainText("XM1");
