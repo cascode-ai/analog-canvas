@@ -25,8 +25,8 @@ const EPSILON = 1e-9;
 
 /**
  * The tolerance `pointOnSegment` accepts by default. Exported because a
- * bounding-box broad phase must be widened by exactly this much before it can
- * claim to be a superset of that exact predicate.
+ * bounding-box broad phases must account for its cross/dot-product units;
+ * it is not a coordinate-distance tolerance.
  */
 export const SEGMENT_EPSILON = EPSILON;
 

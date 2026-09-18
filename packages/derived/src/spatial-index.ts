@@ -27,6 +27,8 @@ export interface DocumentSpatialIndex {
   readonly documentId: string;
   readonly documentRevision: number;
   readonly routeSegments: BoundsSpatialIndex<IndexedRouteSegment>;
+  /** Short segments need the exact point predicate, not a fixed-distance box. */
+  readonly shortRouteSegments?: readonly IndexedRouteSegment[];
 }
 
 function normalizedBounds(bounds: Rect): Rect {
@@ -163,6 +165,13 @@ export function buildDocumentSpatialIndex(
   return {
     documentId: document.id,
     documentRevision: document.revision,
+    shortRouteSegments: segments.filter(
+      (segment) =>
+        Math.hypot(
+          segment.to.x - segment.from.x,
+          segment.to.y - segment.from.y,
+        ) < 2,
+    ),
     routeSegments: buildBoundsSpatialIndex(
       segments.map((segment) => ({ bounds: segment.bounds, value: segment })),
       Math.max(80, document.presentation.grid * 8),

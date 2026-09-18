@@ -136,10 +136,11 @@ export function resolveRouteTap(
  * times. With it the box query is only a broad phase; the exact predicate
  * below still decides.
  *
- * The query is widened by `SEGMENT_EPSILON` on purpose. `pointOnSegment`
- * accepts a point up to that far outside a segment's bounding box, so an
- * unwidened box query would drop real matches and silently change
- * connectivity rather than merely run slowly.
+ * The exact predicate tolerates cross/dot products, not coordinate distances.
+ * At length >= 2, each coordinate's tolerance is bounded by
+ * sqrt(2) * SEGMENT_EPSILON / length. A 2*epsilon box is conservative there;
+ * shorter segments are always checked exactly. Older/custom indexes lacking
+ * the short-segment list use the original scan.
  */
 export function findRouteSegmentsAtPoint(
   geometry: ResolvedDocumentRoutingGeometry,
@@ -153,14 +154,21 @@ export function findRouteSegmentsAtPoint(
     ) {
       throw new Error("Route query received a stale spatial index");
     }
+  }
+  if (spatialIndex?.shortRouteSegments) {
     const addresses: RouteSegmentAddress[] = [];
+    const padding = SEGMENT_EPSILON * 2;
     const widened = {
-      x: point.x - SEGMENT_EPSILON,
-      y: point.y - SEGMENT_EPSILON,
-      width: SEGMENT_EPSILON * 2,
-      height: SEGMENT_EPSILON * 2,
+      x: point.x - padding,
+      y: point.y - padding,
+      width: padding * 2,
+      height: padding * 2,
     };
-    for (const entry of spatialIndex.routeSegments.queryBounds(widened)) {
+    const candidates = new Set([
+      ...spatialIndex.routeSegments.queryBounds(widened),
+      ...spatialIndex.shortRouteSegments,
+    ]);
+    for (const entry of candidates) {
       // The segment is read from the geometry, not from the index entry, so
       // the predicate and the address it yields come from one source.
       const segment = geometry.routes.get(entry.routeId)?.segments[
