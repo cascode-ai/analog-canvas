@@ -14,6 +14,7 @@ archive of completed plans.
 | [Architecture decisions](adr/README.md)         | Optional rationale for consequential architectural choices              |
 | [Agent guide](agent/README.md)                  | Authorized workflows and on-demand knowledge                            |
 | [Roadmap](roadmap/README.md)                    | Remaining work and acceptance questions                                 |
+| [Standards](standards/rich-netlist.md)          | Draft open standards: Rich Netlist (RNL) principles, not yet a contract |
 | [Deployment](deployment.md)                     | Preview, Production, qualification, promotion, and recovery             |
 | [Testing](testing/README.md)                    | Validation policy and contract ownership                                |
 | [Experience](experience/README.md)              | Human-requested, evidence-backed reusable lessons                       |
