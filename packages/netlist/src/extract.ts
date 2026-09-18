@@ -209,7 +209,43 @@ export interface DesignNetlistAnalysisOptions {
   namingProfile?: NetlistNamingProfile;
   /** Read-only analysis root. Omission preserves structural-export behavior. */
   rootDocumentId?: StableId;
+  /**
+   * Whether the root Cell is printed as the deck's own top-level cards rather
+   * than as a `.subckt`. It decides one thing about ground, and only one: a
+   * Cell printed as a subcircuit states its reference as a `VSS` pin, because
+   * whoever instantiates it owns that reference; the Cell printed as the deck
+   * itself keeps SPICE's node `0`, because there the deck is the outside and
+   * a call passing `0` for a child's `VSS` is what ties the two together.
+   */
+  rootAsTopLevel?: boolean;
+  /**
+   * Whether a Cell printed as a `.subckt` states its ground as a `VSS` pin.
+   *
+   * A block handed to somebody else should say where its reference comes
+   * from: `"pin"` gives every such Cell that reaches ground a `VSS` pin
+   * beside its supplies, and the one Cell printed as the deck itself keeps
+   * node `0`, so its calls tie the two together. `"global"` — the default —
+   * leaves SPICE's global node where it was, which is what an imported deck
+   * must round-trip to and what a Snapshot reads.
+   */
+  groundPin?: GroundPinPolicy;
 }
+
+/** Ground as the Cell's own pin, or as SPICE's global node. */
+export type GroundPinPolicy = "pin" | "global";
+
+/**
+ * What a deck this editor runs shares with the netlist it hands out: the same
+ * subcircuits, each stating ground as a pin, and one flat root whose node `0`
+ * is what ties them to the reference.
+ */
+export const SIMULATION_DECK_GROUND = {
+  groundPin: "pin",
+  rootAsTopLevel: true,
+} as const satisfies DesignNetlistAnalysisOptions;
+
+/** The formal pin name a Cell's ground takes, matching the Block libraries. */
+export const GROUND_PORT_NAME = "VSS";
 
 type ResolvedDesignNetlistAnalysisOptions =
   Required<DesignNetlistAnalysisOptions>;
@@ -780,6 +816,7 @@ function extractHierarchyInstance(
   documentsById: Map<string, SchematicDocument>,
   cellNameByDocumentId: ReadonlyMap<string, string>,
   context: CellNetContext,
+  options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
 ): DesignNetlistInstance | null {
   const netlist = instance.netlist;
@@ -823,7 +860,8 @@ function extractHierarchyInstance(
     diagnostics,
   );
   // Callers and definitions share the authored interface, including its order.
-  const nodes = projectCellInterface(child.netlist).ports.flatMap((port) => {
+  const childPorts = projectCellInterface(child.netlist).ports;
+  const nodes = childPorts.flatMap((port) => {
     const netName = terminalNetName(
       document,
       instance,
@@ -833,6 +871,22 @@ function extractHierarchyInstance(
     );
     return netName ? [{ pinName: port.name, netName }] : [];
   });
+  // The child's ground pin is not in its authored interface; both sides
+  // derive it from the Documents, so the call carries this Cell's own ground
+  // node at the position the child's definition puts it.
+  if (options.groundPin === "pin" && cellReachesGround(child, documentsById)) {
+    const callerGround = context.nameByAuthoredName.get(foldNetName("0"));
+    if (callerGround) {
+      nodes.splice(
+        groundPortIndex(
+          child,
+          childPorts.map((port) => ({ id: port.netIds[0]! })),
+        ),
+        0,
+        { pinName: GROUND_PORT_NAME, netName: callerGround },
+      );
+    }
+  }
   return {
     id: instance.id,
     reference: instance.reference!,
@@ -1375,6 +1429,57 @@ function extractDeviceInstance(
   };
 }
 
+/**
+ * Whether a Cell meets ground at all — its own node `0`, or any Cell it
+ * instantiates that does.
+ *
+ * The answer has to be the same on both sides of a hierarchy call, and both
+ * sides compute it from the Documents alone rather than from whichever cell
+ * happened to be extracted first. A Cell that only passes ground through to a
+ * child still needs the pin: otherwise the child's reference would have
+ * nowhere to come from.
+ */
+function cellReachesGround(
+  document: SchematicDocument,
+  documentsById: Map<string, SchematicDocument>,
+  seen: Set<string> = new Set(),
+): boolean {
+  if (seen.has(document.id)) return false;
+  seen.add(document.id);
+  // Read the same Document the node names come from: a drawn Ground marker
+  // that predates the persisted claim record is recovered by the export view,
+  // and most drawings are exactly that. Asking the unrecovered Document would
+  // answer "no ground" for a Cell whose nodes are about to be named `0`.
+  const groundOfItsOwn = resolveDocumentLogicalNets(
+    withNetlistPowerMarkerClaims(document),
+  ).groups.some((group) => group.powerDomain === "ground");
+  if (groundOfItsOwn) return true;
+  return document.instances.some((instance) => {
+    const binding = instance.netlist?.binding;
+    if (binding?.kind !== "subcircuit") return false;
+    const child = documentsById.get(binding.childDocumentId);
+    return child ? cellReachesGround(child, documentsById, seen) : false;
+  });
+}
+
+/**
+ * Where the ground pin sits in a Cell's interface: after the supplies the
+ * author declared, so every Cell reads `VDD VSS …` the way the Block library
+ * already writes it, and before the first signal.
+ */
+function groundPortIndex(
+  document: SchematicDocument,
+  ports: readonly { id: string }[],
+): number {
+  const logicalNets = resolveDocumentLogicalNets(document);
+  let index = 0;
+  for (const [position, port] of ports.entries()) {
+    const domain = logicalNets.byBaseNetId.get(port.id)?.powerDomain;
+    if (domain === "vdd") index = position + 1;
+  }
+  return index;
+}
+
 function extractCell(
   project: CircuitProject,
   document: SchematicDocument,
@@ -1462,6 +1567,72 @@ function extractCell(
       return [{ id: representativeNetId, name: encodedPort.token, netName }];
     },
   );
+  // Ground becomes this Cell's own pin: the node inside is named for it, and
+  // the pin joins the interface beside the supplies. A Cell that only passes
+  // ground to a child gets the node anyway, so the child's reference has
+  // somewhere to come from.
+  const printedAsSubcircuit = !(
+    options.rootAsTopLevel && document.id === options.rootDocumentId
+  );
+  if (
+    options.groundPin === "pin" &&
+    printedAsSubcircuit &&
+    cellReachesGround(document, documentsById)
+  ) {
+    const encodedGround = encodeCandidate(GROUND_PORT_NAME, "local", options);
+    const groundNet = context.nets.find((net) => net.name === "0");
+    const groundToken = encodedGround.ok
+      ? encodedGround.token
+      : GROUND_PORT_NAME;
+    // An author who already gave ground a pin of their own keeps it: the
+    // policy states a reference, it does not duplicate one. The node then
+    // takes that pin's name, so no Cell printed as a subcircuit is left
+    // reaching for the global reference under a different name.
+    const authoredPin = groundNet
+      ? ports.find((port) => port.netName === groundNet.name)
+      : undefined;
+    if (authoredPin && groundNet) {
+      for (const [netId, name] of context.nameByNetId)
+        if (name === groundNet.name)
+          context.nameByNetId.set(netId, authoredPin.name);
+      context.nameByAuthoredName.set(foldNetName("0"), authoredPin.name);
+      groundNet.name = authoredPin.name;
+      groundNet.scope = "local";
+      authoredPin.netName = authoredPin.name;
+    } else if (groundNet) {
+      for (const [netId, name] of context.nameByNetId)
+        if (name === "0") context.nameByNetId.set(netId, groundToken);
+      context.nameByAuthoredName.set(foldNetName("0"), groundToken);
+      groundNet.name = groundToken;
+      groundNet.scope = "local";
+      ports.splice(groundPortIndex(document, ports), 0, {
+        id: groundNet.id,
+        name: groundToken,
+        netName: groundToken,
+      });
+    } else {
+      // Nothing in this Cell touches ground; it exists only to carry the
+      // reference down to a child that does.
+      const passThroughId = deriveStableId(
+        "netlist",
+        "ground-port",
+        document.id,
+        GROUND_PORT_NAME,
+      );
+      context.nets.push({
+        id: passThroughId,
+        name: groundToken,
+        scope: "local",
+      });
+      context.nameByNetId.set(passThroughId, groundToken);
+      context.nameByAuthoredName.set(foldNetName("0"), groundToken);
+      ports.splice(groundPortIndex(document, ports), 0, {
+        id: passThroughId,
+        name: groundToken,
+        netName: groundToken,
+      });
+    }
+  }
   const referenceIndex = createReferenceIndex(document);
   const syntheticReferences = new Map<string, string>();
   const reservedReferences = new Set(referenceIndex.byReference.keys());
@@ -1542,6 +1713,7 @@ function extractCell(
             documentsById,
             cellNameByDocumentId,
             context,
+            options,
             diagnostics,
           )
         : binding?.kind === "external-subcircuit"
@@ -1598,6 +1770,8 @@ function analyzeDesign(
     format: options.format ?? "spice",
     namingProfile: options.namingProfile ?? "native",
     rootDocumentId: options.rootDocumentId ?? project.topDocumentId,
+    rootAsTopLevel: options.rootAsTopLevel ?? false,
+    groundPin: options.groundPin ?? "global",
   };
   const diagnostics: NetlistDiagnostic[] = [];
   const documents = reachableDocuments(

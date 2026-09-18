@@ -288,9 +288,29 @@ Strict extraction and simulation use actual MOS B
 connectivity, including placement-materialized defaults. Without membership or
 an explicit NoConnect they report `MISSING_PIN_NET`; device polarity and
 descriptors do not invent MOS connections. Export preserves declared Cell interfaces
-and their ordering in hierarchy calls. It never adds VDD/VSS ports, promotes a
-local rail to a formal Pin, or rewrites a Global marker to local. Ground remains
-node `0`; it does not imply a VSS interface.
+and their ordering in hierarchy calls. It never adds a VDD port, promotes a
+local rail to a formal Pin, or rewrites a Global marker to local.
+
+Ground is the one reference a Cell states rather than reaches for. A Cell
+printed as a `.subckt` that meets ground — its own, or through a Cell it
+instantiates — carries a `VSS` pin: placed immediately after the supplies the
+author declared (a port whose Net is in the `vdd` power domain), and otherwise
+first, so every interface reads `VDD VSS …` the way the Block library already
+writes it. Its internal nodes read `VSS` in place of `0`. A Cell that only
+passes ground down to a child gets the pin too, or the child's reference would
+have nowhere to come from. A Cell whose author already gave ground a pin of
+their own keeps that pin — the policy states a reference rather than
+duplicating one — and the node takes that pin's name, so no Cell printed as a
+subcircuit is left reaching for the global reference under another name.
+
+The one Cell a deck prints as its own top-level cards keeps node `0`: there the
+deck is the outside, and its calls carry that `0` into each child's `VSS` pin.
+So a simulated deck and a handed-out netlist share the same subcircuits, and
+only the outermost level differs. `groundPin` selects the policy and
+`rootAsTopLevel` names which Cell is the deck (`SIMULATION_DECK_GROUND` pairs
+them for every simulation surface). The analyzer's own default keeps node `0`,
+which is what an imported deck round-trips to and what an Agent Snapshot
+reads.
 
 Built-in Analog Blocks retain their library-declared fixed supply names. Such
 a name resolves first to an authored named Net in the Cell, and failing that

@@ -11,7 +11,10 @@ import {
   type DeviceParameterDefinition,
 } from "@icm/devices";
 import { parseSpiceNumber } from "@icm/spice";
-import { analyzeDesignNetlistForAuthoring } from "./extract.js";
+import {
+  analyzeDesignNetlistForAuthoring,
+  SIMULATION_DECK_GROUND,
+} from "./extract.js";
 import { printVacaskWithLocations } from "./vacask-printer.js";
 import { printSpiceWithLocations } from "./printers.js";
 import { parseNgspiceSourceParameters } from "./simulation-ngspice-source-parameters.js";
@@ -64,6 +67,8 @@ export function generateCircuitSource(
   const analysis = analyzeDesignNetlistForAuthoring(project, {
     format: "spice",
     rootDocumentId: binding.documentId,
+    ...SIMULATION_DECK_GROUND,
+    rootAsTopLevel: binding.emission === "top-level",
   });
   if (
     !analysis.ir ||

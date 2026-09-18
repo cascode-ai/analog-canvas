@@ -8,7 +8,7 @@ import type {
   CompiledSimulationDeviceOperatingPoint,
   CompiledSimulationVector,
 } from "./simulation-compile.js";
-import { analyzeDesignNetlist } from "./extract.js";
+import { analyzeDesignNetlist, SIMULATION_DECK_GROUND } from "./extract.js";
 import type { DesignNetlistCell, DesignNetlistInstance } from "./ir.js";
 import { inspectVacaskSourceGraph } from "./vacask-source.js";
 import {
@@ -70,6 +70,8 @@ export function nativeSimulationDevices(
     const ir = analyzeDesignNetlist(project, {
       format: "spice",
       rootDocumentId: binding.documentId,
+      ...SIMULATION_DECK_GROUND,
+      rootAsTopLevel: binding.emission === "top-level",
     }).ir;
     if (!ir) continue;
     const root = ir.cells.find((cell) => cell.id === ir.topCellId);

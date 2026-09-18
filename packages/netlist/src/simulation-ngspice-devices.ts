@@ -5,7 +5,7 @@ import type {
 } from "@icm/model";
 import { reviewedExternalDeviceBindings } from "@icm/devices";
 import { mosBulkKind } from "@icm/derived";
-import { analyzeDesignNetlist } from "./extract.js";
+import { analyzeDesignNetlist, SIMULATION_DECK_GROUND } from "./extract.js";
 import type { DesignNetlistCell, DesignNetlistInstance } from "./ir.js";
 import { inspectSimulationSourceGraph } from "./simulation-source-graph.js";
 import {
@@ -37,6 +37,8 @@ export function ngspiceSimulationDevices(
     const ir = analyzeDesignNetlist(project, {
       format: "spice",
       rootDocumentId: binding.documentId,
+      ...SIMULATION_DECK_GROUND,
+      rootAsTopLevel: binding.emission === "top-level",
     }).ir;
     if (!ir) continue;
     const root = ir.cells.find((cell) => cell.id === ir.topCellId);

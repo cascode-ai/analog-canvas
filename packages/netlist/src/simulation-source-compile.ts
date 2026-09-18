@@ -7,7 +7,7 @@ import {
   type SimulationRunVariant,
 } from "@icm/model";
 import { sha256Hex } from "@icm/derived";
-import { analyzeDesignNetlist } from "./extract.js";
+import { analyzeDesignNetlist, SIMULATION_DECK_GROUND } from "./extract.js";
 import type { DesignNetlistCell, DesignNetlistIR } from "./ir.js";
 import {
   mapSimulationFile,
@@ -220,6 +220,8 @@ export function compileSourceSimulation(
     const result = analyzeDesignNetlist(effective, {
       format: "spice",
       rootDocumentId: binding.documentId,
+      ...SIMULATION_DECK_GROUND,
+      rootAsTopLevel: binding.emission === "top-level",
     });
     diagnostics.push(
       ...result.diagnostics.map((d) => ({

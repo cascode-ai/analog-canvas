@@ -171,7 +171,11 @@ export function createDesignNetlistExport(
   } = {},
 ): DesignNetlistExportResult {
   const format = options.format ?? "spice";
-  const analysisOptions = { ...options, format };
+  // A design netlist is the block somebody else reads, so every Cell in it
+  // states its own ground reference rather than reaching for SPICE's global
+  // node. A deck this editor runs uses the same subcircuits; only its flat
+  // root keeps node 0 (`SIMULATION_DECK_GROUND`).
+  const analysisOptions = { groundPin: "pin" as const, ...options, format };
   const analysis = analyzeDesignNetlist(project, analysisOptions);
   const errors = analysis.diagnostics.filter(
     (item) => item.severity === "error",

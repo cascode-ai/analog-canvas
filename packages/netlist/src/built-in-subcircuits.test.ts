@@ -149,7 +149,7 @@ describe("built-in Analog Block subcircuits", () => {
     // Declared order stays VDD, VSS, then the signals; the nodes are the ones
     // on the page.
     expect(result.file.text).toContain(
-      "X1 VDDA 0 plus_node minus_node positive_out negative_out opamp_differential",
+      "X1 VDDA VSS plus_node minus_node positive_out negative_out opamp_differential",
     );
     expect(project).toEqual(before);
   });
@@ -190,7 +190,7 @@ describe("built-in Analog Block subcircuits", () => {
       "Analog Block X1 has no VDD Net in this Cell; its declared supply exports as global node VDD",
     ]);
     expect(result.file.text).toContain(
-      "X1 VDD 0 plus_node minus_node positive_out negative_out opamp_differential",
+      "X1 VDD VSS plus_node minus_node positive_out negative_out opamp_differential",
     );
   });
 

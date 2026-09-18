@@ -82,7 +82,7 @@ import {
 } from "@icm/derived";
 import type { SimulationAnalysis, SimulationRequest } from "@icm/spice-run";
 
-import { analyzeDesignNetlist } from "./extract.js";
+import { analyzeDesignNetlist, SIMULATION_DECK_GROUND } from "./extract.js";
 import {
   instrumentationKey,
   instrumentTerminalCurrents,
@@ -817,6 +817,7 @@ export function buildSimulationPlan(
   const analysis = analyzeDesignNetlist(project, {
     format: "spice",
     rootDocumentId: input.rootDocumentId,
+    ...SIMULATION_DECK_GROUND,
   });
   // A null IR already carries at least one error, `MISSING_ROOT_CELL` among
   // them when the root Document is not in the Project.

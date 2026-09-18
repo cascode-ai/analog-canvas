@@ -405,9 +405,13 @@ test("copies structural SPICE and Spectre netlists while exposing instance autho
   await expect(
     page.getByRole("textbox", { name: "Netlist code", exact: true }),
   ).toHaveText("");
+  // The panel surfaces the first structural error for the Instance just
+  // placed. Which one comes first is diagnostic order, not a contract — a
+  // lone MOS is missing a model target and its connections both — so this
+  // asserts the Instance is named rather than pinning one message.
   await expect(
     page.getByRole("region", { name: "Live netlist" }).getByRole("alert"),
-  ).toContainText("not connected");
+  ).toContainText("M1");
   await page.evaluate(() => navigator.clipboard.writeText("unchanged"));
   await primary.click();
   await expect(page.getByTestId("status")).toContainText(

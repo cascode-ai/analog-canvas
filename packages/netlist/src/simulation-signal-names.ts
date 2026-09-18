@@ -3,7 +3,7 @@ import type {
   SimulationSourceInput,
   SimulationCircuitScope,
 } from "@icm/model";
-import { analyzeDesignNetlist } from "./extract.js";
+import { analyzeDesignNetlist, SIMULATION_DECK_GROUND } from "./extract.js";
 import type { DesignNetlistCell } from "./ir.js";
 import { inspectVacaskSourceGraph } from "./vacask-source.js";
 import { vacaskCircuitScopes } from "./vacask-source-scopes.js";
@@ -50,6 +50,8 @@ export function simulationSignals(
     const ir = analyzeDesignNetlist(project, {
       format: "spice",
       rootDocumentId: binding.documentId,
+      ...SIMULATION_DECK_GROUND,
+      rootAsTopLevel: binding.emission === "top-level",
     }).ir;
     if (!ir) continue;
     const root = ir.cells.find((cell) => cell.id === ir.topCellId);

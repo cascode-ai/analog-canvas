@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyProject } from "@icm/model";
+import { createEmptyDocument, createEmptyProject } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
 import { analyzeDesignNetlist } from "./extract.js";
 import { printDesignNetlist } from "./printers.js";
@@ -259,6 +259,224 @@ R1 A B 5k
   });
 });
 
+describe("ground as the Cell's own pin", () => {
+  /** One NMOS with a drawn ground, a declared VDD Port, and an output Port. */
+  function cellWithGround(id = "main", name = "dut") {
+    const document = createEmptyDocument(id, name);
+    document.netlist!.name = name;
+    document.instances.push(
+      {
+        id: "M1",
+        symbolId: "nmos",
+        reference: "M1",
+        netlist: {
+          binding: { kind: "model", deviceClass: "mos", name: "NMOS" },
+          parameters: { w: "1u", l: "150n", m: "1", nf: "1" },
+        },
+        placement: null,
+      },
+      { id: "GND1", symbolId: "ground", placement: null },
+      // The VDD Symbol is the formal pin here, the way a drawing that hands
+      // its supply to a caller states it; a global VDD Net and a Cell pin on
+      // the same Net is a contract conflict, not a supply.
+      { id: "VDD1", symbolId: "vdd-port", placement: null },
+      { id: "POUT", symbolId: "port", placement: null },
+    );
+    document.nets.push(
+      {
+        id: "net-vdd",
+        terminals: [
+          { instanceId: "VDD1", pinName: "P" },
+          { instanceId: "M1", pinName: "G" },
+        ],
+      },
+      {
+        id: "net-out",
+        terminals: [
+          { instanceId: "POUT", pinName: "P" },
+          { instanceId: "M1", pinName: "D" },
+        ],
+      },
+      {
+        id: "net-gnd",
+        terminals: [
+          { instanceId: "GND1", pinName: "0" },
+          { instanceId: "M1", pinName: "S" },
+          { instanceId: "M1", pinName: "B" },
+        ],
+      },
+    );
+    document.netlist!.terminals.push(
+      {
+        id: "terminal-vdd",
+        name: "VDD",
+        netId: "net-vdd",
+        direction: "inout",
+        interfaceInstanceIds: ["VDD1"],
+      },
+      {
+        id: "terminal-out",
+        name: "OUT",
+        netId: "net-out",
+        direction: "output",
+        interfaceInstanceIds: ["POUT"],
+      },
+    );
+    document.connectivityEvidence.push({
+      id: "gnd-claim",
+      kind: "name-claim",
+      netId: "net-gnd",
+      name: "0",
+      scope: "global",
+      powerDomain: "ground",
+      owner: { kind: "power-marker", objectId: "GND1" },
+    });
+    return document;
+  }
+
+  it("states ground as a VSS pin after the supplies", () => {
+    // A block somebody else reads should say where its reference comes from
+    // instead of reaching for the caller's global node.
+    const project = createEmptyProject("vss", "VSS", "main");
+    project.documents = [cellWithGround()];
+    const result = createDesignNetlistExport(project, { format: "spice" });
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.file.text).toContain(".subckt dut VDD VSS OUT\n");
+    // Source and body both read the pin, and node 0 is gone from the Cell.
+    expect(result.file.text).toMatch(/M1 OUT VDD VSS VSS NMOS/u);
+    expect(result.file.text).not.toMatch(/(?:^|\s)0(?:\s|$)/u);
+  });
+
+  it("gives a parent and its child the same reference", () => {
+    // Both sides derive the pin from the Documents, so a call cannot pass its
+    // nodes in one order while the definition expects another.
+    const project = createEmptyProject("vss-hier", "VSS hierarchy", "top");
+    const child = cellWithGround("child", "leaf");
+    const top = createEmptyDocument("top", "top");
+    top.netlist!.name = "top";
+    top.instances.push(
+      {
+        id: "X1",
+        symbolId: "child-symbol",
+        reference: "X1",
+        netlist: {
+          binding: { kind: "subcircuit", childDocumentId: "child" },
+          parameters: {},
+        },
+        placement: null,
+      },
+      { id: "GND2", symbolId: "ground", placement: null },
+      { id: "PIN", symbolId: "port", placement: null },
+    );
+    top.nets.push(
+      {
+        id: "top-vdd",
+        terminals: [{ instanceId: "X1", pinName: "VDD" }],
+      },
+      {
+        id: "top-out",
+        terminals: [
+          { instanceId: "X1", pinName: "OUT" },
+          { instanceId: "PIN", pinName: "P" },
+        ],
+      },
+      { id: "top-gnd", terminals: [{ instanceId: "GND2", pinName: "0" }] },
+    );
+    top.connectivityEvidence.push({
+      id: "top-gnd-claim",
+      kind: "name-claim",
+      netId: "top-gnd",
+      name: "0",
+      scope: "global",
+      powerDomain: "ground",
+      owner: { kind: "power-marker", objectId: "GND2" },
+    });
+    top.netlist!.terminals.push({
+      id: "terminal-io",
+      name: "IO",
+      netId: "top-out",
+      direction: "inout",
+      interfaceInstanceIds: ["PIN"],
+    });
+    project.documents = [top, child];
+
+    const result = createDesignNetlistExport(project, { format: "spice" });
+    const text = result.status === "ready" ? result.file.text : "";
+    expect(result.status).toBe("ready");
+    expect(text).toContain(".subckt leaf VDD VSS OUT\n");
+    expect(text).toContain(".subckt top VSS IO\n");
+    // The call carries the caller's own ground where the definition puts it.
+    expect(text).toMatch(/X1 \S+ VSS \S+ leaf/u);
+  });
+
+  it("recognizes a drawn Ground marker that carries no stored claim", () => {
+    // Most drawings are this: the marker is on the page and the claim record
+    // that names its Net `0` is recovered by the export view rather than
+    // persisted. Asking the unrecovered Document answers "no ground" and the
+    // Cell would print `0` with no pin to reach it by.
+    const project = createEmptyProject("vss-marker", "VSS marker", "main");
+    const document = cellWithGround();
+    document.connectivityEvidence = document.connectivityEvidence.filter(
+      (evidence) => evidence.id !== "gnd-claim",
+    );
+    project.documents = [document];
+
+    const result = createDesignNetlistExport(project, { format: "spice" });
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.file.text).toContain(".subckt dut VDD VSS OUT\n");
+    expect(result.file.text).toMatch(/M1 OUT VDD VSS VSS NMOS/u);
+  });
+
+  it("keeps a pin the author already gave ground", () => {
+    const project = createEmptyProject("vss-own", "VSS own", "main");
+    const document = cellWithGround();
+    document.instances.push({ id: "PGND", symbolId: "port", placement: null });
+    document.nets
+      .find((net) => net.id === "net-gnd")!
+      .terminals.push({ instanceId: "PGND", pinName: "P" });
+    document.netlist!.terminals.push({
+      id: "terminal-gnd",
+      name: "GNDA",
+      netId: "net-gnd",
+      direction: "inout",
+      interfaceInstanceIds: ["PGND"],
+    });
+    project.documents = [document];
+
+    const result = createDesignNetlistExport(project, { format: "spice" });
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    // One reference, under the author's own name, and no second pin for it.
+    expect(result.file.text).toContain(".subckt dut VDD OUT GNDA\n");
+    expect(result.file.text).not.toMatch(/\bVSS\b/u);
+    // The node takes that pin's name too, so nothing inside is left reaching
+    // for the global reference under another name.
+    expect(result.file.text).toMatch(/M1 OUT VDD GNDA GNDA NMOS/u);
+    expect(result.file.text).not.toMatch(/(?:^|\s)0(?:\s|$)/u);
+  });
+
+  it("keeps node 0 in the one Cell a deck prints as its own cards", () => {
+    // There is no outside to ask: the deck itself is the outside, and its
+    // calls into children carry that 0 into their VSS pins.
+    const project = createEmptyProject("vss-sim", "VSS sim", "main");
+    project.documents = [cellWithGround()];
+    const analysis = analyzeDesignNetlist(project, {
+      format: "spice",
+      rootAsTopLevel: true,
+    });
+    const cell = analysis.ir?.cells[0];
+    expect(cell?.ports.map((port) => port.name)).toEqual(["VDD", "OUT"]);
+    expect(cell?.instances[0]?.nodes.map((node) => node.netName)).toEqual([
+      "OUT",
+      "VDD",
+      "0",
+      "0",
+    ]);
+  });
+});
+
 describe("netlist extractability", () => {
   function oneTransistor(connected: { body: boolean }) {
     const project = createEmptyProject("extractable", "Extractable", "main");
@@ -323,8 +541,9 @@ describe("netlist extractability", () => {
     const result = createDesignNetlistExport(project, { format: "spice" });
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
-    // Drain, gate, source, body: source and body are both the ground node.
-    expect(result.file.text).toMatch(/M1 \S+ \S+ 0 0 /u);
+    // Drain, gate, source, body: source and body are both the ground node,
+    // which this Cell states as its own pin.
+    expect(result.file.text).toMatch(/M1 \S+ \S+ VSS VSS /u);
   });
 
   it("answers no while connectivity is still missing", () => {
