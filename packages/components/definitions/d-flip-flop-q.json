@@ -149,5 +149,37 @@
       "converterPath": "scripts/generate-razavi-buffer-dff-assets.mjs",
       "converterVersion": 1
     }
+  },
+  "subcircuit": {
+    "id": "d-flip-flop-q",
+    "symbolId": "d-flip-flop-q",
+    "target": "d_flip_flop_q",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "D",
+        "direction": "input",
+        "pinName": "D"
+      },
+      {
+        "name": "CK",
+        "direction": "input",
+        "pinName": "CK"
+      },
+      {
+        "name": "Q",
+        "direction": "output",
+        "pinName": "Q"
+      }
+    ]
   }
 }

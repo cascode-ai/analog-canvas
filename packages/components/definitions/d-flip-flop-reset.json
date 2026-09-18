@@ -215,5 +215,47 @@
       "converterPath": "scripts/generate-razavi-buffer-dff-assets.mjs",
       "converterVersion": 1
     }
+  },
+  "subcircuit": {
+    "id": "d-flip-flop-reset",
+    "symbolId": "d-flip-flop-reset",
+    "target": "d_flip_flop_reset",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "D",
+        "direction": "input",
+        "pinName": "D"
+      },
+      {
+        "name": "CK",
+        "direction": "input",
+        "pinName": "CK"
+      },
+      {
+        "name": "RST",
+        "direction": "input",
+        "pinName": "RST"
+      },
+      {
+        "name": "Q",
+        "direction": "output",
+        "pinName": "Q"
+      },
+      {
+        "name": "QBAR",
+        "direction": "output",
+        "pinName": "QBAR"
+      }
+    ]
   }
 }

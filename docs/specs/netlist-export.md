@@ -139,7 +139,12 @@ library model or PDK.
 Each exportable electrical device Symbol has one reviewed `DeviceDescriptor`
 in `packages/devices`. Built-in Analog Blocks instead have a black-box
 subcircuit descriptor: a master name and ordered ports, including fixed supply
-ports.
+ports. The logic Symbols — gates, buffer, inverter, adder, multiplier and the
+D flip-flops — are Blocks on that same contract: the drawing says what the
+block is and which nodes it meets, and the model behind the master name is
+the reader's to supply. Their ports follow the Symbol's own pins, a clock or
+reset counting as an input and a complement as an output, and they declare
+the same fixed supplies so every Block writes a card of the same shape.
 
 [DeviceDescriptor](../../packages/devices/src/contract.ts) owns canonical pin
 order, invocation policy, parameter metadata and supported dialects. The

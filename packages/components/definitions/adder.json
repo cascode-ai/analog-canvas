@@ -175,5 +175,37 @@
       ],
       "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/delta-sigma-geometry.json"
     }
+  },
+  "subcircuit": {
+    "id": "adder",
+    "symbolId": "adder",
+    "target": "adder",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "A",
+        "direction": "input",
+        "pinName": "A"
+      },
+      {
+        "name": "B",
+        "direction": "input",
+        "pinName": "B"
+      },
+      {
+        "name": "Y",
+        "direction": "output",
+        "pinName": "Y"
+      }
+    ]
   }
 }

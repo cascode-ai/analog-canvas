@@ -134,5 +134,32 @@
       "converterVersion": 3,
       "bodyNormalization": "left-grid-anchor"
     }
+  },
+  "subcircuit": {
+    "id": "inverter",
+    "symbolId": "inverter",
+    "target": "inverter",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "A",
+        "direction": "input",
+        "pinName": "A"
+      },
+      {
+        "name": "Y",
+        "direction": "output",
+        "pinName": "Y"
+      }
+    ]
   }
 }

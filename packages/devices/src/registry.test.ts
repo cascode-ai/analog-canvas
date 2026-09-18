@@ -161,7 +161,7 @@ describe("built-in device registry", () => {
   });
 
   it("registers Analog Blocks as semantic black-box subcircuits", () => {
-    expect(builtInSubcircuitDescriptors).toHaveLength(23);
+    expect(builtInSubcircuitDescriptors).toHaveLength(36);
     expect(
       subcircuitDescriptor("opamp-differential-crossed-inputs-swapped"),
     ).toMatchObject({
@@ -176,6 +176,37 @@ describe("built-in device registry", () => {
       ],
     });
     expect(referencePolicyForSymbol("opamp-differential")).toEqual({
+      kind: "required",
+      prefix: "X",
+    });
+  });
+
+  it("registers the logic symbols on the same black-box contract", () => {
+    // A gate is a black box like any other Block: the drawing says what it
+    // is and which nodes it meets, and the model behind the name is the
+    // reader's to supply. Declaring supplies keeps one interface shape for
+    // every Block, so the export writes a card with the same node order.
+    expect(subcircuitDescriptor("nand-gate")).toMatchObject({
+      target: "nand_gate",
+      ports: [
+        { name: "VDD", supply: "VDD" },
+        { name: "VSS", supply: "VSS" },
+        { name: "A", pinName: "A", direction: "input" },
+        { name: "B", pinName: "B", direction: "input" },
+        { name: "Y", pinName: "Y", direction: "output" },
+      ],
+    });
+    // A clock is an input and a complement is an output; nothing else about
+    // a flip-flop's interface is inferred.
+    expect(subcircuitDescriptor("d-flip-flop")?.ports).toMatchObject([
+      { name: "VDD" },
+      { name: "VSS" },
+      { name: "D", direction: "input" },
+      { name: "CK", direction: "input" },
+      { name: "Q", direction: "output" },
+      { name: "QBAR", direction: "output" },
+    ]);
+    expect(referencePolicyForSymbol("inverter")).toEqual({
       kind: "required",
       prefix: "X",
     });

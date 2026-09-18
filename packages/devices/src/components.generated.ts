@@ -1447,6 +1447,29 @@ export const componentDeviceDescriptors: readonly DeviceDescriptor[] = [
 export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescriptor[] =
   [
     {
+      id: "and-gate",
+      symbolId: "and-gate",
+      target: "and_gate",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "A", direction: "input", pinName: "A" },
+        { name: "B", direction: "input", pinName: "B" },
+        { name: "Y", direction: "output", pinName: "Y" },
+      ],
+    },
+    {
+      id: "buffer",
+      symbolId: "buffer",
+      target: "buffer",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "A", direction: "input", pinName: "A" },
+        { name: "Y", direction: "output", pinName: "Y" },
+      ],
+    },
+    {
       id: "comparator",
       symbolId: "comparator",
       target: "comparator",
@@ -1495,6 +1518,69 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
       ],
     },
     {
+      id: "d-flip-flop",
+      symbolId: "d-flip-flop",
+      target: "d_flip_flop",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "D", direction: "input", pinName: "D" },
+        { name: "CK", direction: "input", pinName: "CK" },
+        { name: "Q", direction: "output", pinName: "Q" },
+        { name: "QBAR", direction: "output", pinName: "QBAR" },
+      ],
+    },
+    {
+      id: "d-flip-flop-reset",
+      symbolId: "d-flip-flop-reset",
+      target: "d_flip_flop_reset",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "D", direction: "input", pinName: "D" },
+        { name: "CK", direction: "input", pinName: "CK" },
+        { name: "RST", direction: "input", pinName: "RST" },
+        { name: "Q", direction: "output", pinName: "Q" },
+        { name: "QBAR", direction: "output", pinName: "QBAR" },
+      ],
+    },
+    {
+      id: "d-flip-flop-q",
+      symbolId: "d-flip-flop-q",
+      target: "d_flip_flop_q",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "D", direction: "input", pinName: "D" },
+        { name: "CK", direction: "input", pinName: "CK" },
+        { name: "Q", direction: "output", pinName: "Q" },
+      ],
+    },
+    {
+      id: "adder",
+      symbolId: "adder",
+      target: "adder",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "A", direction: "input", pinName: "A" },
+        { name: "B", direction: "input", pinName: "B" },
+        { name: "Y", direction: "output", pinName: "Y" },
+      ],
+    },
+    {
+      id: "multiplier",
+      symbolId: "multiplier",
+      target: "multiplier",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "A", direction: "input", pinName: "A" },
+        { name: "B", direction: "input", pinName: "B" },
+        { name: "Y", direction: "output", pinName: "Y" },
+      ],
+    },
+    {
       id: "transconductance",
       symbolId: "transconductance",
       target: "transconductance",
@@ -1527,6 +1613,41 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
         { name: "VIP", direction: "input", pinName: "IN+" },
         { name: "VIN", direction: "input", pinName: "IN-" },
         { name: "VOUT", direction: "output", pinName: "OUT" },
+      ],
+    },
+    {
+      id: "inverter",
+      symbolId: "inverter",
+      target: "inverter",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "A", direction: "input", pinName: "A" },
+        { name: "Y", direction: "output", pinName: "Y" },
+      ],
+    },
+    {
+      id: "nand-gate",
+      symbolId: "nand-gate",
+      target: "nand_gate",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "A", direction: "input", pinName: "A" },
+        { name: "B", direction: "input", pinName: "B" },
+        { name: "Y", direction: "output", pinName: "Y" },
+      ],
+    },
+    {
+      id: "nor-gate",
+      symbolId: "nor-gate",
+      target: "nor_gate",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "A", direction: "input", pinName: "A" },
+        { name: "B", direction: "input", pinName: "B" },
+        { name: "Y", direction: "output", pinName: "Y" },
       ],
     },
     {
@@ -1682,6 +1803,18 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
       ],
     },
     {
+      id: "or-gate",
+      symbolId: "or-gate",
+      target: "or_gate",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "A", direction: "input", pinName: "A" },
+        { name: "B", direction: "input", pinName: "B" },
+        { name: "Y", direction: "output", pinName: "Y" },
+      ],
+    },
+    {
       id: "voltage-amplifier",
       symbolId: "voltage-amplifier",
       target: "voltage_amplifier",
@@ -1701,6 +1834,30 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
         { name: "VSS", direction: "inout", supply: "VSS" },
         { name: "VIN", direction: "input", pinName: "IN" },
         { name: "VOUT", direction: "output", pinName: "OUT" },
+      ],
+    },
+    {
+      id: "xnor-gate",
+      symbolId: "xnor-gate",
+      target: "xnor_gate",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "A", direction: "input", pinName: "A" },
+        { name: "B", direction: "input", pinName: "B" },
+        { name: "Y", direction: "output", pinName: "Y" },
+      ],
+    },
+    {
+      id: "xor-gate",
+      symbolId: "xor-gate",
+      target: "xor_gate",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "A", direction: "input", pinName: "A" },
+        { name: "B", direction: "input", pinName: "B" },
+        { name: "Y", direction: "output", pinName: "Y" },
       ],
     },
     {

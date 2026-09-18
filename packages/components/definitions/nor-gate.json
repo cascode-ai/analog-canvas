@@ -163,5 +163,37 @@
       "converterVersion": 3,
       "bodyNormalization": "left-grid-anchor"
     }
+  },
+  "subcircuit": {
+    "id": "nor-gate",
+    "symbolId": "nor-gate",
+    "target": "nor_gate",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "A",
+        "direction": "input",
+        "pinName": "A"
+      },
+      {
+        "name": "B",
+        "direction": "input",
+        "pinName": "B"
+      },
+      {
+        "name": "Y",
+        "direction": "output",
+        "pinName": "Y"
+      }
+    ]
   }
 }

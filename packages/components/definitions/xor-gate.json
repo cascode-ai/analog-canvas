@@ -164,5 +164,37 @@
       "converterVersion": 3,
       "bodyNormalization": "left-grid-anchor"
     }
+  },
+  "subcircuit": {
+    "id": "xor-gate",
+    "symbolId": "xor-gate",
+    "target": "xor_gate",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "A",
+        "direction": "input",
+        "pinName": "A"
+      },
+      {
+        "name": "B",
+        "direction": "input",
+        "pinName": "B"
+      },
+      {
+        "name": "Y",
+        "direction": "output",
+        "pinName": "Y"
+      }
+    ]
   }
 }
