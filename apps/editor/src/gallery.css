@@ -1350,8 +1350,12 @@ div.gallery-contributor-status {
   color: var(--icm-error);
 }
 
+/* The scan lives in the filter row: its own box would only indent what it
+   holds, so it passes its children straight to that row. The controls take the
+   free end beside the filter pills; everything the scan reports claims a full
+   line under them. */
 .gallery-duplicates {
-  margin: 0 22px 14px;
+  display: contents;
   font-size: 13px;
 }
 .gallery-duplicates-actions {
@@ -1359,8 +1363,16 @@ div.gallery-contributor-status {
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
+  margin-left: auto;
+  font-size: 13px;
+}
+.gallery-duplicates > p {
+  flex-basis: 100%;
+  margin: 4px 0 0;
+  font-size: 13px;
 }
 .gallery-duplicates-results {
+  flex-basis: 100%;
   margin-top: 10px;
   padding: 12px;
   border: 1px solid var(--color-border, #d5d9df);

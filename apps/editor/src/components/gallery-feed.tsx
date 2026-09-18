@@ -923,21 +923,11 @@ export function GalleryFeed({
 
       {view === "gallery" ? (
         <>
-          {isOwner ? (
-            <GalleryDuplicateCheck
-              onReport={setDuplicateReport}
-              onRecycled={(ids) => {
-                // The scan covers the whole library, while this feed may be
-                // filtered. Let the server recalculate its counts.
-                setRefreshSignal((signal) => signal + 1);
-                if (ids[0]) announceGalleryChange({ entryId: ids[0] });
-              }}
-            />
-          ) : null}
           {tagOptions.length > 0 ||
           entries.length > 0 ||
           netlistableOnly ||
-          likedOnly ? (
+          likedOnly ||
+          isOwner ? (
             <div className="gallery-tag-bar" data-testid="gallery-tag-bar">
               <input
                 className="gallery-tag-search"
@@ -1063,6 +1053,20 @@ export function GalleryFeed({
                 >
                   Clear {selectedTags.length} selected
                 </button>
+              ) : null}
+              {/* The curator's scan wears the same pill as the filters and
+                  takes the free end of their row; what it reports breaks onto
+                  its own line below them. */}
+              {isOwner ? (
+                <GalleryDuplicateCheck
+                  onReport={setDuplicateReport}
+                  onRecycled={(ids) => {
+                    // The scan covers the whole library, while this feed may
+                    // be filtered. Let the server recalculate its counts.
+                    setRefreshSignal((signal) => signal + 1);
+                    if (ids[0]) announceGalleryChange({ entryId: ids[0] });
+                  }}
+                />
               ) : null}
             </div>
           ) : null}

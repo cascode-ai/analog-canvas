@@ -169,17 +169,14 @@ export function GalleryDuplicateCheck({
       {open ? (
         <div className="gallery-duplicates-results">
           <p>
-            Compares netlists across the entire public Gallery, regardless of
-            filters. Names and drawing layout are ignored; connections, pin
-            roles, ordered ports, models and values must match. Unset values
-            match only other unset values.
+            Same netlist — connections, pin roles, port order, models and values
+            — whatever the names, drawing or filters.
           </p>
           {report?.groups.length ? (
             <p>
-              {grouped} circuits in duplicate groups; {duplicates} extra{" "}
-              {duplicates === 1 ? "copy" : "copies"}. Keep the oldest by
-              default, or select a different copy. Removed copies go to the
-              recycle bin and can be restored.
+              {grouped} circuits, {duplicates} extra{" "}
+              {duplicates === 1 ? "copy" : "copies"}. The oldest is kept unless
+              you pick another; removed copies go to the recycle bin.
             </p>
           ) : report?.complete ? (
             <p>
@@ -262,12 +259,6 @@ export function GalleryDuplicateCheck({
                 ))}
               </ul>
             </details>
-          ) : null}
-          {report?.complete ? (
-            <small>
-              Snapshot of the circuits read during this scan. Run again after
-              library changes.
-            </small>
           ) : null}
         </div>
       ) : null}
