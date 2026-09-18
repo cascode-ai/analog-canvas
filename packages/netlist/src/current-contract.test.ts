@@ -1620,7 +1620,7 @@ describe("current formal cell interface", () => {
   });
 
   it.each(["spice", "spectre"] as const)(
-    "rejects missing MOS bulk in %s without guessing a power domain",
+    "defaults missing schematic MOS bodies in %s while preserving explicit domains",
     (format) => {
       const project = createEmptyProject("project", "Project");
       const document = project.documents[0]!;
@@ -1664,22 +1664,19 @@ describe("current formal cell interface", () => {
 
       const result = analyzeDesignNetlist(project, { format });
 
-      expect(result.ir).toBeNull();
+      expect(result.ir).not.toBeNull();
       expect(
         result.diagnostics.filter((item) => item.severity === "error"),
+      ).toEqual([]);
+      expect(
+        result.ir?.cells[0]?.instances.map((instance) => instance.nodes[3]),
       ).toEqual([
-        expect.objectContaining({
-          code: "MISSING_PIN_NET",
-          objectIds: ["M1"],
-          // A body has two authored answers; the report names both.
-          message: expect.stringContaining(
-            "connect B, or set this Cell's MOS body default",
-          ),
-        }),
-        expect.objectContaining({ code: "MISSING_PIN_NET", objectIds: ["M2"] }),
+        { pinName: "B", netName: "0" },
+        { pinName: "B", netName: "VDD" },
+        { pinName: "B", netName: "VSSB" },
+        { pinName: "B", netName: "VBP" },
       ]);
-      // Once the author connects the two missing bodies to their actual domains,
-      // no implicit VDD/VSS nodes or formal ports are needed.
+      // Explicit body wiring overrides the conventional default supplies.
       document.nets
         .find((net) => net.id === "nmos-body")!
         .terminals.push({ instanceId: "M1", pinName: "B" });

@@ -816,3 +816,76 @@ test("keeps the netlist live and selectable when clipboard access fails", async 
   await code.selectText();
   expect(downloads).toEqual([]);
 });
+
+test("exports a MOS pair without bulk wiring or supply symbols", async ({
+  page,
+}) => {
+  const project = createEmptyProject("implicit-bulk", "Implicit Bulk");
+  const document = project.documents[0]!;
+  for (const [index, id] of ["M1", "M2"].entries()) {
+    document.instances.push({
+      id,
+      reference: id,
+      symbolId: "nmos",
+      placement: {
+        position: { x: 240 + index * 200, y: 240 },
+        rotation: 0,
+        mirror: index ? "horizontal" : "none",
+      },
+      netlist: {
+        binding: { kind: "model", deviceClass: "mos", name: "NMOS" },
+        parameters: { w: "1u", l: "150n", nf: "1", m: "1" },
+      },
+    });
+    const portId = `P${index}`;
+    const netId = `gate-${index}`;
+    document.instances.push({ id: portId, symbolId: "port", placement: null });
+    document.nets.push({
+      id: netId,
+      terminals: [
+        { instanceId: id, pinName: "G" },
+        { instanceId: portId, pinName: "P" },
+      ],
+    });
+    document.netlist!.terminals.push({
+      id: `input-${index}`,
+      name: index ? "Vin2" : "Vin",
+      netId,
+      direction: "input",
+      interfaceInstanceIds: [portId],
+    });
+  }
+  for (const pinName of ["D", "S"])
+    document.nets.push({
+      id: `shared-${pinName}`,
+      terminals: ["M1", "M2"].map((instanceId) => ({ instanceId, pinName })),
+    });
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "implicit-bulk.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await expect(page.getByLabel("Netlist code", { exact: true })).toContainText(
+    "M1",
+  );
+  const scs = await copyNetlistText(page, "spectre");
+  expect(scs).toContain("subckt dut (VDD VSS VIN VIN2)");
+  expect(scs).toMatch(/M1 \(\S+ VIN \S+ VSS\) NMOS/u);
+  expect(scs).toMatch(/M2 \(\S+ VIN2 \S+ VSS\) NMOS/u);
+  const spice = await copyNetlistText(page, "spice");
+  expect(spice).toContain(".subckt dut VDD VSS VIN VIN2");
+  expect(spice).not.toContain(".global");
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(saved.documents[0].instances).toHaveLength(4);
+  expect(
+    saved.documents[0].nets
+      .flatMap((net: { terminals: { pinName: string }[] }) => net.terminals)
+      .some((pin: { pinName: string }) => pin.pinName === "B"),
+  ).toBe(false);
+});

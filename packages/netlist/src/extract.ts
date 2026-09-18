@@ -49,6 +49,7 @@ import {
   type NetlistNamingProfile,
 } from "./net-name-codec.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
+import { withImplicitMosSupplies } from "./implicit-mos-supplies.js";
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 const MAX_CELLS = 1024;
@@ -886,7 +887,7 @@ function extractHierarchyInstance(
       nodes.splice(
         groundPortIndex(
           child,
-          childPorts.map((port) => ({ id: port.netIds[0]! })),
+          childPorts.map((port) => ({ id: port.netIds[0]!, name: port.name })),
         ),
         0,
         { pinName: GROUND_PORT_NAME, netName: callerGround },
@@ -1475,13 +1476,14 @@ function cellReachesGround(
  */
 function groundPortIndex(
   document: SchematicDocument,
-  ports: readonly { id: string }[],
+  ports: readonly { id: string; name?: string }[],
 ): number {
   const logicalNets = resolveDocumentLogicalNets(document);
   let index = 0;
   for (const [position, port] of ports.entries()) {
     const domain = logicalNets.byBaseNetId.get(port.id)?.powerDomain;
-    if (domain === "vdd") index = position + 1;
+    if (domain === "vdd" || port.name?.toUpperCase() === "VDD")
+      index = position + 1;
   }
   return index;
 }
@@ -1819,6 +1821,7 @@ function analyzeDesign(
     rootAsTopLevel: options.rootAsTopLevel ?? false,
     groundPin: options.groundPin ?? "global",
   };
+  project = withImplicitMosSupplies(project, resolvedOptions);
   const diagnostics: NetlistDiagnostic[] = [];
   const documents = reachableDocuments(
     project,

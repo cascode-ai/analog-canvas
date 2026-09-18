@@ -510,55 +510,72 @@ describe("compiling a structured simulation folder", () => {
     expect(result.request.netlist).toContain("VICMPRB");
   });
 
-  it("rejects selected MOS operating points when bulk connections are missing", async () => {
-    const project = CircuitProjectSchema.parse(
-      currentFiveTransistorOtaCircuitSource(),
-    );
-    const dut = project.documents.find(
-      (document) => document.id === "document-ota-5t",
-    )!;
-    dut.mosBulkDefaults = undefined;
-    dut.nets = dut.nets.map((net) => ({
-      ...net,
-      terminals: net.terminals.filter(
-        (terminal) =>
-          !["M1", "M3"].includes(terminal.instanceId) ||
-          terminal.pinName !== "B",
-      ),
-    }));
-    for (const instanceId of ["M1", "M3"])
-      dut.instances.find(
-        (instance) => instance.id === instanceId,
-      )!.mosBulkBinding = undefined;
+  it.each([false, true])(
+    "handles missing MOS bodies for operating points (imported: %s)",
+    async (imported) => {
+      const project = CircuitProjectSchema.parse(
+        currentFiveTransistorOtaCircuitSource(),
+      );
+      const dut = project.documents.find(
+        (document) => document.id === "document-ota-5t",
+      )!;
+      dut.mosBulkDefaults = undefined;
+      dut.nets = dut.nets.map((net) => ({
+        ...net,
+        terminals: net.terminals.filter(
+          (terminal) =>
+            !["M1", "M3"].includes(terminal.instanceId) ||
+            terminal.pinName !== "B",
+        ),
+      }));
+      for (const instanceId of ["M1", "M3"])
+        dut.instances.find(
+          (instance) => instance.id === instanceId,
+        )!.mosBulkBinding = undefined;
 
-    const result = await compile(
-      project,
-      setupWith({
-        rootDocumentId: "document-ota-5t-testbench",
-        analyses: [{ kind: "op" }],
-        outputs: [],
-        deviceOperatingPoints: [
-          {
-            id: "op-m1",
-            documentId: "document-ota-5t",
-            instanceId: "M1",
-            occurrence: ["XDUT"],
-          },
-          {
-            id: "op-m3",
-            documentId: "document-ota-5t",
-            instanceId: "M3",
-            occurrence: ["XDUT"],
-          },
-        ],
-      }),
-    );
+      if (imported)
+        for (const instanceId of ["M1", "M3"]) {
+          dut.instances.find(
+            (instance) => instance.id === instanceId,
+          )!.importProvenance = {
+            kind: "subcircuit",
+            sourceMasterName: "source_mos",
+            sourceTarget: "source_mos",
+          };
+        }
+      const result = await compile(
+        project,
+        setupWith({
+          rootDocumentId: "document-ota-5t-testbench",
+          analyses: [{ kind: "op" }],
+          outputs: [],
+          deviceOperatingPoints: [
+            {
+              id: "op-m1",
+              documentId: "document-ota-5t",
+              instanceId: "M1",
+              occurrence: ["XDUT"],
+            },
+            {
+              id: "op-m3",
+              documentId: "document-ota-5t",
+              instanceId: "M3",
+              occurrence: ["XDUT"],
+            },
+          ],
+        }),
+      );
 
-    expect(result.ok).toBe(false);
-    expect(
-      result.diagnostics.filter((item) => item.code === "MISSING_PIN_NET"),
-    ).toHaveLength(2);
-  });
+      expect(result.ok, JSON.stringify(result.diagnostics)).toBe(true);
+      expect(
+        result.diagnostics.filter((item) => item.code === "MISSING_PIN_NET"),
+      ).toHaveLength(0);
+      if (result.ok) {
+        expect(result.request.netlist).toMatch(/^XM1 \S+ \S+ \S+ vss /imu);
+        expect(result.request.netlist).toMatch(/^XM3 \S+ \S+ \S+ vdd /imu);
+      }
+    },
+  );
 
   it("compiles Noise against a root independent source and writes both plots", async () => {
     const compiled = await compile(

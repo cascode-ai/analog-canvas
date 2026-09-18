@@ -153,8 +153,9 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
  * 3 answers with logic Blocks carrying a subcircuit interface, persisted
  * bindings read for every circuit, a Cell stating its ground as its own VSS
  * pin, and a stranded MOS body read as residue.
+ * 4 also resolves unconnected schematic MOS bodies without supply symbols.
  */
-export const NETLIST_MARK_RULE_VERSION = 3;
+export const NETLIST_MARK_RULE_VERSION = 4;
 
 export function designExtractsNetlist(
   project: CircuitProject,

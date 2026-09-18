@@ -294,12 +294,18 @@ cached in the browser; applied bindings travel with the Project. Simulation Prof
 dependencies and corners and validate persisted targets; they do not rewrite
 them.
 
-Strict extraction and simulation use actual MOS B
-connectivity, including placement-materialized defaults. Without membership or
-an explicit NoConnect they report `MISSING_PIN_NET`; device polarity and
-descriptors do not invent MOS connections. Export preserves declared Cell interfaces
-and their ordering in hierarchy calls. It never adds a VDD port, promotes a
-local rail to a formal Pin, or rewrites a Global marker to local.
+Strict extraction and simulation preserve actual MOS B wiring, configured Cell
+body defaults and explicit NoConnect. An otherwise unresolved schematic MOS
+uses the conventional NMOS ground or PMOS VDD body connection even when no
+supply symbol is drawn. A read-only projection supplies missing VDD and ground
+nodes; block exports expose the new supplies as VDD/VSS ports and propagate
+new pins through internal callers in the same order. The flat simulation root
+keeps ground at node 0. No supply symbols or memberships are written back into
+the drawing. Existing scoped supplies and explicitly connected/custom bodies
+retain priority. The same fallback applies to historical imported devices when
+their B terminal has no connection; source provenance does not disable the
+conventional default. Missing D/G/S wiring remains an error. Existing declared
+Cell interfaces keep their order; this default only adds needed implicit supplies.
 
 Ground is the one reference a Cell states rather than reaches for. A Cell
 printed as a `.subckt` that meets ground — its own, or through a Cell it
