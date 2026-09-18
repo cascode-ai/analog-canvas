@@ -60,14 +60,20 @@ describe("unified text editing", () => {
     });
   });
 
-  it("uses compact single-line sessions for Net names and Route markers", () => {
+  it("opens Net names as bound RichText while Route markers stay compact", () => {
     const netLabel = {
       ...annotation(),
       binding: { kind: "net-name" as const, netId: "net-1" },
     };
-    expect(
-      createTextEditingSession({ owner: "annotation", object: netLabel }),
-    ).toMatchObject({ plainTextKind: "net-label" });
+    const netLabelSession = createTextEditingSession({
+      owner: "annotation",
+      object: netLabel,
+    });
+    expect(netLabelSession).toMatchObject({
+      bound: true,
+      bindingKind: "net-name",
+    });
+    expect(netLabelSession).not.toHaveProperty("plainTextKind");
     expect(
       createTextEditingSession({
         owner: "annotation",

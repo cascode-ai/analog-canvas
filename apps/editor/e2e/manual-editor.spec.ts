@@ -3158,14 +3158,11 @@ test("edits instance, electrical Net, and free text with bounded label handles",
   const annotationEditor = page.getByRole("textbox", {
     name: "Canvas text editor",
   });
-  await expect(annotationEditor).toHaveAttribute(
-    "data-editor-kind",
-    "net-label",
-  );
+  await expect(annotationEditor).toHaveAttribute("contenteditable", "true");
   await annotationEditor.fill("Vref");
-  await expect(page.getByRole("button", { name: "Italic" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Subscript" })).toHaveCount(0);
-  await annotationEditor.press("Enter");
+  await expect(page.getByRole("button", { name: "Italic" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Subscript" })).toBeVisible();
+  await page.getByRole("button", { name: "Apply text changes" }).click();
   await expect(page.locator('[data-layer="annotations"]')).toContainText(
     "Vref",
   );
@@ -3208,7 +3205,7 @@ test("edits instance, electrical Net, and free text with bounded label handles",
   expect(afterBox?.x).not.toBe(beforeBox.x);
 });
 
-test("keeps Net names literal in the compact single-line editor", async ({
+test("formats a Net Label without changing its electrical Net name", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -3222,30 +3219,65 @@ test("keeps Net names literal in the compact single-line editor", async ({
   await clickRoute(page, "route-ui-1", 0.5, 0);
   await openSelectionShelf(page);
   await editComponentPropertyCode(page, (code) => {
-    code.net.name = "A1_wi";
+    code.net.name = "VB";
   });
   const label = page.getByTestId("annotation-hit-net-label-route-ui-1");
   await label.dblclick();
   const editor = page.getByRole("textbox", { name: "Canvas text editor" });
-  await expect(editor).toHaveAttribute("data-editor-kind", "net-label");
-  await expect(editor).toHaveValue("A1_wi");
-  await expect(page.getByRole("button", { name: "Italic" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Subscript" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Superscript" })).toHaveCount(
-    0,
-  );
+  await expect(editor).toHaveAttribute("contenteditable", "true");
+  await expect(editor).toHaveText("VB");
+  await expect(page.getByRole("button", { name: "Italic" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Subscript" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Superscript" })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Insert formula" }),
-  ).toHaveCount(0);
-  await editor.fill("A1_wi+");
-  await editor.press("Enter");
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Insert fraction" }),
+  ).toBeDisabled();
 
-  await expect(page.locator('[data-layer="annotations"]')).toContainText(
-    "A1_wi+",
+  await selectRichTextOffsets(editor, 1, 2);
+  await page.getByRole("button", { name: "Subscript" }).click();
+  await expect(editor.locator("sub")).toHaveText("B");
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+
+  const renderedLabel = page.locator('[data-object-id="net-label-route-ui-1"]');
+  await expect(renderedLabel.locator('[data-text-run="subscript"]')).toHaveText(
+    "B",
   );
-  await expect(page.getByTestId("status")).not.toContainText(
-    "Could not update Cell structure",
+
+  const projectBytes = await downloadBytes(
+    page,
+    "File",
+    "Export Project File…",
   );
+  const saved = JSON.parse(projectBytes.toString("utf8"));
+  expect(saved.documents[0].connectivityEvidence).toContainEqual(
+    expect.objectContaining({
+      kind: "name-claim",
+      name: "VB",
+      owner: {
+        kind: "net-label",
+        annotationId: "net-label-route-ui-1",
+      },
+    }),
+  );
+  expect(
+    saved.documents[0].annotations.find(
+      (candidate: { id: string }) => candidate.id === "net-label-route-ui-1",
+    ).formatOverride,
+  ).toBeDefined();
+
+  await page.getByTestId("project-file").setInputFiles({
+    name: "rich-net-label.icproj.json",
+    mimeType: "application/json",
+    buffer: projectBytes,
+  });
+  await expect(
+    page
+      .locator('[data-object-id="net-label-route-ui-1"]')
+      .locator('[data-text-run="subscript"]'),
+  ).toHaveText("B");
 });
 
 test("keeps literal text line breaks and overbars visible while editing", async ({

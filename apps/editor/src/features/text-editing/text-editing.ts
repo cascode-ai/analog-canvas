@@ -42,8 +42,8 @@ export interface TextEditingSession {
   /** Net/terminal/value displays edit their source; Instance labels edit presentation. */
   bound: boolean;
   bindingKind?: AnnotationTextBinding["kind"];
-  /** Electrical identifiers use a compact single-line editor on the canvas. */
-  plainTextKind?: "net-label" | "route-marker";
+  /** Route markers are literal single-line fields, not semantic name bindings. */
+  plainTextKind?: "route-marker";
   /** Instance whose visual annotation is being edited; never a rename target. */
   visualInstanceId?: string;
   /** Explicit restoration requested within the session, committed by Apply. */
@@ -83,12 +83,9 @@ export function createTextEditingSession(
         annotation.binding !== undefined &&
         annotation.binding.kind !== "instance-reference",
       ...(annotation.binding ? { bindingKind: annotation.binding.kind } : {}),
-      ...(annotation.kind === "net-label" &&
-      annotation.binding?.kind === "net-name"
-        ? { plainTextKind: "net-label" as const }
-        : annotation.kind === "route-marker"
-          ? { plainTextKind: "route-marker" as const }
-          : {}),
+      ...(annotation.kind === "route-marker"
+        ? { plainTextKind: "route-marker" as const }
+        : {}),
       ...(annotation.kind === "instance-label" &&
       document?.instances.some(
         (instance) => instance.id === instanceId && instance.reference,
