@@ -125,10 +125,10 @@ export function NetlistCodePanel({
         </Suspense>
       </div>
       <div
-        className="netlist-device-mapping"
+        className="netlist-output-options"
         aria-label="Netlist output options"
       >
-        <div className="netlist-mapping-actions">
+        <div className="netlist-output-actions">
           <button
             type="button"
             className="netlist-port-case"

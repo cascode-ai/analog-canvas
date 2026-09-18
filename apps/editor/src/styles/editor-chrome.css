@@ -212,25 +212,26 @@
   display: grid;
   gap: 8px;
 }
+/* Format and the copy button, laid out as the two controls they are. The
+   third column this row once kept for a process selector went with it, and a
+   grid column nothing occupies reads as a control that fell off. */
 .netlist-code-controls {
-  display: grid;
-  grid-template-columns: minmax(112px, 0.8fr) minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
   gap: 8px;
 }
-.netlist-code-controls label,
-.netlist-device-mapping label {
+.netlist-code-controls label {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
+  flex: 0 1 240px;
   gap: 6px;
   min-width: 0;
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
   font-weight: 600;
 }
-.netlist-code-controls select,
-.netlist-device-mapping select {
+.netlist-code-controls select {
   min-width: 0;
   width: 100%;
   padding: 4px 24px 4px 8px;
@@ -261,6 +262,8 @@
   align-items: center;
   justify-items: center;
   width: 36px;
+  /* Reads as one pair with the reset button beside it. */
+  min-height: 30px;
   padding: 4px;
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
@@ -272,14 +275,10 @@
   font: inherit;
   text-transform: none;
 }
-.netlist-mapping-actions {
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
+.netlist-output-actions {
+  display: flex;
   align-items: center;
   gap: 8px;
-}
-.netlist-mapping-actions .netlist-default-action {
-  min-width: 0;
 }
 .netlist-code-copy svg {
   width: 18px;
@@ -370,15 +369,14 @@
   height: var(--netlist-editor-height);
   min-height: 0;
 }
-.netlist-device-mapping {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+/* Output options: port case and the reset. Each keeps its own width; the
+   device-target selects that filled the other half of this row are gone. */
+.netlist-output-options {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding-top: 2px;
-}
-.netlist-device-mapping select {
-  font-family: var(--font-mono);
 }
 
 .netlist-preflight-header p,
