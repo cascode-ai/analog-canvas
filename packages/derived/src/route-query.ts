@@ -12,7 +12,9 @@ import {
   intersectSegments,
   pointOnSegment,
   projectPointToSegment,
+  SEGMENT_EPSILON,
 } from "./segment-geometry.js";
+import type { DocumentSpatialIndex } from "./spatial-index.js";
 
 import type {
   ResolvedDocumentRoutingGeometry,
@@ -126,10 +128,54 @@ export function resolveRouteTap(
   );
 }
 
+/**
+ * Every Route segment the point lies on.
+ *
+ * `spatialIndex` is optional. Without it this scans every segment of the
+ * Document, which is what a multi-select delete does tens of thousands of
+ * times. With it the box query is only a broad phase; the exact predicate
+ * below still decides.
+ *
+ * The query is widened by `SEGMENT_EPSILON` on purpose. `pointOnSegment`
+ * accepts a point up to that far outside a segment's bounding box, so an
+ * unwidened box query would drop real matches and silently change
+ * connectivity rather than merely run slowly.
+ */
 export function findRouteSegmentsAtPoint(
   geometry: ResolvedDocumentRoutingGeometry,
   point: Point,
+  spatialIndex?: DocumentSpatialIndex,
 ): RouteSegmentAddress[] {
+  if (spatialIndex) {
+    if (
+      spatialIndex.documentId !== geometry.documentId ||
+      spatialIndex.documentRevision !== geometry.documentRevision
+    ) {
+      throw new Error("Route query received a stale spatial index");
+    }
+    const addresses: RouteSegmentAddress[] = [];
+    const widened = {
+      x: point.x - SEGMENT_EPSILON,
+      y: point.y - SEGMENT_EPSILON,
+      width: SEGMENT_EPSILON * 2,
+      height: SEGMENT_EPSILON * 2,
+    };
+    for (const entry of spatialIndex.routeSegments.queryBounds(widened)) {
+      // The segment is read from the geometry, not from the index entry, so
+      // the predicate and the address it yields come from one source.
+      const segment = geometry.routes.get(entry.routeId)?.segments[
+        entry.segmentIndex
+      ];
+      if (segment && pointOnSegment(point, segment.from, segment.to)) {
+        addresses.push(segment.address);
+      }
+    }
+    return addresses.sort(
+      (left, right) =>
+        left.routeId.localeCompare(right.routeId, "en") ||
+        left.segmentIndex - right.segmentIndex,
+    );
+  }
   return [...geometry.routes.values()]
     .flatMap((route) =>
       route.segments

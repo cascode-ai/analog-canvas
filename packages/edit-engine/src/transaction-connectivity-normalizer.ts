@@ -1,12 +1,14 @@
 import { routeEndpoints } from "@icm/model";
 import type { Point, RouteEndpoint, SchematicDocument } from "@icm/model";
 import {
+  buildDocumentSpatialIndex,
   endpointKey,
   findRouteSegmentsAtPoint,
   isVisibleEndpoint,
   resolveDocumentRoutingGeometry,
   resolveEndpointConnection,
 } from "@icm/derived";
+import type { DocumentSpatialIndex } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
 import {
@@ -75,6 +77,7 @@ function routeContainsAuthoredPoint(
   geometry: ReturnType<typeof resolveDocumentRoutingGeometry>,
   routeId: string,
   point: Point,
+  spatialIndex?: DocumentSpatialIndex,
 ): boolean {
   const route = document.routes.find((candidate) => candidate.id === routeId);
   // Power rails own a dedicated contact planner which keeps off-grid artwork
@@ -86,15 +89,18 @@ function routeContainsAuthoredPoint(
     route.presentation === "power-rail"
   )
     return false;
-  return findRouteSegmentsAtPoint(geometry, point).some((address) => {
-    if (address.routeId !== routeId) return false;
-    const segment = geometry.routes
-      .get(routeId)
-      ?.segments.find(
-        (candidate) => candidate.address.segmentIndex === address.segmentIndex,
-      );
-    return segment !== undefined && segment.mode !== "escape";
-  });
+  return findRouteSegmentsAtPoint(geometry, point, spatialIndex).some(
+    (address) => {
+      if (address.routeId !== routeId) return false;
+      const segment = geometry.routes
+        .get(routeId)
+        ?.segments.find(
+          (candidate) =>
+            candidate.address.segmentIndex === address.segmentIndex,
+        );
+      return segment !== undefined && segment.mode !== "escape";
+    },
+  );
 }
 
 export interface NewlyTouchedRouteEndpoint {
@@ -120,6 +126,13 @@ export function newlyTouchedRouteEndpoints(
   if (routeIds.size === 0) return [];
   const beforeGeometry = resolveDocumentRoutingGeometry(before, resolver);
   const afterGeometry = resolveDocumentRoutingGeometry(after, resolver);
+  // One broad phase per Document for the whole nested sweep below. Neither
+  // geometry changes while this runs, and the sweep asks
+  // `routeContainsAuthoredPoint` twice per endpoint-and-Route pair, so an
+  // unwidened scan of every segment there ran tens of thousands of times for
+  // one multi-select delete.
+  const beforeIndex = buildDocumentSpatialIndex(before, beforeGeometry);
+  const afterIndex = buildDocumentSpatialIndex(after, afterGeometry);
   const result: NewlyTouchedRouteEndpoint[] = [];
   for (const endpoint of visibleEndpoints(after, resolver)) {
     const point = resolveEndpointConnection(
@@ -147,10 +160,26 @@ export function newlyTouchedRouteEndpoints(
       ) {
         continue;
       }
-      if (!routeContainsAuthoredPoint(after, afterGeometry, routeId, point)) {
+      if (
+        !routeContainsAuthoredPoint(
+          after,
+          afterGeometry,
+          routeId,
+          point,
+          afterIndex,
+        )
+      ) {
         continue;
       }
-      if (routeContainsAuthoredPoint(before, beforeGeometry, routeId, point)) {
+      if (
+        routeContainsAuthoredPoint(
+          before,
+          beforeGeometry,
+          routeId,
+          point,
+          beforeIndex,
+        )
+      ) {
         continue;
       }
       result.push({ endpoint, routeId, point: { ...point } });

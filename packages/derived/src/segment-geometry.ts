@@ -23,6 +23,13 @@ export interface SegmentProjection {
 
 const EPSILON = 1e-9;
 
+/**
+ * The tolerance `pointOnSegment` accepts by default. Exported because a
+ * bounding-box broad phase must be widened by exactly this much before it can
+ * claim to be a superset of that exact predicate.
+ */
+export const SEGMENT_EPSILON = EPSILON;
+
 export function samePoint(left: Point, right: Point): boolean {
   return left.x === right.x && left.y === right.y;
 }
