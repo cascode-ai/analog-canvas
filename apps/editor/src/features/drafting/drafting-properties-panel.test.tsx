@@ -5,8 +5,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { DraftingPropertiesPanel } from "./drafting-properties-panel";
-import { ArrowStylePicker } from "./arrow-style-picker";
-import { DEFAULT_ARROW_PRESET } from "./arrow-presets";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 const noop = () => undefined;
@@ -84,36 +82,6 @@ describe("independent arrow endpoint styles", () => {
     expect(markup).toContain("tangentAngles");
     expect(markup).not.toContain('aria-label="Drawing bearing"');
   });
-  it.each(["Arrow style", "New arrow style"])(
-    "%s omits reversed line arrows and the headless line",
-    (label) => {
-      const markup = renderToStaticMarkup(
-        <ArrowStylePicker
-          value={DEFAULT_ARROW_PRESET}
-          onChange={noop}
-          label={label}
-        />,
-      );
-      for (const name of [
-        "Filled start arrow",
-        "Open start arrow",
-        "No head",
-      ]) {
-        expect(markup).not.toContain(`aria-label="${name}"`);
-      }
-      for (const name of [
-        "Filled end arrow",
-        "Open end arrow",
-        "Filled double arrow",
-        "Open double arrow",
-        "Outline end arrow",
-        "Outline start arrow",
-        "Outline double arrow",
-      ]) {
-        expect(markup).toContain(`aria-label="${name}"`);
-      }
-    },
-  );
   it("projects legacy styles into independent start and end values", () => {
     for (const [style, start, end] of [
       [{}, "none", "medium-arrow"],

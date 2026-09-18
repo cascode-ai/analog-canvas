@@ -1,13 +1,11 @@
 export function dismissOpenCommandMenus(): boolean {
   const openMenus = Array.from(
     globalThis.document.querySelectorAll<HTMLDetailsElement>(
-      ".command-menu[open], .arrow-style-picker[open]",
+      ".command-menu[open]",
     ),
   );
   for (const menu of openMenus) {
     menu.open = false;
-    if (menu.classList.contains("arrow-style-picker"))
-      menu.querySelector("summary")?.focus();
   }
   return openMenus.length > 0;
 }
