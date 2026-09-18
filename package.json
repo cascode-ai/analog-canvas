@@ -27,7 +27,7 @@
     "export:golden:check": "pnpm build && node scripts/export-golden.mjs --check",
     "pwa:icons": "pnpm --filter @icm/exporters build && node scripts/pwa-icons.mjs",
     "pwa:icons:check": "pnpm --filter @icm/exporters build && node scripts/pwa-icons.mjs --check",
-    "release:verify:built": "node scripts/performance-baseline.mjs && node scripts/visual-golden.mjs --check && node scripts/export-golden.mjs --check && node scripts/pwa-icons.mjs --check && node scripts/editor-production-smoke.mjs --check && node scripts/package-mcp.mjs && node scripts/package-release.mjs && node scripts/release-smoke.mjs && node scripts/mcp-release-smoke.mjs",
+    "release:verify:built": "node scripts/editor-bundle-budget.mjs --check && node scripts/performance-baseline.mjs && node scripts/visual-golden.mjs --check && node scripts/export-golden.mjs --check && node scripts/pwa-icons.mjs --check && node scripts/editor-production-smoke.mjs --check && node scripts/package-mcp.mjs && node scripts/package-release.mjs && node scripts/release-smoke.mjs && node scripts/mcp-release-smoke.mjs",
     "release:verify": "pnpm build && pnpm release:verify:built",
     "agent-api:artifacts": "pnpm --filter @icm/agent-adapter... build && node scripts/agent-api-artifacts.mjs",
     "agent-api:artifacts:check": "pnpm --filter @icm/agent-adapter... build && node scripts/agent-api-artifacts.mjs --check",

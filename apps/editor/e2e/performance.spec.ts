@@ -1,4 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { basename, resolve } from "node:path";
 
 import { expect, test } from "@playwright/test";
@@ -83,15 +85,16 @@ test.describe("editor latency on a large Project", () => {
     // stands in when none is supplied. Point at one with
     // ICM_PERF_PROJECT=<path to .icproj.json>.
     const projectPath = process.env.ICM_PERF_PROJECT;
+    const projectBytes = projectPath
+      ? readFileSync(projectPath)
+      : Buffer.from(JSON.stringify(createBrowserPerformanceProject()));
     await page.goto(`${origin}editor`);
     await page.getByTestId("project-file").setInputFiles({
       name: projectPath
         ? basename(projectPath)
         : "browser-performance.icproj.json",
       mimeType: "application/json",
-      buffer: projectPath
-        ? readFileSync(projectPath)
-        : Buffer.from(JSON.stringify(createBrowserPerformanceProject())),
+      buffer: projectBytes,
     });
     await awaitEditorReady(page);
     // Let the import settle before measuring anything.
@@ -125,7 +128,7 @@ test.describe("editor latency on a large Project", () => {
           .elementFromPoint(x, y)
           ?.closest("[data-canvas-hit-kind]");
         if (top?.getAttribute("data-canvas-hit-kind") === "instance") {
-          return { x, y };
+          return { x, y, id: top.getAttribute("data-canvas-hit-id")! };
         }
       }
       return null;
@@ -134,6 +137,19 @@ test.describe("editor latency on a large Project", () => {
       throw new Error("no instance is pressable without a Route on top of it");
     }
 
+    const hit = page.getByTestId(`hit-${grab.id}`);
+    const before = (await hit.boundingBox())!;
+    const revision = page.getByTestId("revision");
+    const beforeRevision = await revision.innerText();
+    const painted = () =>
+      page.evaluate(
+        () =>
+          new Promise<number>((resolve) => {
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => resolve(performance.now())),
+            );
+          }),
+      );
     const dragStart = await page.evaluate(() => performance.now());
     await page.mouse.move(grab.x, grab.y);
     await page.mouse.down();
@@ -145,8 +161,30 @@ test.describe("editor latency on a large Project", () => {
     for (let step = 2; step <= 30; step += 1) {
       await page.mouse.move(grab.x + step * 4, grab.y + step * 2);
     }
+    const releaseStart = await page.evaluate(() => performance.now());
     await page.mouse.up();
-    const dragEnd = await page.evaluate(() => performance.now());
+    await expect(canvas).not.toHaveClass(/semantic-move-preview/);
+    await expect(revision).not.toHaveText(beforeRevision);
+    await expect
+      .poll(async () => {
+        const after = await hit.boundingBox();
+        return after ? Math.hypot(after.x - before.x, after.y - before.y) : 0;
+      })
+      .toBeGreaterThan(1);
+    const dragEnd = await painted();
+
+    // Verify the measured operation was committed and remains undoable. Keep
+    // this outside the drag window and wait for paint before starting pan.
+    await page.keyboard.press("ControlOrMeta+z");
+    await expect
+      .poll(async () => {
+        const restored = await hit.boundingBox();
+        return restored
+          ? Math.hypot(restored.x - before.x, restored.y - before.y)
+          : Number.POSITIVE_INFINITY;
+      })
+      .toBeLessThan(0.5);
+    await painted();
 
     // Pan from the same camera. A wheel over the sheet pans it.
     const panStart = await page.evaluate(() => performance.now());
@@ -154,7 +192,7 @@ test.describe("editor latency on a large Project", () => {
     for (let step = 0; step < 40; step += 1) {
       await page.mouse.wheel(0, 40);
     }
-    const panEnd = await page.evaluate(() => performance.now());
+    const panEnd = await painted();
 
     const collected = await page.evaluate(() => {
       const perf = (
@@ -192,6 +230,7 @@ test.describe("editor latency on a large Project", () => {
         (task) => task.start >= from && task.start <= to,
       );
       return {
+        durationMs: Math.round((to - from) * 100) / 100,
         framesInWindow: intervals.length === 0 ? 0 : intervals.length + 1,
         frameIntervalP50Ms: percentile(0.5),
         frameIntervalP95Ms: percentile(0.95),
@@ -214,19 +253,40 @@ test.describe("editor latency on a large Project", () => {
     };
 
     const report = {
+      recordedAt: new Date().toISOString(),
+      commit: execFileSync("git", ["rev-parse", "HEAD"], {
+        encoding: "utf8",
+      }).trim(),
+      dirty:
+        execFileSync("git", ["status", "--porcelain"], {
+          encoding: "utf8",
+        }).trim().length > 0,
+      projectSha256: createHash("sha256").update(projectBytes).digest("hex"),
+      builtIndexSha256: createHash("sha256")
+        .update(readFileSync("apps/editor/dist/index.html"))
+        .digest("hex"),
+      browserVersion: page.context().browser()?.version(),
+      viewport: page.viewportSize(),
+      draggedInstanceId: grab.id,
       source: projectPath ? basename(projectPath) : "generated fixture",
       ...(projectPath ? {} : { fixture: BROWSER_PERFORMANCE_COUNTS }),
       pan: windowStats(panStart, panEnd),
       drag: windowStats(dragStart, dragEnd),
+      pointerDrag: windowStats(dragStart, releaseStart),
+      releaseToPaint: windowStats(releaseStart, dragEnd),
+      undoRestoredPosition: true,
       draggedWhat:
         "an instance whose hit target is topmost at its own centre, asserted to start a move preview",
-      note: "Machine-dependent. Compare against a previous run on the same machine, never across machines.",
+      note: "Machine-dependent rAF frame intervals, not input latency. longTaskTotalMs sums entire long-task durations, not Total Blocking Time. releaseToPaint includes assertion polling. Compare only matched builds, inputs and machines; this harness now includes commit/paint verification and undoes before pan.",
     };
 
     const outputDir = resolve(process.cwd(), "output/performance");
     mkdirSync(outputDir, { recursive: true });
     writeFileSync(
-      resolve(outputDir, "editor-browser-baseline.json"),
+      resolve(
+        outputDir,
+        `editor-browser-${report.commit.slice(0, 8)}-${Date.now()}.json`,
+      ),
       `${JSON.stringify(report, null, 2)}\n`,
     );
     process.stdout.write(
