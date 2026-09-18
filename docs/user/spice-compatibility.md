@@ -7,8 +7,8 @@ and unresolved statement remains available to the compiler pipeline. Spectre
 
 The editor exports deterministic structural SPICE (`.spi`) and Spectre
 (`.scs`) netlists from the typed schematic Project. Exported files deliberately
-omit model cards, simulator decks and analyses; a model library path and
-section appear only when the selected export preset configures them. Unknown
+omit model cards, library includes, simulator decks and analyses. Libraries,
+sections and corners belong to authored simulation source. Unknown
 imported `X` calls remain external subcircuit calls; a display mapping never
 turns them into a primitive model call.
 

@@ -4,7 +4,6 @@ import { createEmptyProject, type CircuitProject } from "@icm/model";
 import { subcircuitDescriptor } from "@icm/devices";
 
 import { createDesignNetlistExport } from "./export.js";
-import { createNetlistExportProfile } from "./export-profiles.js";
 
 const differentialNets = [
   ["IN+", "plus_node"],
@@ -74,47 +73,41 @@ function analogBlockProject(
 }
 
 describe("built-in Analog Block subcircuits", () => {
-  it.each([undefined, createNetlistExportProfile("abstract")])(
-    "declares an undrawn block supply as a global without synthesizing interfaces (profile: %s)",
-    (profile) => {
-      // A Block used at the abstract level with nothing above it yet: its
-      // library interface states that it needs these nodes, so the netlist
-      // declares them as globals of the declared name and says so. It still
-      // adds no Cell port, claims no Net in the Document, and leaves the
-      // drawing exactly as it was.
-      const project = analogBlockProject(
-        ["opamp-differential"],
-        differentialNets,
-      );
-      const document = project.documents[0]!;
-      document.netlist!.terminals = [];
-      document.instances = document.instances.filter(
-        (instance) => !["VDD", "VSS"].includes(instance.id),
-      );
-      document.nets = document.nets.filter(
-        (net) => !["VDD", "VSS"].includes(net.id),
-      );
-      const before = structuredClone(project);
-      const result = createDesignNetlistExport(
-        project,
-        profile ? { profile } : {},
-      );
-      expect(result.status).toBe("ready");
-      if (result.status !== "ready") return;
-      expect(
-        result.diagnostics
-          .filter((diagnostic) => diagnostic.code === "DECLARED_BLOCK_SUPPLY")
-          .map((diagnostic) => diagnostic.severity),
-      ).toEqual(["warning", "warning"]);
-      expect(result.file.text).toContain(".global VDD VSS");
-      expect(result.file.text).toContain(
-        "X1 VDD VSS plus_node minus_node positive_out negative_out opamp_differential",
-      );
-      // No Cell interface was invented for it.
-      expect(result.file.text).toContain(".subckt dut\n");
-      expect(project).toEqual(before);
-    },
-  );
+  it("declares an undrawn block supply as a global without synthesizing interfaces", () => {
+    // A Block used at the abstract level with nothing above it yet: its
+    // library interface states that it needs these nodes, so the netlist
+    // declares them as globals of the declared name and says so. It still
+    // adds no Cell port, claims no Net in the Document, and leaves the
+    // drawing exactly as it was.
+    const project = analogBlockProject(
+      ["opamp-differential"],
+      differentialNets,
+    );
+    const document = project.documents[0]!;
+    document.netlist!.terminals = [];
+    document.instances = document.instances.filter(
+      (instance) => !["VDD", "VSS"].includes(instance.id),
+    );
+    document.nets = document.nets.filter(
+      (net) => !["VDD", "VSS"].includes(net.id),
+    );
+    const before = structuredClone(project);
+    const result = createDesignNetlistExport(project);
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(
+      result.diagnostics
+        .filter((diagnostic) => diagnostic.code === "DECLARED_BLOCK_SUPPLY")
+        .map((diagnostic) => diagnostic.severity),
+    ).toEqual(["warning", "warning"]);
+    expect(result.file.text).toContain(".global VDD VSS");
+    expect(result.file.text).toContain(
+      "X1 VDD VSS plus_node minus_node positive_out negative_out opamp_differential",
+    );
+    // No Cell interface was invented for it.
+    expect(result.file.text).toContain(".subckt dut\n");
+    expect(project).toEqual(before);
+  });
   it("follows the supplies the author drew rather than their spelling", () => {
     // Nobody names a Net "VSS" when they have drawn a ground symbol, and a
     // positive rail is as often called VDDA as VDD. The Block's declared
@@ -265,7 +258,6 @@ describe("built-in Analog Block subcircuits", () => {
       analogBlockProject([symbolId], connections),
       {
         format: "spice",
-        profile: createNetlistExportProfile("abstract"),
         portCase: "upper",
       },
     );
@@ -285,7 +277,6 @@ describe("built-in Analog Block subcircuits", () => {
       analogBlockProject([symbolId], differentialNets),
       {
         format: "spice",
-        profile: createNetlistExportProfile("abstract"),
         portCase: "upper",
       },
     );
@@ -330,7 +321,6 @@ describe("built-in Analog Block subcircuits", () => {
       ),
       {
         format: "spice",
-        profile: createNetlistExportProfile("abstract"),
         portCase: "upper",
       },
     );
@@ -348,7 +338,6 @@ describe("built-in Analog Block subcircuits", () => {
       analogBlockProject(["opamp-differential"], differentialNets),
       {
         format: "spectre",
-        profile: createNetlistExportProfile("abstract"),
         portCase: "lower",
       },
     );
@@ -383,11 +372,9 @@ describe("built-in Analog Block subcircuits", () => {
     });
 
     const upper = createDesignNetlistExport(project, {
-      profile: createNetlistExportProfile("abstract"),
       portCase: "upper",
     });
     const lower = createDesignNetlistExport(project, {
-      profile: createNetlistExportProfile("abstract"),
       portCase: "lower",
     });
 

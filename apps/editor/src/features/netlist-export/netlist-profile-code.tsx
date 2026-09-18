@@ -14,10 +14,9 @@ export function NetlistProfileCode({
     >
       <h2>Netlist configuration</h2>
       <p>
-        Edit or paste the complete JSON. Process and Format are selected in the
-        live Netlist panel. TSMC presets use the reference device names; point
-        each library path at your installed PDK. Existing component values take
-        priority.
+        Edit or paste the complete output JSON. Format and formal-port spelling
+        are presentation choices; device bindings and parameters always come
+        from the Project.
       </p>
       <textarea
         aria-label="Netlist configuration JSON"
@@ -35,8 +34,7 @@ export function NetlistProfileCode({
         </p>
       ) : (
         <p>
-          Saved in this browser. Library paths refer to your simulator's
-          installed models.
+          Saved in this browser. It never changes the circuit being exported.
         </p>
       )}
     </section>

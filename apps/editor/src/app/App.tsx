@@ -3874,7 +3874,6 @@ export function App({
       // electrical verdict belongs to.
       electricalWarningsPresent: () =>
         requestElectricalDiagnostics().length > 0,
-      netlistProfile: netlistPreferences.profile,
       netlistPortCase: netlistPreferences.portCase,
       netlistConfigurationError: netlistPreferences.error,
       guardDirtyReplacement,
@@ -4637,7 +4636,6 @@ export function App({
         onOpenInstanceCode={() => {
           showProjectPanel("instances");
         }}
-        netlistProfileId={netlistPreferences.profile.id}
         netlistFormat={netlistPreferences.format}
         onOpenNetlistConfiguration={() => {
           showProjectPanel("netlist-configuration");
@@ -4939,7 +4937,6 @@ export function App({
             ? {
                 open: netlistPreflightOpen,
                 project,
-                profile: netlistPreferences.profile,
                 format: netlistPreferences.format,
                 portCase: netlistPreferences.portCase,
                 // The dialog only renders while open, so this IS the
@@ -5431,11 +5428,8 @@ export function App({
                     format={netlistPreferences.format}
                     namingProfile={netlistNamingProfile}
                     portCase={netlistPreferences.portCase}
-                    profile={netlistPreferences.profile}
-                    onProfileChange={netlistPreferences.selectProfile}
                     onFormatChange={netlistPreferences.selectFormat}
                     onPortCaseChange={netlistPreferences.selectPortCase}
-                    onDeviceTargetChange={netlistPreferences.setDeviceTarget}
                     onReset={netlistPreferences.reset}
                     onCopy={() =>
                       exportDesignNetlist(

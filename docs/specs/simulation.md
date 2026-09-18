@@ -146,6 +146,13 @@ outputs or charts; current and historical result behavior is defined in
 Project/folder snapshot and reuse electrical extraction and the ordinary printer.
 The native `compileSourceSimulation` uses the VACASK printer instead.
 
+The selected simulation Profile never remaps the Canvas circuit before that
+extraction. Preview/copy/export and simulation therefore share model or
+subcircuit identity, invocation kind, references, parameters and connectivity.
+Simulation may add source-owned includes, analyses and acquisition
+instrumentation after extraction, but the generated Canvas circuit remains the
+same canonical electrical IR.
+
 - `subcircuit` emits the bound Cell and its dependency closure as definitions;
   authored text owns DUT calls, stimuli and loads.
 - `top-level` emits the selected Cell's root cards and reached definitions.

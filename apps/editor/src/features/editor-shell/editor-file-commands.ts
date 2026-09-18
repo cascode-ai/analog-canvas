@@ -2,7 +2,6 @@ import { convertImportSources } from "../netlist-export/convert-import-sources";
 import type {
   NetlistFormat,
   NetlistNamingProfile,
-  NetlistExportProfile,
   NetlistPortCase,
 } from "@icm/netlist";
 import type { CircuitProject, GridRect, SchematicDocument } from "@icm/model";
@@ -29,7 +28,6 @@ export interface EditorFileCommandDependencies {
   resolver: SymbolResolver;
   defaultViewBox: GridRect;
   electricalWarningsPresent: () => boolean;
-  netlistProfile?: NetlistExportProfile;
   netlistPortCase?: NetlistPortCase;
   netlistConfigurationError?: string | null;
   guardDirtyReplacement: (
@@ -60,7 +58,6 @@ export function createEditorFileCommands({
   resolver,
   defaultViewBox,
   electricalWarningsPresent,
-  netlistProfile,
   netlistPortCase,
   netlistConfigurationError,
   guardDirtyReplacement,
@@ -97,7 +94,6 @@ export function createEditorFileCommands({
       format,
       project,
       namingProfile,
-      ...(netlistProfile ? { profile: netlistProfile } : {}),
       ...(netlistPortCase ? { portCase: netlistPortCase } : {}),
       electricalWarningsPresent: electricalWarningsPresent(),
     });

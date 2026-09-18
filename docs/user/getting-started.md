@@ -104,7 +104,7 @@ is defined.
   wire styling controls. Place an unplaced device first.
 - Netlist export and simulation use actual Bulk connections, including those
   established by placement defaults. Connect a missing Bulk or mark it NoConnect;
-  export presets do not repair it. Module interfaces and hierarchy calls retain
+  no output path repairs it. Module interfaces and hierarchy calls retain
   their authored Pins and order: no VDD/VSS interface is added automatically.
   Explicitly Global supplies stay global, and separate supplies such as `AVDD`
   and `DVDD` retain their connections. Ground remains node `0`, not a VSS Pin.
@@ -281,9 +281,10 @@ remain listed for manual repair. **File / Save** and **Ctrl+S** remain save-only
 
 Click the top **Netlist** copy button to put the netlist on the clipboard and
 open its live code in the right sidebar. That panel's **Format** (SPICE or SCS)
-and **Process** selectors choose what is copied and are remembered in this
-browser; **Default** restores every preset. Editing the circuit refreshes the
-visible code. Clipboard failures leave the code selectable for manual copy.
+and port-name case controls choose only how the authored circuit is printed and
+are remembered in this browser; **Default** restores those output preferences.
+Editing the circuit refreshes the visible code. Clipboard failures leave the
+code selectable for manual copy.
 
 **Netlist / Instances…** opens the Project's netlist instances as one editable
 JSON document in the right sidebar. Paste whole blocks to change references,

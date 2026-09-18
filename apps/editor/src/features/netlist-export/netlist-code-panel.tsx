@@ -3,16 +3,9 @@ import type { CircuitProject } from "@icm/model";
 import {
   createDesignNetlistExport,
   unfinishedDrawingDiagnostics,
-  NETLIST_DEVICE_TARGET_OPTIONS,
-  NETLIST_PROFILE_IDS,
-  NETLIST_PROFILE_LABELS,
-  NETLIST_QUICK_TARGET_FAMILIES,
-  type NetlistExportProfile,
   type NetlistFormat,
   type NetlistNamingProfile,
   type NetlistPortCase,
-  type NetlistProfileId,
-  type NetlistQuickTargetFamily,
 } from "@icm/netlist";
 
 const ProjectTextEditor = lazy(
@@ -25,11 +18,8 @@ export function NetlistCodePanel({
   format,
   namingProfile,
   portCase,
-  profile,
-  onProfileChange,
   onFormatChange,
   onPortCaseChange,
-  onDeviceTargetChange,
   onCopy,
   onReset,
   configurationError,
@@ -38,11 +28,8 @@ export function NetlistCodePanel({
   format: NetlistFormat;
   namingProfile: NetlistNamingProfile;
   portCase: NetlistPortCase;
-  profile: NetlistExportProfile;
-  onProfileChange(profile: NetlistProfileId): void;
   onFormatChange(format: NetlistFormat): void;
   onPortCaseChange(portCase: NetlistPortCase): void;
-  onDeviceTargetChange(family: NetlistQuickTargetFamily, target: string): void;
   onCopy(): void;
   onReset(): void;
   configurationError: string | null;
@@ -55,9 +42,8 @@ export function NetlistCodePanel({
             format,
             namingProfile,
             portCase,
-            profile,
           }),
-    [project, format, namingProfile, portCase, profile, configurationError],
+    [project, format, namingProfile, portCase, configurationError],
   );
   const unfinished = result
     ? unfinishedDrawingDiagnostics(result.diagnostics)
@@ -89,22 +75,6 @@ export function NetlistCodePanel({
           >
             <option value="spice">SPICE</option>
             <option value="spectre">SCS</option>
-          </select>
-        </label>
-        <label>
-          <span>Process</span>
-          <select
-            aria-label="Netlist process"
-            value={profile.id}
-            onChange={(event) =>
-              onProfileChange(event.currentTarget.value as NetlistProfileId)
-            }
-          >
-            {NETLIST_PROFILE_IDS.map((id) => (
-              <option key={id} value={id}>
-                {NETLIST_PROFILE_LABELS[id]}
-              </option>
-            ))}
           </select>
         </label>
         <button
@@ -156,32 +126,8 @@ export function NetlistCodePanel({
       </div>
       <div
         className="netlist-device-mapping"
-        aria-label="Netlist device mapping"
+        aria-label="Netlist output options"
       >
-        {NETLIST_QUICK_TARGET_FAMILIES.map((family) => (
-          <label key={family}>
-            <span>{deviceFamilyLabel(family)}</span>
-            <select
-              aria-label={`${deviceFamilyLabel(family)} netlist target`}
-              value={profile.devices[family].target}
-              title={profile.devices[family].target || "Ideal"}
-              onChange={(event) =>
-                onDeviceTargetChange(family, event.currentTarget.value)
-              }
-            >
-              {[
-                ...new Set([
-                  profile.devices[family].target,
-                  ...NETLIST_DEVICE_TARGET_OPTIONS[profile.id][family],
-                ]),
-              ].map((target) => (
-                <option key={target || "unspecified"} value={target}>
-                  {target || "Ideal"}
-                </option>
-              ))}
-            </select>
-          </label>
-        ))}
         <div className="netlist-mapping-actions">
           <button
             type="button"
@@ -218,11 +164,4 @@ export function NetlistCodePanel({
 export function netlistEditorVisibleLines(source: string): number {
   const lineCount = source.split(/\r\n?|\n/u).length;
   return Math.max(10, Math.min(20, lineCount));
-}
-
-function deviceFamilyLabel(family: NetlistQuickTargetFamily): string {
-  if (family === "resistor") return "R";
-  if (family === "capacitor") return "C";
-  if (family === "inductor") return "L";
-  return family.toUpperCase();
 }

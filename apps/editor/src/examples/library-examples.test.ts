@@ -17,7 +17,6 @@ import {
   analyzeDesignNetlist,
   compileSourceSimulation,
   createDesignNetlistExport,
-  createNetlistExportProfile,
   printSpiceNetlist,
 } from "@icm/netlist";
 import { serializeProject } from "@icm/project-protocol";
@@ -160,27 +159,39 @@ describe("bundled Library Project examples", () => {
     expect(createLibraryExampleProject("missing-example")).toBeNull();
   });
 
-  it("exports every transistor-level Example with the Abstract preset", () => {
-    const transistorLevelExampleIds = new Set([
-      "common-source-amplifier",
-      "current-mirror-loaded-differential-pair",
-      "fully-differential-two-stage-op-amp",
-      "five-transistor-ota-sky130",
-    ]);
-    const failures = libraryProjectExamples
-      .filter((example) => transistorLevelExampleIds.has(example.id))
-      .flatMap((example) => {
-        const result = createDesignNetlistExport(example.project, {
-          profile: createNetlistExportProfile("abstract"),
-        });
-        const errors = result.diagnostics.filter(
-          (diagnostic) => diagnostic.severity === "error",
-        );
-        return result.status === "ready" && errors.length === 0
-          ? []
-          : [{ example: example.id, status: result.status, errors }];
-      });
-    expect(failures).toEqual([]);
+  it("exports a complete Example without replacing its persisted bindings", () => {
+    const example = createLibraryExampleProject("five-transistor-ota-sky130");
+    expect(example).not.toBeNull();
+    if (!example) return;
+
+    const result = createDesignNetlistExport(example);
+    expect(result.status).toBe("ready");
+    expect(
+      result.diagnostics.filter(
+        (diagnostic) => diagnostic.severity === "error",
+      ),
+    ).toEqual([]);
+    if (result.status !== "ready") return;
+    expect(result.file.text).toContain("sky130_fd_pr__nfet_01v8");
+    expect(result.file.text).toContain("sky130_fd_pr__pfet_01v8");
+  });
+
+  it("reports an incomplete Example instead of repairing it with an export preset", () => {
+    const example = createLibraryExampleProject("common-source-amplifier");
+    expect(example).not.toBeNull();
+    if (!example) return;
+
+    const result = createDesignNetlistExport(example);
+    expect(
+      result.diagnostics.some(
+        (diagnostic) => diagnostic.code === "MISSING_MODEL_TARGET",
+      ),
+    ).toBe(true);
+    expect(
+      result.diagnostics.some(
+        (diagnostic) => diagnostic.code === "MISSING_REQUIRED_PARAMETER",
+      ),
+    ).toBe(true);
   });
 });
 

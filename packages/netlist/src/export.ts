@@ -6,10 +6,6 @@ import {
   type DesignNetlistAnalysisOptions,
 } from "./extract.js";
 import type { DesignNetlistIR, NetlistDiagnostic } from "./ir.js";
-import {
-  projectNetlistExportProfile,
-  type NetlistExportProfile,
-} from "./export-profiles.js";
 import { printDesignNetlist, type NetlistFileDescriptor } from "./printers.js";
 import type { NetlistPortCase } from "./net-name-codec.js";
 
@@ -164,33 +160,19 @@ export function designExtractsNetlist(
 }
 
 /**
- * Copy/export projection. Missing device values/models become undefined
- * tokens on a copy, which must then pass strict extraction. Never expose the
- * permissive authoring IR as an export or change simulation readiness.
+ * Export the circuit exactly as its persisted netlist bindings describe it.
+ * Missing device values/models become visible TODO tokens, but this path never
+ * substitutes a different process, model target or device invocation kind.
  */
 export function createDesignNetlistExport(
-  source: CircuitProject,
+  project: CircuitProject,
   options: DesignNetlistAnalysisOptions & {
-    profile?: NetlistExportProfile;
     portCase?: NetlistPortCase;
   } = {},
 ): DesignNetlistExportResult {
-  const requestedFormat = options.format ?? "spice";
-  const profiled = options.profile
-    ? projectNetlistExportProfile(
-        source,
-        options.profile,
-        options.rootDocumentId,
-      )
-    : undefined;
-  const project = profiled?.project ?? source;
-  const format = requestedFormat;
+  const format = options.format ?? "spice";
   const analysisOptions = { ...options, format };
-  const extracted = analyzeDesignNetlist(project, analysisOptions);
-  const analysis = {
-    ...extracted,
-    diagnostics: [...(profiled?.diagnostics ?? []), ...extracted.diagnostics],
-  };
+  const analysis = analyzeDesignNetlist(project, analysisOptions);
   const errors = analysis.diagnostics.filter(
     (item) => item.severity === "error",
   );
@@ -288,21 +270,6 @@ export function createDesignNetlistExport(
   // unchanged for simulation/source offsets; a blank SPICE title below keeps
   // the first directive intact when this structural file is used as an entry.
   file.text = file.text.slice(file.text.indexOf("\n") + 1).trimStart();
-  const library = options.profile?.library;
-  if (library?.path) {
-    const spiceLoad = library.section
-      ? `.lib "${library.path}" ${library.section}`
-      : `.include "${library.path}"`;
-    if (format === "spice") {
-      file.text = `${spiceLoad}\n${file.text}`;
-    } else {
-      const spectreLoad = `include "${library.path}"${library.section ? ` section=${library.section}` : ""}`;
-      file.text = file.text.replace(
-        "simulator lang=spectre\n",
-        `simulator lang=spectre\n${spectreLoad}\n`,
-      );
-    }
-  }
   if (format === "spice") file.text = `\n${file.text}`;
   return {
     status: "ready",

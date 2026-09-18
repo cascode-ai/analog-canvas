@@ -1,4 +1,3 @@
-import { NETLIST_PROFILE_LABELS, type NetlistProfileId } from "@icm/netlist";
 import { type ComponentProps, type RefObject } from "react";
 
 import { AccountMenu } from "../components/account";
@@ -58,7 +57,6 @@ export interface EditorAppChromeProps {
   onOpenInstanceCode: () => void;
   onOpenNetlistPreflight: () => void;
   onOpenNetlistConfiguration: () => void;
-  netlistProfileId: NetlistProfileId;
   netlistFormat: "spice" | "spectre";
   onExportNetlist: (format: "spice" | "spectre") => void;
   agentAction: { label: string; execute: () => void } | null;
@@ -120,7 +118,6 @@ export function EditorAppChrome({
   checkAndSave,
   onOpenInstanceCode,
   onOpenNetlistPreflight,
-  netlistProfileId,
   netlistFormat,
   onOpenNetlistConfiguration,
   onExportNetlist,
@@ -329,7 +326,7 @@ export function EditorAppChrome({
                 className="toolbar-button netlist-copy"
                 data-testid="copy-netlist"
                 aria-label="Copy netlist"
-                title={`Copy ${NETLIST_PROFILE_LABELS[netlistProfileId]} ${netlistFormat === "spice" ? "SPICE (.spi)" : "Spectre (.scs)"} netlist`}
+                title={`Copy as-authored ${netlistFormat === "spice" ? "SPICE (.spi)" : "Spectre (.scs)"} netlist`}
                 onClick={() => copyNetlist(netlistFormat)}
               >
                 <svg

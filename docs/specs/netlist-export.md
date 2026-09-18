@@ -266,36 +266,28 @@ Warnings may report generated local Net names or conflicting directions inside
 one same-name Formal Port group. They cannot downgrade a missing
 electrical fact required for meaningful output.
 
-### Explicit export presets
+### One electrical extraction authority
 
-The export boundary accepts an optional `NetlistExportProfile`. The editor
-ships Abstract, SKY130, TSMC 28, TSMC 180, and Custom defaults in a single raw
-JSON configuration. The Netlist menu's Configuration… entry opens it in the
-right-side Project tools dock, which is separate from Properties. `selected`
-chooses the active preset; `format` and `portCase` hold the output choices.
-Valid code edits apply immediately, invalid drafts block copying, and browser
-preferences are separate from the Project schema. The live Netlist panel edits
-the same configuration through compact controls: Format and Process selects;
-NMOS, PMOS, R, C, and L target selects for the selected preset, where choosing
-a target reloads that family's parameter defaults; a Port-name case toggle; and
-a Default action that restores the whole default configuration.
+Live preview, clipboard copy, downloaded design netlists and Canvas-generated
+simulation circuit files all call the same strict extractor on the same
+persisted Project bindings. No output surface applies a browser-local process
+profile, replaces a model/subcircuit master, changes an invocation kind, fills
+device parameters or renumbers an Instance before extraction. An authored
+external-subcircuit remains an `X` call everywhere and an authored primitive MOS
+remains an `M` card everywhere.
 
-Projection copies the Project and visits only the reachable hierarchy. Abstract
-uses ideal R/C/L and generic model names without model cards; SKY130 uses reviewed
-external transistor interfaces and ideal R/C by default; TSMC 28 binds MOS
-models `nch_ulvt_mac`/`pch_ulvt_mac` with default `l=30n` and renames the
-portable MOS `m` to the wrapper's `multi`; TSMC 180 binds `nch`/`pch` with
-default `l=180n`, keeps `m`, and binds PNP to `pnp10_5_rpo`; both TSMC presets
-keep R/C/L ideal; Custom preserves authored targets. Editable library defaults
-are `sky130.lib.spice` section `tt`, `toplevel.scs` section `TOP_TT`, and
-`cmn018_gp2a_5v_v1d4_usage.scs` section `tt_lib`; Abstract and Custom have none.
-Defaults fill only missing parameters, case-insensitively. Existing source
-waveforms and AC intent do not acquire a new DC bias from a fallback.
+The Netlist configuration contains only `format` and `portCase`. These browser
+preferences select printer syntax and formal-interface letter case; they are
+not electrical authority. A process-mapping workflow must be an explicit,
+undoable Project edit that writes ordinary typed bindings and parameters before
+any consumer extracts the circuit. Simulation Profiles select engines,
+dependencies and corners and validate persisted targets; they do not rewrite
+them.
 
-Strict extraction, simulation, and profiled copy export use actual MOS B
+Strict extraction and simulation use actual MOS B
 connectivity, including placement-materialized defaults. Without membership or
-an explicit NoConnect they report `MISSING_PIN_NET`; polarity and preset substrate
-settings do not invent MOS connections. Export preserves declared Cell interfaces
+an explicit NoConnect they report `MISSING_PIN_NET`; device polarity and
+descriptors do not invent MOS connections. Export preserves declared Cell interfaces
 and their ordering in hierarchy calls. It never adds VDD/VSS ports, promotes a
 local rail to a formal Pin, or rewrites a Global marker to local. Ground remains
 node `0`; it does not imply a VSS interface.
@@ -319,21 +311,13 @@ one name, so the supply stays missing and `MISSING_BLOCK_SUPPLY` says which
 Net holds the spelling. For different supply domains, use an explicit external
 definition with the intended terminal mapping.
 
-Explicit physical R/C targets use reviewed W/L parameters, never infer geometry
-from an ideal value, and warn when replacing that value. A resistor's existing
-substrate connection wins; an absent substrate may use an explicitly configured
-existing net or exporter-only ground `0`. Reference or target-interface collisions
-block output. Reviewed geometry stays in canonical metres until strict
-extraction emits the PDK wrapper's micrometre values in either dialect. Unknown
-custom subcircuits and unresolved hierarchy retain their original interfaces and
-validation.
-
-Configured library paths and sections are printed as includes outside the pure
-IR printer. SCS output remains entirely in `simulator lang=spectre`, including
-SKY130; the configured model library is referenced with native Spectre `include`
-syntax. This does not convert the model library itself or claim licensed Spectre
-qualification. Strict extraction and simulation consumers do not implicitly use
-these export presets.
+Persisted reviewed physical R/C bindings emit their declared terminals and raw
+geometry; an ideal value is never reinterpreted as physical geometry during
+export. Reviewed geometry stays in canonical metres until strict extraction
+emits a wrapper's required units in either dialect. Unknown custom subcircuits
+and unresolved hierarchy retain their original interfaces and validation.
+Design-netlist export adds no model-library include. Libraries, sections and
+corners belong to authored simulation source and its selected execution Profile.
 
 ### Incomplete output
 

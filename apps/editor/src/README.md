@@ -42,7 +42,7 @@ and Durable Object storage. `src/` and the top-level Worker only mount it.
   - `hierarchy/`: Cell management and interface dialogs, Cell symbol review,
     hierarchy navigation, and Project structure commands.
   - `instance-display/`: default Instance labels and live parameter display.
-  - `netlist-export/`: netlist authoring, export preferences, preflight and
+  - `netlist-export/`: netlist authoring, output preferences, preflight and
     code panels, and Spectre import-source conversion.
   - `project-code/`: the complete Project JSON code panel.
   - `properties/`: the Properties editors, their code views, and the property
