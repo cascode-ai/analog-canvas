@@ -15,7 +15,12 @@
 // longer open.
 
 import { sha256Hex } from "@icm/derived";
-import { designExtractsNetlist, NETLIST_MARK_RULE_VERSION } from "@icm/netlist";
+import {
+  compareElectricalGraphs,
+  projectElectricalGraph,
+  designExtractsNetlist,
+  NETLIST_MARK_RULE_VERSION,
+} from "@icm/netlist";
 import {
   parseProject,
   serializeProject,
@@ -630,6 +635,8 @@ export class GalleryDO {
         );
       case "reject":
         return this.reject(body);
+      case "recycle-duplicates":
+        return this.recycleDuplicates(body);
       case "delete":
         return this.delete(String(body.id), body.requireRecycled !== false);
       case "recycled":
@@ -1839,6 +1846,99 @@ export class GalleryDO {
     });
   }
 
+  /** Recheck current projects and retain a public survivor in the same write. */
+  private recycleDuplicates(body: Record<string, unknown>): Response {
+    const isReference = (
+      value: unknown,
+    ): value is { id: string; previewRevision: string } =>
+      isRecord(value) &&
+      typeof value.id === "string" &&
+      value.id.length > 0 &&
+      value.id.length <= 100 &&
+      typeof value.previewRevision === "string" &&
+      value.previewRevision.length <= 100;
+    if (
+      !isReference(body.keep) ||
+      !Array.isArray(body.remove) ||
+      body.remove.length < 1 ||
+      body.remove.length > 49 ||
+      !body.remove.every(isReference)
+    ) {
+      return Response.json({ error: "invalid-fields" }, { status: 400 });
+    }
+    const references = [body.keep, ...body.remove];
+    if (
+      new Set(references.map((entry) => entry.id)).size !== references.length
+    ) {
+      return Response.json({ error: "invalid-fields" }, { status: 400 });
+    }
+    return this.state.storage.transactionSync(() => {
+      const conflict = (error: string) =>
+        Response.json({ error }, { status: 409 });
+      // Finish every check before the first write: a failed group changes nothing.
+      const rows: EntryRow[] = [];
+      for (const reference of references) {
+        const row = this.sql
+          .exec<EntryRow>(
+            "SELECT * FROM gallery_entries WHERE id = ?",
+            reference.id,
+          )
+          .toArray()[0];
+        if (
+          !row ||
+          row.status !== "public" ||
+          (row.preview_revision || "legacy") !== reference.previewRevision
+        ) {
+          return conflict("duplicate-group-changed");
+        }
+        rows.push(row);
+      }
+      try {
+        const survivor = projectElectricalGraph(
+          parseProject(rows[0]!.project_text),
+        );
+        if (survivor.status !== "ready")
+          return conflict("duplicate-group-uncheckable");
+        for (const row of rows.slice(1)) {
+          // The preview revision covers drawing changes only. Never use it as
+          // evidence of electrical equality: hidden parameters can change too.
+          const candidate = projectElectricalGraph(
+            parseProject(row.project_text),
+          );
+          if (candidate.status !== "ready")
+            return conflict("duplicate-group-uncheckable");
+          const comparison = compareElectricalGraphs(
+            survivor.graph,
+            candidate.graph,
+          );
+          if (comparison !== "equal") {
+            return conflict(
+              comparison === "unknown"
+                ? "duplicate-group-uncheckable"
+                : "not-duplicates",
+            );
+          }
+        }
+      } catch {
+        return conflict("duplicate-group-uncheckable");
+      }
+      for (const row of rows.slice(1)) {
+        this.sql.exec(
+          `UPDATE gallery_entries SET status = 'recycled', recycled_at = ?,
+             reviewed_at = ?, reviewed_by = ? WHERE id = ?`,
+          String(body.at),
+          String(body.at),
+          String(body.reviewerId),
+          row.id,
+        );
+      }
+      return Response.json({
+        kept: rows[0]!.id,
+        recycled: rows.slice(1).map((row) => row.id),
+      });
+    });
+  }
+
   private setStatus(id: string, status: string, at: string): Response {
     const row = this.sql
       .exec<EntryRow>("SELECT * FROM gallery_entries WHERE id = ?", id)
@@ -1924,14 +2024,16 @@ export class GalleryDO {
    * transactions — no alarms, no scheduled work. Keeps the newest
    * {@link GALLERY_RECYCLED_KEEP_PER_ACCOUNT} recycled rows for the writing
    * account; anonymous/legacy rows share one unowned bucket and are exempt
-   * from the cap. The cap is the whole policy — nothing expires by time.
+   * from the cap. Administrator-reviewed rows are also exempt so duplicate
+   * cleanup remains reversible even after later author withdrawals.
+   * Nothing expires by time.
    */
   private sweepRecycledRows(ownerUserId: string): void {
     if (ownerUserId === "") return;
     const overflow = this.sql
       .exec<{ id: string }>(
         `SELECT id FROM gallery_entries
-         WHERE status = 'recycled' AND owner_user_id = ?
+         WHERE status = 'recycled' AND owner_user_id = ? AND reviewed_by IS NULL
          ORDER BY recycled_at DESC, id DESC
          LIMIT -1 OFFSET ?`,
         ownerUserId,

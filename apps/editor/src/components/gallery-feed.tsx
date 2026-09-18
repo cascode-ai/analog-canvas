@@ -923,7 +923,17 @@ export function GalleryFeed({
 
       {view === "gallery" ? (
         <>
-          <GalleryDuplicateCheck onReport={setDuplicateReport} />
+          {isOwner ? (
+            <GalleryDuplicateCheck
+              onReport={setDuplicateReport}
+              onRecycled={(ids) => {
+                // The scan covers the whole library, while this feed may be
+                // filtered. Let the server recalculate its counts.
+                setRefreshSignal((signal) => signal + 1);
+                if (ids[0]) announceGalleryChange({ entryId: ids[0] });
+              }}
+            />
+          ) : null}
           {tagOptions.length > 0 ||
           entries.length > 0 ||
           netlistableOnly ||

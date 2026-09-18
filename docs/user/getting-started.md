@@ -363,12 +363,23 @@ export support matrix.
 
 ## Finding duplicate circuits
 
-On the Community Gallery, click **Check duplicates** to scan every public
+Administrators can click **Check duplicates** on the Community Gallery to scan every public
 circuit, independently of the current search, author or tag filters. The scan
 runs in a cancellable background worker. Results show duplicate groups with
 previews and links, the number of extra copies (a group of three contributes
-two), and badges on matching Gallery cards. Nothing is deleted or saved back
-to the library. Results are a snapshot; scan again after library changes.
+two), and badges on matching Gallery cards. The entry point is hidden for
+visitors and ordinary members.
+
+Each group selects the oldest publication to keep; choose another copy if
+preferred. **Keep selected, remove…** cleans one group, and **Remove all extra
+copies** cleans every listed group using those selections. Removed copies go
+to the admin recycle bin with their project, likes and version history intact.
+They are exempt from automatic author recycle-bin limits and can be restored
+from **Open recycle bin**. The server requires an administrator and rechecks
+the current electrical netlists before changing anything in a group. If a
+group changed or cannot be compared, it stays untouched and shows an error;
+other groups can still succeed. Results are a snapshot; scan again after
+library changes.
 
 Comparison uses the extracted electrical netlist, not titles or drawing JSON.
 Instance names, internal node names, drawing positions and instance order do

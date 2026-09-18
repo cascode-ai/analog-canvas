@@ -986,6 +986,37 @@ export async function routeGalleryRequest(
     });
     return Response.json(payload, { status });
   }
+  if (
+    segments.length === 2 &&
+    segments[0] === "duplicates" &&
+    segments[1] === "recycle" &&
+    request.method === "POST"
+  ) {
+    if (!sameOrigin(request)) {
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    }
+    const reviewer = await sessionUserOf(request, env);
+    if (!reviewer?.isAdmin) {
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    }
+    const text = await request.text();
+    if (text.length > 32_768) {
+      return Response.json({ error: "invalid-fields" }, { status: 400 });
+    }
+    let body;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      return Response.json({ error: "invalid-fields" }, { status: 400 });
+    }
+    const { status, payload } = await callGallery(env, "recycle-duplicates", {
+      keep: body?.keep,
+      remove: body?.remove,
+      at: new Date().toISOString(),
+      reviewerId: reviewer.id,
+    });
+    return Response.json(payload, { status });
+  }
   if (segments.length === 2 && request.method === "POST") {
     const [id, action] = segments;
     if (action !== "recycle" && action !== "restore") {

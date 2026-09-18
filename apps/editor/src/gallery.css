@@ -1393,6 +1393,21 @@ div.gallery-contributor-status {
   text-decoration: none;
   overflow-wrap: anywhere;
 }
+.gallery-duplicate-circuit {
+  border: 1px solid var(--icm-border);
+  border-radius: 8px;
+  padding: 8px;
+}
+.gallery-duplicate-circuit[data-keep="true"] {
+  border-color: var(--icm-accent);
+}
+.gallery-duplicate-circuit label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
 .gallery-duplicate-circuits img {
   width: 100%;
   height: 120px;

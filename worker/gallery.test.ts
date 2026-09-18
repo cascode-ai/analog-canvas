@@ -2539,6 +2539,232 @@ describe("gallery admin sessions", () => {
   });
 });
 
+describe("administrator duplicate cleanup", () => {
+  function ref(env: Harness, id: string) {
+    return {
+      id,
+      previewRevision:
+        env.gallerySql
+          .exec<{ preview_revision: string }>(
+            "SELECT preview_revision FROM gallery_entries WHERE id = ?",
+            id,
+          )
+          .one().preview_revision || "legacy",
+    };
+  }
+  function cleanup(body: unknown, cookie = "", origin = ORIGIN) {
+    return new Request(`${ORIGIN}/api/gallery/duplicates/recycle`, {
+      method: "POST",
+      headers: {
+        Origin: origin,
+        Cookie: cookie,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  }
+  function states(env: Harness) {
+    return env.gallerySql
+      .exec<{ id: string; status: string }>(
+        "SELECT id, status FROM gallery_entries ORDER BY id",
+      )
+      .toArray();
+  }
+  async function fixture() {
+    const env = environment();
+    const cookie = await adminOf(env);
+    const ids: string[] = [];
+    for (let index = 0; index < 3; index += 1) {
+      ids.push(
+        await submitOne(env, `Copy ${index}`, {
+          cookie,
+          text: wiredProjectText(`Copy ${index}`, 200 + index * 10),
+        }),
+      );
+    }
+    return {
+      env,
+      cookie,
+      ids,
+      body: {
+        keep: ref(env, ids[0]!),
+        remove: ids.slice(1).map((id) => ref(env, id)),
+      },
+    };
+  }
+
+  it("requires an admin and same-origin request, even when a member owns the group", async () => {
+    const { env, cookie, ids, body } = await fixture();
+    const member = await makerOf(env);
+    const memberProfile = await env.authDurable.fetch(
+      new Request(`${ORIGIN}/api/auth/me`, { headers: { Cookie: member } }),
+    );
+    const memberId = (await memberProfile.json()).user.id;
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET owner_user_id = ?",
+      memberId,
+    );
+    const before = states(env);
+    expect((await route(env, cleanup(body))).status).toBe(401);
+    expect((await route(env, cleanup(body, member))).status).toBe(401);
+    await env.authDurable.fetch(
+      new Request(`${ORIGIN}/api/auth/users/role`, {
+        method: "POST",
+        headers: {
+          Cookie: cookie,
+          Origin: ORIGIN,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ email: "maker@example.com", role: "moderator" }),
+      }),
+    );
+    expect((await route(env, cleanup(body, member))).status).toBe(401);
+    expect(
+      (await route(env, cleanup(body, cookie, "https://stranger.test"))).status,
+    ).toBe(403);
+    for (const malformed of [
+      null,
+      {},
+      { keep: body.keep, remove: [] },
+      { keep: body.keep, remove: [body.keep] },
+      { keep: body.keep, remove: Array(50).fill(ref(env, ids[1]!)) },
+    ]) {
+      expect((await route(env, cleanup(malformed, cookie))).status).toBe(400);
+    }
+    expect(states(env)).toEqual(before);
+  });
+
+  it.each(["preview", "hidden parameter", "missing survivor", "uncheckable"])(
+    "leaves the whole group unchanged when %s changed since the scan",
+    async (change) => {
+      const { env, cookie, ids, body } = await fixture();
+      if (change === "preview")
+        env.gallerySql.exec(
+          "UPDATE gallery_entries SET preview_revision = 'changed' WHERE id = ?",
+          ids[2]!,
+        );
+      if (change === "missing survivor")
+        env.gallerySql.exec(
+          "UPDATE gallery_entries SET status = 'recycled' WHERE id = ?",
+          ids[0]!,
+        );
+      if (change === "hidden parameter") {
+        const project = parseProject(wiredProjectText());
+        project.documents[0]!.instances[0]!.netlist!.parameters.value = "2k";
+        // Deliberately leave preview_revision identical: it isn't an electrical revision.
+        env.gallerySql.exec(
+          "UPDATE gallery_entries SET project_text = ? WHERE id = ?",
+          serializeProject(project),
+          ids[2]!,
+        );
+      }
+      if (change === "uncheckable")
+        env.gallerySql.exec(
+          "UPDATE gallery_entries SET project_text = ? WHERE id = ?",
+          projectText(),
+          ids[2]!,
+        );
+      const before = states(env);
+      expect((await route(env, cleanup(body, cookie))).status).toBe(409);
+      expect(states(env)).toEqual(before);
+    },
+  );
+
+  it("keeps the chosen survivor, preserves history/likes, survives later retention sweeps and restores", async () => {
+    const { env, cookie, ids } = await fixture();
+    const extra = ids[0]!;
+    const keep = ids[1]!;
+    const updated = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${extra}`, {
+        method: "PUT",
+        headers: {
+          Cookie: cookie,
+          Origin: ORIGIN,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "Extra v2",
+          projectText: wiredProjectText("Extra v2", 400),
+        }),
+      }),
+    );
+    expect(updated.status).toBe(200);
+    const liked = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${extra}/like`, {
+        method: "POST",
+        headers: { Cookie: cookie, Origin: ORIGIN },
+      }),
+    );
+    expect(liked.status).toBe(200);
+    const history = () =>
+      env.gallerySql
+        .exec("SELECT * FROM gallery_entry_versions WHERE entry_id = ?", extra)
+        .toArray();
+    const likes = () =>
+      env.gallerySql
+        .exec("SELECT * FROM gallery_likes WHERE entry_id = ?", extra)
+        .toArray();
+    const beforeHistory = history();
+    const beforeLikes = likes();
+    expect(beforeHistory.length).toBeGreaterThan(0);
+    const response = await route(
+      env,
+      cleanup(
+        { keep: ref(env, keep), remove: [ref(env, extra), ref(env, ids[2]!)] },
+        cookie,
+      ),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      kept: keep,
+      recycled: [extra, ids[2]],
+    });
+    expect(states(env).find((row) => row.id === keep)?.status).toBe("public");
+    // A second admin choosing the opposite survivor cannot remove the last copy.
+    expect(
+      (
+        await route(
+          env,
+          cleanup({ keep: ref(env, extra), remove: [ref(env, keep)] }, cookie),
+        )
+      ).status,
+    ).toBe(409);
+    for (let index = 0; index < 27; index += 1) {
+      env.gallerySql.exec(
+        `INSERT INTO gallery_entries
+        (id, name, author, description, created_at, schema_version, status, recycled_at, owner_user_id, project_text, svg_text)
+        SELECT ?, name, author, description, created_at, schema_version, 'recycled', '2099-01-01', owner_user_id, project_text, svg_text
+        FROM gallery_entries WHERE id = ?`,
+        `overflow-${index}`,
+        keep,
+      );
+    }
+    await submitOne(env, "Trigger author retention", { cookie });
+    expect(states(env).filter((row) => row.status === "recycled")).toHaveLength(
+      27,
+    ); // 25 author rows plus two curated copies.
+    expect(history()).toEqual(beforeHistory);
+    expect(likes()).toEqual(beforeLikes);
+    const restored = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${extra}/restore`, {
+        method: "POST",
+        headers: { Cookie: cookie, Origin: ORIGIN },
+      }),
+    );
+    expect(restored.status).toBe(200);
+    const detail = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${extra}`),
+    );
+    expect((await detail.json()).projectText).toContain("Extra v2");
+    expect(history()).toEqual(beforeHistory);
+    expect(likes()).toEqual(beforeLikes);
+  });
+});
+
 describe("gallery administration", () => {
   it("requires an admin session for every admin operation", async () => {
     const env = environment();

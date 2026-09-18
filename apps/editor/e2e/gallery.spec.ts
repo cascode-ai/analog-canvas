@@ -32,7 +32,7 @@ const ENTRY = {
 /** Match the list path with or without filters and a paging cursor. */
 const galleryListUrl = (url: URL): boolean => url.pathname === "/api/gallery";
 
-test("checks duplicates across the full Gallery in a real worker", async ({
+test("admin checks duplicates and cleans selected copies with partial failure recovery", async ({
   page,
   context,
 }) => {
@@ -57,28 +57,79 @@ test("checks duplicates across the full Gallery in a real worker", async ({
   }));
   const renamed = structuredClone(project);
   renamed.documents[0]!.instances[0]!.reference = "R99";
+  const different = structuredClone(project);
+  different.documents[0]!.instances[0]!.netlist!.parameters.value = "2k";
   const entries = [
     { ...ENTRY, id: "original", name: "Resistor pair" },
     { ...ENTRY, id: "redrawn", name: "Completely different title" },
     { ...ENTRY, id: "unfinished", name: "Unfinished circuit" },
+    {
+      ...ENTRY,
+      id: "other-original",
+      name: "Other original",
+      createdAt: "2025-01-01",
+    },
+    { ...ENTRY, id: "other-copy", name: "Other copy" },
   ];
-  const projects = [project, renamed, createEmptyProject("empty", "Empty")];
+  const projects = [
+    project,
+    renamed,
+    createEmptyProject("empty", "Empty"),
+    different,
+    different,
+  ];
+  await context.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "owner-1",
+          displayName: "Owner",
+          email: "owner@example.com",
+          provider: "github",
+          role: "user",
+          isAdmin: true,
+        },
+      },
+    }),
+  );
+  const recycled = new Set<string>();
+  const cleanupRequests: Array<{
+    keep: { id: string };
+    remove: Array<{ id: string }>;
+  }> = [];
+  let failOtherGroup = true;
   // Context routes also intercept the dedicated worker's fetch requests.
   await context.route("**/api/gallery**", (route) => {
     const url = new URL(route.request().url());
+    if (url.pathname === "/api/gallery/duplicates/recycle") {
+      const body = route.request().postDataJSON();
+      cleanupRequests.push(body);
+      if (failOtherGroup && body.keep.id === "other-original")
+        return route.fulfill({
+          status: 409,
+          json: { error: "duplicate-group-changed" },
+        });
+      const removed = body.remove.map((entry: { id: string }) => entry.id);
+      removed.forEach((id: string) => recycled.add(id));
+      return route.fulfill({ json: { kept: body.keep.id, recycled: removed } });
+    }
     if (url.pathname.endsWith("preview.svg"))
       return route.fulfill({
         contentType: "image/svg+xml",
         body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60"><path d="M10 30h20l5 -10 10 20 10 -20 10 20 5 -10h20" fill="none" stroke="black"/></svg>',
       });
-    if (url.pathname === "/api/gallery")
+    if (url.pathname === "/api/gallery") {
+      const visible = (
+        url.searchParams.has("author") ? [entries[0]!] : entries
+      ).filter((entry) => !recycled.has(entry.id));
       return route.fulfill({
         json: {
-          entries: url.searchParams.has("author") ? [entries[0]] : entries,
-          total: url.searchParams.has("author") ? 1 : 3,
+          entries: visible,
+          total: visible.length,
           nextCursor: null,
         },
       });
+    }
     if (url.pathname.endsWith("/tags"))
       return route.fulfill({ json: { tags: [] } });
     const index = entries.findIndex((entry) =>
@@ -99,7 +150,7 @@ test("checks duplicates across the full Gallery in a real worker", async ({
   await page.getByTestId("gallery-check-duplicates").click();
   const panel = page.getByTestId("gallery-duplicates");
   await expect(panel.getByRole("status")).toContainText(
-    "Scan finished: 3 checked · 1 extra copy in 1 group · 1 unable to compare",
+    "Scan finished: 5 checked · 2 extra copies in 2 groups · 1 unable to compare",
   );
   await expect(
     panel.getByRole("link", { name: "Completely different title tz" }),
@@ -109,15 +160,90 @@ test("checks duplicates across the full Gallery in a real worker", async ({
   );
   await panel.getByText("Unable to compare · 1").click();
   await expect(panel.getByText("No netlist devices to compare")).toBeVisible();
+  await expect(
+    panel.getByRole("radio", { name: "Keep Resistor pair", exact: true }),
+  ).toBeChecked();
+  await panel
+    .getByRole("radio", {
+      name: "Keep Completely different title",
+      exact: true,
+    })
+    .check();
   await page.screenshot({
-    path: "plan/gallery-duplicates.png",
+    path: "plan/gallery-duplicate-cleanup.png",
     fullPage: true,
   });
+  await panel
+    .getByRole("button", { name: "Remove all extra copies (2)", exact: true })
+    .click();
+  await expect(
+    panel.getByText("Moved 1 circuit to the recycle bin.", { exact: false }),
+  ).toBeVisible();
+  await expect(panel.getByRole("alert")).toContainText(
+    "changed or no longer match",
+  );
+  expect(cleanupRequests.map((request) => request.keep.id)).toEqual([
+    "redrawn",
+    "other-original",
+  ]);
+  expect([...recycled]).toEqual(["original"]);
+  await expect(page.getByTestId("gallery-tile-original")).toHaveCount(0);
+  await expect(
+    panel.getByRole("link", { name: "Open recycle bin" }),
+  ).toHaveAttribute("href", "/moderation");
+  failOtherGroup = false;
+  const remainingGroup = panel
+    .locator("details")
+    .filter({ hasText: "same netlist" });
+  if ((await remainingGroup.getAttribute("open")) === null) {
+    await remainingGroup.locator("summary").click();
+  }
+  await remainingGroup
+    .getByRole("button", { name: "Keep selected, remove 1 copy" })
+    .click();
+  await expect(
+    panel.getByText("Moved 2 circuits to the recycle bin.", { exact: false }),
+  ).toBeVisible();
+  await expect(panel.getByRole("alert")).toHaveCount(0);
+  await expect(
+    panel.getByText("No remaining duplicates", { exact: false }),
+  ).toBeVisible();
+  expect([...recycled]).toEqual(["original", "other-copy"]);
   await panel.getByRole("button", { name: "Hide results" }).click();
   await expect(
-    panel.getByText("Group 1 · 2 circuits · same netlist"),
+    panel.getByText("No remaining duplicates", { exact: false }),
   ).not.toBeVisible();
 });
+
+for (const role of ["visitor", "user", "moderator"]) {
+  test(`duplicate check is hidden for ${role}`, async ({ page }) => {
+    await page.route("**/api/auth/me", (route) =>
+      route.fulfill({
+        json: {
+          user:
+            role === "visitor"
+              ? null
+              : {
+                  id: "member",
+                  displayName: "Member",
+                  email: "member@example.com",
+                  provider: "github",
+                  role,
+                  isAdmin: false,
+                },
+        },
+      }),
+    );
+    await page.route("**/api/gallery**", (route) =>
+      route.fulfill({
+        json: { entries: [ENTRY], total: 1, tags: [], nextCursor: null },
+      }),
+    );
+    await page.goto("/");
+    await expect(page.getByTestId(`gallery-tile-${ENTRY.id}`)).toBeVisible();
+    await expect(page.getByTestId("gallery-check-duplicates")).toHaveCount(0);
+  });
+}
 
 function hierarchicalPublishProject() {
   const project = createEmptyProject("hierarchical-publish", "Hierarchical");
