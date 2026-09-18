@@ -18,7 +18,7 @@ import {
   type WireDraftTarget,
 } from "../../interaction/interaction-state";
 import type { WireCanvasSnapResult } from "./wire-canvas-snap";
-import { automaticWireDraftSteps } from "./automatic-wire-routing";
+import { resolveWireDraftShape } from "./wire-draft-shape";
 
 /** Identity for the anchors a target may have to create. */
 export interface WireDraftTargetIds {
@@ -279,7 +279,7 @@ export function resolveWireDraftPreview({
     () => PREVIEW_TARGET_IDS,
   );
   if (!to) return EMPTY_WIRE_DRAFT_PREVIEW;
-  const plannedSteps = automaticWireDraftSteps(
+  const shape = resolveWireDraftShape(
     document,
     resolver,
     source,
@@ -287,19 +287,20 @@ export function resolveWireDraftPreview({
     steps,
     routingMode,
     cornerOrder,
+    visibleEndpoints,
   );
   const contacts = wirePassThroughContacts(visibleEndpoints, {
     from: source,
     to,
-    steps: plannedSteps,
+    steps: shape.steps,
   });
   const proposal = proposeWireCommitThroughContacts(
     source,
     to,
-    plannedSteps.map((step) => step.point),
+    shape.steps.map((item) => item.point),
     contacts,
     PREVIEW_IDS,
-    { steps: plannedSteps, routingMode, cornerOrder },
+    { steps: shape.steps, routingMode, cornerOrder: shape.cornerOrder },
   );
   return proposedWireGeometry(proposal.edits, [source, to, ...contacts]);
 }

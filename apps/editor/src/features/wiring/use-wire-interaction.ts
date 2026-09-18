@@ -5,6 +5,7 @@ import type {
 } from "react";
 
 import { segmentDragPreviewPolyline } from "./segment-drag-preview";
+import { resolveWireDraftShape } from "./wire-draft-shape";
 import {
   wireDraftTargetIdsForSuffix,
   wirePassThroughContacts,
@@ -63,7 +64,6 @@ import {
   routeTapPoint,
   type RouteGeometryRecord,
 } from "./route-interaction-geometry";
-import { automaticWireDraftSteps } from "./automatic-wire-routing";
 
 export interface RouteStretchPreview {
   routeId: string;
@@ -234,7 +234,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       options.setStatus("Wire cancelled because its source revision is stale");
       return;
     }
-    const plannedSteps = automaticWireDraftSteps(
+    const shape = resolveWireDraftShape(
       options.document,
       options.resolver,
       wire.source,
@@ -242,21 +242,22 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       wire.steps,
       wire.routingMode,
       wire.cornerOrder,
+      options.visibleEndpoints,
     );
     const proposal = proposeWireCommitThroughContacts(
       wire.source,
       candidate,
-      plannedSteps.map((step) => step.point),
+      shape.steps.map((item) => item.point),
       wirePassThroughContacts(options.visibleEndpoints, {
         from: wire.source,
         to: candidate,
-        steps: plannedSteps,
+        steps: shape.steps,
       }),
       options.nextRoutingSuffix(),
       {
-        steps: plannedSteps,
+        steps: shape.steps,
         routingMode: wire.routingMode,
-        cornerOrder: wire.cornerOrder,
+        cornerOrder: shape.cornerOrder,
       },
     );
     const bulkEndpoint = [wire.source.endpoint, candidate.endpoint].find(

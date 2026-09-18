@@ -261,10 +261,10 @@ export function useWireCanvasController({
       if (finish) {
         // A browser double-click dispatches one ordinary click before its
         // dblclick event. The ordinary click fixes this exact point as a wire
-        // step, which disables automatic routing and can swap the elbow from
-        // the previewed vertical-first path to horizontal-first at commit.
-        // Remove only that trailing duplicate; an intentional earlier step at
-        // the same point remains immediately before it.
+        // step, which can swap the elbow from the previewed vertical-first
+        // path to horizontal-first at commit. Remove only that trailing
+        // duplicate; an intentional earlier step at the same point remains
+        // immediately before it.
         const wire = readCurrentWireSession();
         const lastStep = wire.steps.at(-1);
         if (

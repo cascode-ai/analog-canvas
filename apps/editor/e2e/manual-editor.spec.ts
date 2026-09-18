@@ -1761,35 +1761,39 @@ test("commits two endpoint clicks even before React publishes the first one", as
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
 });
 
-test("automatic endpoint wiring chooses a clear orthogonal corner", async ({
+test("turns between two parts rather than drawing over one of them", async ({
   page,
 }) => {
+  // Bottom pin to top pin, side by side: both single corners would run up or
+  // down a part's own body, over the pin at its other end — a meeting the
+  // netlist will not have, drawn as though it had. The wire turns in the gap
+  // instead, and leaves each pin the way the drawer aimed.
   await page.goto("/editor");
-  await placeComponent(page, "nmos", { x: 200, y: 200 });
-  await placeComponent(page, "nmos", { x: 600, y: 400 });
-  await placeComponent(page, "resistor", { x: 400, y: 200 });
+  await placeComponent(page, "resistor", { x: 320, y: 220 });
+  await placeComponent(page, "resistor", { x: 520, y: 220 });
   await clickDrawTool(page, "wire");
-  await page.getByTestId("terminal-M1-G").click();
-  await page.getByTestId("terminal-M2-G").hover();
-
-  const preview = await page.getByTestId("wire-preview").evaluate((element) =>
-    Array.from((element as SVGPolylineElement).points).map(({ x, y }) => ({
-      x,
-      y,
-    })),
-  );
-  expect(preview.length).toBeGreaterThanOrEqual(3);
-  expect(preview[1]!.x).toBeLessThan(preview[0]!.x);
-  expect(preview[1]!.y).toBe(preview[0]!.y);
-
-  await page.getByTestId("terminal-M2-G").click();
+  await page.getByTestId("terminal-R1-2").click();
+  await page.getByTestId("terminal-R2-1").click();
   await expect(page.getByTestId("status")).toContainText("Committed route");
-  expect(await readRoutePoints(page, "route-ui-1")).toEqual(preview);
+
+  const points = await readRoutePoints(page, "route-ui-1");
+  expect(points).toHaveLength(4);
+  const [start, first, second, end] = points;
+  expect(first!.y).toBe(start!.y);
+  expect(second!.x).toBe(first!.x);
+  expect(first!.x).toBeGreaterThan(start!.x);
+  expect(first!.x).toBeLessThan(end!.x);
+  // One Net, one conductor: nothing was picked up on the way.
+  await expect(page.getByTestId("net-count")).toHaveText("1");
+  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(1);
 });
 
-test("automatic endpoint wiring enters a MOS bottom pin from below", async ({
+test("reaches a downward pin from the side when the drawing allows", async ({
   page,
 }) => {
+  // The pin points down, and the wire comes from the left: no rule pushes the
+  // run below the pin first. The last leg arrives level with the pin, which is
+  // clear of the part because the pin hangs under it.
   await page.goto("/editor");
   await placeComponent(page, "nmos", { x: 200, y: 400 });
   await placeComponent(page, "nmos", { x: 600, y: 200 });
@@ -1805,8 +1809,8 @@ test("automatic endpoint wiring enters a MOS bottom pin from below", async ({
   );
   const target = preview.at(-1)!;
   const beforeTarget = preview.at(-2)!;
-  expect(beforeTarget.x).toBe(target.x);
-  expect(beforeTarget.y).toBeGreaterThan(target.y);
+  expect(beforeTarget.y).toBe(target.y);
+  expect(preview).toHaveLength(3);
 
   await page.getByTestId("terminal-M2-S").click();
   await expect(page.getByTestId("status")).toContainText("Committed route");
@@ -1830,9 +1834,8 @@ test("keeps three collinear MOS Gates connected without a junction dot", async (
   await page.getByTestId("terminal-M2-G").click();
   await page.getByTestId("terminal-M3-G").click();
   await expect(page.getByTestId("status")).toContainText("Committed route");
-  // Both wires must approach M2.G from its outward side. Their shared escape
-  // stub is normalized into a third Route while remaining one electrical Net.
-  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(3);
+  // One Route per gesture, meeting at M2.G: two conductors and one Net.
+  await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(2);
   await expect(page.getByTestId("net-count")).toHaveText("1");
   await expect(
     page.locator('[data-layer="junctions"] [data-node-kind="contact"]'),

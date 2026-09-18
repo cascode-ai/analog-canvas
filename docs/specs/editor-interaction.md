@@ -316,11 +316,22 @@ any angle ([Routing rationale](../adr/routing.md));
 a middle-button drag pans as usual. F3 opens Wire options including corner
 order. Existing authored legs are immutable under mode switches; Backspace
 removes the latest authored step rather than an automatically compiled elbow.
-A fresh automatic orthogonal connection compares both right-angle corners and
-simple one-grid-clear corridors around symbol ink, then uses the shortest path
-that does not cross a component. A visible pin on the original path remains an
-intentional electrical contact. Any fixed point, explicit corner order,
-45-degree mode, or free-angle mode bypasses this assistance.
+A wire is the gesture that drew it: the compiled legs run between the points
+the pointer fixed. A pin never pushes the wire out along its own direction —
+reaching a downward pin from the side is an ordinary drawing, not a mistake to
+correct — and a run that passes over an unrelated symbol stays as drawn. A
+visible pin on the path remains an intentional electrical contact.
+
+Where the drawer has not ordered the corner, a fresh orthogonal connection
+refuses only the shapes that draw something untrue: a leg lying inside the
+conductor the wire just tapped, which hides both, and a leg running over
+another pin of a component the wire is attaching to, which the planner never
+joins, so the drawing would show a meeting the netlist does not have. The
+editor takes the compiled corner when it draws neither, else the opposite
+corner — the same two legs in the other order, preferring the one that stays
+off the bodies it lands on — and only when both corners would draw an untrue
+shape does it turn once between the two ends instead. A wire continued from a
+Junction already on the sheet keeps the leg it grew from.
 
 Wire hover and primary clicks on Pins, Routes, and the canvas use one electrical
 target resolver. Capture follows the drawing at seven document units, bounded

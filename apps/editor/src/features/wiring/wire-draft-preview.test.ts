@@ -24,7 +24,7 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import type { WireDraftTarget } from "../../interaction/interaction-state";
-import { automaticWireDraftSteps } from "./automatic-wire-routing";
+import { resolveWireDraftShape } from "./wire-draft-shape";
 import {
   resolveWireDraftPreview,
   wirePassThroughContacts,
@@ -124,7 +124,7 @@ function committedCenterline(
   to: WireSource,
   draft: Draft,
 ): Point[] {
-  const steps = automaticWireDraftSteps(
+  const { steps, cornerOrder } = resolveWireDraftShape(
     document,
     resolver,
     source,
@@ -132,6 +132,7 @@ function committedCenterline(
     draft.steps ?? [],
     draft.routingMode ?? "orthogonal",
     draft.cornerOrder ?? "auto",
+    visibleTerminals(document),
   );
   const proposal = proposeWireCommitThroughContacts(
     source,
@@ -143,11 +144,7 @@ function committedCenterline(
       steps,
     }),
     1,
-    {
-      steps,
-      routingMode: draft.routingMode ?? "orthogonal",
-      cornerOrder: draft.cornerOrder ?? "auto",
-    },
+    { steps, routingMode: draft.routingMode ?? "orthogonal", cornerOrder },
   );
   const authored = proposal.edits.flatMap((edit: SchematicEdit) =>
     edit.kind === "set_route_path" ? [edit.route.id] : [],
@@ -299,10 +296,12 @@ describe("the wire a draft preview promises is the wire that lands", () => {
 
     expect(preview.points).toEqual(committed);
     // Named outright so the equality above cannot pass on two empty answers.
+    // One corner, and it is the corner that keeps the wire off both bodies:
+    // leaving M1's gate to the left would be the same two legs drawn through
+    // M1, so the wire goes down first. No stub is added beside either pin.
     expect(preview.points).toEqual([
       { x: 180, y: 200 },
-      { x: 170, y: 200 },
-      { x: 170, y: 400 },
+      { x: 180, y: 400 },
       { x: 480, y: 400 },
     ]);
     expect(preview.contacts).toEqual([]);
@@ -407,6 +406,67 @@ describe("the wire a draft preview promises is the wire that lands", () => {
 
     expect(preview.points).toEqual(committed);
     expect(preview.points.at(-1)).toEqual({ x: 200, y: 500 });
+  });
+
+  it("leaves a tapped rail across it, not along it", () => {
+    // Starting on the rail and ending left of the tap, the same two legs can
+    // be ordered either way. Running along the rail first would hide that leg
+    // inside the rail, where neither can be told from the other or picked up,
+    // so the wire leaves across it.
+    const document = createEmptyDocument("main", "Main");
+    nmos(document, "M1", { x: 200, y: 200 });
+    document.nets.push({ id: "net-rail", terminals: [] });
+    document.junctions.push(
+      {
+        id: "rail-a",
+        netId: "net-rail",
+        position: { x: 100, y: 500 },
+        role: "route-anchor",
+      },
+      {
+        id: "rail-b",
+        netId: "net-rail",
+        position: { x: 600, y: 500 },
+        role: "route-anchor",
+      },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "rail",
+        netId: "net-rail",
+        start: { kind: "junction", junctionId: "rail-a" },
+        end: { kind: "junction", junctionId: "rail-b" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const source = wireSourceForTarget(
+      document,
+      {
+        kind: "route",
+        point: { x: 400, y: 500 },
+        routeId: "rail",
+        segmentIndex: 0,
+      },
+      null,
+      () => ({
+        junctionId: "junction-ui-1",
+        firstRouteId: "route-a-1",
+        secondRouteId: "route-b-1",
+        newNetId: "net-ui-1",
+      }),
+    )!;
+    expect(source, "the rail resolves to a drawable source").toBeTruthy();
+
+    const preview = previewFor(document, source, {
+      kind: "endpoint",
+      point: resolveEndpointConnection(document, resolver, terminal("M1", "G"))!
+        .contactPoint,
+      source: wireSource(document, terminal("M1", "G")),
+    });
+
+    expect(preview.points[0]).toEqual({ x: 400, y: 500 });
+    expect(preview.points[1]!.x).toBe(400);
   });
 
   it("reverses its last segment back over the leg before it", () => {
