@@ -122,6 +122,14 @@ async function main() {
       page,
       "browser-pdf-",
     );
+    if (
+      await loadedJavaScriptContains(
+        page,
+        "Unrecognized extension value in extension set",
+      )
+    ) {
+      throw new Error("Gallery loaded the code editor runtime eagerly");
+    }
     await page.goto(new URL("editor", url).href, {
       waitUntil: "networkidle",
     });
@@ -137,16 +145,11 @@ async function main() {
       page,
       "browser-pdf-",
     );
-    if (
-      await loadedJavaScriptContains(
-        page,
-        "Unrecognized extension value in extension set",
-      )
-    ) {
-      throw new Error(
-        "CodeMirror state runtime loaded before a code editor was requested",
-      );
-    }
+    // Netlist is requested by the default editor workspace. Its CodeMirror
+    // runtime must load here; only the Gallery keeps editor code deferred.
+    await page.waitForSelector(
+      '[aria-label="Netlist code"][contenteditable="true"]',
+    );
     // The first page installs the SW; a controlled navigation must actually
     // cache consumed JS bodies, not only the five install-time icons/shell.
     await page.evaluate(() => navigator.serviceWorker.ready);
