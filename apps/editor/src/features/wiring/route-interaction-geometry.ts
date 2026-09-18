@@ -10,6 +10,8 @@ import {
 } from "@icm/derived";
 import type {
   EndpointObjectLookup,
+  ResolvedDocumentLogicalNets,
+  ResolvedDocumentRoutingGeometry,
   ResolvedRouteGeometry,
   SchematicStyleProfile,
 } from "@icm/derived";
@@ -546,16 +548,23 @@ export function annotationHitBox(
   annotation: Annotation,
   routeGeometryRecords: readonly RouteGeometryRecord[],
   styleProfile: SchematicStyleProfile,
+  routingGeometry?: ResolvedDocumentRoutingGeometry,
+  logicalNets?: ResolvedDocumentLogicalNets,
 ): Rect {
   // Ordinary text uses the same bounds as rendering/export, including the
   // extra ascent of a stacked W/L numerator. Only current markers need the
   // editor's additional arrow/route hit geometry below.
   if (!isRoutedMarker(annotation)) {
+    // Passing no geometry leaves `resolveAnnotationPresentation` to derive it,
+    // which is what it did before; a caller that holds the Document's geometry
+    // passes it so a per-Annotation hit box does not re-resolve every Route.
     return resolveAnnotationPresentation(
       document,
       resolver,
       annotation,
       styleProfile,
+      routingGeometry,
+      logicalNets,
     ).bounds;
   }
   const anchor = annotationAnchor(

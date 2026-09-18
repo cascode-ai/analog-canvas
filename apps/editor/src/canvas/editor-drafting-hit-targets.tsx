@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type {
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
@@ -5,6 +6,7 @@ import type {
 
 import {
   arrowArtwork,
+  resolveDocumentRoutingGeometry,
   resolveDocumentStyleProfile,
   resolveDraftingObjectGeometry,
 } from "@icm/derived";
@@ -69,6 +71,14 @@ export function EditorDraftingHitTargets({
       return plane(left) - plane(right) || left.zIndex - right.zIndex;
     },
   );
+  // `resolveDraftingObjectGeometry` re-derived the whole Document's route
+  // geometry on every call, so a Project with hundreds of drafting objects
+  // paid to resolve all of its Routes hundreds of times per render. Derive it
+  // once here and hand it to each call.
+  const routingGeometry = useMemo(
+    () => resolveDocumentRoutingGeometry(document, resolver),
+    [document, resolver],
+  );
   return draftingObjects.map((object) => {
     const drawingThroughScene =
       tool === "wire" ||
@@ -76,7 +86,12 @@ export function EditorDraftingHitTargets({
       tool === "construction-line" ||
       tool === "rectangle" ||
       tool === "circle";
-    const geometry = resolveDraftingObjectGeometry(document, resolver, object);
+    const geometry = resolveDraftingObjectGeometry(
+      document,
+      resolver,
+      object,
+      routingGeometry,
+    );
     const selected =
       selectedDraftingId === object.id ||
       supplementalDraftingIds.includes(object.id);

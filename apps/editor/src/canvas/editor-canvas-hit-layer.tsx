@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type {
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
@@ -8,6 +9,8 @@ import {
   derivePowerRailComponent,
   endpointKey,
   isSchematicAnnotationVisible,
+  resolveDocumentLogicalNets,
+  resolveDocumentRoutingGeometry,
   resolveDocumentStyleProfile,
   type ResolvedRouteGeometry,
 } from "@icm/derived";
@@ -317,6 +320,20 @@ function SelectionHitTargets({
   onNetPointerLeave,
   children,
 }: SelectionHitTargetProps & { children: ReactNode }) {
+  // Every Annotation hit box needs the Document's routing geometry. Deriving
+  // it once per render replaces one full re-derivation per Annotation, which
+  // is what made this layer dominate a drag on a large Project.
+  const routingGeometry = useMemo(
+    () => resolveDocumentRoutingGeometry(document, resolver),
+    [document, resolver],
+  );
+  // An Annotation's hit box and the visibility filter both resolve a Net
+  // label's text, and that resolution re-derived logical Nets unless it was
+  // handed them. One pass per render serves every Annotation.
+  const logicalNets = useMemo(
+    () => resolveDocumentLogicalNets(document),
+    [document],
+  );
   return (
     <>
       {document.instances
@@ -468,7 +485,7 @@ function SelectionHitTargets({
       {children}
       {document.annotations
         .filter((annotation) =>
-          isSchematicAnnotationVisible(document, annotation),
+          isSchematicAnnotationVisible(document, annotation, logicalNets),
         )
         .map((annotation) => {
           const hitBox = annotationHitBox(
@@ -477,6 +494,8 @@ function SelectionHitTargets({
             annotation,
             routeGeometryRecords,
             styleProfile,
+            routingGeometry,
+            logicalNets,
           );
           const selected =
             selectedAnnotationId === annotation.id ||
