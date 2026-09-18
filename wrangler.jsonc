@@ -70,6 +70,12 @@
       "bucket_name": "analog-canvas-simulation-artifacts-production",
     },
   ],
+  // Re-answers stored Gallery netlist marks a deployed rule change left
+  // behind, one batch a tick. It reads a single count and stops when none of
+  // them is stale, which is every tick but the ones after such a change.
+  "triggers": {
+    "crons": ["*/5 * * * *"],
+  },
   "queues": {
     "producers": [
       {

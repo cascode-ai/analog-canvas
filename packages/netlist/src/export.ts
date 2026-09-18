@@ -138,6 +138,17 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
  * report, so a circuit is never called extractable in one place and not in
  * another.
  */
+/**
+ * What answer `designExtractsNetlist` is currently giving.
+ *
+ * A stored mark is only as good as the rule that produced it, and the rule
+ * moves: a body that now follows the drawn supply, a dead-end node that now
+ * refuses, a Block supply that is now declared. Bump this whenever a change
+ * can turn a stored answer stale, and everything that keeps marks can find
+ * the ones it has to ask again.
+ */
+export const NETLIST_MARK_RULE_VERSION = 2;
+
 export function designExtractsNetlist(
   project: CircuitProject,
   options: DesignNetlistAnalysisOptions = {},

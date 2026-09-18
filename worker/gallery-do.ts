@@ -15,7 +15,7 @@
 // longer open.
 
 import { sha256Hex } from "@icm/derived";
-import { designExtractsNetlist } from "@icm/netlist";
+import { designExtractsNetlist, NETLIST_MARK_RULE_VERSION } from "@icm/netlist";
 import {
   parseProject,
   serializeProject,
@@ -506,6 +506,7 @@ export class GalleryDO {
       "ALTER TABLE gallery_entries ADD COLUMN submitter_email TEXT",
       "ALTER TABLE gallery_entries ADD COLUMN submitter_provider TEXT",
       "ALTER TABLE gallery_entries ADD COLUMN netlistable INTEGER NOT NULL DEFAULT 0",
+      "ALTER TABLE gallery_entries ADD COLUMN netlistable_version INTEGER NOT NULL DEFAULT 0",
       "ALTER TABLE gallery_entries ADD COLUMN preview_revision TEXT NOT NULL DEFAULT ''",
       "ALTER TABLE gallery_entries ADD COLUMN preview_width REAL",
       "ALTER TABLE gallery_entries ADD COLUMN preview_height REAL",
@@ -801,8 +802,8 @@ export class GalleryDO {
           id, name, author, description, created_at, schema_version,
           status, recycled_at, owner_user_id, submitter_email,
           submitter_provider, tags, project_text, svg_text, netlistable,
-          preview_revision, preview_width, preview_height
-        ) VALUES (?, ?, ?, ?, ?, ?, 'public', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          netlistable_version, preview_revision, preview_width, preview_height
+        ) VALUES (?, ?, ?, ?, ?, ?, 'public', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         entry.id,
         entry.name,
         entry.author,
@@ -816,6 +817,7 @@ export class GalleryDO {
         entry.project_text,
         entry.svg_text,
         entry.netlistable ?? 0,
+        NETLIST_MARK_RULE_VERSION,
         previewRevision,
         previewDimensions?.width ?? null,
         previewDimensions?.height ?? null,
@@ -1005,8 +1007,8 @@ export class GalleryDO {
         `UPDATE gallery_entries
          SET name = ?, author = ?, description = ?, project_text = ?,
              svg_text = ?, schema_version = ?, status = ?, tags = ?,
-             netlistable = ?, preview_revision = ?, preview_width = ?,
-             preview_height = ?
+             netlistable = ?, netlistable_version = ?, preview_revision = ?,
+             preview_width = ?, preview_height = ?
          WHERE id = ?`,
         String(body.name),
         String(body.author),
@@ -1017,6 +1019,7 @@ export class GalleryDO {
         String(body.status),
         typeof body.tags === "string" ? body.tags : "",
         Number(body.netlistable) === 1 ? 1 : 0,
+        NETLIST_MARK_RULE_VERSION,
         previewRevision,
         previewDimensions?.width ?? null,
         previewDimensions?.height ?? null,
@@ -1136,7 +1139,8 @@ export class GalleryDO {
         `UPDATE gallery_entries
          SET name = ?, author = ?, description = ?, project_text = ?,
              svg_text = ?, schema_version = ?, tags = ?, netlistable = ?,
-             preview_revision = ?, preview_width = ?, preview_height = ?
+             netlistable_version = ?, preview_revision = ?, preview_width = ?,
+             preview_height = ?
          WHERE id = ?`,
         version.name,
         version.author,
@@ -1146,6 +1150,7 @@ export class GalleryDO {
         restoredProject.schemaVersion,
         version.tags ?? "",
         netlistable,
+        NETLIST_MARK_RULE_VERSION,
         previewRevision,
         previewDimensions?.width ?? null,
         previewDimensions?.height ?? null,
@@ -2015,44 +2020,58 @@ export class GalleryDO {
    * scans `limit` entries after `after`, reports what is left, and never
    * holds the Object for the whole Gallery.
    */
+  /**
+   * Re-answer the marks this build's rule has not answered yet.
+   *
+   * Entries carry the rule version their mark came from, so a deployed rule
+   * change leaves exactly the stale rows to find and nothing else to
+   * remember: no cursor to carry, no pass to repeat over answers that are
+   * already current, and the same work whether a person presses the button
+   * or the schedule comes round.
+   */
   private refreshNetlistable(body: Record<string, unknown>): Response {
     const limit = Math.min(Math.max(Number(body.limit) || 50, 1), 200);
-    const after = typeof body.after === "string" ? body.after : "";
     const rows = this.sql
       .exec<{ id: string; project_text: string; netlistable: number }>(
         `SELECT id, project_text, netlistable FROM gallery_entries
-         WHERE id > ? ORDER BY id LIMIT ?`,
-        after,
+         WHERE netlistable_version < ? ORDER BY id LIMIT ?`,
+        NETLIST_MARK_RULE_VERSION,
         limit,
       )
       .toArray();
     let changed = 0;
     let unreadable = 0;
-    let cursor = after;
     for (const row of rows) {
-      cursor = row.id;
       let answer: number;
       try {
         answer = designExtractsNetlist(parseProject(row.project_text)) ? 1 : 0;
       } catch {
         // A Project this build cannot parse keeps the answer it has; the
-        // schema maintenance pass owns that repair.
+        // schema maintenance pass owns that repair. Stamping it anyway stops
+        // the pass from meeting the same unreadable row for ever.
         unreadable += 1;
+        this.sql.exec(
+          "UPDATE gallery_entries SET netlistable_version = ? WHERE id = ?",
+          NETLIST_MARK_RULE_VERSION,
+          row.id,
+        );
         continue;
       }
-      if (answer === row.netlistable) continue;
+      if (answer !== row.netlistable) changed += 1;
       this.sql.exec(
-        "UPDATE gallery_entries SET netlistable = ? WHERE id = ?",
+        `UPDATE gallery_entries SET netlistable = ?, netlistable_version = ?
+         WHERE id = ?`,
         answer,
+        NETLIST_MARK_RULE_VERSION,
         row.id,
       );
-      changed += 1;
     }
     const remaining = Number(
       this.sql
         .exec<{ count: number }>(
-          "SELECT COUNT(*) AS count FROM gallery_entries WHERE id > ?",
-          cursor,
+          `SELECT COUNT(*) AS count FROM gallery_entries
+           WHERE netlistable_version < ?`,
+          NETLIST_MARK_RULE_VERSION,
         )
         .one().count,
     );
@@ -2060,7 +2079,7 @@ export class GalleryDO {
       scanned: rows.length,
       changed,
       unreadable,
-      cursor,
+      ruleVersion: NETLIST_MARK_RULE_VERSION,
       remaining,
     });
   }

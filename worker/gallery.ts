@@ -536,6 +536,21 @@ async function handleEntryUpdate(
  * All `/api/gallery*` routing. Returns null for unrelated paths so the
  * worker entry keeps its ordinary dispatch.
  */
+/**
+ * Re-answer one batch of stored netlist marks whose rule version is behind
+ * this build's. Both callers want the same thing and neither has to know how
+ * staleness is found: the moderation button when somebody wants it now, and
+ * the schedule so that nobody has to.
+ */
+export async function refreshNetlistMarks(
+  env: GalleryEnv,
+  limit?: number,
+): Promise<{ status: number; payload: unknown }> {
+  return callGallery(env, "netlistable-refresh", {
+    ...(limit === undefined ? {} : { limit }),
+  });
+}
+
 export async function routeGalleryRequest(
   request: Request,
   env: GalleryEnv & PreviewAcceptanceEnv,
@@ -690,10 +705,10 @@ export async function routeGalleryRequest(
       after?: unknown;
       limit?: unknown;
     } | null;
-    const { status, payload } = await callGallery(env, "netlistable-refresh", {
-      ...(typeof body?.after === "string" ? { after: body.after } : {}),
-      ...(Number.isFinite(Number(body?.limit)) ? { limit: body!.limit } : {}),
-    });
+    const { status, payload } = await refreshNetlistMarks(
+      env,
+      Number.isFinite(Number(body?.limit)) ? Number(body!.limit) : undefined,
+    );
     return Response.json(payload, {
       status,
       headers: { "cache-control": "no-store" },

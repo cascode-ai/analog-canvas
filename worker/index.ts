@@ -7,7 +7,11 @@ import {
   routeAgentSessionRequest,
   type AgentSessionNamespaceLike,
 } from "./agent-session";
-import { routeGalleryRequest, type GalleryNamespaceLike } from "./gallery";
+import {
+  refreshNetlistMarks,
+  routeGalleryRequest,
+  type GalleryNamespaceLike,
+} from "./gallery";
 import { routeSimulationRequest, type SimulationEnv } from "./simulation";
 import {
   consumeSimulationJobs,
@@ -62,7 +66,19 @@ export default {
   ): Promise<void> {
     await consumeSimulationJobs(batch, env);
   },
+  // A deployed change to the netlist rule leaves every stored Gallery mark
+  // answering an older question. One batch per tick re-answers them without
+  // anybody pressing anything; when none are stale the pass reads one count
+  // and stops.
+  async scheduled(_event: ScheduledEventLike, env: Env): Promise<void> {
+    await refreshNetlistMarks(env, SCHEDULED_NETLIST_MARK_BATCH);
+  },
 };
+
+/** Batch size per tick: large enough to converge quickly, small enough to stay well inside one invocation. */
+const SCHEDULED_NETLIST_MARK_BATCH = 50;
+
+type ScheduledEventLike = { scheduledTime: number; cron: string };
 
 async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);

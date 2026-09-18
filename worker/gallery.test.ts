@@ -14,6 +14,7 @@ import { CLOUD_PROJECT_LIMIT as EDITOR_CLOUD_PROJECT_LIMIT } from "../apps/edito
 import { CLOUD_PROJECT_LIMIT } from "./gallery-do";
 import {
   GALLERY_DAILY_SUBMISSION_LIMIT,
+  refreshNetlistMarks,
   GALLERY_MAX_PROJECT_BYTES,
   GalleryDO,
   routeGalleryRequest,
@@ -784,20 +785,17 @@ describe("netlist marks and thumbs", () => {
     expect(entry?.netlistable).toBe(true);
   });
 
-  it("re-answers stored marks in resumable batches", async () => {
-    // Entries published before this answer existed carry a stale mark, and
-    // only a pass over stored Projects can correct it. Simulate that by
-    // writing the wrong mark, then let the maintenance pass re-answer.
+  it("re-answers only the marks an older rule produced", async () => {
+    // A stored mark is only as good as the rule that produced it. Entries
+    // carry that rule's version, so a deployed change leaves exactly the
+    // stale rows to find: no cursor to carry between batches, and no work
+    // repeated over answers that are already current.
     const env = environment();
     const cookie = await adminOf(env);
     const first = await submitOne(env, "Batch one", { cookie });
     const second = await submitOne(env, "Batch two", { cookie });
-    env.gallerySql.exec("UPDATE gallery_entries SET netlistable = 0");
-    expect((await feed(env)).entries.every((entry) => !entry.netlistable)).toBe(
-      true,
-    );
-
-    const refresh = async (after?: string) => {
+    // Publishing stamped the current rule, so the pass has nothing to do.
+    const refresh = async (limit: number) => {
       const response = await route(
         env,
         new Request(`${ORIGIN}/api/gallery/maintenance/netlist-badges`, {
@@ -806,7 +804,7 @@ describe("netlist marks and thumbs", () => {
             ...cookieHeaders(cookie),
             "content-type": "application/json",
           },
-          body: JSON.stringify({ limit: 1, ...(after ? { after } : {}) }),
+          body: JSON.stringify({ limit }),
         }),
       );
       expect(response.status).toBe(200);
@@ -814,20 +812,51 @@ describe("netlist marks and thumbs", () => {
         scanned: number;
         changed: number;
         unreadable: number;
-        cursor: string;
+        ruleVersion: number;
         remaining: number;
       };
     };
-    const firstBatch = await refresh();
+    expect(await refresh(50)).toMatchObject({ scanned: 0, remaining: 0 });
+
+    // Now the rule has moved: both marks came from an older answer.
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET netlistable = 0, netlistable_version = 0",
+    );
+    expect((await feed(env)).entries.every((entry) => !entry.netlistable)).toBe(
+      true,
+    );
+
+    const firstBatch = await refresh(1);
     expect(firstBatch).toMatchObject({ scanned: 1, changed: 1, remaining: 1 });
-    const secondBatch = await refresh(firstBatch.cursor);
-    expect(secondBatch).toMatchObject({ scanned: 1, changed: 1, remaining: 0 });
+    expect(firstBatch.ruleVersion).toBeGreaterThan(0);
+    expect(await refresh(1)).toMatchObject({
+      scanned: 1,
+      changed: 1,
+      remaining: 0,
+    });
+    // Idempotent: a further pass finds nothing, with no cursor to remember.
+    expect(await refresh(50)).toMatchObject({ scanned: 0, remaining: 0 });
 
     const marked = (await feed(env)).entries;
     expect(marked.map((entry) => entry.netlistable)).toEqual([true, true]);
     expect(new Set(marked.map((entry) => entry.id))).toEqual(
       new Set([first, second]),
     );
+  });
+
+  it("re-answers stale marks from the schedule, with nobody signed in", async () => {
+    // The scheduled tick calls the pass directly: there is no session behind
+    // it, and there should not have to be.
+    const env = environment();
+    await submitOne(env, "Scheduled", { cookie: await adminOf(env) });
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET netlistable = 0, netlistable_version = 0",
+    );
+
+    const { status, payload } = await refreshNetlistMarks(env, 50);
+    expect(status).toBe(200);
+    expect(payload).toMatchObject({ scanned: 1, changed: 1, remaining: 0 });
+    expect((await feed(env)).entries[0]!.netlistable).toBe(true);
   });
 
   it("keeps the mark pass behind the admin check", async () => {

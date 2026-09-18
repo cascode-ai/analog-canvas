@@ -42,7 +42,8 @@ restrictive content-security-policy.
   (`DEAD_END_NET`, see [netlist export](netlist-export.md)) clears it: those
   say the drawing is unfinished, which no export option can supply. It is
   re-answered whenever an entry is written, so repairing a published circuit
-  lights its mark without an administrator pass.
+  lights its mark immediately, and the scheduled maintenance pass below
+  re-answers stored marks after the rule itself changes.
 - `GET /api/gallery/tags` — distinct public tags with counts, most
   frequent first (feeds the multi-select menu).
 - `GET /api/gallery/authors` — non-empty public bylines with their currently
@@ -293,12 +294,17 @@ header buys nothing. Without such a session every admin route answers
   to commit only when every record is valid. The response reports
   source-version counts, validation failures, and the current target version;
   it does not embed a second Gallery-specific migration policy.
-- `POST /api/gallery/maintenance/netlist-badges` — re-answer the stored
-  netlistable marks of existing entries, in resumable batches
-  (`{ "after"?: id, "limit"?: 1..200 }` → `{scanned, changed, unreadable,
-  cursor, remaining}`). Submission, owner editing, and schema restore already
-  answer it per entry, so this pass exists only for entries stored before an
-  answer changed. An unreadable stored Project is counted and left alone.
+- `POST /api/gallery/maintenance/netlist-badges` — re-answer one batch of
+  stored netlistable marks (`{ "limit"?: 1..200 }` → `{scanned, changed,
+  unreadable, ruleVersion, remaining}`). Every entry stores the rule version
+  its mark came from (`NETLIST_MARK_RULE_VERSION`, bumped whenever a change
+  can turn a stored answer stale), so the pass selects exactly the entries
+  behind this build and carries no cursor: running it again when none is
+  stale reads one count and stops. An unreadable stored Project keeps its
+  mark, is counted, and is stamped so the pass does not meet it for ever.
+  The same pass runs on a schedule (`triggers.crons` in both channels'
+  Wrangler configs), so a deployed rule change converges without anybody
+  pressing anything; the route stays for when somebody wants it now.
 - `POST /api/gallery/maintenance/schema-restore` — atomically restore the three
   Project-bearing tables from a `schema-backup` payload supplied as
   `{ "backup": ... }`. Current retention is reapplied, so a legacy backup with

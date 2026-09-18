@@ -5,22 +5,30 @@ import { resolve } from "node:path";
 
 describe("assets binding wiring", () => {
   /** wrangler.jsonc allows comments and trailing commas; JSON does not. */
-  function wranglerConfig(): {
+  function wranglerConfig(file = "wrangler.jsonc"): {
     assets: {
       binding?: string;
       run_worker_first?: string[];
       not_found_handling?: string;
     };
+    triggers?: { crons?: string[] };
   } {
-    const source = readFileSync(
-      resolve(process.cwd(), "wrangler.jsonc"),
-      "utf8",
-    );
+    const source = readFileSync(resolve(process.cwd(), file), "utf8");
     const stripped = source
       .replace(/^\s*\/\/.*$/gmu, "")
       .replace(/,(\s*[}\]])/gu, "$1");
     return JSON.parse(stripped) as ReturnType<typeof wranglerConfig>;
   }
+
+  it.each(["wrangler.jsonc", "wrangler.preview.jsonc"])(
+    "schedules the netlist mark pass on %s",
+    (file) => {
+      // Stored Gallery marks answer the rule that produced them. Without a
+      // tick, a deployed rule change would leave every one of them stale
+      // until somebody remembered to press a button.
+      expect(wranglerConfig(file).triggers?.crons ?? []).not.toHaveLength(0);
+    },
+  );
 
   it("routes asset requests through the Worker, with a binding to fetch", () => {
     // This test previously pinned the opposite, on the belief that listing
