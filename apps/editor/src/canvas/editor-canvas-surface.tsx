@@ -23,7 +23,10 @@ import {
   EditorInteractionPreviews,
   EditorPlacementPreview,
 } from "./editor-transient-preview-overlays";
-import { EditorWiringOverlay } from "./editor-wiring-overlay";
+import {
+  EditorWiringOverlay,
+  NetLabelEditorOverlay,
+} from "./editor-wiring-overlay";
 import type { CameraRuntime } from "./camera-runtime";
 import { EDITOR_SHORTCUT_REFERENCE } from "../interaction/editor-shortcut-reference";
 
@@ -263,6 +266,13 @@ export function EditorCanvasSurface({
           {cellSymbolLayout ? (
             <EditorCellSymbolLayoutOverlay {...cellSymbolLayout} />
           ) : null}
+          <NetLabelEditorOverlay
+            netLabelPlacement={wiring.netLabelPlacement}
+            onNetLabelTextChange={wiring.onNetLabelTextChange}
+            onNetLabelSubmit={wiring.onNetLabelSubmit}
+            onNetLabelEscape={wiring.onNetLabelEscape}
+            viewBox={wiring.viewBox}
+          />
         </g>
       </svg>
     </section>

@@ -3631,6 +3631,23 @@ test("L labels a selected wire or snaps near an unselectable wire", async ({
   const editorBox = await editor.boundingBox();
   expect(editorBox?.width).toBeGreaterThan(250);
   expect(editorBox?.height).toBeGreaterThan(100);
+  const editorLayerOrder = await editor.evaluate((element) => {
+    const overlay = element.closest('[data-layer="editor-overlay"]');
+    const hitTargets = overlay
+      ? [...overlay.querySelectorAll('[data-testid*="-hit-"]')]
+      : [];
+    return {
+      hitTargetCount: hitTargets.length,
+      followsEveryHitTarget: hitTargets.every(
+        (target) =>
+          (target.compareDocumentPosition(element) &
+            Node.DOCUMENT_POSITION_FOLLOWING) !==
+          0,
+      ),
+    };
+  });
+  expect(editorLayerOrder.hitTargetCount).toBeGreaterThan(0);
+  expect(editorLayerOrder.followsEveryHitTarget).toBe(true);
   await expect(editor.getByRole("button", { name: "Italic" })).toBeVisible();
   const richEditor = editor.getByRole("textbox", {
     name: "Canvas text editor",
