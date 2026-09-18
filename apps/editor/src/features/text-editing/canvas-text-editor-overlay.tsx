@@ -24,7 +24,10 @@ export interface CanvasTextEditorOverlayProps {
   onUpdate(change: TextEditingUpdate): void;
   onCommit(): void;
   onCancel(): void;
+  onEscape?(): void;
   onDelete(): void;
+  deleteLabel?: string;
+  showDelete?: boolean;
   onRestoreReference?(): TextEditingSession["content"] | undefined;
 }
 
@@ -164,7 +167,10 @@ export function CanvasTextEditorOverlay({
   onUpdate,
   onCommit,
   onCancel,
+  onEscape,
   onDelete,
+  deleteLabel,
+  showDelete,
   onRestoreReference,
 }: CanvasTextEditorOverlayProps) {
   const anchorRef = useRef<SVGGElement | null>(null);
@@ -318,6 +324,7 @@ export function CanvasTextEditorOverlay({
           sizeScale={session.sizeScale}
           alignment={session.alignment}
           defaultBold={session.defaultBold ?? false}
+          defaultItalic={session.defaultItalic ?? false}
           sourceOnly={sourceOnly}
           multiline={!session.bound}
           onChange={(content) => onUpdate({ content })}
@@ -325,7 +332,10 @@ export function CanvasTextEditorOverlay({
           onAlignmentChange={(alignment) => onUpdate({ alignment })}
           onCommit={onCommit}
           onCancel={onCancel}
+          {...(onEscape ? { onEscape } : {})}
           onDelete={onDelete}
+          {...(deleteLabel ? { deleteLabel } : {})}
+          {...(showDelete !== undefined ? { showDelete } : {})}
           {...(session.bound && !sourceOnly
             ? { formulaSemanticText: flattenRichText(session.content) }
             : {})}

@@ -28,6 +28,7 @@ export interface RichTextEditorProps {
   sizeScale: number;
   alignment: "start" | "middle" | "end";
   defaultBold?: boolean;
+  defaultItalic?: boolean;
   /**
    * A plain-only display (for example Symbol body text) edits its source
    * field. It is deliberately a plain editing surface rather than a fake
@@ -38,11 +39,13 @@ export interface RichTextEditorProps {
   multiline?: boolean;
   compact?: boolean;
   deleteLabel?: string;
+  showDelete?: boolean;
   onChange(content: RichTextDocument): void;
   onSizeChange(sizeScale: number): void;
   onAlignmentChange(alignment: "start" | "middle" | "end"): void;
   onCommit(): void;
   onCancel(): void;
+  onEscape?(): void;
   onDelete(): void;
   /** Electrical name represented by this editor, when Formula is constrained. */
   formulaSemanticText?: string;
@@ -137,10 +140,23 @@ function elementBold(element: Element, inherited: boolean): boolean {
   return /^(strong|b)$/i.test(element.tagName) || inherited;
 }
 
+function elementItalic(element: Element, inherited: boolean): boolean {
+  const style = (element as HTMLElement).style?.fontStyle;
+  if (style === "normal") return false;
+  if (style === "italic" || style === "oblique") return true;
+  return /^(em|i)$/i.test(element.tagName) || inherited;
+}
+
 function selectionBold(range: Range): boolean {
   const node = range.commonAncestorContainer;
   const element = isElement(node) ? node : node.parentElement;
   return !!element && Number(getComputedStyle(element).fontWeight) >= 600;
+}
+
+function selectionItalic(range: Range): boolean {
+  const node = range.commonAncestorContainer;
+  const element = isElement(node) ? node : node.parentElement;
+  return !!element && getComputedStyle(element).fontStyle !== "normal";
 }
 
 function allTextBold(runs: RichTextRun[], bold = false): boolean {
@@ -175,18 +191,26 @@ function withoutBold(runs: RichTextRun[]): RichTextRun[] {
   });
 }
 
-function readChildren(element: Element, inheritedBold = false): RichTextRun[] {
+function readChildren(
+  element: Element,
+  inheritedBold = false,
+  inheritedItalic = false,
+): RichTextRun[] {
   const runs: RichTextRun[] = [];
   const bold = elementBold(element, inheritedBold);
-  for (const child of element.childNodes) runs.push(...readNode(child, bold));
+  const italic = elementItalic(element, inheritedItalic);
+  for (const child of element.childNodes)
+    runs.push(...readNode(child, bold, italic));
   return runs;
 }
 
-function readNode(node: Node, bold = false): RichTextRun[] {
+function readNode(node: Node, bold = false, italic = false): RichTextRun[] {
   if (node.nodeType === Node.TEXT_NODE) {
     if (!node.textContent) return [];
-    const text: RichTextRun = { kind: "text", value: node.textContent };
-    return [bold ? { kind: "span", style: "bold", children: [text] } : text];
+    let text: RichTextRun = { kind: "text", value: node.textContent };
+    if (bold) text = { kind: "span", style: "bold", children: [text] };
+    if (italic) text = { kind: "span", style: "italic", children: [text] };
+    return [text];
   }
   if (!isElement(node)) return [];
   const tag = node.tagName.toLowerCase();
@@ -212,7 +236,11 @@ function readNode(node: Node, bold = false): RichTextRun[] {
     );
     if (!numerator || !denominator) return [];
     const part = (element: Element): RichTextDocument => {
-      const runs = readChildren(element, elementBold(node, bold));
+      const runs = readChildren(
+        element,
+        elementBold(node, bold),
+        elementItalic(node, italic),
+      );
       return normalizeRichText({
         runs: runs.length ? runs : [{ kind: "text", value: " " }],
       });
@@ -225,13 +253,13 @@ function readNode(node: Node, bold = false): RichTextRun[] {
       },
     ];
   }
-  const children = readChildren(node, bold);
+  const children = readChildren(node, bold, italic);
   if (children.length === 0 && tag !== "div" && tag !== "p") return [];
   if (tag === "strong" || tag === "b") {
     return children;
   }
   if (tag === "em" || tag === "i") {
-    return [{ kind: "span", style: "italic", children }];
+    return children;
   }
   if (tag === "sub") {
     return [{ kind: "span", style: "subscript", children }];
@@ -301,9 +329,10 @@ function normalizeEditableMarkup(editable: HTMLElement): void {
 function editableDocument(
   element: HTMLElement,
   defaultBold = false,
+  defaultItalic = false,
 ): RichTextDocument {
   const document: RichTextDocument = {
-    runs: readChildren(element, defaultBold),
+    runs: readChildren(element, defaultBold, defaultItalic),
   };
   if (document.runs.length === 0) {
     return { runs: [{ kind: "text", value: " " }] };
@@ -511,15 +540,18 @@ export function RichTextEditor({
   sizeScale,
   alignment,
   defaultBold = false,
+  defaultItalic = false,
   sourceOnly = false,
   multiline = true,
   compact = false,
   deleteLabel = "Delete",
+  showDelete = true,
   onChange,
   onSizeChange,
   onAlignmentChange,
   onCommit,
   onCancel,
+  onEscape,
   onDelete,
   formulaSemanticText,
   onRestoreReference,
@@ -568,7 +600,9 @@ export function RichTextEditor({
 
   const sync = (): void => {
     if (editableRef.current)
-      onChange(editableDocument(editableRef.current, defaultBold));
+      onChange(
+        editableDocument(editableRef.current, defaultBold, defaultItalic),
+      );
   };
 
   const rememberSelection = (): void => {
@@ -644,7 +678,11 @@ export function RichTextEditor({
       // structure together with the selected companions, retaining local undo.
       const selected = document.createElement("div");
       selected.append(fragment!);
-      const current = editableDocument(selected, selectionBold(range));
+      const current = editableDocument(
+        selected,
+        selectionBold(range),
+        selectionItalic(range),
+      );
       const sole = current.runs.length === 1 ? current.runs[0] : undefined;
       const unbold = name === "bold" && allTextBold(current.runs);
       const next: RichTextDocument = unbold
@@ -1095,15 +1133,17 @@ export function RichTextEditor({
         >
           Cancel
         </button>
-        <button
-          type="button"
-          aria-label={`${deleteLabel} text`}
-          disabled={disabled}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={onDelete}
-        >
-          {deleteLabel}
-        </button>
+        {showDelete ? (
+          <button
+            type="button"
+            aria-label={`${deleteLabel} text`}
+            disabled={disabled}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={onDelete}
+          >
+            {deleteLabel}
+          </button>
+        ) : null}
         {onRestoreReference ? (
           <button
             type="button"
@@ -1287,6 +1327,7 @@ export function RichTextEditor({
           style={{
             fontSize: `${15.116 * sizeScale}px`,
             fontWeight: defaultBold ? 700 : 400,
+            fontStyle: defaultItalic ? "italic" : "normal",
             // Mirror the committed alignment so centered labels edit centered.
             textAlign:
               alignment === "middle"
@@ -1304,7 +1345,7 @@ export function RichTextEditor({
               event.preventDefault();
             } else if (event.key === "Escape") {
               event.preventDefault();
-              onCommit();
+              (onEscape ?? onCommit)();
             } else if (event.key === "Enter" && event.shiftKey && multiline) {
               // Enter finishes the text everywhere; a deliberate modifier is
               // what asks for another line.

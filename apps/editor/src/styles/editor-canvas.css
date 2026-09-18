@@ -43,24 +43,6 @@
   -webkit-user-select: text;
 }
 
-.net-label-editor input {
-  box-sizing: border-box;
-  width: 100%;
-  height: 28px;
-  padding: 3px 6px;
-  border: 0;
-  border-bottom: 2px solid var(--icm-accent);
-  border-radius: 2px 2px 0 0;
-  outline: none;
-  color: var(--icm-text);
-  background: var(--icm-surface);
-  box-shadow: 0 1px 4px rgb(15 23 42 / 16%);
-  font:
-    13px "Google Sans Code Variable",
-    ui-monospace,
-    monospace;
-}
-
 .inline-canvas-text-editor {
   box-sizing: border-box;
   width: 100%;
@@ -82,9 +64,6 @@
 
 .net-label-placement-preview {
   fill: var(--icm-accent);
-  font-size: 12px;
-  font-style: italic;
-  font-weight: 700;
   paint-order: stroke;
   stroke: var(--icm-surface);
   stroke-width: 3px;

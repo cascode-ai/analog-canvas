@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { deferFocus } from "../../interaction/deferred-focus";
-import type { MutableRefObject } from "react";
 
 import {
   createRoutingOperationPlan,
   gateRoutingOperationPlan,
   type SchematicEdit,
 } from "@icm/edit-engine";
-import { flattenRichText, semanticTextDocument } from "@icm/model";
+import {
+  flattenRichText,
+  rewriteRichTextPlainText,
+  semanticTextDocument,
+} from "@icm/model";
 import { resolveAnnotationText } from "@icm/derived";
 import type {
   Annotation,
@@ -110,7 +112,6 @@ export interface UsePropertiesEditorOptions {
   componentParametersForInstance?: (
     instance: Instance,
   ) => readonly ComponentParameter[];
-  netLabelEditorInputRef: MutableRefObject<HTMLInputElement | null>;
   transact: (edits: SchematicEdit[]) => TransactionResult;
   setStatus: (status: string) => void;
   replaceSelectionKind: (kind: "annotation", ids: readonly string[]) => void;
@@ -161,7 +162,9 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
   const [netLabelDraft, setNetLabelDraft] = useState("");
   const [netLabelPlacement, setNetLabelPlacement] = useState<{
     phase: "naming" | "placing";
-    draft: string;
+    content: RichTextDocument;
+    sizeScale: number;
+    alignment: "start" | "middle" | "end";
     position: Point;
     target: NetLabelPlacementTarget | null;
     commitAfterNaming: boolean;
@@ -697,13 +700,37 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
   ): void => {
     setNetLabelPlacement({
       phase: "naming",
-      draft: "",
+      content: semanticTextDocument("", "net-label"),
+      sizeScale: 1,
+      alignment: "start",
       position,
       target,
       commitAfterNaming: target !== null,
     });
-    options.setStatus("Type a Net Label name, then press Enter to place it");
-    deferFocus(() => options.netLabelEditorInputRef.current);
+    options.setStatus("Format the Net Label, then Apply to place it");
+  };
+
+  const preparedNetLabelPlacement = (
+    placement: NonNullable<typeof netLabelPlacement>,
+  ): {
+    name: string;
+    content: RichTextDocument;
+    formatOverride?: RichTextDocument;
+  } => {
+    const plainText = flattenRichText(placement.content);
+    const name = plainText.trim();
+    const content =
+      plainText === name
+        ? placement.content
+        : rewriteRichTextPlainText(placement.content, name);
+    const semanticContent = semanticTextDocument(name, "net-label");
+    return {
+      name,
+      content,
+      ...(JSON.stringify(content) === JSON.stringify(semanticContent)
+        ? {}
+        : { formatOverride: content }),
+    };
   };
 
   const commitNetLabelAtTarget = (
@@ -717,10 +744,14 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       options.setStatus("The target wire is no longer available");
       return false;
     }
+    const prepared = preparedNetLabelPlacement(placement);
     const existingLabel = options.netLabelForRoute(route);
-    const edits = options.netLabelEditsForRoute(route, placement.draft, {
-      alignment: "start",
-      sizeScale: 1,
+    const edits = options.netLabelEditsForRoute(route, prepared.name, {
+      alignment: placement.alignment,
+      sizeScale: placement.sizeScale,
+      ...(prepared.formatOverride
+        ? { formatOverride: prepared.formatOverride }
+        : {}),
       position: target.labelPosition,
       routeAttachment: target.routeAttachment,
     });
@@ -728,30 +759,42 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     const labelId = existingLabel?.id ?? `net-label-${route.id}`;
     options.selectOnly("annotation", [labelId]);
     setNetLabelPlacement(null);
-    options.setStatus(`Placed Net Label ${placement.draft}`);
+    options.setStatus(`Placed Net Label ${prepared.name}`);
     return true;
   };
 
   const commitNetLabelEditing = (): void => {
     if (!netLabelPlacement) return;
-    const draft = netLabelPlacement.draft.trim();
-    if (!draft) {
+    const prepared = preparedNetLabelPlacement(netLabelPlacement);
+    if (!prepared.name) {
       options.setStatus("Net Label name cannot be empty");
-      deferFocus(() => options.netLabelEditorInputRef.current);
       return;
     }
-    const ready = { ...netLabelPlacement, draft, phase: "placing" as const };
+    const ready = {
+      ...netLabelPlacement,
+      content: prepared.content,
+      phase: "placing" as const,
+    };
     if (ready.commitAfterNaming && ready.target) {
       commitNetLabelAtTarget(ready, ready.target);
       return;
     }
-    options.setStatus(`Place Net Label ${draft} near a wire · Esc cancels`);
+    options.setStatus(
+      `Place Net Label ${prepared.name} near a wire · Esc cancels`,
+    );
     setNetLabelPlacement(ready);
   };
 
-  const updateNetLabelPlacementDraft = (draft: string): void => {
+  const updateNetLabelPlacementText = (
+    change: Partial<
+      Pick<
+        NonNullable<typeof netLabelPlacement>,
+        "content" | "sizeScale" | "alignment"
+      >
+    >,
+  ): void => {
     setNetLabelPlacement((current) =>
-      current?.phase === "naming" ? { ...current, draft } : current,
+      current?.phase === "naming" ? { ...current, ...change } : current,
     );
   };
 
@@ -1096,7 +1139,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     updateInstancePropertyDraft,
     updateAdditionalParameter,
     updateNetLabelDraft,
-    updateNetLabelPlacementDraft,
+    updateNetLabelPlacementText,
     updateNetLabelPlacementPosition,
     setReferenceLabelsVisible,
     setValueLabelsVisible,

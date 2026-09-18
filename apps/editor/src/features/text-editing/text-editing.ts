@@ -38,6 +38,7 @@ export interface TextEditingSession {
   alignment: "start" | "middle" | "end";
   /** Object default while editing; authored content records explicit weights. */
   defaultBold?: boolean;
+  defaultItalic?: boolean;
   contentEdited?: boolean;
   /** Net/terminal/value displays edit their source; Instance labels edit presentation. */
   bound: boolean;

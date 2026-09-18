@@ -1339,7 +1339,6 @@ export function App({
   const suppressInstanceClick = useRef(false);
   const projectInputRef = useRef<HTMLInputElement>(null);
   const selectionShelfRef = useRef<HTMLButtonElement>(null);
-  const netLabelEditorInputRef = useRef<HTMLInputElement>(null);
   const documentViewBoxes = useRef(new Map<string, GridRect>());
   const [projectedMovePreviewDocument, setProjectedMovePreviewDocument] =
     useState<SchematicDocument | null>(null);
@@ -2060,7 +2059,7 @@ export function App({
     placeNetLabel,
     textEditing,
     updateTextEditing,
-    updateNetLabelPlacementDraft,
+    updateNetLabelPlacementText,
     updateNetLabelPlacementPosition,
   } = usePropertiesEditor({
     document,
@@ -2070,7 +2069,6 @@ export function App({
     selectedRouteNetLabels,
     selectedInstance,
     componentParametersForInstance: propertyParametersForInstance,
-    netLabelEditorInputRef,
     transact,
     setStatus,
     replaceSelectionKind: (kind, ids) => replaceSelectionKind(kind, ids),
@@ -6437,8 +6435,8 @@ export function App({
           wiring={{
             viewBox,
             netLabelPlacement,
-            netLabelEditorInputRef,
-            onNetLabelDraftChange: updateNetLabelPlacementDraft,
+            styleProfile,
+            onNetLabelTextChange: updateNetLabelPlacementText,
             onNetLabelSubmit: commitNetLabelEditing,
             onNetLabelEscape: () => {
               cancelNetLabelEditing();

@@ -3622,19 +3622,23 @@ test("L labels a selected wire or snaps near an unselectable wire", async ({
   await page.getByTestId("terminal-R2-1").click();
   await page.keyboard.press("Escape");
 
-  // The selection-first flow remains a one-step edit after naming.
+  // The selection-first flow opens the same rich editor used after creation,
+  // then remains a one-step commit after Apply.
   await clickRoute(page, "route-ui-1", 0.7, 0);
   await page.keyboard.press("l");
   const editor = page.getByTestId("net-label-editor");
   await expect(editor).toBeVisible();
   const editorBox = await editor.boundingBox();
-  expect(editorBox?.width).toBeGreaterThan(140);
-  expect(editorBox?.width).toBeLessThan(190);
-  expect(editorBox?.height).toBeGreaterThan(24);
-  expect(editorBox?.height).toBeLessThan(36);
-  await expect(page.getByRole("button", { name: "Italic" })).toHaveCount(0);
-  await editor.getByRole("textbox", { name: "Net Label" }).fill("SIGNAL");
-  await editor.getByRole("textbox", { name: "Net Label" }).press("Enter");
+  expect(editorBox?.width).toBeGreaterThan(250);
+  expect(editorBox?.height).toBeGreaterThan(100);
+  await expect(editor.getByRole("button", { name: "Italic" })).toBeVisible();
+  const richEditor = editor.getByRole("textbox", {
+    name: "Canvas text editor",
+  });
+  await richEditor.fill("SIGNAL");
+  await selectRichTextOffsets(richEditor, 1, 6);
+  await editor.getByRole("button", { name: "Subscript" }).click();
+  await editor.getByRole("button", { name: "Apply text changes" }).click();
   const preview = page.getByTestId("net-label-placement-preview");
   await expect(preview).toHaveCount(0);
   await expect(page.locator('[data-layer="annotations"]')).toContainText(
@@ -3644,7 +3648,7 @@ test("L labels a selected wire or snaps near an unselectable wire", async ({
     page.locator(
       '[data-object-id="net-label-route-ui-1"] [data-text-run="subscript"]',
     ),
-  ).toHaveCount(0);
+  ).toHaveCount(1);
   await expect(page.getByTestId("flightline")).toHaveCount(0);
   await page.keyboard.press("Delete");
   await expect(
@@ -3659,8 +3663,8 @@ test("L labels a selected wire or snaps near an unselectable wire", async ({
   await filter.getByRole("button", { name: "Close" }).click();
 
   await page.keyboard.press("l");
-  await editor.getByRole("textbox", { name: "Net Label" }).fill("VREF");
-  await editor.getByRole("textbox", { name: "Net Label" }).press("Enter");
+  await richEditor.fill("VREF");
+  await editor.getByRole("button", { name: "Apply text changes" }).click();
   await expect(preview).toContainText("VREF");
   const routePoint = await page
     .getByTestId("route-hit-route-ui-1")
@@ -3691,21 +3695,21 @@ test("L labels a selected wire or snaps near an unselectable wire", async ({
   );
 
   await page.keyboard.press("l");
-  await editor.getByRole("textbox", { name: "Net Label" }).fill("CANCELLED");
-  await editor.getByRole("textbox", { name: "Net Label" }).press("Escape");
+  await richEditor.fill("CANCELLED");
+  await richEditor.press("Escape");
   await expect(editor).toHaveCount(0);
   await expect(page.locator('[data-layer="annotations"]')).not.toContainText(
     "CANCELLED",
   );
 
   await page.keyboard.press("l");
-  await editor.getByRole("textbox", { name: "Net Label" }).fill("");
-  await editor.getByRole("textbox", { name: "Net Label" }).press("Enter");
+  await richEditor.fill("");
+  await editor.getByRole("button", { name: "Apply text changes" }).click();
   await expect(editor).toBeVisible();
   await expect(page.getByTestId("status")).toContainText(
     "name cannot be empty",
   );
-  await editor.getByRole("textbox", { name: "Net Label" }).press("Escape");
+  await richEditor.press("Escape");
 });
 
 test("drag value annotation keeps the user offset through rotation", async ({
@@ -3804,8 +3808,10 @@ test("a dragged Net label moves freely while retaining its Net tether", async ({
 
   await page.keyboard.press("l");
   const editor = page.getByTestId("net-label-editor");
-  await editor.getByRole("textbox", { name: "Net Label" }).fill("NETA");
-  await editor.getByRole("textbox", { name: "Net Label" }).press("Enter");
+  await editor
+    .getByRole("textbox", { name: "Canvas text editor" })
+    .fill("NETA");
+  await editor.getByRole("button", { name: "Apply text changes" }).click();
   await clickRoute(page, "route-ui-1", 0.5, 0);
 
   const label = page.getByTestId("annotation-hit-net-label-route-ui-1");
