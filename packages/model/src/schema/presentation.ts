@@ -3,7 +3,7 @@ import { z } from "zod";
 import { StableIdSchema } from "./common.js";
 
 /** Symbol-local grid used by derived hierarchical Cell block geometry. */
-export const CELL_SYMBOL_CONNECTION_GRID = 10;
+const CELL_SYMBOL_CONNECTION_GRID = 10;
 
 function symbolGridMultiple(value: number): boolean {
   return value % CELL_SYMBOL_CONNECTION_GRID === 0;

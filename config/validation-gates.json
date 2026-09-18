@@ -144,8 +144,6 @@
       "apps/editor/src/features/editor-shell/gallery-publish.test.ts",
       "apps/editor/src/features/editor-shell/publish-gallery-dialog.tsx",
       "apps/editor/src/features/editor-shell/publish-gallery-dialog.test.tsx",
-      "apps/editor/src/features/editor-shell/workspace-shelf.ts",
-      "apps/editor/src/features/editor-shell/workspace-shelf.test.ts",
       "apps/editor/e2e/gallery.spec.ts"
     ],
     "agent": [

@@ -13,7 +13,6 @@ export default defineConfig({
       "worker/**/*.test.ts",
       "packages/**/*.test.{ts,tsx}",
       "scripts/**/*.test.mjs",
-      "skills/circuit-layout/scripts/**/*.test.{ts,mjs}",
     ],
   },
 });

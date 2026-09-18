@@ -173,13 +173,6 @@ export function samePoint(left: Point, right: Point): boolean {
   return left.x === right.x && left.y === right.y;
 }
 
-export function endpointBelongsToInstance(
-  endpoint: RouteEndpoint,
-  instanceId: string,
-): boolean {
-  return endpoint.kind === "terminal" && endpoint.instanceId === instanceId;
-}
-
 /**
  * Move one resolved terminal endpoint while preserving the axis of its
  * adjacent persisted segment. This changes geometry only; it never changes

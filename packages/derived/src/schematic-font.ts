@@ -8,7 +8,7 @@ const ROUND_PERIOD_TTF_BASE64 =
  * font boundary preserves the canonical "." character, browser caret and
  * selection behavior, and SVG text semantics.
  */
-export const schematicRoundPeriodFontFamily = "ICM Round Period";
+const schematicRoundPeriodFontFamily = "ICM Round Period";
 
 const roundPeriodSource = `url(data:font/ttf;base64,${ROUND_PERIOD_TTF_BASE64}) format("truetype")`;
 

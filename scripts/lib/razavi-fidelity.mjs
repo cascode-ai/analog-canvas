@@ -12,10 +12,7 @@
 // Everything here is pure: it takes inputs and returns a report object. The CLI
 // wraps it for I/O.
 
-import { readFile } from "node:fs/promises";
-
 import {
-  decodePng,
   cropRaster,
   toLuminance,
   binarize,
@@ -111,25 +108,6 @@ function isAntiAliasSensitive(definition) {
  * @property {number} [windowPadding]  logical padding around geometry bbox
  *   when deriving the window (default 0 — window bounds pin tips exactly)
  */
-
-/**
- * Pick the pixel window for a device from its symbol viewBox, centered on the
- * logical origin (0,0) == originPx. The window is symmetric where possible and
- * always odd-sized so the origin lands on an exact pixel center, eliminating a
- * half-pixel registration bias.
- *
- * @param {{x:number,y:number,width:number,height:number}} viewBox
- * @param {number} pixelsPerLogical
- * @returns {{width:number,height:number}}
- */
-export function pixelWindowFromViewBox(viewBox, pixelsPerLogical) {
-  const halfW = Math.ceil((viewBox.width / 2) * pixelsPerLogical);
-  const halfH = Math.ceil((viewBox.height / 2) * pixelsPerLogical);
-  // Full footprint = 2 * half; force odd so origin maps to a central pixel.
-  const width = makeOdd(halfW * 2);
-  const height = makeOdd(halfH * 2);
-  return { width, height };
-}
 
 /**
  * Derive a tight pixel window from the symbol's actual geometry — pins and
@@ -384,16 +362,6 @@ function classifyVerdict(regLift, shellRatio, aaSensitive) {
   // Most disagreement hugging the contour → anti-alias / sub-pixel shell.
   if (shellRatio > 0.7) return "anti-alias";
   return "marginal";
-}
-
-/**
- * Load the full reference raster (razavi-six-panel.png) once.
- * @param {string} referencePath
- * @returns {Promise<{width:number,height:number,data:Uint8Array}>}
- */
-export async function loadReferenceRaster(referencePath) {
-  const bytes = await readFile(referencePath);
-  return decodePng(bytes);
 }
 
 /**

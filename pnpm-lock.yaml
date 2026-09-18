@@ -258,9 +258,6 @@ importers:
       "@icm/symbols":
         specifier: workspace:*
         version: link:../symbols
-      zod:
-        specifier: ^4.3.6
-        version: 4.4.3
 
   packages/devices:
     dependencies:
@@ -351,9 +348,6 @@ importers:
       "@icm/spice-run":
         specifier: workspace:*
         version: link:../spice-run
-      "@icm/symbols":
-        specifier: workspace:*
-        version: link:../symbols
 
   packages/platform-node:
     dependencies:
