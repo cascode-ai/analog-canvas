@@ -1,5 +1,5 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, resolve } from "node:path";
 
 import { expect, test } from "@playwright/test";
 import { preview, type PreviewServer } from "vite";
@@ -79,11 +79,19 @@ test.describe("editor latency on a large Project", () => {
       requestAnimationFrame(tick);
     });
 
+    // A real Project is the representative load; the generated fixture only
+    // stands in when none is supplied. Point at one with
+    // ICM_PERF_PROJECT=<path to .icproj.json>.
+    const projectPath = process.env.ICM_PERF_PROJECT;
     await page.goto(`${origin}editor`);
     await page.getByTestId("project-file").setInputFiles({
-      name: "browser-performance.icproj.json",
+      name: projectPath
+        ? basename(projectPath)
+        : "browser-performance.icproj.json",
       mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(createBrowserPerformanceProject())),
+      buffer: projectPath
+        ? readFileSync(projectPath)
+        : Buffer.from(JSON.stringify(createBrowserPerformanceProject())),
     });
     await awaitEditorReady(page);
     // Let the import settle before measuring anything.
@@ -172,7 +180,8 @@ test.describe("editor latency on a large Project", () => {
     };
 
     const report = {
-      fixture: BROWSER_PERFORMANCE_COUNTS,
+      source: projectPath ? basename(projectPath) : "generated fixture",
+      ...(projectPath ? {} : { fixture: BROWSER_PERFORMANCE_COUNTS }),
       pan: windowStats(panStart, panEnd),
       drag: windowStats(dragStart, dragEnd),
       note: "Machine-dependent. Compare against a previous run on the same machine, never across machines.",
