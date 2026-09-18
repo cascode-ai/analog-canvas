@@ -9,6 +9,7 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import {
   type EndpointConnection,
+  type EndpointObjectLookup,
   endpointKey,
   resolveEndpointConnection,
 } from "./endpoint.js";
@@ -77,11 +78,14 @@ export interface ResolvedDocumentRoutingGeometry {
 function vertexKindForEndpoint(
   document: SchematicDocument,
   endpoint: RouteEndpoint,
+  junctionsById?: ReadonlyMap<string, SchematicDocument["junctions"][number]>,
 ): ResolvedRouteVertexKind {
   if (endpoint.kind === "terminal") return "terminal";
-  const junction = document.junctions.find(
-    (candidate) => candidate.id === endpoint.junctionId,
-  );
+  const junction =
+    junctionsById?.get(endpoint.junctionId) ??
+    document.junctions.find(
+      (candidate) => candidate.id === endpoint.junctionId,
+    );
   return junction?.role === "route-anchor" ? "route-anchor" : "junction";
 }
 
@@ -90,14 +94,15 @@ export function resolveRouteGeometry(
   resolver: SymbolResolver,
   route: SchematicDocument["routes"][number],
   endpointConnections?: ReadonlyMap<string, EndpointConnection>,
+  lookup?: EndpointObjectLookup,
 ): ResolvedRouteGeometry | null {
   const end = routeEnd(route);
   const fromConnection =
     endpointConnections?.get(endpointKey(route.start)) ??
-    resolveEndpointConnection(document, resolver, route.start);
+    resolveEndpointConnection(document, resolver, route.start, lookup);
   const toConnection =
     endpointConnections?.get(endpointKey(end)) ??
-    resolveEndpointConnection(document, resolver, end);
+    resolveEndpointConnection(document, resolver, end, lookup);
   if (!fromConnection || !toConnection) return null;
   const from = fromConnection.contactPoint;
   const to = toConnection.contactPoint;
@@ -121,9 +126,9 @@ export function resolveRouteGeometry(
     point,
     kind:
       index === 0
-        ? vertexKindForEndpoint(document, route.start)
+        ? vertexKindForEndpoint(document, route.start, lookup?.junctionsById)
         : index === centerline.length - 1
-          ? vertexKindForEndpoint(document, end)
+          ? vertexKindForEndpoint(document, end, lookup?.junctionsById)
           : "bend",
   }));
 
@@ -169,11 +174,42 @@ export function resolveRouteGeometry(
   };
 }
 
+/**
+ * One object index for a Document's endpoint resolution.
+ *
+ * `resolveRouteGeometry` resolves both of a Route's endpoints, and without a
+ * lookup `resolveEndpointConnection` falls back to scanning
+ * `document.instances` and `document.junctions`. Deriving that per Route made
+ * a Document's routing geometry quadratic in Route count times instance
+ * count: a 1070-Route / 432-instance Project spent about two seconds here on
+ * every semantic drag step, because a projected Document has no cached
+ * geometry to reuse. This is the index, not a pre-resolved result, so an
+ * endpoint that legitimately resolves to nothing is still answered once and
+ * cheaply.
+ */
+function buildEndpointLookup(
+  document: SchematicDocument,
+): EndpointObjectLookup {
+  return {
+    instancesById: new Map(
+      document.instances.map((instance) => [instance.id, instance] as const),
+    ),
+    junctionsById: new Map(
+      document.junctions.map((junction) => [junction.id, junction] as const),
+    ),
+  };
+}
+
 export function resolveDocumentRoutingGeometry(
   document: SchematicDocument,
   resolver: SymbolResolver,
   endpointConnections?: ReadonlyMap<string, EndpointConnection>,
 ): ResolvedDocumentRoutingGeometry {
+  // Build the index only when the caller did not already supply resolved
+  // connections; callers that have them are already O(1).
+  const lookup = endpointConnections
+    ? undefined
+    : buildEndpointLookup(document);
   const routes = new Map<string, ResolvedRouteGeometry>();
   const terminalJoins: EndpointJoin[] = [];
   for (const route of [...document.routes].sort((left, right) =>
@@ -184,6 +220,7 @@ export function resolveDocumentRoutingGeometry(
       resolver,
       route,
       endpointConnections,
+      lookup,
     );
     if (!geometry) continue;
     routes.set(route.id, geometry);
