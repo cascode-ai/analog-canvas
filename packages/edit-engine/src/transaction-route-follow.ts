@@ -208,29 +208,6 @@ export function followRouteEndpoint(
 }
 
 /**
- * Apply topology-preserving Route geometry after any instance placement
- * transform. The caller supplies the pre-edit snapshot and the transformed
- * draft, making move/rotate/mirror share one behavior at the transaction
- * boundary.
- */
-export function applyInstanceRouteFollow(
-  draft: SchematicDocument,
-  originalDocument: SchematicDocument,
-  resolver: SymbolResolver,
-  instanceId: string,
-  explicitlyAuthoredRouteIds: ReadonlySet<string>,
-): string[] {
-  return applyInstancesRouteFollow(
-    draft,
-    originalDocument,
-    resolver,
-    resolver,
-    new Set([instanceId]),
-    explicitlyAuthoredRouteIds,
-  );
-}
-
-/**
  * Generalized route following for a definition-level Symbol change. Original
  * and current resolvers may differ because a child Cell changed its derived
  * pin geometry while each parent Instance and its electrical endpoint stayed

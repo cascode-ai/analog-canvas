@@ -173,18 +173,6 @@ export function selectionClassForCanvasHit(
   }
 }
 
-export function selectionFilterAllowsCanvasHit(
-  filter: SelectionFilter,
-  document: SchematicDocument,
-  hit: SelectableCanvasHit,
-): boolean {
-  if (hit.kind === "handle") return true;
-  const kind = selectionClassForCanvasHit(document, hit);
-  // A stale DOM node is not an eligible target; filtering it lets the next
-  // live object in the paint stack answer the press instead.
-  return kind !== null && filter[kind];
-}
-
 function sameSelection(left: VisualSelection, right: VisualSelection): boolean {
   return (Object.keys(left) as (keyof VisualSelection)[]).every(
     (key) =>
