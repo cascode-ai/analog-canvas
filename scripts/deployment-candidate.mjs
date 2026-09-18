@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import {
   cp,
   mkdir,
@@ -35,26 +34,11 @@ async function payloadFiles(root, directory = root) {
   return files;
 }
 
-async function payloadIdentity(root) {
+async function payloadInventory(root) {
   const files = await payloadFiles(root);
-  const hash = createHash("sha256");
   let bytes = 0;
-  for (const name of files) {
-    const content = await readFile(join(root, name));
-    const nameBytes = Buffer.from(name, "utf8");
-    const header = Buffer.alloc(12);
-    header.writeUInt32BE(nameBytes.length, 0);
-    header.writeBigUInt64BE(BigInt(content.length), 4);
-    hash.update(header);
-    hash.update(nameBytes);
-    hash.update(content);
-    bytes += content.length;
-  }
-  return {
-    fileCount: files.length,
-    bytes,
-    payloadSha256: hash.digest("hex"),
-  };
+  for (const name of files) bytes += (await stat(join(root, name))).size;
+  return { fileCount: files.length, bytes };
 }
 
 function requireCommit(commit) {
@@ -87,14 +71,14 @@ export async function createDeploymentCandidate({
   assert(worker.isFile(), `Candidate is missing ${WORKER_ENTRY}`);
   const editor = await stat(join(output, EDITOR_DIRECTORY, "index.html"));
   assert(editor.isFile(), "Candidate is missing editor/index.html");
-  const identity = await payloadIdentity(output);
+  const inventory = await payloadInventory(output);
   const manifest = {
     schemaVersion: 1,
     commit,
     version,
     workerEntry: WORKER_ENTRY,
     editorDirectory: EDITOR_DIRECTORY,
-    ...identity,
+    ...inventory,
   };
   await writeFile(
     join(output, MANIFEST_NAME),
@@ -115,11 +99,10 @@ export async function verifyDeploymentCandidate(
   assert.equal(manifest.commit, requireCommit(expectedCommit));
   assert.equal(manifest.workerEntry, WORKER_ENTRY);
   assert.equal(manifest.editorDirectory, EDITOR_DIRECTORY);
-  const identity = await payloadIdentity(output);
-  assert.deepEqual(identity, {
+  const inventory = await payloadInventory(output);
+  assert.deepEqual(inventory, {
     fileCount: manifest.fileCount,
     bytes: manifest.bytes,
-    payloadSha256: manifest.payloadSha256,
   });
   await stat(join(output, manifest.workerEntry));
   await stat(join(output, manifest.editorDirectory, "index.html"));
@@ -200,7 +183,9 @@ async function main() {
   if (command === "verify") {
     assert(outputDirectory && argument);
     const manifest = await verifyDeploymentCandidate(outputDirectory, argument);
-    console.log(`Candidate ${manifest.version} matches its recorded payload.`);
+    console.log(
+      `Candidate ${manifest.version} has the expected source, file count and payload size.`,
+    );
     return;
   }
   if (command === "verify-live") {

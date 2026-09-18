@@ -41,8 +41,9 @@ async function fixture() {
 }
 
 describe("deployment candidate", () => {
-  it("binds one immutable payload to its Preview commit", async () => {
+  it("checks candidate provenance and detects a truncated payload without content hashing", async () => {
     const { output, manifest } = await fixture();
+    expect(manifest).not.toHaveProperty("payloadSha256");
     await expect(verifyDeploymentCandidate(output, COMMIT)).resolves.toEqual(
       manifest,
     );

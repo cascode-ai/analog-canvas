@@ -63,9 +63,12 @@ Both channels build deployment candidates with the same action,
 `.github/actions/build-deployment-candidate`. A deploy builds the browser
 assets and Worker bundle once and deploys those exact bytes. Preview stores its
 candidate only after hosted acceptance succeeds; a promotion downloads that
-candidate from the successful Preview run, verifies its commit and single
-payload identity, and deploys it without rebuilding. A direct release builds
-its own candidate from the merge commit and verifies it the same way. Runtime
+candidate from the successful Preview run, checks its source commit and file
+inventory, and deploys it without rebuilding. A direct release builds
+its own candidate from the merge commit and checks it the same way. The inventory
+uses file counts and sizes; it does not calculate or compare SHA256 hashes.
+The artifact service owns archive integrity, so packaging does not repeat the
+deployment check. Runtime
 bindings, routes,
 secrets, queues, buckets and Durable Object namespaces remain channel-specific;
 they are applied by the destination Wrangler configuration rather than baked
@@ -186,8 +189,8 @@ Recovery limitations:
 
 Manual portable-release acceptance must also establish PWA installation and an
 original import/place/wire/save/restart/restore/export journey. Record the
-candidate and artifact hash; historical automated checklist ticks are not that
-human evidence.
+candidate version and source commit; historical automated checklist ticks are
+not that human evidence.
 
 ## Where the simulator runs
 

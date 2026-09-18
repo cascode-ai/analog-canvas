@@ -269,5 +269,9 @@ flight; anything that matters afterwards belongs in the commit.
   explains why they must land together.
 - Do not use model confidence as the only quality gate when deterministic
   validation or human review is available.
+- Do not add or run unnecessary content-hash checks. SHA256 verification is
+  prohibited unless a concrete security or integrity requirement makes it
+  essential; ordinary build provenance, deployment and functional acceptance
+  must not grow repeated payload hashing steps.
 - Do not delete review notes or open questions to make the repository appear
   clean. Unresolved work is reported, not tidied away.

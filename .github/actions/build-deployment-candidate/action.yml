@@ -33,7 +33,7 @@ runs:
         VITE_ICM_SIMULATION_TRANSPORT: managed
     # Bundle the Worker once. The channel deploys these exact bytes with
     # --no-bundle, and a successful Preview run preserves them for promotion.
-    - name: Package and verify the candidate
+    - name: Package the candidate
       shell: bash
       env:
         WRANGLER_CONFIG: ${{ inputs.wrangler-config }}
@@ -48,5 +48,3 @@ runs:
           --outdir "$WORKER_BUNDLE_DIR"
         node scripts/deployment-candidate.mjs create \
           "$CANDIDATE_DIR" "$RELEASE_SHA" "$WORKER_BUNDLE_DIR"
-        node scripts/deployment-candidate.mjs verify \
-          "$CANDIDATE_DIR" "$RELEASE_SHA"
