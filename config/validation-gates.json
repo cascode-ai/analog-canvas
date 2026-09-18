@@ -73,7 +73,9 @@
       "apps/editor/src/canvas/canvas-viewport*",
       "apps/editor/src/canvas/editor-canvas-surface.tsx",
       "apps/editor/src/canvas/fit-view*",
-      "apps/editor/e2e/wheel-behavior.spec.ts"
+      "apps/editor/e2e/wheel-behavior.spec.ts",
+      "apps/editor/e2e/performance.spec.ts",
+      "apps/editor/e2e/performance-fixture.ts"
     ],
     "editorWiring": [
       "apps/editor/src/canvas/editor-wiring-overlay*",
@@ -533,9 +535,15 @@
       "command": [
         "pnpm",
         "test:e2e:local",
-        "apps/editor/e2e/wheel-behavior.spec.ts"
+        "apps/editor/e2e/wheel-behavior.spec.ts",
+        "apps/editor/e2e/performance.spec.ts"
       ],
-      "ci": { "e2eArgs": ["apps/editor/e2e/wheel-behavior.spec.ts"] }
+      "ci": {
+        "e2eArgs": [
+          "apps/editor/e2e/wheel-behavior.spec.ts",
+          "apps/editor/e2e/performance.spec.ts"
+        ]
+      }
     },
     {
       "id": "editor-wiring-browser",

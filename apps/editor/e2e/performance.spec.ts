@@ -1,0 +1,196 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+import { expect, test } from "@playwright/test";
+import { preview, type PreviewServer } from "vite";
+
+import { awaitEditorReady } from "./editor-fixtures.js";
+import {
+  BROWSER_PERFORMANCE_COUNTS,
+  createBrowserPerformanceProject,
+} from "./performance-fixture.js";
+
+/**
+ * Browser-side latency harness for the editor.
+ *
+ * This is measurement, not a contract: it records what a large Project costs
+ * while panning and while dragging, and only fails on a gross regression. Run
+ * it against a fresh production build:
+ *
+ *   pnpm build
+ *   ICM_PERF=1 pnpm test:e2e:local apps/editor/e2e/performance.spec.ts
+ *
+ * It measures the built bundle through Vite's preview server rather than the
+ * Playwright dev server: the development build is unminified, resolves every
+ * `@icm/*` through the `development` condition, and React double-invokes under
+ * StrictMode, which together inflate a large Project by more than an order of
+ * magnitude and say nothing about what ships.
+ *
+ * It is skipped unless ICM_PERF is set, because a timing assertion on shared
+ * CI runners is a flaky gate rather than a useful one. Absolutes are
+ * deliberately loose: the 2026-09-02 audit already found that these numbers do
+ * not transfer between machines, so the artifact it writes is the comparable
+ * value, not the threshold.
+ */
+const enabled = Boolean(process.env.ICM_PERF);
+const previewPort = 4175;
+
+let server: PreviewServer | undefined;
+let origin = "";
+
+test.describe("editor latency on a large Project", () => {
+  test.skip(!enabled, "set ICM_PERF=1 to run the latency harness");
+
+  test.beforeAll(async () => {
+    server = await preview({
+      root: resolve(process.cwd(), "apps/editor"),
+      logLevel: "silent",
+      preview: { host: "127.0.0.1", port: previewPort, strictPort: true },
+    });
+    origin =
+      server.resolvedUrls?.local[0] ?? `http://127.0.0.1:${previewPort}/`;
+  });
+
+  test.afterAll(async () => {
+    await server?.close();
+  });
+
+  test("records pan and drag frame cost", async ({ page }) => {
+    test.setTimeout(180_000);
+
+    await page.addInitScript(() => {
+      const perf = {
+        frames: [] as number[],
+        longTasks: [] as { start: number; duration: number }[],
+      };
+      (window as unknown as { __icmPerf: typeof perf }).__icmPerf = perf;
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          perf.longTasks.push({
+            start: entry.startTime,
+            duration: entry.duration,
+          });
+        }
+      }).observe({ entryTypes: ["longtask"] });
+      const tick = (timestamp: number) => {
+        perf.frames.push(timestamp);
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+
+    await page.goto(`${origin}editor`);
+    await page.getByTestId("project-file").setInputFiles({
+      name: "browser-performance.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(createBrowserPerformanceProject())),
+    });
+    await awaitEditorReady(page);
+    // Let the import settle before measuring anything.
+    await page.waitForTimeout(2000);
+
+    const canvas = page.getByTestId("schematic-canvas");
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error("schematic canvas has no box");
+    const centre = {
+      x: box.x + box.width / 2,
+      y: box.y + box.height / 2,
+    };
+    await page.mouse.move(centre.x, centre.y);
+
+    const panStart = await page.evaluate(() => performance.now());
+    for (let step = 0; step < 40; step += 1) {
+      await page.mouse.wheel(0, 40);
+    }
+    const panEnd = await page.evaluate(() => performance.now());
+
+    // A semantic move: press on a component's body and drag it.
+    const dragStart = await page.evaluate(() => performance.now());
+    await page.mouse.move(centre.x, centre.y);
+    await page.mouse.down();
+    for (let step = 1; step <= 30; step += 1) {
+      await page.mouse.move(centre.x + step * 4, centre.y + step * 2);
+    }
+    await page.mouse.up();
+    const dragEnd = await page.evaluate(() => performance.now());
+
+    const collected = await page.evaluate(() => {
+      const perf = (
+        window as unknown as {
+          __icmPerf: {
+            frames: number[];
+            longTasks: { start: number; duration: number }[];
+          };
+        }
+      ).__icmPerf;
+      return { frames: perf.frames, longTasks: perf.longTasks };
+    });
+
+    const windowStats = (from: number, to: number) => {
+      const intervals: number[] = [];
+      let previous: number | null = null;
+      for (const frame of collected.frames) {
+        if (frame < from || frame > to) continue;
+        if (previous !== null) intervals.push(frame - previous);
+        previous = frame;
+      }
+      intervals.sort((left, right) => left - right);
+      const percentile = (fraction: number) =>
+        intervals.length === 0
+          ? 0
+          : Math.round(
+              (intervals[
+                Math.min(
+                  intervals.length - 1,
+                  Math.floor(intervals.length * fraction),
+                )
+              ] ?? 0) * 100,
+            ) / 100;
+      const tasks = collected.longTasks.filter(
+        (task) => task.start >= from && task.start <= to,
+      );
+      return {
+        framesInWindow: intervals.length === 0 ? 0 : intervals.length + 1,
+        frameIntervalP50Ms: percentile(0.5),
+        frameIntervalP95Ms: percentile(0.95),
+        frameIntervalMaxMs:
+          intervals.length === 0
+            ? 0
+            : Math.round(intervals[intervals.length - 1]! * 100) / 100,
+        // Anything past a 60 Hz budget plus slack is a visibly dropped frame.
+        framesOver33Ms: intervals.filter((interval) => interval > 33).length,
+        longTaskCount: tasks.length,
+        longTaskTotalMs:
+          Math.round(
+            tasks.reduce((sum, task) => sum + task.duration, 0) * 100,
+          ) / 100,
+        longTaskMaxMs:
+          Math.round(
+            tasks.reduce((max, task) => Math.max(max, task.duration), 0) * 100,
+          ) / 100,
+      };
+    };
+
+    const report = {
+      fixture: BROWSER_PERFORMANCE_COUNTS,
+      pan: windowStats(panStart, panEnd),
+      drag: windowStats(dragStart, dragEnd),
+      note: "Machine-dependent. Compare against a previous run on the same machine, never across machines.",
+    };
+
+    const outputDir = resolve(process.cwd(), "output/performance");
+    mkdirSync(outputDir, { recursive: true });
+    writeFileSync(
+      resolve(outputDir, "editor-browser-baseline.json"),
+      `${JSON.stringify(report, null, 2)}\n`,
+    );
+    process.stdout.write(
+      `\neditor browser latency\n${JSON.stringify(report, null, 2)}\n\n`,
+    );
+
+    // Gross-regression ceilings only. These are wide on purpose: the point of
+    // this harness is the recorded artifact, not the threshold.
+    expect(report.pan.frameIntervalMaxMs).toBeLessThan(500);
+    expect(report.drag.longTaskMaxMs).toBeLessThan(2000);
+  });
+});
