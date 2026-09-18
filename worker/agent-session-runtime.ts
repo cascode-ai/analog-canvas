@@ -7,6 +7,8 @@ import {
   agentEditCategory,
   agentCircuitOpenApi,
   agentMcpBootstrapManifest,
+  agentTransportErrorMessage,
+  agentTransportErrorStatus,
   type AgentCircuitRequest,
   type AgentFileResourceRequest,
   type AgentSessionLimits,
@@ -349,73 +351,14 @@ export function errorBody(
   });
 }
 
+// Both projections come from the exhaustive transport-error table owned by
+// agent-adapter; a new wire code cannot land without stating its status.
 export function transportStatus(code: AgentTransportErrorCode): number {
-  switch (code) {
-    case "TOKEN_INVALID":
-    case "TOKEN_EXPIRED":
-    case "CLAIM_INVALID":
-    case "CONNECTOR_INVALID":
-    case "CONNECTOR_EXPIRED":
-      return 401;
-    case "TOKEN_SCOPE_INSUFFICIENT":
-      return 403;
-    case "SESSION_NOT_FOUND":
-      return 404;
-    case "REQUEST_TOO_LARGE":
-    case "MESSAGE_TOO_LARGE":
-    case "FILE_TOO_LARGE":
-      return 413;
-    case "RATE_LIMITED":
-      return 429;
-    case "EDITOR_OFFLINE":
-    case "EDITOR_DISCONNECTED":
-      return 503;
-    case "REQUEST_TIMEOUT":
-      return 504;
-    default:
-      return 409;
-  }
+  return agentTransportErrorStatus(code);
 }
 
 export function errorMessage(code: AgentTransportErrorCode): string {
-  const messages: Record<AgentTransportErrorCode, string> = {
-    SESSION_NOT_FOUND: "Session is unknown or expired",
-    SESSION_EXPIRED: "Session has expired",
-    SESSION_PAUSED: "Session is paused",
-    SESSION_REVOKED: "Session has been revoked",
-    PROJECT_REPLACED: "The browser opened a different Project",
-    CLAIM_INVALID: "Claim code is unknown or malformed",
-    CLAIM_EXPIRED: "Claim code has expired",
-    CLAIM_ALREADY_USED: "Claim code was already used by a legacy session",
-    CONNECTOR_INVALID: "Connector credential is unknown or replaced",
-    CONNECTOR_EXPIRED: "Connector credential has expired",
-    TOKEN_INVALID: "Bearer token is missing or unknown",
-    TOKEN_EXPIRED: "Bearer token has expired",
-    TOKEN_SCOPE_INSUFFICIENT: "The token does not grant this operation",
-    EDITOR_OFFLINE: "The authorized browser editor is offline",
-    EDITOR_DISCONNECTED: "The browser editor disconnected",
-    REQUEST_TOO_LARGE: "Request exceeds the relay ceiling",
-    MESSAGE_TOO_LARGE: "Browser message exceeds the relay ceiling",
-    RATE_LIMITED: "Too many requests; back off and retry",
-    REQUEST_IN_PROGRESS: "The same request is already in progress",
-    REQUEST_ID_REUSED: "The requestId was reused with a different payload",
-    REQUEST_RESULT_UNAVAILABLE:
-      "The request already ran but its terminal response is no longer cached",
-    REQUEST_TIMEOUT: "The browser did not complete the request in time",
-    UNSUPPORTED_PROTOCOL_VERSION: "Unsupported session protocol version",
-    UNAUTHORIZED_ORIGIN: "Origin is not authorized",
-    FILE_CONTENT_INVALID: "File content does not match the requested format",
-    FILE_TOO_LARGE: "File Resource payload exceeds its bounded limit",
-    FILE_INTEGRITY_MISMATCH: "File content hash does not match its declaration",
-    FILE_CANDIDATE_NOT_FOUND: "Candidate is unavailable or has expired",
-    FILE_IMPORT_FAILED: "Structural SPICE import failed",
-    FILE_EXPORT_FAILED: "Formal file export failed",
-    SIMULATION_REQUEST_INVALID:
-      "Simulation Resource request does not match its strict schema",
-    PROJECT_REQUEST_INVALID:
-      "Project Resource request does not match its strict schema",
-  };
-  return messages[code];
+  return agentTransportErrorMessage(code);
 }
 
 export function bearerToken(request: Request): string {
