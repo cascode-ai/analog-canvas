@@ -219,18 +219,24 @@ describe("drafting create controller", () => {
     },
   );
 
+  // A rectangle is a block outline somebody wires to, so it places on the
+  // electrical grid whatever the annotation pitch is: an edge half a cell off
+  // leaves a visible stub of wire inside the outline, because the wire can
+  // only land on its own grid.
   it.each([
-    { grid: 10, from: { x: 100, y: 100 }, to: { x: 210, y: 170 } },
-    { grid: 10, from: { x: 210, y: 170 }, to: { x: 100, y: 100 } },
-    { grid: 5, from: { x: 100, y: 100 }, to: { x: 205, y: 165 } },
-    { grid: 5, from: { x: 205, y: 165 }, to: { x: 100, y: 100 } },
-    { grid: 1, from: { x: 100, y: 100 }, to: { x: 201, y: 161 } },
+    { annotationGrid: 10, from: { x: 100, y: 100 }, to: { x: 210, y: 170 } },
+    { annotationGrid: 10, from: { x: 210, y: 170 }, to: { x: 100, y: 100 } },
+    { annotationGrid: 5, from: { x: 100, y: 100 }, to: { x: 205, y: 165 } },
+    { annotationGrid: 5, from: { x: 205, y: 165 }, to: { x: 100, y: 100 } },
+    { annotationGrid: 1, from: { x: 100, y: 100 }, to: { x: 201, y: 161 } },
   ])(
-    "keeps rectangle preview and committed corners on the $grid-unit grid from $from to $to",
-    ({ grid, from, to }) => {
+    "keeps rectangle corners on the electrical grid at annotation pitch $annotationGrid from $from to $to",
+    ({ annotationGrid: grid, from, to }) => {
       const transact = vi.fn((_edits: SchematicEdit[]) => ({ ok: true }));
+      const document = createEmptyDocument("cell", "Cell");
+      const electricalGrid = document.presentation.grid;
       const controller = createDraftingCreateController({
-        document: createEmptyDocument("cell", "Cell"),
+        document,
         angleMode: "free",
         annotationGrid: grid,
         resolver: new InMemorySymbolResolver(builtInSymbols),
@@ -250,6 +256,9 @@ describe("drafting create controller", () => {
         setStatus: vi.fn(),
         nextId: () => "rectangle-1",
       });
+      // The first corner is snapped by the same rule as the second, so the
+      // rectangle's own geometry is what the assertions below read.
+      const startCorner = controller.snapPoint(from, false, false).point;
       const previewEnd = controller.snapPoint(to, false, false, from).point;
       // Alt suppresses object capture but must keep the same representable
       // rectangle; the model stores an integer center, even on the fine grid.
@@ -263,16 +272,16 @@ describe("drafting create controller", () => {
       const object = DraftingObjectSchema.parse(edit.object);
       if (object.kind !== "rectangle") throw new Error("Missing rectangle");
       expect(object.center).toEqual({
-        x: (from.x + previewEnd.x) / 2,
-        y: (from.y + previewEnd.y) / 2,
+        x: (startCorner.x + previewEnd.x) / 2,
+        y: (startCorner.y + previewEnd.y) / 2,
       });
-      expect(object.width).toBe(Math.abs(previewEnd.x - from.x));
-      expect(object.height).toBe(Math.abs(previewEnd.y - from.y));
+      expect(object.width).toBe(Math.abs(previewEnd.x - startCorner.x));
+      expect(object.height).toBe(Math.abs(previewEnd.y - startCorner.y));
       expect(object.center.x - object.width / 2).toBe(
-        Math.min(from.x, previewEnd.x),
+        Math.min(startCorner.x, previewEnd.x),
       );
       expect(object.center.y - object.height / 2).toBe(
-        Math.min(from.y, previewEnd.y),
+        Math.min(startCorner.y, previewEnd.y),
       );
       for (const coordinate of [
         object.center.x - object.width / 2,
@@ -280,7 +289,7 @@ describe("drafting create controller", () => {
         object.center.y - object.height / 2,
         object.center.y + object.height / 2,
       ]) {
-        expect(coordinate % grid).toBe(0);
+        expect(coordinate % electricalGrid).toBe(0);
       }
       // Enter completion follows the same geometry as the second click.
       transact.mockClear();

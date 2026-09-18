@@ -34,6 +34,7 @@ import {
   translateDraftingObject,
   type DraftingHandle,
 } from "./drafting-manipulation";
+import { draftingPlacementGrid } from "./placement-grid";
 
 export interface DraftingHandlePreview {
   objectId: string;
@@ -155,7 +156,11 @@ export function createDraftingDragController({
               movingAnchors,
               targetAnchors,
               primaryAnchorId: `drafting:${object.id}:origin`,
-              grid: annotationGrid,
+              grid: draftingPlacementGrid(
+                object.kind,
+                annotationGrid,
+                document.presentation.grid,
+              ),
               tolerance,
               profile: SNAP_PROFILES.draftingMove,
             },
@@ -212,7 +217,11 @@ export function createDraftingDragController({
               object: translateDraftingObject(
                 latest,
                 { x: position.x - original.x, y: position.y - original.y },
-                annotationGrid,
+                draftingPlacementGrid(
+                  latest.kind,
+                  annotationGrid,
+                  document.presentation.grid,
+                ),
               ),
             },
           ]);
@@ -269,7 +278,11 @@ export function createDraftingDragController({
             handle,
             snapped.point,
             originalGeometry,
-            annotationGrid,
+            draftingPlacementGrid(
+              object.kind,
+              annotationGrid,
+              document.presentation.grid,
+            ),
           ),
         });
       },
@@ -291,7 +304,11 @@ export function createDraftingDragController({
               handle,
               point,
               originalGeometry,
-              annotationGrid,
+              draftingPlacementGrid(
+                latest.kind,
+                annotationGrid,
+                document.presentation.grid,
+              ),
             );
             if (next !== latest) {
               transact([{ kind: "upsert_drafting_object", object: next }]);

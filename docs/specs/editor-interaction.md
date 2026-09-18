@@ -291,6 +291,15 @@ Before that click, neither the document nor undo history changes; Escape or
 choosing another tool discards the preview. Fixed catalog text presets keep their
 existing placement behavior.
 
+Drawn objects place on the annotation pitch (1, 5 or 10; Canvas settings, 5 by
+default), which is deliberately free of the Document's electrical grid so a
+label or an arrow head can sit where it is wanted. A rectangle is the
+exception: its corners, moves and handle drags round to the Document's
+electrical grid. A rectangle is the shape people draw as a block outline and
+then wire to, and a wire endpoint can only land on the electrical grid — an
+edge half a cell away from it cannot be met at all, leaving a visible stub of
+wire inside the outline.
+
 `M` and `Shift+M` enter SelectionMove, which previews at the pointer and
 commits on one click. Box selection, pointer-drag selection move, pan, and
 text-edit sessions remain bounded gesture owners, but every reset boundary

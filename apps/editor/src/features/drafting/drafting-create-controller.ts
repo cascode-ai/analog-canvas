@@ -19,6 +19,7 @@ import {
   type SnapGuideLine,
 } from "../../snap/engine";
 import type { RouteGeometryRecord } from "../wiring/route-interaction-geometry";
+import { draftingPlacementGrid } from "./placement-grid";
 import { rectangleGridGeometry } from "./rectangle-grid-geometry";
 import {
   applyArrowPreset,
@@ -117,6 +118,14 @@ export function createDraftingCreateController({
       ? tool
       : null;
 
+  // A rectangle places on the electrical grid; every other drawn object keeps
+  // the finer annotation pitch.
+  const placementGrid = draftingPlacementGrid(
+    tool,
+    annotationGrid,
+    document.presentation.grid,
+  );
+
   const snapPoint = (
     point: DerivedPoint,
     altKey: boolean,
@@ -128,8 +137,8 @@ export function createDraftingCreateController({
       tool !== "rectangle"
         ? point
         : origin
-          ? rectangleGridGeometry(origin, point, annotationGrid).end
-          : snapGridPoint(point, annotationGrid);
+          ? rectangleGridGeometry(origin, point, placementGrid).end
+          : snapGridPoint(point, placementGrid);
     const angleStep = shiftKey
       ? Math.PI / 4
       : angleMode === "orthogonal"
@@ -143,7 +152,7 @@ export function createDraftingCreateController({
           ? constrainDraftingAngle(origin, point, angleStep)
           : point;
       return {
-        point: rectanglePoint(snapGridPoint(constrained, annotationGrid)),
+        point: rectanglePoint(snapGridPoint(constrained, placementGrid)),
         snap: null,
         guides: [],
       };
@@ -171,7 +180,7 @@ export function createDraftingCreateController({
         ...routeTargets,
       ],
       {
-        grid: annotationGrid,
+        grid: placementGrid,
         tolerance,
         profile: SNAP_PROFILES.draftingHandle,
       },
@@ -183,7 +192,7 @@ export function createDraftingCreateController({
     const finalPoint = rectanglePoint(
       resolved.pointMatch
         ? snapGridPoint(snapped, 1)
-        : snapGridPoint(snapped, annotationGrid),
+        : snapGridPoint(snapped, placementGrid),
     );
     // Rectangle spans may need one more grid cell to keep an integer center.
     // Only show object captures and guides still met by that final corner.
@@ -274,8 +283,15 @@ export function createDraftingCreateController({
     end: Point,
   ): void => {
     const id = nextId(active === "construction-line" ? "construction" : active);
-    const snappedStart = snapGridPoint(start, annotationGrid);
-    const snappedEnd = snapGridPoint(end, annotationGrid);
+    // The committed pitch follows the object being made, not whichever tool
+    // happens to be selected when the commit runs.
+    const commitGrid = draftingPlacementGrid(
+      active,
+      annotationGrid,
+      document.presentation.grid,
+    );
+    const snappedStart = snapGridPoint(start, commitGrid);
+    const snappedEnd = snapGridPoint(end, commitGrid);
     if (active === "circle") {
       const radius = Math.round(
         Math.hypot(
@@ -310,7 +326,7 @@ export function createDraftingCreateController({
       const { center, width, height } = rectangleGridGeometry(
         snappedStart,
         snappedEnd,
-        annotationGrid,
+        commitGrid,
       );
       if (width < 1 || height < 1) {
         setStatus("Rectangle needs non-zero width and height");
@@ -443,7 +459,7 @@ export function createDraftingCreateController({
     event.stopPropagation();
     const svg = event.currentTarget;
     const pointAt = (x: number, y: number) =>
-      snapGridPoint(pointer.pointFromClient(x, y, svg), annotationGrid);
+      snapGridPoint(pointer.pointFromClient(x, y, svg), placementGrid);
     const start = pointAt(event.clientX, event.clientY);
     pointer.dragSessionRef.current?.cancel();
     setSource(null);

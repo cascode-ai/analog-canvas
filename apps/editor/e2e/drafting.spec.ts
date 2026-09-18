@@ -869,6 +869,40 @@ test("T previews text at the pointer without creating it and Escape cancels", as
   await expect(page.getByTestId("revision")).toHaveText("0");
 });
 
+test("keeps a rectangle's edges on the grid a wire can land on", async ({
+  page,
+}) => {
+  // Reported as wire endpoints protruding past a Rect outline: the annotation
+  // pitch is finer than the electrical grid, so an edge could sit half a cell
+  // away from every coordinate a wire endpoint is allowed to take.
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+  await clickDrawTool(page, "rectangle");
+  await canvas.click({ position: { x: 305, y: 205 } });
+  await canvas.click({ position: { x: 505, y: 355 } });
+  await page.keyboard.press("Escape");
+
+  const points =
+    (await page
+      .locator('[data-kind="draft-rectangle"]')
+      .first()
+      .getAttribute("points")) ?? "";
+  const grid = await page.evaluate(
+    () =>
+      (
+        globalThis as unknown as {
+          __icmDocument?: { presentation: { grid: number } };
+        }
+      ).__icmDocument?.presentation.grid ?? 10,
+  );
+  const coordinates = points
+    .split(/[ ,]/u)
+    .filter((part) => part.length > 0)
+    .map(Number);
+  expect(coordinates.length).toBe(8);
+  for (const coordinate of coordinates) expect(coordinate % grid).toBe(0);
+});
+
 async function snappedCanvasPoint(
   canvas: Locator,
   client: { x: number; y: number },
@@ -2117,8 +2151,10 @@ test("annotation grid pitch frees drawings from the device grid", async ({
     code.canvas.annotationGrid = 1;
   });
 
-  // A drawn rectangle commits at 1-unit precision and survives validation.
-  await clickDrawTool(page, "rectangle");
+  // A drawn circle commits at 1-unit precision and survives validation. A
+  // rectangle would not: it is the one drawn shape that places on the
+  // electrical grid, because it is the one people wire to.
+  await clickDrawTool(page, "circle");
   const canvas = page.getByTestId("schematic-canvas");
   const corners = [
     { x: 301, y: 203 },
@@ -2138,12 +2174,7 @@ test("annotation grid pitch frees drawings from the device grid", async ({
       const local = client.matrixTransform(matrix);
       return { x: Math.round(local.x), y: Math.round(local.y) };
     };
-    const start = toDocument(points[0]!);
-    const end = toDocument(points[1]!);
-    return {
-      x: Math.round((start.x + end.x) / 2),
-      y: Math.round((start.y + end.y) / 2),
-    };
+    return toDocument(points[0]!);
   }, corners);
 
   // A device stays on the Document grid no matter the annotation pitch.
@@ -2170,12 +2201,12 @@ test("annotation grid pitch frees drawings from the device grid", async ({
   };
   expect(saved.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
   const document = saved.documents[0]!;
-  const rectangle = document.drafting?.objects.find(
-    (object) => object.kind === "rectangle",
+  const circle = document.drafting?.objects.find(
+    (object) => object.kind === "circle",
   ) as { center?: { x: number; y: number } } | undefined;
-  // 1-unit pitch: the drawn center lands exactly where the clicks map, not
+  // 1-unit pitch: the drawn center lands exactly where the click maps, not
   // on a device-grid multiple.
-  expect(rectangle?.center).toEqual(expectedCenter);
+  expect(circle?.center).toEqual(expectedCenter);
   const placement = document.instances[0]!.placement!.position;
   expect(placement.x % 10).toBe(0);
   expect(placement.y % 10).toBe(0);
