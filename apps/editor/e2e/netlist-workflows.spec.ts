@@ -668,7 +668,14 @@ test("grows and shrinks the live netlist with content, scrolling only at the vie
         id,
         reference: id,
         symbolId: "resistor",
-        placement: null,
+        placement: {
+          position: {
+            x: 200 + ((index - 1) % 10) * 80,
+            y: 200 + Math.floor((index - 1) / 10) * 80,
+          },
+          rotation: 0,
+          mirror: "none",
+        },
         netlist: { parameters: { value: `${index}k` } },
       });
       for (const pinName of ["1", "2"])

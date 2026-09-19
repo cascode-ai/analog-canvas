@@ -380,7 +380,7 @@ async function lastRouteId(page: Page): Promise<string> {
   return testId.replace(/^route-hit-/u, "");
 }
 
-test("property placement null retains a wired instance and re-places it with grid snapping", async ({
+test("property code keeps a drawn wired instance visible and moves it with grid snapping", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -398,14 +398,21 @@ test("property placement null retains a wired instance and re-places it with gri
     ),
   );
   await setComponentCodeField(page, "placement", null);
-  await expect(page.getByTestId("hit-R1")).toHaveCount(0);
-  await expectComponentCodeField(page, "placement", null);
+  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
+  await expect(
+    page.getByTestId("component-property-code-editor"),
+  ).toContainText(
+    "placement cannot be changed to null; a Cell never holds a device its drawing does not show",
+  );
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
       "utf8",
     ),
   );
   expect(saved.documents[0].instances).toHaveLength(1);
+  expect(saved.documents[0].instances[0].placement).toEqual(
+    before.documents[0].instances[0].placement,
+  );
   expect(saved.documents[0].nets).toEqual(before.documents[0].nets);
   expect(saved.documents[0].routes).toHaveLength(
     before.documents[0].routes.length,
@@ -418,7 +425,11 @@ test("property placement null retains a wired instance and re-places it with gri
   await expect(page.getByTestId("hit-R1")).toHaveCount(1);
   await expectComponentCodeField(page, "placement.coordinate", [420, 280]);
   await clickCommand(page, "Edit", "Undo");
-  await expect(page.getByTestId("hit-R1")).toHaveCount(0);
+  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
+  await expectComponentCodeField(page, "placement.coordinate", [
+    before.documents[0].instances[0].placement.position.x,
+    before.documents[0].instances[0].placement.position.y,
+  ]);
 });
 
 test("a directly connected device can move away and return with its wire, undo and redo", async ({
