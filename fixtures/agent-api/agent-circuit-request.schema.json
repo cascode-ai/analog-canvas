@@ -14655,6 +14655,152 @@
             "id"
           ],
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "bind-cell-parameter"
+            },
+            "instanceId": {
+              "$ref": "#/$defs/__schema1"
+            },
+            "field": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "defaultValue": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            }
+          },
+          "required": [
+            "kind",
+            "instanceId",
+            "field",
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "rename-cell-parameter"
+            },
+            "oldName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "newName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "required": [
+            "kind",
+            "oldName",
+            "newName"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "set-cell-parameter-default"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "defaultValue": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            }
+          },
+          "required": [
+            "kind",
+            "name",
+            "defaultValue"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "remove-cell-parameter"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          "required": [
+            "kind",
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "rename-cell-terminal"
+            },
+            "terminalId": {
+              "$ref": "#/$defs/__schema1"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "mergeExistingPort": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "terminalId",
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "remove-cell-terminal"
+            },
+            "terminalId": {
+              "$ref": "#/$defs/__schema1"
+            }
+          },
+          "required": [
+            "kind",
+            "terminalId"
+          ],
+          "additionalProperties": false
         }
       ]
     },

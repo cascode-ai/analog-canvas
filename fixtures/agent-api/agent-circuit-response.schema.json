@@ -2755,6 +2755,24 @@
                     "type": "null"
                   }
                 ]
+              },
+              "targetKind": {
+                "type": "string",
+                "enum": [
+                  "internal",
+                  "external",
+                  "unresolved"
+                ]
+              },
+              "targetDefinitionId": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/__schema1"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [

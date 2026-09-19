@@ -119,5 +119,36 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     name: z.string().min(1).max(128),
   }),
   z.strictObject({ kind: z.literal("delete-cell"), id: StableIdSchema }),
+  z.strictObject({
+    kind: z.literal("bind-cell-parameter"),
+    instanceId: StableIdSchema,
+    field: z.string().min(1).max(128),
+    name: z.string().min(1).max(128),
+    defaultValue: z.string().min(1).max(1024).optional(),
+  }),
+  z.strictObject({
+    kind: z.literal("rename-cell-parameter"),
+    oldName: z.string().min(1).max(128),
+    newName: z.string().min(1).max(128),
+  }),
+  z.strictObject({
+    kind: z.literal("set-cell-parameter-default"),
+    name: z.string().min(1).max(128),
+    defaultValue: z.string().min(1).max(1024),
+  }),
+  z.strictObject({
+    kind: z.literal("remove-cell-parameter"),
+    name: z.string().min(1).max(128),
+  }),
+  z.strictObject({
+    kind: z.literal("rename-cell-terminal"),
+    terminalId: StableIdSchema,
+    name: z.string().min(1).max(128),
+    mergeExistingPort: z.boolean().optional(),
+  }),
+  z.strictObject({
+    kind: z.literal("remove-cell-terminal"),
+    terminalId: StableIdSchema,
+  }),
 ]);
 export type AgentAuthoringCommand = z.infer<typeof AgentAuthoringCommandSchema>;

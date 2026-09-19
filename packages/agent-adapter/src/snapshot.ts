@@ -5,6 +5,7 @@ import {
   resolveMosBulkConnection,
   resolveDraftingObjectGeometry,
   resolveDocumentRoutingGeometry,
+  buildProjectConnectivityIndex,
 } from "@icm/derived";
 import { transformPoint } from "@icm/model";
 import type {
@@ -148,13 +149,6 @@ function instanceMasterName(
   return instance.importProvenance?.sourceMasterName ?? null;
 }
 
-function subcircuitTargetName(target: string | null): string | null {
-  const prefix = "subcircuit:";
-  return target?.toLowerCase().startsWith(prefix)
-    ? target.slice(prefix.length)
-    : null;
-}
-
 function projectDocuments(
   options: BuildAgentSessionSnapshotOptions,
 ): readonly SchematicDocument[] {
@@ -166,17 +160,12 @@ function projectDocuments(
 
 function projectIndex(options: BuildAgentSessionSnapshotOptions) {
   const documents = projectDocuments(options);
-  const documentIdByName = new Map<string, string>();
-  for (const document of documents) {
-    documentIdByName.set(document.id.toLowerCase(), document.id);
-    documentIdByName.set(document.name.toLowerCase(), document.id);
-    if (document.sourceBinding) {
-      documentIdByName.set(
-        document.sourceBinding.cellName.toLowerCase(),
-        document.id,
-      );
-    }
-  }
+  const calls = options.project
+    ? buildProjectConnectivityIndex(
+        { ...options.project, documents: [...documents] },
+        options.resolver,
+      ).hierarchy.calls
+    : [];
   return {
     id: options.project?.id ?? `project-${options.document.id}`,
     name: options.project?.name ?? options.document.name,
@@ -188,31 +177,54 @@ function projectIndex(options: BuildAgentSessionSnapshotOptions) {
     simulationFolders: structuredClone(
       options.project?.simulationFolders ?? [],
     ),
-    documents: [...documents]
-      .sort((left, right) => left.id.localeCompare(right.id, "en"))
-      .map((document) => ({
-        id: document.id,
-        name: document.name,
-        instanceCount: document.instances.length,
-        netCount: resolveDocumentLogicalNets(document).groups.length,
-        references: document.instances
-          .flatMap((instance) => {
-            const targetName = subcircuitTargetName(instanceTarget(instance));
-            return targetName
-              ? [
-                  {
-                    instanceId: instance.id,
-                    targetName,
-                    targetDocumentId:
-                      documentIdByName.get(targetName.toLowerCase()) ?? null,
-                  },
-                ]
-              : [];
-          })
-          .sort((left, right) =>
-            left.instanceId.localeCompare(right.instanceId, "en"),
-          ),
-      })),
+    documents: [...documents].map((document) => ({
+      id: document.id,
+      name: document.name,
+      instanceCount: document.instances.length,
+      netCount: resolveDocumentLogicalNets(document).groups.length,
+      references: document.instances
+        .flatMap((instance) => {
+          const binding = instance.netlist?.binding;
+          const targetKind =
+            binding?.kind === "subcircuit"
+              ? ("internal" as const)
+              : binding?.kind === "external-subcircuit"
+                ? ("external" as const)
+                : binding?.kind === "unresolved-subcircuit"
+                  ? ("unresolved" as const)
+                  : null;
+          const targetName = targetKind
+            ? (instanceMasterName(options, instance) ??
+              (binding?.kind === "subcircuit"
+                ? binding.childDocumentId
+                : binding?.kind === "external-subcircuit"
+                  ? binding.definitionId
+                  : null))
+            : null;
+          return targetName && targetKind
+            ? [
+                {
+                  instanceId: instance.id,
+                  targetName,
+                  targetKind,
+                  targetDocumentId:
+                    calls.find(
+                      (call) =>
+                        call.parentDocumentId === document.id &&
+                        call.instanceId === instance.id,
+                    )?.childDocumentId ?? null,
+                  targetDefinitionId:
+                    binding?.kind === "external-subcircuit"
+                      ? binding.definitionId
+                      : null,
+                },
+              ]
+            : [];
+        })
+        .sort((left, right) =>
+          left.instanceId.localeCompare(right.instanceId, "en"),
+        ),
+    })),
   };
 }
 

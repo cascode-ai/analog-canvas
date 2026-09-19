@@ -560,6 +560,8 @@ export const AgentProjectIndexDocumentSchema = z.strictObject({
       instanceId: StableIdSchema,
       targetName: z.string().min(1),
       targetDocumentId: StableIdSchema.nullable(),
+      targetKind: z.enum(["internal", "external", "unresolved"]).optional(),
+      targetDefinitionId: StableIdSchema.nullable().optional(),
     }),
   ),
 });

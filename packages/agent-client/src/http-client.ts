@@ -172,7 +172,9 @@ export class AgentHttpClient {
     }
     const parsed = AgentCircuitResponseSchema.safeParse(body);
     if (!parsed.success) {
-      throw invalidResponseFailure("Circuit response failed schema validation");
+      throw invalidResponseFailure(
+        `Circuit response failed schema validation: ${responseIssueSummary(parsed.error.issues)}. Check the server MCP manifest and reload a compatible adapter. Do not repeat a mutation blindly: it may already have committed. The connector remains valid unless the server revokes it.`,
+      );
     }
     return parsed.data;
   }

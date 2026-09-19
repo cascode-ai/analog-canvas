@@ -15,6 +15,27 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 describe("agent http client", () => {
+  it("explains incompatible circuit responses without replaying mutations", async () => {
+    let calls = 0;
+    const client = new AgentHttpClient({
+      baseUrl: BASE,
+      fetch: async () => {
+        calls++;
+        return jsonResponse(200, {
+          ...capabilitiesResponse("c"),
+          futureField: "private-value",
+        });
+      },
+    });
+    await expect(
+      client.circuit("s", "token", {
+        apiVersion: "3.0",
+        requestId: "c",
+        operation: "capabilities",
+      }),
+    ).rejects.toThrow(/MCP manifest.*may already have committed/);
+    expect(calls).toBe(1);
+  });
   it("reads the canonical Session status using bearer authentication and a short deadline", async () => {
     const observation = {
       ok: true,

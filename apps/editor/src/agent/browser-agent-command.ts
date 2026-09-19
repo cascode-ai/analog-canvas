@@ -13,6 +13,12 @@ import {
   planPlaceCellInstance,
   planRenameCell,
   planDeleteCell,
+  planBindCellParameter,
+  planRenameCellParameter,
+  planSetCellParameterDefault,
+  planRemoveCellParameter,
+  planRenameCellTerminal,
+  planRemoveCellTerminal,
   planEnsureNamedNet,
   planElectricalMarkerRename,
   proposedStandalonePowerConnection,
@@ -417,6 +423,61 @@ export function planBrowserAgentCommand(
       };
     case "delete-cell":
       return { structureEdits: planDeleteCell(project, command.id) };
+    case "bind-cell-parameter":
+      return {
+        structureEdits: planBindCellParameter(
+          project,
+          documentId,
+          command.instanceId,
+          command.field,
+          command.name,
+          command.defaultValue,
+        ),
+      };
+    case "rename-cell-parameter":
+      return {
+        structureEdits: planRenameCellParameter(
+          project,
+          documentId,
+          command.oldName,
+          command.newName,
+        ),
+      };
+    case "set-cell-parameter-default":
+      return {
+        structureEdits: planSetCellParameterDefault(
+          project,
+          documentId,
+          command.name,
+          command.defaultValue,
+        ),
+      };
+    case "remove-cell-parameter":
+      return {
+        structureEdits: planRemoveCellParameter(
+          project,
+          documentId,
+          command.name,
+        ),
+      };
+    case "rename-cell-terminal":
+      return {
+        structureEdits: planRenameCellTerminal(
+          project,
+          documentId,
+          command.terminalId,
+          command.name,
+          { mergeExistingPort: command.mergeExistingPort ?? false },
+        ),
+      };
+    case "remove-cell-terminal":
+      return {
+        structureEdits: planRemoveCellTerminal(
+          project,
+          documentId,
+          command.terminalId,
+        ),
+      };
     case "unplace":
       return {
         edits: planInstanceUnplacement(
