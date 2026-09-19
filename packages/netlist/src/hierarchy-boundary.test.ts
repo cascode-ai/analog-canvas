@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createEmptyProject, createEmptyDocument } from "@icm/model";
+import { buildProjectConnectivityIndex, runErcChecks } from "@icm/derived";
+import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import {
   analyzeDesignNetlist,
   analyzeDesignNetlistForAuthoring,
@@ -75,32 +77,66 @@ describe("hierarchy netlist boundaries", () => {
     },
   );
 
-  it("diagnoses external and reachable internal master name collisions", () => {
-    const { project, top } = fixture();
-    project.externalSubcircuitDefinitions.push({
-      id: "ext",
-      name: "amp",
-      interfaceStatus: "declared",
-      formalParameters: [],
-      terminals: [],
-    });
-    top.instances.push({
-      id: "X2",
-      reference: "X2",
-      symbolId: "external",
-      placement: null,
-      netlist: {
-        parameters: {},
-        binding: { kind: "external-subcircuit", definitionId: "ext" },
-      },
-    });
-    expect(analyzeDesignNetlist(project).diagnostics).toContainEqual(
-      expect.objectContaining({
-        code: "MASTER_NAME_COLLISION",
-        objectIds: ["X2"],
-      }),
-    );
-  });
+  it.each([
+    ["Amp", "amp"],
+    ["A mp", "a_mp"],
+  ])(
+    "aligns ERC and export master collisions for %s / %s",
+    (localName, externalName) => {
+      const { project, top, child } = fixture();
+      child.netlist!.name = localName;
+      project.externalSubcircuitDefinitions.push({
+        id: "ext",
+        name: externalName,
+        interfaceStatus: "declared",
+        formalParameters: [],
+        terminals: [],
+      });
+      top.instances.push({
+        id: "X2",
+        reference: "X2",
+        symbolId: "external",
+        placement: null,
+        netlist: {
+          parameters: {},
+          binding: { kind: "external-subcircuit", definitionId: "ext" },
+        },
+      });
+      expect(analyzeDesignNetlist(project).diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "MASTER_NAME_COLLISION",
+          objectIds: ["X2"],
+        }),
+      );
+      const resolver = createProjectSymbolResolver(project, builtInSymbols);
+      expect(
+        runErcChecks(
+          project,
+          buildProjectConnectivityIndex(project, resolver),
+          resolver,
+        ),
+      ).toContainEqual(
+        expect.objectContaining({
+          code: "ERC_MASTER_NAME_COLLISION",
+          severity: "error",
+          primary: expect.objectContaining({
+            documentId: top.id,
+            objectId: "X2",
+            kind: "instance",
+          }),
+          related: [
+            expect.objectContaining({ documentId: child.id, kind: "document" }),
+          ],
+        }),
+      );
+      project.externalSubcircuitDefinitions[0]!.name = "DistinctMaster";
+      expect(
+        analyzeDesignNetlist(project).diagnostics.some(
+          (item) => item.code === "MASTER_NAME_COLLISION",
+        ),
+      ).toBe(false);
+    },
+  );
 
   it("diagnoses effective Port direction conflicts", () => {
     const { project, child } = fixture();

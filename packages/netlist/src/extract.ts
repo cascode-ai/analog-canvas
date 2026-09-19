@@ -6,6 +6,8 @@ import {
 } from "@icm/model";
 import {
   deriveProjectNetNameProjection,
+  portableCellIdentifier,
+  findExternalMasterCollisions,
   directObjectLocator,
   drawnSupplyNet,
   mosBulkKind,
@@ -58,19 +60,6 @@ const MAX_NETS_PER_CELL = 100_000;
 
 function isIdentifier(value: string, allowGround = false): boolean {
   return (allowGround && value === "0") || IDENTIFIER.test(value);
-}
-
-function portableCellIdentifier(name: string, documentId: StableId): string {
-  if (isIdentifier(name)) return name;
-  const ascii = name.normalize("NFKD").replace(/[\u0300-\u036f]/gu, "");
-  const body = ascii
-    .replace(/[^A-Za-z0-9_]+/gu, "_")
-    .replace(/_+/gu, "_")
-    .replace(/^_+|_+$/gu, "");
-  if (!body) {
-    return `Cell_${deriveStableId("cell", documentId).slice("cell-".length)}`;
-  }
-  return /^[A-Za-z_]/u.test(body) ? body : `Cell_${body}`;
 }
 
 function compareText(left: string, right: string): number {
@@ -1895,28 +1884,14 @@ function analyzeDesign(
     }
   }
   const cells: DesignNetlistCell[] = [];
-  for (const document of documents) {
-    for (const instance of document.instances) {
-      const binding = instance.netlist?.binding;
-      if (binding?.kind === "subcircuit") continue;
-      const target =
-        binding?.kind === "external-subcircuit"
-          ? project.externalSubcircuitDefinitions.find(
-              (definition) => definition.id === binding.definitionId,
-            )?.name
-          : binding?.kind === "unresolved-subcircuit"
-            ? binding.name
-            : subcircuitDescriptor(instance.symbolId)?.target;
-      const collision = target && cellNames.get(target.toLowerCase());
-      if (collision)
-        diagnostic(
-          diagnostics,
-          document.id,
-          "MASTER_NAME_COLLISION",
-          `External master ${target} conflicts with local Cell ${collision.authoredName}; choose distinct exported master names`,
-          [instance.id],
-        );
-    }
+  for (const collision of findExternalMasterCollisions(project, documents)) {
+    diagnostic(
+      diagnostics,
+      collision.documentId,
+      "MASTER_NAME_COLLISION",
+      `External master ${collision.masterName} conflicts with local Cell ${collision.localName}; choose distinct exported master names`,
+      [collision.instanceId],
+    );
   }
   for (const document of documents) {
     const cell = extractCell(

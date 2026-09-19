@@ -14,6 +14,7 @@ import { resolveDocumentRoutingGeometry } from "../resolved-route-geometry.js";
 import { findRouteSegmentsAtPoint } from "../route-query.js";
 import { directObjectLocator, type ObjectLocator } from "../object-locator.js";
 import type { Diagnostic, DiagnosticSeverity } from "./diagnostic.js";
+import { findExternalMasterCollisions } from "../master-names.js";
 
 /**
  * Electrical checks share endpoint assessment and the Diagnostic envelope.
@@ -45,6 +46,31 @@ export function runErcChecks(
   const documents = [...project.documents].sort((a, b) =>
     a.id.localeCompare(b.id, "en"),
   );
+
+  for (const collision of findExternalMasterCollisions(project, documents)) {
+    diagnostics.push({
+      id: `erc:master-name-collision:${collision.documentId}:${collision.instanceId}`,
+      domain: "erc",
+      code: "ERC_MASTER_NAME_COLLISION",
+      severity: "error",
+      confidence: "high",
+      gateEligible: true,
+      message: `External master ${collision.masterName} conflicts with local Cell ${collision.localName}; choose distinct exported master names`,
+      primary: directObjectLocator(
+        collision.documentId,
+        "instance",
+        collision.instanceId,
+      ),
+      related: [
+        directObjectLocator(
+          collision.localDocumentId,
+          "document",
+          collision.localDocumentId,
+        ),
+      ],
+      parameters: { masterName: collision.masterName },
+    });
+  }
 
   for (const document of documents) {
     for (const issue of projectCellInterface(document.netlist).issues) {
