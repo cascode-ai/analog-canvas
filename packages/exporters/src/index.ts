@@ -5,6 +5,8 @@ import type { SymbolResolver } from "@icm/symbols";
 
 export const EXPORT_VERSION = "0.1";
 export const DEFAULT_EXPORT_SCALE = 3;
+/** Roughly one canonical 1.6-unit wire width around formal file exports. */
+export const DEFAULT_FORMAL_EXPORT_MARGIN = 2;
 
 export interface FormalExportSource {
   svg: string;
@@ -26,7 +28,10 @@ export function createFormalExportSource(
     "title" | "margin" | "objectIds" | "background"
   > = {},
 ): FormalExportSource {
-  const svg = renderDocumentSvg(document, resolver, options);
+  const svg = renderDocumentSvg(document, resolver, {
+    ...options,
+    margin: options.margin ?? DEFAULT_FORMAL_EXPORT_MARGIN,
+  });
   const match = /viewBox="([^"]+)"/u.exec(svg);
   if (!match) throw new Error("Formal SVG has no viewBox");
   const values = match[1]!.split(/\s+/u).map(Number);
