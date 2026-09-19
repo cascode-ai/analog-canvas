@@ -1,4 +1,4 @@
-import { flattenRichText, routeEnd, transformPoint } from "@icm/model";
+import { routeEnd, transformPoint } from "@icm/model";
 import type { Point, Rect, RouteEndpoint, SchematicDocument } from "@icm/model";
 import { resolveAdaptiveSignalFlowBlockLayout } from "@icm/symbols";
 import type {
@@ -23,8 +23,10 @@ import {
   deriveDocumentContactEvidence,
   type DocumentContactEvidence,
 } from "./contact.js";
-import { resolveAnnotationPresentation } from "./annotation-presentation.js";
-import { resolveAnnotationText } from "./annotation-text.js";
+import {
+  isSchematicAnnotationVisible,
+  resolveAnnotationPresentation,
+} from "./annotation-presentation.js";
 import { pointOnSegment } from "./segment-geometry.js";
 import type { ResolvedDocumentLogicalNets } from "./logical-net.js";
 import {
@@ -799,15 +801,12 @@ export function diagnoseVisualQuality(
 
   const styleProfile = resolveDocumentStyleProfile(document.presentation);
   const annotationBounds = document.annotations
-    .filter(
-      (annotation) =>
-        flattenRichText(
-          resolveAnnotationText(
-            document,
-            annotation,
-            options.logicalNetResolution,
-          ),
-        ).trim().length > 0,
+    .filter((annotation) =>
+      isSchematicAnnotationVisible(
+        document,
+        annotation,
+        options.logicalNetResolution,
+      ),
     )
     .map((annotation) => {
       return {

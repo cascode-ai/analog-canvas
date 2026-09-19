@@ -14,6 +14,26 @@ import {
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("visual quality diagnostics", () => {
+  it.each([true, false])(
+    "counts only rendered annotations in overlap diagnostics (visible=%s)",
+    (visible) => {
+      const document = createEmptyDocument("labels", "Labels");
+      document.annotations = ["a", "b"].map((id) => ({
+        id,
+        kind: "instance-label",
+        content: { runs: [{ kind: "text", value: "M1" }] },
+        anchor: { kind: "free", position: { x: 100, y: 100 } },
+        alignment: "middle",
+        rotation: 0,
+        locked: false,
+        visible: id === "a" || visible,
+      }));
+      const overlaps = diagnoseVisualQuality(document, resolver).filter(
+        (d) => d.code === "VISUAL_LABEL_OVERLAP",
+      );
+      expect(overlaps).toHaveLength(visible ? 1 : 0);
+    },
+  );
   it("reuses default diagnostics for one immutable revision", () => {
     const document = createEmptyDocument("cached", "Cached diagnostics");
     document.instances.push({
