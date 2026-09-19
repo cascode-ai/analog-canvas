@@ -3,6 +3,7 @@
   "ignoredPaths": [
     ".pnpm-store/**",
     ".worktrees/**",
+    ".claude/worktrees/**",
     "node_modules/**",
     "output/**",
     "test-results/**",
@@ -96,7 +97,6 @@
     ],
     "emptyLabelGhost": [
       "packages/derived/src/annotation-presentation.ts",
-      "packages/devices/src/descriptors/*switch*",
       "apps/editor/e2e/empty-label-ghost.spec.ts"
     ],
     "symbolBodyText": [
