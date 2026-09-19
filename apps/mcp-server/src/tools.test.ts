@@ -2,8 +2,8 @@ import {
   createSimulationFolder,
   readSimulationExperimentConfig,
 } from "@icm/model";
-import { describe, expect, it } from "vitest";
-import { AgentSessionClient } from "@icm/agent-client";
+import { describe, expect, it, vi } from "vitest";
+import { AgentSessionClient, AgentSessionError } from "@icm/agent-client";
 import {
   capabilitiesResponse,
   FakeAgentHttp,
@@ -33,6 +33,42 @@ function parseText(result: {
 }
 
 describe("mcp tool surface", () => {
+  it.each([500, 502, 429, 408, 400])(
+    "classifies HTTP %s without changing the retry identity",
+    async (httpStatus) => {
+      const { session } = await toolSession();
+      vi.spyOn(session.client, "simulationResource").mockRejectedValue(
+        new AgentSessionError(
+          "HTTP_ERROR",
+          `HTTP ${httpStatus}`,
+          "request-rejected",
+          httpStatus,
+        ),
+      );
+      const result = await callTool(
+        "simulation",
+        {
+          requestId: "same-start",
+          request: {
+            operation: "start",
+            preparedId: "prepared",
+            digest: "a".repeat(64),
+          },
+        },
+        session,
+      );
+      expect(parseText(result)).toMatchObject({
+        ok: false,
+        requestId: "same-start",
+        error: {
+          httpStatus,
+          stage: "start",
+          recovery: httpStatus === 400 ? "fix-input" : "retry-same-request",
+        },
+      });
+      expect(session.client.simulationResource).toHaveBeenCalledTimes(1);
+    },
+  );
   it("submits several connect actions as one atomic wire transaction", async () => {
     const { session, http } = await toolSession();
     await callTool("connect", { claimCode: "session-1.code" }, session);
