@@ -393,8 +393,10 @@ test("opens a shared editable circuit and each replacement with Netlist, without
     }),
   );
   await page.goto("/g/shared-netlist");
-  await expect(page.getByTestId("status")).toContainText(
-    "Opened gallery circuit:",
+  // The status line is transient — the editor settles back to "Ready" — so
+  // wait for the circuit itself to be the one the gallery served.
+  await expect(page.getByTestId("project-name-input")).toHaveValue(
+    "Editable netlist",
   );
   const code = page.getByLabel("Netlist code", { exact: true });
   await expect(code).toBeVisible();
