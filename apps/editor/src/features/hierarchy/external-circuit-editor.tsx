@@ -7,18 +7,22 @@ import type { ExternalDefinitionResult } from "./project-structure-commands";
 export function ExternalCircuitEditor({
   definition,
   onSetExternalDefinition,
+  onRemoveExternalDefinition,
 }: {
   definition: ExternalSubcircuitDefinition | undefined;
   onSetExternalDefinition(
     definition: ExternalSubcircuitDefinition,
   ): ExternalDefinitionResult;
+  onRemoveExternalDefinition(definitionId: string): ExternalDefinitionResult;
 }) {
   const [result, setResult] = useState<ExternalDefinitionResult | null>(null);
   const [externalName, setExternalName] = useState("");
   const [externalTerminals, setExternalTerminals] = useState("");
   const [externalParameters, setExternalParameters] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
+    setConfirmDelete(false);
     if (!definition) {
       setExternalName("");
       setExternalTerminals("");
@@ -131,6 +135,31 @@ export function ExternalCircuitEditor({
           {definition ? "Save definition" : "Create External Circuit"}
         </button>
       </div>
+      {definition ? (
+        <div className="cell-manager-actions">
+          {confirmDelete ? (
+            <>
+              <span>Delete {definition.name}?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setResult(onRemoveExternalDefinition(definition.id));
+                  setConfirmDelete(false);
+                }}
+              >
+                Confirm delete
+              </button>
+              <button type="button" onClick={() => setConfirmDelete(false)}>
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={() => setConfirmDelete(true)}>
+              Delete definition
+            </button>
+          )}
+        </div>
+      ) : null}
       {result ? (
         <p role={result.ok ? "status" : "alert"}>{result.message}</p>
       ) : null}

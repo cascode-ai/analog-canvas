@@ -557,6 +557,45 @@ export function createProjectStructureCommands({
     }
   };
 
+  const removeExternalSubcircuitDefinition = (
+    definitionId: string,
+  ): ExternalDefinitionResult => {
+    const definition = project.externalSubcircuitDefinitions.find(
+      (item) => item.id === definitionId,
+    );
+    const caller = project.documents.flatMap((document) =>
+      document.instances
+        .filter(
+          (instance) =>
+            instance.netlist?.binding?.kind === "external-subcircuit" &&
+            instance.netlist.binding.definitionId === definitionId,
+        )
+        .map(
+          (instance) => `${document.name}.${instance.reference ?? instance.id}`,
+        ),
+    )[0];
+    const message = !definition
+      ? "External definition no longer exists."
+      : caller
+        ? `Still used by ${caller}. Remove its instances first.`
+        : undefined;
+    if (message) {
+      setStatus(message);
+      return { ok: false, message };
+    }
+    const ok = commitStructure("remove-external-subcircuit-definition", [
+      { kind: "remove_external_subcircuit_definition", definitionId },
+    ]);
+    const result = {
+      ok,
+      message: ok
+        ? `Deleted external circuit ${definition!.name}`
+        : "Could not delete external definition. The Project was not changed.",
+    };
+    setStatus(result.message);
+    return result;
+  };
+
   const saveBlockSymbolPresentation = (
     target: BlockSymbolLayoutTarget,
     presentation: NonNullable<BlockSymbolLayoutTarget["presentation"]>,
@@ -669,6 +708,7 @@ export function createProjectStructureCommands({
     moveCellPort,
     editCellParameter,
     setExternalSubcircuitDefinition,
+    removeExternalSubcircuitDefinition,
     setCellSymbolBodySize,
     setCellSymbolPortPlacement,
     renameProject,

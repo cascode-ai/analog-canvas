@@ -1230,6 +1230,7 @@ export function App({
     moveCellPort,
     editCellParameter,
     setExternalSubcircuitDefinition,
+    removeExternalSubcircuitDefinition,
     setCellSymbolBodySize,
     setCellSymbolPortPlacement,
     editCellTerminalAnnotation,
@@ -5043,6 +5044,7 @@ export function App({
                   editCellParameter(name, change, documentId),
                 externalDefinitions: project.externalSubcircuitDefinitions,
                 onSetExternalDefinition: setExternalSubcircuitDefinition,
+                onRemoveExternalDefinition: removeExternalSubcircuitDefinition,
                 onPlaceExternal: (definitionId) => {
                   const candidate = externalSubcircuitInsertCandidates.find(
                     (item) => item.definitionId === definitionId,

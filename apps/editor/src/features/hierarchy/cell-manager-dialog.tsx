@@ -53,6 +53,7 @@ export function CellManagerDialog({
   onEditParameter,
   externalDefinitions,
   onSetExternalDefinition,
+  onRemoveExternalDefinition,
   onPlaceExternal,
   onReset,
   cloudProjects,
@@ -87,6 +88,7 @@ export function CellManagerDialog({
     definition: ExternalSubcircuitDefinition,
   ): ExternalDefinitionResult;
   onPlaceExternal(definitionId: string): void;
+  onRemoveExternalDefinition(definitionId: string): ExternalDefinitionResult;
   onReset(plan: CellResetPlan, command: string): boolean;
   cloudProjects: readonly CloudProjectSummary[];
   activeCloudProjectId: string | null;
@@ -333,6 +335,11 @@ export function CellManagerDialog({
                 <ExternalCircuitEditor
                   key={selectedExternal?.id ?? `new-${externalDraft}`}
                   definition={selectedExternal}
+                  onRemoveExternalDefinition={(id) => {
+                    const result = onRemoveExternalDefinition(id);
+                    if (result.ok) setExternalId(null);
+                    return result;
+                  }}
                   onSetExternalDefinition={(definition) => {
                     const result = onSetExternalDefinition(definition);
                     if (result.ok) setExternalId(definition.id);

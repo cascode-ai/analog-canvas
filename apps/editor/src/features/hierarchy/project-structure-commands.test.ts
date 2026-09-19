@@ -29,6 +29,43 @@ function dependencies() {
 }
 
 describe("Project structure commands", () => {
+  it("deletes only unused external definitions and preserves failure feedback", () => {
+    const input = dependencies();
+    input.project.externalSubcircuitDefinitions.push({
+      id: "ext",
+      name: "Amp",
+      terminals: [],
+      formalParameters: [],
+      interfaceStatus: "declared",
+    });
+    const commands = createProjectStructureCommands(input);
+    input.activeDocument.instances.push({
+      id: "X1",
+      symbolId: "block",
+      placement: null,
+      netlist: {
+        parameters: {},
+        binding: { kind: "external-subcircuit", definitionId: "ext" },
+      },
+    });
+    expect(commands.removeExternalSubcircuitDefinition("ext")).toMatchObject({
+      ok: false,
+      message: expect.stringContaining("X1"),
+    });
+    expect(input.commitStructure).not.toHaveBeenCalled();
+    input.activeDocument.instances = [];
+    expect(commands.removeExternalSubcircuitDefinition("ext").ok).toBe(true);
+    expect(input.commitStructure).toHaveBeenCalledWith(
+      "remove-external-subcircuit-definition",
+      [{ kind: "remove_external_subcircuit_definition", definitionId: "ext" }],
+    );
+    input.commitStructure.mockReturnValue(false);
+    expect(commands.removeExternalSubcircuitDefinition("ext").ok).toBe(false);
+    expect(commands.removeExternalSubcircuitDefinition("missing").ok).toBe(
+      false,
+    );
+  });
+
   it("defers connected deletion and electrical merging until internal confirmation", () => {
     const input = dependencies();
     const child = input.activeDocument;

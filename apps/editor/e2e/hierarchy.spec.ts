@@ -343,6 +343,41 @@ test("manages external declarations independently of local Cell interfaces", asy
   await expect(
     manager.getByLabel("External subcircuit formal parameters"),
   ).toHaveValue("gain=10");
+  await manager
+    .getByRole("button", { name: "Delete definition", exact: true })
+    .click();
+  await manager.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(
+    externalList.getByRole("button", { name: /amplifier/ }),
+  ).toBeVisible();
+  await manager
+    .getByRole("button", { name: "Delete definition", exact: true })
+    .click();
+  await manager
+    .getByRole("button", { name: "Confirm delete", exact: true })
+    .click();
+  await expect(
+    externalList.getByRole("button", { name: /amplifier/ }),
+  ).toHaveCount(0);
+  await manager.getByLabel("Close Cell Manager").click();
+  await page.keyboard.press("Control+z");
+  await runCellCommand(page, "Manage Cells…");
+  await types
+    .getByRole("button", { name: "External Circuits", exact: true })
+    .click();
+  await externalList.getByRole("button", { name: /amplifier/ }).click();
+  await expect(
+    manager.getByLabel("External subcircuit formal parameters"),
+  ).toHaveValue("gain=10");
+  await manager.getByLabel("Close Cell Manager").click();
+  await page.keyboard.press("Control+Shift+z");
+  await runCellCommand(page, "Manage Cells…");
+  await types
+    .getByRole("button", { name: "External Circuits", exact: true })
+    .click();
+  await expect(
+    externalList.getByRole("button", { name: /amplifier/ }),
+  ).toHaveCount(0);
 });
 
 test("creates and places an external interface with connected netlist semantics", async ({
