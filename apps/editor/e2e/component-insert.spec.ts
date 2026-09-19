@@ -443,7 +443,7 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
     "QToggle Properties",
     "LCreate and place Net Label",
     "HToggle Net highlight",
-    "EEnter selected Cell",
+    "EEdit Component Definition / enter selected Cell",
     "ShiftEReturn to parent Cell",
     "[Decrease selected line width",
     "]Increase selected line width",
@@ -2038,7 +2038,8 @@ test("shows the complete foldable categorized Library, quick-places a device, an
   await expect(panel).toHaveAttribute("data-open", "true");
   const libraryChipCount = await libraryChips.count();
   expect(libraryChipCount).toBeGreaterThanOrEqual(35);
-  await expect(categories).toHaveCount(10);
+  await expect(categories).toHaveCount(11);
+  await expect(page.getByTestId("shapes-category-user-defined")).toBeVisible();
   const transistorCategory = page.getByTestId("shapes-category-transistors");
   const transistorChips = transistorCategory.locator(
     '[data-testid^="shapes-chip-"]',
