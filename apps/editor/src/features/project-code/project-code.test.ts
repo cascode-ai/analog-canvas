@@ -1,7 +1,11 @@
-import { withProjectComponentDefinitions } from "@icm/symbols";
+import {
+  createProjectSymbolResolver,
+  withProjectComponentDefinitions,
+} from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 import { createEmptyProject } from "@icm/model";
 import { createRoutingDemoProject } from "../../demos/routing-demo";
+import { EditorDocumentController } from "../../document/document-controller";
 
 import {
   formatProjectCode,
@@ -95,5 +99,58 @@ describe("Project Code", () => {
         project.topDocumentId,
       ),
     ).toMatchObject({ ok: true, changed: false, project });
+  });
+
+  it("edits shared component artwork in code without rewriting instances or pin contracts", () => {
+    const project = withProjectComponentDefinitions(createRoutingDemoProject());
+    const source = JSON.parse(formatProjectCode(project));
+    const definition = source.componentDefinitions[0];
+    definition.symbol.primitives.push({
+      kind: "circle",
+      center: { x: 5, y: 5 },
+      radius: 3,
+    });
+    const plan = planProjectCodeCommit(
+      project,
+      JSON.stringify(source),
+      project.topDocumentId,
+    );
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.changed).toBe(true);
+    expect(plan.project.documents).toEqual(project.documents);
+    expect(plan.project.componentDefinitions).toHaveLength(1);
+    expect(plan.project.componentDefinitions![0]!.electrical).toEqual(
+      project.componentDefinitions![0]!.electrical,
+    );
+    const resolver = createProjectSymbolResolver(plan.project, []);
+    for (const instance of plan.project.documents[0]!.instances) {
+      expect(resolver.resolve(instance.symbolId)!.definition).toEqual(
+        definition.symbol,
+      );
+    }
+
+    // Canvas placement edits an instance, never the shared component artwork.
+    const controller = new EditorDocumentController(plan.project);
+    const beforeMove = structuredClone(controller.project);
+    expect(
+      controller.transact([
+        {
+          kind: "move_instance",
+          instanceId: "A",
+          position: { x: 100, y: 200 },
+        },
+      ]).ok,
+    ).toBe(true);
+    expect(controller.document.instances[0]!.placement!.position).toEqual({
+      x: 100,
+      y: 200,
+    });
+    expect(controller.document.instances.slice(1)).toEqual(
+      beforeMove.documents[0]!.instances.slice(1),
+    );
+    expect(controller.project.componentDefinitions).toEqual(
+      beforeMove.componentDefinitions,
+    );
   });
 });

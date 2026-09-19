@@ -242,6 +242,34 @@ input leaves the current Document unchanged. **Export Project File…** does not
 change Cloud save state. The old rolling cloud
 snapshot and local File System Access Save paths have been removed.
 
+### Project Code and custom components
+
+Open **Project Code** from the top toolbar to edit the complete Project. Copy
+all of its JSON into another editor's Project Code and choose **Apply** (or
+press Ctrl/⌘ + Enter) to reproduce the drawing, including its component
+definitions. The receiving editor keeps its own Project identity and Cloud
+binding. Apply is undoable; invalid code leaves the live drawing unchanged.
+
+Custom component artwork is edited **only in code**. Find its entry in
+`componentDefinitions`: `symbol` contains the shapes and pins, while
+`electrical` and optional `subcircuit` describe its netlist interface. Edit the
+included definition and apply it to update every instance that references its
+`symbol.id`. There is no mouse editor for the component's internal shapes.
+Ordinary canvas placement, rotation, mirroring and circuit wiring remain
+available and do not rewrite that shared definition.
+
+To customize just some instances, copy the definition, give `symbol.id` and
+any included `electrical.symbolId` / `subcircuit.symbolId` the same new ID, and
+set those instances' `symbolId` to that ID in the same edit. Keep pin names and
+electrical pin order unchanged when only adjusting artwork. A moved pin keeps
+its identity; existing route geometry may need a manual adjustment.
+
+The Project carries one definition per used component type, including uses in
+other Cells. Deleting its final use removes the definition; Undo restores it.
+Unused definitions are not a component library. Keep a placed instance while
+developing a new definition, or save its code separately. An Agent can make
+the same changes in the complete Project code without a separate file format.
+
 SPICE files are import inputs, not embedded source attachments. Saving an
 imported Project preserves the editable schematic and source provenance, but
 does not preserve `.spi`, `.lib`, or `.inc` contents; keep those original files

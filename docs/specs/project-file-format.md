@@ -25,6 +25,14 @@ built-in library. Editing its geometry updates every instance of that class;
 copy the class to a new `symbol.id` (and matching electrical `symbolId`) and
 change selected instances' `symbolId` to customize only those instances.
 
+Custom component internals are authored through Project Code, not through
+mouse-drawn shapes or a separate graphical component editor. Canvas transforms
+edit Instance placement and never rewrite a shared class. Component definition
+changes use the existing validated, undoable Project commit. Future graphical
+definition editing must write this same representation rather than introduce
+a second geometry authority. Visual pin-coordinate changes do not implicitly
+rename pins or reorder the electrical interface.
+
 Serialization collects references across **all** Project Documents and removes
 only unused classes. It never deletes a Document, Instance, parameter, or
 setting to shorten the code. Editor undo retains deleted classes with its
