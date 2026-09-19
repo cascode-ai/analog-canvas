@@ -94,7 +94,7 @@ async function expectAgentRecoveryBoundToWorkingCopy(page: Page) {
           };
           return recovery.projectSessionId === workingCopyId;
         },
-        [AGENT_SESSION_RECOVERY_STORAGE_KEY, WORKING_COPY_STORAGE_KEY],
+        [AGENT_SESSION_RECOVERY_STORAGE_KEY, WORKING_COPY_STORAGE_KEY] as const,
       ),
     )
     .toBe(true);
