@@ -34,7 +34,7 @@ export interface ComponentPropertyCodeEditorProps {
   netName?: string | null;
   defaultForeground?: string;
   details?: ComponentPropertyCodeContext["details"];
-  onUseCellParameter?(field: string, value: string): void;
+  onUseCellParameter?(field: string, value: string, anchor: HTMLElement): void;
   onApply: (
     value: ComponentPropertyCodeValue,
   ) => { ok: true } | { ok: false; message: string };

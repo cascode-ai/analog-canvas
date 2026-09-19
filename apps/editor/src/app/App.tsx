@@ -34,7 +34,6 @@ import {
   planAngledWireRepairs,
   gateRoutingOperationPlan,
   type ProjectStructureEdit,
-  type CellResetPlan,
   type SchematicEdit,
   type WireSource,
 } from "@icm/edit-engine";
@@ -1216,6 +1215,7 @@ export function App({
     instanceId: string;
     field: string;
     value: string;
+    anchor: HTMLElement;
   } | null>(null);
   const { commitStructure, transact, transactConnectivity } =
     createEditorTransactionCommands({
@@ -1233,7 +1233,6 @@ export function App({
     });
   const {
     createCell,
-    setTopCell,
     renameCell,
     deleteCell,
     updateCellPortDirection,
@@ -1629,6 +1628,15 @@ export function App({
   const selectedAnnotationOwnerInstanceId = selectedAnnotation
     ? annotationOwningInstanceId(selectedAnnotation)
     : undefined;
+  useEffect(() => {
+    if (
+      parameterBinding &&
+      (!selectionOpen ||
+        selectedInstance?.id !== parameterBinding.instanceId ||
+        document.id !== parameterBinding.cell.id)
+    )
+      setParameterBinding(null);
+  }, [selectionOpen, selectedInstance?.id, document.id, parameterBinding]);
   const selectedComponentSourceCode = useMemo(
     () =>
       selectedInstance
@@ -3546,41 +3554,6 @@ export function App({
     setStatus("Rejected Agent file candidate");
   }
 
-  function commitManagedCellReset(
-    plan: CellResetPlan,
-    command: string,
-  ): boolean {
-    const target = project.documents.find(
-      (candidate) => candidate.id === plan.scope.documentId,
-    );
-    if (!target) {
-      setStatus(
-        `Could not reset Cell: ${plan.scope.documentId} no longer exists`,
-      );
-      return false;
-    }
-    if (plan.edits.length === 0) {
-      setStatus(command + " has nothing to change in Cell " + target.name);
-      return false;
-    }
-    const committed = commitStructure(
-      `reset-cell-${plan.intent}`,
-      [
-        {
-          kind: "transact_document",
-          documentId: target.id,
-          expectedRevision: target.revision,
-          edits: [...plan.edits],
-        },
-      ],
-      document.id,
-    );
-    if (!committed) return false;
-    if (target.id === document.id) resetInteractionState();
-    setStatus(`${command} completed in Cell ${target.name} · Undo restores it`);
-    return true;
-  }
-
   function nextRoutingSuffix(): number {
     routeCounter.current =
       Math.max(routeCounter.current, maxRoutingCounter(document)) + 1;
@@ -4049,7 +4022,12 @@ export function App({
         return;
       // The interface confirmation owns keys even though this router captures
       // at window level before the modal's React handlers.
-      if (interfaceConfirmation || parameterBinding) return;
+      if (interfaceConfirmation) return;
+      if (
+        event.target instanceof Element &&
+        event.target.closest(".cell-parameter-popover")
+      )
+        return;
       // File flyout arrows navigate the focused menu, never pan the canvas.
       if (
         event.target instanceof Element &&
@@ -4556,8 +4534,12 @@ export function App({
 
   return (
     <main className="app-shell">
-      {parameterBinding ? (
+      {parameterBinding &&
+      selectionOpen &&
+      selectedInstance?.id === parameterBinding.instanceId &&
+      document.id === parameterBinding.cell.id ? (
         <CellParameterDialog
+          anchor={parameterBinding.anchor}
           cell={parameterBinding.cell}
           field={parameterBinding.field}
           value={parameterBinding.value}
@@ -5048,8 +5030,11 @@ export function App({
                   switchDocument(documentId);
                 },
                 onRename: renameCell,
-                onSetTop: (documentId) => {
-                  setTopCell(documentId);
+                onReorder: (documentIds, topDocumentId) => {
+                  commitStructure("reorder-cells", [
+                    { kind: "reorder_documents", documentIds },
+                    { kind: "set_top_document", documentId: topDocumentId },
+                  ]);
                 },
                 onDelete: (documentId) => {
                   if (deleteCell(documentId)) {
@@ -5096,7 +5081,6 @@ export function App({
                     },
                   });
                 },
-                onReset: commitManagedCellReset,
                 cloudProjects,
                 activeCloudProjectId: cloudBinding?.id ?? null,
                 onLoadCloudProject: loadCloudProjectForCellImport,
@@ -5986,6 +5970,7 @@ export function App({
                               onUseCellParameter: (
                                 field: string,
                                 value: string,
+                                anchor: HTMLElement,
                               ) =>
                                 setParameterBinding({
                                   snapshot: project,
@@ -5993,6 +5978,7 @@ export function App({
                                   instanceId: selectedInstance.id,
                                   field,
                                   value,
+                                  anchor,
                                 }),
                             }
                           : {}),

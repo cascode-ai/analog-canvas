@@ -34,6 +34,10 @@ import type {
 
 export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
   z.strictObject({
+    kind: z.literal("reorder_documents"),
+    documentIds: z.array(z.string().min(1)).min(1),
+  }),
+  z.strictObject({
     kind: z.literal("set_top_document"),
     documentId: z.string().min(1),
   }),
@@ -309,6 +313,25 @@ export function executeProjectTransaction(
   let structuralChange = false;
 
   for (const [editIndex, edit] of transaction.edits.entries()) {
+    if (edit.kind === "reorder_documents") {
+      const byId = new Map(candidate.documents.map((cell) => [cell.id, cell]));
+      if (
+        edit.documentIds.length !== byId.size ||
+        new Set(edit.documentIds).size !== byId.size ||
+        edit.documentIds.some((id) => !byId.has(id))
+      ) {
+        return rejectProjectTransaction(
+          project,
+          "OBJECT_NOT_FOUND",
+          "Cell order must include each existing Cell exactly once",
+        );
+      }
+      structuralChange ||= candidate.documents.some(
+        (cell, index) => cell.id !== edit.documentIds[index],
+      );
+      candidate.documents = edit.documentIds.map((id) => byId.get(id)!);
+      continue;
+    }
     if (edit.kind === "set_top_document") {
       if (
         !candidate.documents.some((document) => document.id === edit.documentId)

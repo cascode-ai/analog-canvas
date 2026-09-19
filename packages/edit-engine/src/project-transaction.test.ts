@@ -25,6 +25,48 @@ import {
 import { executeProjectTransaction } from "./project-transaction.js";
 
 describe("default project entry", () => {
+  it("reorders definitions atomically with Top without changing their contents", () => {
+    const project = createEmptyProject("order", "Order");
+    project.documents.push(
+      createEmptyDocument("second", "Second"),
+      createEmptyDocument("third", "Third"),
+    );
+    const original = structuredClone(project);
+    const envelope = {
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      transactionId: "order",
+      actor: { kind: "human" as const, id: "local" },
+    };
+    const ids = ["third", project.topDocumentId, "second"];
+    const result = executeProjectTransaction(project, {
+      ...envelope,
+      edits: [
+        { kind: "reorder_documents", documentIds: ids },
+        { kind: "set_top_document", documentId: "third" },
+      ],
+    });
+    if (!result.ok) throw new Error(JSON.stringify(result));
+    expect(result.project.topDocumentId).toBe("third");
+    expect(result.project.documents).toEqual(
+      ids.map((id) => original.documents.find((cell) => cell.id === id)),
+    );
+    for (const invalid of [
+      ["second"],
+      ["second", "second", "third"],
+      ["unknown", "second", "third"],
+    ]) {
+      const rejected = executeProjectTransaction(project, {
+        ...envelope,
+        edits: [
+          { kind: "set_top_document", documentId: "third" },
+          { kind: "reorder_documents", documentIds: invalid },
+        ],
+      });
+      expect(rejected.ok).toBe(false);
+      expect(project).toEqual(original);
+    }
+  });
   it("changes only the default Top and rejects unknown definitions", () => {
     const project = createEmptyProject("project", "Project");
     const child = createEmptyDocument("child", "Child");

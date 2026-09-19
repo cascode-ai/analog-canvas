@@ -143,7 +143,7 @@ export function ExternalCircuitEditor({
             );
           }}
         >
-          {definition ? "Save definition" : "Create External Circuit"}
+          {definition ? "Save definition" : "Create External Circuit Def"}
         </button>
       </div>
       {definition ? (

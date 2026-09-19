@@ -77,7 +77,7 @@ interface Props {
   defaultForeground: string;
   ariaLabel?: string;
   onChange(source: string): void;
-  onUseCellParameter?(field: string, value: string): void;
+  onUseCellParameter?(field: string, value: string, anchor: HTMLElement): void;
 }
 const externalUpdate = Annotation.define<boolean>();
 const refreshDecorations = StateEffect.define<null>();
@@ -504,6 +504,7 @@ class CellParameterButton extends WidgetType {
       this.read().onUseCellParameter?.(
         this.span.field.path.slice("parameters.".length),
         String(this.span.value),
+        button,
       );
     });
     return button;

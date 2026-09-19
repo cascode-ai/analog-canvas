@@ -1,5 +1,50 @@
 /* Editor dialog owner: modal editor workflows and their responsive layout contracts. */
 
+.cell-parameter-popover {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: min(17rem, calc(100vw - 1rem));
+  max-height: calc(100dvh - 1rem);
+  overflow: auto;
+  padding: 0.65rem;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-md);
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  box-shadow: var(--icm-shadow-lg);
+  font-size: var(--icm-font-sm);
+}
+.cell-parameter-popover form {
+  display: grid;
+  gap: 0.5rem;
+}
+.cell-parameter-popover header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.cell-parameter-popover header button {
+  margin-left: auto;
+}
+.cell-parameter-popover label {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.35rem;
+}
+.cell-parameter-popover input {
+  width: 100%;
+  min-width: 0;
+}
+.cell-parameter-popover p {
+  margin: 0;
+}
+.cell-parameter-popover footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .insert-dialog-backdrop {
   position: fixed;
   z-index: 80;
@@ -528,11 +573,66 @@
 
 .cell-parameter-row {
   display: grid;
-  grid-template-columns:
-    minmax(4rem, 1fr) minmax(4rem, 1fr) minmax(3rem, auto)
-    28px;
+  grid-template-columns: minmax(4rem, 1fr) minmax(4rem, 1fr) 28px;
   align-items: center;
   gap: 4px;
+}
+
+.cell-manager-name {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  font-weight: 600;
+  border: 1px solid transparent;
+  background: transparent;
+}
+.cell-manager-name:hover,
+.cell-manager-name:focus {
+  border-color: var(--icm-border-strong);
+}
+.cell-manager-entry {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-top: 2px solid transparent;
+}
+.cell-manager-entry .cell-manager-list-item {
+  flex: 1;
+  min-width: 0;
+}
+.cell-manager-entry[data-drop="active"] {
+  border-color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+}
+.cell-drop-hint {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  background: var(--icm-surface);
+  color: var(--icm-accent);
+}
+.cell-row-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+.cell-row-menu summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 0.4rem;
+}
+.cell-row-menu button {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 2;
+  background: var(--icm-surface);
+}
+.cell-manager-drop-end {
+  min-height: 1.6rem;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  text-align: center;
 }
 
 .cell-inline-action {

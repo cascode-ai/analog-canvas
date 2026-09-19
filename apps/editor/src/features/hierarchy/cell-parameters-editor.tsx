@@ -49,6 +49,7 @@ function ParameterRow({
       <div className="cell-parameter-row" role="row">
         <input
           aria-label={`Parameter ${parameter.name} name`}
+          title={`${count} internal uses; ${overrides} instance overrides`}
           value={name}
           onChange={(event) => setName(event.currentTarget.value)}
           onBlur={() => {
@@ -71,10 +72,6 @@ function ParameterRow({
             if (event.key === "Enter") event.currentTarget.blur();
           }}
         />
-        <span title={`${count} internal uses; ${overrides} instance overrides`}>
-          {count ? `${count} uses` : "Unused"}
-          {overrides ? ` · ${overrides} overrides` : ""}
-        </span>
         <button
           type="button"
           aria-label={`Remove parameter ${parameter.name}`}
@@ -119,7 +116,6 @@ export function CellParametersEditor({
         <div className="cell-parameter-row" role="row">
           <span role="columnheader">Name</span>
           <span role="columnheader">Default</span>
-          <span role="columnheader">Usage</span>
           <span />
         </div>
         {parameters.map((parameter) => (

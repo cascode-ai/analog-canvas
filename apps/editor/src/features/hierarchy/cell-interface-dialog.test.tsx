@@ -22,7 +22,8 @@ describe("CellInterfaceEditor", () => {
     const markup = render();
     expect(markup).toContain('aria-label="Parameter Imported name"');
     expect(markup).toContain('placeholder="No default"');
-    expect(markup).toContain("Unused");
+    expect(markup).toContain('title="0 internal uses; 0 instance overrides"');
+    expect(markup).not.toContain('role="columnheader">Usage');
     expect(markup).not.toContain("Apply parameters");
   });
   it("lists the same projected Ports that the generated Symbol consumes", () => {

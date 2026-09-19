@@ -4,15 +4,19 @@ Analog Canvas treats every Project Document as one reusable schematic Cell.
 The top Cell is the saved default entry; other Cells may be instantiated any number of
 times or kept unreferenced while they are being authored.
 
-Select a local Cell in **Manage Cells…** and choose **Set as Top** to change
-the saved default entry. This does not change the circuit, its callers, the
+In **Manage Cells…**, drag a Cell onto the first, **Top** row to change
+the saved default entry. The drop preview says **Set as Top**. Dragging among
+other rows only changes the saved list order; dropping at the bottom moves a Cell
+to the end. Both order and Top changes are undone together. This does not change the circuit, its callers, the
 current editing location, or an explicitly selected simulation entry. Undo and
 Redo restore this setting. Opening a definition from Manager clears caller
 context; enter through an instance when you need its specific parent path.
 The Manager's **Hierarchy** tree opens concrete instance occurrences. Expand
 only the branches you need; repeated calls to one Cell retain separate paths.
-**Outside Top** lists definitions unreachable from the default entry, including
-disconnected groups of Cells. They remain editable and reusable.
+The Cell list stays stable regardless of reachability. Double-click a row to open
+its definition; edit the detail heading to rename it (Enter or blur commits,
+Escape cancels). Row menus contain Delete. Alt+Up/Down also reorder a focused row;
+Alt+Up into the first row makes that Cell Top.
 
 Use **Manage Cells…** in **Edit** or the hierarchy row to manage the Project's definitions in one place. It shows each
 Cell's projected Port and caller counts, opens or renames a definition, and lists
@@ -22,10 +26,10 @@ declarations. A referenced Cell's delete control is
 disabled; delete its caller Instances normally before deleting the now
 unreferenced definition.
 
-The Manager separates **Cells** (local schematics) from **External Circuits**
+The Manager separates **Cells** (local schematics) from **External Circuit Defs**
 (project-level declarations for external models). Local Cell interfaces come
 from their canvas Pins; external declarations specify the model target,
-ordered terminals, and formal parameters. Use **New External Circuit** in
+ordered terminals, and formal parameters. Use **New External Circuit Def** in
 the external list to add a declaration, or select an existing one to edit it.
 External definitions have no local schematic to open or reset. Editing their
 declaration does not import or modify the external model implementation.
@@ -172,20 +176,23 @@ unreferenced top Cell is reusable too: create another ordinary Cell, then use
 A valid zero-port interface is allowed; an absent formal interface must be
 authored first.
 
-Cell Manager contains a collapsed **Reset Cell** section for the selected
-definition. Clear Drawing, Reset Cell Placement, and Reset Cell Body retain
-their distinct scopes, show an exact impact preview, and remain undoable.
+Cell Manager does not expose destructive drawing/placement/body reset actions.
+Their typed editing operations remain available to explicit programmatic workflows.
 
 ## Cell parameters
 
 In a device's Property JSON, use the **ƒ** button beside an electrical value
-to choose an existing Cell parameter or create one with a default. Creating
+to open a compact **Hierarchical para** popover beside that field. Choose an
+existing parameter or create one with a default and Apply. Escape or an outside
+click dismisses the popover; changing selection or closing Properties also closes
+it. Creating
 `Rbase` from a resistor value of `1k` declares `Rbase=1k` and changes that
 resistor's value to `{Rbase}` in one undoable operation. Other devices can use
 the same parameter, including expressions such as `{2*Rbase}`. Point lists and
 derived digital-clock controls are not scalar parameter slots.
 
-Manager lists declared parameters with their defaults and usage. Edit a name
+Manager lists declared parameter names and defaults. Hover a name to see internal
+reference and caller override counts; these counts are not another setting. Edit a name
 or default and press Enter or leave the field to commit. Renaming updates
 internal references and every caller's override key atomically, but does not
 rewrite expressions belonging to a parent Cell's own scope. Unused declarations

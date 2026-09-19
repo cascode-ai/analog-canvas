@@ -1,15 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { parameterReferences } from "@icm/devices";
 import type { SchematicDocument } from "@icm/model";
 
 export function CellParameterDialog({
   cell,
+  anchor,
   field,
   value,
   onApply,
   onCancel,
 }: {
   cell: SchematicDocument;
+  anchor: HTMLElement;
   field: string;
   value: string;
   onApply(
@@ -18,7 +20,9 @@ export function CellParameterDialog({
   ): { ok: boolean; message?: string };
   onCancel(): void;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  const cancelRef = useRef(onCancel);
+  cancelRef.current = onCancel;
   const parameters = cell.netlist?.formalParameters ?? [];
   const references = parameterReferences(value);
   const current =
@@ -34,20 +38,61 @@ export function CellParameterDialog({
   const existing = parameters.find(
     (parameter) => parameter.name.toLowerCase() === name.trim().toLowerCase(),
   );
-  useEffect(() => {
-    const dialog = ref.current;
-    dialog?.showModal();
-    return () => dialog?.close();
-  }, []);
+  useLayoutEffect(() => {
+    const panel = ref.current!;
+    const position = () => {
+      if (!anchor.isConnected) {
+        cancelRef.current();
+        return;
+      }
+      const rect = anchor.getBoundingClientRect();
+      const width = panel.offsetWidth;
+      const height = panel.offsetHeight;
+      const x =
+        rect.right + 8 + width <= window.innerWidth - 8
+          ? rect.right + 8
+          : rect.left - width - 8;
+      panel.style.left = `${Math.max(8, Math.min(x, window.innerWidth - width - 8))}px`;
+      panel.style.top = `${Math.max(8, Math.min(rect.top, window.innerHeight - height - 8))}px`;
+    };
+    const dismiss = (event: PointerEvent) => {
+      if (
+        !panel.contains(event.target as Node) &&
+        !anchor.contains(event.target as Node)
+      )
+        cancelRef.current();
+    };
+    panel.showPopover();
+    position();
+    const observer = new ResizeObserver(position);
+    observer.observe(panel);
+    window.addEventListener("resize", position);
+    window.addEventListener("scroll", position, true);
+    window.addEventListener("pointerdown", dismiss, true);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", position);
+      window.removeEventListener("scroll", position, true);
+      window.removeEventListener("pointerdown", dismiss, true);
+      if (panel.matches(":popover-open")) panel.hidePopover();
+    };
+  }, [anchor]);
   return (
-    <dialog
+    <div
       ref={ref}
-      className="editor-action-dialog"
+      popover="manual"
+      role="dialog"
+      className="cell-parameter-popover"
       aria-labelledby="cell-parameter-title"
-      onKeyDown={(event) => event.stopPropagation()}
-      onCancel={(event) => {
-        event.preventDefault();
-        onCancel();
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        event.stopPropagation();
+        if (event.key === "Escape") {
+          event.preventDefault();
+          onCancel();
+          anchor.focus();
+        }
       }}
     >
       <form
@@ -61,11 +106,20 @@ export function CellParameterDialog({
             setError(result.message ?? "Could not use Cell parameter");
         }}
       >
-        <h2 id="cell-parameter-title">Cell parameter · {field}</h2>
+        <header>
+          <strong id="cell-parameter-title">Hierarchical para</strong>
+          <small>{field}</small>
+          <button
+            type="button"
+            aria-label="Close hierarchical parameter"
+            onClick={onCancel}
+          >
+            ×
+          </button>
+        </header>
         <label>
           Name
           <input
-            autoFocus
             aria-label="Cell parameter name"
             list="cell-parameter-options"
             value={name}
@@ -90,15 +144,10 @@ export function CellParameterDialog({
           </label>
         )}
         {error ? <p role="alert">{error}</p> : null}
-        <footer className="editor-action-dialog-actions">
-          <button type="button" onClick={onCancel}>
-            Cancel
-          </button>
-          <button type="submit">
-            {existing ? "Use parameter" : "Create and use"}
-          </button>
+        <footer>
+          <button type="submit">Apply</button>
         </footer>
       </form>
-    </dialog>
+    </div>
   );
 }

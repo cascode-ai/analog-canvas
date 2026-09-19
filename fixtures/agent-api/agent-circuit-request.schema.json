@@ -14711,6 +14711,27 @@
           "properties": {
             "kind": {
               "type": "string",
+              "const": "reorder_documents"
+            },
+            "documentIds": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema364"
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "documentIds"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
               "const": "set_top_document"
             },
             "documentId": {
@@ -14774,55 +14795,55 @@
                   "$ref": "#/$defs/__schema1"
                 },
                 "name": {
-                  "$ref": "#/$defs/__schema364"
-                },
-                "revision": {
                   "$ref": "#/$defs/__schema365"
                 },
-                "sourceBinding": {
+                "revision": {
                   "$ref": "#/$defs/__schema366"
                 },
-                "sourceStatus": {
+                "sourceBinding": {
                   "$ref": "#/$defs/__schema367"
                 },
-                "netlist": {
+                "sourceStatus": {
                   "$ref": "#/$defs/__schema368"
                 },
-                "instances": {
-                  "$ref": "#/$defs/__schema370"
+                "netlist": {
+                  "$ref": "#/$defs/__schema369"
                 },
-                "nets": {
+                "instances": {
                   "$ref": "#/$defs/__schema371"
                 },
-                "connectivityEvidence": {
+                "nets": {
                   "$ref": "#/$defs/__schema372"
                 },
-                "routes": {
+                "connectivityEvidence": {
                   "$ref": "#/$defs/__schema373"
                 },
-                "junctions": {
+                "routes": {
                   "$ref": "#/$defs/__schema374"
                 },
-                "annotations": {
+                "junctions": {
                   "$ref": "#/$defs/__schema375"
                 },
-                "presentation": {
+                "annotations": {
                   "$ref": "#/$defs/__schema376"
                 },
-                "mosBulkDefaults": {
+                "presentation": {
                   "$ref": "#/$defs/__schema377"
                 },
-                "layoutGroups": {
+                "mosBulkDefaults": {
                   "$ref": "#/$defs/__schema378"
                 },
-                "constraints": {
+                "layoutGroups": {
                   "$ref": "#/$defs/__schema379"
                 },
-                "noConnects": {
+                "constraints": {
                   "$ref": "#/$defs/__schema380"
                 },
-                "drafting": {
+                "noConnects": {
                   "$ref": "#/$defs/__schema381"
+                },
+                "drafting": {
+                  "$ref": "#/$defs/__schema382"
                 }
               },
               "required": [
@@ -14933,14 +14954,14 @@
                   "maxItems": 128,
                   "type": "array",
                   "items": {
-                    "$ref": "#/$defs/__schema382"
+                    "$ref": "#/$defs/__schema383"
                   }
                 },
                 "formalParameters": {
                   "maxItems": 128,
                   "type": "array",
                   "items": {
-                    "$ref": "#/$defs/__schema383"
+                    "$ref": "#/$defs/__schema384"
                   }
                 },
                 "interfaceStatus": {
@@ -15006,25 +15027,25 @@
                   "type": "object",
                   "properties": {
                     "kind": {
-                      "$ref": "#/$defs/__schema384"
+                      "$ref": "#/$defs/__schema385"
                     },
                     "entry": {
-                      "$ref": "#/$defs/__schema385"
-                    },
-                    "configPath": {
-                      "$ref": "#/$defs/__schema385"
-                    },
-                    "files": {
                       "$ref": "#/$defs/__schema386"
                     },
+                    "configPath": {
+                      "$ref": "#/$defs/__schema386"
+                    },
+                    "files": {
+                      "$ref": "#/$defs/__schema387"
+                    },
                     "circuitBindings": {
-                      "$ref": "#/$defs/__schema388"
+                      "$ref": "#/$defs/__schema389"
                     },
                     "dependencies": {
-                      "$ref": "#/$defs/__schema390"
+                      "$ref": "#/$defs/__schema391"
                     },
                     "drafts": {
-                      "$ref": "#/$defs/__schema392"
+                      "$ref": "#/$defs/__schema393"
                     }
                   },
                   "required": [
@@ -15119,11 +15140,15 @@
       "minLength": 1
     },
     "__schema365": {
+      "type": "string",
+      "minLength": 1
+    },
+    "__schema366": {
       "type": "integer",
       "minimum": 0,
       "maximum": 9007199254740991
     },
-    "__schema366": {
+    "__schema367": {
       "type": "object",
       "properties": {
         "cellName": {
@@ -15140,7 +15165,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema367": {
+    "__schema368": {
       "type": "string",
       "enum": [
         "in-sync",
@@ -15148,7 +15173,7 @@
         "connectivity-modified"
       ]
     },
-    "__schema368": {
+    "__schema369": {
       "type": "object",
       "properties": {
         "name": {
@@ -15165,7 +15190,7 @@
           "maxItems": 128,
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema369"
+            "$ref": "#/$defs/__schema370"
           }
         }
       },
@@ -15176,7 +15201,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema369": {
+    "__schema370": {
       "type": "object",
       "properties": {
         "name": {
@@ -15191,13 +15216,13 @@
       ],
       "additionalProperties": false
     },
-    "__schema370": {
+    "__schema371": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema14"
       }
     },
-    "__schema371": {
+    "__schema372": {
       "type": "array",
       "items": {
         "type": "object",
@@ -15233,19 +15258,19 @@
         "additionalProperties": false
       }
     },
-    "__schema372": {
+    "__schema373": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema94"
       }
     },
-    "__schema373": {
+    "__schema374": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema72"
       }
     },
-    "__schema374": {
+    "__schema375": {
       "type": "array",
       "items": {
         "type": "object",
@@ -15271,13 +15296,13 @@
         "additionalProperties": false
       }
     },
-    "__schema375": {
+    "__schema376": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema111"
       }
     },
-    "__schema376": {
+    "__schema377": {
       "type": "object",
       "properties": {
         "styleProfileId": {
@@ -15332,7 +15357,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema377": {
+    "__schema378": {
       "type": "object",
       "properties": {
         "nmosNetId": {
@@ -15344,26 +15369,26 @@
       },
       "additionalProperties": false
     },
-    "__schema378": {
+    "__schema379": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema348"
       }
     },
-    "__schema379": {
+    "__schema380": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema351"
       }
     },
-    "__schema380": {
+    "__schema381": {
       "default": [],
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema102"
       }
     },
-    "__schema381": {
+    "__schema382": {
       "type": "object",
       "properties": {
         "objects": {
@@ -15378,7 +15403,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema382": {
+    "__schema383": {
       "type": "object",
       "properties": {
         "id": {
@@ -15406,7 +15431,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema383": {
+    "__schema384": {
       "type": "object",
       "properties": {
         "name": {
@@ -15425,25 +15450,25 @@
       ],
       "additionalProperties": false
     },
-    "__schema384": {
+    "__schema385": {
       "type": "string",
       "const": "source"
     },
-    "__schema385": {
+    "__schema386": {
       "type": "string"
     },
-    "__schema386": {
+    "__schema387": {
       "maxItems": 4096,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema387"
+        "$ref": "#/$defs/__schema388"
       }
     },
-    "__schema387": {
+    "__schema388": {
       "type": "object",
       "properties": {
         "path": {
-          "$ref": "#/$defs/__schema385"
+          "$ref": "#/$defs/__schema386"
         },
         "text": {
           "type": "string"
@@ -15455,21 +15480,21 @@
       ],
       "additionalProperties": false
     },
-    "__schema388": {
+    "__schema389": {
       "maxItems": 1024,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema389"
+        "$ref": "#/$defs/__schema390"
       }
     },
-    "__schema389": {
+    "__schema390": {
       "type": "object",
       "properties": {
         "id": {
           "$ref": "#/$defs/__schema1"
         },
         "path": {
-          "$ref": "#/$defs/__schema385"
+          "$ref": "#/$defs/__schema386"
         },
         "documentId": {
           "$ref": "#/$defs/__schema1"
@@ -15490,14 +15515,14 @@
       ],
       "additionalProperties": false
     },
-    "__schema390": {
+    "__schema391": {
       "maxItems": 1024,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema391"
+        "$ref": "#/$defs/__schema392"
       }
     },
-    "__schema391": {
+    "__schema392": {
       "type": "object",
       "properties": {
         "id": {
@@ -15506,7 +15531,7 @@
           "maxLength": 256
         },
         "mountPath": {
-          "$ref": "#/$defs/__schema385"
+          "$ref": "#/$defs/__schema386"
         },
         "sha256": {
           "type": "string",
@@ -15520,18 +15545,18 @@
       ],
       "additionalProperties": false
     },
-    "__schema392": {
+    "__schema393": {
       "maxItems": 4096,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema393"
+        "$ref": "#/$defs/__schema394"
       }
     },
-    "__schema393": {
+    "__schema394": {
       "type": "object",
       "properties": {
         "path": {
-          "$ref": "#/$defs/__schema385"
+          "$ref": "#/$defs/__schema386"
         },
         "base": {
           "type": "string"
@@ -15540,7 +15565,7 @@
           "type": "string"
         },
         "binding": {
-          "$ref": "#/$defs/__schema389"
+          "$ref": "#/$defs/__schema390"
         }
       },
       "required": [
