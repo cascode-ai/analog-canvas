@@ -11,7 +11,9 @@ import {
   planSetCellSymbolPresentation,
   planUpdateCellTerminalDirection,
   planUpdateCellPortDirection,
-  proposeSetCellFormalParameters,
+  planRenameCellParameter,
+  planSetCellParameterDefault,
+  planRemoveCellParameter,
   proposeUpsertExternalSubcircuitDefinition,
 } from "@icm/edit-engine";
 import type { ProjectStructureEdit, SchematicEdit } from "@icm/edit-engine";
@@ -34,9 +36,10 @@ import type { BlockSymbolLayoutTarget } from "./block-symbol-layout-target";
 
 type CellDirection = "input" | "output" | "inout" | "passive";
 type CellPinSide = "north" | "east" | "south" | "west" | "auto";
-type FormalParameters = NonNullable<
-  SchematicDocument["netlist"]
->["formalParameters"];
+export type CellParameterChange =
+  | { kind: "rename"; value: string }
+  | { kind: "default"; value: string }
+  | { kind: "remove" };
 
 export interface ExternalDefinitionResult {
   ok: boolean;
@@ -455,30 +458,43 @@ export function createProjectStructureCommands({
     }
   };
 
-  const setCellFormalParameters = (
-    formalParameters: FormalParameters,
+  const editCellParameter = (
+    name: string,
+    change: CellParameterChange,
     targetDocumentId = activeDocument.id,
-  ): void => {
+  ): ExternalDefinitionResult => {
     try {
-      const proposal = proposeSetCellFormalParameters(
-        project,
-        targetDocumentId,
-        formalParameters.map((parameter) => ({
-          name: parameter.name.trim(),
-          ...(parameter.defaultValue?.trim()
-            ? { defaultValue: parameter.defaultValue.trim() }
-            : {}),
-        })),
-      );
-      if (commitStructure("set-cell-formal-parameters", [...proposal.edits])) {
-        setStatus("Updated Cell formal parameters");
-      }
+      const edits =
+        change.kind === "rename"
+          ? planRenameCellParameter(
+              project,
+              targetDocumentId,
+              name,
+              change.value.trim(),
+            )
+          : change.kind === "default"
+            ? planSetCellParameterDefault(
+                project,
+                targetDocumentId,
+                name,
+                change.value.trim(),
+              )
+            : planRemoveCellParameter(project, targetDocumentId, name);
+      const ok =
+        edits.length === 0 ||
+        commitStructure(`cell-parameter-${change.kind}`, edits);
+      const message = ok
+        ? "Updated Cell parameter"
+        : "Could not update Cell parameter";
+      setStatus(message);
+      return { ok, message };
     } catch (error) {
-      setStatus(
+      const message =
         error instanceof Error
           ? error.message
-          : "Could not update Cell formal parameters",
-      );
+          : "Could not update Cell parameter";
+      setStatus(message);
+      return { ok: false, message };
     }
   };
 
@@ -651,7 +667,7 @@ export function createProjectStructureCommands({
     deleteCellTerminal,
     moveCellTerminal,
     moveCellPort,
-    setCellFormalParameters,
+    editCellParameter,
     setExternalSubcircuitDefinition,
     setCellSymbolBodySize,
     setCellSymbolPortPlacement,

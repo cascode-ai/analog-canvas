@@ -191,22 +191,23 @@ describe("Project structure commands", () => {
     expect(input.setStatus).toHaveBeenCalledWith("Deleted Cell Child");
   });
 
-  it("normalizes formal parameters before committing their structural edit", () => {
+  it("normalizes a parameter default and rejects clearing it without committing", () => {
     const input = dependencies();
     const child = createEmptyDocument("document-child", "Child");
     input.project.documents.push(child);
+    child.netlist!.formalParameters = [{ name: "gain", defaultValue: "1" }];
     const commands = createProjectStructureCommands(input);
 
-    commands.setCellFormalParameters(
-      [
-        { name: "  gain  ", defaultValue: "  10  " },
-        { name: "bias", defaultValue: "   " },
-      ],
-      child.id,
-    );
+    expect(
+      commands.editCellParameter(
+        "gain",
+        { kind: "default", value: " 10 " },
+        child.id,
+      ).ok,
+    ).toBe(true);
 
     expect(input.commitStructure).toHaveBeenCalledWith(
-      "set-cell-formal-parameters",
+      "cell-parameter-default",
       expect.arrayContaining([
         {
           kind: "transact_document",
@@ -215,15 +216,21 @@ describe("Project structure commands", () => {
           edits: [
             {
               kind: "set_cell_formal_parameters",
-              formalParameters: [
-                { name: "gain", defaultValue: "10" },
-                { name: "bias" },
-              ],
+              formalParameters: [{ name: "gain", defaultValue: "10" }],
             },
           ],
         },
       ]),
     );
+    input.commitStructure.mockClear();
+    expect(
+      commands.editCellParameter(
+        "gain",
+        { kind: "default", value: "" },
+        child.id,
+      ).ok,
+    ).toBe(false);
+    expect(input.commitStructure).not.toHaveBeenCalled();
   });
 
   it("rejects off-grid Cell symbol dimensions before planning", () => {

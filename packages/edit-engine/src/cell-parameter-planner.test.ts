@@ -4,6 +4,8 @@ import {
   cellParameterUsage,
   planBindCellParameter,
   planRenameCellParameter,
+  planSetCellParameterDefault,
+  planRemoveCellParameter,
 } from "./cell-parameter-planner.js";
 import {
   executeProjectTransaction,
@@ -56,6 +58,59 @@ function apply(
 }
 
 describe("Cell parameter authoring", () => {
+  it("changes defaults without touching overrides and removes only unused declarations", () => {
+    const project = fixture();
+    project.documents[1]!.netlist!.formalParameters = [
+      { name: "Rbase", defaultValue: "1k" },
+      { name: "Unused", defaultValue: "2k" },
+    ];
+    project.documents[0]!.instances[0]!.netlist!.parameters = { Rbase: "5k" };
+    const changed = apply(
+      project,
+      planSetCellParameterDefault(project, "child", "Rbase", "3k"),
+    );
+    expect(
+      changed.documents[1]!.netlist!.formalParameters[0]!.defaultValue,
+    ).toBe("3k");
+    expect(changed.documents[0]!.instances[0]!.netlist!.parameters).toEqual({
+      Rbase: "5k",
+    });
+    expect(() => planRemoveCellParameter(changed, "child", "Rbase")).toThrow(
+      "overridden",
+    );
+    const removed = apply(
+      changed,
+      planRemoveCellParameter(changed, "child", "Unused"),
+    );
+    expect(
+      removed.documents[1]!.netlist!.formalParameters.map((item) => item.name),
+    ).toEqual(["Rbase"]);
+    expect(() =>
+      planSetCellParameterDefault(changed, "child", "Rbase", ""),
+    ).toThrow("Default");
+    expect(() =>
+      planSetCellParameterDefault(changed, "child", "Rbase", "{Unused}"),
+    ).not.toThrow();
+    changed.documents[1]!.netlist!.formalParameters[1]!.defaultValue =
+      "{Rbase}";
+    expect(() =>
+      planSetCellParameterDefault(changed, "child", "Rbase", "{Unused}"),
+    ).toThrow("Cyclic");
+  });
+
+  it("keeps incomplete references visible to deletion safety and rejects unsafe rewrites", () => {
+    const project = fixture();
+    project.documents[1]!.netlist!.formalParameters = [
+      { name: "Rbase", defaultValue: "1k" },
+    ];
+    project.documents[1]!.instances[0]!.netlist!.parameters.value = "{Rbase +}";
+    expect(() => planRemoveCellParameter(project, "child", "Rbase")).toThrow(
+      "referenced",
+    );
+    expect(() =>
+      planRenameCellParameter(project, "child", "Rbase", "Resistance"),
+    ).toThrow("unsupported");
+  });
   it("creates and reuses a declaration atomically without populating caller overrides", () => {
     const before = fixture();
     const project = apply(

@@ -1,37 +1,33 @@
-import { useEffect, useState } from "react";
-
-import type { SchematicDocument } from "@icm/model";
+import type { CircuitProject, SchematicDocument } from "@icm/model";
 import { projectCellInterface } from "@icm/model";
-
-type FormalParameter = NonNullable<
-  SchematicDocument["netlist"]
->["formalParameters"][number];
+import { CellParametersEditor } from "./cell-parameters-editor";
+import type {
+  CellParameterChange,
+  ExternalDefinitionResult,
+} from "./project-structure-commands";
 
 /** Compact definition editor embedded in Cell Manager. */
 export function CellInterfaceEditor({
   cell,
+  project,
   callerCount,
   onSetPortDirection,
   onMovePort,
-  onSetFormalParameters,
+  onEditParameter,
 }: {
   cell: SchematicDocument;
+  project: CircuitProject;
   callerCount: number;
   onSetPortDirection(
     portId: string,
     direction: "input" | "output" | "inout" | "passive",
   ): void;
   onMovePort(portId: string, delta: -1 | 1): void;
-  onSetFormalParameters(formalParameters: FormalParameter[]): void;
+  onEditParameter(
+    name: string,
+    change: CellParameterChange,
+  ): ExternalDefinitionResult;
 }) {
-  const [formalParameters, setFormalParameters] = useState<FormalParameter[]>(
-    [],
-  );
-
-  useEffect(() => {
-    setFormalParameters(cell.netlist?.formalParameters ?? []);
-  }, [cell.id, cell.revision]);
-
   if (!cell.netlist) return null;
   const projection = projectCellInterface(cell.netlist);
   const ports = projection.ports;
@@ -129,95 +125,11 @@ export function CellInterfaceEditor({
           )}
         </section>
 
-        <section
-          className="cell-interface-section"
-          aria-label="Formal parameters"
-        >
-          <header>
-            <div>
-              <h3>Parameters</h3>
-              <p>Defaults belong to the Cell; callers may override them.</p>
-            </div>
-            <button
-              type="button"
-              className="cell-inline-action"
-              onClick={() =>
-                setFormalParameters((current) => [...current, { name: "" }])
-              }
-            >
-              Add
-            </button>
-          </header>
-          {formalParameters.length === 0 ? (
-            <p className="cell-interface-empty">No formal parameters.</p>
-          ) : (
-            <div className="cell-parameter-list">
-              {formalParameters.map((parameter, index) => (
-                <div
-                  key={`${parameter.name}-${index}`}
-                  className="cell-parameter-row"
-                >
-                  <input
-                    aria-label={`Formal parameter ${index + 1} name`}
-                    placeholder="Name"
-                    value={parameter.name}
-                    onChange={(event) => {
-                      const name = event.currentTarget.value;
-                      setFormalParameters((current) =>
-                        current.map((item, itemIndex) =>
-                          itemIndex === index ? { ...item, name } : item,
-                        ),
-                      );
-                    }}
-                  />
-                  <input
-                    aria-label={`Formal parameter ${parameter.name} default`}
-                    placeholder="Required"
-                    value={parameter.defaultValue ?? ""}
-                    onChange={(event) => {
-                      const defaultValue = event.currentTarget.value;
-                      setFormalParameters((current) =>
-                        current.map((item, itemIndex) =>
-                          itemIndex === index
-                            ? {
-                                name: item.name,
-                                ...(defaultValue ? { defaultValue } : {}),
-                              }
-                            : item,
-                        ),
-                      );
-                    }}
-                  />
-                  <button
-                    type="button"
-                    aria-label={`Remove formal parameter ${parameter.name}`}
-                    onClick={() =>
-                      setFormalParameters((current) =>
-                        current.filter((_, itemIndex) => itemIndex !== index),
-                      )
-                    }
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          {formalParameters.length > 0 ||
-          cell.netlist.formalParameters.length > 0 ? (
-            <button
-              type="button"
-              className="cell-apply-action"
-              onClick={() =>
-                onSetFormalParameters(
-                  formalParameters.filter((parameter) => parameter.name.trim()),
-                )
-              }
-            >
-              Apply parameters
-            </button>
-          ) : null}
-        </section>
+        <CellParametersEditor
+          cell={cell}
+          project={project}
+          onEdit={onEditParameter}
+        />
       </div>
     </div>
   );

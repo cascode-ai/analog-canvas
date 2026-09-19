@@ -1228,7 +1228,7 @@ export function App({
     deleteCell,
     updateCellPortDirection,
     moveCellPort,
-    setCellFormalParameters,
+    editCellParameter,
     setExternalSubcircuitDefinition,
     setCellSymbolBodySize,
     setCellSymbolPortPlacement,
@@ -5039,8 +5039,8 @@ export function App({
                   updateCellPortDirection(portId, direction, documentId),
                 onMovePort: (documentId, portId, delta) =>
                   moveCellPort(portId, delta, documentId),
-                onSetFormalParameters: (documentId, formalParameters) =>
-                  setCellFormalParameters(formalParameters, documentId),
+                onEditParameter: (documentId, name, change) =>
+                  editCellParameter(name, change, documentId),
                 externalDefinitions: project.externalSubcircuitDefinitions,
                 onSetExternalDefinition: setExternalSubcircuitDefinition,
                 onPlaceExternal: (definitionId) => {

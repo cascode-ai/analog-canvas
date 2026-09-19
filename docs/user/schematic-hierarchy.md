@@ -131,6 +131,31 @@ Cell Manager contains a collapsed **Reset Cell** section for the selected
 definition. Clear Drawing, Reset Cell Placement, and Reset Cell Body retain
 their distinct scopes, show an exact impact preview, and remain undoable.
 
+## Cell parameters
+
+In a device's Property JSON, use the **ƒ** button beside an electrical value
+to choose an existing Cell parameter or create one with a default. Creating
+`Rbase` from a resistor value of `1k` declares `Rbase=1k` and changes that
+resistor's value to `{Rbase}` in one undoable operation. Other devices can use
+the same parameter, including expressions such as `{2*Rbase}`. Point lists and
+derived digital-clock controls are not scalar parameter slots.
+
+Manager lists declared parameters with their defaults and usage. Edit a name
+or default and press Enter or leave the field to commit. Renaming updates
+internal references and every caller's override key atomically, but does not
+rewrite expressions belonging to a parent Cell's own scope. Unused declarations
+remain until explicitly removed; references or caller overrides must be removed
+before deleting a declaration. Invalid or unsupported expressions are not
+silently rewritten.
+
+Select a parent Cell instance to enter overrides in its Property JSON.
+An empty value inherits the definition default; clearing an override restores
+inheritance. Changing a default affects inheriting instances, not explicit
+overrides. Manager hides the parameter table only when there are no declarations:
+an imported parameter without a default still appears and can be repaired.
+New local parameters require defaults, and internal Cells without defaults
+cannot be exported as executable netlists.
+
 Agents use the existing `create-cell` action and `place-cell` with
 `childDocumentId`, `instanceId`, optional `reference`, and `placement`, targeting
 the parent Document. The same Project transaction owns validation and history;

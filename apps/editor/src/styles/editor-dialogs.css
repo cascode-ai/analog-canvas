@@ -383,6 +383,10 @@
   gap: var(--icm-space-3);
 }
 
+.cell-interface-grid:not(:has(.cell-parameter-list)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .cell-interface-section,
 .cell-manager-callers {
   min-width: 0;
@@ -483,7 +487,11 @@
 
 .cell-parameter-row {
   display: grid;
-  grid-template-columns: minmax(5rem, 1fr) minmax(5rem, 1fr) 28px;
+  grid-template-columns: minmax(4rem, 1fr) minmax(4rem, 1fr) minmax(
+      3rem,
+      auto
+    ) 28px;
+  align-items: center;
   gap: 4px;
 }
 

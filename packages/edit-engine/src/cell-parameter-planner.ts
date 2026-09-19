@@ -1,6 +1,7 @@
 import {
   deviceDescriptor,
   parameterReferences,
+  parameterExpressionBody,
   renameParameterReference,
   supportsScalarParameterExpression,
 } from "@icm/devices";
@@ -33,6 +34,138 @@ function documentEdit(
     expectedRevision: document.revision,
     edits,
   };
+}
+
+function validateDefaults(
+  parameters: NonNullable<SchematicDocument["netlist"]>["formalParameters"],
+) {
+  const byName = new Map(
+    parameters.map((parameter) => [parameter.name.toLowerCase(), parameter]),
+  );
+  const visiting = new Set<string>();
+  const done = new Set<string>();
+  function visit(name: string) {
+    if (visiting.has(name))
+      throw new Error(`Cyclic Cell parameter default: ${name}`);
+    if (done.has(name)) return;
+    visiting.add(name);
+    for (const reference of parameterReferences(
+      byName.get(name)?.defaultValue ?? "",
+    )) {
+      const key = reference.name.toLowerCase();
+      if (byName.has(key)) visit(key);
+    }
+    visiting.delete(name);
+    done.add(name);
+  }
+  for (const name of byName.keys()) visit(name);
+}
+
+function validateDefaultValue(value: string) {
+  if (
+    !value.trim() ||
+    value.length > 1024 ||
+    (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(value.trim()) &&
+      !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?[A-Za-z]*$/iu.test(
+        value.trim(),
+      ) &&
+      parameterExpressionBody(value) === undefined)
+  )
+    throw new Error(
+      "Default must be a number, parameter name or a braced expression",
+    );
+}
+
+export function cellParameterCallers(
+  project: CircuitProject,
+  documentId: string,
+  name: string,
+) {
+  return project.documents.flatMap((document) =>
+    document.instances.flatMap((instance) => {
+      const binding = instance.netlist?.binding;
+      return binding?.kind === "subcircuit" &&
+        binding.childDocumentId === documentId &&
+        Object.keys(instance.netlist!.parameters).some(
+          (key) => key.toLowerCase() === name.toLowerCase(),
+        )
+        ? [{ documentId: document.id, instanceId: instance.id }]
+        : [];
+    }),
+  );
+}
+
+export function planSetCellParameterDefault(
+  project: CircuitProject,
+  documentId: string,
+  name: string,
+  defaultValue: string,
+): ProjectStructureEdit[] {
+  const cell = requireCell(project, documentId);
+  const parameter = cell.netlist.formalParameters.find(
+    (item) => item.name.toLowerCase() === name.toLowerCase(),
+  );
+  if (!parameter) throw new Error(`Unknown Cell parameter: ${name}`);
+  validateDefaultValue(defaultValue);
+  if (parameter.defaultValue === defaultValue.trim()) return [];
+  const formalParameters = cell.netlist.formalParameters.map((item) =>
+    item === parameter ? { ...item, defaultValue: defaultValue.trim() } : item,
+  );
+  validateDefaults(formalParameters);
+  return [
+    documentEdit(cell, [
+      { kind: "set_cell_formal_parameters", formalParameters },
+    ]),
+  ];
+}
+
+export function planRemoveCellParameter(
+  project: CircuitProject,
+  documentId: string,
+  name: string,
+): ProjectStructureEdit[] {
+  const cell = requireCell(project, documentId);
+  const parameter = cell.netlist.formalParameters.find(
+    (item) => item.name.toLowerCase() === name.toLowerCase(),
+  );
+  if (!parameter) throw new Error(`Unknown Cell parameter: ${name}`);
+  const usage = cellParameterUsage(cell, parameter.name);
+  if (
+    usage.fields.length ||
+    usage.defaults.length ||
+    cellParameterCallers(project, documentId, name).length
+  )
+    throw new Error(
+      `Parameter ${name} is still referenced or overridden; remove those uses first`,
+    );
+  const labelInUse = project.documents.some((parent) =>
+    parent.annotations.some((annotation) => {
+      const textBinding = annotation.binding;
+      if (
+        textBinding?.kind !== "instance-value" ||
+        textBinding.parameter?.toLowerCase() !== name.toLowerCase()
+      )
+        return false;
+      const binding = parent.instances.find(
+        (instance) => instance.id === textBinding.instanceId,
+      )?.netlist?.binding;
+      return (
+        binding?.kind === "subcircuit" && binding.childDocumentId === documentId
+      );
+    }),
+  );
+  if (labelInUse)
+    throw new Error(`Parameter ${name} is still displayed by a caller`);
+  return [
+    documentEdit(cell, [
+      {
+        kind: "set_cell_formal_parameters",
+        formalParameters: cell.netlist.formalParameters.filter(
+          (item) => item !== parameter,
+        ),
+      },
+    ]),
+  ];
 }
 
 function expressionEntries(instance: SchematicDocument["instances"][number]) {
@@ -93,6 +226,7 @@ export function planBindCellParameter(
       /[\r\n;]/u.test(defaultValue)
     )
       throw new Error("A new Cell parameter needs a default value");
+    validateDefaultValue(defaultValue);
     if (
       parameterReferences(defaultValue).some(
         (reference) => reference.name.toLowerCase() === name.toLowerCase(),
@@ -104,6 +238,10 @@ export function planBindCellParameter(
       throw new Error(
         `Parameter ${name} would capture an existing undeclared reference; choose another name`,
       );
+    validateDefaults([
+      ...cell.netlist.formalParameters,
+      { name, defaultValue },
+    ]);
     edits.push({
       kind: "set_cell_formal_parameters",
       formalParameters: [

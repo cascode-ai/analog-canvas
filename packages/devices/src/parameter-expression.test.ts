@@ -24,7 +24,15 @@ describe("parameter reference identity", () => {
   it("supports bare symbols and quoted expressions without accepting incomplete syntax", () => {
     expect(renameParameterReference(" R ", "r", "Rbase")).toBe(" Rbase ");
     expect(renameParameterReference("'2*R'", "r", "Rbase")).toBe("'2*Rbase'");
-    expect(parameterReferences("{R +}")).toEqual([]);
+    expect(
+      parameterReferences("{R +}").map((reference) => reference.name),
+    ).toEqual(["R"]);
+    expect(() => renameParameterReference("{R +}", "R", "Rbase")).toThrow(
+      "unsupported",
+    );
+    expect(renameParameterReference("0 0 1n {R}", "R", "Rbase")).toBe(
+      "0 0 1n {Rbase}",
+    );
     expect(parameterReferences("1k")).toEqual([]);
   });
 });

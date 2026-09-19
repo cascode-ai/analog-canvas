@@ -35,18 +35,12 @@ export function parameterExpressionBody(value: string): string | undefined {
   return stack.length ? undefined : body;
 }
 
-/** Lexical references in the supported parameter slot, not substrings or function names. */
+/** Conservative lexical references, including repairable incomplete slots. */
 export function parameterReferences(value: string): readonly {
   name: string;
   from: number;
   to: number;
 }[] {
-  const text = value.trim();
-  if (
-    !/^[A-Za-z_][A-Za-z0-9_]*$/u.test(text) &&
-    parameterExpressionBody(text) === undefined
-  )
-    return [];
   const result: { name: string; from: number; to: number }[] = [];
   // Numbers consume exponent and unit suffixes before identifier recognition.
   const tokens =
@@ -68,9 +62,17 @@ export function renameParameterReference(
   from: string,
   to: string,
 ): string {
+  const references = parameterReferences(value).filter(
+    (reference) => reference.name.toLowerCase() === from.toLowerCase(),
+  );
+  if (!references.length) return value;
+  const delimited = /^[{']/u.test(value.trim());
+  if (parameterExpressionBody(delimited ? value : `{${value}}`) === undefined)
+    throw new Error(
+      `Cannot safely rename a reference in unsupported parameter syntax: ${value}`,
+    );
   let result = value;
-  for (const reference of [...parameterReferences(value)].reverse()) {
-    if (reference.name.toLowerCase() !== from.toLowerCase()) continue;
+  for (const reference of [...references].reverse()) {
     result = result.slice(0, reference.from) + to + result.slice(reference.to);
   }
   return result;

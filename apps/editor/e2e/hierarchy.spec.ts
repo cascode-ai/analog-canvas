@@ -144,6 +144,33 @@ test("creates a Cell parameter from a device JSON field with atomic Undo", async
   expect(child(await save()).instances[0].netlist.parameters.value).toBe(
     "{Rbase}",
   );
+  await runCellCommand(page, "Manage Cells…");
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await expect(
+    manager.getByRole("button", { name: "Remove parameter Rbase" }),
+  ).toBeDisabled();
+  await manager.getByLabel("Parameter Rbase name").fill("Resistance");
+  await manager.getByLabel("Parameter Rbase name").press("Enter");
+  await expect(manager.getByLabel("Parameter Resistance name")).toBeVisible();
+  await manager.getByLabel("Close Cell Manager").click();
+  expect(child(await save()).instances[0].netlist.parameters.value).toBe(
+    "{Resistance}",
+  );
+  await page.keyboard.press("Control+z");
+  const renameUndone = child(await save());
+  expect(renameUndone.netlist.formalParameters[0].name).toBe("Rbase");
+  expect(renameUndone.instances[0].netlist.parameters.value).toBe("{Rbase}");
+  await page.keyboard.press("Control+Shift+z");
+  await runCellCommand(page, "Manage Cells…");
+  await manager.getByLabel("Parameter Resistance default").fill("3k");
+  await manager.getByLabel("Parameter Resistance default").press("Enter");
+  await expect(page.getByTestId("status")).toContainText(
+    "Updated Cell parameter",
+  );
+  await manager.getByLabel("Close Cell Manager").click();
+  expect(child(await save()).netlist.formalParameters[0].defaultValue).toBe(
+    "3k",
+  );
 });
 
 test("sets a Cell as default Top without changing its circuit and supports Undo", async ({
@@ -1008,7 +1035,7 @@ test("keeps the Placement Tray out of the manually authored Cell Pin workflow", 
   await expect(page.getByLabel("Cell Pin properties")).toHaveCount(0);
 });
 
-test("authors formal Cell parameters without entering Cell Symbol Layout", async ({
+test("hides empty parameters and does not expose a second declaration workflow", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -1026,19 +1053,13 @@ test("authors formal Cell parameters without entering Cell Symbol Layout", async
   await expect(
     dialog.getByText("Cell symbol layout", { exact: false }),
   ).toHaveCount(0);
-  await dialog
-    .getByLabel("Formal parameters")
-    .getByRole("button", { name: "Add" })
-    .click();
-  await dialog.getByLabel("Formal parameter 1 name").fill("gain");
-  await dialog.getByLabel("Formal parameter gain default").fill("10");
-  await dialog.getByRole("button", { name: "Apply parameters" }).click();
-  await expect(page.getByTestId("status")).toContainText(
-    "Updated Cell formal parameters",
-  );
+  await expect(
+    dialog.getByLabel("Cell parameters", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    dialog.getByRole("button", { name: "Apply parameters" }),
+  ).toHaveCount(0);
   await dialog.getByRole("button", { name: "Close Cell Manager" }).click();
-  await page.keyboard.press("Control+z");
-  await expect(page.getByTestId("status")).toContainText("Committed revision");
 });
 
 test("deletes a wired child Cell Pin through the ordinary instance path", async ({

@@ -1,10 +1,6 @@
 import { useEffect, useState } from "react";
 
-import type {
-  CircuitProject,
-  ExternalSubcircuitDefinition,
-  SchematicDocument,
-} from "@icm/model";
+import type { CircuitProject, ExternalSubcircuitDefinition } from "@icm/model";
 import {
   planCellReset,
   type CellResetIntent,
@@ -14,7 +10,10 @@ import type { CloudProjectSummary } from "../editor-shell/cloud-projects";
 
 import { CellInterfaceEditor } from "./cell-interface-dialog";
 import { ExternalCircuitEditor } from "./external-circuit-editor";
-import type { ExternalDefinitionResult } from "./project-structure-commands";
+import type {
+  CellParameterChange,
+  ExternalDefinitionResult,
+} from "./project-structure-commands";
 
 const RESET_ACTIONS: readonly {
   intent: CellResetIntent;
@@ -51,7 +50,7 @@ export function CellManagerDialog({
   onJumpToCaller,
   onSetPortDirection,
   onMovePort,
-  onSetFormalParameters,
+  onEditParameter,
   externalDefinitions,
   onSetExternalDefinition,
   onPlaceExternal,
@@ -78,12 +77,11 @@ export function CellManagerDialog({
     direction: "input" | "output" | "inout" | "passive",
   ): void;
   onMovePort(documentId: string, portId: string, delta: -1 | 1): void;
-  onSetFormalParameters(
+  onEditParameter(
     documentId: string,
-    formalParameters: NonNullable<
-      SchematicDocument["netlist"]
-    >["formalParameters"],
-  ): void;
+    name: string,
+    change: CellParameterChange,
+  ): ExternalDefinitionResult;
   externalDefinitions: readonly ExternalSubcircuitDefinition[];
   onSetExternalDefinition(
     definition: ExternalSubcircuitDefinition,
@@ -393,6 +391,7 @@ export function CellManagerDialog({
 
                 <CellInterfaceEditor
                   cell={selectedDocument}
+                  project={project}
                   callerCount={selectedEntry.callers.length}
                   onSetPortDirection={(portId, direction) =>
                     onSetPortDirection(selectedEntry.id, portId, direction)
@@ -400,8 +399,8 @@ export function CellManagerDialog({
                   onMovePort={(portId, delta) =>
                     onMovePort(selectedEntry.id, portId, delta)
                   }
-                  onSetFormalParameters={(formalParameters) =>
-                    onSetFormalParameters(selectedEntry.id, formalParameters)
+                  onEditParameter={(name, change) =>
+                    onEditParameter(selectedEntry.id, name, change)
                   }
                 />
 
