@@ -1,6 +1,18 @@
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { createEmptyDocument, createRoutePath } from "@icm/model";
+
+// The browser contracts exercise CodeMirror. Here retain its source and label
+// while checking the real asynchronously loaded Properties section and actions.
+vi.mock("../properties/component-property-json-editor", () => ({
+  default: ({
+    value,
+    ariaLabel = "Editable Canvas property code",
+  }: {
+    value: string;
+    ariaLabel?: string;
+  }) => <textarea aria-label={ariaLabel} value={value} readOnly />,
+}));
 
 import {
   EndpointActionsSection,
@@ -61,8 +73,8 @@ describe("selection context actions", () => {
     return { document, route, netLabel };
   };
 
-  it("uses one code surface for a multi-component selection", () => {
-    const markup = renderToStaticMarkup(
+  it("uses one code surface for a multi-component selection", async () => {
+    const stream = await renderToReadableStream(
       <GroupPropertiesSection
         active
         count={4}
@@ -79,9 +91,14 @@ describe("selection context actions", () => {
         onApply={vi.fn(() => ({ ok: true as const }))}
       />,
     );
+    await stream.allReady;
+    const markup = (await new Response(stream).text()).replace(
+      /<!--.*?-->/gu,
+      "",
+    );
     expect(markup).toContain('aria-label="Batch component properties"');
     expect(markup).toContain("4 selected");
-    expect(markup).toContain('aria-label="Loading batch property code"');
+    expect(markup).toContain('aria-label="Editable Canvas property code"');
     expect(markup).toContain("Empty values keep");
     expect(markup).not.toContain("Canvas labels");
     expect(markup).not.toContain("Visual annotation");
@@ -135,9 +152,9 @@ describe("selection context actions", () => {
     expect(markup).toContain("Place the component on the canvas");
   });
 
-  it("renders route label and highlight actions", () => {
+  it("renders route label and highlight actions", async () => {
     const { document, route, netLabel } = routeFixture();
-    const markup = renderToStaticMarkup(
+    const stream = await renderToReadableStream(
       <RouteActionsSection
         active
         document={document}
@@ -150,6 +167,8 @@ describe("selection context actions", () => {
         onDeleteWire={vi.fn()}
       />,
     );
+    await stream.allReady;
+    const markup = await new Response(stream).text();
     expect(markup).toContain('aria-label="Annotation property code"');
     expect(markup).toContain("Route");
     expect(markup).toContain("OUT");
