@@ -223,55 +223,57 @@ export function NetlistCodePanel({
       aria-label="Live netlist"
     >
       <div className="netlist-code-controls">
-        {onRootChange && project.documents.length > 1 ? (
+        <div className="netlist-code-selects">
+          {onRootChange && project.documents.length > 1 ? (
+            <label>
+              <span>Entry</span>
+              <select
+                aria-label="Netlist entry Cell"
+                value={rootDocumentId ?? ""}
+                disabled={dirty}
+                onChange={(event) => onRootChange(event.currentTarget.value)}
+              >
+                <option value="">Default Top</option>
+                {project.documents.map((cell) => (
+                  <option key={cell.id} value={cell.id}>
+                    {cell.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <label>
-            <span>Entry</span>
+            <span>Format</span>
             <select
-              aria-label="Netlist entry Cell"
-              value={rootDocumentId ?? ""}
-              disabled={dirty}
-              onChange={(event) => onRootChange(event.currentTarget.value)}
+              aria-label="Netlist format"
+              value={format}
+              onChange={(event) =>
+                onFormatChange(event.currentTarget.value as NetlistFormat)
+              }
             >
-              <option value="">Default Top</option>
-              {project.documents.map((cell) => (
-                <option key={cell.id} value={cell.id}>
-                  {cell.name}
+              <option value="spice">SPICE</option>
+              <option value="spectre">SCS</option>
+            </select>
+          </label>
+          <label>
+            <span>Process</span>
+            <select
+              aria-label="Netlist process"
+              value={process}
+              disabled={dirty}
+              onChange={(event) => {
+                const id = event.currentTarget.value as NetlistProfileId;
+                if (applyProcess(profiles[id])) onProcessChange(id);
+              }}
+            >
+              {NETLIST_PROFILE_IDS.map((id) => (
+                <option key={id} value={id}>
+                  {NETLIST_PROFILE_LABELS[id]}
                 </option>
               ))}
             </select>
           </label>
-        ) : null}
-        <label>
-          <span>Format</span>
-          <select
-            aria-label="Netlist format"
-            value={format}
-            onChange={(event) =>
-              onFormatChange(event.currentTarget.value as NetlistFormat)
-            }
-          >
-            <option value="spice">SPICE</option>
-            <option value="spectre">SCS</option>
-          </select>
-        </label>
-        <label>
-          <span>Process</span>
-          <select
-            aria-label="Netlist process"
-            value={process}
-            disabled={dirty}
-            onChange={(event) => {
-              const id = event.currentTarget.value as NetlistProfileId;
-              if (applyProcess(profiles[id])) onProcessChange(id);
-            }}
-          >
-            {NETLIST_PROFILE_IDS.map((id) => (
-              <option key={id} value={id}>
-                {NETLIST_PROFILE_LABELS[id]}
-              </option>
-            ))}
-          </select>
-        </label>
+        </div>
         <button
           type="button"
           className="netlist-code-copy"

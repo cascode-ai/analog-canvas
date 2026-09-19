@@ -118,12 +118,6 @@
   position: relative;
 }
 
-.project-tool-dock .selection-panel > section > header,
-.project-tool-dock .project-code-actions,
-.project-tool-dock .netlist-code-controls {
-  padding-right: 38px;
-}
-
 .project-tool-dock .netlist-live-code {
   display: flex;
   flex-direction: column;
@@ -136,27 +130,6 @@
   flex: 1 1 auto;
   height: auto;
   min-height: 0;
-}
-
-.project-tool-close {
-  position: absolute;
-  top: var(--icm-space-2);
-  right: var(--icm-space-2);
-  z-index: 3;
-  width: 30px;
-  min-height: 30px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--icm-radius-sm);
-  background: transparent;
-  color: var(--icm-text-muted);
-  font-size: 20px;
-}
-
-.project-tool-close:hover {
-  border-color: var(--icm-border);
-  background: var(--icm-surface-muted);
-  color: var(--icm-text);
 }
 
 .project-code-panel {

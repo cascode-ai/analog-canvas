@@ -214,24 +214,36 @@
   display: grid;
   gap: 8px;
 }
+/* However many selects the row carries — Entry appears only for a Project with
+   more than one Cell — they share the width the panel has and wrap when it runs
+   out. The copy button is outside that wrapping, so it holds the right edge at
+   every width. */
 .netlist-code-controls {
-  display: grid;
-  grid-template-columns: minmax(112px, 0.8fr) minmax(0, 1fr) auto;
-  align-items: center;
+  display: flex;
+  align-items: flex-start;
   gap: 8px;
 }
-.netlist-code-controls label,
+.netlist-code-selects {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+}
+.netlist-code-selects label,
 .netlist-device-mapping label {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
+  flex: 1 1 150px;
   gap: 6px;
   min-width: 0;
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
   font-weight: 600;
 }
-.netlist-code-controls select,
+.netlist-code-selects select,
 .netlist-device-mapping select {
   min-width: 0;
   width: 100%;
@@ -242,11 +254,11 @@
   color: var(--icm-text);
   font: inherit;
 }
-.netlist-code-controls select {
+.netlist-code-selects select {
   padding-right: 14px;
   padding-left: 5px;
 }
-.netlist-code-controls label {
+.netlist-code-selects label {
   gap: 3px;
 }
 .netlist-code-controls button {
@@ -254,10 +266,7 @@
 }
 .netlist-code-copy {
   display: inline-grid;
-  /* Held at the right edge: the selects give up width before it does, so a
-     half-width window never pushes them out of reach. */
   flex: 0 0 auto;
-  margin-left: auto;
   width: 30px;
   padding: 5px;
   place-items: center;

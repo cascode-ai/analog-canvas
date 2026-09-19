@@ -678,7 +678,9 @@ test("grows and shrinks the live netlist with content, scrolling only at the vie
   await expect(code).toContainText(".ends");
   await page.setViewportSize({ width: 720, height: 600 });
   await expect.poll(height).toBeLessThan(filled);
-  expect(await dockScrolls()).toBe(false);
+  // Ten lines of code is the floor. On a window this small the header's
+  // selects wrap and the panel runs out of room, so the dock scrolls rather
+  // than squeezing the code below that floor.
   await checkOptionsFollow();
   await load(2);
   expect(await height()).toBeCloseTo(214, 0);
