@@ -170,7 +170,9 @@ export async function prepareSourceExecutionInput(
     deviceOperatingPoints: deviceOp.deviceOperatingPoints,
     measurements: compiled.config.measurements,
     warnings: [
-      ...compiled.warnings.map((w) => w.message),
+      ...compiled.warnings
+        .filter((w) => w.code !== "GENERATED_NET_NAME")
+        .map((w) => w.message),
       ...native.warnings,
       ...(volume ? [volume] : []),
       ...(unqualified.length

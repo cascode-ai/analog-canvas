@@ -74,6 +74,7 @@ export interface NetlistDiagnostic {
   objectIds: StableId[];
   /** Canonical evidence for the preflight and other consumers to navigate. */
   primary: ObjectLocator;
+  parameter?: string;
   message: string;
 }
 
