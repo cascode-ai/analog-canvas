@@ -680,6 +680,8 @@ export const AgentTransactSuccessResponseSchema = ResponseBaseSchema.extend({
   revision: z.number().int().nonnegative(),
   proposedRevision: z.number().int().nonnegative(),
   diff: AgentDiffSchema,
+  /** Document-local terminal equivalence only; not full electrical equivalence. */
+  terminalConnectivityChanged: z.boolean().optional(),
   diagnostics: z.array(AgentDiagnosticSchema),
   diagnosticDelta: z
     .strictObject({

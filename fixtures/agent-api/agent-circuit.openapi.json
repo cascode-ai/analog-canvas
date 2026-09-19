@@ -19183,6 +19183,9 @@
                 ],
                 "additionalProperties": false
               },
+              "terminalConnectivityChanged": {
+                "type": "boolean"
+              },
               "diagnostics": {
                 "type": "array",
                 "items": {

@@ -42,6 +42,7 @@ import type {
 import { AgentAuthoringCommandSchema } from "./authoring-command.js";
 import { buildProjectConnectivityIndex, traceHierarchyNet } from "@icm/derived";
 import { buildAgentSessionSnapshot } from "./snapshot.js";
+import { terminalConnectivity } from "./terminal-connectivity.js";
 
 const OPERATIONS = ["capabilities", "snapshot", "transact", "render"] as const;
 
@@ -969,6 +970,9 @@ export function createAgentCircuitService(
           revision: result.revision,
           proposedRevision: result.proposedRevision,
           diff: result.diff,
+          terminalConnectivityChanged:
+            terminalConnectivity(document) !==
+            terminalConnectivity(result.document),
           ...(committedProject &&
           project &&
           committedProject.structureRevision !== project.structureRevision
