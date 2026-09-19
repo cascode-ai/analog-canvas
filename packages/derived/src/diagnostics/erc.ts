@@ -47,6 +47,38 @@ export function runErcChecks(
   );
 
   for (const document of documents) {
+    for (const issue of projectCellInterface(document.netlist).issues) {
+      const locations = issue.terminalIds.map((terminalId) => {
+        const terminal = document.netlist!.terminals.find(
+          (item) => item.id === terminalId,
+        )!;
+        return terminal.interfaceInstanceIds.length
+          ? directObjectLocator(
+              document.id,
+              "instance",
+              terminal.interfaceInstanceIds[0]!,
+            )
+          : terminal.interfaceAnnotationId
+            ? directObjectLocator(
+                document.id,
+                "annotation",
+                terminal.interfaceAnnotationId,
+              )
+            : directObjectLocator(document.id, "net", terminal.netId);
+      });
+      diagnostics.push({
+        id: `erc:cell-port-direction-conflict:${document.id}:${issue.portKey}`,
+        domain: "erc",
+        code: `ERC_${issue.code}`,
+        severity: "error",
+        confidence: "high",
+        gateEligible: true,
+        message: `Port ${issue.portName} has conflicting directions: ${issue.directions.join(", ")}`,
+        primary: locations[0]!,
+        related: locations.slice(1),
+        parameters: { portName: issue.portName },
+      });
+    }
     const docIndex = index.documents.get(document.id);
     const endpointConnectivity = createEndpointConnectivityClassifier(
       document,
