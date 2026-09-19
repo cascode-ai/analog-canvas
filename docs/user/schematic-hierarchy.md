@@ -1,7 +1,7 @@
 # Schematic hierarchy
 
 Analog Canvas treats every Project Document as one reusable schematic Cell.
-The top Cell is the export root; other Cells may be instantiated any number of
+The top Cell is the saved default entry; other Cells may be instantiated any number of
 times or kept unreferenced while they are being authored.
 
 Select a local Cell in **Manage Cells…** and choose **Set as Top** to change
@@ -9,6 +9,10 @@ the saved default entry. This does not change the circuit, its callers, the
 current editing location, or an explicitly selected simulation entry. Undo and
 Redo restore this setting. Opening a definition from Manager clears caller
 context; enter through an instance when you need its specific parent path.
+The Manager's **Hierarchy** tree opens concrete instance occurrences. Expand
+only the branches you need; repeated calls to one Cell retain separate paths.
+**Outside Top** lists definitions unreachable from the default entry, including
+disconnected groups of Cells. They remain editable and reusable.
 
 Use **Manage Cells…** in **Edit** or the hierarchy row to manage the Project's definitions in one place. It shows each
 Cell's projected Port and caller counts, opens or renames a definition, and lists
@@ -28,6 +32,11 @@ declaration does not import or modify the external model implementation.
 Enter a target name and its ordered terminals (commas or spaces), then use
 **Create External Circuit**. Select a saved declaration and choose **Place**
 to start ordinary canvas placement; **Save definition** updates its interface.
+Renaming a generic external target keeps its definition identity and updates
+its callers; it does not rename a model inside source files. **Delete definition**
+uses an internal confirmation and is available only when no instances reference
+the definition. Deletion supports Undo/Redo. The shared **Callers** list locates
+external instances just as it does local ones.
 Validation errors appear inside the Manager. Its pins connect to Nets and
 export as an external subcircuit call, but simulation still requires the actual
 model implementation in the simulation source files.
@@ -36,6 +45,10 @@ body size, pin side/offset, and canvas drag handles. A layout edit updates every
 instance and follows connected routes in the same undoable transaction. Native
 PDK device symbols retain their reviewed artwork instead of exposing generic
 block resize handles.
+An exact reviewed PDK interface is read-only in Manager: its target, ordered
+terminals and parameter declarations belong to the reviewed mapping. Set device
+parameter values on instances instead. Neither a generic declaration nor a
+reviewed mapping alone proves that a particular simulation has its model sources.
 Port names do not infer subscripts from spelling. Local Cell symbols inherit
 the representative Port annotation's explicit RichText formatting, including
 subscripts; generic External pin names remain whole by default. This does not
@@ -50,8 +63,10 @@ as a library component. The commit keeps the `Xn` reference as internal
 netlist identity and shows only the Cell name at the normal instance-label
 position. **Enter Cell** opens the child of a selected hierarchical Instance.
 **Up** follows the actual parent Instance path; **Top** returns to the root.
-Opening a shared Cell from the selector has no caller context when more than
-one path reaches it, which is reported in the status bar.
+Opening a Cell from the selector or Manager's definition list always opens the
+definition without caller context, even when it has only one caller. **Up** is
+disabled in that context. Enter an instance or use the hierarchy tree to carry
+a concrete path; **Up** then returns to and selects the original caller.
 
 Use **Import Cell** in the Cell Manager to copy a Cell from another signed-in
 Cloud Project. The import includes every child Cell it calls, compatible
@@ -64,8 +79,8 @@ copy rather than creating another hidden duplicate. The first release requires
 the source and destination to use the same exact Symbol Library lock and
 reports incompatible external interfaces without changing either Project.
 
-The top Cell is the Project export root and is not instantiated as a symbol,
-but it is still emitted as a reusable structural subcircuit. **Port** and
+The default top Cell is still a reusable structural subcircuit; it can be placed
+in another Cell when this does not create a recursive hierarchy. **Port** and
 **Filled Port** are hollow and filled artwork for the same **Cell Pin** concept.
 A Cell Pin defines one independently authored interface declaration. Use Net
 Label instead when you only need to name an internal Net.
@@ -89,21 +104,36 @@ copy, and deletion. Copying a Cell Pin creates a new formal terminal with an
 independent stable identity and a freshly allocated interface name, with its
 direction preserved. Copy follows ordinary insertion: destination contacts
 determine connectivity; off-selection source connectivity is not inherited.
-Only explicitly selected wires travel with the copy. Later edits to either
-Pin do not affect the other. Placing or renaming a
-Pin to the same name never attaches it to another Pin or merges their Nets.
+Only explicitly selected wires travel with the copy. Markers keep independent
+canvas identities, but names have electrical meaning: equal case-insensitive
+Port names belong to one Logical Net. Sharing a name need not merge their
+underlying Base Net objects or draw a wire between the markers.
 
 When the Cell is used as a hierarchical block or exported, a read-only final
 projection groups case-insensitively equal Pin names into one Formal Port. The
-first Pin fixes that Port's order and spelling. Grouping does not modify the
-canvas objects; only a Wire or explicit electrical contact connects them while
-drawing.
+first Pin fixes that Port's order and spelling. Grouping does not rewrite the
+canvas objects, but the logical connection is real, including during export.
+Different Port names on the same internal Net remain separate interface pins.
+Moving a symbol pin to another side changes geometry, not the netlist port order.
 
 Renaming that annotation changes only the selected Pin. Parent Instances are
 updated only if the before/after grouped interface actually changes. Deleting
-one of several same-name Pins leaves the parent Formal Port intact; deleting
+one of several same-name Pins leaves the parent Formal Port intact. Its layout
+follows the surviving representative, and its same-spelling RichText format is
+inherited unless the survivor already has an explicit format. Deleting
 the last removes it and detaches affected caller wire endpoints to editable
 Junctions in the same undoable Project transaction.
+Deleting the last connected Port requires internal confirmation; it does not
+require deleting all other Ports first. Renaming to an existing interface name
+also requires confirmation: this can merge the corresponding parent Nets.
+Cancel leaves the Project unchanged; Undo restores the complete operation.
+Incompatible power-domain connections remain rejected.
+
+ERC and formal netlist export diagnose conflicting directions within one
+effective Port, and external master names that collide with local exported Cell
+names. These findings do not prohibit saving unfinished work. Authoring previews
+retain missing positional nodes as explicit placeholders; they are not runnable
+netlists and must not be treated as successful simulation preparation.
 **Delete Cell** removes only a non-top, unreferenced Cell definition and can be undone or redone.
 Deleting a hierarchical Instance with the normal Delete command never deletes
 its reusable child Cell.
@@ -119,6 +149,12 @@ anchor. Use **Auto** to return a pin to direction-aware placement. **Edit
 symbol layout on canvas** reveals explicit drag grips for the body and pins;
 the Properties values remain the precise fallback. These are definition operations,
 not top-level drawing tools.
+
+Highlight a connected Net with **H** or **Highlight Net** to inspect
+**Hierarchy Net trace** in Properties. Its **Enter** and **Return** actions
+follow the selected electrical connection across a concrete instance boundary
+and highlight the destination Net. Direct definition navigation does not invent
+an occurrence path.
 
 The generated Symbol is ready for the first placement without a separate review
 or apply step. Customize it from a placed parent Instance when needed. An
