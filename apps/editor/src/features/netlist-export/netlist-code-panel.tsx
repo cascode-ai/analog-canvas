@@ -8,7 +8,10 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import type { ProjectStructureEdit } from "@icm/edit-engine";
+import {
+  executeProjectTransaction,
+  type ProjectStructureEdit,
+} from "@icm/edit-engine";
 import {
   planNetlistCodeEdit,
   netlistInstanceAtLine,
@@ -176,22 +179,51 @@ export function NetlistCodePanel({
     }
     ownApply.current = false;
   }, [source]);
-  function apply() {
-    if (!dirty) return true;
+  function apply(options: { fillMissingDefaults?: boolean } = {}) {
+    if (!dirty && !options.fillMissingDefaults) return true;
     if (conflict || result?.status !== "ready") return false;
     const plan = planNetlistCodeEdit(project, result, draftRef.current);
     if (!plan.ok) {
       setApplyError(plan.message);
       return false;
     }
-    if (!plan.edits.length) {
+    let edits = plan.edits;
+    if (options.fillMissingDefaults) {
+      try {
+        let working = project;
+        if (edits.length) {
+          const staged = executeProjectTransaction(project, {
+            transactionId: "plan-netlist-refresh",
+            projectId: project.id,
+            expectedStructureRevision: project.structureRevision,
+            actor: { kind: "human", id: "netlist-refresh" },
+            edits,
+          });
+          if (!staged.ok) throw new Error(staged.error.message);
+          working = staged.project;
+        }
+        edits = [
+          ...edits,
+          ...planNetlistProcess(working, profile, { onlyMissing: true }),
+        ];
+        setProcessError(null);
+      } catch (error) {
+        setProcessError(
+          error instanceof Error
+            ? error.message
+            : "Could not fill missing netlist defaults",
+        );
+        return false;
+      }
+    }
+    if (!edits.length) {
       setDraft(source);
       setEditBaseline(source);
       setApplyError(null);
       return true;
     }
     ownApply.current = true;
-    if (!onApply(plan.edits)) {
+    if (!onApply(edits)) {
       ownApply.current = false;
       setApplyError(
         "Edit rejected. Check the device prefix and duplicate names; the circuit keeps the last valid values.",
@@ -202,7 +234,7 @@ export function NetlistCodePanel({
     return true;
   }
   function refresh() {
-    if (!apply()) return;
+    if (!apply({ fillMissingDefaults: true })) return;
     setCompileRevision((revision) => revision + 1);
     setApplyError(null);
     onFocusInstance(null);
@@ -289,8 +321,8 @@ export function NetlistCodePanel({
             type="button"
             className="netlist-code-refresh"
             data-testid="refresh-netlist-panel"
-            aria-label="Recompile netlist"
-            title="Recompile netlist"
+            aria-label="Refresh netlist"
+            title="Refresh netlist and fill missing models and values"
             onClick={refresh}
           >
             <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -439,9 +471,9 @@ export function NetlistCodePanel({
               className="netlist-fill-defaults"
               data-testid="netlist-fill-defaults"
               disabled={dirty}
-              title={`Give the ${pendingDefaults} ${
+              title={`Fill missing models and values on the ${pendingDefaults} ${
                 pendingDefaults === 1 ? "device" : "devices"
-              } with no model the ${NETLIST_PROFILE_LABELS[process]} model and dimensions`}
+              } using the ${NETLIST_PROFILE_LABELS[process]} defaults`}
               onClick={() => applyProcess(profile, { onlyMissing: true })}
             >
               Fill {pendingDefaults}{" "}

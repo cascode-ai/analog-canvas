@@ -528,7 +528,7 @@ test("shows and copies a live MOS netlist with explicitly connected bulk termina
     selectBoxes[0]!.x + selectBoxes[0]!.width,
     0,
   );
-  const refresh = panel.getByRole("button", { name: "Recompile netlist" });
+  const refresh = panel.getByRole("button", { name: "Refresh netlist" });
   const copy = panel.getByRole("button", { name: "Copy netlist", exact: true });
   const formatSelect = panel.getByLabel("Netlist format");
   const processSelect = panel.getByLabel("Netlist process");
@@ -806,17 +806,18 @@ test("edits output configuration without creating another electrical authority",
   expect(netlist).toContain("simulator lang=spectre");
 });
 
-test("fills a circuit drawn before the process in one click", async ({
+test("refreshes a legacy circuit with missing device defaults in one click", async ({
   page,
 }) => {
   // A circuit from before the editor bound devices: two MOS with no model and
-  // no dimensions, so every card it prints is a TODO field. The panel offers
-  // exactly the devices it would fill, and filling them leaves none.
+  // no dimensions, plus one ideal resistor with no value. Refresh fills every
+  // safe process default in the same undoable edit and leaves no TODO fields.
   const project = createEmptyProject("bare-devices", "Bare devices");
   const document = project.documents[0]!;
   for (const [reference, symbolId] of [
     ["M1", "nmos"],
     ["M2", "pmos"],
+    ["R1", "resistor"],
   ] as const) {
     document.instances.push({
       id: reference,
@@ -855,6 +856,13 @@ test("fills a circuit drawn before the process in one click", async ({
         { instanceId: "M2", pinName: "B" },
       ],
     },
+    {
+      id: "resistor",
+      terminals: [
+        { instanceId: "R1", pinName: "1" },
+        { instanceId: "R1", pinName: "2" },
+      ],
+    },
   );
   await page.goto("/editor");
   await page.getByTestId("project-file").setInputFiles({
@@ -866,17 +874,20 @@ test("fills a circuit drawn before the process in one click", async ({
   const code = page.getByLabel("Netlist code", { exact: true });
   await expect(code).toContainText("TODO");
   const fill = page.getByTestId("netlist-fill-defaults");
-  await expect(fill).toHaveText("Fill 2 devices");
-  await fill.click();
+  await expect(fill).toHaveText("Fill 3 devices");
+  await page.getByRole("button", { name: "Refresh netlist" }).click();
   await expect(code).toContainText("sky130_fd_pr__nfet_01v8");
+  await expect(code).toContainText(/R1 \S+ \S+ 1k/u);
   await expect(code).not.toContainText("TODO");
   await expect(fill).toHaveCount(0);
   // One undo step: the circuit is back to what was opened.
   await clickCommand(page, "Edit", "Undo");
   await expect(code).toContainText("TODO");
   await expect(page.getByTestId("netlist-fill-defaults")).toHaveText(
-    "Fill 2 devices",
+    "Fill 3 devices",
   );
+  await page.getByTestId("netlist-fill-defaults").click();
+  await expect(code).not.toContainText("TODO");
 });
 
 test("retains copyable TODO fields when the user clears a template default", async ({
