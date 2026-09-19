@@ -14,7 +14,6 @@ import {
   planReorderCellTerminal,
   planRenameCellTerminal,
   planSetDeviceModelTarget,
-  planSetMosModelTarget,
   planSetVddConnectionMode,
   planUpdateCellPortDirection,
 } from "./hierarchy-planner.js";
@@ -676,7 +675,7 @@ describe("reviewed external MOS model targets", () => {
 
   it("creates a SKY130 interface and atomically adopts its ngspice X reference", () => {
     const project = projectWithNmos();
-    const edits = planSetMosModelTarget(
+    const edits = planSetDeviceModelTarget(
       project,
       project.topDocumentId,
       "M1",
@@ -733,7 +732,7 @@ describe("reviewed external MOS model targets", () => {
       projectId: project.id,
       expectedStructureRevision: project.structureRevision,
       actor: { kind: "human", id: "test" },
-      edits: planSetMosModelTarget(
+      edits: planSetDeviceModelTarget(
         project,
         project.topDocumentId,
         "M1",
@@ -768,7 +767,7 @@ describe("reviewed external MOS model targets", () => {
       projectId: source.id,
       expectedStructureRevision: source.structureRevision,
       actor: { kind: "human", id: "test" },
-      edits: planSetMosModelTarget(
+      edits: planSetDeviceModelTarget(
         source,
         source.topDocumentId,
         "M1",
@@ -783,7 +782,7 @@ describe("reviewed external MOS model targets", () => {
       projectId: project.id,
       expectedStructureRevision: project.structureRevision,
       actor: { kind: "human", id: "test" },
-      edits: planSetMosModelTarget(
+      edits: planSetDeviceModelTarget(
         project,
         project.topDocumentId,
         "M1",
@@ -806,7 +805,7 @@ describe("reviewed external MOS model targets", () => {
   it("rejects a PFET master on an NMOS symbol", () => {
     const project = projectWithNmos();
     expect(() =>
-      planSetMosModelTarget(
+      planSetDeviceModelTarget(
         project,
         project.topDocumentId,
         "M1",
@@ -971,7 +970,7 @@ describe("reviewed external MOS model targets", () => {
       reference: "XM1",
       netlist: { parameters: {} },
     });
-    const edits = planSetMosModelTarget(
+    const edits = planSetDeviceModelTarget(
       project,
       project.topDocumentId,
       "M1",

@@ -561,9 +561,6 @@ export function planSetDeviceModelTarget(
     : [];
 }
 
-/** Compatibility name for callers; behavior now covers all reviewed devices. */
-export const planSetMosModelTarget = planSetDeviceModelTarget;
-
 /** Build the one canonical subcircuit Instance projection of a child Cell. */
 export function createHierarchyInstance(
   id: string,
@@ -1157,98 +1154,6 @@ export function proposeUpsertExternalSubcircuitDefinition(
     ],
     diagnostics,
   );
-}
-
-/**
- * Rename one external terminal while retaining its stable identity and every
- * connected caller projection. Reordering is separately safe because callers
- * connect by terminal identity/name while netlist extraction observes array order.
- */
-export function planRenameExternalSubcircuitTerminal(
-  project: CircuitProject,
-  definitionId: string,
-  terminalId: string,
-  newName: string,
-): ProjectStructureEdit[] {
-  const definition = project.externalSubcircuitDefinitions.find(
-    (candidate) => candidate.id === definitionId,
-  );
-  const terminal = definition?.terminals.find(
-    (candidate) => candidate.id === terminalId,
-  );
-  if (!definition || !terminal) {
-    throw new Error(
-      `External terminal does not exist: ${definitionId}.${terminalId}`,
-    );
-  }
-  if (
-    definition.terminals.some(
-      (candidate) =>
-        candidate.id !== terminalId &&
-        candidate.name.toLowerCase() === newName.toLowerCase(),
-    )
-  ) {
-    throw new Error(`External terminal name already exists: ${newName}`);
-  }
-  if (terminal.name === newName) return [];
-  const nextDefinition: ExternalSubcircuitDefinition = {
-    ...definition,
-    terminals: definition.terminals.map((candidate) =>
-      candidate.id === terminalId ? { ...candidate, name: newName } : candidate,
-    ),
-  };
-  const edits: ProjectStructureEdit[] = [
-    {
-      kind: "upsert_external_subcircuit_definition",
-      definition: nextDefinition,
-    },
-  ];
-  for (const document of project.documents) {
-    const callerEdits: DocumentEdits = [];
-    for (const instance of document.instances) {
-      const binding = instance.netlist?.binding;
-      if (
-        binding?.kind !== "external-subcircuit" ||
-        binding.definitionId !== definitionId
-      ) {
-        continue;
-      }
-      const referenced =
-        document.nets.some((net) =>
-          net.terminals.some(
-            (reference) =>
-              reference.instanceId === instance.id &&
-              reference.pinName === terminal.name,
-          ),
-        ) ||
-        document.routes.some((route) =>
-          [route.start, routeEnd(route)].some(
-            (endpoint) =>
-              endpoint.kind === "terminal" &&
-              endpoint.instanceId === instance.id &&
-              endpoint.pinName === terminal.name,
-          ),
-        ) ||
-        document.noConnects.some(
-          (noConnect) =>
-            noConnect.endpoint.instanceId === instance.id &&
-            noConnect.endpoint.pinName === terminal.name,
-        ) ||
-        (instance.importProvenance?.terminalMapping ?? []).some(
-          (reference) => reference.pinName === terminal.name,
-        );
-      if (!referenced) continue;
-      callerEdits.push({
-        kind: "set_instance_symbol",
-        instanceId: instance.id,
-        symbolId: externalSubcircuitSymbolId(definitionId),
-        pinMap: { [terminal.name]: newName },
-      });
-    }
-    if (callerEdits.length > 0)
-      edits.push(transactDocument(project, document.id, callerEdits));
-  }
-  return edits;
 }
 
 export function planSetCellTerminalPlacement(
