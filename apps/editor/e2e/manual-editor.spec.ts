@@ -57,6 +57,38 @@ async function clickRoute(
   await page.mouse.click(point.x, point.y);
 }
 
+/**
+ * The paint a Route's run is drawn with.
+ *
+ * A conductor run is one shape however many Routes it is stored as, so a
+ * Route's colour and dash live on the shape carrying its subpath rather than
+ * on the element that carries its identity.
+ */
+async function routeInk(
+  page: Page,
+  routeId: string,
+  attribute: "stroke" | "stroke-dasharray",
+): Promise<string | null> {
+  return page.evaluate(
+    ([id, name]) => {
+      const identity = window.document.querySelector(
+        `[data-layer="routes"] [data-object-id="${id}"]`,
+      ) as SVGPolylineElement | null;
+      if (!identity) return null;
+      const subpath = `M ${Array.from(identity.points)
+        .map((point) => `${point.x} ${point.y}`)
+        .join(" L ")}`;
+      const ink = [
+        ...window.document.querySelectorAll(
+          '[data-layer="routes"] [data-role="conductor-ink"]',
+        ),
+      ].find((path) => (path.getAttribute("d") ?? "").includes(subpath));
+      return ink?.getAttribute(name!) ?? null;
+    },
+    [routeId, attribute] as const,
+  );
+}
+
 async function readRoutePoints(page: Page, routeId: string) {
   return page
     .locator(`[data-layer="routes"] [data-object-id="${routeId}"]`)
@@ -1137,11 +1169,13 @@ test("command move turns a component while locally stretching its boundary wire"
   const hit = await resistor.boundingBox();
   if (!hit) throw new Error("Connected resistor is not measurable");
   const before = await readRoutePoints(page, "route-ui-1");
-  const terminalBridge = page
-    .locator('[data-role="terminal-miter-bridge"]')
+  // The pin bridges are subpaths of the conductor ink now, so the shape's own
+  // path data is what changes when the pin they join moves.
+  const conductorInk = page
+    .locator('[data-layer="routes"] [data-role="conductor-ink"]')
     .first();
-  await expect(terminalBridge).toBeAttached();
-  const bridgeBefore = await terminalBridge.getAttribute("d");
+  await expect(conductorInk).toBeAttached();
+  const bridgeBefore = await conductorInk.getAttribute("d");
   await resistor.click();
   await page.keyboard.press("m");
   await page.mouse.move(hit.x + 100, hit.y + 100);
@@ -1151,7 +1185,7 @@ test("command move turns a component while locally stretching its boundary wire"
     .poll(() => readRoutePoints(page, "route-ui-1"))
     .not.toEqual(before);
   const preview = await readRoutePoints(page, "route-ui-1");
-  const bridgePreview = await terminalBridge.getAttribute("d");
+  const bridgePreview = await conductorInk.getAttribute("d");
   expect(preview[0]).not.toEqual(before[0]);
   expect(preview.at(-1)).toEqual(before.at(-1));
   expect(bridgePreview).not.toBe(bridgeBefore);
@@ -1160,7 +1194,7 @@ test("command move turns a component while locally stretching its boundary wire"
   await page.mouse.click(hit.x + 100, hit.y + 100);
   await expect(page.getByTestId("revision")).toHaveText("4");
   expect(await readRoutePoints(page, "route-ui-1")).toEqual(preview);
-  expect(await terminalBridge.getAttribute("d")).toBe(bridgePreview);
+  expect(await conductorInk.getAttribute("d")).toBe(bridgePreview);
 });
 
 test("P shortcut starts Cell Pin placement", async ({ page }) => {
@@ -1939,16 +1973,15 @@ test("colors an electrical wire and restores the Razavi default with Auto", asyn
 
   await clickRoute(page, "route-ui-1");
   await openSelectionShelf(page);
-  const wire = page.locator(
-    '[data-layer="routes"] [data-object-id="route-ui-1"]',
-  );
   expect(
     JSON.parse(await readComponentPropertyCode(page)).appearance.color,
   ).toBe("auto");
   await editComponentPropertyCode(page, (code) => {
     code.appearance.color = [204, 34, 0];
   });
-  await expect(wire).toHaveAttribute("stroke", "#cc2200");
+  await expect
+    .poll(() => routeInk(page, "route-ui-1", "stroke"))
+    .toBe("#cc2200");
   await expect(page.getByTestId("status")).toContainText(
     "Updated Route route-ui-1",
   );
@@ -1956,7 +1989,7 @@ test("colors an electrical wire and restores the Razavi default with Auto", asyn
   await editComponentPropertyCode(page, (code) => {
     code.appearance.color = "auto";
   });
-  await expect(wire).toHaveAttribute("stroke", "#000");
+  await expect.poll(() => routeInk(page, "route-ui-1", "stroke")).toBe("#000");
   expect(
     JSON.parse(await readComponentPropertyCode(page)).appearance.color,
   ).toBe("auto");
@@ -2051,9 +2084,6 @@ test("changes wire line style while preserving color, arrow, export and undo", a
   await page.keyboard.press("Escape");
   await clickRoute(page, "route-ui-1");
   await openSelectionShelf(page);
-  const conductor = page.locator(
-    '[data-layer="routes"] polyline[data-object-id="route-ui-1"]',
-  );
   expect(JSON.parse(await readComponentPropertyCode(page)).appearance).toEqual({
     color: "auto",
     lineStyle: "solid",
@@ -2066,8 +2096,12 @@ test("changes wire line style while preserving color, arrow, export and undo", a
       directionArrow: "end",
     };
   });
-  await expect(conductor).toHaveAttribute("stroke-dasharray", "6 4");
-  await expect(conductor).toHaveAttribute("stroke", "#dc2626");
+  await expect
+    .poll(() => routeInk(page, "route-ui-1", "stroke-dasharray"))
+    .toBe("6 4");
+  await expect
+    .poll(() => routeInk(page, "route-ui-1", "stroke"))
+    .toBe("#dc2626");
   const arrow = page.locator(
     '[data-layer="routes"] [data-role="route-direction-arrow"]',
   );
@@ -2076,12 +2110,16 @@ test("changes wire line style while preserving color, arrow, export and undo", a
   await editComponentPropertyCode(page, (code) => {
     code.appearance.lineStyle = "dotted";
   });
-  await expect(conductor).toHaveAttribute("stroke-dasharray", "2 3");
+  await expect
+    .poll(() => routeInk(page, "route-ui-1", "stroke-dasharray"))
+    .toBe("2 3");
   await clickCommand(page, "Edit", "Undo");
   expect(
     JSON.parse(await readComponentPropertyCode(page)).appearance.lineStyle,
   ).toBe("dashed");
-  await expect(conductor).toHaveAttribute("stroke-dasharray", "6 4");
+  await expect
+    .poll(() => routeInk(page, "route-ui-1", "stroke-dasharray"))
+    .toBe("6 4");
   await clickCommand(page, "Edit", "Redo");
   expect(
     JSON.parse(await readComponentPropertyCode(page)).appearance.lineStyle,
@@ -2097,8 +2135,13 @@ test("changes wire line style while preserving color, arrow, export and undo", a
   const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
     "utf8",
   );
+  // The exported conductor is one shape per paint: the Route's identity is on
+  // its own element, the dash on the ink that carries its run.
   expect(svg).toMatch(
-    /<polyline[^>]*data-object-id="route-ui-1"[^>]*stroke-dasharray="2 3"/u,
+    /<polyline[^>]*data-object-id="route-ui-1"[^>]*points="310,250 480,250 480,210 650,210"/u,
+  );
+  expect(svg).toMatch(
+    /<path data-role="conductor-ink"[^>]*M 310 250 L 480 250 L 480 210 L 650 210[^>]*stroke-dasharray="2 3"/u,
   );
   expect(svg).toContain('data-role="route-direction-arrow"');
   const pdf = await downloadBytes(page, "File", "Export PDF");
@@ -2113,11 +2156,15 @@ test("changes wire line style while preserving color, arrow, export and undo", a
   expect(
     JSON.parse(await readComponentPropertyCode(page)).appearance.lineStyle,
   ).toBe("dotted");
-  await expect(conductor).toHaveAttribute("stroke", "#dc2626");
+  await expect
+    .poll(() => routeInk(page, "route-ui-1", "stroke"))
+    .toBe("#dc2626");
   await editComponentPropertyCode(page, (code) => {
     code.appearance.lineStyle = "solid";
   });
-  await expect(conductor).not.toHaveAttribute("stroke-dasharray");
+  await expect
+    .poll(() => routeInk(page, "route-ui-1", "stroke-dasharray"))
+    .toBeNull();
   await expect(arrow).toHaveAttribute("data-arrow-position", "end");
 });
 
@@ -2408,12 +2455,17 @@ test("keeps DMOS bulk hidden until drawing an explicit bulk route", async ({
   const bulkRoute = page.locator(
     '[data-layer="routes"] [data-object-id="route-ui-1"]',
   );
-  await expect(bulkRoute).toBeVisible();
+  await expect(bulkRoute).toHaveCount(1);
   await expect(bulkRoute).toHaveAttribute(
     "data-route-presentation",
     "bulk-dashed",
   );
-  await expect(bulkRoute).toHaveAttribute("stroke", "#dc2626");
+  await expect
+    .poll(() => routeInk(page, "route-ui-1", "stroke"))
+    .toBe("#dc2626");
+  await expect
+    .poll(() => routeInk(page, "route-ui-1", "stroke-dasharray"))
+    .toBe("3 3");
 
   await page
     .getByTestId("schematic-canvas")

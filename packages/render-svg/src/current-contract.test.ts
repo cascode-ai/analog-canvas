@@ -533,8 +533,13 @@ describe("current rendering contract", () => {
       /<polyline[^>]*data-object-id="bulk-route"[^>]*>/u,
     )?.[0];
     expect(route).toContain('data-route-presentation="bulk-dashed"');
-    expect(route).toContain('stroke-dasharray="3 3"');
-    expect(route).toContain('stroke="#dc2626"');
-    expect(route).not.toContain('stroke="#059669"');
+    // Presentation stays with the Route; the dash and colour it asks for are
+    // on the shape that carries its run.
+    const ink = [...svg.matchAll(/<path data-role="conductor-ink"[^>]*\/>/gu)]
+      .map(([element]) => element)
+      .find((element) => element.includes("M 96 100 L 160 100"))!;
+    expect(ink).toContain('stroke-dasharray="3 3"');
+    expect(ink).toContain('stroke="#dc2626"');
+    expect(ink).not.toContain('stroke="#059669"');
   });
 });

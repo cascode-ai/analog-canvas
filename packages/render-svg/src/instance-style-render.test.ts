@@ -565,7 +565,11 @@ describe("instance style override rendering", () => {
 
     const svg = renderDocumentSvg(doc, resolver);
     expect(svg).toContain('data-object-id="route-1"');
-    expect(svg).toMatch(/data-object-id="route-1"[^>]*stroke="#000"/u);
+    // The wire's paint is the profile's, on the shape it contributes to; the
+    // instance override reaches its own symbol only.
+    expect(svg).toMatch(
+      /<path data-role="conductor-ink"[^>]*M 100 120 L 300 80[^>]*stroke="#000"/u,
+    );
     expect(svg).toContain('data-role="instance-symbol"');
     expect(svg).toContain('stroke="#FF0000"');
   });

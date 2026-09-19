@@ -374,11 +374,10 @@ function renderNoConnectMarkers(
  * actual route segment. SVG then owns the sharp miter at the corner, removing
  * the separate-stroke anti-alias seam without adding route geometry.
  */
-function renderTerminalMiterBridges(
+function terminalMiterBridgePaths(
   joins: readonly EndpointJoin[],
   profile: SchematicStyleProfile,
-  strokeColor: string,
-): string {
+): string[] {
   const overlap = Math.max(profile.strokes.wire, profile.strokes.symbol) * 0.75;
   return joins
     .filter(
@@ -387,9 +386,8 @@ function renderTerminalMiterBridges(
     )
     .map(
       (join) =>
-        `<path data-role="terminal-miter-bridge" data-route-id="${escapeXml(join.routeId)}" d="M ${join.at.x - join.pinOutward.x * overlap} ${join.at.y - join.pinOutward.y * overlap} L ${join.at.x} ${join.at.y} L ${join.at.x + join.routeDirection.x * overlap} ${join.at.y + join.routeDirection.y * overlap}" fill="none" stroke="${escapeXml(strokeColor)}" stroke-width="${profile.strokes.wire}" stroke-linecap="${profile.lineCap}" stroke-linejoin="miter"${profileMiterAttribute(profile)}/>`,
-    )
-    .join("");
+        `M ${join.at.x - join.pinOutward.x * overlap} ${join.at.y - join.pinOutward.y * overlap} L ${join.at.x} ${join.at.y} L ${join.at.x + join.routeDirection.x * overlap} ${join.at.y + join.routeDirection.y * overlap}`,
+    );
 }
 
 /**
@@ -399,11 +397,11 @@ function renderTerminalMiterBridges(
  * storage history cannot expose a butt-cap seam. A true branch has more than
  * two incident Route directions and therefore produces no recipe here.
  */
-function renderJunctionMiterBridges(
+function junctionMiterBridgePaths(
   joins: readonly EndpointJoin[],
   profile: SchematicStyleProfile,
   strokeColors: ReadonlyMap<string, string>,
-): string {
+): Array<{ strokeColor: string; d: string }> {
   const overlap = Math.max(profile.strokes.wire, profile.strokes.symbol) * 0.75;
   return joins
     .filter(
@@ -412,11 +410,11 @@ function renderJunctionMiterBridges(
     )
     .map((join) => {
       const [first, second] = join.directions;
-      const strokeColor =
-        strokeColors.get(join.junctionId) ?? profile.foreground;
-      return `<path data-role="junction-miter-bridge" data-junction-id="${escapeXml(join.junctionId)}" d="M ${join.at.x + first.x * overlap} ${join.at.y + first.y * overlap} L ${join.at.x} ${join.at.y} L ${join.at.x + second.x * overlap} ${join.at.y + second.y * overlap}" fill="none" stroke="${escapeXml(strokeColor)}" stroke-width="${profile.strokes.wire}" stroke-linecap="${profile.lineCap}" stroke-linejoin="miter"${profileMiterAttribute(profile)}/>`;
-    })
-    .join("");
+      return {
+        strokeColor: strokeColors.get(join.junctionId) ?? profile.foreground,
+        d: `M ${join.at.x + first.x * overlap} ${join.at.y + first.y * overlap} L ${join.at.x} ${join.at.y} L ${join.at.x + second.x * overlap} ${join.at.y + second.y * overlap}`,
+      };
+    });
 }
 
 function profileMiterAttribute(profile: SchematicStyleProfile): string {
@@ -1094,7 +1092,37 @@ export function buildSvgScene(
       junctionBridgeColors.set(junctionId, [...colors][0]!);
   }
 
-  const routes = [...document.routes]
+  // One conductor run, one shape.
+  //
+  // A straight run is often several Routes — split at a pin it passes through,
+  // or at a retained Junction — and a rasterizer composites every stroked
+  // element on its own: two that meet leave a lighter row at the seam, and the
+  // miter that covers that seam leaves a darker one, which is the short stray
+  // line readers report. Stroking every conductor of one paint as a single
+  // path with many subpaths makes the coverage one calculation again, so a run
+  // reads as the single line it is. Identity stays with an unpainted polyline
+  // per Route: the ink is shared, the objects are not.
+  const inkOrder: string[] = [];
+  const ink = new Map<
+    string,
+    { strokeColor: string; strokeWidth: number; dash: string; d: string[] }
+  >();
+  const addInk = (
+    strokeColor: string,
+    strokeWidth: number,
+    dash: string,
+    d: string,
+  ) => {
+    const key = `${strokeColor}|${strokeWidth}|${dash}`;
+    const bucket = ink.get(key);
+    if (bucket) {
+      bucket.d.push(d);
+      return;
+    }
+    inkOrder.push(key);
+    ink.set(key, { strokeColor, strokeWidth, dash, d: [d] });
+  };
+  const routeIdentities = [...document.routes]
     .filter((route) => included(route.id))
     .sort((left, right) => left.id.localeCompare(right.id, "en"))
     .map((route) => {
@@ -1103,11 +1131,6 @@ export function buildSvgScene(
         throw new Error(`Cannot render unresolved route: ${route.id}`);
       }
       const strokeColor = routeStrokeColor(route);
-      const terminalBridges = renderTerminalMiterBridges(
-        geometry.endpointJoins,
-        profile,
-        strokeColor,
-      );
       const presentation = bulkRouteIds.has(route.id)
         ? "bulk-dashed"
         : route.presentation === "bulk-dashed"
@@ -1117,11 +1140,11 @@ export function buildSvgScene(
         presentation === "power-rail" && powerRailNetIds.has(route.netId);
       const dash =
         presentation === "bulk-dashed"
-          ? ' stroke-dasharray="3 3"'
+          ? "3 3"
           : route.styleOverride?.lineStyle === "dashed"
-            ? ' stroke-dasharray="6 4"'
+            ? "6 4"
             : route.styleOverride?.lineStyle === "dotted"
-              ? ' stroke-dasharray="2 3"'
+              ? "2 3"
               : "";
       const presentationAttribute =
         presentation !== "wire"
@@ -1130,16 +1153,28 @@ export function buildSvgScene(
       const strokeWidth = isPowerRail
         ? profile.strokes.powerRail
         : profile.strokes.wire;
+      addInk(
+        strokeColor,
+        strokeWidth,
+        dash,
+        `M ${geometry.centerline
+          .map((point) => `${point.x} ${point.y}`)
+          .join(" L ")}`,
+      );
+      // The bridge belongs to the same paint as the Route it joins, so it
+      // merges into that shape instead of being laid over it.
+      for (const d of terminalMiterBridgePaths(geometry.endpointJoins, profile))
+        addInk(strokeColor, profile.strokes.wire, dash, d);
       const directionArrow = renderRouteDirectionArrow(
         geometry.centerline,
         route.styleOverride?.arrow,
         strokeColor,
         profile,
       );
-      return `<polyline data-object-id="${escapeXml(route.id)}" data-net-id="${escapeXml(route.netId)}"${presentationAttribute} points="${pointList(geometry.centerline)}" fill="none" stroke="${escapeXml(strokeColor)}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${dash}${profileMiterAttribute(profile)}/>${directionArrow}${terminalBridges}`;
+      return `<polyline data-object-id="${escapeXml(route.id)}" data-net-id="${escapeXml(route.netId)}"${presentationAttribute} points="${pointList(geometry.centerline)}" fill="none" stroke="none"/>${directionArrow}`;
     })
     .join("");
-  const junctionBridges = renderJunctionMiterBridges(
+  for (const bridge of junctionMiterBridgePaths(
     routingGeometry.endpointJoins.filter((join) => {
       if (!objectIds || join.kind !== "junction-miter") return true;
       return document.routes
@@ -1157,7 +1192,15 @@ export function buildSvgScene(
     }),
     profile,
     junctionBridgeColors,
-  );
+  ))
+    addInk(bridge.strokeColor, profile.strokes.wire, "", bridge.d);
+  const conductorInk = inkOrder
+    .map((key) => {
+      const bucket = ink.get(key)!;
+      return `<path data-role="conductor-ink" d="${bucket.d.join(" ")}" fill="none" stroke="${escapeXml(bucket.strokeColor)}" stroke-width="${bucket.strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${bucket.dash ? ` stroke-dasharray="${bucket.dash}"` : ""}${profileMiterAttribute(profile)}/>`;
+    })
+    .join("");
+  const routes = `${conductorInk}${routeIdentities}`;
   const contactEvidence =
     options.contactEvidence ??
     deriveDocumentContactEvidence(document, resolver, routingGeometry);
@@ -1468,7 +1511,7 @@ export function buildSvgScene(
 
   return {
     viewBox,
-    formalBody: `<g data-layer="formal">${renderDraftingLayer(document, resolver, profile, routingGeometry, "background", objectIds)}<g data-layer="routes">${routes}${junctionBridges}</g><g data-layer="junctions">${junctions}</g><g data-layer="symbols">${symbols}</g>${noConnectLayer}<g data-layer="annotations">${annotations}</g>${renderDraftingLayer(document, resolver, profile, routingGeometry, "foreground", objectIds)}</g>`,
+    formalBody: `<g data-layer="formal">${renderDraftingLayer(document, resolver, profile, routingGeometry, "background", objectIds)}<g data-layer="routes">${routes}</g><g data-layer="junctions">${junctions}</g><g data-layer="symbols">${symbols}</g>${noConnectLayer}<g data-layer="annotations">${annotations}</g>${renderDraftingLayer(document, resolver, profile, routingGeometry, "foreground", objectIds)}</g>`,
   };
 }
 

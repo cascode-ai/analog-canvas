@@ -72,13 +72,24 @@ describe("render svg", () => {
         }),
       );
       const scene = buildSvgScene(doc, new InMemorySymbolResolver([]));
-      const conductor = scene.formalBody.match(
+      // The Route's paint lives on the shape it contributes its run to; its
+      // own element carries identity and geometry, and no ink.
+      const identity = scene.formalBody.match(
         /<polyline data-object-id="styled-wire"[^>]*\/>/u,
       )![0];
+      expect(identity).toContain('stroke="none"');
+      expect(identity).toContain('points="0,0 100,0"');
+      expect(identity).not.toContain('data-route-presentation="bulk-dashed"');
+      const conductor = [
+        ...scene.formalBody.matchAll(
+          /<path data-role="conductor-ink"[^>]*\/>/gu,
+        ),
+      ]
+        .map(([element]) => element)
+        .find((element) => element.includes("M 0 0 L 100 0"))!;
       expect(conductor).toContain('stroke="#123456"');
       if (dash) expect(conductor).toContain(`stroke-dasharray="${dash}"`);
       else expect(conductor).not.toContain("stroke-dasharray");
-      expect(conductor).not.toContain('data-route-presentation="bulk-dashed"');
       expect(scene.formalBody).toContain('data-role="route-direction-arrow"');
       expect(scene.formalBody).not.toContain("<image");
     },
@@ -190,8 +201,16 @@ describe("render svg", () => {
 
     const scene = buildSvgScene(doc, new InMemorySymbolResolver([]));
 
-    expect(scene.formalBody).toContain('data-role="junction-miter-bridge"');
-    expect(scene.formalBody).toContain('data-junction-id="corner"');
+    // The bridge is part of the conductor ink now, so the corner is one shape
+    // with the two Routes it joins rather than a stroke laid over them.
+    const ink = [
+      ...scene.formalBody.matchAll(/<path data-role="conductor-ink"[^>]*\/>/gu),
+    ].map(([element]) => element);
+    expect(ink).toHaveLength(1);
+    expect(ink[0]).toContain("M 0 0 L 40 0");
+    expect(ink[0]).toContain("M 40 0 L 40 40");
+    // The two arms meeting at the retained Junction, carried through it.
+    expect(ink[0]).toMatch(/M 38\.8 0 L 40 0 L 40 1\.2/u);
   });
 
   it("renders a Route override while an unstyled Route keeps the profile color", () => {
@@ -224,10 +243,21 @@ describe("render svg", () => {
 
     const scene = buildSvgScene(doc, new InMemorySymbolResolver([]));
     expect(scene.formalBody).toContain(
-      'data-object-id="colored-wire" data-net-id="net" points="0,0 40,0" fill="none" stroke="#CC2244"',
+      'data-object-id="colored-wire" data-net-id="net" points="0,0 40,0" fill="none" stroke="none"',
     );
     expect(scene.formalBody).toContain(
-      'data-object-id="default-wire" data-net-id="net" points="40,0 80,0" fill="none" stroke="#000"',
+      'data-object-id="default-wire" data-net-id="net" points="40,0 80,0" fill="none" stroke="none"',
+    );
+    // Two paints, so two shapes: a Route's own colour never merges into
+    // another's run.
+    const ink = [
+      ...scene.formalBody.matchAll(/<path data-role="conductor-ink"[^>]*\/>/gu),
+    ].map(([element]) => element);
+    expect(ink.find((element) => element.includes("M 0 0 L 40 0"))).toContain(
+      'stroke="#CC2244"',
+    );
+    expect(ink.find((element) => element.includes("M 40 0 L 80 0"))).toContain(
+      'stroke="#000"',
     );
   });
 
