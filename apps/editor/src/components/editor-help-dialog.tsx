@@ -152,8 +152,8 @@ export function EditorHelpDialog({
               Use <strong>Manage Cells…</strong> to create a reusable Cell and{" "}
               <strong>Place Cell</strong> to add an instance to the canvas.
               Select a hierarchical block and press <kbd>E</kbd>, or
-              double-click it, to enter it. Use <strong>Up</strong> or{" "}
-              <kbd>Shift+E</kbd> to return to the parent Cell.
+              double-click it, to enter it. Use <kbd>Shift+E</kbd> to return to
+              the parent Cell.
             </p>
             <h3>View and drawing tools</h3>
             <p>

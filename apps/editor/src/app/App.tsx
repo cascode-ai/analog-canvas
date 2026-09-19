@@ -4887,7 +4887,6 @@ export function App({
           topDocumentId: project.topDocumentId,
           navigationDepth: documentStack.length,
           canEnter: hasHierarchyEnterSelection,
-          onUp: returnToParentDocument,
           onTop: returnToTopDocument,
           onSelectDocument: selectDocumentFromHierarchy,
           onEnter: enterSelectedHierarchy,

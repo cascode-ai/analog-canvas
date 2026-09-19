@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 import { HierarchyToolbar } from "./hierarchy-toolbar";
 
 const callbacks = {
-  onUp: vi.fn(),
   onTop: vi.fn(),
   onSelectDocument: vi.fn(),
   onEnter: vi.fn(),
@@ -53,5 +52,6 @@ describe("HierarchyToolbar", () => {
     expect(markup).toContain("Child");
     expect(markup).toContain("Enter Cell");
     expect(markup).toContain("Manage Cells…");
+    expect(markup).not.toContain(">Up</button>");
   });
 });

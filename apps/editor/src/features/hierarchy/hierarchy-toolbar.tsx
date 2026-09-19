@@ -6,7 +6,6 @@ export interface HierarchyToolbarProps {
   topDocumentId: string;
   navigationDepth: number;
   canEnter: boolean;
-  onUp: () => void;
   onTop: () => void;
   onSelectDocument: (documentId: string) => void;
   onEnter: () => void;
@@ -20,7 +19,6 @@ export function HierarchyToolbar({
   topDocumentId,
   navigationDepth,
   canEnter,
-  onUp,
   onTop,
   onSelectDocument,
   onEnter,
@@ -36,14 +34,6 @@ export function HierarchyToolbar({
         aria-label="Cell navigation"
         data-testid="cell-navigation"
       >
-        <button
-          type="button"
-          onClick={onUp}
-          disabled={navigationDepth === 0}
-          title="Return to the parent Cell (Shift+E)"
-        >
-          Up
-        </button>
         <button
           type="button"
           onClick={onTop}

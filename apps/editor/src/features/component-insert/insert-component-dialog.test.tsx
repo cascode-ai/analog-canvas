@@ -18,6 +18,7 @@ describe("InsertComponentDialog", () => {
     );
 
     expect(markup).toContain('role="dialog"');
+    expect(markup).not.toContain("insert-cell-dialog");
     expect(markup).toContain('role="combobox"');
     expect(markup).toContain('aria-label="Component search"');
     expect(markup).toContain('aria-expanded="true"');
@@ -98,6 +99,7 @@ describe("InsertComponentDialog", () => {
     );
 
     expect(markup).toContain("Place Hierarchical Cell");
+    expect(markup).toContain("insert-component-dialog insert-cell-dialog");
     expect(markup).toContain('aria-label="Cell search"');
     expect(markup).toContain('data-testid="insert-cell-document-amplifier"');
     expect(markup).not.toContain('data-testid="insert-component-nmos"');

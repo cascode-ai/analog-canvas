@@ -62,11 +62,11 @@ the same grid preview, `R` rotation, mirror shortcuts, and `Esc` cancellation
 as a library component. The commit keeps the `Xn` reference as internal
 netlist identity and shows only the Cell name at the normal instance-label
 position. **Enter Cell** opens the child of a selected hierarchical Instance.
-**Up** follows the actual parent Instance path; **Top** returns to the root.
+**Shift+E** follows the actual parent Instance path; **Top** returns to the root.
 Opening a Cell from the selector or Manager's definition list always opens the
-definition without caller context, even when it has only one caller. **Up** is
+definition without caller context, even when it has only one caller. **Shift+E** is
 disabled in that context. Enter an instance or use the hierarchy tree to carry
-a concrete path; **Up** then returns to and selects the original caller.
+a concrete path; **Shift+E** then returns to and selects the original caller.
 
 In the Netlist panel, **Entry** chooses a Cell for this export only. **Default
 Top** follows the saved default; another selection drives the preview, structural

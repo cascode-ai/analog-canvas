@@ -303,10 +303,7 @@ test("edits independent parent parameter overrides and follows definition rename
   await expectComponentCodeField(page, "parameters.RBASE", "2k");
   await page.getByTestId("hit-X2").dblclick();
   // Double-click enters the Cell; return to the specific parent and inspect with a single click.
-  await page
-    .getByTestId("cell-navigation")
-    .getByRole("button", { name: "Up", exact: true })
-    .click();
+  await page.keyboard.press("Shift+e");
   await page.getByTestId("hit-X2").click();
   await revealPropertiesShelf(page);
   const shelf = page.getByTestId("selection-shelf");
@@ -479,8 +476,8 @@ test("opens distinct structural occurrences and separates definitions outside To
     await expect(manager).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: "Up", exact: true }),
-    ).toBeEnabled();
-    await page.getByRole("button", { name: "Up", exact: true }).click();
+    ).toHaveCount(0);
+    await page.keyboard.press("Shift+e");
     await expect(page.getByTestId("status")).toContainText(
       project.documents[0]!.name,
     );
@@ -1560,10 +1557,24 @@ test("places an existing Cell and blocks deleting its shared definition", async 
     dialog.getByRole("option", { name: /ReusableStage/u }),
   ).toBeVisible();
   await expect(dialog.getByTestId("insert-component-nmos")).toHaveCount(0);
+  const cellBounds = (await dialog.boundingBox())!;
+  const cellArtwork = (await dialog
+    .locator(".insert-symbol-artwork")
+    .first()
+    .boundingBox())!;
+  expect(cellBounds.height).toBeGreaterThan(400);
   await page.keyboard.press("Escape");
   await page.keyboard.press("i");
   const fullInsert = page.getByRole("dialog", { name: "Insert Component" });
   await expect(fullInsert.getByTestId("insert-component-nmos")).toBeVisible();
+  const libraryBounds = (await fullInsert.boundingBox())!;
+  const libraryArtwork = (await fullInsert
+    .locator(".insert-symbol-artwork")
+    .first()
+    .boundingBox())!;
+  expect(cellBounds.width / libraryBounds.width).toBeCloseTo(0.6, 1);
+  expect(cellArtwork.height / libraryArtwork.height).toBeCloseTo(1.25, 1);
+  await expect(fullInsert).not.toHaveClass(/insert-cell-dialog/u);
   await page.keyboard.press("Escape");
 
   await runCellCommand(page, "Place Cell");

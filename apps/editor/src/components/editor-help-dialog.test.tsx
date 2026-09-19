@@ -60,7 +60,7 @@ describe("EditorHelpDialog", () => {
     expect(markup).not.toContain("Select a rectangle");
     expect(markup).not.toContain("convert it into a hierarchical block");
     expect(markup).toContain("Cell and <strong>Place Cell</strong>");
-    expect(markup).toContain("Up</strong> or <kbd>Shift+E</kbd>");
+    expect(markup).toContain("Use <kbd>Shift+E</kbd>");
   });
 
   it("keeps prose separated from inline emphasis and shortcut keys", () => {
@@ -77,7 +77,7 @@ describe("EditorHelpDialog", () => {
       "Delete</kbd> or <kbd>Backspace</kbd>",
       "places it and <kbd>Esc</kbd>",
       "Cell and <strong>Place Cell</strong>",
-      "Up</strong> or <kbd>Shift+E</kbd>",
+      "Use <kbd>Shift+E</kbd>",
     ]) {
       expect(markup).toContain(boundary);
     }
