@@ -33,6 +33,33 @@ function parseText(result: {
 }
 
 describe("mcp tool surface", () => {
+  it("submits several connect actions as one atomic wire transaction", async () => {
+    const { session, http } = await toolSession();
+    await callTool("connect", { claimCode: "session-1.code" }, session);
+    http.circuitHandler = async ({ request }) =>
+      request.operation === "transact"
+        ? transactSuccessResponse(request.requestId, request.expectedRevision)
+        : request.operation === "snapshot"
+          ? snapshotResponse(request.requestId)
+          : capabilitiesResponse(request.requestId);
+    const result = await callTool(
+      "apply_actions",
+      {
+        actions: ["G", "D"].map((pin) => ({
+          kind: "connect",
+          from: { kind: "pin", instance: "M1", pin },
+          to: { kind: "pin", instance: "R1", pin: "2" },
+        })),
+      },
+      session,
+    );
+    expect(parseText(result)).toMatchObject({ ok: true, transactions: 1 });
+    const requests = http.circuitCalls
+      .map((c) => c.request)
+      .filter((r) => r.operation === "transact");
+    expect(requests).toHaveLength(1);
+    expect(requests[0]!.wireIntent).toHaveLength(2);
+  });
   it("reports the actual runtime origin without remote pairing for local readiness", async () => {
     const { session, http } = await toolSession();
     const result = parseText(

@@ -181,7 +181,12 @@ const AdvancedTransactArgs = z.strictObject({
   documentId: z.string().min(1).optional(),
   edits: z.array(z.unknown()).min(1).max(256).optional(),
   structureEdits: z.array(z.unknown()).min(1).max(256).optional(),
-  wireIntent: AgentWireIntentSchema.optional(),
+  wireIntent: z
+    .union([
+      AgentWireIntentSchema,
+      z.array(AgentWireIntentSchema).min(1).max(64),
+    ])
+    .optional(),
   semanticIntent: AgentSemanticIntentSchema.optional(),
   command: AgentAuthoringCommandSchema.optional(),
   dryRun: z.boolean().optional(),

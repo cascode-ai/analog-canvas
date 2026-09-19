@@ -44,6 +44,43 @@ import { buildProjectConnectivityIndex, traceHierarchyNet } from "@icm/derived";
 import { buildAgentSessionSnapshot } from "./snapshot.js";
 
 const OPERATIONS = ["capabilities", "snapshot", "transact", "render"] as const;
+
+/** Plan on private evolving state, then dispatch the combined edits once. */
+function planWireBatch(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  input:
+    | Parameters<typeof proposeWireIntent>[2]
+    | Parameters<typeof proposeWireIntent>[2][],
+  limit: number,
+): { edits: SchematicEdit[] } | string {
+  if (!Array.isArray(input))
+    return proposeWireIntent(document, resolver, input);
+  let working = document;
+  const edits: SchematicEdit[] = [];
+  for (const [index, intent] of input.entries()) {
+    const planned = proposeWireIntent(working, resolver, intent);
+    if (typeof planned === "string") return `Wire ${index + 1}: ${planned}`;
+    edits.push(...planned.edits);
+    if (edits.length > limit)
+      return `Wire batch exceeds the ${limit}-edit transaction limit`;
+    const preview = executeTransaction(
+      working,
+      {
+        transactionId: `wire-batch-preview-${index}`,
+        documentId: working.id,
+        expectedRevision: working.revision,
+        actor: { kind: "agent", id: "wire-planner" },
+        dryRun: true,
+        edits: planned.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    if (!preview.ok) return `Wire ${index + 1}: ${preview.error.message}`;
+    working = preview.document;
+  }
+  return { edits };
+}
 /**
  * The Edit Engine schema is the sole list of typed edit kinds. `wire` is the
  * one deliberate extra capability: it advertises the mutually-exclusive
@@ -777,7 +814,12 @@ export function createAgentCircuitService(
           }
         }
         const plannedWire = request.wireIntent
-          ? proposeWireIntent(document, resolver, request.wireIntent)
+          ? planWireBatch(
+              document,
+              resolver,
+              request.wireIntent,
+              limits.maxTransactionEdits,
+            )
           : null;
         if (typeof plannedWire === "string") {
           return fail(
