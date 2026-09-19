@@ -1,12 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  fillGalleryDeviceModels,
-  type GalleryDeviceModelReport,
-} from "../gallery-device-models";
-import {
-  createNetlistExportProfile,
-  NETLIST_PROFILE_LABELS,
-} from "../features/netlist-export/netlist-process-presets";
+import type { GalleryDeviceModelReport } from "../gallery-device-models";
+import { NETLIST_PROFILE_LABELS } from "../features/netlist-export/netlist-process-presets";
 
 /**
  * Give the library the models its circuits were drawn without.
@@ -33,14 +27,23 @@ export function GalleryDeviceModelFill({
     controller.current = next;
     setReport(null);
     setRunning(true);
-    void fillGalleryDeviceModels(
-      createNetlistExportProfile("sky130"),
-      (progress) => {
-        if (!next.signal.aborted) setReport(progress);
-      },
-      fetch,
-      next.signal,
-    )
+    // The fill carries the Edit Engine and the process templates with it.
+    // Curating is rare and deliberate, so that weight arrives on the click
+    // rather than with every reader's first look at the wall.
+    void Promise.all([
+      import("../gallery-device-models"),
+      import("../features/netlist-export/netlist-process-presets"),
+    ])
+      .then(([{ fillGalleryDeviceModels }, { createNetlistExportProfile }]) =>
+        fillGalleryDeviceModels(
+          createNetlistExportProfile("sky130"),
+          (progress) => {
+            if (!next.signal.aborted) setReport(progress);
+          },
+          fetch,
+          next.signal,
+        ),
+      )
       .then((final) => {
         if (next.signal.aborted) return;
         setReport(final);
