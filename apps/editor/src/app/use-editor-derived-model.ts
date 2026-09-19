@@ -22,6 +22,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
+import type { RoutingGuidanceView } from "../interaction/interaction-state";
 
 import {
   buildEndpointObjectIndex,
@@ -29,8 +30,6 @@ import {
   type EndpointObjectIndex,
   type RouteGeometryRecord,
 } from "../features/wiring/route-interaction-geometry";
-
-export type RoutingGuidanceView = "focused" | "all" | "hidden";
 
 export interface HighlightedNetOrigin {
   documentId: string;

@@ -1,5 +1,6 @@
 import type { MosBulkResolution } from "@icm/derived";
 import type { Annotation, SchematicDocument } from "@icm/model";
+import type { RoutingGuidanceView } from "../../interaction/interaction-state";
 
 import {
   GroupPropertyCodeEditor,
@@ -72,8 +73,6 @@ export function MosBulkConnectionSection({
     </section>
   );
 }
-
-export type RoutingGuidanceView = "focused" | "all" | "hidden";
 
 export function RoutingGuidanceSection({
   total,

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ProjectCellSummary } from "@icm/derived";
 
 import type {
   CircuitProject,
@@ -25,18 +26,6 @@ const RESET_ACTIONS: readonly {
   { intent: "reset-body", command: "Reset Cell Body" },
 ];
 
-export interface CellManagerEntry {
-  readonly id: string;
-  readonly name: string;
-  readonly isTop: boolean;
-  readonly portCount: number;
-  readonly callers: readonly {
-    documentId: string;
-    documentName: string;
-    instanceId: string;
-  }[];
-}
-
 export function CellManagerDialog({
   open,
   cells,
@@ -61,7 +50,7 @@ export function CellManagerDialog({
   onImportCloudCell,
 }: {
   open: boolean;
-  cells: readonly CellManagerEntry[];
+  cells: readonly ProjectCellSummary[];
   project: CircuitProject;
   activeDocumentId: string;
   onClose(): void;
