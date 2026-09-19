@@ -365,13 +365,21 @@ const TOOLS: readonly ToolEntry[] = [
             code: error.code,
             message: error.message,
             stage: request.operation,
+            ...(error.httpStatus === undefined
+              ? {}
+              : { httpStatus: error.httpStatus }),
             recovery:
               error.category === "unrecoverable-credential"
                 ? "reauthorize"
-                : error.category === "request-rejected" &&
-                    error.code !== "INVALID_RESPONSE"
-                  ? "fix-input"
-                  : "retry-same-request",
+                : error.httpStatus !== undefined &&
+                    (error.httpStatus >= 500 ||
+                      error.httpStatus === 429 ||
+                      error.httpStatus === 408)
+                  ? "retry-same-request"
+                  : error.category === "request-rejected" &&
+                      error.code !== "INVALID_RESPONSE"
+                    ? "fix-input"
+                    : "retry-same-request",
           },
         };
       }
