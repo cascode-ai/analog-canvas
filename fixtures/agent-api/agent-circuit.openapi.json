@@ -16028,6 +16028,24 @@
                 "properties": {
                   "kind": {
                     "type": "string",
+                    "const": "set_top_document"
+                  },
+                  "documentId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "documentId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
                     "const": "add_source_file"
                   },
                   "sourceFile": {

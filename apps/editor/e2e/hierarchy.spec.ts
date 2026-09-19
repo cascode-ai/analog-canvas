@@ -99,6 +99,35 @@ async function setCellTerminalDirection(
   await manager.getByLabel("Close Cell Manager").click();
 }
 
+test("sets a Cell as default Top without changing its circuit and supports Undo", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const originalTop = await page.getByTestId("active-document-id").innerText();
+  await createCell(page, "NewTop");
+  const childId = await page.getByTestId("active-document-id").innerText();
+  await runCellCommand(page, "Manage Cells…");
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager.getByRole("button", { name: "Set as Top" }).click();
+  await expect(manager.getByRole("button", { name: "Set as Top" })).toHaveCount(
+    0,
+  );
+  await manager.getByRole("button", { name: "Close Cell Manager" }).click();
+  const save = async () =>
+    JSON.parse(
+      (await downloadBytes(page, "File", "Export Project File…")).toString(
+        "utf8",
+      ),
+    );
+  const changed = await save();
+  expect(changed.topDocumentId).toBe(childId);
+  expect(changed.documents).toHaveLength(2);
+  await page.keyboard.press("Control+z");
+  expect((await save()).topDocumentId).toBe(originalTop);
+  await page.keyboard.press("Control+Shift+z");
+  expect((await save()).topDocumentId).toBe(childId);
+});
+
 test("manages external declarations independently of local Cell interfaces", async ({
   page,
 }) => {

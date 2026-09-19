@@ -166,6 +166,19 @@ export function createProjectStructureCommands({
     }
   };
 
+  const setTopCell = (documentId: string): boolean => {
+    if (documentId === project.topDocumentId) return true;
+    const target = project.documents.find(
+      (document) => document.id === documentId,
+    );
+    if (!target) return false;
+    const committed = commitStructure("set-top-cell", [
+      { kind: "set_top_document", documentId },
+    ]);
+    if (committed) setStatus(`Default Top: ${target.name}`);
+    return committed;
+  };
+
   const renameCell = (documentId: string, inputName: string): void => {
     const target = project.documents.find(
       (candidate) => candidate.id === documentId,
@@ -626,6 +639,7 @@ export function createProjectStructureCommands({
   };
 
   return {
+    setTopCell,
     createCell,
     renameCell,
     deleteCell,

@@ -1214,6 +1214,7 @@ export function App({
     });
   const {
     createCell,
+    setTopCell,
     renameCell,
     deleteCell,
     updateCellPortDirection,
@@ -4965,9 +4966,13 @@ export function App({
                 },
                 onOpen: (documentId) => {
                   setCellManagerOpen(false);
+                  setDocumentStack([]);
                   switchDocument(documentId);
                 },
                 onRename: renameCell,
+                onSetTop: (documentId) => {
+                  setTopCell(documentId);
+                },
                 onDelete: (documentId) => {
                   if (deleteCell(documentId)) {
                     setCellManagerOpen(false);

@@ -34,6 +34,10 @@ import type {
 
 export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
   z.strictObject({
+    kind: z.literal("set_top_document"),
+    documentId: z.string().min(1),
+  }),
+  z.strictObject({
     kind: z.literal("add_source_file"),
     sourceFile: SourceFileRecordSchema,
   }),
@@ -305,6 +309,20 @@ export function executeProjectTransaction(
   let structuralChange = false;
 
   for (const [editIndex, edit] of transaction.edits.entries()) {
+    if (edit.kind === "set_top_document") {
+      if (
+        !candidate.documents.some((document) => document.id === edit.documentId)
+      ) {
+        return rejectProjectTransaction(
+          project,
+          "OBJECT_NOT_FOUND",
+          `Cell does not exist: ${edit.documentId}`,
+        );
+      }
+      structuralChange ||= candidate.topDocumentId !== edit.documentId;
+      candidate.topDocumentId = edit.documentId;
+      continue;
+    }
     if (edit.kind === "add_source_file") {
       const existing = candidate.source.files.find(
         (sourceFile) => sourceFile.id === edit.sourceFile.id,

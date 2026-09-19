@@ -46,6 +46,7 @@ export function CellManagerDialog({
   onCreate,
   onOpen,
   onRename,
+  onSetTop,
   onDelete,
   onJumpToCaller,
   onSetPortDirection,
@@ -68,6 +69,7 @@ export function CellManagerDialog({
   onCreate(name: string): void;
   onOpen(documentId: string): void;
   onRename(documentId: string, name: string): void;
+  onSetTop(documentId: string): void;
   onDelete(documentId: string): void;
   onJumpToCaller(documentId: string, instanceId: string): void;
   onSetPortDirection(
@@ -354,6 +356,14 @@ export function CellManagerDialog({
                     </p>
                   </div>
                   <div className="cell-manager-actions">
+                    {!selectedEntry.isTop ? (
+                      <button
+                        type="button"
+                        onClick={() => onSetTop(selectedEntry.id)}
+                      >
+                        Set as Top
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => onOpen(selectedEntry.id)}

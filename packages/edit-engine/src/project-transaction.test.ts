@@ -20,6 +20,43 @@ import {
 } from "./hierarchy-planner.js";
 import { executeProjectTransaction } from "./project-transaction.js";
 
+describe("default project entry", () => {
+  it("changes only the default Top and rejects unknown definitions", () => {
+    const project = createEmptyProject("project", "Project");
+    const child = createEmptyDocument("child", "Child");
+    project.documents.push(child);
+    project.documents[0]!.instances.push(
+      hierarchyInstance("X1", "Child", child.id),
+    );
+    const original = structuredClone(project);
+    const envelope = {
+      transactionId: "set-top",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human" as const, id: "local" },
+    };
+    const result = executeProjectTransaction(project, {
+      ...envelope,
+      edits: [{ kind: "set_top_document", documentId: child.id }],
+    });
+    if (!result.ok) throw new Error(JSON.stringify(result));
+    expect(result.project.topDocumentId).toBe(child.id);
+    expect(result.project.documents).toEqual(original.documents);
+    expect(result.project.simulationFolders).toEqual(
+      original.simulationFolders,
+    );
+    expect(project).toEqual(original);
+    const rejected = executeProjectTransaction(project, {
+      ...envelope,
+      edits: [{ kind: "set_top_document", documentId: "missing" }],
+    });
+    expect(rejected).toMatchObject({
+      ok: false,
+      error: { code: "OBJECT_NOT_FOUND" },
+    });
+  });
+});
+
 function hierarchyInstance(
   id: string,
   cellName: string,

@@ -4,6 +4,12 @@ Analog Canvas treats every Project Document as one reusable schematic Cell.
 The top Cell is the export root; other Cells may be instantiated any number of
 times or kept unreferenced while they are being authored.
 
+Select a local Cell in **Manage Cells…** and choose **Set as Top** to change
+the saved default entry. This does not change the circuit, its callers, the
+current editing location, or an explicitly selected simulation entry. Undo and
+Redo restore this setting. Opening a definition from Manager clears caller
+context; enter through an instance when you need its specific parent path.
+
 Use **Manage Cells…** in **Edit** or the hierarchy row to manage the Project's definitions in one place. It shows each
 Cell's projected Port and caller counts, opens or renames a definition, and lists
 each caller with **Jump to caller**. Equal Port names occupy one row, matching
