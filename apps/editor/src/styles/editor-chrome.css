@@ -216,8 +216,9 @@
 }
 /* However many selects the row carries — Entry appears only for a Project with
    more than one Cell — they share the width the panel has and wrap when it runs
-   out. The copy button is outside that wrapping, so it holds the right edge at
-   every width. */
+   out. Their shared prompt width keeps both select edges aligned after a wrap.
+   The copy button is outside that wrapping, so it holds the right edge at every
+   width. */
 .netlist-code-controls {
   display: flex;
   align-items: flex-start;
@@ -259,6 +260,7 @@
   padding-left: 5px;
 }
 .netlist-code-selects label {
+  grid-template-columns: 4rem minmax(0, 1fr);
   gap: 3px;
 }
 .netlist-code-controls button {

@@ -513,6 +513,21 @@ test("shows and copies a live MOS netlist with explicitly connected bulk termina
       ),
     ).toBeLessThanOrEqual(2);
   }
+  const selectBoxes = await topControls
+    .locator(".netlist-code-selects > label > select")
+    .evaluateAll((selects) =>
+      selects.map((select) => {
+        const { x, y, width } = select.getBoundingClientRect();
+        return { x, y, width };
+      }),
+    );
+  expect(selectBoxes).toHaveLength(2);
+  expect(selectBoxes[1]!.y).toBeGreaterThan(selectBoxes[0]!.y);
+  expect(selectBoxes[1]!.x).toBeCloseTo(selectBoxes[0]!.x, 0);
+  expect(selectBoxes[1]!.x + selectBoxes[1]!.width).toBeCloseTo(
+    selectBoxes[0]!.x + selectBoxes[0]!.width,
+    0,
+  );
   const codeViewport = panel.locator(".netlist-code-viewport");
   await expect(codeViewport.locator(".project-source-editor")).toHaveCSS(
     "height",
