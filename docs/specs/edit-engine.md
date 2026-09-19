@@ -248,6 +248,10 @@ Topology operations have these preconditions:
   `unplace_instance` returns a placed Instance to the Placement
   Tray. It preserves Net membership, NoConnects, bindings, parameters, and
   annotations, but rejects while a Route still terminates at the Instance.
+  It stays an Agent-side redraw step: `planUndrawnInstancePlacements` /
+  `planUndrawnInstanceDrawing` draw every off-sheet Instance on a deterministic
+  shelf below the existing drawing, and the editor runs that repair whenever a
+  Project is opened, so no Document keeps a device its sheet does not show.
 - `connect_endpoints` creates a caller-named local Net when both endpoints are
   unowned, or attaches an unowned endpoint to the other endpoint's Net.
 - `planEnsureNamedNet` is the pure high-level companion for an existing

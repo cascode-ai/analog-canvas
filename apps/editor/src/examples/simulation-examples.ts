@@ -1,5 +1,5 @@
 import { parseProject } from "@icm/project-protocol";
-import { normalizeImportedProjectConductors } from "../document/project-conductor-normalization";
+import { normalizeImportedProject } from "../document/project-import-normalization";
 import { createProjectSymbolResolver, builtInSymbols } from "@icm/symbols";
 import rc from "./simulation-rc.icproj.json";
 import rlc from "./simulation-rlc.icproj.json";
@@ -38,7 +38,7 @@ export function createSimulationExample(id: string) {
   const entry = simulationExamples.find((example) => example.id === id);
   if (!entry) throw new Error("Unknown simulation example");
   const parsed = parseProject(JSON.stringify(entry.source));
-  const project = normalizeImportedProjectConductors(
+  const project = normalizeImportedProject(
     parsed,
     createProjectSymbolResolver(parsed, builtInSymbols),
   ).project;

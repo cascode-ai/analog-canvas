@@ -15,24 +15,26 @@ export function placementTrayIdentity(
   return `${identity} · ${instance.symbolId}`;
 }
 
+/**
+ * A repair shelf, not a workflow: opening a Project draws every Instance, and
+ * nothing in the editor sends a drawn device back here. The panel stays so an
+ * Instance that still arrives off-sheet — an older session, an Agent edit — is
+ * visible and placeable instead of silently absent from the drawing.
+ */
 export function PlacementTrayPanel({
   document,
   unplaced,
-  returnablePlaced,
   onPlaceAll,
-  onReturnAll,
   onSelect,
   onPlace,
 }: {
   document: SchematicDocument;
   unplaced: readonly Instance[];
-  returnablePlaced: readonly Instance[];
   onPlaceAll: () => void;
-  onReturnAll: (instanceIds: readonly string[]) => void;
   onSelect: (instance: Instance, label: string) => void;
   onPlace: (instanceId: string) => void;
 }) {
-  if (unplaced.length === 0 && returnablePlaced.length === 0) {
+  if (unplaced.length === 0) {
     return null;
   }
 
@@ -54,21 +56,8 @@ export function PlacementTrayPanel({
       role="region"
     >
       <div className="component-mirror-row">
-        <button
-          type="button"
-          onClick={onPlaceAll}
-          disabled={unplaced.length === 0}
-        >
+        <button type="button" onClick={onPlaceAll}>
           Place all
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            onReturnAll(returnablePlaced.map((instance) => instance.id))
-          }
-          disabled={returnablePlaced.length === 0}
-        >
-          Return all
         </button>
       </div>
       {unplaced.length > 0 ? (

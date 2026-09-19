@@ -115,20 +115,17 @@ function unexpectedKey(
 function parsePlacement(
   value: unknown,
   currentlyPlaced: boolean,
-  editableLifecycle = false,
 ): ComponentPropertyPlacementCode | null {
   if (value === null) {
-    if (currentlyPlaced && !editableLifecycle) {
+    // A drawn device never leaves the sheet: the schematic is what it shows.
+    // An Instance that is already off-sheet keeps reading back as null, so
+    // editing its other properties stays possible.
+    if (currentlyPlaced) {
       throw new Error(
-        "placement cannot be changed to null here; use Return to tray",
+        "placement cannot be changed to null; a Cell never holds a device its drawing does not show",
       );
     }
     return null;
-  }
-  if (!currentlyPlaced && !editableLifecycle) {
-    throw new Error(
-      "placement is read-only while this component is in the Placement Tray",
-    );
   }
   if (!isRecord(value)) throw new Error("placement must be an object");
   const unknown = unexpectedKey(value, PLACEMENT_KEYS, "placement");
@@ -471,7 +468,6 @@ export function parseComponentPropertyCode(
         placement: parsePlacement(
           decoded.placement,
           context.instance.placement !== null,
-          context.details !== undefined,
         ),
         ...(display ? { display } : {}),
         appearance: parseAppearance(decoded.appearance, context),

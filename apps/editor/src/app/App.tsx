@@ -30,7 +30,6 @@ import {
   planBindCellParameter,
   planSetDeviceModelTarget,
   planSetVddConnectionMode,
-  planInstanceUnplacement,
   planAngledWireRepairs,
   gateRoutingOperationPlan,
   type ProjectStructureEdit,
@@ -358,8 +357,12 @@ const LIBRARY_PANEL_STORAGE_KEY = "icm.library-panel-open.v1";
 const LIBRARY_WIDTH_STORAGE_KEY = "icm.library-panel-width.v1";
 const PROPERTIES_WIDTH_STORAGE_KEY = "icm.properties-panel-width.v1";
 const SIMULATION_WIDTH_STORAGE_KEY = "icm.simulation-panel-width.v2";
-const PROPERTIES_WIDTH_MIN = 280;
+// The drag floor only keeps the panel from disappearing behind its own
+// collapsed rail; how narrow the inspector is useful is the reader's call.
+const PROPERTIES_WIDTH_MIN = 160;
 const PROPERTIES_WIDTH_MAX = 760;
+/** Only the untouched default opens this wide; a drag may go narrower. */
+const PROPERTIES_WIDTH_DEFAULT_MIN = 280;
 const PROPERTIES_WIDTH_RATIO = 0.24;
 const SIMULATION_WIDTH_MIN = 320;
 const SIMULATION_WIDTH_MAX = 1200;
@@ -378,7 +381,10 @@ function defaultPropertiesWidth(viewportWidth: number): number {
   return Math.round(
     Math.min(
       PROPERTIES_WIDTH_MAX,
-      Math.max(PROPERTIES_WIDTH_MIN, viewportWidth * PROPERTIES_WIDTH_RATIO),
+      Math.max(
+        PROPERTIES_WIDTH_DEFAULT_MIN,
+        viewportWidth * PROPERTIES_WIDTH_RATIO,
+      ),
     ),
   );
 }
@@ -1591,9 +1597,6 @@ export function App({
   const unplaced = document.instances.filter(
     (instance) => instance.placement === null,
   );
-  const returnablePlacedInstances = document.instances.filter(
-    (instance) => instance.importProvenance && instance.placement !== null,
-  );
   const styleProfile = resolveDocumentStyleProfile(document.presentation);
   const {
     selectedIds,
@@ -2627,26 +2630,19 @@ export function App({
     setStatus(`Deleted ${id} — click another, Esc exits`);
     return true;
   }
-  const {
-    handleDrop,
-    placeAll: placeAllFromTray,
-    returnToTray: returnInstancesToTray,
-  } = createPlacementTrayCommands({
-    document,
-    resolver,
-    styleProfile,
-    viewBox,
-    pointFromDrop: (event) =>
-      pointFromClient(event.clientX, event.clientY, event.currentTarget),
-    transact,
-    selectInstance: (id) => selectOnly("instance", [id]),
-    resetSelection,
-    setStatus,
-    nextSuffix: () => {
-      uniqueSuffixCounter.current += 1;
-      return uniqueSuffixCounter.current;
-    },
-  });
+  const { handleDrop, placeAll: placeAllFromTray } =
+    createPlacementTrayCommands({
+      document,
+      resolver,
+      styleProfile,
+      viewBox,
+      pointFromDrop: (event) =>
+        pointFromClient(event.clientX, event.clientY, event.currentTarget),
+      transact,
+      selectInstance: (id) => selectOnly("instance", [id]),
+      resetSelection,
+      setStatus,
+    });
   const {
     beginCopyPlacement: beginCopyPlacementFromSelection,
     beginKeyboardSelectionMove: beginKeyboardSelectionMoveFromSelection,
@@ -6025,18 +6021,6 @@ export function App({
                                 value,
                               );
                             if (
-                              selectedInstance.placement &&
-                              value.placement === null
-                            ) {
-                              edits.push(
-                                ...planInstanceUnplacement(
-                                  document,
-                                  resolver,
-                                  [selectedInstance.id],
-                                  document.revision,
-                                ),
-                              );
-                            } else if (
                               !selectedInstance.placement &&
                               value.placement
                             ) {
@@ -6437,9 +6421,7 @@ export function App({
               placementTray={{
                 document,
                 unplaced,
-                returnablePlaced: returnablePlacedInstances,
                 onPlaceAll: placeAllFromTray,
-                onReturnAll: returnInstancesToTray,
                 onSelect: (instance, label) => {
                   selectOnly("instance", [instance.id]);
                   setStatus(`Selected ${label}`);

@@ -1,6 +1,6 @@
 import type { DragEvent } from "react";
 
-import { planInstanceUnplacement, type SchematicEdit } from "@icm/edit-engine";
+import type { SchematicEdit } from "@icm/edit-engine";
 import type { GridRect, Point, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -20,7 +20,6 @@ export function createPlacementTrayCommands({
   selectInstance,
   resetSelection,
   setStatus,
-  nextSuffix,
 }: {
   document: SchematicDocument;
   resolver: SymbolResolver;
@@ -31,7 +30,6 @@ export function createPlacementTrayCommands({
   selectInstance: (id: string) => void;
   resetSelection: () => void;
   setStatus: (status: string) => void;
-  nextSuffix: () => number;
 }) {
   const handleDrop = (event: DragEvent<SVGSVGElement>): void => {
     event.preventDefault();
@@ -93,39 +91,5 @@ export function createPlacementTrayCommands({
     }
   };
 
-  const returnToTray = (instanceIds: readonly string[]): void => {
-    if (instanceIds.length === 0) {
-      setStatus("There are no returnable placed Instances");
-      return;
-    }
-    try {
-      const edits = planInstanceUnplacement(
-        document,
-        resolver,
-        instanceIds,
-        nextSuffix(),
-      );
-      if (edits.length === 0) {
-        setStatus("Those Instances are already retained in the Placement Tray");
-        return;
-      }
-      if (transact(edits).ok) {
-        resetSelection();
-        const returnedFormalPort = instanceIds.some((instanceId) =>
-          document.netlist?.terminals.some((terminal) =>
-            terminal.interfaceInstanceIds.includes(instanceId),
-          ),
-        );
-        setStatus(
-          `Returned ${instanceIds.length} ${instanceIds.length === 1 ? "Instance" : "Instances"} to the Placement Tray; ${returnedFormalPort ? "Cell interfaces and " : ""}electrical facts were retained`,
-        );
-      }
-    } catch (error) {
-      setStatus(
-        error instanceof Error ? error.message : "Could not return to tray",
-      );
-    }
-  };
-
-  return { handleDrop, placeAll, returnToTray };
+  return { handleDrop, placeAll };
 }

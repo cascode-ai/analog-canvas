@@ -376,6 +376,58 @@ function importInstance(
   };
 }
 
+/**
+ * A schematic never holds a device its sheet does not draw, so an import lands
+ * every Instance on the canvas instead of staging invisible content behind a
+ * later placement step. The shelf is deliberately a legible starting grid, not
+ * an analog auto-layout: Cell Pins take the top row and devices fill a square
+ * block beneath them, in source order.
+ */
+const DOCUMENT_GRID = 10;
+const SHELF_MARGIN = 80;
+const SHELF_PITCH_X = 180;
+const SHELF_PITCH_Y = 140;
+const SHELF_MAX_COLUMNS = 8;
+
+function withShelfPlacements(
+  instances: readonly Instance[],
+  grid: number,
+): Instance[] {
+  const margin = snapUpToGrid(SHELF_MARGIN, grid);
+  const pitchX = snapUpToGrid(SHELF_PITCH_X, grid);
+  const pitchY = snapUpToGrid(SHELF_PITCH_Y, grid);
+  const ports = instances.filter((instance) => instance.symbolId === "port");
+  const columns = Math.min(
+    SHELF_MAX_COLUMNS,
+    Math.max(1, Math.ceil(Math.sqrt(instances.length - ports.length))),
+  );
+  const deviceTop = ports.length > 0 ? margin + pitchY : margin;
+  let portIndex = 0;
+  let deviceIndex = 0;
+  return instances.map((instance) => {
+    if (instance.placement !== null) return instance;
+    let position;
+    if (instance.symbolId === "port") {
+      position = { x: margin + portIndex * pitchX, y: margin };
+      portIndex += 1;
+    } else {
+      position = {
+        x: margin + (deviceIndex % columns) * pitchX,
+        y: deviceTop + Math.floor(deviceIndex / columns) * pitchY,
+      };
+      deviceIndex += 1;
+    }
+    return {
+      ...instance,
+      placement: { position, rotation: 0 as const, mirror: "none" as const },
+    };
+  });
+}
+
+function snapUpToGrid(value: number, grid: number): number {
+  return Math.ceil(value / grid) * grid;
+}
+
 function importDocument(
   cell: CircuitCellIR,
   diagnostics: SpiceDiagnostic[],
@@ -471,7 +523,7 @@ function importDocument(
         defaultValue: parameter.rawText,
       })),
     },
-    instances,
+    instances: withShelfPlacements(instances, DOCUMENT_GRID),
     nets,
     connectivityEvidence: cell.nets.flatMap((net) => {
       const importedName = importedNetName(net.name, net.scope, namingProfile);
@@ -551,7 +603,7 @@ function importDocument(
     annotations: [],
     presentation: {
       styleProfileId: "razavi-textbook-v1",
-      grid: 10,
+      grid: DOCUMENT_GRID,
       compactness: "normal",
     },
     layoutGroups: [],

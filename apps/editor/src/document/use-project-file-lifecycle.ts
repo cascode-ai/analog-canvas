@@ -25,7 +25,7 @@ import {
 } from "./project-file-service";
 import { projectChangeToken } from "./project-session-lifecycle";
 import { projectHasMeaningfulContent } from "./project-content";
-import { normalizeImportedProjectConductors } from "./project-conductor-normalization";
+import { normalizeImportedProject } from "./project-import-normalization";
 import {
   CLOUD_PROJECT_LIMIT,
   openCloudProject,
@@ -599,7 +599,7 @@ export function useProjectFileLifecycle({
       );
       return;
     }
-    const normalized = normalizeImportedProjectConductors(
+    const normalized = normalizeImportedProject(
       staged.project,
       projectImportSymbolResolver,
     );

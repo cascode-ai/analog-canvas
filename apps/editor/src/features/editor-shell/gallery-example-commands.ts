@@ -2,7 +2,7 @@ import type { CircuitProject, GridRect } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
-import { normalizeImportedProjectConductors } from "../../document/project-conductor-normalization";
+import { normalizeImportedProject } from "../../document/project-import-normalization";
 import type { ReplaceProjectOptions } from "../../document/use-project-file-lifecycle";
 import {
   createLibraryExampleProject,
@@ -73,8 +73,8 @@ export function createGalleryExampleCommands({
   setStatus,
   fetchImpl = fetch,
 }: GalleryExampleCommandDependencies) {
-  const normalizeImportedProject = (imported: CircuitProject): CircuitProject =>
-    normalizeImportedProjectConductors(
+  const repairOnOpen = (imported: CircuitProject): CircuitProject =>
+    normalizeImportedProject(
       imported,
       createProjectSymbolResolver(imported, builtInSymbols),
     ).project;
@@ -83,7 +83,7 @@ export function createGalleryExampleCommands({
     imported: CircuitProject,
     label: string,
   ): boolean => {
-    const normalized = normalizeImportedProject(imported);
+    const normalized = repairOnOpen(imported);
     const importedDocument = normalized.documents.find(
       (candidate) => candidate.id === normalized.topDocumentId,
     );
@@ -123,9 +123,7 @@ export function createGalleryExampleCommands({
         setStatus("This gallery entry is unavailable");
         return;
       }
-      const galleryProject = normalizeImportedProject(
-        parseProject(payload.projectText),
-      );
+      const galleryProject = repairOnOpen(parseProject(payload.projectText));
       const name = payload.entry?.name ?? galleryProject.name;
       const install = () => {
         replaceActiveProject(galleryProject, defaultViewBox);

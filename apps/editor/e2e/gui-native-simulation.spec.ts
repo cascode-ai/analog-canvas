@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { parseProject } from "@icm/project-protocol";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
-import { normalizeImportedProjectConductors } from "../src/document/project-conductor-normalization";
+import { normalizeImportedProject } from "../src/document/project-import-normalization";
 import { downloadBytes } from "./editor-fixtures.js";
 import {
   agentNativeProfile,
@@ -200,7 +200,7 @@ test("GUI imports a Canvas-bound project, runs native AC, exports and reloads it
     const bytes = await downloadBytes(page, "File", "Export Project File…");
     const saved = parseProject(bytes.toString());
     expect(saved.documents).toEqual(
-      normalizeImportedProjectConductors(
+      normalizeImportedProject(
         project,
         createProjectSymbolResolver(project, builtInSymbols),
       ).project.documents,

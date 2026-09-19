@@ -193,21 +193,26 @@ document edits. Filled foreground interiors remain selectable, while a
 background shape uses its border as the hit target so it cannot block circuit
 editing above it.
 
-The **Placement Tray** is the only retained-unplaced presentation surface, and
-it holds every Instance the Cell carries without a placement — returned,
-pasted, or imported alike. An Instance no surface lists is one nobody can place
-or delete while it still holds its reference, its Net terminals and its netlist
-cards, so the tray admits them all and the Check Report counts them
-(`ERC_INSTANCE_NOT_DRAWN`). A
-tray item may be dragged, entered into the ordinary placement cursor, or placed
-with **Place all** into a deterministic starter grid in the current view.
-**Return to tray** and **Return all** use the same lifecycle planner and retain
-electrical facts; permanent Delete remains a separate action. Object-anchored
-labels are retained with an unplaced Instance but are neither rendered nor
-hit-testable until re-placement. Cell Pins use the same return path:
-the Cell interface remains present while the Port is retained in the Tray.
-Definition-level pin placement data remains compatible, while
-new interfaces use deterministic direction-aware automatic layout.
+A schematic is what it shows. Every Instance a Cell carries is drawn: SPICE
+import lays its devices and Cell Pins out on a deterministic shelf rather than
+staging them off-sheet, and opening a Project draws any Instance a legacy
+Document still hides, with the same default designator and value projections an
+ordinary placement writes. No editor command takes a drawn device off the sheet
+— the component property code refuses a null `placement`, and permanent Delete
+remains the way to remove a device with its electrical facts.
+
+The **Placement Tray** is the repair surface for the Instances that can still
+reach a session without a placement (an older in-session document, an Agent
+`unplace`/`reset-placement` edit). An Instance no surface lists is one nobody
+can place or delete while it still holds its reference, its Net terminals and
+its netlist cards, so the tray lists them, the Check Report counts them
+(`ERC_INSTANCE_NOT_DRAWN`), and it disappears once the drawing shows
+everything. A tray item may be dragged, entered into the ordinary placement
+cursor, or placed with **Place all** into a deterministic starter grid in the
+current view. Object-anchored labels are retained with an unplaced Instance but
+are neither rendered nor hit-testable until placement. Definition-level pin
+placement data remains compatible, while new interfaces use deterministic
+direction-aware automatic layout.
 
 Canonical `nmos`/`pmos` use the asset's `textbook-3terminal` visual variant by
 default while retaining D/G/S/B electrically. A manual MOS uses explicit B
@@ -737,9 +742,11 @@ previews an exact affected-object count before commit:
 - **Clear Drawing** removes authored Route geometry and drafting objects while
   retaining Instances, Nets, Junction topology, ports, and semantic
   annotations.
-- **Reset Cell Placement** returns every placed Instance to the Placement Tray,
-  removes Route geometry and placement constraints/groups, and retains the
-  devices, Nets, Junction topology, and formal interface.
+- **Reset Cell Placement** (Agent authoring only) returns every placed Instance
+  to the Placement Tray, removes Route geometry and placement
+  constraints/groups, and retains the devices, Nets, Junction topology, and
+  formal interface. The next open of that Project draws the returned Instances
+  again, so the reset is a redraw step, not a lasting off-sheet state.
 - **Reset Cell Body** removes non-interface electrical and drawing content but
   retains formal terminals, their interface Port markers, their Nets, and
   terminal annotations. Existing parent callers therefore keep the same pin

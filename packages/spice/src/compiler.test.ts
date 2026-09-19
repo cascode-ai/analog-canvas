@@ -7,6 +7,73 @@ import { importCompileResult } from "./importer.js";
 import { loadSourceBundleFromFile } from "./node-source.js";
 
 describe("SPICE elaboration and Project import", () => {
+  it("draws every imported Instance instead of staging it off-sheet", async () => {
+    const compiled = await compileSpiceSources(
+      [
+        {
+          path: "shelf.spi",
+          bytes: Buffer.from(
+            [
+              "Shelf",
+              ".subckt amp in out vdd 0",
+              "R1 in out 1k",
+              "R2 out vdd 2k",
+              "C1 out 0 1p",
+              ".ends",
+              "XA1 a b vdd 0 amp",
+              ".end",
+              "",
+            ].join("\n"),
+          ),
+        },
+      ],
+      "shelf.spi",
+    );
+
+    const imported = importCompileResult(compiled);
+
+    const instances = imported.project!.documents.flatMap(
+      (document) => document.instances,
+    );
+    expect(instances.length).toBeGreaterThan(4);
+    expect(instances.every((instance) => instance.placement !== null)).toBe(
+      true,
+    );
+    // Cell Pins take the top row; devices start a grid beneath them.
+    const child = imported.project!.documents.find(
+      (document) => document.sourceBinding?.cellName === "amp",
+    )!;
+    const ports = child.instances.filter(
+      (instance) => instance.symbolId === "port",
+    );
+    const devices = child.instances.filter(
+      (instance) => instance.symbolId !== "port",
+    );
+    expect(new Set(ports.map((port) => port.placement!.position.y)).size).toBe(
+      1,
+    );
+    expect(
+      devices.every(
+        (device) =>
+          device.placement!.position.y > ports[0]!.placement!.position.y,
+      ),
+    ).toBe(true);
+    // Positions land on the Document grid, so the schema accepts them.
+    expect(
+      child.instances.every(
+        (instance) =>
+          instance.placement!.position.x % child.presentation.grid === 0 &&
+          instance.placement!.position.y % child.presentation.grid === 0,
+      ),
+    ).toBe(true);
+    // Deterministic: the same source imports to the same drawing.
+    expect(
+      importCompileResult(compiled).project!.documents.flatMap((document) =>
+        document.instances.map((instance) => instance.placement),
+      ),
+    ).toEqual(instances.map((instance) => instance.placement));
+  });
+
   it("applies Cadence bang globals only through the explicit import profile", async () => {
     const compiled = await compileSpiceSources(
       [

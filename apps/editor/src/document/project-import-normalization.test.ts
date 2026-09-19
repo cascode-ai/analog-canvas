@@ -2,13 +2,13 @@ import { createEmptyProject, createRoutePath } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
-import { normalizeImportedProjectConductors } from "./project-conductor-normalization";
+import { normalizeImportedProject } from "./project-import-normalization";
 import { resolveDocumentLogicalNets } from "@icm/derived";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
-describe("imported Project conductor normalization", () => {
+describe("imported Project normalization", () => {
   it("repairs proven split Ground markers once, preserves geometry, and survives save/reopen", () => {
     const project = createEmptyProject("split-ground", "Ground");
     const document = project.documents[0]!;
@@ -34,7 +34,7 @@ describe("imported Project conductor normalization", () => {
       powerDomain: "ground",
       owner: { kind: "global-declaration", sourceNetId: "original-0" },
     });
-    const repaired = normalizeImportedProjectConductors(project, resolver);
+    const repaired = normalizeImportedProject(project, resolver);
     expect(repaired.changedDocumentIds).toEqual([document.id]);
     expect(repaired.project.documents[0]!.nets).toEqual(document.nets);
     expect(repaired.project.documents[0]!.sourceStatus).toBe(
@@ -45,7 +45,7 @@ describe("imported Project conductor normalization", () => {
     ).toHaveLength(1);
     const reopened = parseProject(serializeProject(repaired.project));
     expect(
-      normalizeImportedProjectConductors(reopened, resolver).changedDocumentIds,
+      normalizeImportedProject(reopened, resolver).changedDocumentIds,
     ).toEqual([]);
     expect(document.connectivityEvidence).toHaveLength(3);
   });
@@ -93,7 +93,7 @@ describe("imported Project conductor normalization", () => {
       }),
     );
 
-    const normalized = normalizeImportedProjectConductors(project, resolver);
+    const normalized = normalizeImportedProject(project, resolver);
 
     expect(normalized.changedDocumentIds).toEqual([document.id]);
     expect(normalized.project).not.toBe(project);
@@ -110,12 +110,65 @@ describe("imported Project conductor normalization", () => {
     ).toBe(true);
   });
 
+  it("draws every Instance the Document kept off the sheet", () => {
+    const project = createEmptyProject("undrawn", "Undrawn");
+    const document = project.documents[0]!;
+    document.instances.push(
+      { id: "R1", symbolId: "resistor", placement: null, reference: "R1" },
+      {
+        id: "R2",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 200, y: 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+        reference: "R2",
+      },
+    );
+
+    const normalized = normalizeImportedProject(project, resolver);
+    const drawn = normalized.project.documents[0]!;
+
+    expect(normalized.drawnInstanceCount).toBe(1);
+    expect(normalized.changedDocumentIds).toEqual([document.id]);
+    expect(
+      drawn.instances.every((instance) => instance.placement !== null),
+    ).toBe(true);
+    // The repaired device is indistinguishable from a hand-drawn one.
+    expect(
+      drawn.annotations.some(
+        (annotation) =>
+          annotation.anchor.kind === "object" &&
+          annotation.anchor.objectId === "R1",
+      ),
+    ).toBe(true);
+    // The Instance that was already drawn keeps its own placement.
+    expect(
+      drawn.instances.find((instance) => instance.id === "R2")!.placement,
+    ).toEqual({
+      position: { x: 200, y: 200 },
+      rotation: 0,
+      mirror: "none",
+    });
+    expect(
+      normalizeImportedProject(
+        parseProject(serializeProject(normalized.project)),
+        resolver,
+      ).drawnInstanceCount,
+    ).toBe(0);
+  });
+
   it("returns an already canonical Project without a synthetic revision", () => {
     const project = createEmptyProject("canonical", "Canonical");
 
-    const normalized = normalizeImportedProjectConductors(project, resolver);
+    const normalized = normalizeImportedProject(project, resolver);
 
-    expect(normalized).toEqual({ project, changedDocumentIds: [] });
+    expect(normalized).toEqual({
+      project,
+      changedDocumentIds: [],
+      drawnInstanceCount: 0,
+    });
     expect(normalized.project).toBe(project);
   });
 
@@ -167,7 +220,7 @@ describe("imported Project conductor normalization", () => {
       }),
     );
 
-    const normalized = normalizeImportedProjectConductors(project, resolver);
+    const normalized = normalizeImportedProject(project, resolver);
 
     expect(normalized.changedDocumentIds).toEqual([document.id]);
     expect(normalized.project.documents[0]).toMatchObject({

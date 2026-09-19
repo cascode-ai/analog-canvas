@@ -226,14 +226,15 @@ describe("component property code", () => {
     ).toMatchObject({ ok: true, value: { connection: "cell-pin" } });
   });
 
-  it("keeps tray membership outside free-form property edits", () => {
+  it("refuses to take a drawn device off the sheet", () => {
     const source = formatComponentPropertyCode(context).replace(
       /"placement": \{[\s\S]*?\n  \},\n  "appearance"/u,
       '"placement": null,\n  "appearance"',
     );
     expect(parseComponentPropertyCode(source, context)).toEqual({
       ok: false,
-      message: "placement cannot be changed to null here; use Return to tray",
+      message:
+        "placement cannot be changed to null; a Cell never holds a device its drawing does not show",
     });
   });
 

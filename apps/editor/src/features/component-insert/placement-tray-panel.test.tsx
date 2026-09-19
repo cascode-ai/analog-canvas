@@ -22,9 +22,7 @@ describe("placement tray panel", () => {
       <PlacementTrayPanel
         document={document}
         unplaced={[instance]}
-        returnablePlaced={[]}
         onPlaceAll={vi.fn()}
-        onReturnAll={vi.fn()}
         onSelect={vi.fn()}
         onPlace={vi.fn()}
       />,
@@ -38,17 +36,17 @@ describe("placement tray panel", () => {
     expect(tray).not.toContain('open=""');
     expect(markup).toContain('aria-label="1 retained Instance"');
     expect(markup).toContain("R1 · resistor");
+    // Repair only: nothing here sends a drawn device back off the sheet.
+    expect(markup).not.toContain("Return all");
   });
 
-  it("does not render outside an imported placement workflow", () => {
+  it("stays hidden while the drawing shows every Instance", () => {
     const document = createEmptyDocument("cell", "Cell");
     const markup = renderToStaticMarkup(
       <PlacementTrayPanel
         document={document}
         unplaced={[]}
-        returnablePlaced={[]}
         onPlaceAll={vi.fn()}
-        onReturnAll={vi.fn()}
         onSelect={vi.fn()}
         onPlace={vi.fn()}
       />,
