@@ -130,16 +130,24 @@ export function resolveDocumentLogicalNets(
         evidence.scope === "global" &&
         foldNetName(evidence.name) === foldNetName(terminal.name),
     );
+    const powerDomain =
+      interfaceAnnotation?.kind === "power-label" ||
+      interfaceInstances.some((instance) => instance.symbolId === "vdd-port")
+        ? ("vdd" as const)
+        : ("none" as const);
     return {
       id: terminal.id,
       netId: terminal.netId,
       name: terminal.name,
-      scope: matchingGlobalClaim ? ("global" as const) : ("local" as const),
-      powerDomain:
-        interfaceAnnotation?.kind === "power-label" ||
-        interfaceInstances.some((instance) => instance.symbolId === "vdd-port")
-          ? ("vdd" as const)
-          : ("none" as const),
+      // A Cell Pin standing on a supply marker is that supply. The marker is
+      // a global connector wherever it is drawn, and exposing one as a Pin
+      // must not take it out of the supply it marks: without this, a Cell with
+      // a VDD Pin and a VDD rail carries two different Nets both spelled VDD.
+      scope:
+        matchingGlobalClaim || powerDomain !== "none"
+          ? ("global" as const)
+          : ("local" as const),
+      powerDomain,
     };
   });
   for (const evidence of document.connectivityEvidence) {
@@ -237,14 +245,18 @@ export function resolveDocumentLogicalNets(
       if (powerDomain === "conflict") {
         conflicts.push("power-domain-conflict");
       }
-      const isSpiceGroundReference =
-        powerDomain === "ground" &&
+      // A Cell may state a supply as its own Pin: the Pin and the global node
+      // are one thing under one name, which is what a supply marker means.
+      // Every other formal Pin landing on a global Net is the accident this
+      // reports.
+      const isSupplyReference =
         namesByFolded.size === 1 &&
-        namesByFolded.has(foldNetName("0"));
+        (powerDomain === "vdd" ||
+          (powerDomain === "ground" && namesByFolded.has(foldNetName("0"))));
       if (
         memberFormalNames.length > 0 &&
         scopes.has("global") &&
-        !isSpiceGroundReference
+        !isSupplyReference
       ) {
         conflicts.push("formal-global-conflict");
       }

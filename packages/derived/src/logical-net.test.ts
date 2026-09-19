@@ -330,7 +330,7 @@ describe("resolved logical Nets", () => {
     });
   });
 
-  it("rejects one physical Net being both a formal Cell Pin and Global", () => {
+  it("lets a Cell Pin stand on the supply its marker names", () => {
     const document = createEmptyDocument("document", "Document");
     document.instances.push({
       id: "VDD1",
@@ -358,12 +358,47 @@ describe("resolved logical Nets", () => {
       owner: { kind: "power-marker", objectId: "VDD1" },
     });
 
+    // The marker is a global connector wherever it is drawn: exposing one as
+    // a Pin must not take it out of the supply, or a Cell with a VDD Pin and
+    // a VDD rail carries two different Nets both spelled VDD.
+    expect(resolveDocumentLogicalNets(document).groups[0]).toMatchObject({
+      name: "VDD",
+      scope: "global",
+      powerDomain: "vdd",
+      conflicts: [],
+    });
+    expect(validateLogicalNetContract(document)).toEqual([]);
+  });
+
+  it("still rejects an ordinary Cell Pin standing on a Global Net", () => {
+    const document = createEmptyDocument("document", "Document");
+    document.instances.push({ id: "P1", symbolId: "port", placement: null });
+    document.nets.push({
+      id: "net-bus",
+      terminals: [{ instanceId: "P1", pinName: "P" }],
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-bus",
+      name: "BUS",
+      netId: "net-bus",
+      direction: "inout",
+      interfaceInstanceIds: ["P1"],
+    });
+    document.connectivityEvidence.push({
+      id: "claim-global-bus",
+      kind: "name-claim",
+      netId: "net-bus",
+      name: "BUS",
+      scope: "global",
+      owner: { kind: "net-label", annotationId: "label-bus" },
+    });
+
     expect(resolveDocumentLogicalNets(document).groups[0]?.conflicts).toContain(
       "formal-global-conflict",
     );
     expect(validateLogicalNetContract(document)).toContainEqual({
       code: "FORMAL_PORT_GLOBAL_NET_CONFLICT",
-      netIds: ["net-vdd"],
+      netIds: ["net-bus"],
     });
   });
 

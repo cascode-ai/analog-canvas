@@ -1333,7 +1333,7 @@ describe("current formal cell interface", () => {
     expect(printSpiceNetlist(result.ir!)).not.toContain(".global VDD");
   });
 
-  it("blocks export when one VDD Net is both formal and Global", () => {
+  it("lets a Cell state its supply as its own Pin", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;
     document.instances.push({
@@ -1356,12 +1356,17 @@ describe("current formal cell interface", () => {
 
     const result = analyzeDesignNetlist(project);
 
-    expect(result.ir).toBeNull();
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({
-        code: "FORMAL_PORT_GLOBAL_NET_CONFLICT",
-        objectIds: expect.arrayContaining(["net-vdd", "terminal-vdd1"]),
-      }),
+    // A supply marker is a global connector wherever it is drawn, so exposing
+    // one as a Cell Pin does not take it out of its supply: the Pin and the
+    // global node are one thing under one name. Every other formal Pin on a
+    // global Net is still the accident FORMAL_PORT_GLOBAL_NET_CONFLICT names.
+    expect(
+      result.diagnostics.filter(
+        (item) => item.code === "FORMAL_PORT_GLOBAL_NET_CONFLICT",
+      ),
+    ).toEqual([]);
+    expect(result.ir?.cells[0]?.ports.map((port) => port.name)).toContain(
+      "VDD",
     );
   });
 

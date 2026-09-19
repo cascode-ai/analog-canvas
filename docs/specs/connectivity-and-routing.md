@@ -234,6 +234,13 @@ VDD markers on that Net do not require a drawn trunk or matching label and do
 not produce a flightline. Named local Nets still require route, contact, or
 label evidence for their visible connectivity.
 
+A Cell may state a supply as its own Pin. A formal terminal standing on a
+supply marker carries that supply's global identity, so a Cell holding a VDD
+Pin and a VDD rail has one VDD, not two Nets spelled the same; the Pin and the
+global node are one thing under one name, as SPICE ground `0` already was.
+Every other formal Pin landing on a global Net stays the accident
+`FORMAL_PORT_GLOBAL_NET_CONFLICT` reports.
+
 Legacy Projects may have several supply markers sharing one inherited claim.
 Before a Wire cut, each marker on the affected Base Net materializes the
 unambiguous current supply name and scope as its own claim. Copy and flattened
