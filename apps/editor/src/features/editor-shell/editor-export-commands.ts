@@ -67,16 +67,19 @@ export function planDesignNetlistExport({
   namingProfile = "native",
   portCase,
   electricalWarningsPresent = false,
+  rootDocumentId,
 }: {
   format: NetlistFormat;
   project: CircuitProject;
   namingProfile?: NetlistNamingProfile;
   portCase?: NetlistPortCase;
   electricalWarningsPresent?: boolean;
+  rootDocumentId?: string;
 }): DesignNetlistExportPlan {
   const result = createDesignNetlistExport(project, {
     format,
     namingProfile,
+    ...(rootDocumentId ? { rootDocumentId } : {}),
     ...(portCase ? { portCase } : {}),
   });
   if (result.status === "blocked") {

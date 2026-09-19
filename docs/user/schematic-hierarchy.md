@@ -68,6 +68,12 @@ definition without caller context, even when it has only one caller. **Up** is
 disabled in that context. Enter an instance or use the hierarchy tree to carry
 a concrete path; **Up** then returns to and selects the original caller.
 
+In the Netlist panel, **Entry** chooses a Cell for this export only. **Default
+Top** follows the saved default; another selection drives the preview, structural
+check and copied netlist without changing Top or your editing location. Code
+edits apply to the displayed Cell's actual devices. Entry selection is disabled
+while a text draft is pending, and resets for a different opened Project.
+
 Use **Import Cell** in the Cell Manager to copy a Cell from another signed-in
 Cloud Project. The import includes every child Cell it calls, compatible
 external-subcircuit interfaces, formal ports, presentation, and referenced

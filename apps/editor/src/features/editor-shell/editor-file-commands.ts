@@ -29,6 +29,7 @@ export interface EditorFileCommandDependencies {
   defaultViewBox: GridRect;
   electricalWarningsPresent: () => boolean;
   netlistPortCase?: NetlistPortCase;
+  netlistRootDocumentId?: string | undefined;
   netlistConfigurationError?: string | null;
   guardDirtyReplacement: (
     label: string,
@@ -59,6 +60,7 @@ export function createEditorFileCommands({
   defaultViewBox,
   electricalWarningsPresent,
   netlistPortCase,
+  netlistRootDocumentId,
   netlistConfigurationError,
   guardDirtyReplacement,
   replaceActiveProject,
@@ -94,6 +96,9 @@ export function createEditorFileCommands({
       format,
       project,
       namingProfile,
+      ...(netlistRootDocumentId
+        ? { rootDocumentId: netlistRootDocumentId }
+        : {}),
       ...(netlistPortCase ? { portCase: netlistPortCase } : {}),
       electricalWarningsPresent: electricalWarningsPresent(),
     });

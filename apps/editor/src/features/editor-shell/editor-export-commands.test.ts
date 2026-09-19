@@ -6,8 +6,28 @@ import {
   planDesignNetlistExport,
 } from "./editor-export-commands";
 import { importChunk } from "../../components/chunk-import";
+import { hierarchyParameterFixture } from "../../../../../netlists/hierarchy-parameters/fixture";
 
 describe("editor export commands", () => {
+  it("exports a chosen Cell without changing the default Top or including unrelated errors", () => {
+    const project = hierarchyParameterFixture();
+    const topId = project.topDocumentId;
+    project.documents[0]!.netlist = undefined;
+    const before = structuredClone(project);
+    expect(planDesignNetlistExport({ project, format: "spice" }).status).toBe(
+      "blocked",
+    );
+    const selected = planDesignNetlistExport({
+      project,
+      format: "spice",
+      rootDocumentId: "resistors",
+    });
+    expect(selected.status).toBe("ready");
+    if (selected.status === "ready")
+      expect(String(selected.artifact.bytes)).toContain(".subckt Resistors");
+    expect(project).toEqual(before);
+    expect(project.topDocumentId).toBe(topId);
+  });
   it("blocks structurally incomplete extraction", () => {
     const project = createEmptyProject("project", "Circuit");
     project.documents[0]!.netlist = undefined;

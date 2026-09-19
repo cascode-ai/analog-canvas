@@ -23,11 +23,13 @@ export function NetlistPreflightDialog({
   onExport,
   format,
   portCase,
+  rootDocumentId,
 }: {
   open: boolean;
   project: CircuitProject;
   format: NetlistFormat;
   portCase?: NetlistPortCase;
+  rootDocumentId?: string | undefined;
   electricalDiagnostics: readonly Diagnostic[];
   onClose(): void;
   onNavigate(diagnostic: NetlistDiagnostic): void;
@@ -41,9 +43,10 @@ export function NetlistPreflightDialog({
       createDesignNetlistExport(project, {
         format,
         namingProfile,
+        ...(rootDocumentId ? { rootDocumentId } : {}),
         ...(portCase ? { portCase } : {}),
       }),
-    [format, namingProfile, portCase, project],
+    [format, namingProfile, portCase, project, rootDocumentId],
   );
   // The same finding repeated once per object says nothing many times over;
   // count it instead. Seven identical lines was most of what the report said.

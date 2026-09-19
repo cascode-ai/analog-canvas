@@ -49,6 +49,57 @@ function fixture() {
 const label = (page: import("@playwright/test").Page) =>
   page.locator('[data-layer="annotations"] [data-object-id="label-R1"]');
 
+test("selects an export entry independently of saved Top and edits only that Cell", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const project = fixture();
+  const child = structuredClone(project.documents[0]!);
+  child.id = "child";
+  child.name = "Child";
+  child.netlist!.name = "Child";
+  for (const instance of child.instances)
+    instance.netlist!.parameters.value = "20k";
+  project.documents.push(child);
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "entries.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  const code = page.getByLabel("Netlist code", { exact: true });
+  const entry = page.getByLabel("Netlist entry Cell", { exact: true });
+  await expect(code).toContainText("10k");
+  await entry.selectOption("child");
+  await expect(code).toContainText("20k");
+  await expect(code).not.toContainText("10k");
+  await expect(page.getByTestId("document-selector")).toHaveValue(
+    project.topDocumentId,
+  );
+  await page.getByTestId("copy-netlist-panel").click();
+  await expect
+    .poll(async () =>
+      (await page.evaluate(() => navigator.clipboard.readText()))
+        .replace(/\r\n/g, "\n")
+        .trim(),
+    )
+    .toBe((await code.innerText()).replace(/\r\n/g, "\n").trim());
+  await code.fill((await code.innerText()).replace("20k", "30k"));
+  await code.press("Enter");
+  await expect(entry).toBeEnabled();
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(saved.topDocumentId).toBe(project.topDocumentId);
+  expect(saved.documents[0].instances[0].netlist.parameters.value).toBe("10k");
+  expect(saved.documents[1].instances[0].netlist.parameters.value).toBe("30k");
+  await entry.selectOption("");
+  await expect(code).toContainText("10k");
+  await expect(code).not.toContainText("30k");
+});
+
 test("restores process and device choices, applies defaults and keeps copy/edit/undo consistent", async ({
   page,
   context,

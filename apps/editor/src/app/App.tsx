@@ -747,6 +747,15 @@ export function App({
     "native" | "cadence-bang"
   >("native");
   const netlistPreferences = useNetlistExportPreferences();
+  const [netlistEntry, setNetlistEntry] = useState<{
+    sessionId: string;
+    documentId: string;
+  } | null>(null);
+  const netlistRootDocumentId =
+    netlistEntry?.sessionId === projectSessionId &&
+    project.documents.some((item) => item.id === netlistEntry.documentId)
+      ? netlistEntry.documentId
+      : undefined;
   const [documentSettingsOpen, setDocumentSettingsOpen] = useState(false);
   const [projectNameDraft, setProjectNameDraft] = useState<string | null>(null);
   const [publishGalleryOpen, setPublishGalleryOpen] = useState(false);
@@ -3953,6 +3962,7 @@ export function App({
       electricalWarningsPresent: () =>
         requestElectricalDiagnostics().length > 0,
       netlistPortCase: netlistPreferences.portCase,
+      netlistRootDocumentId,
       netlistConfigurationError: netlistPreferences.error,
       guardDirtyReplacement,
       replaceActiveProject,
@@ -5142,6 +5152,7 @@ export function App({
                 project,
                 format: netlistPreferences.format,
                 portCase: netlistPreferences.portCase,
+                rootDocumentId: netlistRootDocumentId,
                 // The dialog only renders while open, so this IS the
                 // explicit check the author asked for.
                 electricalDiagnostics: requestElectricalDiagnostics(),
@@ -5657,6 +5668,14 @@ export function App({
                     }}
                     project={project}
                     format={netlistPreferences.format}
+                    rootDocumentId={netlistRootDocumentId}
+                    onRootChange={(documentId) =>
+                      setNetlistEntry(
+                        documentId
+                          ? { sessionId: projectSessionId, documentId }
+                          : null,
+                      )
+                    }
                     namingProfile={netlistNamingProfile}
                     portCase={netlistPreferences.portCase}
                     onFormatChange={netlistPreferences.selectFormat}
