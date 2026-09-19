@@ -305,7 +305,18 @@ export const simulationAuthoringTools: readonly Entry[] = [
           ...(parsed.input ? { input: parsed.input } : {}),
         };
       }
-      return save(session, next, project.structureRevision, parsed.documentId);
+      const result = await save(
+        session,
+        next,
+        project.structureRevision,
+        parsed.documentId,
+      );
+      return result.ok
+        ? {
+            ...result,
+            folder: { id: next.id, name: next.name, entry: next.input.entry },
+          }
+        : result;
     },
   ),
   tool(

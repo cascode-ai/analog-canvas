@@ -6,6 +6,7 @@ import { RpcMethodError } from "./protocol.js";
 import { AgentSchematicEditSchema } from "@icm/agent-adapter";
 import { z } from "zod";
 import type { McpResourceContent, McpResourceEntry } from "./protocol.js";
+import { compactSchema } from "./compact-schema.js";
 
 export const ADVANCED_EDITS_RESOURCE_URI =
   "analog-canvas://contract/advanced-edits";
@@ -43,7 +44,9 @@ export function readResourceContent(uri: string): McpResourceContent {
       uri,
       mimeType: "application/schema+json",
       text: JSON.stringify(
-        z.toJSONSchema(option, { target: "draft-2020-12", reused: "ref" }),
+        compactSchema(
+          z.toJSONSchema(option, { target: "draft-2020-12", reused: "ref" }),
+        ),
       ),
     };
   }
