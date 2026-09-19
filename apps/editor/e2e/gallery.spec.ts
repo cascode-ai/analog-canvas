@@ -1587,6 +1587,10 @@ test("a gallery tile opens its circuit in the editor", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId(`gallery-tile-${ENTRY.id}`).click();
   await expect(page).toHaveURL(/\/g\/g-ring$/);
+  // The editor arrives behind a lazy chunk. Wait for the canvas before
+  // reading the status line: an expect() poll gives up sooner than a cold,
+  // busy runner needs to load it, which is a failure with no defect in it.
+  await awaitEditorReady(page);
   await expect(page.getByTestId("status")).toContainText(
     `Opened gallery circuit: ${ENTRY.name}`,
   );
@@ -2470,6 +2474,7 @@ test("an opened gallery entry offers updating in place", async ({ page }) => {
   });
 
   await page.goto(`/g/${ENTRY.id}`);
+  await awaitEditorReady(page);
   await expect(page.getByTestId("status")).toContainText(
     `Opened gallery circuit: ${ENTRY.name}`,
   );
@@ -2560,6 +2565,7 @@ test("a reviewer browses version history and restores a version", async ({
   );
 
   await page.goto(`/g/${ENTRY.id}`);
+  await awaitEditorReady(page);
   await expect(page.getByTestId("status")).toContainText(
     `Opened gallery circuit: ${ENTRY.name}`,
   );
@@ -2585,6 +2591,7 @@ test("a reviewer browses version history and restores a version", async ({
   await expect(version).toHaveCSS("display", "grid");
   await expect(version).toContainText("Ring Oscillator (older)");
   await page.getByTestId("version-restore-2").click();
+  await awaitEditorReady(page);
   await expect(page.getByTestId("status")).toContainText(
     `Opened gallery circuit: ${ENTRY.name}`,
   );
@@ -2616,6 +2623,7 @@ test("replacing the project retires the stale update offer", async ({
   );
 
   await page.goto(`/g/${ENTRY.id}`);
+  await awaitEditorReady(page);
   await expect(page.getByTestId("status")).toContainText(
     `Opened gallery circuit: ${ENTRY.name}`,
   );
@@ -2687,6 +2695,7 @@ test("the Examples panel guards dirty work before opening an entry", async ({
 
   await card.click();
   await dialog.getByRole("button", { name: "Continue without saving" }).click();
+  await awaitEditorReady(page);
   await expect(page.getByTestId("status")).toContainText(
     `Opened gallery circuit: ${ENTRY.name}`,
   );
@@ -2700,6 +2709,7 @@ test("bundled starter tiles open their example in the editor", async ({
   await page.goto("/");
   await page.getByTestId("gallery-bundled-common-source-amplifier").click();
   await expect(page).toHaveURL(/\/editor\?example=common-source-amplifier$/);
+  await awaitEditorReady(page);
   await expect(page.getByTestId("status")).toContainText(
     "Opened example: Common-Source Amplifier",
   );
