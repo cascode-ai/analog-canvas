@@ -113,9 +113,7 @@ export function parseGalleryFilterQuery(search: string): {
       view: params.get("view") === "shelf" ? "shelf" : "gallery",
       author: author.length > 0 ? author.slice(0, MAX_FILTER_LENGTH) : null,
       ownerUserId:
-        ownerUserId.length > 0
-          ? ownerUserId.slice(0, MAX_FILTER_LENGTH)
-          : null,
+        ownerUserId.length > 0 ? ownerUserId.slice(0, MAX_FILTER_LENGTH) : null,
       tags: boundedTags((params.get("tags") ?? "").split(",")),
       search: (params.get("q") ?? "").slice(0, MAX_FILTER_LENGTH),
       netlistable: params.get("netlist") === "1",
@@ -172,9 +170,7 @@ export function parseStoredGalleryFilters(
     view: record.view === "shelf" ? "shelf" : "gallery",
     author: author.length > 0 ? author.slice(0, MAX_FILTER_LENGTH) : null,
     ownerUserId:
-      ownerUserId.length > 0
-        ? ownerUserId.slice(0, MAX_FILTER_LENGTH)
-        : null,
+      ownerUserId.length > 0 ? ownerUserId.slice(0, MAX_FILTER_LENGTH) : null,
     tags: boundedTags(Array.isArray(record.tags) ? record.tags : []),
     search:
       typeof record.search === "string"
