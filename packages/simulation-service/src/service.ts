@@ -154,6 +154,7 @@ export class SimulationService {
           capabilities: {
             ...(await this.executor.capabilities()),
             inputs: ["source"],
+            maxActiveRuns: 1,
             batch: {
               maxItems: 16,
               execution: "sequential",

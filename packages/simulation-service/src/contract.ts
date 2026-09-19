@@ -594,6 +594,8 @@ export const CapabilitiesSchema = z.strictObject({
   maxInputBytes: z.number(),
   /** Maximum raw simulator output returned by the selected execution harness. */
   maxOutputBytes: z.number().int().positive().optional(),
+  /** Effective number of simultaneously active runs admitted by this session. */
+  maxActiveRuns: z.number().int().positive().optional(),
   cancel: z.boolean(),
   batch: z
     .strictObject({
