@@ -868,7 +868,7 @@ function extractHierarchyInstance(
   );
   // Callers and definitions share the authored interface, including its order.
   const childPorts = projectCellInterface(child.netlist).ports;
-  const nodes = childPorts.flatMap((port) => {
+  const nodes = childPorts.map((port) => {
     const netName = terminalNetName(
       document,
       instance,
@@ -876,7 +876,12 @@ function extractHierarchyInstance(
       context,
       diagnostics,
     );
-    return netName ? [{ pinName: port.name, netName }] : [];
+    // Strict extraction rejects the accompanying error. Authoring keeps an
+    // explicit non-executable slot rather than shifting positional arguments.
+    return {
+      pinName: port.name,
+      netName: netName ?? `<unconnected:${port.name}>`,
+    };
   });
   // The child's ground pin is not in its authored interface; both sides
   // derive it from the Documents, so the call carries this Cell's own ground
@@ -1058,7 +1063,7 @@ function extractExternalSubcircuitInstance(
       );
     }
   }
-  const nodes = terminalBindings.flatMap((terminal) => {
+  const nodes = terminalBindings.map((terminal) => {
     const netName = terminalNetName(
       document,
       instance,
@@ -1066,7 +1071,10 @@ function extractExternalSubcircuitInstance(
       context,
       diagnostics,
     );
-    return netName ? [{ pinName: terminal.targetName, netName }] : [];
+    return {
+      pinName: terminal.targetName,
+      netName: netName ?? `<unconnected:${terminal.targetName}>`,
+    };
   });
   const parameters = Object.entries(netlist.parameters);
   const projectedParameters = reviewed
@@ -1201,7 +1209,7 @@ function extractBuiltInSubcircuitInstance(
         `Analog Block ${reference} requires a ${port.supply} Net; the Cell already spells ${port.supply} for a local Net, so draw the ${port.supply === "VDD" ? "positive supply" : "ground"} or rename that Net`,
         [instance.id],
       );
-      return [];
+      return [{ pinName: port.name, netName: `<unconnected:${port.name}>` }];
     }
     const netName = terminalNetName(
       document,
@@ -1210,7 +1218,9 @@ function extractBuiltInSubcircuitInstance(
       context,
       diagnostics,
     );
-    return netName ? [{ pinName: port.name, netName }] : [];
+    return [
+      { pinName: port.name, netName: netName ?? `<unconnected:${port.name}>` },
+    ];
   });
   return {
     id: instance.id,
@@ -1390,7 +1400,7 @@ function extractDeviceInstance(
       context,
       diagnostics,
     );
-    return netName ? [{ pinName, netName }] : [];
+    return [{ pinName, netName: netName ?? `<unconnected:${pinName}>` }];
   });
   const target =
     netlist.binding?.kind === "model" ? netlist.binding.name : null;
@@ -1577,6 +1587,15 @@ function extractCell(
     diagnostics,
   );
   const interfaceProjection = projectCellInterface(document.netlist);
+  for (const issue of interfaceProjection.issues) {
+    diagnostic(
+      diagnostics,
+      document.id,
+      issue.code,
+      `Port ${issue.portName} has conflicting directions: ${issue.directions.join(", ")}`,
+      [...issue.terminalIds],
+    );
+  }
   const ports: DesignNetlistCell["ports"] = interfaceProjection.ports.flatMap(
     (port) => {
       let hasMissingNet = false;
@@ -1876,6 +1895,29 @@ function analyzeDesign(
     }
   }
   const cells: DesignNetlistCell[] = [];
+  for (const document of documents) {
+    for (const instance of document.instances) {
+      const binding = instance.netlist?.binding;
+      if (binding?.kind === "subcircuit") continue;
+      const target =
+        binding?.kind === "external-subcircuit"
+          ? project.externalSubcircuitDefinitions.find(
+              (definition) => definition.id === binding.definitionId,
+            )?.name
+          : binding?.kind === "unresolved-subcircuit"
+            ? binding.name
+            : subcircuitDescriptor(instance.symbolId)?.target;
+      const collision = target && cellNames.get(target.toLowerCase());
+      if (collision)
+        diagnostic(
+          diagnostics,
+          document.id,
+          "MASTER_NAME_COLLISION",
+          `External master ${target} conflicts with local Cell ${collision.authoredName}; choose distinct exported master names`,
+          [instance.id],
+        );
+    }
+  }
   for (const document of documents) {
     const cell = extractCell(
       project,

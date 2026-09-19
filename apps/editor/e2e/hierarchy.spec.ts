@@ -1193,6 +1193,9 @@ test("same-name Cell Pins stay independent while the final interface groups them
     ["P2"],
   ]);
 
+  // Conflicting interface directions remain editable, but must be resolved
+  // before a strict export can produce an executable subcircuit.
+  await setCellTerminalDirection(page, "VIN", "input");
   await clickCommand(page, "Netlist", "Check Report…");
   const preview = await page
     .getByRole("dialog", { name: "Check Report" })
