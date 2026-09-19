@@ -21,6 +21,7 @@ import { importSpiceSources } from "@icm/spice";
 import type { SymbolResolver } from "@icm/symbols";
 import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formula-artifacts";
 import { importChunk } from "../components/chunk-import";
+import { simulationFileEngine } from "../features/simulation/file-engine";
 
 type StoredCandidate = {
   project: CircuitProject;
@@ -28,6 +29,8 @@ type StoredCandidate = {
 };
 
 export interface BrowserAgentFileHostOptions {
+  fetch?: typeof fetch;
+  transport?: "direct" | "managed";
   getProjectSessionId: () => string;
   getProject: () => CircuitProject;
   getDocument: (documentId: string) => SchematicDocument | null;
@@ -60,6 +63,7 @@ export class BrowserAgentFileHost {
             actor: { kind: "agent", id: "simulation-file-resource" },
           })
         : undefined,
+      simulationFileEngine(options),
     );
   }
 

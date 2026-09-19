@@ -837,6 +837,7 @@ export function App({
   const browserAgentFileHost = useMemo(
     () =>
       new BrowserAgentFileHost({
+        transport: simulationTransport,
         getProjectSessionId: () => editorDocumentController.projectSessionId,
         getProject: () => editorDocumentController.project,
         getDocument: (documentId) =>
@@ -848,7 +849,7 @@ export function App({
         dispatchProjectTransaction: (request) =>
           browserAgentHost.dispatchProjectTransaction(request),
       }),
-    [editorDocumentController, projectSessionId],
+    [editorDocumentController, projectSessionId, simulationTransport],
   );
   const projectRunHistory = useMemo(
     () => new ProjectRunHistory(editorDocumentController.project.id),

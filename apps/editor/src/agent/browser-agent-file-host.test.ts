@@ -1,12 +1,132 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { AGENT_API_VERSION, base64EncodeBytes } from "@icm/agent-adapter";
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, type ProjectSimulationFolder } from "@icm/model";
 import { resolveDocumentLogicalNets } from "@icm/derived";
 import { serializeProject } from "@icm/project-protocol";
 import type { SymbolResolver } from "@icm/symbols";
 
 import { BrowserAgentFileHost } from "./browser-agent-file-host";
+import { BrowserSimulationSession } from "../features/simulation/browser-simulation-session";
+import { createSimulationProjectFileHost } from "../features/simulation/project-file-host";
+
+it.each(["ngspice", "vacask"] as const)(
+  "generates the same %s source through Agent and GUI files",
+  async (engine) => {
+    const project = createEmptyProject("engine-test", "Engine test");
+    const document = project.documents[0]!;
+    document.nets.push(
+      { id: "n", terminals: [{ instanceId: "R1", pinName: "1" }] },
+      { id: "g", terminals: [{ instanceId: "R1", pinName: "2" }] },
+    );
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: null,
+      reference: "R1",
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "resistor" },
+        parameters: { value: "1k" },
+      },
+    });
+    const folder: ProjectSimulationFolder = {
+      id: "test",
+      name: "Test",
+      version: 4,
+      input: {
+        kind: "source",
+        entry: "run.cir",
+        configPath: "experiment.json",
+        circuitBindings: [
+          {
+            id: "dut",
+            path: "dut.spice",
+            documentId: document.id,
+            emission: "top-level",
+          },
+        ],
+        dependencies: [],
+        files: [
+          { path: "run.cir", text: "Test\n" },
+          {
+            path: "experiment.json",
+            text: JSON.stringify({
+              version: 2,
+              environment: { profileId: "test" },
+            }),
+          },
+        ],
+      },
+    };
+    project.simulationFolders.push(folder);
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          configured: true,
+          inputs: ["source"],
+          analyses: ["op"],
+          parsedAnalyses: ["op"],
+          profiles: [{ id: "test", engine, corners: [] }],
+          maxTimeoutMs: 1000,
+          maxInputBytes: 10000,
+          cancel: true,
+        }),
+      ),
+    );
+    const dispatch = vi.fn(() => {
+      throw new Error("Reading must not edit the project");
+    });
+    const common = {
+      getProject: () => project,
+      getProjectSessionId: () => "session",
+      fetch: fetcher,
+    };
+    const agent = new BrowserAgentFileHost({
+      ...common,
+      getDocument: () => document,
+      getResolver: () => ({}) as SymbolResolver,
+      onApprovalRequested: () => {},
+      dispatchProjectTransaction: dispatch,
+    });
+    const human = new BrowserSimulationSession({
+      ...common,
+      projectFiles: createSimulationProjectFileHost({
+        ...common,
+        dispatch,
+        actor: { kind: "human", id: "test" },
+      }),
+    });
+    const request = {
+      action: "read" as const,
+      owner: { kind: "project-folder" as const, folderId: folder.id },
+      path: "dut.spice",
+    };
+    const a = await agent.simulationFiles.handle(request);
+    // A fresh Response is needed for the second capability read.
+    fetcher.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          configured: true,
+          inputs: ["source"],
+          analyses: ["op"],
+          parsedAnalyses: ["op"],
+          profiles: [{ id: "test", engine, corners: [] }],
+          maxTimeoutMs: 1000,
+          maxInputBytes: 10000,
+          cancel: true,
+        }),
+      ),
+    );
+    const h = await human.files.handle(request);
+    expect(a).toMatchObject({ ok: true });
+    expect(h).toEqual(a);
+    if (!a.ok || !("text" in a)) throw new Error(JSON.stringify(a));
+    expect(a.text).toContain(
+      engine === "ngspice" ? "R1 net1 net0 1k" : "__icm_resistor",
+    );
+    expect(dispatch).not.toHaveBeenCalled();
+  },
+);
 
 it("uses the same Cadence bang naming profile as GUI SPICE import", async () => {
   const { host } = setup();
