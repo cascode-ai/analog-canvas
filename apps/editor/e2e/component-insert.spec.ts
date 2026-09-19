@@ -1168,9 +1168,9 @@ test("renames one supply marker without changing its same-name peer", async ({
   await expect(page.getByRole("textbox", { name: "Supply name" })).toHaveCount(
     0,
   );
-  await setComponentCodeField(page, "netName", "AVDD");
+  await setComponentCodeField(page, "name", "AVDD");
 
-  await expectComponentCodeField(page, "netName", "AVDD");
+  await expectComponentCodeField(page, "name", "AVDD");
   await expect(
     canvas.locator('[data-object-id="power-label-vdd1"]'),
   ).toContainText("AVDD");
