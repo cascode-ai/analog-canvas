@@ -151,6 +151,11 @@ The profile ID is `razavi-textbook-v1`. Formal output defaults to black on white
 explicit authored color overrides are preserved. It has no
 decorative effects or editor overlays, scales geometry and strokes together,
 and uses butt caps plus miter joins unless a reviewed primitive overrides them.
+Where a Route meets a pin it turns away from, the renderer bridges the two
+strokes through one miter so a butt-cap seam cannot show; a Route drawn back
+along the pin's own lead covers that lead instead of turning, and gets no
+bridge — the path would double back on itself and its miter would draw a short
+spike beside the conductor.
 
 The executable [style profile](../../packages/derived/src/style-profile.ts)
 owns the exact token names, values and shared typography. Its

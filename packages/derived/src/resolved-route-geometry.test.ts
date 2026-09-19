@@ -319,6 +319,43 @@ describe("resolved route geometry", () => {
     ).toBeNull();
   });
 
+  it("keeps no bridge for a Route that leaves along the pin's own lead", () => {
+    // Drawn back toward the body, the Route covers the lead instead of
+    // turning away from it. A bridge there would start and end at the same
+    // point — a path doubling back on itself, whose miter draws a short spike
+    // beside the conductor.
+    const schematic = document("lead-overlap");
+    schematic.instances.push({
+      id: "I1",
+      symbolId: "dual",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    schematic.junctions.push({
+      id: "j1",
+      netId: "n",
+      position: { x: 110, y: 100 },
+    });
+    schematic.routes.push(
+      createRoutePath({
+        id: "route-into-body",
+        netId: "n",
+        start: { kind: "terminal", instanceId: "I1", pinName: "R" },
+        end: { kind: "junction", junctionId: "j1" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+
+    expect(
+      resolveRouteGeometry(schematic, resolver, schematic.routes[0]!)
+        ?.endpointJoins,
+    ).toEqual([]);
+  });
+
   it("retains terminal miter ingredients at a real pin origin", () => {
     const schematic = document("terminal-miter");
     schematic.instances.push({

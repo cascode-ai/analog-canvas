@@ -89,6 +89,24 @@ function vertexKindForEndpoint(
   return junction?.role === "route-anchor" ? "route-anchor" : "junction";
 }
 
+/**
+ * Whether a Route leaving a pin has a corner for the renderer to bridge.
+ *
+ * The bridge spans from the pin's own lead, which runs back toward the body,
+ * to the Route's first step. A Route that leaves along that lead covers it
+ * instead of turning away from it, so the two arms of the bridge would be the
+ * same point: the path doubles back on itself and its miter draws a short
+ * spike beside the conductor. There is nothing to join there.
+ */
+function bridgeTurnsAwayFromLead(
+  pinOutward: Point,
+  routeDirection: Point,
+): boolean {
+  return (
+    routeDirection.x !== -pinOutward.x || routeDirection.y !== -pinOutward.y
+  );
+}
+
 export function resolveRouteGeometry(
   document: SchematicDocument,
   resolver: SymbolResolver,
@@ -136,7 +154,11 @@ export function resolveRouteGeometry(
   if (route.start.kind === "terminal" && centerline.length >= 2) {
     const pinOutward = fromConnection.outward;
     const routeDirection = unitDirection(centerline[0]!, centerline[1]!);
-    if (pinOutward && routeDirection) {
+    if (
+      pinOutward &&
+      routeDirection &&
+      bridgeTurnsAwayFromLead(pinOutward, routeDirection)
+    ) {
       endpointJoins.push({
         kind: "terminal-miter",
         routeId: route.id,
@@ -152,7 +174,11 @@ export function resolveRouteGeometry(
       centerline.at(-1)!,
       centerline.at(-2)!,
     );
-    if (pinOutward && routeDirection) {
+    if (
+      pinOutward &&
+      routeDirection &&
+      bridgeTurnsAwayFromLead(pinOutward, routeDirection)
+    ) {
       endpointJoins.push({
         kind: "terminal-miter",
         routeId: route.id,
