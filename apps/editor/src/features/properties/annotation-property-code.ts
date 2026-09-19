@@ -5,6 +5,7 @@ import {
   VisualAnchorSchema,
   RichTextDocumentSchema,
   RotationSchema,
+  MirrorSchema,
   ArrowEndStyleSchema,
   type Annotation,
   type DraftingObject,
@@ -24,6 +25,7 @@ import {
   colorToRgb,
   parseCanvasColor,
   ROTATION_OPTIONS,
+  MIRROR_OPTIONS,
   type CanvasPropertyField,
 } from "./component-property-fields";
 import { propertyCodeSpans } from "./component-property-code-assists";
@@ -42,6 +44,7 @@ const schema = z.strictObject({
     at: z.tuple([z.number().int(), z.number().int()]).optional(),
     anchor: VisualAnchorSchema.optional(),
     rotation: z.number().finite().min(0).lt(360).optional(),
+    mirror: MirrorSchema.optional(),
   }),
   appearance: z.strictObject({
     color,
@@ -109,6 +112,7 @@ export function draftingPropertyValue(
             }
           : { anchor: object.anchor }),
       ...(text ? { rotation: object.rotation } : {}),
+      ...(object.kind === "floating-symbol" ? object.transform : {}),
       ...(object.kind === "rectangle" ? { rotation: object.rotation } : {}),
       ...(geometry.kind === "arrow" || geometry.kind === "construction-line"
         ? {
@@ -427,6 +431,12 @@ export function parseDraftingPropertyCode(
       value.geometry?.width !== undefined
     )
       next.outline = { width: value.geometry.width };
+    if (next.kind === "floating-symbol") {
+      next.transform = {
+        rotation: RotationSchema.parse(value.placement.rotation),
+        mirror: MirrorSchema.parse(value.placement.mirror),
+      };
+    }
     if (next.kind === "text" || next.kind === "callout") {
       next.rotation = RotationSchema.parse(value.placement.rotation);
       if (value.appearance.alignment !== undefined)
@@ -436,6 +446,7 @@ export function parseDraftingPropertyCode(
     if (
       next.kind !== "text" &&
       next.kind !== "callout" &&
+      next.kind !== "floating-symbol" &&
       value.placement.rotation !== baseline.placement.rotation
     ) {
       const changed = setDraftingBearing(
@@ -534,6 +545,13 @@ export function annotationPropertyAdapter<T>(
       options: ROTATION_OPTIONS,
       description: "",
       help: "Clockwise angle: 0° right, 90° down. Choose a common angle or type a custom angle in the code. Text uses 45° steps.",
+    },
+    {
+      path: "placement.mirror",
+      label: "Mirror",
+      kind: "choice",
+      options: MIRROR_OPTIONS,
+      description: "",
     },
     {
       path: "appearance.lineStyle",

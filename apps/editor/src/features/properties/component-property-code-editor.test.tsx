@@ -26,7 +26,7 @@ describe("ComponentPropertyCodeEditor", () => {
     );
     expect(markup).toContain('aria-label="Loading Canvas property code"');
     expect(markup).toContain("&quot;coordinate&quot;");
-    expect(markup).toContain("&quot;displayName&quot;: &quot;RL&quot;");
+    expect(markup).toContain("&quot;name&quot;: &quot;RL&quot;");
     expect(markup).not.toContain("Apply code");
     expect(markup).not.toContain("Component properties");
     expect(markup).toContain('aria-label="Defaults"');

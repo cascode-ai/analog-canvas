@@ -17,6 +17,7 @@ import {
   type GroupPropertyCodeValue,
 } from "./group-property-code";
 import type { PropertyJsonEditorAdapter } from "./component-property-json-editor";
+import { itemPropertyCode } from "./item-property-code";
 
 const PropertyJsonEditor = lazy(
   () => import("./component-property-json-editor"),
@@ -41,10 +42,20 @@ export function GroupPropertyCodeEditor({
   defaultForeground,
   onApply,
 }: GroupPropertyCodeEditorProps) {
-  const baseline = useMemo(
+  const nativeBaseline = useMemo(
     () => formatGroupPropertyCode(context),
     [context, revision],
   );
+  const projection = useMemo(
+    () =>
+      itemPropertyCode(nativeBaseline, {
+        type: context.symbol,
+        typePath: "symbol",
+        name: "",
+      }),
+    [nativeBaseline, context.symbol],
+  );
+  const baseline = projection.format(nativeBaseline);
   const previousBaseline = useRef(baseline);
   const appliedCode = useRef<string | null>(null);
   const [historyKey, setHistoryKey] = useState(0);
@@ -52,14 +63,15 @@ export function GroupPropertyCodeEditor({
   const [rejected, setRejected] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const adapter = useMemo<PropertyJsonEditorAdapter>(
-    () => ({
-      parse: (source) => parseGroupPropertyCode(source, context),
-      spans: (source) => groupPropertyCodeSpans(source, context),
-      changes: (source, values) =>
-        groupPropertyCodeChanges(source, context, values),
-      mixedValues: true,
-    }),
-    [context],
+    () =>
+      projection.adapter({
+        parse: (source) => parseGroupPropertyCode(source, context),
+        spans: (source) => groupPropertyCodeSpans(source, context),
+        changes: (source, values) =>
+          groupPropertyCodeChanges(source, context, values),
+        mixedValues: true,
+      }),
+    [context, projection],
   );
 
   useLayoutEffect(() => {
@@ -74,8 +86,11 @@ export function GroupPropertyCodeEditor({
   }, [baseline]);
 
   const parsed = useMemo(
-    () => parseGroupPropertyCode(draft, context),
-    [context, draft],
+    () =>
+      projection.parse(draft, (source) =>
+        parseGroupPropertyCode(source, context),
+      ),
+    [context, draft, projection],
   );
   const status =
     message ??
@@ -85,9 +100,13 @@ export function GroupPropertyCodeEditor({
     setDraft(source);
     setMessage(null);
     setRejected(false);
-    const next = parseGroupPropertyCode(source, context);
+    const next = projection.parse(source, (native) =>
+      parseGroupPropertyCode(native, context),
+    );
     if (!next.ok) return;
-    const normalized = serializeGroupPropertyCode(next.value);
+    const normalized = projection.format(
+      serializeGroupPropertyCode(next.value),
+    );
     if (normalized === baseline) return;
     const result = onApply(next.value);
     if (!result.ok) {

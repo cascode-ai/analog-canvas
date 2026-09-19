@@ -34,7 +34,7 @@ test("property inspection and remounts keep canvas keyboard ownership", async ({
   await expect(code).toContainText("R2");
   await expect(canvas).toBeFocused();
   await page.keyboard.press("r");
-  await expectComponentCodeField(page, "placement.rotation", 90);
+  await expectComponentCodeField(page, "rotation", 90);
   await page.keyboard.press("Delete");
   await expect(page.getByTestId("hit-R2")).toHaveCount(0);
   await expect(page.getByTestId("hit-R1")).toHaveCount(1);
@@ -86,7 +86,7 @@ test("live JSON properties update controls immediately and round-trip raw parame
   await expect(panel.locator(".cm-property-unit")).toHaveCount(2);
   await expect(panel.getByLabel("Target netlist options")).toBeVisible();
   await editComponentPropertyCode(page, (code) => {
-    code.placement.rotation = 90;
+    code.rotation = 90;
     code.display.visualAnnotation = false;
   });
   await expect(page.getByTestId("revision")).toHaveText(
@@ -98,12 +98,12 @@ test("live JSON properties update controls immediately and round-trip raw parame
     String(Number(revision) + 2),
   );
   const draft = JSON.parse(await readComponentPropertyCode(page));
-  expect(draft.placement.rotation).toBe(90);
+  expect(draft.rotation).toBe(90);
   expect(draft.display.visualAnnotation).toBe(false);
-  expect(draft.appearance.color).toEqual([220, 38, 38]);
-  expect(draft.appearance).not.toHaveProperty("foreground");
-  expect(draft.appearance).not.toHaveProperty("background");
-  expect(draft.appearance).not.toHaveProperty("fillColor");
+  expect(draft.color).toEqual([220, 38, 38]);
+  expect(draft.appearance ?? {}).not.toHaveProperty("foreground");
+  expect(draft.appearance ?? {}).not.toHaveProperty("background");
+  expect(draft.appearance ?? {}).not.toHaveProperty("fillColor");
   draft.parameters.w = "EV";
   draft.parameters.l = "L";
   draft.parameters.custom = "{raw_expression}";
@@ -164,7 +164,7 @@ test("live Defaults are undoable and invalid drafts never change the canvas", as
   const code = page.getByLabel("Editable Canvas property code");
   const invalid = JSON.parse(await readComponentPropertyCode(page));
   const lastValidRevision = await page.getByTestId("revision").textContent();
-  invalid.appearance.color = [256, 0, 0];
+  invalid.color = [256, 0, 0];
   await code.fill(JSON.stringify(invalid, null, 2));
   await expect(
     page.getByText(/Canvas keeps the last valid edit/u),
@@ -206,15 +206,15 @@ test("one live JSON edit combines model, dimensions and appearance in one undo b
   await editComponentPropertyCode(page, (code) => {
     code.netlistTarget = "sky130_fd_pr__nfet_01v8";
     code.parameters.w = "5u";
-    code.appearance.color = [20, 30, 40];
+    code.color = [20, 30, 40];
   });
   await expectComponentCodeField(page, "netlistName", "M1");
   await expectComponentCodeField(page, "parameters.w", "5u");
-  await expectComponentCodeField(page, "appearance.color", [20, 30, 40]);
+  await expectComponentCodeField(page, "color", [20, 30, 40]);
   await clickCommand(page, "Edit", "Undo");
   await expectComponentCodeField(page, "netlistName", "M1");
   await expectComponentCodeField(page, "parameters.w", "1u");
-  await expectComponentCodeField(page, "appearance.color", "auto");
+  await expectComponentCodeField(page, "color", "auto");
   await clickCommand(page, "Edit", "Redo");
   await expectComponentCodeField(page, "netlistName", "M1");
   await expectComponentCodeField(page, "parameters.w", "5u");
@@ -439,28 +439,28 @@ for (const width of [300, 540]) {
     await rotation.click();
     await expectComponentCodeField(page, "display.visualAnnotation", false);
     await expectComponentCodeField(page, "display.value", true);
-    await expectComponentCodeField(page, "placement.rotation", 90);
+    await expectComponentCodeField(page, "rotation", 90);
     await mirrorLeftRight.click();
-    await expectComponentCodeField(page, "placement.rotation", 90);
-    await expectComponentCodeField(page, "placement.mirror", "horizontal");
+    await expectComponentCodeField(page, "rotation", 90);
+    await expectComponentCodeField(page, "mirror", "horizontal");
     await mirrorLeftRight.click();
-    await expectComponentCodeField(page, "placement.rotation", 90);
-    await expectComponentCodeField(page, "placement.mirror", "none");
+    await expectComponentCodeField(page, "rotation", 90);
+    await expectComponentCodeField(page, "mirror", "none");
     await mirrorTopBottom.click();
-    await expectComponentCodeField(page, "placement.rotation", 90);
-    await expectComponentCodeField(page, "placement.mirror", "vertical");
+    await expectComponentCodeField(page, "rotation", 90);
+    await expectComponentCodeField(page, "mirror", "vertical");
     await mirrorLeftRight.click();
-    await expectComponentCodeField(page, "placement.rotation", 90);
-    await expectComponentCodeField(page, "placement.mirror", "both");
+    await expectComponentCodeField(page, "rotation", 90);
+    await expectComponentCodeField(page, "mirror", "both");
     await mirrorLeftRight.click();
-    await expectComponentCodeField(page, "placement.rotation", 90);
-    await expectComponentCodeField(page, "placement.mirror", "vertical");
+    await expectComponentCodeField(page, "rotation", 90);
+    await expectComponentCodeField(page, "mirror", "vertical");
     await mirrorTopBottom.click();
-    await expectComponentCodeField(page, "placement.rotation", 90);
-    await expectComponentCodeField(page, "placement.mirror", "none");
+    await expectComponentCodeField(page, "rotation", 90);
+    await expectComponentCodeField(page, "mirror", "none");
     for (const next of [180, 270, 0, 90]) {
       await rotation.click();
-      await expectComponentCodeField(page, "placement.rotation", next);
+      await expectComponentCodeField(page, "rotation", next);
     }
     await color.click();
 
@@ -491,18 +491,18 @@ for (const width of [300, 540]) {
       page.getByRole("button", { name: "Reset line", exact: true }),
     ).toHaveCount(0);
     await page.getByRole("button", { name: "Use Black for line" }).click();
-    await expectComponentCodeField(page, "appearance.color", [0, 0, 0]);
+    await expectComponentCodeField(page, "color", [0, 0, 0]);
 
     await color.click();
     await page
       .getByRole("button", { name: "Use Red for line", exact: true })
       .click();
-    await expectComponentCodeField(page, "appearance.color", [220, 38, 38]);
+    await expectComponentCodeField(page, "color", [220, 38, 38]);
 
     await color.click();
     await expect(page.getByLabel("Line RGB")).toHaveValue("[220,38,38]");
     await page.getByLabel("Line RGB").fill("[12,38,38]");
-    await expectComponentCodeField(page, "appearance.color", [12, 38, 38]);
+    await expectComponentCodeField(page, "color", [12, 38, 38]);
   });
 }
 
@@ -517,7 +517,7 @@ test("a black-box part exposes its generated Reference", async ({ page }) => {
   await expect(properties).toContainText("voltage-amplifier");
   const code = properties.getByLabel("Editable Canvas property code");
   await expect(code).toContainText(/"visualAnnotation": true/u);
-  await expect(code).toContainText(/"displayName": "X1"/u);
+  await expect(code).toContainText(/"name": "X1"/u);
   await expect(code).toContainText(/"netlistName": "X1"/u);
 });
 
@@ -680,11 +680,11 @@ test("resizes Properties and applies component presentation as editable code", a
     .toBeCloseTo(compactWidth + 8, 0);
 
   const edited = JSON.parse(await readComponentPropertyCode(page));
-  edited.placement.coordinate = [420, 280];
-  edited.placement.rotation = 90;
-  edited.placement.mirror = "horizontal";
+  edited.coordinate = [420, 280];
+  edited.rotation = 90;
+  edited.mirror = "horizontal";
   edited.display.visualAnnotation = false;
-  edited.appearance.color = "#DC2626";
+  edited.color = "#DC2626";
   await code.fill(JSON.stringify(edited, null, 2));
 
   await expect(page.getByTestId("revision")).toHaveText("2");
@@ -839,10 +839,14 @@ test("Select All shows one batch code surface instead of object-specific forms",
   await expect(batch).toBeVisible();
   await expect(batch.getByText("2 selected", { exact: true })).toBeVisible();
   expect(JSON.parse(await readComponentPropertyCode(page))).toEqual({
+    name: "",
+    coordinate: null,
+    rotation: null,
+    mirror: null,
     display: { visualAnnotation: true, value: false },
-    appearance: { color: [0, 0, 0] },
+    color: [0, 0, 0],
     parameters: { value: "1k" },
-    symbol: "resistor",
+    type: "resistor",
   });
   await expect(
     properties.getByText("Electrical route", { exact: true }),
@@ -885,7 +889,7 @@ test("Properties keeps component and Annotation text colors independent", async 
   const secondLabel = page.locator('[data-object-id="instance-label-R2"]');
 
   await editComponentPropertyCode(page, (value) => {
-    value.appearance.color = "#dc2626";
+    value.color = "#dc2626";
   });
   await expect(symbol).toHaveAttribute("stroke", "#dc2626");
   await expect(
@@ -900,9 +904,7 @@ test("Properties keeps component and Annotation text colors independent", async 
   await expect(
     properties.getByRole("region", { name: "Text properties" }),
   ).toBeVisible();
-  expect(
-    JSON.parse(await readComponentPropertyCode(page)).appearance.color,
-  ).toBe("auto");
+  expect(JSON.parse(await readComponentPropertyCode(page)).color).toBe("auto");
   await properties.getByRole("button", { name: "Edit text color" }).click();
   await page
     .getByRole("button", { name: "Use Blue for text", exact: true })
@@ -919,27 +921,23 @@ test("Properties keeps component and Annotation text colors independent", async 
     .click({ force: true });
   await expect(label).toHaveAttribute("fill", "#2563eb");
   await expect(secondLabel).not.toHaveAttribute("fill");
-  expect(
-    JSON.parse(await readComponentPropertyCode(page)).appearance.color,
-  ).toBe("auto");
+  expect(JSON.parse(await readComponentPropertyCode(page)).color).toBe("auto");
 
   await page
     .getByTestId("annotation-hit-instance-label-R1")
     .click({ force: true });
   await editComponentPropertyCode(page, (code) => {
-    code.appearance.color = "auto";
+    code.color = "auto";
   });
   await expect(label).toHaveAttribute("fill", "#dc2626");
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(label).toHaveAttribute("fill", "#2563eb");
-  expect(
-    JSON.parse(await readComponentPropertyCode(page)).appearance.color,
-  ).toEqual([37, 99, 235]);
+  expect(JSON.parse(await readComponentPropertyCode(page)).color).toEqual([
+    37, 99, 235,
+  ]);
   await page.getByRole("button", { name: "Redo", exact: true }).click();
   await expect(label).toHaveAttribute("fill", "#dc2626");
-  expect(
-    JSON.parse(await readComponentPropertyCode(page)).appearance.color,
-  ).toBe("auto");
+  expect(JSON.parse(await readComponentPropertyCode(page)).color).toBe("auto");
 
   const project = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -1283,7 +1281,7 @@ for (const symbol of ["nmos", "pmos"]) {
     });
     await openSelectionShelf(page);
     await editComponentPropertyCode(page, (code) => {
-      code.placement.rotation = 45;
+      code.rotation = 45;
     });
     await expect(
       page.locator('[data-object-id="M1"] > g').first(),
@@ -1682,7 +1680,7 @@ for (const symbol of ["xfmr", "tcoil"] as const) {
     await editComponentPropertyCode(page, (code) => {
       code.display.parameters.k = true;
       code.parameters.k = "0.83";
-      code.placement.rotation = 45;
+      code.rotation = 45;
     });
     await expect(formalLabels).toHaveCount(2);
     await expect(formalLabels.filter({ hasText: "K = 0.83" })).toHaveCount(1);
@@ -1764,14 +1762,14 @@ test("batch Code edits common resistor values and colors atomically and reopens 
   await openSelectionShelf(page);
   const code = JSON.parse(await readComponentPropertyCode(page));
   expect(code).toMatchObject({
-    symbol: "resistor",
+    type: "resistor",
     parameters: { value: "", tc: "" },
-    appearance: { color: [0, 0, 0] },
+    color: [0, 0, 0],
   });
   const revision = Number(await page.getByTestId("revision").textContent());
   await editComponentPropertyCode(page, (value) => {
     value.parameters.value = "10k";
-    value.appearance.color = [255, 0, 0];
+    value.color = [255, 0, 0];
     value.display.value = true;
   });
   await expect(page.getByTestId("revision")).toHaveText(String(revision + 1));
@@ -1814,9 +1812,9 @@ test("batch Code edits common resistor values and colors atomically and reopens 
   // Opening the Project brought the project dock back over Properties.
   await openSelectionShelf(page);
   expect(JSON.parse(await readComponentPropertyCode(page))).toMatchObject({
-    symbol: "resistor",
+    type: "resistor",
     parameters: { value: "10k", tc: "" },
-    appearance: { color: [255, 0, 0] },
+    color: [255, 0, 0],
   });
   await page.screenshot({ path: "plan/batch-value-properties.png" });
 });
@@ -1830,14 +1828,14 @@ test("batch Code colors different component types while rejecting incompatible v
   await page.getByTestId("hit-R1").click();
   await openSelectionShelf(page);
   await editComponentPropertyCode(page, (code) => {
-    code.appearance.color = [0, 0, 255];
+    code.color = [0, 0, 255];
   });
   await page.getByTestId("hit-C1").click({ modifiers: ["Shift"] });
   const code = JSON.parse(await readComponentPropertyCode(page));
   expect(code).toMatchObject({
-    symbol: "",
+    type: "",
     parameters: "",
-    appearance: { color: "" },
+    color: "",
   });
   const editor = page.getByLabel("Editable Canvas property code");
   const revision = await page.getByTestId("revision").textContent();
@@ -1845,7 +1843,7 @@ test("batch Code colors different component types while rejecting incompatible v
     JSON.stringify({
       ...code,
       parameters: { value: "10k" },
-      appearance: { color: [255, 0, 0] },
+      color: [255, 0, 0],
     }),
   );
   await expect(
@@ -1875,9 +1873,7 @@ test("batch Code colors different component types while rejecting incompatible v
     { id: "C1", netlist: { parameters: { value: "1p" } } },
   ]);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  expect(
-    JSON.parse(await readComponentPropertyCode(page)).appearance.color,
-  ).toBe("");
+  expect(JSON.parse(await readComponentPropertyCode(page)).color).toBe("");
 });
 
 test("batch Code drafts follow selection identity even when common values are identical", async ({
@@ -1913,4 +1909,36 @@ test("batch Code drafts follow selection identity even when common values are id
       (instance: any) => instance.netlist.parameters.value,
     ),
   ).toEqual(["22k", "22k", "22k"]);
+});
+
+test("common item fields start with type and name and preserve reference binding", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 360, y: 240 });
+  await openSelectionShelf(page);
+  const before = JSON.parse(await readComponentPropertyCode(page));
+  expect(Object.keys(before).slice(0, 6)).toEqual([
+    "type",
+    "name",
+    "coordinate",
+    "rotation",
+    "mirror",
+    "color",
+  ]);
+  await setComponentCodeField(page, "name", "RL");
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(saved.documents[0].instances[0].reference).toBe("RL");
+  expect(
+    saved.documents[0].annotations.find(
+      (annotation: { id: string }) => annotation.id === "instance-label-R1",
+    ).binding,
+  ).toEqual({ kind: "instance-reference", instanceId: "R1" });
+  await page.screenshot({ path: "plan/common-item-properties.png" });
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expectComponentCodeField(page, "name", "R1");
 });

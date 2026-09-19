@@ -1,5 +1,7 @@
 import { useMemo } from "react";
 import type { DraftingObject, SchematicDocument } from "@icm/model";
+import { flattenRichText } from "@icm/model";
+import { resolveVisualAnchor } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 import { AnnotationPropertyCodeEditor } from "../properties/annotation-property-code-editor";
 import {
@@ -53,6 +55,11 @@ export function DraftingPropertiesPanel({
     serializeAnnotationPropertyCode(
       draftingPropertyValue({ ...context, object: next }),
     );
+  const position = resolveVisualAnchor(
+    document,
+    resolver,
+    object.anchor,
+  ).position;
   const title =
     object.kind === "text" &&
     (object.polarity === "positive" || object.polarity === "negative")
@@ -67,6 +74,13 @@ export function DraftingPropertiesPanel({
       data-testid="drafting-properties"
     >
       <AnnotationPropertyCodeEditor
+        item={{
+          type:
+            object.kind === "floating-symbol" ? object.symbolId : object.kind,
+          name:
+            "content" in object ? flattenRichText(object.content) : object.id,
+          coordinate: [position.x, position.y],
+        }}
         baseline={format(object)}
         adapter={adapter}
         parse={(source) => parseDraftingPropertyCode(source, context)}

@@ -47,24 +47,41 @@ export function planComponentPropertyCodeEdits(
       flattenRichText(resolveAnnotationText(document, label)).trim() !==
         value.displayName
     ) {
-      const {
-        binding: _binding,
-        content: _content,
-        formatOverride: _formatOverride,
-        ...presentation
-      } = label;
-      edits.push({
-        kind: "upsert_schematic_annotation",
-        annotation: {
-          ...presentation,
-          content: semanticTextDocument(value.displayName, "instance-label"),
-        },
-      });
+      if (label.binding?.kind === "instance-reference") {
+        if (
+          value.netlistName !== undefined &&
+          value.netlistName !== instance.reference &&
+          value.netlistName !== value.displayName
+        )
+          throw new Error(
+            "name and netlistName must agree while the label follows its netlist name",
+          );
+        edits.push({
+          kind: "set_instance_reference",
+          instanceId: instance.id,
+          reference: value.displayName,
+        });
+      } else {
+        const {
+          binding: _binding,
+          content: _content,
+          formatOverride: _formatOverride,
+          ...presentation
+        } = label;
+        edits.push({
+          kind: "upsert_schematic_annotation",
+          annotation: {
+            ...presentation,
+            content: semanticTextDocument(value.displayName, "instance-label"),
+          },
+        });
+      }
     }
   }
   if (
     value.netlistName !== undefined &&
-    value.netlistName !== instance.reference
+    value.netlistName !== instance.reference &&
+    !edits.some((edit) => edit.kind === "set_instance_reference")
   )
     edits.push({
       kind: "set_instance_reference",

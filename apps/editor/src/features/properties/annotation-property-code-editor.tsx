@@ -2,12 +2,17 @@ import {
   lazy,
   Suspense,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
 import type { PropertyJsonEditorAdapter } from "./component-property-json-editor";
 import type { PropertyResult } from "./annotation-property-code";
+import {
+  itemPropertyCode,
+  type ItemPropertyIdentity,
+} from "./item-property-code";
 
 const PropertyJsonEditor = lazy(
   () => import("./component-property-json-editor"),
@@ -15,16 +20,18 @@ const PropertyJsonEditor = lazy(
 
 /** A valid JSON edit commits once; incomplete drafts never mutate the canvas. */
 export function AnnotationPropertyCodeEditor<T>({
-  baseline,
-  adapter,
-  parse,
-  format,
+  baseline: nativeBaseline,
+  adapter: nativeAdapter,
+  parse: parseNative,
+  format: formatNative,
+  item,
   onApply,
   defaultColor,
   actions,
   title,
 }: {
   baseline: string;
+  item: ItemPropertyIdentity;
   adapter: PropertyJsonEditorAdapter;
   parse(source: string): PropertyResult<T>;
   format(value: T): string;
@@ -33,6 +40,17 @@ export function AnnotationPropertyCodeEditor<T>({
   actions?: ReactNode;
   title: string;
 }) {
+  const projection = useMemo(
+    () => itemPropertyCode(nativeBaseline, item),
+    [nativeBaseline, item],
+  );
+  const baseline = projection.format(nativeBaseline);
+  const adapter = useMemo(
+    () => projection.adapter(nativeAdapter),
+    [projection, nativeAdapter],
+  );
+  const parse = (source: string) => projection.parse(source, parseNative);
+  const format = (value: T) => projection.format(formatNative(value));
   const previous = useRef(baseline);
   const applied = useRef<string | null>(null);
   const [draft, setDraft] = useState(baseline);

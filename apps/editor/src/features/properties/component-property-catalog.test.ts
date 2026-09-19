@@ -19,6 +19,8 @@ import {
   parseComponentPropertyCode,
 } from "./component-property-code";
 
+import { itemPropertyCode } from "./item-property-code";
+
 // Own the exhaustive data boundary here; browser tests cover representative
 // UI capabilities, with hierarchy/property-terminal workflows in their own specs.
 describe("placeable catalog property code", () => {
@@ -67,6 +69,39 @@ describe("placeable catalog property code", () => {
         expect(parsed.value.parameters).toMatchObject(netlist.parameters);
       if (reference) expect(parsed.value.netlistName).toBe(reference);
 
+      const projection = itemPropertyCode(source, {
+        type: symbol.id,
+        name: reference ?? "placed",
+        ...(reference ? { namePath: "netlistName" } : {}),
+      });
+      const publicCode = JSON.parse(projection.format(source));
+      expect(Object.keys(publicCode).slice(0, 6)).toEqual([
+        "type",
+        "name",
+        "coordinate",
+        "rotation",
+        "mirror",
+        "color",
+      ]);
+      publicCode.coordinate = [320, 240];
+      publicCode.rotation = 90;
+      publicCode.mirror = "horizontal";
+      publicCode.color = [200, 30, 40];
+      expect(
+        projection.parse(JSON.stringify(publicCode), (text) =>
+          parseComponentPropertyCode(text, context),
+        ),
+      ).toMatchObject({
+        ok: true,
+        value: {
+          placement: {
+            coordinate: [320, 240],
+            rotation: 90,
+            mirror: "horizontal",
+          },
+          appearance: { color: "#c81e28" },
+        },
+      });
       const edited = JSON.parse(source);
       edited.placement.coordinate = [320, 240];
       edited.placement.rotation = 90;

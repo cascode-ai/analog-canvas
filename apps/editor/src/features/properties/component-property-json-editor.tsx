@@ -71,6 +71,7 @@ export interface PropertyJsonEditorAdapter {
 
 interface Props {
   value: string;
+  readOnly?: boolean;
   historyKey: number;
   context?: ComponentPropertyCodeContext;
   adapter?: PropertyJsonEditorAdapter;
@@ -115,6 +116,8 @@ export default function ComponentPropertyJsonEditor(props: Props) {
         doc: source,
         extensions: [
           json(),
+          EditorState.readOnly.of(read().readOnly ?? false),
+          EditorView.editable.of(!read().readOnly),
           indentUnit.of("  "),
           history(),
           drawSelection(),
@@ -347,9 +350,7 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
       }).range(internalMark.to),
     );
   }
-  const rotation = spans.find(
-    ({ field }) => field.path === "placement.rotation",
-  );
+  const rotation = spans.find(({ field }) => field.kind === "rotation");
   if (rotation?.field.kind === "rotation") {
     const valueValid = ROTATION_OPTIONS.some(
       ({ value }) => value === rotation.value,
@@ -357,7 +358,7 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
     ranges.push(
       Decoration.widget({
         widget: new PlacementActionWidget(
-          "placement.rotation",
+          rotation.field.path,
           "rotation",
           rotation.value,
           !valueValid || !documentValid,
@@ -367,7 +368,7 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
       }).range(rotation.to),
     );
   }
-  const mirror = spans.find(({ field }) => field.path === "placement.mirror");
+  const mirror = spans.find(({ field }) => field.kind === "mirror");
   if (mirror) {
     const valueValid = MIRROR_OPTIONS.some(
       ({ value }) => value === mirror.value,
@@ -379,7 +380,7 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
       ranges.push(
         Decoration.widget({
           widget: new PlacementActionWidget(
-            "placement.mirror",
+            mirror.field.path,
             action,
             mirror.value,
             !valueValid || !documentValid,
@@ -783,7 +784,7 @@ class InternalMarkWidget extends WidgetType {
 
 class PlacementActionWidget extends WidgetType {
   constructor(
-    private readonly path: "placement.rotation" | "placement.mirror",
+    private readonly path: string,
     private readonly action:
       "rotation" | "mirror-left-right" | "mirror-top-bottom",
     private readonly value: unknown,

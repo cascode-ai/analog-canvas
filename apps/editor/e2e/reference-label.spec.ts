@@ -123,13 +123,13 @@ test("Properties renames the electrical identity explicitly; restore is an in-pl
   await page.getByTestId("hit-R1").click();
   await page.keyboard.press("q");
   const properties = page.getByRole("complementary", { name: "Properties" });
-  await expectComponentCodeField(page, "displayName", "load");
+  await expectComponentCodeField(page, "name", "load");
   await expectComponentCodeField(page, "netlistName", "R1");
   await expect(properties.getByLabel("Component label")).toHaveCount(0);
   await editComponentPropertyCode(page, (code) => {
-    code.displayName = "RL";
+    code.name = "RL";
   });
-  await expectComponentCodeField(page, "displayName", "RL");
+  await expectComponentCodeField(page, "name", "RL");
   await expectComponentCodeField(page, "netlistName", "R1");
   await expect(visual(page)).toContainText("RL");
   await editComponentPropertyCode(page, (code) => {

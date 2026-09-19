@@ -431,9 +431,7 @@ test("drafting text owns an independent color override with Auto inheritance", a
   await page.keyboard.press("q");
   const properties = page.getByTestId("drafting-properties");
   await expect(page.getByLabel("Editable Canvas property code")).toBeVisible();
-  expect(
-    JSON.parse(await readComponentPropertyCode(page)).appearance.color,
-  ).toBe("auto");
+  expect(JSON.parse(await readComponentPropertyCode(page)).color).toBe("auto");
   await properties.getByRole("button", { name: "Edit text color" }).click();
   await page
     .getByRole("button", { name: "Use Blue for text", exact: true })
@@ -453,9 +451,7 @@ test("drafting text owns an independent color override with Auto inheritance", a
   await properties.getByRole("button", { name: "Edit text color" }).click();
   await page.getByRole("button", { name: "Reset text color" }).click();
   await expect(text).toHaveAttribute("fill", "#000");
-  expect(
-    JSON.parse(await readComponentPropertyCode(page)).appearance.color,
-  ).toBe("auto");
+  expect(JSON.parse(await readComponentPropertyCode(page)).color).toBe("auto");
 
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(text).toHaveAttribute("fill", "#2563eb");
@@ -2678,7 +2674,7 @@ for (const kind of ["rectangle", "circle"] as const) {
     );
     const before = JSON.parse(await readComponentPropertyCode(page));
     expect(before.stacking).toEqual({ layer: "front" });
-    expect(before.placement).not.toHaveProperty("bearing");
+    expect(before).not.toHaveProperty("bearing");
     const lineStyle = page.getByRole("combobox", {
       name: "Line style options",
       exact: true,
@@ -2714,7 +2710,7 @@ for (const kind of ["rectangle", "circle"] as const) {
     await expect(shape).not.toHaveAttribute("stroke-dasharray");
     const revision = Number(await page.getByTestId("revision").textContent());
     await editComponentPropertyCode(page, (code) => {
-      code.appearance.color = [12, 34, 56];
+      code.color = [12, 34, 56];
       code.appearance.fillColor = [225, 238, 255];
       code.stacking.layer = "back";
     });
@@ -2819,10 +2815,10 @@ test("text and voltage/polarity annotations expose their own live code without l
     const editor = page.getByLabel("Editable Canvas property code");
     if (index === 0) await page.keyboard.press("q");
     const code = JSON.parse(await readComponentPropertyCode(page));
-    expect(code.appearance.color).toBe("auto");
+    expect(code.color).toBe("auto");
     expect(Boolean(code.content)).toBe(index < 2);
     await editComponentPropertyCode(page, (value) => {
-      value.appearance.color = [220, 38, 38];
+      value.color = [220, 38, 38];
       if (index < 2) value.content.runs[0].value = `V${index}`;
     });
     const note = page.locator(
@@ -2906,7 +2902,7 @@ test("annotation dropdowns use typed values and disable locked or incompatible c
     .getByRole("combobox", { name: "Rotation options", exact: true })
     .selectOption("45");
   expect(JSON.parse(await readComponentPropertyCode(page))).toMatchObject({
-    placement: { rotation: 45 },
+    rotation: 45,
     appearance: { alignment: "end", weight: "normal", italic: true },
   });
   await lock.selectOption("true");

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, plainNameDocument } from "@icm/model";
 
 import { planComponentPropertyCodeEdits } from "./component-property-code-edits";
 import { componentPropertyCodeValue } from "./component-property-code";
@@ -192,7 +192,7 @@ describe("planComponentPropertyCodeEdits", () => {
     ]);
   });
 
-  it("updates a visual display name without renaming the electrical instance", () => {
+  it("renames the electrical instance when its displayed name follows the reference", () => {
     const document = createEmptyDocument("main", "Main");
     const instance = {
       id: "R1",
@@ -229,16 +229,33 @@ describe("planComponentPropertyCodeEdits", () => {
       ...value,
       displayName: "RL",
     });
-    expect(edits).toHaveLength(1);
-    expect(edits[0]).toMatchObject({
-      kind: "upsert_schematic_annotation",
-      annotation: {
-        id: "instance-label-R1",
-        kind: "instance-label",
-      },
+    expect(edits).toEqual([
+      { kind: "set_instance_reference", instanceId: "R1", reference: "RL" },
+    ]);
+    expect(() =>
+      planComponentPropertyCodeEdits(document, instance, {
+        ...value,
+        displayName: "RL",
+        netlistName: "R2",
+      }),
+    ).toThrow();
+
+    const { binding: _binding, ...aliasLabel } = document.annotations[0]!;
+    document.annotations[0] = {
+      ...aliasLabel,
+      content: plainNameDocument("alias"),
+    };
+    const aliasEdits = planComponentPropertyCodeEdits(document, instance, {
+      ...value,
+      displayName: "load",
     });
-    expect(edits[0]).not.toHaveProperty("annotation.binding");
-    expect(edits).not.toContainEqual(
+    expect(aliasEdits).toContainEqual(
+      expect.objectContaining({
+        kind: "upsert_schematic_annotation",
+        annotation: expect.objectContaining({ id: "instance-label-R1" }),
+      }),
+    );
+    expect(aliasEdits).not.toContainEqual(
       expect.objectContaining({ kind: "set_instance_reference" }),
     );
   });

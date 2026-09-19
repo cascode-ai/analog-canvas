@@ -1,5 +1,8 @@
-import type { MosBulkResolution } from "@icm/derived";
+import { resolveEndpointPoint, type MosBulkResolution } from "@icm/derived";
+import type { WireSource } from "@icm/edit-engine";
+import { ItemPropertySummary } from "../properties/item-property-summary";
 import type { Annotation, SchematicDocument } from "@icm/model";
+import type { SymbolResolver } from "@icm/symbols";
 import type { RoutingGuidanceView } from "../../interaction/interaction-state";
 
 import {
@@ -129,6 +132,7 @@ export function RouteActionsSection({
   active,
   document,
   route,
+  resolver,
   netLabel,
   bulkOwnerLabel,
   defaultColor,
@@ -140,6 +144,7 @@ export function RouteActionsSection({
   active: boolean;
   document: SchematicDocument;
   route: SchematicDocument["routes"][number] | null;
+  resolver?: SymbolResolver;
   netLabel: Annotation | null;
   bulkOwnerLabel?: string | null;
   defaultColor: string;
@@ -153,6 +158,19 @@ export function RouteActionsSection({
     return (
       <section className="context-actions" aria-label="MOS bulk route actions">
         <h2>Bulk connection</h2>
+        <ItemPropertySummary
+          item={{
+            type: "bulk-wire",
+            name: route.id,
+            coordinate: (() => {
+              const point = resolver
+                ? resolveEndpointPoint(document, resolver, route.start)
+                : null;
+              return point ? [point.x, point.y] : null;
+            })(),
+          }}
+          color={defaultColor}
+        />
         <p>
           Follows <strong>{bulkOwnerLabel}</strong> line color.
         </p>
@@ -165,6 +183,7 @@ export function RouteActionsSection({
   return (
     <section className="context-actions" aria-label="Route actions">
       <RoutePropertyCodeEditor
+        {...(resolver ? { resolver } : {})}
         key={route.id}
         document={document}
         route={route}
@@ -189,6 +208,8 @@ export function RouteActionsSection({
 }
 
 export function EndpointActionsSection({
+  item,
+  color = "auto",
   kind,
   noConnect,
   endpointNetId,
@@ -197,6 +218,8 @@ export function EndpointActionsSection({
   onToggleNoConnect,
   onDeleteJunction,
 }: {
+  item?: WireSource | null;
+  color?: string;
   kind: "terminal" | "junction" | null;
   noConnect: boolean;
   endpointNetId: string | null;
@@ -209,6 +232,22 @@ export function EndpointActionsSection({
     return (
       <section className="context-actions" aria-label="Junction actions">
         <h2>Junction</h2>
+        {item && (
+          <ItemPropertySummary
+            item={{
+              type: "junction",
+              name:
+                item.endpoint.kind === "junction"
+                  ? item.endpoint.junctionId
+                  : "",
+              coordinate: [
+                item.connection.contactPoint.x,
+                item.connection.contactPoint.y,
+              ],
+            }}
+            color={color}
+          />
+        )}
         <button type="button" onClick={onDeleteJunction}>
           Delete junction and attached wires
         </button>
@@ -218,6 +257,22 @@ export function EndpointActionsSection({
   return (
     <section className="context-actions" aria-label="Endpoint actions">
       <h2>Endpoint</h2>
+      {item && (
+        <ItemPropertySummary
+          item={{
+            type: "terminal",
+            name:
+              item.endpoint.kind === "terminal"
+                ? `${item.endpoint.instanceId}.${item.endpoint.pinName}`
+                : "",
+            coordinate: [
+              item.connection.contactPoint.x,
+              item.connection.contactPoint.y,
+            ],
+          }}
+          color={color}
+        />
+      )}
       <button type="button" onClick={onDisconnect}>
         Disconnect endpoint
       </button>
