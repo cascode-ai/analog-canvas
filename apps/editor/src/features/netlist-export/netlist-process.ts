@@ -348,6 +348,34 @@ export function planNetlistProcess(
   ];
 }
 
+/**
+ * How many Instances the process in hand would fill in, changing nothing.
+ *
+ * The same plan the button applies, counted rather than committed: a circuit
+ * drawn before this process was chosen — or before the editor bound devices at
+ * all — says here how many of its devices are still waiting for a model and
+ * the dimensions that come with it.
+ */
+export function netlistProcessPendingInstances(
+  project: CircuitProject,
+  profile: NetlistExportProfile,
+): number {
+  const filled = new Set<string>();
+  for (const edit of planNetlistProcess(project, profile, {
+    onlyMissing: true,
+  })) {
+    if (edit.kind !== "transact_document") continue;
+    for (const item of edit.edits) {
+      if (item.kind === "set_instance_netlist")
+        filled.add(`${edit.documentId}:${item.instanceId}`);
+      if (item.kind === "bulk_patch_instance_netlist")
+        for (const assignment of item.assignments)
+          filled.add(`${edit.documentId}:${assignment.instanceId}`);
+    }
+  }
+  return filled.size;
+}
+
 /** Defaults belong to creating an example, never to mounting a reader of a saved Project. */
 export function prepareNetlistExample(
   project: CircuitProject,

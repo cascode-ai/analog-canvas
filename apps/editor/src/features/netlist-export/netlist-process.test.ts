@@ -14,7 +14,11 @@ import {
   createNetlistExportProfile,
   setNetlistDefaultTarget,
 } from "./netlist-process-presets";
-import { planNetlistProcess, inferNetlistProcess } from "./netlist-process";
+import {
+  planNetlistProcess,
+  inferNetlistProcess,
+  netlistProcessPendingInstances,
+} from "./netlist-process";
 
 function apply(
   project: CircuitProject,
@@ -43,6 +47,59 @@ function exported(
   if (result.status !== "ready") throw new Error("Export blocked");
   return result.file.text;
 }
+
+describe("what the process still owes a circuit", () => {
+  function twoBareDevices(): CircuitProject {
+    const project = createEmptyProject("bare", "Bare");
+    project.documents[0]!.instances.push(
+      {
+        id: "M1",
+        reference: "M1",
+        symbolId: "nmos",
+        placement: null,
+        netlist: { parameters: {} },
+      },
+      {
+        id: "M2",
+        reference: "M2",
+        symbolId: "pmos",
+        placement: null,
+        netlist: { parameters: {} },
+      },
+    );
+    return project;
+  }
+
+  it("counts the devices a circuit drawn before the process would gain", () => {
+    const project = twoBareDevices();
+    const sky130 = createNetlistExportProfile("sky130");
+    expect(netlistProcessPendingInstances(project, sky130)).toBe(2);
+
+    // Applying it settles the debt, and asking again costs nothing.
+    const filled = apply(project, sky130, { onlyMissing: true });
+    expect(netlistProcessPendingInstances(filled, sky130)).toBe(0);
+    expect(
+      planNetlistProcess(filled, sky130, { onlyMissing: true }),
+    ).toHaveLength(0);
+  });
+
+  it("leaves what the author already said alone", () => {
+    const project = twoBareDevices();
+    project.documents[0]!.instances[0]!.netlist = {
+      binding: { kind: "model", deviceClass: "mos", name: "NMOS" },
+      parameters: { w: "4u", l: "180n", m: "1", nf: "1" },
+    };
+    const sky130 = createNetlistExportProfile("sky130");
+    expect(netlistProcessPendingInstances(project, sky130)).toBe(1);
+    const filled = apply(project, sky130, { onlyMissing: true });
+    const authored = filled.documents[0]!.instances[0]!;
+    expect(authored.netlist?.parameters.w).toBe("4u");
+    expect(
+      authored.netlist?.binding?.kind === "model" &&
+        authored.netlist.binding.name,
+    ).toBe("NMOS");
+  });
+});
 
 describe("persisted netlist process authoring", () => {
   it("keeps AC-only sources free of a preset DC offset and honors custom missing-value defaults", () => {

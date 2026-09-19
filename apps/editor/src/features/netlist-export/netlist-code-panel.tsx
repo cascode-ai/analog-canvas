@@ -17,6 +17,7 @@ import type { PrintedNetlistInstance } from "@icm/netlist";
 import type { CircuitProject } from "@icm/model";
 import {
   inferNetlistProcess,
+  netlistProcessPendingInstances,
   netlistFamilyTarget,
   planNetlistProcess,
 } from "./netlist-process";
@@ -26,11 +27,11 @@ import {
   NETLIST_QUICK_TARGET_FAMILIES,
   NETLIST_DEVICE_TARGET_OPTIONS,
   setNetlistDefaultTarget,
-  createNetlistExportProfile,
   type NetlistExportProfile,
   type NetlistProfileId,
   type NetlistQuickTargetFamily,
 } from "./netlist-process-presets";
+import { createDefaultNetlistExportPreferences } from "./netlist-export-preferences";
 import {
   createDesignNetlistExport,
   unfinishedDrawingDiagnostics,
@@ -106,6 +107,18 @@ export function NetlistCodePanel({
       return false;
     }
   }
+  // What the process still owes this circuit: devices drawn before it was
+  // chosen, or before the editor bound them at all, keep their TODO model and
+  // dimensions until somebody says so. Counting is the same plan the button
+  // applies, so the number and the action cannot disagree.
+  const pendingDefaults = useMemo(() => {
+    if (configurationError) return 0;
+    try {
+      return netlistProcessPendingInstances(project, profile);
+    } catch {
+      return 0;
+    }
+  }, [project, profile, configurationError]);
   const result = useMemo(
     () =>
       configurationError
@@ -357,13 +370,28 @@ export function NetlistCodePanel({
           >
             <code>{portCase === "upper" ? "ABC" : "abc"}</code>
           </button>
+          {pendingDefaults > 0 ? (
+            <button
+              type="button"
+              className="netlist-fill-defaults"
+              data-testid="netlist-fill-defaults"
+              disabled={dirty}
+              title={`Give the ${pendingDefaults} ${
+                pendingDefaults === 1 ? "device" : "devices"
+              } with no model the ${NETLIST_PROFILE_LABELS[process]} model and dimensions`}
+              onClick={() => applyProcess(profile, { onlyMissing: true })}
+            >
+              Fill {pendingDefaults}{" "}
+              {pendingDefaults === 1 ? "device" : "devices"}
+            </button>
+          ) : null}
           <button
             type="button"
             className="netlist-default-action"
             disabled={dirty}
             onClick={() => {
-              if (applyProcess(createNetlistExportProfile("abstract")))
-                onReset();
+              const fallback = createDefaultNetlistExportPreferences();
+              if (applyProcess(profiles[fallback.selected])) onReset();
             }}
           >
             Default
