@@ -1,4 +1,8 @@
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
@@ -15,6 +19,14 @@ const catalog = await loadGateCatalog();
 const rootPackage = JSON.parse(
   await readFile(new URL("../../package.json", import.meta.url), "utf8"),
 );
+const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
+const trackedPaths = execFileSync("git", ["ls-files"], {
+  cwd: repositoryRoot,
+  encoding: "utf8",
+})
+  .split("\n")
+  .filter(Boolean);
+const specArgument = /^apps\/editor\/e2e\/.+\.spec\.ts$/u;
 
 function ids(paths) {
   return planValidation(paths, catalog).gates.map((gate) => gate.id);
@@ -188,5 +200,68 @@ describe("validation gate planning", () => {
     expect(() => windowsCommandLine(["pnpm", "test", "main & whoami"])).toThrow(
       "unsafe validation-gate argument",
     );
+  });
+});
+
+// The catalog is hand-maintained, so a path it names can outlive its target
+// without anyone noticing: a pattern that matches nothing stops selecting its
+// gate, and a named browser spec that no longer exists fails only in CI.
+describe("validation gate catalog paths", () => {
+  it("points every path group pattern at a tracked path", () => {
+    // `packages/devices/src/descriptors/*switch*` was added to emptyLabelGhost
+    // two days after the directory it names was deleted, and never matched.
+    const dead = [];
+    for (const [group, patterns] of Object.entries(catalog.pathGroups)) {
+      for (const pattern of patterns) {
+        const matches = globPattern(pattern);
+        if (!trackedPaths.some((path) => matches.test(path))) {
+          dead.push(`${group}: ${pattern}`);
+        }
+      }
+    }
+    expect(dead).toEqual([]);
+  });
+
+  it("names only browser specs that exist on disk", () => {
+    const missing = [];
+    for (const gate of catalog.gates) {
+      const named = [
+        ...gate.command.filter((value) => specArgument.test(value)),
+        ...(gate.ci?.e2eArgs ?? []),
+      ];
+      for (const spec of named) {
+        if (!existsSync(join(repositoryRoot, spec))) {
+          missing.push(`${gate.id}: ${spec}`);
+        }
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
+  it("keeps every locally selected browser spec in the mapped CI run", () => {
+    // The reverse direction is allowed: some browser specs are CI-only.
+    const uncovered = [];
+    for (const gate of catalog.gates) {
+      const mapped = new Set(gate.ci?.e2eArgs ?? []);
+      const local = gate.command.filter((value) => specArgument.test(value));
+      for (const spec of local) {
+        if (!mapped.has(spec)) uncovered.push(`${gate.id}: ${spec}`);
+      }
+    }
+    expect(uncovered).toEqual([]);
+  });
+
+  it("ignores worktree scratch directories left inside the repository", () => {
+    // The planner collects untracked paths, so an unignored worktree checkout
+    // escalates an unrelated plan to full delivery without saying so.
+    for (const directory of [".worktrees", ".claude/worktrees"]) {
+      expect(
+        matchesAny(
+          `${directory}/branch/packages/model/src/index.ts`,
+          catalog.ignoredPaths ?? [],
+        ),
+        directory,
+      ).toBe(true);
+    }
   });
 });
