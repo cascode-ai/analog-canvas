@@ -1,7 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { analyzeDesignNetlist } from "@icm/netlist";
 import { reviewedExternalBindingForMaster } from "@icm/devices";
-import { createEmptyDocument } from "@icm/model";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  createRoutePath,
+  type CircuitProject,
+} from "@icm/model";
+import { hierarchicalSymbolId } from "@icm/symbols";
 import { hierarchyParameterFixture } from "../../../netlists/hierarchy-parameters/fixture";
 
 import {
@@ -1265,6 +1271,102 @@ test("hides empty parameters and does not expose a second declaration workflow",
     dialog.getByRole("button", { name: "Apply parameters" }),
   ).toHaveCount(0);
   await dialog.getByRole("button", { name: "Close Cell Manager" }).click();
+});
+
+test("confirms connected last-Port deletion and restores caller wires with Undo and Redo", async ({
+  page,
+}) => {
+  const project = createEmptyProject("delete-port", "Delete Port");
+  const child = createEmptyDocument("child", "Child");
+  child.instances.push({
+    id: "P1",
+    symbolId: "port",
+    placement: { position: { x: 300, y: 180 }, rotation: 0, mirror: "none" },
+  });
+  child.nets.push({
+    id: "inside",
+    terminals: [{ instanceId: "P1", pinName: "P" }],
+  });
+  child.netlist!.terminals.push({
+    id: "in",
+    name: "IN",
+    netId: "inside",
+    direction: "input",
+    interfaceInstanceIds: ["P1"],
+  });
+  project.documents.push(child);
+  const parent = project.documents[0]!;
+  parent.instances.push({
+    id: "X1",
+    symbolId: hierarchicalSymbolId("Child"),
+    reference: "X1",
+    placement: { position: { x: 300, y: 180 }, rotation: 0, mirror: "none" },
+    netlist: {
+      parameters: {},
+      binding: { kind: "subcircuit", childDocumentId: child.id },
+    },
+  });
+  parent.nets.push({
+    id: "outside",
+    terminals: [{ instanceId: "X1", pinName: "IN" }],
+  });
+  parent.junctions.push({
+    id: "tail",
+    netId: "outside",
+    position: { x: 100, y: 180 },
+    role: "route-anchor",
+  });
+  parent.routes.push(
+    createRoutePath({
+      id: "lead",
+      netId: "outside",
+      start: { kind: "terminal", instanceId: "X1", pinName: "IN" },
+      end: { kind: "junction", junctionId: "tail" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "delete.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("document-selector").selectOption(child.id);
+  const snapshot = async (): Promise<CircuitProject> =>
+    JSON.parse(
+      (await downloadBytes(page, "File", "Export Project File…")).toString(),
+    );
+  const circuit = (value: CircuitProject) =>
+    value.documents.map(
+      ({ revision: _revision, sourceStatus: _status, ...document }) => document,
+    );
+  const original = await snapshot();
+  await page.getByTestId("hit-P1").click();
+  await page.keyboard.press("Delete");
+  const confirmation = page.getByRole("dialog", {
+    name: "Delete connected Cell Ports?",
+  });
+  await expect(confirmation).toContainText("X1");
+  await confirmation
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  expect(circuit(await snapshot())).toEqual(circuit(original));
+  await page.getByTestId("hit-P1").click();
+  await page.keyboard.press("Delete");
+  await confirmation
+    .getByRole("button", { name: "Delete Ports", exact: true })
+    .click();
+  await expect(page.getByTestId("hit-P1")).toHaveCount(0);
+  const deleted = await snapshot();
+  expect(deleted.documents[1]!.netlist!.terminals).toEqual([]);
+  expect(deleted.documents[0]!.routes).toHaveLength(1);
+  expect(deleted.documents[0]!.routes[0]!.start.kind).toBe("junction");
+  expect(deleted.documents[0]!.instances).toHaveLength(1);
+  await page.keyboard.press("Control+z");
+  expect(circuit(await snapshot())).toEqual(circuit(original));
+  await page.keyboard.press("Control+Shift+z");
+  expect(circuit(await snapshot())).toEqual(circuit(deleted));
 });
 
 test("deletes a wired child Cell Pin through the ordinary instance path", async ({
