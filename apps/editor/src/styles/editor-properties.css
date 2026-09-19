@@ -1171,3 +1171,8 @@
   line-height: 1.1;
   cursor: pointer;
 }
+
+.cm-property-parameter-button::before {
+  /* Keep the action icon out of the editor's selectable JSON text. */
+  content: "ƒ";
+}

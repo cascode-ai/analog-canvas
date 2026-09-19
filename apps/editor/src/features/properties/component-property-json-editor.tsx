@@ -496,7 +496,6 @@ class CellParameterButton extends WidgetType {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "cm-property-parameter-button";
-    button.textContent = "ƒ";
     button.disabled = !this.enabled;
     button.title = `Use Cell parameter for ${this.span.field.label}`;
     button.setAttribute("aria-label", button.title);
