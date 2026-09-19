@@ -95,6 +95,11 @@ function writeBuild(root, assetName, digest) {
 }
 
 describe("mcp-release-bump --version", () => {
+  it("accepts the argument separator forwarded by pnpm scripts", () => {
+    const { root, configPath } = fixture();
+    expect(run(root, ["--", "--version", "0.15.7"]).code).toBe(0);
+    expect(JSON.parse(readFileSync(configPath, "utf8")).version).toBe("0.15.7");
+  });
   it("rewrites the release identity, clears the digest, and syncs the workspace package", () => {
     const { root, configPath, workspacePath } = fixture();
     const { code, output } = run(root, ["--version", "0.15.7"]);

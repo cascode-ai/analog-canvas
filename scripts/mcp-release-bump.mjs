@@ -42,6 +42,7 @@ function parseArgs(argv) {
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
+    if (arg === "--") continue;
     if (arg === "--version") options.version = argv[(index += 1)];
     else if (arg === "--stamp") options.stamp = true;
     else if (arg === "--config") options.config = resolve(argv[(index += 1)]);
