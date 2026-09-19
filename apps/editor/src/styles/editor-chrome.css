@@ -399,7 +399,9 @@
 }
 .netlist-device-mapping {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* Two model columns while they fit; one once the panel is dragged narrow,
+     so the model selects and Default stay whole instead of being clipped. */
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   align-items: center;
   gap: 8px;
   padding-top: 2px;
