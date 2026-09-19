@@ -317,8 +317,8 @@
 }
 
 .cell-manager-list {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   border-right: 1px solid var(--icm-border);
   background: var(--icm-surface-muted);
@@ -338,6 +338,7 @@
 }
 
 .cell-manager-list-scroll {
+  flex: 1 1 0;
   min-height: 0;
   padding: 0 var(--icm-space-2);
   overflow-y: auto;
@@ -397,6 +398,7 @@
 }
 
 .cell-manager-new {
+  flex: 0 0 auto;
   margin: var(--icm-space-2);
 }
 

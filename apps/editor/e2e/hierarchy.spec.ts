@@ -455,6 +455,11 @@ test("sets a Cell as default Top without changing its circuit and supports Undo"
   await runCellCommand(page, "Manage Cells…");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await expect(manager.locator(".cell-manager-list-heading")).toHaveCount(0);
+  expect(
+    (await manager
+      .getByRole("button", { name: "New Cell", exact: true })
+      .boundingBox())!.height,
+  ).toBeLessThan(40);
   await manager
     .getByRole("button", { name: "Set as Top", exact: true })
     .click();
@@ -661,6 +666,11 @@ test("manages external declarations independently of local Cell interfaces", asy
     0,
   );
   await externalList.getByRole("button", { name: /amplifier/ }).click();
+  expect(
+    (await externalList
+      .getByRole("button", { name: "New External Circuit Def", exact: true })
+      .boundingBox())!.height,
+  ).toBeLessThan(40);
   await expect(manager.getByLabel("External subcircuit terminals")).toHaveValue(
     "IN, OUT, VDD, VSS",
   );
