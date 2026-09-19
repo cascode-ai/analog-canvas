@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { analyzeDesignNetlist } from "@icm/netlist";
+import { reviewedExternalBindingForMaster } from "@icm/devices";
 import { hierarchyParameterFixture } from "../../../netlists/hierarchy-parameters/fixture";
 
 import {
@@ -278,6 +279,56 @@ test("sets a Cell as default Top without changing its circuit and supports Undo"
   expect((await save()).topDocumentId).toBe(originalTop);
   await page.keyboard.press("Control+Shift+z");
   expect((await save()).topDocumentId).toBe(childId);
+});
+
+test("protects reviewed External interfaces and navigates their callers", async ({
+  page,
+}) => {
+  const reviewed = reviewedExternalBindingForMaster("sky130_fd_pr__nfet_01v8")!;
+  await page.goto("/editor");
+  await runCellCommand(page, "Manage Cells…");
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager
+    .getByRole("group", { name: "Definition type" })
+    .getByRole("button", { name: "External Circuits", exact: true })
+    .click();
+  await manager
+    .getByLabel("External subcircuit target")
+    .fill(reviewed.masterName);
+  await manager
+    .getByLabel("External subcircuit terminals")
+    .fill(reviewed.terminals.map((item) => item.targetName).join(", "));
+  await manager
+    .getByRole("button", { name: "Create External Circuit", exact: true })
+    .click();
+  await expect(
+    manager.getByLabel("External subcircuit target"),
+  ).toHaveAttribute("readonly", "");
+  await expect(
+    manager.getByLabel("External subcircuit terminals"),
+  ).toHaveAttribute("readonly", "");
+  await expect(
+    manager.getByRole("button", { name: "Save definition" }),
+  ).toBeDisabled();
+  await expect(manager.getByText(/fixed PDK interface/)).toBeVisible();
+  await manager.getByRole("button", { name: "Place", exact: true }).click();
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 260, y: 200 } });
+  await page.keyboard.press("Escape");
+  await runCellCommand(page, "Manage Cells…");
+  await manager
+    .getByRole("group", { name: "Definition type" })
+    .getByRole("button", { name: "External Circuits", exact: true })
+    .click();
+  await manager
+    .getByRole("complementary", { name: "External Circuits" })
+    .getByRole("button", { name: new RegExp(reviewed.masterName) })
+    .click();
+  await manager.getByText("Callers (1)", { exact: true }).click();
+  await manager.getByRole("button", { name: "Jump to caller" }).click();
+  await expect(manager).toHaveCount(0);
+  await expect(page.getByTestId("status")).toContainText("Opened caller");
 });
 
 test("manages external declarations independently of local Cell interfaces", async ({

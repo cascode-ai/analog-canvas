@@ -147,6 +147,24 @@ export function CellManagerDialog({
   const selectedExternal = externalDefinitions.find(
     (definition) => definition.id === externalId,
   );
+  const callers =
+    resourceKind === "local"
+      ? (selectedEntry?.callers ?? [])
+      : project.documents.flatMap((document) =>
+          document.instances.flatMap((instance) =>
+            selectedExternal &&
+            instance.netlist?.binding?.kind === "external-subcircuit" &&
+            instance.netlist.binding.definitionId === selectedExternal.id
+              ? [
+                  {
+                    documentId: document.id,
+                    documentName: document.name,
+                    instanceId: instance.id,
+                  },
+                ]
+              : [],
+          ),
+        );
   const renameTarget = cells.find((cell) => cell.id === renameId);
   const deleteTarget = cells.find((cell) => cell.id === deleteId);
   const resetAction = RESET_ACTIONS.find(
@@ -437,36 +455,32 @@ export function CellManagerDialog({
                     })}
                   </div>
                 </details>
-
-                {selectedEntry.callers.length > 0 ? (
-                  <details className="cell-manager-callers">
-                    <summary>Callers ({selectedEntry.callers.length})</summary>
-                    <ul>
-                      {selectedEntry.callers.map((caller) => (
-                        <li key={`${caller.documentId}:${caller.instanceId}`}>
-                          <span>
-                            {caller.documentName}.{caller.instanceId}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onJumpToCaller(
-                                caller.documentId,
-                                caller.instanceId,
-                              )
-                            }
-                          >
-                            Jump to caller
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                ) : null}
               </>
             ) : (
               <p className="cell-interface-empty">No Cell selected.</p>
             )}
+            {callers.length > 0 ? (
+              <details className="cell-manager-callers">
+                <summary>Callers ({callers.length})</summary>
+                <ul>
+                  {callers.map((caller) => (
+                    <li key={`${caller.documentId}:${caller.instanceId}`}>
+                      <span>
+                        {caller.documentName}.{caller.instanceId}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onJumpToCaller(caller.documentId, caller.instanceId)
+                        }
+                      >
+                        Jump to caller
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
           </div>
         </div>
 

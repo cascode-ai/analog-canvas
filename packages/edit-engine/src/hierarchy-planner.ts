@@ -1151,6 +1151,32 @@ export function proposeUpsertExternalSubcircuitDefinition(
   project: CircuitProject,
   definition: ExternalSubcircuitDefinition,
 ): SubcircuitInterfaceProposal {
+  const previous = project.externalSubcircuitDefinitions.find(
+    (item) => item.id === definition.id,
+  );
+  const previousReviewed =
+    previous &&
+    resolveReviewedExternalBinding(
+      previous.name,
+      previous.terminals.map((item) => item.name),
+    );
+  if (
+    previousReviewed &&
+    (definition.name !== previous!.name ||
+      JSON.stringify(definition.terminals) !==
+        JSON.stringify(previous!.terminals) ||
+      JSON.stringify(definition.formalParameters) !==
+        JSON.stringify(previous!.formalParameters))
+  ) {
+    return interfaceProposal(
+      project,
+      { kind: "external", id: definition.id },
+      [],
+      [
+        "Reviewed PDK interfaces are fixed. Edit device parameters on each instance.",
+      ],
+    );
+  }
   const reviewed = resolveReviewedExternalBinding(
     definition.name,
     definition.terminals.map((terminal) => terminal.name),
