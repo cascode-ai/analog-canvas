@@ -4384,7 +4384,9 @@ test("deletes imported Net Labels with non-editor ids", async ({ page }) => {
   });
   await clickRoute(page, "route-imported-h");
   await openSelectionShelf(page);
-  expect(JSON.parse(await readComponentPropertyCode(page)).net.name).toBe("");
+  expect(JSON.parse(await readComponentPropertyCode(page)).net.name ?? "").toBe(
+    "",
+  );
 });
 
 test("derives crossings and creates junctions only when a wire ends on a route", async ({

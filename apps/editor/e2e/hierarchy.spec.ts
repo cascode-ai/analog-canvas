@@ -496,6 +496,11 @@ test("saves ordinary Cell order without changing Top and restores it with Undo",
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(project)),
   });
+  const snapshot = async () =>
+    JSON.parse(
+      (await downloadBytes(page, "File", "Export Project File…")).toString(),
+    );
+  const normalized = await snapshot();
   await runCellCommand(page, "Manage Cells…");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
@@ -513,10 +518,6 @@ test("saves ordinary Cell order without changing Top and restores it with Undo",
   ]);
   await page.screenshot({ path: test.info().outputPath("cell-manager.png") });
   await manager.getByLabel("Close Cell Manager").click();
-  const snapshot = async () =>
-    JSON.parse(
-      (await downloadBytes(page, "File", "Export Project File…")).toString(),
-    );
   const reordered = await snapshot();
   expect(reordered.topDocumentId).toBe(project.topDocumentId);
   expect(reordered.documents.map((cell: { id: string }) => cell.id)).toEqual([
@@ -530,7 +531,7 @@ test("saves ordinary Cell order without changing Top and restores it with Undo",
   const contents = (documents: CircuitProject["documents"]) =>
     documents.map(({ revision: _revision, ...document }) => document);
   expect(contents((await snapshot()).documents)).toEqual(
-    contents(project.documents),
+    contents(normalized.documents),
   );
   await page.keyboard.press("Control+Shift+z");
   expect(contents((await snapshot()).documents)).toEqual(

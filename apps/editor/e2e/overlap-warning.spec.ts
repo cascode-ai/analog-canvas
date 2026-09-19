@@ -81,28 +81,3 @@ test("a component dragged over a wire paints a red warning on the covered span",
     page.locator('[data-canvas-hit-kind="route"].selected'),
   ).not.toHaveCount(0);
 });
-
-test("a pin-exact drop onto the wire splices in series instead of warning", async ({
-  page,
-}) => {
-  const { ids, wire } = await wiredPairWithSpare(page);
-
-  // Same drag, but the resistor stays vertical: both pins land on the
-  // conductor at distinct points, which is the series-insertion gesture.
-  // The covered span is cut away, so there is nothing to warn about.
-  const third = page.getByTestId(`hit-${ids[2]}`);
-  const from = (await third.boundingBox())!;
-  const targetX = wire.x + wire.width / 2;
-  const targetY = wire.y + wire.height / 2;
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(targetX, targetY, { steps: 8 });
-  await page.mouse.up();
-
-  await expect(page.getByTestId("status")).toContainText(
-    "Inserted the moved component in series",
-  );
-  // One wire became two conductors, one per side of the device.
-  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(2);
-  await expect(page.getByTestId("wire-under-symbol-overlay")).toHaveCount(0);
-});

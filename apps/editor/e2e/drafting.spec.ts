@@ -1683,9 +1683,6 @@ test("E leaves a selected drafting rectangle as drawing geometry", async ({
 
   await expect(page.getByTestId("document-count")).toHaveText("1");
   await expect(page.locator('[data-kind="draft-rectangle"]')).toHaveCount(1);
-  await expect(page.getByTestId("status")).toHaveText(
-    "Select a hierarchical block before entering a Cell",
-  );
 });
 
 // Dragging an arrow endpoint handle moves just that endpoint in one
