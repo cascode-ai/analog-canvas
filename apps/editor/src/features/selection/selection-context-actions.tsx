@@ -1,17 +1,40 @@
+import { lazy, Suspense } from "react";
 import { resolveEndpointPoint, type MosBulkResolution } from "@icm/derived";
 import type { WireSource } from "@icm/edit-engine";
-import { ItemPropertySummary } from "../properties/item-property-summary";
+import type { ItemPropertyIdentity } from "../properties/item-property-code";
 import type { Annotation, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import type { RoutingGuidanceView } from "../../interaction/interaction-state";
 
-import {
-  GroupPropertyCodeEditor,
-  type GroupPropertyCodeEditorProps,
-} from "../properties/group-property-code-editor";
-import { RoutePropertyCodeEditor } from "../properties/route-property-code-editor";
+import type { GroupPropertyCodeEditorProps } from "../properties/group-property-code-editor";
 import type { RoutePropertyCodeValue } from "../properties/route-property-code";
 import { ToolIcon } from "../editor-shell/tool-icon";
+
+const GroupPropertyCodeEditor = lazy(() =>
+  import("../properties/property-editors").then((module) => ({
+    default: module.GroupPropertyCodeEditor,
+  })),
+);
+const RoutePropertyCodeEditor = lazy(() =>
+  import("../properties/property-editors").then((module) => ({
+    default: module.RoutePropertyCodeEditor,
+  })),
+);
+const LazyItemPropertySummary = lazy(() =>
+  import("../properties/property-editors").then((module) => ({
+    default: module.ItemPropertySummary,
+  })),
+);
+function ItemPropertySummary(props: {
+  item: ItemPropertyIdentity;
+  color: string;
+}) {
+  return (
+    <Suspense fallback={<p role="status">Loading properties…</p>}>
+      <LazyItemPropertySummary {...props} />
+    </Suspense>
+  );
+}
 
 export function MosBulkConnectionSection({
   connection,
@@ -124,7 +147,9 @@ export function GroupPropertiesSection({
 }: { active: boolean } & GroupPropertyCodeEditorProps) {
   if (!active) return null;
   return (
-    <GroupPropertyCodeEditor key={properties.selectionKey} {...properties} />
+    <Suspense fallback={<p role="status">Loading properties…</p>}>
+      <GroupPropertyCodeEditor key={properties.selectionKey} {...properties} />
+    </Suspense>
   );
 }
 
@@ -182,27 +207,29 @@ export function RouteActionsSection({
   }
   return (
     <section className="context-actions" aria-label="Route actions">
-      <RoutePropertyCodeEditor
-        {...(resolver ? { resolver } : {})}
-        key={route.id}
-        document={document}
-        route={route}
-        netLabel={netLabel}
-        defaultColor={defaultColor}
-        onApply={onApply}
-        actions={
-          <div className="route-property-code-actions">
-            <button type="button" onClick={onToggleHighlight}>
-              {highlightActive
-                ? "Clear Net highlight (H)"
-                : "Highlight Net (H)"}
-            </button>
-            <button type="button" onClick={onDeleteWire}>
-              Delete wire
-            </button>
-          </div>
-        }
-      />
+      <Suspense fallback={<p role="status">Loading properties…</p>}>
+        <RoutePropertyCodeEditor
+          {...(resolver ? { resolver } : {})}
+          key={route.id}
+          document={document}
+          route={route}
+          netLabel={netLabel}
+          defaultColor={defaultColor}
+          onApply={onApply}
+          actions={
+            <div className="route-property-code-actions">
+              <button type="button" onClick={onToggleHighlight}>
+                {highlightActive
+                  ? "Clear Net highlight (H)"
+                  : "Highlight Net (H)"}
+              </button>
+              <button type="button" onClick={onDeleteWire}>
+                Delete wire
+              </button>
+            </div>
+          }
+        />
+      </Suspense>
     </section>
   );
 }

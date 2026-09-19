@@ -1,14 +1,10 @@
-import { Suspense, type ComponentProps, type RefObject } from "react";
+import { lazy, Suspense, type ComponentProps, type RefObject } from "react";
 
 import { ToolIcon } from "../features/editor-shell/tool-icon";
-import { DocumentSettingsSection } from "../features/editor-shell/document-settings-section";
 import { PlacementTrayPanel } from "../features/component-insert/placement-tray-panel";
 import { CellSymbolLayoutProperties } from "../features/properties/component-structure-properties";
 import { ComponentIdentityProperties } from "../features/properties/component-identity-properties";
-import { ComponentPropertyCodeEditor } from "../features/properties/component-property-code-editor";
-import { AnnotationColorProperties } from "../features/properties/annotation-color-properties";
 import { NetNameProperties } from "../features/properties/net-name-properties";
-import { DraftingPropertiesPanel } from "../features/drafting/drafting-properties-panel";
 import {
   AnnotationActionsSection,
   EndpointActionsSection,
@@ -23,6 +19,28 @@ import {
   SelectionInspectorDetails,
 } from "../features/selection/selection-inspector-details";
 import { LazyAgentPropertiesSection } from "./lazy-editor-dialogs";
+
+// Load selection-only editors when their Properties section is opened.
+const ComponentPropertyCodeEditor = lazy(() =>
+  import("../features/properties/property-editors").then((module) => ({
+    default: module.ComponentPropertyCodeEditor,
+  })),
+);
+const AnnotationColorProperties = lazy(() =>
+  import("../features/properties/property-editors").then((module) => ({
+    default: module.AnnotationColorProperties,
+  })),
+);
+const DraftingPropertiesPanel = lazy(() =>
+  import("../features/properties/property-editors").then((module) => ({
+    default: module.DraftingPropertiesPanel,
+  })),
+);
+const DocumentSettingsSection = lazy(() =>
+  import("../features/properties/property-editors").then((module) => ({
+    default: module.DocumentSettingsSection,
+  })),
+);
 
 interface ComponentPropertiesModel {
   code: ComponentProps<typeof ComponentPropertyCodeEditor>;
@@ -123,7 +141,9 @@ export function EditorPropertiesDock({
         <div className="selection-panel" hidden={!open}>
           <>
             {documentSettings ? (
-              <DocumentSettingsSection {...documentSettings} />
+              <Suspense fallback={<p role="status">Loading properties…</p>}>
+                <DocumentSettingsSection {...documentSettings} />
+              </Suspense>
             ) : null}
             <MosBulkConnectionSection {...mosBulk} />
             <RoutingGuidanceSection {...routingGuidance} />
@@ -136,17 +156,19 @@ export function EditorPropertiesDock({
                 className="property-section component-properties"
                 aria-label="Component properties"
               >
-                <ComponentPropertyCodeEditor
-                  key={component.code.instance.id}
-                  {...component.code}
-                  details={{
-                    parameters: component.parameters,
-                    ...(component.identity.modelTarget
-                      ? { modelTarget: component.identity.modelTarget }
-                      : {}),
-                    signalFlow: component.signalFlow,
-                  }}
-                />
+                <Suspense fallback={<p role="status">Loading properties…</p>}>
+                  <ComponentPropertyCodeEditor
+                    key={component.code.instance.id}
+                    {...component.code}
+                    details={{
+                      parameters: component.parameters,
+                      ...(component.identity.modelTarget
+                        ? { modelTarget: component.identity.modelTarget }
+                        : {}),
+                      signalFlow: component.signalFlow,
+                    }}
+                  />
+                </Suspense>
                 {component.cellSymbolLayout ? (
                   <CellSymbolLayoutProperties {...component.cellSymbolLayout} />
                 ) : null}
@@ -159,16 +181,23 @@ export function EditorPropertiesDock({
               </section>
             ) : null}
             {!groupProperties.active && annotationText ? (
-              <AnnotationColorProperties
-                key={annotationText.annotation.id}
-                {...annotationText}
-              />
+              <Suspense fallback={<p role="status">Loading properties…</p>}>
+                <AnnotationColorProperties
+                  key={annotationText.annotation.id}
+                  {...annotationText}
+                />
+              </Suspense>
             ) : null}
             {!groupProperties.active && netName ? (
               <NetNameProperties {...netName} />
             ) : null}
             {!groupProperties.active && drafting ? (
-              <DraftingPropertiesPanel key={drafting.object.id} {...drafting} />
+              <Suspense fallback={<p role="status">Loading properties…</p>}>
+                <DraftingPropertiesPanel
+                  key={drafting.object.id}
+                  {...drafting}
+                />
+              </Suspense>
             ) : null}
             <PlacementTrayPanel {...placementTray} />
             {!groupProperties.active ? (
