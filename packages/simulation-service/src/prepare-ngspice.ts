@@ -289,7 +289,9 @@ export async function prepareNgspiceExecutionInput(
     deviceOperatingPoints: compiled.deviceOperatingPoints,
     measurements: config.measurements,
     warnings: [
-      ...compiled.warnings.map((item) => item.message),
+      ...compiled.warnings
+        .filter((item) => item.code !== "GENERATED_NET_NAME")
+        .map((item) => item.message),
       ...(volume ? [volume] : []),
       ...(unqualified.length
         ? [

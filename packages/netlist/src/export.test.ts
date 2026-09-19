@@ -522,6 +522,26 @@ describe("netlist extractability", () => {
       "MISSING_REQUIRED_PARAMETER",
     ]);
     expect(designExtractsNetlist(project)).toBe(true);
+    expect(
+      errors.filter((item) => item.code === "MISSING_REQUIRED_PARAMETER"),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          parameter: "w",
+          primary: expect.objectContaining({
+            kind: "instance",
+            objectId: "M1",
+          }),
+        }),
+        expect.objectContaining({
+          parameter: "l",
+          primary: expect.objectContaining({
+            kind: "instance",
+            objectId: "M1",
+          }),
+        }),
+      ]),
+    );
   });
 
   it("writes the fourth node from the supply the author drew", () => {

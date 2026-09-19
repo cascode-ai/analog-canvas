@@ -15,6 +15,7 @@ const legacySetups = () =>
   ota.simulationSetups.map((s) => LegacyProjectSimulationSetupSchema.parse(s));
 import { migrateSimulationSetupToSource } from "./simulation-source-migration.js";
 import { compileSourceSimulation } from "./simulation-source-compile.js";
+import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
 import { buildSimulationPlan } from "./simulation-compile.js";
 import { simulationSignals } from "./simulation-signal-names.js";
 
@@ -49,6 +50,60 @@ function raw(text: string) {
   });
 }
 describe("source simulation compiler", () => {
+  it.each(["ngspice", "vacask"] as const)(
+    "preserves missing parameter evidence for %s",
+    (engine) => {
+      const p = createEmptyProject("p", "Missing bias", "d");
+      const d = p.documents[0]!;
+      d.instances.push({
+        id: "source",
+        reference: "I1",
+        symbolId: "current-source",
+        placement: null,
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "current-source" },
+          parameters: { waveform: "dc" },
+        },
+      });
+      d.nets.push(
+        { id: "p", terminals: [{ instanceId: "source", pinName: "+" }] },
+        { id: "n", terminals: [{ instanceId: "source", pinName: "-" }] },
+      );
+      const folder = createSimulationFolder({
+        id: "f",
+        name: "Missing",
+        profileId: "local",
+        documentId: d.id,
+      });
+      if (engine === "ngspice")
+        folder.input.files.find((f) => f.path === folder.input.entry)!.text =
+          "Missing\n.include circuit.spice\n.control\nop\n.endc\n.end\n";
+      const compiled =
+        engine === "ngspice"
+          ? compileNgspiceSourceSimulation(p, folder)
+          : compileSourceSimulation(p, folder);
+      expect(compiled.ok).toBe(false);
+      if (compiled.ok) throw new Error("Missing DC must be diagnosed");
+      expect(compiled.diagnostics).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: "MISSING_REQUIRED_PARAMETER",
+            field: "d.source.dc",
+            primary: expect.objectContaining({
+              kind: "instance",
+              objectId: "source",
+              documentId: "d",
+            }),
+          }),
+        ]),
+      );
+      expect(
+        compiled.diagnostics
+          .filter((item) => item.code === "GENERATED_NET_NAME")
+          .every((item) => item.severity === "info"),
+      ).toBe(true);
+    },
+  );
   it.each(["pulse", "sin", "pwl"])(
     "explains mode-specific DC for %s without blocking or rewriting the native program",
     (waveform) => {
