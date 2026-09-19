@@ -12,11 +12,12 @@ import {
 describe("gallery filter preferences", () => {
   it("reads every narrowing choice out of a link", () => {
     const { filters, narrowed } = parseGalleryFilterQuery(
-      "?view=shelf&author=alice&tags=bias,opamp&q=mirror&netlist=1&liked=1",
+      "?view=shelf&author=alice&owner=account-alice&tags=bias,opamp&q=mirror&netlist=1&liked=1",
     );
     expect(filters).toEqual({
       view: "shelf",
       author: "alice",
+      ownerUserId: "account-alice",
       tags: ["bias", "opamp"],
       search: "mirror",
       netlistable: true,
@@ -44,7 +45,30 @@ describe("gallery filter preferences", () => {
     expect(params.get("liked")).toBe("1");
     // Cleared choices leave, so the URL never outlives the state it describes.
     expect(params.has("author")).toBe(false);
+    expect(params.has("owner")).toBe(false);
     expect(params.has("netlist")).toBe(false);
+  });
+
+  it("round-trips a mutable byline with its stable account identity", () => {
+    const search = galleryFilterSearch("", {
+      ...createDefaultGalleryFilters(),
+      author: "Shared Name",
+      ownerUserId: "owner-123",
+    });
+    expect(parseGalleryFilterQuery(search).filters).toEqual({
+      ...createDefaultGalleryFilters(),
+      author: "Shared Name",
+      ownerUserId: "owner-123",
+    });
+    expect(
+      parseStoredGalleryFilters(
+        JSON.stringify({ author: "Shared Name", ownerUserId: "owner-123" }),
+      ),
+    ).toEqual({
+      ...createDefaultGalleryFilters(),
+      author: "Shared Name",
+      ownerUserId: "owner-123",
+    });
   });
 
   it("drops the query entirely once nothing is selected", () => {
@@ -68,6 +92,7 @@ describe("gallery filter preferences", () => {
     const stored = JSON.stringify({
       view: "gallery",
       author: "alice",
+      ownerUserId: "account-alice",
       tags: ["bias"],
       search: "mirror",
       netlistable: true,
@@ -76,6 +101,7 @@ describe("gallery filter preferences", () => {
     expect(resolveGalleryFilters("", stored)).toEqual({
       view: "gallery",
       author: "alice",
+      ownerUserId: "account-alice",
       tags: ["bias"],
       search: "mirror",
       netlistable: true,

@@ -320,6 +320,64 @@ describe("email magic-link sign-in", () => {
     expect(await me(auth)).toBeNull();
   });
 
+  it("syncs a renamed profile to Gallery by stable owner id", async () => {
+    const syncs: Array<{ ownerUserId: string; displayName: string }> = [];
+    const auth = harness({
+      RESEND_API_KEY: "rk",
+      GALLERY: {
+        getByName: () => ({
+          fetch: async (input, init) => {
+            expect(String(input)).toBe("https://gallery/rename-owner");
+            syncs.push(JSON.parse(String(init?.body)));
+            return Response.json({ ok: true });
+          },
+        }),
+      },
+    });
+    const cookie = await emailSignIn(auth, "maker@example.com");
+    const before = await me(auth, cookie);
+
+    const renamed = await auth.call("/api/auth/profile", {
+      method: "POST",
+      cookie,
+      body: JSON.stringify({ displayName: "  Current Public Name  " }),
+    });
+
+    expect(renamed.status).toBe(200);
+    expect(syncs).toEqual([
+      {
+        ownerUserId: before!.id,
+        displayName: "Current Public Name",
+      },
+    ]);
+    expect((await me(auth, cookie))?.displayName).toBe("Current Public Name");
+  });
+
+  it("keeps the profile unchanged when Gallery cannot synchronize the byline", async () => {
+    const auth = harness({
+      RESEND_API_KEY: "rk",
+      GALLERY: {
+        getByName: () => ({
+          fetch: async () =>
+            Response.json({ error: "unavailable" }, { status: 503 }),
+        }),
+      },
+    });
+    const cookie = await emailSignIn(auth, "maker@example.com");
+
+    const renamed = await auth.call("/api/auth/profile", {
+      method: "POST",
+      cookie,
+      body: JSON.stringify({ displayName: "Unsynchronized Name" }),
+    });
+
+    expect(renamed.status).toBe(503);
+    expect(await renamed.json()).toEqual({
+      error: "gallery-byline-sync-failed",
+    });
+    expect((await me(auth, cookie))?.displayName).toBe("maker");
+  });
+
   it("unions the primary and additive administrator email secrets", async () => {
     const auth = harness({
       RESEND_API_KEY: "rk",

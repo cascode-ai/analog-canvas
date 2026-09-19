@@ -609,6 +609,7 @@ export async function routeGalleryRequest(
       limit: url.searchParams.get("limit"),
       cursor: url.searchParams.get("cursor"),
       author: url.searchParams.get("author"),
+      ownerUserId: url.searchParams.get("owner"),
       tags: (url.searchParams.get("tags") ?? "")
         .split(",")
         .filter((tag) => tag.length > 0),

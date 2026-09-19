@@ -652,28 +652,35 @@ describe("newest-first gallery feed", () => {
     const env = environment();
     const ids = await wallOf(env, 6);
     env.gallerySql.exec(
-      "UPDATE gallery_entries SET author = ? WHERE id IN (?, ?)",
+      `UPDATE gallery_entries SET author = ?, owner_user_id = ?
+       WHERE id IN (?, ?)`,
       "Alice",
+      "owner-alice",
       ids[0]!,
       ids[1]!,
     );
     env.gallerySql.exec(
-      "UPDATE gallery_entries SET author = ? WHERE id = ?",
+      "UPDATE gallery_entries SET author = ?, owner_user_id = ? WHERE id = ?",
       "Chen",
+      "owner-chen",
       ids[2]!,
     );
     env.gallerySql.exec(
-      "UPDATE gallery_entries SET author = ? WHERE id = ?",
+      "UPDATE gallery_entries SET author = ?, owner_user_id = ? WHERE id = ?",
       "Bob",
+      "owner-bob",
       ids[3]!,
     );
     env.gallerySql.exec(
-      "UPDATE gallery_entries SET author = '' WHERE id = ?",
+      "UPDATE gallery_entries SET author = '', owner_user_id = ? WHERE id = ?",
+      "owner-blank",
       ids[4]!,
     );
     env.gallerySql.exec(
-      "UPDATE gallery_entries SET author = ?, status = 'rejected' WHERE id = ?",
+      `UPDATE gallery_entries
+       SET author = ?, owner_user_id = ?, status = 'rejected' WHERE id = ?`,
       "Hidden",
+      "owner-hidden",
       ids[5]!,
     );
 
@@ -684,11 +691,56 @@ describe("newest-first gallery feed", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(await response.json()).toEqual({
       authors: [
-        { author: "Alice", count: 2 },
-        { author: "Bob", count: 1 },
-        { author: "Chen", count: 1 },
+        { author: "Alice", ownerUserId: "owner-alice", count: 2 },
+        { author: "Bob", ownerUserId: "owner-bob", count: 1 },
+        { author: "Chen", ownerUserId: "owner-chen", count: 1 },
       ],
     });
+  });
+
+  it("filters same-name contributors by stable owner identity", async () => {
+    const env = environment();
+    const ids = await wallOf(env, 2);
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET author = ?, owner_user_id = ? WHERE id = ?",
+      "Shared Name",
+      "owner-a",
+      ids[0]!,
+    );
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET author = ?, owner_user_id = ? WHERE id = ?",
+      "Shared Name",
+      "owner-b",
+      ids[1]!,
+    );
+
+    const legacy = (await (
+      await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery?author=Shared%20Name`),
+      )
+    ).json()) as {
+      entries: Array<{ id: string; ownerUserId: string | null }>;
+      total: number;
+    };
+    expect(new Set(legacy.entries.map((entry) => entry.id))).toEqual(
+      new Set(ids),
+    );
+    expect(legacy.total).toBe(2);
+
+    const exact = (await (
+      await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery?author=Shared%20Name&owner=owner-a`),
+      )
+    ).json()) as {
+      entries: Array<{ id: string; ownerUserId: string | null }>;
+      total: number;
+    };
+    expect(
+      exact.entries.map(({ id, ownerUserId }) => ({ id, ownerUserId })),
+    ).toEqual([{ id: ids[0], ownerUserId: "owner-a" }]);
+    expect(exact.total).toBe(1);
   });
 
   it("returns the same newest-first order on every read", async () => {
@@ -3804,6 +3856,144 @@ describe("gallery owner lifecycle (withdrawal and history)", () => {
     );
     const payload = (await detail.json()) as { entry: { name: string } };
     expect(payload.entry.name).toBe("Hist v1");
+  });
+});
+
+describe("gallery contributor renames", () => {
+  it("moves every current and historical byline by owner id", async () => {
+    const env = environment();
+    for (const [id, status, ownerUserId] of [
+      ["owned-public", "public", "owner-1"],
+      ["owned-recycled", "recycled", "owner-1"],
+      ["same-name-other-owner", "public", "owner-2"],
+    ] as const) {
+      env.gallerySql.exec(
+        `INSERT INTO gallery_entries
+         (id, name, author, description, created_at, schema_version, status,
+          owner_user_id, project_text, svg_text)
+         VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, '<svg/>')`,
+        id,
+        id,
+        "Old Public Name",
+        "2026-09-19T00:00:00.000Z",
+        CURRENT_PROJECT_SCHEMA_VERSION,
+        status,
+        ownerUserId,
+        projectText(id),
+      );
+      env.gallerySql.exec(
+        `INSERT INTO gallery_entry_versions
+         (id, entry_id, version_no, name, author, description, schema_version,
+          project_text, svg_text, created_at)
+         VALUES (?, ?, 1, ?, ?, '', ?, ?, '<svg/>', ?)`,
+        `${id}-version`,
+        id,
+        id,
+        "Old Public Name",
+        CURRENT_PROJECT_SCHEMA_VERSION,
+        projectText(id),
+        "2026-09-19T00:00:00.000Z",
+      );
+    }
+
+    const response = await env.GALLERY.getByName("gallery").fetch(
+      "https://gallery/rename-owner",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ownerUserId: "owner-1",
+          displayName: "Current Public Name",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ownerUserId: "owner-1",
+      displayName: "Current Public Name",
+      entries: 2,
+      versions: 2,
+    });
+    expect(
+      env.gallerySql
+        .exec<{ id: string; author: string }>(
+          "SELECT id, author FROM gallery_entries ORDER BY id",
+        )
+        .toArray(),
+    ).toEqual([
+      { id: "owned-public", author: "Current Public Name" },
+      { id: "owned-recycled", author: "Current Public Name" },
+      { id: "same-name-other-owner", author: "Old Public Name" },
+    ]);
+    expect(
+      env.gallerySql
+        .exec<{ entry_id: string; author: string }>(
+          `SELECT entry_id, author FROM gallery_entry_versions
+           ORDER BY entry_id`,
+        )
+        .toArray(),
+    ).toEqual([
+      { entry_id: "owned-public", author: "Current Public Name" },
+      { entry_id: "owned-recycled", author: "Current Public Name" },
+      { entry_id: "same-name-other-owner", author: "Old Public Name" },
+    ]);
+  });
+
+  it("restores historical content without restoring its stale byline", async () => {
+    const env = environment();
+    env.gallerySql.exec(
+      `INSERT INTO gallery_entries
+       (id, name, author, description, created_at, schema_version, status,
+        owner_user_id, project_text, svg_text)
+       VALUES (?, ?, ?, '', ?, ?, 'public', ?, ?, '<svg/>')`,
+      "restore-current-byline",
+      "Current",
+      "Current Public Name",
+      "2026-09-19T00:00:00.000Z",
+      CURRENT_PROJECT_SCHEMA_VERSION,
+      "owner-1",
+      projectText("Current"),
+    );
+    env.gallerySql.exec(
+      `INSERT INTO gallery_entry_versions
+       (id, entry_id, version_no, name, author, description, schema_version,
+        project_text, svg_text, created_at)
+       VALUES (?, ?, 1, ?, ?, '', ?, ?, '<svg/>', ?)`,
+      "stale-byline-version",
+      "restore-current-byline",
+      "Historical Content",
+      "Old Public Name",
+      CURRENT_PROJECT_SCHEMA_VERSION,
+      projectText("Historical Content"),
+      "2026-09-18T00:00:00.000Z",
+    );
+
+    const response = await env.GALLERY.getByName("gallery").fetch(
+      "https://gallery/restore-version",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          entryId: "restore-current-byline",
+          versionId: "stale-byline-version",
+          at: "2026-09-19T01:00:00.000Z",
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(
+      env.gallerySql
+        .exec<{ name: string; author: string }>(
+          `SELECT name, author FROM gallery_entries
+           WHERE id = 'restore-current-byline'`,
+        )
+        .one(),
+    ).toEqual({
+      name: "Historical Content",
+      author: "Current Public Name",
+    });
   });
 });
 

@@ -48,8 +48,16 @@ export type AuthNamespaceLike = {
   };
 };
 
+export type GalleryBylineNamespaceLike = {
+  getByName(name: string): {
+    fetch(input: Request | string, init?: RequestInit): Promise<Response>;
+  };
+};
+
 export type AuthEnv = {
   AUTH: AuthNamespaceLike;
+  /** Present in the deployed Worker; omitted only by isolated Auth tests. */
+  GALLERY?: GalleryBylineNamespaceLike;
   GH_OAUTH_CLIENT_ID?: string;
   GH_OAUTH_CLIENT_SECRET?: string;
   GOOGLE_CLIENT_ID?: string;
@@ -794,6 +802,24 @@ export class AuthDO {
     ) {
       return Response.json({ error: "invalid-display-name" }, { status: 400 });
     }
+    if (this.env.GALLERY) {
+      try {
+        const galleryResponse = await this.env.GALLERY.getByName(
+          "gallery",
+        ).fetch("https://gallery/rename-owner", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ ownerUserId: user.id, displayName }),
+        });
+        if (!galleryResponse.ok) {
+          return noStoreJson({ error: "gallery-byline-sync-failed" }, 503);
+        }
+      } catch {
+        return noStoreJson({ error: "gallery-byline-sync-failed" }, 503);
+      }
+    }
+    // Gallery moves first. If it is unavailable the profile stays unchanged;
+    // retrying is safe because the Gallery operation is idempotent.
     this.sql.exec(
       "UPDATE users SET display_name = ? WHERE id = ?",
       displayName,

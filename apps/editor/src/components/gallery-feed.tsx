@@ -307,7 +307,7 @@ function GalleryContributorRow({
 }: {
   option: GalleryAuthorOption;
   rank: number;
-  onSelectAuthor: (author: string) => void;
+  onSelectAuthor: (option: GalleryAuthorOption) => void;
 }) {
   return (
     <li
@@ -320,7 +320,7 @@ function GalleryContributorRow({
         className="gallery-contributor-author"
         data-testid={`gallery-contributor-author-${rank}`}
         aria-label={`View ${option.author}'s gallery`}
-        onClick={() => onSelectAuthor(option.author)}
+        onClick={() => onSelectAuthor(option)}
       >
         {option.author}
       </button>
@@ -342,7 +342,7 @@ export function GalleryCountPanel({
   filtered?: boolean;
   search?: { visible: number; settled: boolean } | null;
   refreshSignal?: number;
-  onSelectAuthor?: (author: string) => void;
+  onSelectAuthor?: (option: GalleryAuthorOption) => void;
 }) {
   const label = galleryCountLabel(total, { filtered, search });
   const rootRef = useRef<HTMLDetailsElement | null>(null);
@@ -419,12 +419,12 @@ export function GalleryCountPanel({
           <ol className="gallery-contributor-list">
             {contributorAuthors.map((option, index) => (
               <GalleryContributorRow
-                key={`${refreshSignal}:${total}:${option.author}`}
+                key={`${refreshSignal}:${total}:${option.ownerUserId ?? "legacy"}:${option.author}`}
                 option={option}
                 rank={index + 1}
-                onSelectAuthor={(author) => {
+                onSelectAuthor={(option) => {
                   rootRef.current?.removeAttribute("open");
-                  onSelectAuthor(author);
+                  onSelectAuthor(option);
                 }}
               />
             ))}
@@ -477,6 +477,7 @@ export function GalleryFeed({
   const {
     view,
     author,
+    ownerUserId,
     tags: selectedTags,
     search: searchQuery,
     netlistable: netlistableOnly,
@@ -642,6 +643,7 @@ export function GalleryFeed({
     loadingMoreRef.current = false;
     const queryKey = [
       author ?? "",
+      ownerUserId ?? "",
       selectedTags.join(","),
       netlistableOnly ? "netlist" : "",
       likedOnly ? "liked" : "",
@@ -657,6 +659,7 @@ export function GalleryFeed({
     }
     void loadGalleryFeed(fetch, {
       author,
+      ownerUserId,
       tags: selectedTags,
       netlistable: netlistableOnly,
       liked: likedOnly,
@@ -679,7 +682,14 @@ export function GalleryFeed({
     return () => {
       cancelled = true;
     };
-  }, [author, selectedTags, netlistableOnly, likedOnly, refreshSignal]);
+  }, [
+    author,
+    ownerUserId,
+    selectedTags,
+    netlistableOnly,
+    likedOnly,
+    refreshSignal,
+  ]);
 
   // The sentinel appends the next newest-first page as it comes into view.
   // Once the server returns no cursor, the wall is complete and stops.
@@ -697,6 +707,7 @@ export function GalleryFeed({
       const generation = feedGenerationRef.current;
       void loadGalleryFeed(fetch, {
         author,
+        ownerUserId,
         tags: selectedTags,
         netlistable: netlistableOnly,
         liked: likedOnly,
@@ -719,14 +730,29 @@ export function GalleryFeed({
     });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [nextCursor, author, selectedTags, netlistableOnly, likedOnly]);
+  }, [
+    nextCursor,
+    author,
+    ownerUserId,
+    selectedTags,
+    netlistableOnly,
+    likedOnly,
+  ]);
 
-  function selectAuthor(next: string | null): void {
-    updateFilters({ author: next });
+  function selectAuthor(
+    nextAuthor: string | null,
+    nextOwnerUserId: string | null = null,
+  ): void {
+    updateFilters({ author: nextAuthor, ownerUserId: nextOwnerUserId });
   }
 
-  function selectContributor(nextAuthor: string): void {
-    updateFilters({ author: nextAuthor, tags: [], search: "" });
+  function selectContributor(option: GalleryAuthorOption): void {
+    updateFilters({
+      author: option.author,
+      ownerUserId: option.ownerUserId ?? null,
+      tags: [],
+      search: "",
+    });
   }
 
   function toggleTag(tag: string): void {
@@ -1169,7 +1195,10 @@ export function GalleryFeed({
                                     onClick={(event) => {
                                       event.preventDefault();
                                       event.stopPropagation();
-                                      selectAuthor(entry.author);
+                                      selectAuthor(
+                                        entry.author,
+                                        entry.ownerUserId ?? null,
+                                      );
                                     }}
                                   >
                                     {entry.author}
