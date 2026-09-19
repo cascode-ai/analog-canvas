@@ -247,7 +247,10 @@ describe("mcp tool surface", () => {
           session,
         ),
       ),
-    ).toMatchObject({ ok: true });
+    ).toMatchObject({
+      ok: true,
+      folder: { id: "copy", name: "AC", entry: folder.input.entry },
+    });
     expect(writes[0]).toMatchObject({
       structureEdits: [
         {

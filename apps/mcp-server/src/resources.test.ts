@@ -3,6 +3,8 @@ import { resolve, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import { agentOperatingKit } from "@icm/agent-adapter/kit";
 import { describe, expect, it } from "vitest";
+import { AgentSchematicEditSchema } from "@icm/agent-adapter";
+import { z } from "zod";
 import { mcpResources } from "./resources.generated.js";
 import { agentToolHelp } from "./guidance.generated.js";
 import { listToolDefinitions } from "./tools.js";
@@ -29,6 +31,40 @@ interface ManifestResource {
  * the registry declares, independently of the HTTP Kit projection.
  */
 describe("mcp resources single-source projection", () => {
+  it("returns a complete compact annotation contract with identical expanded semantics", () => {
+    const kind = "upsert_schematic_annotation";
+    const original = z.toJSONSchema(
+      AgentSchematicEditSchema.options.find(
+        (o) => o.shape.kind.value === kind,
+      )!,
+      { target: "draft-2020-12", reused: "ref" },
+    );
+    const text = readResourceContent(
+      `analog-canvas://contract/edits/${kind}`,
+    ).text;
+    const compact = JSON.parse(text);
+    const expand = (
+      root: Record<string, unknown>,
+      value: unknown = root,
+    ): unknown => {
+      if (Array.isArray(value)) return value.map((item) => expand(root, item));
+      if (!value || typeof value !== "object") return value;
+      const object = value as Record<string, unknown>;
+      if (typeof object.$ref === "string") {
+        const name = object.$ref.replace("#/$defs/", "");
+        const target = (root.$defs as Record<string, unknown>)[name];
+        expect(target).toBeDefined();
+        return expand(root, target);
+      }
+      return Object.fromEntries(
+        Object.entries(object)
+          .filter(([key]) => key !== "$defs")
+          .map(([key, child]) => [key, expand(root, child)]),
+      );
+    };
+    expect(expand(compact)).toEqual(expand(original));
+    expect(text.length).toBeLessThan(24000);
+  });
   it("distributes exactly the help for the callable tool inventory", () => {
     const tools = listToolDefinitions();
     expect(tools.map((tool) => tool.name).sort()).toEqual(
