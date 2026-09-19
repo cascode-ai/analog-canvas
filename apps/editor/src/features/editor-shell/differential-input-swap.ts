@@ -1,5 +1,3 @@
-import type { SchematicEdit } from "@icm/edit-engine";
-
 /**
  * Every polarity-marked amplifier ships beside an input-swapped sibling that
  * differs only in where its two marks sit and which input pin each one names.
@@ -36,14 +34,4 @@ export function differentialInputSibling(symbolId: string): string | undefined {
   return INPUT_SWAP_SOURCES.some((candidate) => candidate === symbolId)
     ? `${symbolId}${INPUT_SWAP_SUFFIX}`
     : undefined;
-}
-
-export function planDifferentialInputSwap(
-  instanceId: string,
-  symbolId: string,
-): SchematicEdit[] {
-  const sibling = differentialInputSibling(symbolId);
-  return sibling
-    ? [{ kind: "set_instance_symbol", instanceId, symbolId: sibling }]
-    : [];
 }

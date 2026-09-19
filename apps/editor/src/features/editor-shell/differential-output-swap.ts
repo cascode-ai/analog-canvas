@@ -1,5 +1,3 @@
-import type { SchematicEdit } from "@icm/edit-engine";
-
 /**
  * The differential op amp ships as a pair of Symbols with identical pin names
  * and mirrored output geometry. Swapping outputs therefore exchanges the two
@@ -26,14 +24,4 @@ export function differentialOutputSibling(
   symbolId: string,
 ): string | undefined {
   return OUTPUT_SWAP_SIBLINGS[symbolId];
-}
-
-export function planDifferentialOutputSwap(
-  instanceId: string,
-  symbolId: string,
-): SchematicEdit[] {
-  const sibling = differentialOutputSibling(symbolId);
-  return sibling
-    ? [{ kind: "set_instance_symbol", instanceId, symbolId: sibling }]
-    : [];
 }

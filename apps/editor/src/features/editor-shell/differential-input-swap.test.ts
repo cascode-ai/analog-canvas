@@ -1,10 +1,7 @@
 import { builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
-import {
-  differentialInputSibling,
-  planDifferentialInputSwap,
-} from "./differential-input-swap";
+import { differentialInputSibling } from "./differential-input-swap";
 
 describe("differential input swap", () => {
   it("pairs every marked amplifier with its swapped sibling, both ways", () => {
@@ -30,17 +27,6 @@ describe("differential input swap", () => {
       "comparator-unmarked",
     );
     expect(differentialInputSibling("resistor")).toBeUndefined();
-  });
-
-  it("names one Symbol exchange, leaving placement alone", () => {
-    expect(planDifferentialInputSwap("X1", "opamp")).toEqual([
-      {
-        kind: "set_instance_symbol",
-        instanceId: "X1",
-        symbolId: "opamp-inputs-swapped",
-      },
-    ]);
-    expect(planDifferentialInputSwap("X1", "resistor")).toEqual([]);
   });
 
   it("covers every Symbol the swap action is offered on", () => {

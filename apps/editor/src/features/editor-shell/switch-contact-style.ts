@@ -1,5 +1,3 @@
-import type { SchematicEdit } from "@icm/edit-engine";
-
 /**
  * How a switch draws its contacts, as a state of one component rather than a
  * shelf of near-duplicate parts.
@@ -26,19 +24,4 @@ export function switchContactStyleSibling(
   symbolId: string,
 ): string | undefined {
   return CONTACT_STYLE_SIBLINGS[symbolId];
-}
-
-/** Whether the sibling draws contact circles, for naming the action. */
-export function drawsContactCircles(symbolId: string): boolean {
-  return symbolId === "ideal-switch" || symbolId === "spdt-switch";
-}
-
-export function planSwitchContactStyleSwap(
-  instanceId: string,
-  symbolId: string,
-): SchematicEdit[] {
-  const sibling = switchContactStyleSibling(symbolId);
-  return sibling
-    ? [{ kind: "set_instance_symbol", instanceId, symbolId: sibling }]
-    : [];
 }
