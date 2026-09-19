@@ -148,6 +148,26 @@ describe("property edit planner", () => {
         },
       ]);
       expect(child.netlist.formalParameters).toEqual(formalParameters);
+      instance.netlist.parameters = { RBASE: "5k" };
+      const importedParameters =
+        planner.propertyParametersForInstance(instance);
+      expect(
+        componentPropertyDetailsValue(instance, {
+          parameters: importedParameters,
+        }).parameters,
+      ).toEqual({ RBASE: "5k", gain: "" });
+      expect(
+        planner.instancePropertyEdits({
+          ...draft,
+          parameters: { RBASE: "", gain: "" },
+        }).edits,
+      ).toEqual([
+        {
+          kind: "patch_instance_netlist_parameters",
+          instanceId: "X1",
+          unset: ["RBASE"],
+        },
+      ]);
     },
   );
 

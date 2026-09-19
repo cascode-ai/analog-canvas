@@ -382,7 +382,10 @@ export function createPropertyEditPlanner({
     if (declaredParameters) {
       return declaredParameters.map((parameter) => ({
         definitionParameter: true,
-        key: parameter.name,
+        key:
+          Object.keys(instance.netlist?.parameters ?? {}).find(
+            (key) => key.toLowerCase() === parameter.name.toLowerCase(),
+          ) ?? parameter.name,
         label: parameter.name,
         placeholder: parameter.defaultValue ?? "Required",
         ...(parameter.defaultValue !== undefined

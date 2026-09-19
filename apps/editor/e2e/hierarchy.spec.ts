@@ -1,10 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { analyzeDesignNetlist } from "@icm/netlist";
+import { hierarchyParameterFixture } from "../../../netlists/hierarchy-parameters/fixture";
 
 import {
   revealPropertiesShelf,
   clickCommand,
   downloadBytes,
+  setComponentParameter,
+  expectComponentCodeField,
 } from "./editor-fixtures.js";
 import { placeComponent } from "./manual-editor-fixtures.js";
 
@@ -171,6 +174,81 @@ test("creates a Cell parameter from a device JSON field with atomic Undo", async
   expect(child(await save()).netlist.formalParameters[0].defaultValue).toBe(
     "3k",
   );
+});
+
+test("edits independent parent parameter overrides and follows definition renames", async ({
+  page,
+}) => {
+  const project = hierarchyParameterFixture();
+  project.documents[0]!.instances.find(
+    (instance) => instance.id === "X1",
+  )!.netlist!.parameters = { RBASE: "2k" };
+  for (const [index, id] of ["X1", "X2"].entries()) {
+    project.documents[0]!.instances.find(
+      (instance) => instance.id === id,
+    )!.placement = {
+      position: { x: 300 + index * 250, y: 200 },
+      rotation: 0,
+      mirror: "none",
+    };
+  }
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "parameters.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("hit-X1").click();
+  await revealPropertiesShelf(page);
+  const initialShelf = page.getByTestId("selection-shelf");
+  if ((await initialShelf.getAttribute("aria-expanded")) === "false")
+    await initialShelf.click();
+  await expectComponentCodeField(page, "parameters.RBASE", "2k");
+  await page.getByTestId("hit-X2").dblclick();
+  // Double-click enters the Cell; return to the specific parent and inspect with a single click.
+  await page
+    .getByTestId("cell-navigation")
+    .getByRole("button", { name: "Up", exact: true })
+    .click();
+  await page.getByTestId("hit-X2").click();
+  await revealPropertiesShelf(page);
+  const shelf = page.getByTestId("selection-shelf");
+  if ((await shelf.getAttribute("aria-expanded")) === "false")
+    await shelf.click();
+  await expectComponentCodeField(page, "parameters.Rbase", "");
+  await expect(page.getByText("// Default: 1k", { exact: true })).toBeVisible();
+  await setComponentParameter(page, "Rbase", "4k");
+  await expectComponentCodeField(page, "parameters.Rbase", "4k");
+  await runCellCommand(page, "Manage Cells…");
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager.getByRole("button", { name: /Resistors.*2 callers/u }).click();
+  await manager.getByLabel("Parameter Rbase name").fill("Resistance");
+  await manager.getByLabel("Parameter Rbase name").press("Enter");
+  await expect(manager.getByLabel("Parameter Resistance name")).toBeVisible();
+  await manager.getByLabel("Parameter Resistance default").fill("3k");
+  await manager.getByLabel("Parameter Resistance default").press("Enter");
+  await manager.getByLabel("Close Cell Manager").click();
+  await page.getByTestId("hit-X1").click();
+  await expectComponentCodeField(page, "parameters.Resistance", "2k");
+  await page.getByTestId("hit-X2").click();
+  await expectComponentCodeField(page, "parameters.Resistance", "4k");
+  await setComponentParameter(page, "Resistance", "");
+  await expectComponentCodeField(page, "parameters.Resistance", "");
+  await expect(page.getByText("// Default: 3k", { exact: true })).toBeVisible();
+  await clickCommand(page, "Edit", "Undo");
+  await expectComponentCodeField(page, "parameters.Resistance", "4k");
+  await clickCommand(page, "Edit", "Redo");
+  await expectComponentCodeField(page, "parameters.Resistance", "");
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(
+    saved.documents[0].instances.find(
+      (instance: { id: string }) => instance.id === "X2",
+    ).netlist.parameters,
+  ).toEqual({});
 });
 
 test("sets a Cell as default Top without changing its circuit and supports Undo", async ({
