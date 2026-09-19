@@ -1,0 +1,290 @@
+{
+  "documents": [
+    {
+      "annotations": [],
+      "connectivityEvidence": [],
+      "constraints": [],
+      "drafting": {
+        "objects": []
+      },
+      "id": "document-top",
+      "instances": [
+        {
+          "id": "X1",
+          "importProvenance": {
+            "kind": "subcircuit",
+            "sourceMasterName": "GainStage",
+            "sourceTarget": "cell:document-gain-stage",
+            "terminalMapping": [
+              {
+                "pinName": "VIN",
+                "sourcePosition": 0
+              },
+              {
+                "pinName": "VOUT",
+                "sourcePosition": 1
+              }
+            ]
+          },
+          "netlist": {
+            "binding": {
+              "childDocumentId": "document-gain-stage",
+              "kind": "subcircuit"
+            },
+            "parameters": {}
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 200,
+              "y": 240
+            },
+            "rotation": 0
+          },
+          "reference": "X1",
+          "symbolId": "hierarchical-symbol-a9810aa8736f5be5"
+        },
+        {
+          "id": "X2",
+          "importProvenance": {
+            "kind": "subcircuit",
+            "sourceMasterName": "GainStage",
+            "sourceTarget": "cell:document-gain-stage",
+            "terminalMapping": [
+              {
+                "pinName": "VIN",
+                "sourcePosition": 0
+              },
+              {
+                "pinName": "VOUT",
+                "sourcePosition": 1
+              }
+            ]
+          },
+          "netlist": {
+            "binding": {
+              "childDocumentId": "document-gain-stage",
+              "kind": "subcircuit"
+            },
+            "parameters": {}
+          },
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 620,
+              "y": 240
+            },
+            "rotation": 0
+          },
+          "reference": "X2",
+          "symbolId": "hierarchical-symbol-a9810aa8736f5be5"
+        }
+      ],
+      "junctions": [],
+      "layoutGroups": [],
+      "name": "GainStagePair",
+      "netlist": {
+        "formalParameters": [],
+        "name": "GainStagePair",
+        "terminals": []
+      },
+      "nets": [
+        {
+          "id": "net-top-in",
+          "terminals": [
+            {
+              "instanceId": "X1",
+              "pinName": "VIN"
+            },
+            {
+              "instanceId": "X2",
+              "pinName": "VIN"
+            }
+          ]
+        },
+        {
+          "id": "net-top-out",
+          "terminals": [
+            {
+              "instanceId": "X1",
+              "pinName": "VOUT"
+            },
+            {
+              "instanceId": "X2",
+              "pinName": "VOUT"
+            }
+          ]
+        }
+      ],
+      "noConnects": [],
+      "presentation": {
+        "compactness": "normal",
+        "grid": 10,
+        "styleProfileId": "razavi-textbook-v1"
+      },
+      "revision": 0,
+      "routes": [],
+      "sourceStatus": "in-sync"
+    },
+    {
+      "annotations": [],
+      "connectivityEvidence": [],
+      "constraints": [],
+      "drafting": {
+        "objects": []
+      },
+      "id": "document-gain-stage",
+      "instances": [
+        {
+          "id": "P1",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 120,
+              "y": 120
+            },
+            "rotation": 0
+          },
+          "symbolId": "port"
+        },
+        {
+          "id": "P2",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 400,
+              "y": 120
+            },
+            "rotation": 180
+          },
+          "symbolId": "port"
+        },
+        {
+          "id": "M1",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 260,
+              "y": 180
+            },
+            "rotation": 0
+          },
+          "reference": "M1",
+          "symbolId": "nmos"
+        },
+        {
+          "id": "R1",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 260,
+              "y": 300
+            },
+            "rotation": 0
+          },
+          "reference": "R1",
+          "symbolId": "resistor"
+        }
+      ],
+      "junctions": [],
+      "layoutGroups": [],
+      "name": "GainStage",
+      "netlist": {
+        "formalParameters": [],
+        "name": "GainStage",
+        "terminals": [
+          {
+            "direction": "input",
+            "id": "cell-terminal-vin",
+            "interfaceInstanceIds": [
+              "P1"
+            ],
+            "name": "VIN",
+            "netId": "net-in"
+          },
+          {
+            "direction": "output",
+            "id": "cell-terminal-vout",
+            "interfaceInstanceIds": [
+              "P2"
+            ],
+            "name": "VOUT",
+            "netId": "net-out"
+          }
+        ]
+      },
+      "nets": [
+        {
+          "id": "net-in",
+          "terminals": [
+            {
+              "instanceId": "P1",
+              "pinName": "P"
+            },
+            {
+              "instanceId": "M1",
+              "pinName": "G"
+            }
+          ]
+        },
+        {
+          "id": "net-out",
+          "terminals": [
+            {
+              "instanceId": "P2",
+              "pinName": "P"
+            },
+            {
+              "instanceId": "M1",
+              "pinName": "D"
+            },
+            {
+              "instanceId": "R1",
+              "pinName": "1"
+            }
+          ]
+        },
+        {
+          "id": "net-common",
+          "terminals": [
+            {
+              "instanceId": "M1",
+              "pinName": "S"
+            },
+            {
+              "instanceId": "R1",
+              "pinName": "2"
+            }
+          ]
+        }
+      ],
+      "noConnects": [],
+      "presentation": {
+        "compactness": "normal",
+        "grid": 10,
+        "styleProfileId": "razavi-textbook-v1"
+      },
+      "revision": 0,
+      "routes": [],
+      "sourceStatus": "in-sync"
+    }
+  ],
+  "externalSubcircuitDefinitions": [],
+  "id": "project-hierarchical-gain-stage",
+  "name": "Hierarchical Gain Stage",
+  "schemaVersion": 57,
+  "simulationFolders": [],
+  "source": {
+    "dialect": "none",
+    "entry": null,
+    "files": [],
+    "sourcePolicy": "copy"
+  },
+  "structureRevision": 0,
+  "symbolLibrary": {
+    "hash": "razavi-reference-v1",
+    "id": "razavi-symbols",
+    "version": "1"
+  },
+  "topDocumentId": "document-top"
+}

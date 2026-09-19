@@ -8,10 +8,7 @@ test("an opened Project is auto-fitted to the camera", async ({ page }) => {
   await page
     .getByTestId("project-file")
     .setInputFiles(
-      resolve(
-        process.cwd(),
-        "fixtures/projects/crossing-routing/project.icproj.json",
-      ),
+      resolve(process.cwd(), "fixtures/projects/port-nets/project.icproj.json"),
     );
   // The landing fit is silent: the open's own status survives.
   await expect(page.getByTestId("status")).toContainText("Opened");

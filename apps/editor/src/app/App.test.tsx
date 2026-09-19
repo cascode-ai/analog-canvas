@@ -405,10 +405,7 @@ describe("editor shell", () => {
 
   it("keeps the routing demo equal to its canonical Project fixture", () => {
     const fixture = readFileSync(
-      resolve(
-        process.cwd(),
-        "fixtures/projects/crossing-routing/project.icproj.json",
-      ),
+      resolve(process.cwd(), "fixtures/projects/port-nets/project.icproj.json"),
       "utf8",
     );
     expect(serializeProject(createRoutingDemoProject())).toBe(fixture);

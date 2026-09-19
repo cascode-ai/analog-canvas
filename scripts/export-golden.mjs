@@ -38,8 +38,7 @@ const manifest = Buffer.from(
   `${JSON.stringify(
     {
       version: "0.1.0",
-      sourceProject:
-        "fixtures/projects/differential-stage/project.icproj.json",
+      sourceProject: "fixtures/projects/differential-stage/project.icproj.json",
       bounds: source.bounds,
       raster: {
         scale: 3,
@@ -65,7 +64,7 @@ if (check) {
     if (!expected.equals(Buffer.from(bytes)))
       throw new Error(`Export golden differs: ${name}`);
   }
-  process.stdout.write("Phase 7 export goldens match.\n");
+  process.stdout.write("Export goldens match.\n");
 } else {
   await mkdir(fixtureRoot, { recursive: true });
   for (const [name, bytes] of Object.entries(outputs))

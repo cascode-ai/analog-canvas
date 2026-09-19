@@ -473,7 +473,7 @@ describe("a drawn rail meeting an existing wire", () => {
       readFileSync(
         resolve(
           process.cwd(),
-          "fixtures/projects/crossing-routing/project.icproj.json",
+          "fixtures/projects/port-nets/project.icproj.json",
         ),
         "utf8",
       ),

@@ -1,0 +1,210 @@
+{
+  "documents": [
+    {
+      "annotations": [],
+      "connectivityEvidence": [],
+      "constraints": [],
+      "drafting": {
+        "objects": []
+      },
+      "id": "document-crossing",
+      "instances": [
+        {
+          "id": "A",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 140,
+              "y": 300
+            },
+            "rotation": 0
+          },
+          "symbolId": "port"
+        },
+        {
+          "id": "B",
+          "placement": {
+            "mirror": "horizontal",
+            "position": {
+              "x": 460,
+              "y": 300
+            },
+            "rotation": 0
+          },
+          "symbolId": "port"
+        },
+        {
+          "id": "C",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 300,
+              "y": 140
+            },
+            "rotation": 90
+          },
+          "symbolId": "port"
+        },
+        {
+          "id": "D",
+          "placement": {
+            "mirror": "none",
+            "position": {
+              "x": 300,
+              "y": 460
+            },
+            "rotation": 270
+          },
+          "symbolId": "port"
+        }
+      ],
+      "junctions": [],
+      "layoutGroups": [],
+      "name": "Crossing",
+      "netlist": {
+        "formalParameters": [],
+        "name": "Crossing",
+        "terminals": [
+          {
+            "direction": "passive",
+            "id": "cell-terminal-a",
+            "interfaceInstanceIds": [
+              "A"
+            ],
+            "name": "HORIZONTAL",
+            "netId": "net-h"
+          },
+          {
+            "direction": "passive",
+            "id": "cell-terminal-b",
+            "interfaceInstanceIds": [
+              "B"
+            ],
+            "name": "HORIZONTAL",
+            "netId": "net-h"
+          },
+          {
+            "direction": "passive",
+            "id": "cell-terminal-c",
+            "interfaceInstanceIds": [
+              "C"
+            ],
+            "name": "VERTICAL",
+            "netId": "net-v"
+          },
+          {
+            "direction": "passive",
+            "id": "cell-terminal-d",
+            "interfaceInstanceIds": [
+              "D"
+            ],
+            "name": "VERTICAL",
+            "netId": "net-v"
+          }
+        ]
+      },
+      "nets": [
+        {
+          "id": "net-h",
+          "terminals": [
+            {
+              "instanceId": "A",
+              "pinName": "P"
+            },
+            {
+              "instanceId": "B",
+              "pinName": "P"
+            }
+          ]
+        },
+        {
+          "id": "net-v",
+          "terminals": [
+            {
+              "instanceId": "C",
+              "pinName": "P"
+            },
+            {
+              "instanceId": "D",
+              "pinName": "P"
+            }
+          ]
+        }
+      ],
+      "noConnects": [],
+      "presentation": {
+        "compactness": "normal",
+        "grid": 10,
+        "styleProfileId": "razavi-textbook-v1"
+      },
+      "revision": 0,
+      "routes": [
+        {
+          "id": "route-h",
+          "legs": [
+            {
+              "id": "route-leg-bb7ed539f4645481",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "B",
+                  "kind": "terminal",
+                  "pinName": "P"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-h",
+          "start": {
+            "instanceId": "A",
+            "kind": "terminal",
+            "pinName": "P"
+          }
+        },
+        {
+          "id": "route-v",
+          "legs": [
+            {
+              "id": "route-leg-d1ab74f6470e2247",
+              "mode": "manual",
+              "to": {
+                "endpoint": {
+                  "instanceId": "D",
+                  "kind": "terminal",
+                  "pinName": "P"
+                },
+                "kind": "endpoint"
+              }
+            }
+          ],
+          "netId": "net-v",
+          "start": {
+            "instanceId": "C",
+            "kind": "terminal",
+            "pinName": "P"
+          }
+        }
+      ],
+      "sourceStatus": "in-sync"
+    }
+  ],
+  "externalSubcircuitDefinitions": [],
+  "id": "project-crossing-routes",
+  "name": "Crossing Routes",
+  "schemaVersion": 57,
+  "simulationFolders": [],
+  "source": {
+    "dialect": "none",
+    "entry": null,
+    "files": [],
+    "sourcePolicy": "copy"
+  },
+  "structureRevision": 0,
+  "symbolLibrary": {
+    "hash": "razavi-reference-v1",
+    "id": "razavi-symbols",
+    "version": "1"
+  },
+  "topDocumentId": "document-crossing"
+}

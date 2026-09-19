@@ -4,8 +4,10 @@
   "current": [
     "fixtures/projects/minimal/project.icproj.json",
     "fixtures/projects/manual-basics/project.icproj.json",
-    "fixtures/projects/crossing-routing/project.icproj.json",
+    "fixtures/projects/port-nets/project.icproj.json",
+    "fixtures/projects/crossing-routes/project.icproj.json",
     "fixtures/projects/differential-stage/project.icproj.json",
+    "fixtures/projects/hierarchical-gain-stage/project.icproj.json",
     "fixtures/projects/instance-value-display/project.icproj.json",
     "netlists/native-ota/source.icproj.json"
   ],

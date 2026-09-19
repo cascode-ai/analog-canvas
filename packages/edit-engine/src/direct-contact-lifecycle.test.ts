@@ -52,10 +52,7 @@ const terminal = (instanceId: string): RouteEndpoint => ({
 function fixture(): SchematicDocument {
   const document = parseProject(
     readFileSync(
-      resolve(
-        process.cwd(),
-        "fixtures/projects/crossing-routing/project.icproj.json",
-      ),
+      resolve(process.cwd(), "fixtures/projects/port-nets/project.icproj.json"),
       "utf8",
     ),
   ).documents[0]!;

@@ -16,10 +16,7 @@ import {
 } from "./editor-fixtures.js";
 
 const fixtureText = readFileSync(
-  resolve(
-    process.cwd(),
-    "fixtures/projects/manual-basics/project.icproj.json",
-  ),
+  resolve(process.cwd(), "fixtures/projects/manual-basics/project.icproj.json"),
   "utf8",
 );
 
