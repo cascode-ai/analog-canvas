@@ -292,7 +292,12 @@ a Crossing is not a Junction, so nothing repairs that arrangement and nothing
 else reports it — the author sees a wire reaching the pin while the netlist
 sees the pin on another Net or on nothing. It judges terminals only: two
 Routes crossing is the ordinary case the model already names, and a pin the
-author declared `NoConnect` has been answered for. The [diagnostic envelope](../../packages/derived/src/diagnostics/diagnostic.ts)
+author declared `NoConnect` has been answered for. `ERC_INSTANCE_NOT_DRAWN`
+counts the Instances a Cell holds that the sheet does not draw: they keep their
+reference, their Net terminals and their netlist cards while nothing on the
+sheet shows them, so the warning names them and the Placement Tray — which
+lists every undrawn Instance, not only imported ones — is where they are placed
+or deleted. The [diagnostic envelope](../../packages/derived/src/diagnostics/diagnostic.ts)
 keeps domains, confidence, severity and gate eligibility distinct.
 [Editor interaction](editor-interaction.md) owns explicit checking and stale
 result/navigation behavior; checks do not veto Save.

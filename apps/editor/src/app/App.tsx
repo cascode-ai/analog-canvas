@@ -1554,8 +1554,13 @@ export function App({
         copyPlacement.previewPoint.y - copyPlacement.anchor.y
       })`
     : undefined;
+  // Every Instance the Cell holds but the sheet does not show. Import is one
+  // way to get there and was once the only one the tray admitted, but a
+  // returned or pasted Instance lands in the same state — and an Instance
+  // nothing lists is one nobody can place or delete, while it still holds its
+  // reference, its Net terminals and its place in the netlist.
   const unplaced = document.instances.filter(
-    (instance) => instance.importProvenance && instance.placement === null,
+    (instance) => instance.placement === null,
   );
   const returnablePlacedInstances = document.instances.filter(
     (instance) => instance.importProvenance && instance.placement !== null,
