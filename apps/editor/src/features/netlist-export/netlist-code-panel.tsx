@@ -92,6 +92,7 @@ export function NetlistCodePanel({
       : inferNetlistProcess(project, selectedProcess);
   const profile = profiles[process];
   const [processError, setProcessError] = useState<string | null>(null);
+  const [compileRevision, setCompileRevision] = useState(0);
   function applyProcess(
     next: NetlistExportProfile,
     options: Parameters<typeof planNetlistProcess>[2] = {},
@@ -141,6 +142,7 @@ export function NetlistCodePanel({
       portCase,
       configurationError,
       rootDocumentId,
+      compileRevision,
     ],
   );
   const unfinished = result
@@ -175,17 +177,18 @@ export function NetlistCodePanel({
     ownApply.current = false;
   }, [source]);
   function apply() {
-    if (!dirty || conflict || result?.status !== "ready") return;
+    if (!dirty) return true;
+    if (conflict || result?.status !== "ready") return false;
     const plan = planNetlistCodeEdit(project, result, draftRef.current);
     if (!plan.ok) {
       setApplyError(plan.message);
-      return;
+      return false;
     }
     if (!plan.edits.length) {
       setDraft(source);
       setEditBaseline(source);
       setApplyError(null);
-      return;
+      return true;
     }
     ownApply.current = true;
     if (!onApply(plan.edits)) {
@@ -193,9 +196,16 @@ export function NetlistCodePanel({
       setApplyError(
         "Edit rejected. Check the device prefix and duplicate names; the circuit keeps the last valid values.",
       );
-      return;
+      return false;
     }
     setApplyError(null);
+    return true;
+  }
+  function refresh() {
+    if (!apply()) return;
+    setCompileRevision((revision) => revision + 1);
+    setApplyError(null);
+    onFocusInstance(null);
   }
   const applyRef = useRef(apply);
   applyRef.current = apply;
@@ -274,26 +284,47 @@ export function NetlistCodePanel({
             </select>
           </label>
         </div>
-        <button
-          type="button"
-          className="netlist-code-copy"
-          data-testid="copy-netlist-panel"
-          aria-label="Copy netlist"
-          title="Copy netlist"
-          disabled={dirty}
-          onClick={onCopy}
-        >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
-            <path
-              d="M7 7h10v10H7z M13 7V3H3v10h4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
+        <div className="netlist-code-actions">
+          <button
+            type="button"
+            className="netlist-code-refresh"
+            data-testid="refresh-netlist-panel"
+            aria-label="Recompile netlist"
+            title="Recompile netlist"
+            onClick={refresh}
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path
+                d="M16 7a6.5 6.5 0 1 0 .3 5 M16 2v5h-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="netlist-code-copy"
+            data-testid="copy-netlist-panel"
+            aria-label="Copy netlist"
+            title="Copy netlist"
+            disabled={dirty}
+            onClick={onCopy}
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path
+                d="M7 7h10v10H7z M13 7V3H3v10h4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
       <div
         className="netlist-code-viewport"

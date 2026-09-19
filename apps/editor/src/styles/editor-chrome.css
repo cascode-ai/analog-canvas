@@ -217,9 +217,13 @@
 /* However many selects the row carries — Entry appears only for a Project with
    more than one Cell — they share the width the panel has and wrap when it runs
    out. Their shared prompt width keeps both select edges aligned after a wrap.
-   The copy button is outside that wrapping, so it holds the right edge at every
-   width. */
+   Actions stay together on the right and stack alongside the selects when
+   the panel is narrow. */
+.netlist-live-code {
+  container: netlist-panel / inline-size;
+}
 .netlist-code-controls {
+  --netlist-control-height: 30px;
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -256,6 +260,8 @@
   font: inherit;
 }
 .netlist-code-selects select {
+  box-sizing: border-box;
+  height: var(--netlist-control-height);
   padding-right: 14px;
   padding-left: 5px;
 }
@@ -263,15 +269,32 @@
   grid-template-columns: 4rem minmax(0, 1fr);
   gap: 3px;
 }
-.netlist-code-controls button {
-  min-height: 30px;
+.netlist-code-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
 }
-.netlist-code-copy {
+.netlist-code-actions button {
+  box-sizing: border-box;
   display: inline-grid;
   flex: 0 0 auto;
-  width: 30px;
+  width: var(--netlist-control-height);
+  height: var(--netlist-control-height);
+  min-height: var(--netlist-control-height);
   padding: 5px;
   place-items: center;
+}
+@container netlist-panel (max-width: 390px) {
+  .netlist-code-selects {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .netlist-code-selects label {
+    flex: 0 0 auto;
+  }
+  .netlist-code-actions {
+    flex-direction: column;
+  }
 }
 .netlist-port-case {
   display: inline-grid;
@@ -298,7 +321,7 @@
 .netlist-mapping-actions .netlist-default-action {
   min-width: 0;
 }
-.netlist-code-copy svg {
+.netlist-code-actions svg {
   width: 18px;
   height: 18px;
 }
