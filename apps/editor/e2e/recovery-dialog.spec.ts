@@ -3,6 +3,8 @@ import type { Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { createEmptyProject } from "@icm/model";
+
 import {
   awaitEditorReady,
   awaitRecoveryStoreReady,
@@ -248,27 +250,29 @@ test("explicit discard removes outgoing recovery and hides a clean replacement",
   await expect
     .poll(() => recoveryProjectTexts(page))
     .toContain('"revision": 3');
-  await page
-    .getByTestId("project-file")
-    .setInputFiles(
-      resolve(
-        process.cwd(),
-        "fixtures/projects/phase-1-manual/project.icproj.json",
-      ),
-    );
+  const replacement = createEmptyProject(
+    "clean-replacement",
+    "Clean Replacement",
+  );
+  replacement.documents[0]!.name = "Clean Replacement Cell";
+  await page.getByTestId("project-file").setInputFiles({
+    name: "clean-replacement.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(replacement)),
+  });
   await page
     .getByRole("dialog", { name: "Unsaved changes" })
     .getByRole("button", { name: "Continue without saving" })
     .click();
   await expect(page.getByTestId("active-document-name")).toHaveText(
-    "Manual Editor Demo",
+    "Clean Replacement Cell",
   );
   // Wait for the debounced seed write of the incoming clean working copy.
   // Explicit Discard removed the outgoing session, and a clean recovery seed
   // must not make the exceptional Recovery command permanently visible.
   await expect
     .poll(() => recoveryProjectTexts(page))
-    .toContain('"name": "Phase 1 Manual Editor"');
+    .toContain('"name": "Clean Replacement"');
   await expect
     .poll(() => recoveryProjectTexts(page))
     .not.toContain('"name": "New Circuit"');

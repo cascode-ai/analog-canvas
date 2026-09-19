@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
+import { WORKING_COPY_STORAGE_KEY } from "../src/document/recovery-coordinator";
 import {
   chooseComponent,
   readRecoveryRecords,
@@ -11,6 +12,27 @@ async function placeResistor(page: Page, x: number, y: number): Promise<void> {
   await chooseComponent(page, "resistor");
   await page.getByTestId("schematic-canvas").click({ position: { x, y } });
   await page.keyboard.press("Escape");
+}
+
+async function expectStoredDocumentRevision(
+  page: Page,
+  workingCopyId: string,
+  revision: number,
+): Promise<void> {
+  await expect
+    .poll(async () => {
+      const record = (await readRecoveryRecords(page)).find(
+        (candidate) =>
+          candidate.workingCopyId === workingCopyId &&
+          candidate.generation === "latest",
+      );
+      if (!record) return null;
+      const project = JSON.parse(record.projectText) as {
+        documents?: Array<{ revision?: number }>;
+      };
+      return project.documents?.[0]?.revision ?? null;
+    })
+    .toBe(revision);
 }
 
 async function restoreThroughDialog(
@@ -69,6 +91,7 @@ test("a hard renderer crash restores the latest committed Project", async ({
 });
 
 test("simultaneous tabs keep separate working copies", async ({ context }) => {
+  test.slow();
   const pageA = await context.newPage();
   const pageB = await context.newPage();
 
@@ -85,6 +108,16 @@ test("simultaneous tabs keep separate working copies", async ({ context }) => {
   await pageB.keyboard.press("Escape");
   await expect(pageB.getByTestId("revision")).toHaveText("1");
 
+  const workingCopyA = await pageA.evaluate((key) => {
+    return sessionStorage.getItem(key);
+  }, WORKING_COPY_STORAGE_KEY);
+  const workingCopyB = await pageB.evaluate((key) => {
+    return sessionStorage.getItem(key);
+  }, WORKING_COPY_STORAGE_KEY);
+  expect(workingCopyA).not.toBeNull();
+  expect(workingCopyB).not.toBeNull();
+  expect(workingCopyA).not.toBe(workingCopyB);
+
   // Both tabs' sessions coexist in the shared origin storage.
   await expect
     .poll(async () => {
@@ -92,6 +125,8 @@ test("simultaneous tabs keep separate working copies", async ({ context }) => {
       return new Set(records.map((record) => record.workingCopyId)).size;
     })
     .toBe(2);
+  await expectStoredDocumentRevision(pageB, workingCopyA!, 2);
+  await expectStoredDocumentRevision(pageB, workingCopyB!, 1);
 
   await pageA.reload();
   await restoreThroughDialog(pageA, "revision 2");

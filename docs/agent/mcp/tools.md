@@ -15,7 +15,7 @@ edit limit. Mixed placement/wire/command calls still need separate phases.
 
 | Action                                        | Key arguments                                                                 |
 | --------------------------------------------- | ----------------------------------------------------------------------------- |
-| `set-model`                                   | `instanceId`, `model` (empty clears it)                                       |
+| `set-model`                                   | `instanceId`, exact `model` target (empty clears it)                          |
 | `copy`                                        | `selection`, `offset:{x,y}`; internal wires and references follow GUI copy    |
 | `transform`                                   | `selection`, `transform:{kind:"rotate",degrees:90}`, mirror or translate      |
 | `align`                                       | `selection`, `mode:left/right/top/bottom/center-x/center-y`                   |
@@ -25,6 +25,10 @@ edit limit. Mixed placement/wire/command calls still need separate phases.
 | `create-cell` / `rename-cell` / `delete-cell` | Cell `id`, plus `name` for create/rename                                      |
 | `undo` / `redo`                               | Shared editor history, not a private Agent stack                              |
 | `focus`                                       | `intent`: select, highlight-net, activate-document, fit-document, clear-focus |
+
+For reviewed targets, `set-model` uses the GUI's semantic planner and leaves
+binding and invocation generation to the netlist generator. Use raw binding
+edits only for custom or unreviewed definitions.
 
 `selection` accepts `instanceIds`, `routeIds`, `junctionIds`,
 `annotationIds` and `draftingIds`; omitted lists are empty.

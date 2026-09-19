@@ -51,6 +51,13 @@ and current capabilities. Never send an MCP tool envelope to HTTP.
   with `showReference`, `showValue` or `showParameters`. Transformer keys
   are `k/lp/ls`; T-Coil keys are `k/l1/l2/cb`. Unsupported keys reject the
   action. Do not replace these projections with free text.
+- Reviewed device targets: use the existing semantic `set-model` command with
+  the exact reviewed target reported by the product. For reviewed SKY130 MOS
+  devices this is the same path used by the GUI: it creates or reuses the
+  external definition, preserves its terminal mapping and lets the netlist
+  generator choose the required `X` invocation. Do not hand-author an instance
+  binding for a reviewed target. Raw binding edits remain available for custom
+  or unreviewed definitions.
 - Net names: use browser command `set-net-label` (MCP `add-label` or
   Net Label `edit-text`). It creates the electrical name claim and attached
   annotation together. Supply `position` when creating a new label; use the

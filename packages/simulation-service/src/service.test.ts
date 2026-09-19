@@ -241,6 +241,19 @@ async function prepareRaw(f: ReturnType<typeof fixture>, source = deck) {
   return { prepared, workspaceId: created.workspace.id };
 }
 describe("shared simulation lifecycle", () => {
+  it("advertises the session concurrency limit and sequential batch path", async () => {
+    const f = fixture("ngspice");
+    expect(
+      await f.service.handle({ operation: "capabilities" }, "capabilities"),
+    ).toMatchObject({
+      ok: true,
+      capabilities: {
+        maxActiveRuns: 1,
+        batch: { execution: "sequential" },
+      },
+    });
+  });
+
   it("delivers the same captured Spec report through run reads and artifacts", async () => {
     const f = fixture("ngspice");
     const source =

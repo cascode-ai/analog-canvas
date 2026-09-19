@@ -33,6 +33,12 @@ language; collection is not a substitute for authored output. Config version 1's
 device-OP helpers are legacy-only, not the version 2 authoring path. Read the
 returned config version and schema before choosing a helper.
 
+Read concurrency from `capabilities`; the current hosted service advertises one
+active run per session. Serialize independent starts or use a sequential Batch.
+Treat analyses independently: one failed analysis or measurement does not
+invalidate completed analysis data, and a failed run-level outcome does not mean
+the result is empty. Inspect per-analysis data and diagnostics before reporting.
+
 For browser visibility, archival limits and source/result export, follow
 [result handoff](../simulation-result-handoff.md). Never claim a result was saved
 merely because a run started or source Project was exported.

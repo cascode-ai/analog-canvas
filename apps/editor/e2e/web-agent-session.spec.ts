@@ -587,6 +587,109 @@ test("restores the same paired working copy through refresh and Gallery without 
     .toBe("detached");
 });
 
+test("keeps one Project session through Cell switches and preserves an acknowledged Agent edit across a render crash", async ({
+  page,
+  baseURL,
+}) => {
+  await page.goto("/editor");
+  await page.getByTestId("open-agent").click();
+  const panel = page.getByTestId("connect-agent-panel");
+  const handoff = await panel.getByTestId("agent-copy-text").inputValue();
+  const { claimCode } = JSON.parse(handoff.match(/Claim: (.+)/u)![1]!);
+  const client = new AgentHttpClient({ baseUrl: baseURL! });
+  const session = await client.claim(claimCode);
+  const topDocumentId = session.documentIds[0]!;
+  await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+
+  await clickCommand(page, "Edit", "Manage Cells…");
+  let manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager.getByRole("button", { name: "New Cell" }).click();
+  const cellEditor = page.getByRole("dialog", { name: "New Cell" });
+  await cellEditor.getByLabel("Cell name").fill("AgentLifecycleCell");
+  await cellEditor.getByRole("button", { name: "Create" }).click();
+  const childDocumentId = await page
+    .getByTestId("active-document-id")
+    .innerText();
+  expect(childDocumentId).not.toBe(topDocumentId);
+
+  await page
+    .getByTestId("cell-navigation")
+    .getByRole("button", { name: "Top", exact: true })
+    .click();
+  await page
+    .getByTestId("cell-command-menu")
+    .getByRole("button", { name: "Manage Cells…", exact: true })
+    .click();
+  manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager
+    .locator(".cell-manager-list-item")
+    .filter({ hasText: "AgentLifecycleCell" })
+    .dblclick();
+  await expect(page.getByTestId("active-document-id")).toHaveText(
+    childDocumentId,
+  );
+  await expect
+    .poll(
+      async () =>
+        (await client.status(session.sessionId, session.agentToken)).editor,
+    )
+    .toBe("attached");
+  expect(
+    await client.circuit(session.sessionId, session.agentToken, {
+      apiVersion: "3.0",
+      requestId: "cell-switch-snapshot",
+      operation: "snapshot",
+      documentId: topDocumentId,
+    }),
+  ).toMatchObject({ ok: true, revision: 0 });
+
+  await page
+    .getByTestId("cell-navigation")
+    .getByRole("button", { name: "Top", exact: true })
+    .click();
+  expect(
+    await client.circuit(session.sessionId, session.agentToken, {
+      apiVersion: "3.0",
+      requestId: "crash-durable-edit",
+      operation: "transact",
+      documentId: topDocumentId,
+      transactionId: "crash-durable-edit",
+      expectedRevision: 0,
+      edits: [
+        {
+          kind: "add_instance",
+          instance: {
+            id: "crash-durable-R",
+            symbolId: "resistor",
+            placement: {
+              position: { x: 300, y: 200 },
+              rotation: 0,
+              mirror: "none",
+            },
+          },
+        },
+      ],
+    }),
+  ).toMatchObject({ ok: true, revision: 1 });
+
+  await page.evaluate(() => {
+    window.__ICM_TEST_RENDER_CRASH__ = true;
+  });
+  await page.keyboard.press("i");
+  const crashScreen = page.getByTestId("editor-crash-screen");
+  await expect(crashScreen).toBeVisible();
+  await crashScreen.getByRole("button", { name: "Reload editor" }).click();
+
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  await expect
+    .poll(
+      async () =>
+        (await client.status(session.sessionId, session.agentToken)).editor,
+    )
+    .toBe("attached");
+});
+
 test("copies a working handoff through the normal local dev relay", async ({
   page,
   context,

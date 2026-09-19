@@ -380,7 +380,7 @@ async function lastRouteId(page: Page): Promise<string> {
   return testId.replace(/^route-hit-/u, "");
 }
 
-test("property code rejects hiding a connected instance by clearing its coordinate", async ({
+test("property code keeps a drawn wired instance visible and moves it with grid snapping", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -393,17 +393,42 @@ test("property code rejects hiding a connected instance by clearing its coordina
   await page.keyboard.press("Escape");
   await page.getByTestId("hit-R1").click();
   await openSelectionShelf(page);
+  const before = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
   const revision = await page.getByTestId("revision").textContent();
   const code = JSON.parse(await readComponentPropertyCode(page));
   code.coordinate = null;
   await page
     .getByLabel("Editable Canvas property code")
     .fill(JSON.stringify(code));
-  await expect(
-    page.getByRole("button", { name: "Discard draft", exact: true }),
-  ).toBeVisible();
+  const discard = page.getByRole("button", {
+    name: "Discard draft",
+    exact: true,
+  });
+  await expect(discard).toBeVisible();
   await expect(page.getByTestId("hit-R1")).toHaveCount(1);
   await expect(page.getByTestId("revision")).toHaveText(revision!);
+  const saved = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(saved.documents[0].instances).toEqual(before.documents[0].instances);
+  expect(saved.documents[0].nets).toEqual(before.documents[0].nets);
+  expect(saved.documents[0].routes).toEqual(before.documents[0].routes);
+  await discard.click();
+  await setComponentCodeField(page, "coordinate", [421, 281]);
+  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
+  await expectComponentCodeField(page, "coordinate", [420, 280]);
+  await clickCommand(page, "Edit", "Undo");
+  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
+  await expectComponentCodeField(page, "coordinate", [
+    before.documents[0].instances[0].placement.position.x,
+    before.documents[0].instances[0].placement.position.y,
+  ]);
 });
 
 test("a directly connected device can move away and return with its wire, undo and redo", async ({

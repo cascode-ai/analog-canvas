@@ -605,7 +605,13 @@ export function App({
     () =>
       new BrowserAgentHost(
         editorDocumentController,
-        synchronizeExternalCommit,
+        () => {
+          synchronizeExternalCommit();
+          // Agent commits have already crossed a network boundary. Start the
+          // durable write immediately so a following render crash cannot lose
+          // the acknowledged transaction inside the debounce window.
+          void flushRecovery();
+        },
         (request) => agentSemanticIntentRef.current(request),
       ),
     [editorDocumentController, projectSessionId],
