@@ -4,7 +4,7 @@ Analog Canvas treats every Project Document as one reusable schematic Cell.
 The top Cell is the saved default entry; other Cells may be instantiated any number of
 times or kept unreferenced while they are being authored.
 
-In **Manage Cells…**, drag a Cell onto the first, **Top** row to change
+In **Manage Cells…**, select a Cell and choose **Set as Top**, or drag it onto the first, **Top** row to change
 the saved default entry. The drop preview says **Set as Top**. Dragging among
 other rows only changes the saved list order; dropping at the bottom moves a Cell
 to the end. Both order and Top changes are undone together. This does not change the circuit, its callers, the
@@ -15,7 +15,7 @@ The Manager's **Hierarchy** tree opens concrete instance occurrences. Expand
 only the branches you need; repeated calls to one Cell retain separate paths.
 The Cell list stays stable regardless of reachability. Double-click a row to open
 its definition; edit the detail heading to rename it (Enter or blur commits,
-Escape cancels). Row menus contain Delete. Alt+Up/Down also reorder a focused row;
+Escape cancels). **Delete** is beside the selected Cell's heading. Alt+Up/Down also reorder a focused row;
 Alt+Up into the first row makes that Cell Top.
 
 Use **Manage Cells…** in **Edit** or the hierarchy row to manage the Project's definitions in one place. It shows each

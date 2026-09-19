@@ -612,22 +612,6 @@
   background: var(--icm-surface);
   color: var(--icm-accent);
 }
-.cell-row-menu {
-  position: relative;
-  flex: 0 0 auto;
-}
-.cell-row-menu summary {
-  cursor: pointer;
-  list-style: none;
-  padding: 0.4rem;
-}
-.cell-row-menu button {
-  position: absolute;
-  right: 0;
-  top: 100%;
-  z-index: 2;
-  background: var(--icm-surface);
-}
 .cell-manager-drop-end {
   min-height: 1.6rem;
   color: var(--icm-text-muted);

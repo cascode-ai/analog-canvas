@@ -275,10 +275,6 @@ export function CellManagerDialog({
         <div className="cell-manager-body">
           {resourceKind === "local" ? (
             <aside className="cell-manager-list" aria-label="Cells">
-              <div className="cell-manager-list-heading">
-                <span>Cells</span>
-                <span>{cells.length}</span>
-              </div>
               <div className="cell-manager-list-scroll">
                 <CellHierarchyTree
                   project={project}
@@ -365,18 +361,6 @@ export function CellManagerDialog({
                         {cell.portCount} ports · {cell.callers.length} callers
                       </small>
                     </button>
-                    <details className="cell-row-menu">
-                      <summary aria-label={`Actions for ${cell.name}`}>
-                        ⋯
-                      </summary>
-                      <button
-                        type="button"
-                        disabled={cell.isTop || cell.callers.length > 0}
-                        onClick={() => setDeleteId(cell.id)}
-                      >
-                        Delete
-                      </button>
-                    </details>
                   </div>
                 ))}
                 <div
@@ -429,10 +413,6 @@ export function CellManagerDialog({
               className="cell-manager-list"
               aria-label="External Circuit Defs"
             >
-              <div className="cell-manager-list-heading">
-                <span>External Circuit Defs</span>
-                <span>{externalDefinitions.length}</span>
-              </div>
               <div className="cell-manager-list-scroll">
                 {externalDefinitions.map((definition) => (
                   <button
@@ -508,6 +488,31 @@ export function CellManagerDialog({
                         onRename={(name) => onRename(selectedEntry.id, name)}
                       />
                     </div>
+                  </div>
+                  <div className="cell-manager-actions">
+                    {!selectedEntry.isTop ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          moveCell(
+                            selectedEntry.id,
+                            project.topDocumentId,
+                            true,
+                          )
+                        }
+                      >
+                        Set as Top
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      disabled={
+                        selectedEntry.isTop || selectedEntry.callers.length > 0
+                      }
+                      onClick={() => setDeleteId(selectedEntry.id)}
+                    >
+                      Delete
+                    </button>
                   </div>
                 </header>
 

@@ -454,10 +454,10 @@ test("sets a Cell as default Top without changing its circuit and supports Undo"
   const childId = await page.getByTestId("active-document-id").innerText();
   await runCellCommand(page, "Manage Cells…");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await expect(manager.locator(".cell-manager-list-heading")).toHaveCount(0);
   await manager
-    .locator(".cell-manager-list-item")
-    .filter({ hasText: "NewTop" })
-    .dragTo(manager.locator(".cell-manager-list-item").first());
+    .getByRole("button", { name: "Set as Top", exact: true })
+    .click();
   await expect(manager.getByRole("button", { name: "Set as Top" })).toHaveCount(
     0,
   );
@@ -657,6 +657,9 @@ test("manages external declarations independently of local Cell interfaces", asy
   const externalList = manager.getByRole("complementary", {
     name: "External Circuit Defs",
   });
+  await expect(externalList.locator(".cell-manager-list-heading")).toHaveCount(
+    0,
+  );
   await externalList.getByRole("button", { name: /amplifier/ }).click();
   await expect(manager.getByLabel("External subcircuit terminals")).toHaveValue(
     "IN, OUT, VDD, VSS",
@@ -1039,7 +1042,7 @@ test("creates and deletes an unreferenced reusable Cell", async ({ page }) => {
 
   await runCellCommand(page, "Manage Cells…");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
-  await manager.getByLabel("Actions for ReusableStage").click();
+  await expect(manager.locator(".cell-row-menu")).toHaveCount(0);
   await manager
     .getByRole("button", { name: "Delete", exact: true })
     .last()
@@ -1680,7 +1683,7 @@ test("places an existing Cell and blocks deleting its shared definition", async 
   await runCellCommand(page, "Manage Cells…");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await expect(
-    manager.getByRole("button", { name: "Delete", includeHidden: true }).last(),
+    manager.getByRole("button", { name: "Delete", exact: true }),
   ).toBeDisabled();
   await expect(page.getByTestId("document-count")).toHaveText("2");
 });
