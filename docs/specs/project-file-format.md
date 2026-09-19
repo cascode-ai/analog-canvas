@@ -135,8 +135,8 @@ an unsolicited bulk conversion of Gallery, Cloud or recovery data.
   Device visual annotations customized on the canvas use literal `content`
   instead, on the same Annotation ID and anchor, without `binding` or
   `formatOverride`. They do not rename or duplicate `Instance.reference`.
-  Save/open and copy preserve this exclusive choice; only explicit **Use
-  netlist name** returns a custom annotation to following. The JSON field
+  Save/open and copy preserve this exclusive choice; clearing **Use display
+  alias** returns a custom annotation to following. The JSON field
   remains `Instance.reference` (UI: **Netlist Reference**), with no schema bump.
 - A RichText document is either ordinary styled text runs or one atomic
   formula run containing bounded LaTeX source and `inline`/`block` display
@@ -144,7 +144,9 @@ an unsolicited bulk conversion of Gallery, Cloud or recovery data.
   content.
 - `Document.presentation.cellSymbol` is optional definition-level block intent:
   a minimum body size and stable formal-terminal side/offset placements.
-  Symbol geometry remains derived and caller Instances never persist a copy.
+  The shared generated class is included in `componentDefinitions`; its source
+  interface and presentation record determine when to regenerate the artwork.
+  Caller Instances reference that class rather than persisting their own copy.
 - MOS assets are canonical `nmos`/`pmos`; visual variant selection does not
   change persisted terminal connectivity.
 - `Project.simulationFolders` is the named version-4 source collection defined
