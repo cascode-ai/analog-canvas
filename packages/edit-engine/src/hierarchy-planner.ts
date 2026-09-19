@@ -199,13 +199,15 @@ function gapDetachedCallerJunctions(
 /**
  * Keeps caller drawings valid when the read-only formal interface projection
  * changes. Removed formal pins are detached to Junctions; canonical spelling
- * changes are strictly one-to-one. Neither path aliases or merges parent Nets.
+ * changes are one-to-one unless the caller explicitly requests electrical
+ * aliasing. Explicit aliasing merges owner Nets before symbol reconciliation.
  */
 function planCallerInterfaceChanges(
   project: CircuitProject,
   childDocumentId: string,
   disappearingPinNames: readonly string[],
   pinRenames: readonly CallerPinRename[],
+  mergeAliases = false,
 ): {
   readonly beforeChild: readonly ProjectStructureEdit[];
   readonly afterChild: readonly ProjectStructureEdit[];
@@ -233,6 +235,12 @@ function planCallerInterfaceChanges(
     if (callers.length === 0) continue;
 
     const detachTargets: { instanceId: string; pinName: string }[] = [];
+    const mergeEdits: DocumentEdits = [];
+    const netAliases = new Map<string, string>();
+    const currentNetId = (id: string): string => {
+      while (netAliases.has(id)) id = netAliases.get(id)!;
+      return id;
+    };
     const reconcileEdits: DocumentEdits = [];
     for (const instance of callers) {
       const referencedDisappearingPins = uniqueDisappearingPinNames.filter(
@@ -251,6 +259,49 @@ function planCallerInterfaceChanges(
           )
           .map((rename) => [rename.source, rename.target]),
       );
+      if (mergeAliases) {
+        for (const target of new Set(Object.values(pinMap))) {
+          const mapsToTarget = (name: string) =>
+            (pinMap[name] ?? name) === target;
+          const nets = parent.nets.filter((net) =>
+            net.terminals.some(
+              (terminal) =>
+                terminal.instanceId === instance.id &&
+                mapsToTarget(terminal.pinName),
+            ),
+          );
+          const netIds = [...new Set(nets.map((net) => currentNetId(net.id)))];
+          const targetNetId = netIds[0];
+          if (targetNetId) {
+            for (const sourceNetId of netIds.slice(1)) {
+              mergeEdits.push({ kind: "merge_nets", targetNetId, sourceNetId });
+              netAliases.set(sourceNetId, targetNetId);
+            }
+          }
+          const noConnects = parent.noConnects.filter(
+            (item) =>
+              item.endpoint.instanceId === instance.id &&
+              mapsToTarget(item.endpoint.pinName),
+          );
+          for (const item of noConnects.slice(targetNetId ? 0 : 1)) {
+            mergeEdits.push({
+              kind: "remove_no_connect",
+              noConnectId: item.id,
+            });
+            const pinName = item.endpoint.pinName;
+            // A discarded NoConnect may have been the only reference to this
+            // source pin. Do not leave an invalid source in the symbol map.
+            const withoutNoConnect = {
+              ...parent,
+              noConnects: parent.noConnects.filter(
+                (candidate) => candidate.id !== item.id,
+              ),
+            };
+            if (!instanceReferencesPin(withoutNoConnect, instance.id, pinName))
+              delete pinMap[pinName];
+          }
+        }
+      }
       if (
         referencedDisappearingPins.length === 0 &&
         Object.keys(pinMap).length === 0
@@ -291,7 +342,7 @@ function planCallerInterfaceChanges(
       kind: "transact_document",
       documentId: parent.id,
       expectedRevision: parent.revision + (detachEdits.length > 0 ? 1 : 0),
-      edits: reconcileEdits,
+      edits: [...mergeEdits, ...reconcileEdits],
     });
   }
 
@@ -1213,6 +1264,7 @@ export function planRenameCellTerminal(
   childDocumentId: string,
   terminalId: string,
   newName: string,
+  options: { mergeExistingPort?: boolean } = {},
 ): ProjectStructureEdit[] {
   const child = project.documents.find(
     (document) => document.id === childDocumentId,
@@ -1311,12 +1363,11 @@ export function planRenameCellTerminal(
       continue;
     }
 
-    // A renamed Pin can either move a formal port one-to-one or make the old
-    // formal port disappear by joining a group that already existed. Only the
-    // former is a rename; the latter must detach the old caller endpoint.
+    // Joining an existing interface detaches callers unless the operation has
+    // explicitly requested electrical merging. The UI must confirm that intent.
     if (
       beforePort.key === selectedBeforePort.key &&
-      !beforeByKey.has(selectedAfterPort.key)
+      (!beforeByKey.has(selectedAfterPort.key) || options.mergeExistingPort)
     ) {
       pinRenames.push({
         source: beforePort.name,
@@ -1332,6 +1383,7 @@ export function planRenameCellTerminal(
     child.id,
     disappearingPinNames,
     pinRenames,
+    options.mergeExistingPort,
   );
   return [...callerChanges.beforeChild, childEdit, ...callerChanges.afterChild];
 }
@@ -1347,12 +1399,14 @@ export function planEditCellTerminalAnnotation(
   terminalId: string,
   annotation: Annotation,
   newName: string,
+  options: { mergeExistingPort?: boolean } = {},
 ): ProjectStructureEdit[] {
   const renameEdits = planRenameCellTerminal(
     project,
     documentId,
     terminalId,
     newName,
+    options,
   );
   const annotationEdit = {
     kind: "upsert_schematic_annotation" as const,

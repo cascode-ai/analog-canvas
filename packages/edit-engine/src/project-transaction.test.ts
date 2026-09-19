@@ -312,95 +312,189 @@ describe("Project structural transaction", () => {
     ]);
   });
 
-  it("detaches the vanished caller pin instead of merging it into an existing name", () => {
+  it.each([false, true])(
+    "joins a Port name with explicit electrical merge=%s",
+    (mergeExistingPort) => {
+      const project = createEmptyProject("project", "Project");
+      const child = createEmptyDocument("document-child", "Child");
+      addCellPin(child, {
+        instanceId: "P1",
+        terminalId: "terminal-old",
+        name: "OLD",
+        netId: "net-old",
+      });
+      addCellPin(child, {
+        instanceId: "P2",
+        terminalId: "terminal-new",
+        name: "NEW",
+        netId: "net-new",
+      });
+      project.documents.push(child);
+      child.presentation.cellSymbol = {
+        pinPlacements: [
+          { terminalId: "terminal-old", side: "west", offset: 0 },
+          { terminalId: "terminal-new", side: "north", offset: 20 },
+        ],
+      };
+      const parent = project.documents[0]!;
+      parent.instances.push(hierarchyInstance("X1", "Child", child.id));
+      parent.nets.push(
+        {
+          id: "net-parent-old",
+          terminals: [{ instanceId: "X1", pinName: "OLD" }],
+        },
+        {
+          id: "net-parent-new",
+          terminals: [{ instanceId: "X1", pinName: "NEW" }],
+        },
+      );
+      parent.junctions.push({
+        id: "junction-parent-tail",
+        netId: "net-parent-old",
+        position: { x: -100, y: 0 },
+        role: "route-anchor",
+      });
+      parent.routes.push(
+        createRoutePath({
+          id: "route-parent-old",
+          netId: "net-parent-old",
+          start: { kind: "terminal", instanceId: "X1", pinName: "OLD" },
+          end: { kind: "junction", junctionId: "junction-parent-tail" },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+
+      const result = executeProjectTransaction(project, {
+        transactionId: "rename-final-old-pin-onto-existing-name",
+        projectId: project.id,
+        expectedStructureRevision: project.structureRevision,
+        actor: { kind: "human", id: "human-local" },
+        edits: planRenameCellTerminal(
+          project,
+          child.id,
+          "terminal-old",
+          "new",
+          { mergeExistingPort },
+        ),
+      });
+
+      if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+      expect(
+        result.project.documents[1]!.presentation.cellSymbol?.pinPlacements,
+      ).toEqual([{ terminalId: "terminal-old", side: "north", offset: 20 }]);
+      const updatedParent = result.project.documents[0]!;
+      if (mergeExistingPort) {
+        expect(updatedParent.nets).toEqual([
+          expect.objectContaining({
+            id: "net-parent-old",
+            terminals: [{ instanceId: "X1", pinName: "new" }],
+          }),
+        ]);
+        expect(updatedParent.routes[0]!.start).toEqual({
+          kind: "terminal",
+          instanceId: "X1",
+          pinName: "new",
+        });
+        expect(updatedParent.routes[0]!.netId).toBe("net-parent-old");
+        expect(updatedParent.junctions).toHaveLength(1);
+        return;
+      }
+      expect(updatedParent.nets).toEqual([
+        expect.objectContaining({ id: "net-parent-old", terminals: [] }),
+        expect.objectContaining({
+          id: "net-parent-new",
+          terminals: [{ instanceId: "X1", pinName: "new" }],
+        }),
+      ]);
+      expect(updatedParent.routes[0]!.start).toMatchObject({
+        kind: "junction",
+      });
+      expect(updatedParent.routes[0]!.netId).toBe("net-parent-old");
+      expect(
+        updatedParent.junctions.filter(
+          (junction) => junction.netId === "net-parent-old",
+        ),
+      ).toHaveLength(2);
+      expect(updatedParent.nets).toHaveLength(2);
+      expect(result.project.documents[1]!.nets).toMatchObject([
+        { id: "net-old", terminals: [{ instanceId: "P1", pinName: "P" }] },
+        { id: "net-new", terminals: [{ instanceId: "P2", pinName: "P" }] },
+      ]);
+      expect(result.project.documents[1]!.netlist!.terminals).toMatchObject([
+        { id: "terminal-old", name: "new", netId: "net-old" },
+        { id: "terminal-new", name: "NEW", netId: "net-new" },
+      ]);
+    },
+  );
+
+  it("merges shared caller Nets once and reconciles NoConnect declarations", () => {
     const project = createEmptyProject("project", "Project");
-    const child = createEmptyDocument("document-child", "Child");
-    addCellPin(child, {
-      instanceId: "P1",
-      terminalId: "terminal-old",
-      name: "OLD",
-      netId: "net-old",
-    });
-    addCellPin(child, {
-      instanceId: "P2",
-      terminalId: "terminal-new",
-      name: "NEW",
-      netId: "net-new",
-    });
+    const child = createEmptyDocument("child", "Child");
+    for (const name of ["A", "B"])
+      addCellPin(child, {
+        instanceId: `P${name}`,
+        terminalId: name,
+        name,
+        netId: `net-${name}`,
+      });
     project.documents.push(child);
-    child.presentation.cellSymbol = {
-      pinPlacements: [
-        { terminalId: "terminal-old", side: "west", offset: 0 },
-        { terminalId: "terminal-new", side: "north", offset: 20 },
-      ],
-    };
     const parent = project.documents[0]!;
-    parent.instances.push(hierarchyInstance("X1", "Child", child.id));
+    for (const id of ["X1", "X2", "X3", "X4"])
+      parent.instances.push(hierarchyInstance(id, "Child", child.id));
     parent.nets.push(
       {
-        id: "net-parent-old",
-        terminals: [{ instanceId: "X1", pinName: "OLD" }],
+        id: "left",
+        terminals: ["X1", "X2", "X3"].map((instanceId) => ({
+          instanceId,
+          pinName: "A",
+        })),
       },
       {
-        id: "net-parent-new",
-        terminals: [{ instanceId: "X1", pinName: "NEW" }],
+        id: "right",
+        terminals: ["X1", "X2"].map((instanceId) => ({
+          instanceId,
+          pinName: "B",
+        })),
       },
     );
-    parent.junctions.push({
-      id: "junction-parent-tail",
-      netId: "net-parent-old",
-      position: { x: -100, y: 0 },
-      role: "route-anchor",
-    });
-    parent.routes.push(
-      createRoutePath({
-        id: "route-parent-old",
-        netId: "net-parent-old",
-        start: { kind: "terminal", instanceId: "X1", pinName: "OLD" },
-        end: { kind: "junction", junctionId: "junction-parent-tail" },
-        bends: [],
-        modes: ["manual"],
-      }),
+    parent.noConnects.push(
+      {
+        id: "nc3",
+        endpoint: { kind: "terminal", instanceId: "X3", pinName: "B" },
+      },
+      {
+        id: "nc4a",
+        endpoint: { kind: "terminal", instanceId: "X4", pinName: "A" },
+      },
+      {
+        id: "nc4b",
+        endpoint: { kind: "terminal", instanceId: "X4", pinName: "B" },
+      },
     );
-
     const result = executeProjectTransaction(project, {
-      transactionId: "rename-final-old-pin-onto-existing-name",
+      transactionId: "merge-shared-callers",
       projectId: project.id,
       expectedStructureRevision: project.structureRevision,
-      actor: { kind: "human", id: "human-local" },
-      edits: planRenameCellTerminal(project, child.id, "terminal-old", "new"),
-    });
-
-    if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
-    expect(
-      result.project.documents[1]!.presentation.cellSymbol?.pinPlacements,
-    ).toEqual([{ terminalId: "terminal-old", side: "north", offset: 20 }]);
-    const updatedParent = result.project.documents[0]!;
-    expect(updatedParent.nets).toEqual([
-      expect.objectContaining({ id: "net-parent-old", terminals: [] }),
-      expect.objectContaining({
-        id: "net-parent-new",
-        terminals: [{ instanceId: "X1", pinName: "new" }],
+      actor: { kind: "human", id: "local" },
+      edits: planRenameCellTerminal(project, child.id, "A", "B", {
+        mergeExistingPort: true,
       }),
-    ]);
-    expect(updatedParent.routes[0]!.start).toMatchObject({
-      kind: "junction",
     });
-    expect(updatedParent.routes[0]!.netId).toBe("net-parent-old");
-    expect(
-      updatedParent.junctions.filter(
-        (junction) => junction.netId === "net-parent-old",
-      ),
-    ).toHaveLength(2);
-    expect(updatedParent.nets).toHaveLength(2);
-    expect(result.project.documents[1]!.nets).toMatchObject([
-      { id: "net-old", terminals: [{ instanceId: "P1", pinName: "P" }] },
-      { id: "net-new", terminals: [{ instanceId: "P2", pinName: "P" }] },
+    if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+    const updated = result.project.documents[0]!;
+    expect(updated.nets).toHaveLength(1);
+    expect(updated.nets[0]!.terminals).toEqual(
+      ["X1", "X2", "X3"].map((instanceId) => ({ instanceId, pinName: "B" })),
+    );
+    expect(updated.noConnects).toEqual([
+      {
+        id: "nc4a",
+        endpoint: { kind: "terminal", instanceId: "X4", pinName: "B" },
+      },
     ]);
-    expect(result.project.documents[1]!.netlist!.terminals).toMatchObject([
-      { id: "terminal-old", name: "new", netId: "net-old" },
-      { id: "terminal-new", name: "NEW", netId: "net-new" },
-    ]);
+    expect(parent.nets).toHaveLength(2);
+    expect(parent.noConnects).toHaveLength(3);
   });
 
   it("renames the surviving caller spelling when the first same-named Pin leaves its group", () => {
