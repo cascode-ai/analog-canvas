@@ -184,6 +184,95 @@ test("creates a Cell parameter from a device JSON field with atomic Undo", async
   );
 });
 
+test("traces a parent Net through the second Cell occurrence and returns to its Net", async ({
+  page,
+}) => {
+  const project = hierarchyParameterFixture();
+  const parent = project.documents[0]!;
+  const child = project.documents[1]!;
+  for (const [index, id] of ["X1", "X2"].entries()) {
+    parent.instances.find((instance) => instance.id === id)!.placement = {
+      position: { x: 300 + index * 250, y: 200 },
+      rotation: 0,
+      mirror: "none",
+    };
+  }
+  parent.junctions.push({
+    id: "trace-tail",
+    netId: "B",
+    position: { x: 380, y: 200 },
+    role: "route-anchor",
+  });
+  parent.routes.push(
+    createRoutePath({
+      id: "trace-parent",
+      netId: "B",
+      start: { kind: "terminal", instanceId: "X2", pinName: "IN" },
+      end: { kind: "junction", junctionId: "trace-tail" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  for (const [index, id] of ["port-IN", "R1"].entries()) {
+    child.instances.find((instance) => instance.id === id)!.placement = {
+      position: { x: 180 + index * 200, y: 180 },
+      rotation: 0,
+      mirror: "none",
+    };
+  }
+  child.routes.push(
+    createRoutePath({
+      id: "trace-child",
+      netId: "IN",
+      start: { kind: "terminal", instanceId: "port-IN", pinName: "P" },
+      end: { kind: "terminal", instanceId: "R1", pinName: "1" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "trace.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  const route = page.getByTestId("route-hit-trace-parent");
+  // A horizontal SVG polyline has zero bounding-box height; click its rendered
+  // midpoint like the shared manual route interactions, not its CSS box.
+  await expect(route).toBeAttached();
+  const point = await route.evaluate((element) => {
+    const line = element as SVGPolylineElement;
+    const first = line.points.getItem(0);
+    const second = line.points.getItem(1);
+    const screen = new DOMPoint(
+      (first.x + second.x) / 2,
+      (first.y + second.y) / 2,
+    ).matrixTransform(line.getScreenCTM()!);
+    return { x: screen.x, y: screen.y };
+  });
+  await page.mouse.click(point.x, point.y);
+  await page.keyboard.press("h");
+  await revealPropertiesShelf(page);
+  const shelf = page.getByTestId("selection-shelf");
+  if ((await shelf.getAttribute("aria-expanded")) === "false")
+    await shelf.click();
+  await page.getByRole("button", { name: /Enter: X2\.IN/ }).click();
+  await expect(page.getByTestId("active-document-id")).toHaveText(child.id);
+  await expect(page.getByTestId("net-highlight-overlay")).toHaveAttribute(
+    "data-net-id",
+    "IN",
+  );
+  await expect(
+    page.getByRole("button", { name: /Return: X1\.IN/ }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: /Return: X2\.IN/ }).click();
+  await expect(page.getByTestId("active-document-id")).toHaveText(parent.id);
+  await expect(page.getByTestId("net-highlight-overlay")).toHaveAttribute(
+    "data-net-id",
+    "B",
+  );
+});
+
 test("edits independent parent parameter overrides and follows definition renames", async ({
   page,
 }) => {
