@@ -427,7 +427,10 @@ and opens its Cell when necessary. It does not infer identity from Reference
 spelling, which may repeat across Cells.
 Explicit inspector actions (Q, double-clicking a component, Issues and import
 review) replace the default netlist panel. Canvas editing never requires closing
-the netlist first.
+the netlist first. A project panel is closed by the control that opened it —
+the toolbar button or the menu entry, both of which toggle — so the dock shows
+no close button over the panel's own controls, and the copy button keeps the
+right edge while the Format and Process selects give up width first.
 
 Source edits use one atomic Project transaction with per-Document revisions.
 Renaming preserves layout, wiring and IDs, updates bound labels, and leaves

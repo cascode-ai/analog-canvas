@@ -3,14 +3,15 @@ import type { ReactNode } from "react";
 export type EditorProjectPanelMode =
   "netlist" | "netlist-configuration" | "instances" | "project-code";
 
-/** Project-wide tools occupy the right side without becoming Properties. */
-export function EditorProjectDock({
-  onClose,
-  children,
-}: {
-  onClose(): void;
-  children: ReactNode;
-}) {
+/**
+ * Project-wide tools occupy the right side without becoming Properties.
+ *
+ * A panel is closed by the control that opened it — the toolbar button or the
+ * menu entry, both of which toggle — so the dock carries no close button of
+ * its own. One floating in the corner only sat over the panel's own controls
+ * and took the room the panel needed at half width.
+ */
+export function EditorProjectDock({ children }: { children: ReactNode }) {
   return (
     <aside
       className="selection-dock open project-tool-dock"
@@ -19,15 +20,6 @@ export function EditorProjectDock({
       role="complementary"
     >
       <section className="selection-shelf" aria-label="Project tools">
-        <button
-          type="button"
-          className="project-tool-close"
-          aria-label="Close project tools"
-          title="Close"
-          onClick={onClose}
-        >
-          ×
-        </button>
         <div className="selection-panel">{children}</div>
       </section>
     </aside>

@@ -3347,7 +3347,7 @@ export function App({
     setSelectionOpen(propertiesOpenBeforeProjectPanelRef.current);
   }
 
-  function toggleProjectPanel(mode: "netlist" | "project-code"): void {
+  function toggleProjectPanel(mode: EditorProjectPanelMode): void {
     if (projectPanel === mode) {
       closeProjectPanel();
       return;
@@ -4783,11 +4783,11 @@ export function App({
           execute: () => void projectCheck.checkAndSave(),
         }}
         onOpenInstanceCode={() => {
-          showProjectPanel("instances");
+          toggleProjectPanel("instances");
         }}
         netlistFormat={netlistPreferences.format}
         onOpenNetlistConfiguration={() => {
-          showProjectPanel("netlist-configuration");
+          toggleProjectPanel("netlist-configuration");
         }}
         onOpenNetlistPreflight={() => setNetlistPreflightOpen(true)}
         onExportNetlist={exportDesignNetlist}
@@ -5617,7 +5617,7 @@ export function App({
           }
           project={
             projectPanel ? (
-              <EditorProjectDock onClose={closeProjectPanel}>
+              <EditorProjectDock>
                 {projectPanel === "netlist-configuration" ? (
                   <NetlistProfileCode
                     text={netlistPreferences.text}

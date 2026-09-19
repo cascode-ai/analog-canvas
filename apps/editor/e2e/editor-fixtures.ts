@@ -14,12 +14,16 @@ export async function awaitEditorReady(page: Page): Promise<void> {
  */
 export async function closeProjectTools(page: Page): Promise<void> {
   await awaitEditorReady(page);
-  const close = page.getByRole("button", {
-    name: "Close project tools",
-    exact: true,
-  });
-  if (!(await close.isVisible())) return;
-  await close.click();
+  const dock = page.getByRole("complementary", { name: "Project tools" });
+  if (!(await dock.isVisible())) return;
+  // A panel is closed by the control that opened it. Netlist is the one the
+  // editor starts in; Project Code is the other toolbar panel.
+  for (const testId of ["netlist-panel-toggle", "project-code-toggle"]) {
+    const toggle = page.getByTestId(testId);
+    if ((await toggle.getAttribute("aria-pressed")) !== "true") continue;
+    await toggle.click();
+    break;
+  }
   await page.locator(".app-workspace").evaluate(async (element) => {
     await Promise.all(
       element

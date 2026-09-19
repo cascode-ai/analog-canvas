@@ -283,7 +283,8 @@ describe("editor shell", () => {
       '<section class="selection-shelf" aria-label="Project tools">',
     );
     expect(markup).toContain('aria-label="Live netlist"');
-    expect(markup).toContain('aria-label="Close project tools"');
+    // The toolbar button that opens a panel is the one that closes it.
+    expect(markup).not.toContain('aria-label="Close project tools"');
     expect(markup).not.toContain('data-testid="selection-shelf"');
     expect(markup).not.toContain('aria-label="Properties"');
     // The panel toggles live in the horizontal toolbar; there is no rail.

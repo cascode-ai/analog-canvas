@@ -254,6 +254,10 @@
 }
 .netlist-code-copy {
   display: inline-grid;
+  /* Held at the right edge: the selects give up width before it does, so a
+     half-width window never pushes them out of reach. */
+  flex: 0 0 auto;
+  margin-left: auto;
   width: 30px;
   padding: 5px;
   place-items: center;

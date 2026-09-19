@@ -415,9 +415,8 @@ test("opening and reopening Netlist preserves incomplete imported device data", 
   const code = page.getByLabel("Netlist code", { exact: true });
   await expect(code).toContainText("TODO");
   const revision = await page.getByTestId("revision").textContent();
-  await page
-    .getByRole("button", { name: "Close project tools", exact: true })
-    .click();
+  // The Netlist button closes the panel it opened, and opens it again.
+  await page.getByTestId("netlist-panel-toggle").click();
   await page.getByTestId("netlist-panel-toggle").click();
   await expect(code).toContainText("TODO");
   await expect(page.getByTestId("revision")).toHaveText(revision!);
