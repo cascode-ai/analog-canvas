@@ -1,6 +1,7 @@
 import {
   defaultInstanceLabelPlacement,
   displayableInstanceValue,
+  resolveDocumentStyleProfile,
   type SchematicStyleProfile,
 } from "@icm/derived";
 import { plainNameDocument } from "@icm/model";
@@ -144,6 +145,32 @@ export function missingDefaultInstanceDisplayAnnotations(
         isSameDefaultProjection(existing, candidate),
       ),
   );
+}
+
+/**
+ * Write the default projections a freshly drawn Instance is missing straight
+ * into the Document. Only the named Instances are considered, so a label the
+ * user has positioned, hidden, or removed on an existing drawing is never
+ * resurrected. Returns how many annotations were added.
+ */
+export function materializeDefaultInstanceDisplays(
+  document: SchematicDocument,
+  instances: readonly Instance[],
+  resolver: SymbolResolver,
+): number {
+  const styleProfile = resolveDocumentStyleProfile(document.presentation);
+  let added = 0;
+  for (const instance of instances) {
+    const annotations = missingDefaultInstanceDisplayAnnotations(
+      document,
+      instance,
+      resolver,
+      styleProfile,
+    );
+    document.annotations.push(...annotations);
+    added += annotations.length;
+  }
+  return added;
 }
 
 function isSameDefaultProjection(

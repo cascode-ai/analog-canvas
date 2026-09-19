@@ -189,7 +189,7 @@ X2 OUT IN EXT_MASTER l=1u nf=4
   expect(spice).toContain("X2 OUT IN EXT_MASTER l=1u nf=4");
 });
 
-test("shows imported instance references after Place all", async ({ page }) => {
+test("draws imported instances with their references", async ({ page }) => {
   await page.goto("/editor");
   await page.getByTestId("spice-files").setInputFiles({
     name: "circuit.spi",
@@ -204,14 +204,10 @@ R7 IN OUT 10k
   await expect(page.getByTestId("status")).toContainText(
     "Imported 1 Documents",
   );
-  await page
-    .getByRole("region", { name: "Placement Tray" })
-    .locator(":scope > summary")
-    .click();
-  await page
-    .getByRole("region", { name: "Placement Tray" })
-    .getByRole("button", { name: "Place all" })
-    .click();
+  // The import draws every device: nothing waits off-sheet in a tray.
+  await expect(
+    page.getByRole("region", { name: "Placement Tray" }),
+  ).toHaveCount(0);
   await expect(
     page
       .getByTestId("schematic-canvas")

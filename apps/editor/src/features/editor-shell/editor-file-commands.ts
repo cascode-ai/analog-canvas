@@ -4,9 +4,13 @@ import type {
   NetlistNamingProfile,
   NetlistPortCase,
 } from "@icm/netlist";
+import { CircuitProjectSchema } from "@icm/model";
 import type { CircuitProject, GridRect, SchematicDocument } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
+import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import type { SymbolResolver } from "@icm/symbols";
+
+import { materializeDefaultInstanceDisplays } from "../instance-display/default-instance-display";
 
 import {
   createVisualExportArtifact,
@@ -50,6 +54,25 @@ export interface EditorFileCommandDependencies {
   setStatus: (status: string) => void;
   /** Raise the refresh banner when an on-demand chunk has gone missing. */
   onChunkLoadFailure?: (feature: string) => void;
+}
+
+/**
+ * An import arrives drawn, so it also arrives labelled: every imported
+ * Instance gets the default designator and value projections an ordinary
+ * placement writes, instead of standing on the canvas anonymously.
+ */
+function withImportedInstanceDisplays(project: CircuitProject): CircuitProject {
+  const candidate = structuredClone(project);
+  const resolver = createProjectSymbolResolver(candidate, builtInSymbols);
+  let added = 0;
+  for (const document of candidate.documents) {
+    added += materializeDefaultInstanceDisplays(
+      document,
+      document.instances,
+      resolver,
+    );
+  }
+  return added === 0 ? project : CircuitProjectSchema.parse(candidate);
 }
 
 /** File import/export commands and their user-facing gate/status policy. */
@@ -185,7 +208,7 @@ export function createEditorFileCommands({
         setStatus(firstError?.message ?? "SPICE import failed");
         return;
       }
-      const importedProject = result.project;
+      const importedProject = withImportedInstanceDisplays(result.project);
       const instanceCount = importedProject.documents.reduce(
         (count, candidate) => count + candidate.instances.length,
         0,

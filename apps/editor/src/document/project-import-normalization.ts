@@ -4,12 +4,11 @@ import {
   missingPowerMarkerClaims,
   planUndrawnInstancePlacements,
 } from "@icm/edit-engine";
-import { resolveDocumentStyleProfile } from "@icm/derived";
 import { CircuitProjectSchema } from "@icm/model";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-import { missingDefaultInstanceDisplayAnnotations } from "../features/instance-display/default-instance-display";
+import { materializeDefaultInstanceDisplays } from "../features/instance-display/default-instance-display";
 
 export interface ImportedConductorNormalization {
   project: CircuitProject;
@@ -84,21 +83,14 @@ function drawUndrawnInstances(
 ): number {
   const placements = planUndrawnInstancePlacements(document);
   if (placements.length === 0) return 0;
-  const styleProfile = resolveDocumentStyleProfile(document.presentation);
-  for (const { instanceId, placement } of placements) {
+  const drawn = placements.flatMap(({ instanceId, placement }) => {
     const instance = document.instances.find(
       (candidate) => candidate.id === instanceId,
     );
-    if (!instance) continue;
+    if (!instance) return [];
     instance.placement = placement;
-    document.annotations.push(
-      ...missingDefaultInstanceDisplayAnnotations(
-        document,
-        instance,
-        resolver,
-        styleProfile,
-      ),
-    );
-  }
-  return placements.length;
+    return [instance];
+  });
+  materializeDefaultInstanceDisplays(document, drawn, resolver);
+  return drawn.length;
 }
