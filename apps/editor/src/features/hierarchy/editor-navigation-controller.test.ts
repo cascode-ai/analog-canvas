@@ -1,4 +1,5 @@
-import { buildProjectConnectivityIndex } from "@icm/derived";
+import { buildProjectConnectivityIndex, traceHierarchyNet } from "@icm/derived";
+import { hierarchyParameterFixture } from "../../../../../netlists/hierarchy-parameters/fixture";
 import {
   createEmptyProject,
   createEmptyDocument,
@@ -50,6 +51,53 @@ function dependencies(
 }
 
 describe("editor navigation controller", () => {
+  it("follows a traced parent pin into the correct repeated Cell occurrence and back", () => {
+    const input = dependencies();
+    const project = hierarchyParameterFixture();
+    const parent = project.documents[0]!;
+    const resolver = createProjectSymbolResolver(project, builtInSymbols);
+    const index = buildProjectConnectivityIndex(project, resolver);
+    const parentNet = parent.nets.find((net) =>
+      net.terminals.some(
+        (item) => item.instanceId === "X2" && item.pinName === "IN",
+      ),
+    )!;
+    const trace = traceHierarchyNet(index, parent.id, parentNet.id);
+    if (!trace) throw new Error("Expected parent trace");
+    const down = trace.hops.find(
+      (hop) => hop.direction === "down" && hop.frame.instanceId === "X2",
+    )!;
+    expect(down).toBeDefined();
+    const controller = createEditorNavigationController({
+      ...input,
+      project,
+      document: parent,
+      resolver,
+      connectivityIndex: index,
+      openDocument: (id) => project.documents.find((item) => item.id === id),
+    });
+    controller.navigateTraceHop(down);
+    expect(input.setDocumentStack).toHaveBeenLastCalledWith(
+      down.to.hierarchyPath,
+    );
+    expect(down.to.hierarchyPath.at(-1)?.instanceId).toBe("X2");
+    expect(input.setHighlightedNetOrigin).toHaveBeenLastCalledWith(down.to);
+    const returnTrace = traceHierarchyNet(
+      index,
+      down.to.documentId,
+      down.to.netId,
+      undefined,
+      down.to.hierarchyPath,
+    );
+    if (!returnTrace) throw new Error("Expected child trace");
+    const up = returnTrace.hops.find(
+      (hop) => hop.direction === "up" && hop.frame.instanceId === "X2",
+    )!;
+    expect(up).toBeDefined();
+    controller.navigateTraceHop(up);
+    expect(input.setDocumentStack).toHaveBeenLastCalledWith([]);
+    expect(input.setHighlightedNetOrigin).toHaveBeenLastCalledWith(up.to);
+  });
   it.each([1, 2])(
     "opens a definition without inventing any of its %i caller paths",
     (count) => {
