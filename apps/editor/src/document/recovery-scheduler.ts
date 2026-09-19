@@ -68,8 +68,8 @@ export interface RecoveryScheduler<Project = unknown> {
   cancel(): void;
   /**
    * End this scheduler's lifetime. Dispose is intentionally cancel-only: a
-   * lifecycle owner flushes an ordinary hide or unmount first. Whole-project
-   * replacement owners cancel explicitly so a stale session is never written.
+   * page lifecycle handler is responsible for flushing before an actual page
+   * hide; a React unmount must never write a stale session.
    */
   dispose(): void;
   /** Whether a write is currently pending (timer armed, project held). */
