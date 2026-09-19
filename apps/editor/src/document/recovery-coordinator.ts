@@ -530,6 +530,10 @@ export function useRecoveryCoordinator(
         flushWhenHidden,
       );
       globalThis.window?.removeEventListener("pagehide", flushOnPageHide);
+      // An error boundary can unmount the editor without pagehide. Move the
+      // latest committed Project into the durable write chain before dispose
+      // cancels timers; whole-Project replacements cancel explicitly first.
+      void coordinator.flushNow();
       coordinator.dispose();
     };
   }, [coordinator]);
