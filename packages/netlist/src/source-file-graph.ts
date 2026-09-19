@@ -13,7 +13,9 @@ export interface SimulationSourceDiagnostic {
   related?: { message: string; sourceRef: SourceSpan }[];
   path?: string;
   field?: string;
-  primary?: ObjectLocator;
+  primary?: Omit<ObjectLocator, "hierarchyPath"> & {
+    hierarchyPath: ObjectLocator["hierarchyPath"][number][];
+  };
 }
 export interface InspectedSourceItem<T> {
   statement: T;
