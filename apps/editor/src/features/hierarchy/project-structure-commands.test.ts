@@ -3,7 +3,10 @@ import { createEmptyDocument, createEmptyProject } from "@icm/model";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { describe, expect, it, vi } from "vitest";
 
-import { createProjectStructureCommands } from "./project-structure-commands";
+import {
+  createProjectStructureCommands,
+  applyConfirmedCellInterfaceEdit,
+} from "./project-structure-commands";
 import type { CellInterfaceConfirmation } from "./project-structure-commands";
 import { localBlockSymbolTarget } from "./block-symbol-layout-target";
 
@@ -29,6 +32,27 @@ function dependencies() {
 }
 
 describe("Project structure commands", () => {
+  it("never applies a confirmation against a replaced Project snapshot", () => {
+    const project = createEmptyProject("project", "Project");
+    const request = {
+      title: "Delete",
+      message: "Delete Port",
+      confirmLabel: "Delete",
+      apply: vi.fn(() => true),
+    };
+    expect(() =>
+      applyConfirmedCellInterfaceEdit(
+        request,
+        project,
+        structuredClone(project),
+      ),
+    ).toThrow("Project changed");
+    expect(request.apply).not.toHaveBeenCalled();
+    expect(applyConfirmedCellInterfaceEdit(request, project, project)).toBe(
+      true,
+    );
+    expect(request.apply).toHaveBeenCalledTimes(1);
+  });
   it("deletes only unused external definitions and preserves failure feedback", () => {
     const input = dependencies();
     input.project.externalSubcircuitDefinitions.push({

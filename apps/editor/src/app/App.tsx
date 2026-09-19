@@ -109,6 +109,7 @@ import { createCanvasHitController } from "../canvas/canvas-hit-controller";
 import { CellInterfaceConfirmationDialog } from "../features/hierarchy/cell-interface-confirmation";
 import { CellParameterDialog } from "../features/hierarchy/cell-parameter-dialog";
 import type { CellInterfaceConfirmation } from "../features/hierarchy/project-structure-commands";
+import { applyConfirmedCellInterfaceEdit } from "../features/hierarchy/project-structure-commands";
 import { screenScaleHitRadius } from "../canvas/canvas-hit-resolver";
 import { buildDiagnosticMarkers } from "../canvas/diagnostic-markers";
 import {
@@ -4608,14 +4609,12 @@ export function App({
           onCancel={() => setInterfaceConfirmation(null)}
           onConfirm={() => {
             setInterfaceConfirmation(null);
-            if (project !== interfaceConfirmation.snapshot) {
-              setStatus(
-                "Project changed. Repeat the operation to review its current impact.",
-              );
-              return;
-            }
             try {
-              interfaceConfirmation.request.apply();
+              applyConfirmedCellInterfaceEdit(
+                interfaceConfirmation.request,
+                interfaceConfirmation.snapshot,
+                project,
+              );
             } catch (error) {
               setStatus(
                 error instanceof Error

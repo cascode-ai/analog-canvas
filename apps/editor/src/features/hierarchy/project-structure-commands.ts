@@ -69,6 +69,19 @@ export interface CellInterfaceConfirmation {
   apply(): boolean;
 }
 
+/** Confirmation authorizes precisely the immutable Project the user reviewed. */
+export function applyConfirmedCellInterfaceEdit(
+  request: CellInterfaceConfirmation,
+  snapshot: CircuitProject,
+  current: CircuitProject,
+): boolean {
+  if (current !== snapshot)
+    throw new Error(
+      "Project changed. Repeat the operation to review its current impact.",
+    );
+  return request.apply();
+}
+
 /**
  * Owns behavior-neutral UI commands for formal Project structure. Planners and
  * the Edit Engine remain the semantic authority; this facade normalizes user
