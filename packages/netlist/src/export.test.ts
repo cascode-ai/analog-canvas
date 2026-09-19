@@ -348,6 +348,69 @@ describe("ground as the Cell's own pin", () => {
     expect(result.file.text).not.toMatch(/(?:^|\s)0(?:\s|$)/u);
   });
 
+  it.each(["spice", "spectre"] as const)(
+    "exports a shared rail as a local supply pin first, including callers in %s",
+    (format) => {
+      const project = createEmptyProject("supply-pins", "Supply pins", "top");
+      const leaf = cellWithGround("leaf", "leaf");
+      // Reproduce older drawings whose signal pins precede a VDD Pin while
+      // a separate VDD rail gives the same logical supply a global identity.
+      leaf.netlist!.terminals.reverse();
+      leaf.instances.push({
+        id: "rail",
+        symbolId: "vdd-port",
+        placement: null,
+      });
+      leaf.nets.push({
+        id: "rail-net",
+        terminals: [{ instanceId: "rail", pinName: "P" }],
+      });
+      leaf.connectivityEvidence.push({
+        id: "rail-claim",
+        kind: "name-claim",
+        netId: "rail-net",
+        name: "VDD",
+        scope: "global",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: "rail" },
+      });
+      const top = cellWithGround("top", "top");
+      top.netlist!.terminals.reverse();
+      top.instances.push({
+        id: "X1",
+        reference: "X1",
+        symbolId: "cell-symbol",
+        placement: null,
+        netlist: {
+          binding: { kind: "subcircuit", childDocumentId: "leaf" },
+          parameters: {},
+        },
+      });
+      top.nets
+        .find((net) => net.id === "net-out")!
+        .terminals.push({ instanceId: "X1", pinName: "OUT" });
+      top.nets
+        .find((net) => net.id === "net-vdd")!
+        .terminals.push({ instanceId: "X1", pinName: "VDD" });
+      project.documents = [top, leaf];
+      const before = structuredClone(project);
+      const result = createDesignNetlistExport(project, { format });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      if (result.status !== "ready") return;
+      expect(result.file.text).not.toMatch(/(?:^|\n)\.?global\b/u);
+      for (const name of ["leaf", "top"])
+        expect(result.file.text).toContain(
+          format === "spice"
+            ? `.subckt ${name} VDD VSS OUT\n`
+            : `subckt ${name} (VDD VSS OUT)\n`,
+        );
+      expect(result.file.text).toContain(
+        format === "spice" ? "X1 VDD VSS OUT leaf" : "X1 (VDD VSS OUT) leaf",
+      );
+      expect(project).toEqual(before);
+    },
+  );
+
   it("gives a parent and its child the same reference", () => {
     // Both sides derive the pin from the Documents, so a call cannot pass its
     // nodes in one order while the definition expects another.
@@ -449,7 +512,7 @@ describe("ground as the Cell's own pin", () => {
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
     // One reference, under the author's own name, and no second pin for it.
-    expect(result.file.text).toContain(".subckt dut VDD OUT GNDA\n");
+    expect(result.file.text).toContain(".subckt dut VDD GNDA OUT\n");
     expect(result.file.text).not.toMatch(/\bVSS\b/u);
     // The node takes that pin's name too, so nothing inside is left reaching
     // for the global reference under another name.

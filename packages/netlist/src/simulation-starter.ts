@@ -34,6 +34,7 @@ export function createSimulationStarter(
     return { ok: true as const, folder: createSimulationFolder(options) };
   const analysis = analyzeDesignNetlist(project, {
     format: "spice",
+    groundPin: "pin",
     rootDocumentId: options.documentId,
   });
   const root = analysis.ir?.cells.find(

@@ -1912,6 +1912,61 @@ function analyzeDesign(
       cells.push(cell);
     }
   }
+  if (resolvedOptions.groundPin === "pin") {
+    // Supply markers share identity inside the drawing. Once that supply is
+    // exposed by a module pin, its exported node belongs to that module:
+    // callers pass it explicitly instead of also reaching for a global.
+    for (const cell of cells) {
+      if (
+        resolvedOptions.rootAsTopLevel &&
+        cell.id === resolvedOptions.rootDocumentId
+      )
+        continue;
+      const logical = resolveDocumentLogicalNets(
+        withNetlistPowerMarkerClaims(documentsById.get(cell.id)!),
+      );
+      const rank = (port: DesignNetlistCell["ports"][number]) => {
+        const domain = logical.byBaseNetId.get(port.id)?.powerDomain;
+        if (domain === "vdd" || port.name.toUpperCase() === "VDD") return 0;
+        if (domain === "ground" || port.name.toUpperCase() === "VSS") return 1;
+        return 2;
+      };
+      for (const port of cell.ports) {
+        if (rank(port) === 2) continue;
+        const net = cell.nets.find(
+          (candidate) => candidate.name === port.netName,
+        );
+        if (net) net.scope = "local";
+      }
+      cell.ports.sort((left, right) => rank(left) - rank(right));
+    }
+    // Port order is positional in both SPICE and Spectre. Reorder internal
+    // calls from the final child interface; external PDK pin order is untouched.
+    const cellsById = new Map(cells.map((cell) => [cell.id, cell]));
+    for (const cell of cells) {
+      const document = documentsById.get(cell.id)!;
+      const bindings = new Map(
+        document.instances.map((instance) => [
+          instance.id,
+          instance.netlist?.binding,
+        ]),
+      );
+      for (const instance of cell.instances) {
+        const binding = bindings.get(instance.id);
+        if (binding?.kind !== "subcircuit") continue;
+        const child = cellsById.get(binding.childDocumentId);
+        if (!child) continue;
+        const order = new Map(
+          child.ports.map((port, index) => [port.name, index]),
+        );
+        instance.nodes.sort(
+          (left, right) =>
+            (order.get(left.pinName) ?? Infinity) -
+            (order.get(right.pinName) ?? Infinity),
+        );
+      }
+    }
+  }
   diagnostics.sort(
     (left, right) =>
       left.documentId.localeCompare(right.documentId) ||

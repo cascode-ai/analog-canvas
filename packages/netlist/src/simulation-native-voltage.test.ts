@@ -19,6 +19,7 @@ function fixture() {
   const binding = input.circuitBindings[0]!;
   const root = analyzeDesignNetlist(project, {
     format: "spice",
+    groundPin: "pin",
     rootDocumentId: binding.documentId,
   }).ir!.cells.find((c) => c.id === binding.documentId)!;
   const tb = input.files.find((f) => f.path === "testbench.spice")!;

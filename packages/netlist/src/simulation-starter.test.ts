@@ -84,8 +84,16 @@ describe("simulation starting points", () => {
     expect(compileSourceSimulation(project, result.folder).ok).toBe(true);
     const ir = analyzeDesignNetlist(project, {
       format: "spice",
+      groundPin: "pin",
       rootDocumentId: options.documentId,
     }).ir!;
+    const root = ir.cells.find((cell) => cell.id === ir.topCellId)!;
+    expect(
+      result.folder.input.files.find((file) => file.path === "testbench.spice")!
+        .text,
+    ).toContain(
+      `XDUT (${root.ports.map((port) => `'${port.netName}'`).join(" ")}) '${root.name}'`,
+    );
     const scopes = vacaskCircuitScopes(
       inspectVacaskSourceGraph(result.folder.input),
       binding,
