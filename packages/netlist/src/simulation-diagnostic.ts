@@ -9,7 +9,10 @@ export function simulationNetlistDiagnostic(
     code: item.code,
     severity: item.code === "GENERATED_NET_NAME" ? "info" : item.severity,
     message: item.message,
-    primary: item.primary,
+    primary: {
+      ...item.primary,
+      hierarchyPath: [...item.primary.hierarchyPath],
+    },
     field: [
       item.documentId,
       item.primary.kind === "instance" ? item.primary.objectId : undefined,
