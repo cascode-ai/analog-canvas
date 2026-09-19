@@ -226,7 +226,7 @@ test("opens a built-in formatted device name with alias off and follows netlist 
   ).not.toBeChecked();
 });
 
-test("explicit component and Issues inspection replaces the default netlist panel", async ({
+test("explicit inspectors yield to Netlist for a replacement while ordinary edits preserve the panel choice", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -249,7 +249,27 @@ test("explicit component and Issues inspection replaces the default netlist pane
   await expect(
     page.getByRole("region", { name: "Project diagnostics" }),
   ).toBeVisible();
-  await expect(page.getByLabel("Netlist code", { exact: true })).toHaveCount(0);
+  const code = page.getByLabel("Netlist code", { exact: true });
+  await expect(code).toHaveCount(0);
+
+  // Opening a different Project deliberately returns to its live Netlist,
+  // regardless of the inspector the previous Project left open.
+  await page.getByTestId("project-file").setInputFiles({
+    name: "replacement.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(fixture())),
+  });
+  await expect(code).toBeVisible();
+  await expect(code).toContainText("R2");
+
+  // An ordinary edit respects the workspace the reader explicitly chose.
+  await page.getByTestId("netlist-panel-toggle").click();
+  await page.getByTestId("project-name-input").fill("Changed circuit name");
+  await page.getByTestId("project-name-input").press("Enter");
+  await expect(page.getByTestId("project-name-input")).toHaveValue(
+    "Changed circuit name",
+  );
+  await expect(code).toHaveCount(0);
 });
 
 test("opens editable netlist by default, highlights a card, and synchronizes names and values with undo", async ({
@@ -428,56 +448,4 @@ test("opening and reopening Netlist preserves incomplete imported device data", 
   expect(saved.documents[0].instances[0].netlist.parameters).not.toHaveProperty(
     "value",
   );
-});
-
-test("opens a shared editable circuit and each replacement with Netlist, without forcing it during edits", async ({
-  page,
-}) => {
-  await page.route("**/api/gallery/shared-netlist", (route) =>
-    route.fulfill({
-      json: {
-        entry: { name: "Another author's circuit" },
-        ownerUserId: "another-author",
-        projectText: JSON.stringify(fixture()),
-      },
-    }),
-  );
-  await page.goto("/g/shared-netlist");
-  // The status line is transient — the editor settles back to "Ready" — so
-  // wait for the circuit itself to be the one the gallery served.
-  await expect(page.getByTestId("project-name-input")).toHaveValue(
-    "Editable netlist",
-  );
-  const code = page.getByLabel("Netlist code", { exact: true });
-  await expect(code).toBeVisible();
-  await expect(code).toContainText("R1");
-  await expect(code).toHaveAttribute("contenteditable", "true");
-  await page.getByTestId("netlist-panel-toggle").click();
-  await expect(code).toHaveCount(0);
-  await page.getByTestId("hit-R1").dblclick();
-  await expect(
-    page.getByRole("complementary", { name: "Properties", exact: true }),
-  ).toBeVisible();
-  await page.getByTestId("project-file").setInputFiles({
-    name: "replacement.icproj.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(fixture())),
-  });
-  await expect(code).toBeVisible();
-  await expect(code).toContainText("R2");
-  await page.getByTestId("project-code-toggle").click();
-  await expect(code).toHaveCount(0);
-  await page.getByTestId("project-file").setInputFiles({
-    name: "reopened.icproj.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(fixture())),
-  });
-  await expect(code).toBeVisible();
-  await page.getByTestId("netlist-panel-toggle").click();
-  await page.getByTestId("project-name-input").fill("Changed circuit name");
-  await page.getByTestId("project-name-input").press("Enter");
-  await expect(page.getByTestId("project-name-input")).toHaveValue(
-    "Changed circuit name",
-  );
-  await expect(code).toHaveCount(0);
 });
