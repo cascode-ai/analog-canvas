@@ -501,6 +501,18 @@ export class AgentSessionClient {
         revision: entry.revision,
       };
     }
+    if (
+      compiled.length > 1 &&
+      compiled.every((item) => item.form === "wire-intent")
+    ) {
+      return this.submitTransaction(
+        entry,
+        { wireIntent: compiled.map((item) => item.wireIntent!) },
+        {
+          dryRun: options.dryRunOnly ?? false,
+        },
+      );
+    }
     if (compiled.length !== 1)
       return {
         ok: false,

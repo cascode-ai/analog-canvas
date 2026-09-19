@@ -240,7 +240,12 @@ export const AgentSchematicEditSchema = SchematicEditSchema.superRefine(
 );
 const TransactionPayloadShape = {
   edits: z.array(AgentSchematicEditSchema).min(1).max(256).optional(),
-  wireIntent: AgentWireIntentSchema.optional(),
+  wireIntent: z
+    .union([
+      AgentWireIntentSchema,
+      z.array(AgentWireIntentSchema).min(1).max(64),
+    ])
+    .optional(),
   semanticIntent: AgentSemanticIntentSchema.optional(),
   command: AgentAuthoringCommandSchema.optional(),
   structureEdits: z

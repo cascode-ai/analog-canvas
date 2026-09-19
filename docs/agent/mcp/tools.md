@@ -2,10 +2,16 @@
 
 ## Create and edit
 
-Use `apply_actions` for one atomic edit batch, wire, planned command or focus
+Use `apply_actions` for one atomic edit batch, wire batch, planned command or focus
 operation per call. Split create and wire phases so new pin geometry comes
 from Snapshot. The browser plans commands with the same planners as the GUI;
 all resulting edits use the existing controller, revision and permission checks.
+
+Several `connect` actions may share one call. They are planned in order on
+private state and committed once, with one Undo; a failure leaves no partial
+wiring. The existing `wireIntent` transaction field accepts one intent or an
+ordered array (up to 64); the combined generated edits still obey the session's
+edit limit. Mixed placement/wire/command calls still need separate phases.
 
 | Action                                        | Key arguments                                                                 |
 | --------------------------------------------- | ----------------------------------------------------------------------------- |
