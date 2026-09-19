@@ -485,6 +485,26 @@
   padding: 0;
 }
 
+.cell-hierarchy-tree ul {
+  list-style: none;
+  padding-left: 12px;
+  margin: 4px 0;
+}
+
+.cell-hierarchy-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cell-hierarchy-row button {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 5px;
+}
+
 .cell-parameter-row {
   display: grid;
   grid-template-columns:

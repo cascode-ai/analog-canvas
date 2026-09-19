@@ -5015,6 +5015,19 @@ export function App({
                 open: cellManagerOpen,
                 cells: cellManagerEntries,
                 project,
+                hierarchyCalls: projectConnectivityIndex.hierarchy.calls,
+                onOpenOccurrence: (documentId, hierarchyPath) => {
+                  navigateToLocator(
+                    {
+                      documentId,
+                      hierarchyPath: [...hierarchyPath],
+                      kind: "document",
+                      objectId: documentId,
+                    },
+                    "Opened Cell occurrence",
+                  );
+                  setCellManagerOpen(false);
+                },
                 activeDocumentId: document.id,
                 onClose: () => setCellManagerOpen(false),
                 onCreate: (name) => {

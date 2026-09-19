@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { analyzeDesignNetlist } from "@icm/netlist";
 import { reviewedExternalBindingForMaster } from "@icm/devices";
+import { createEmptyDocument } from "@icm/model";
 import { hierarchyParameterFixture } from "../../../netlists/hierarchy-parameters/fixture";
 
 import {
@@ -279,6 +280,46 @@ test("sets a Cell as default Top without changing its circuit and supports Undo"
   expect((await save()).topDocumentId).toBe(originalTop);
   await page.keyboard.press("Control+Shift+z");
   expect((await save()).topDocumentId).toBe(childId);
+});
+
+test("opens distinct structural occurrences and separates definitions outside Top", async ({
+  page,
+}) => {
+  const project = hierarchyParameterFixture();
+  project.documents.push(createEmptyDocument("unused", "Unused"));
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "tree.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  for (const instance of ["X1", "X2"]) {
+    await runCellCommand(page, "Manage Cells…");
+    const manager = page.getByRole("dialog", { name: "Cell Manager" });
+    await expect(
+      manager
+        .getByRole("region", { name: "Outside Top", exact: true })
+        .getByRole("button", { name: /Unused/ }),
+    ).toBeVisible();
+    await manager.getByText("Hierarchy", { exact: true }).click();
+    await manager
+      .getByRole("button", {
+        name: `Expand ${project.documents[0]!.name}`,
+        exact: true,
+      })
+      .click();
+    await manager
+      .getByRole("button", { name: `${instance} · Resistors`, exact: true })
+      .click();
+    await expect(manager).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Up", exact: true }),
+    ).toBeEnabled();
+    await page.getByRole("button", { name: "Up", exact: true }).click();
+    await expect(page.getByTestId("status")).toContainText(
+      project.documents[0]!.name,
+    );
+  }
 });
 
 test("protects reviewed External interfaces and navigates their callers", async ({

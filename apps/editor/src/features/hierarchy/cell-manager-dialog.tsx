@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 
-import type { CircuitProject, ExternalSubcircuitDefinition } from "@icm/model";
+import type {
+  CircuitProject,
+  ExternalSubcircuitDefinition,
+  HierarchyFrame,
+} from "@icm/model";
+import {
+  CellHierarchyTree,
+  documentsReachableFromTop,
+} from "./cell-hierarchy-tree";
 import {
   planCellReset,
   type CellResetIntent,
@@ -40,6 +48,8 @@ export function CellManagerDialog({
   open,
   cells,
   project,
+  hierarchyCalls,
+  onOpenOccurrence,
   activeDocumentId,
   onClose,
   onCreate,
@@ -64,6 +74,8 @@ export function CellManagerDialog({
   open: boolean;
   cells: readonly CellManagerEntry[];
   project: CircuitProject;
+  hierarchyCalls: readonly HierarchyFrame[];
+  onOpenOccurrence(documentId: string, path: readonly HierarchyFrame[]): void;
   activeDocumentId: string;
   onClose(): void;
   onCreate(name: string): void;
@@ -141,6 +153,10 @@ export function CellManagerDialog({
 
   const selectedEntry =
     cells.find((cell) => cell.id === selectedId) ?? cells[0];
+  const reachable = documentsReachableFromTop(
+    project.topDocumentId,
+    hierarchyCalls,
+  );
   const selectedDocument = project.documents.find(
     (document) => document.id === selectedEntry?.id,
   );
@@ -249,23 +265,44 @@ export function CellManagerDialog({
                 <span>{cells.length}</span>
               </div>
               <div className="cell-manager-list-scroll">
-                {cells.map((cell) => (
-                  <button
-                    key={cell.id}
-                    type="button"
-                    className="cell-manager-list-item"
-                    aria-selected={cell.id === selectedEntry?.id}
-                    onClick={() => setSelectedId(cell.id)}
-                  >
-                    <span>
-                      <strong>{cell.name}</strong>
-                      {cell.isTop ? <em>Top</em> : null}
-                    </span>
-                    <small>
-                      {cell.portCount} ports · {cell.callers.length} callers
-                    </small>
-                  </button>
-                ))}
+                <CellHierarchyTree
+                  project={project}
+                  calls={hierarchyCalls}
+                  onOpen={onOpenOccurrence}
+                />
+                {[true, false].map((withinTop) => {
+                  const group = cells.filter(
+                    (cell) => reachable.has(cell.id) === withinTop,
+                  );
+                  return group.length ? (
+                    <section
+                      key={String(withinTop)}
+                      aria-label={withinTop ? "Definitions" : "Outside Top"}
+                    >
+                      <div className="cell-manager-list-heading">
+                        {withinTop ? "Definitions" : "Outside Top"}
+                      </div>
+                      {group.map((cell) => (
+                        <button
+                          key={cell.id}
+                          type="button"
+                          className="cell-manager-list-item"
+                          aria-selected={cell.id === selectedEntry?.id}
+                          onClick={() => setSelectedId(cell.id)}
+                        >
+                          <span>
+                            <strong>{cell.name}</strong>
+                            {cell.isTop ? <em>Top</em> : null}
+                          </span>
+                          <small>
+                            {cell.portCount} ports · {cell.callers.length}{" "}
+                            callers
+                          </small>
+                        </button>
+                      ))}
+                    </section>
+                  ) : null;
+                })}
               </div>
               <button
                 type="button"
