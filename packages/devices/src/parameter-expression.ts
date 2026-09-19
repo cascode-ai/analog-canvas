@@ -26,3 +26,44 @@ export function parameterExpressionBody(value: string): string | undefined {
   }
   return stack.length ? undefined : body;
 }
+
+/** Lexical references in the supported parameter slot, not substrings or function names. */
+export function parameterReferences(value: string): readonly {
+  name: string;
+  from: number;
+  to: number;
+}[] {
+  const text = value.trim();
+  if (
+    !/^[A-Za-z_][A-Za-z0-9_]*$/u.test(text) &&
+    parameterExpressionBody(text) === undefined
+  )
+    return [];
+  const result: { name: string; from: number; to: number }[] = [];
+  // Numbers consume exponent and unit suffixes before identifier recognition.
+  const tokens =
+    /(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?[A-Za-z]*|[A-Za-z_][A-Za-z0-9_.]*/giu;
+  for (const match of value.matchAll(tokens)) {
+    const name = match[0];
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(name)) continue;
+    const from = match.index;
+    const to = from + name.length;
+    if (/^\s*\(/u.test(value.slice(to))) continue;
+    result.push({ name, from, to });
+  }
+  return result;
+}
+
+/** Retain expression spelling, delimiters and whitespace outside renamed tokens. */
+export function renameParameterReference(
+  value: string,
+  from: string,
+  to: string,
+): string {
+  let result = value;
+  for (const reference of [...parameterReferences(value)].reverse()) {
+    if (reference.name.toLowerCase() !== from.toLowerCase()) continue;
+    result = result.slice(0, reference.from) + to + result.slice(reference.to);
+  }
+  return result;
+}
