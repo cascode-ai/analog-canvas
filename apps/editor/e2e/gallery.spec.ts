@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 import {
   createEmptyDocument,
@@ -2725,9 +2725,25 @@ test("bundled VDD rails keep their current presentation in the Gallery and edito
   );
   const tileRails = tile.locator('[data-route-presentation="power-rail"]');
   await expect(tileRails).toHaveCount(3);
-  for (const rail of await tileRails.all()) {
-    await expect(rail).toHaveAttribute("stroke-width", "3.24");
-  }
+  // A conductor run is one shape, so a rail's width is on the shape carrying
+  // its subpath rather than on the element that carries its identity.
+  const railInkWidths = (root: Locator) =>
+    root.evaluate((element: SVGElement | HTMLElement) => {
+      const inks = [...element.querySelectorAll('[data-role="conductor-ink"]')];
+      return [
+        ...element.querySelectorAll('[data-route-presentation="power-rail"]'),
+      ].map((rail) => {
+        const subpath = `M ${Array.from((rail as SVGPolylineElement).points)
+          .map((point) => `${point.x} ${point.y}`)
+          .join(" L ")}`;
+        return (
+          inks
+            .find((path) => (path.getAttribute("d") ?? "").includes(subpath))
+            ?.getAttribute("stroke-width") ?? null
+        );
+      });
+    });
+  expect(await railInkWidths(tile)).toEqual(["3.24", "3.24", "3.24"]);
   await expect(
     tile.locator(
       '[data-layer="junctions"] circle[cx="380"][cy="160"], [data-layer="junctions"] circle[cx="500"][cy="160"]',
@@ -2743,9 +2759,9 @@ test("bundled VDD rails keep their current presentation in the Gallery and edito
     '[data-testid="schematic-canvas"] [data-route-presentation="power-rail"]',
   );
   await expect(canvasRails).toHaveCount(3);
-  for (const rail of await canvasRails.all()) {
-    await expect(rail).toHaveAttribute("stroke-width", "3.24");
-  }
+  expect(
+    await railInkWidths(page.locator('[data-testid="schematic-canvas"]')),
+  ).toEqual(["3.24", "3.24", "3.24"]);
   await expect(
     page.locator(
       '[data-testid="schematic-canvas"] [data-layer="junctions"] circle[cx="380"][cy="160"], [data-testid="schematic-canvas"] [data-layer="junctions"] circle[cx="500"][cy="160"]',
