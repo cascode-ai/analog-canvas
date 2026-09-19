@@ -1,5 +1,6 @@
 import {
   StableIdSchema,
+  RichTextDocumentSchema,
   SymbolLocalPointSchema,
   SymbolLocalRectSchema,
 } from "@icm/model";
@@ -50,6 +51,8 @@ export const SymbolPinSchema = z.strictObject({
     // Keeps the canonical electrical pin name stable while allowing a source-
     // faithful glyph such as Q with a separately drawn complement bar.
     displayName: z.string().min(1).optional(),
+    /** Derived authored label format; never changes the electrical pin name. */
+    nameContent: RichTextDocumentSchema.optional(),
     textStyle: z.enum(["plain", "math-symbol"]).optional(),
     textSizeScale: z.number().positive().optional(),
   }),

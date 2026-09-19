@@ -756,7 +756,8 @@ export function renderVisiblePinNames(
         },
       ];
       const content: RichTextDocument = definition.hierarchicalBlock
-        ? semanticTextDocument(displayName, "formal-port")
+        ? (pin.presentation.nameContent ??
+          semanticTextDocument(displayName, "formal-port"))
         : pin.presentation.textStyle === "math-symbol"
           ? {
               runs:

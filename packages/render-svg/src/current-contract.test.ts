@@ -14,7 +14,7 @@ import { renderDocumentSvg } from "./render.js";
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("current rendering contract", () => {
-  it("renders hierarchical pin names with Razavi math typography", () => {
+  it("keeps hierarchical names whole and inherits explicitly authored Port formatting", () => {
     const top = createEmptyDocument("top", "Top");
     const child = createEmptyDocument("child", "GainStage");
     child.netlist!.terminals.push({
@@ -58,12 +58,51 @@ describe("current rendering contract", () => {
 
     expect(svg).toContain('data-pin-name="VGS1"');
     expect(svg).toContain("font-style:italic;font-weight:700");
-    expect(svg).toContain('data-text-run="subscript"');
-    expect(svg).toContain("font-style:normal;font-weight:700");
+    expect(svg).not.toContain('data-text-run="subscript"');
+    expect(svg).toContain(">VGS1</tspan>");
     expect(svg).not.toContain("baseline-shift");
     expect(svg).not.toMatch(/font-size="[\d.]+%"/u);
     expect(svg).toContain("svg{font-size:");
     expect(svg).not.toMatch(/text\{[^}]*font-size:/u);
+    child.annotations.push({
+      id: "port-label",
+      kind: "instance-label",
+      binding: { kind: "cell-terminal-name", terminalId: "terminal-v-in" },
+      formatOverride: {
+        runs: [
+          { kind: "text", value: "V" },
+          {
+            kind: "span",
+            style: "subscript",
+            children: [{ kind: "text", value: "GS1" }],
+          },
+        ],
+      },
+      anchor: {
+        kind: "object",
+        objectId: "P1",
+        localOffset: { x: 0, y: 0 },
+        fallbackPosition: { x: 0, y: 0 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    const formatted = renderDocumentSvg(
+      top,
+      createProjectSymbolResolver(project, builtInSymbols),
+    );
+    expect(formatted).toContain('data-text-run="subscript"');
+    expect(formatted).toContain(">GS1</tspan>");
+    expect(formatted).toContain('data-pin-name="VGS1"');
+    child.annotations[0]!.formatOverride = {
+      runs: [{ kind: "text", value: "VGS1" }],
+    };
+    const plain = renderDocumentSvg(
+      top,
+      createProjectSymbolResolver(project, builtInSymbols),
+    );
+    expect(plain).not.toContain('data-text-run="subscript"');
   });
 
   it("keeps north and south hierarchy pin names clear of the Cell body edge", () => {

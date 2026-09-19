@@ -310,6 +310,78 @@ describe("EditorDocumentController", () => {
     expect(controller.resolver).not.toBe(resolverBefore);
   });
 
+  it("refreshes inherited Port formatting but not annotation positioning, including Undo", () => {
+    const project = hierarchicalProject();
+    const child = project.documents[1]!;
+    child.instances.push({ id: "P1", symbolId: "port", placement: null });
+    child.nets.push({
+      id: "net",
+      terminals: [{ instanceId: "P1", pinName: "P" }],
+    });
+    child.netlist!.terminals.push({
+      id: "out",
+      name: "Vout",
+      netId: "net",
+      direction: "output",
+      interfaceInstanceIds: ["P1"],
+    });
+    const controller = new EditorDocumentController(project);
+    controller.openDocument(child.id);
+    const before = controller.resolver;
+    const annotation: SchematicDocument["annotations"][number] = {
+      id: "label",
+      kind: "instance-label",
+      binding: { kind: "cell-terminal-name", terminalId: "out" },
+      formatOverride: {
+        runs: [
+          { kind: "text", value: "V" },
+          {
+            kind: "span",
+            style: "subscript",
+            children: [{ kind: "text", value: "out" }],
+          },
+        ],
+      },
+      anchor: {
+        kind: "object",
+        objectId: "P1",
+        localOffset: { x: 0, y: 0 },
+        fallbackPosition: { x: 0, y: 0 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    };
+    expect(
+      controller.transact([{ kind: "upsert_schematic_annotation", annotation }])
+        .ok,
+    ).toBe(true);
+    const formatted = controller.resolver;
+    expect(formatted).not.toBe(before);
+    expect(
+      formatted.resolve(hierarchicalSymbolId("child"))!.definition.pins[0]!
+        .presentation.nameContent,
+    ).toEqual(annotation.formatOverride);
+    const moved = structuredClone(annotation);
+    if (moved.anchor.kind === "object") moved.anchor.localOffset.x = 20;
+    expect(
+      controller.transact([
+        { kind: "upsert_schematic_annotation", annotation: moved },
+      ]).ok,
+    ).toBe(true);
+    expect(controller.resolver).toBe(formatted);
+    controller.transact([{ kind: "undo" }]);
+    expect(controller.resolver).toBe(formatted);
+    controller.transact([{ kind: "undo" }]);
+    expect(controller.resolver).not.toBe(formatted);
+    expect(
+      JSON.stringify(
+        controller.resolver.resolve(hierarchicalSymbolId("child"))!.definition
+          .pins[0]!.presentation.nameContent,
+      ),
+    ).not.toContain('"subscript"');
+  });
+
   it("accepts a human transaction via dispatch identical to transact", () => {
     const controller = new EditorDocumentController(hierarchicalProject());
 

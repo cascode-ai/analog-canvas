@@ -29,9 +29,24 @@ describe("Razavi schematic typography", () => {
     );
   });
 
-  it("draws an ordinary subscript upright", () => {
+  it("draws an explicitly authored subscript upright", () => {
     const rendered = renderRichTextDocument(
-      semanticTextDocument("Vin", "formal-port"),
+      {
+        runs: [
+          { kind: "text", value: "V" },
+          {
+            kind: "span",
+            style: "subscript",
+            children: [
+              {
+                kind: "span",
+                style: "bold",
+                children: [{ kind: "text", value: "in" }],
+              },
+            ],
+          },
+        ],
+      },
       razaviTextbookProfile,
       {
         fontSize: schematicTextFontSize("net-label", razaviTextbookProfile),

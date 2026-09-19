@@ -90,12 +90,12 @@ export function semanticTextDocument(
   kind: SemanticTextKind,
 ): RichTextDocument {
   if (value.length === 0) return { runs: [{ kind: "line-break" }] };
-  // A Net Label is a complete authored name, not an instance designator or a
+  // A Net Label or formal Port is a complete authored name, not a designator or a
   // symbolic variable with an implicit index. Keep the Razavi bold-italic
   // face, but require an explicit RichText edit for subscript semantics.
   // A trailing polarity sign still qualifies the whole name.
   const signed = /^(.+?)([+-])$/u.exec(value);
-  if (kind === "net-label") {
+  if (kind === "net-label" || kind === "formal-port") {
     return {
       runs: signed
         ? [mathBase(signed[1]!), { kind: "text", value: signed[2]! }]

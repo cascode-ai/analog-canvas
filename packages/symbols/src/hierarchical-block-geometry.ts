@@ -1,4 +1,8 @@
-import type { CellSymbolPresentation, CellSymbolSide } from "@icm/model";
+import type {
+  CellSymbolPresentation,
+  CellSymbolSide,
+  RichTextDocument,
+} from "@icm/model";
 
 import type { SymbolDefinition, SymbolPin } from "./schema.js";
 
@@ -12,6 +16,7 @@ export interface HierarchicalBlockTerminal {
   readonly id: string;
   readonly name: string;
   readonly direction: "input" | "output" | "inout" | "passive";
+  readonly nameContent?: RichTextDocument;
 }
 
 interface PinSlot {

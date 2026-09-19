@@ -1,12 +1,9 @@
-import {
-  projectCellInterface,
-  type CircuitProject,
-  type SchematicDocument,
-} from "@icm/model";
+import { type CircuitProject, type SchematicDocument } from "@icm/model";
 import { resolveReviewedExternalBinding } from "@icm/devices";
 import {
   externalSubcircuitSymbolId,
   hierarchicalSymbolId,
+  projectCellSymbolTerminals,
   type BlockSymbolLayout,
 } from "@icm/symbols";
 
@@ -26,7 +23,7 @@ export function localBlockSymbolTarget(
     revision: cell.revision,
     id: hierarchicalSymbolId(cell.netlist!.name),
     name: cell.name,
-    terminals: projectCellInterface(cell.netlist).ports,
+    terminals: projectCellSymbolTerminals(cell),
     presentation: cell.presentation.cellSymbol,
   };
 }

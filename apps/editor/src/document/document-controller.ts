@@ -16,7 +16,11 @@ import type {
 } from "@icm/edit-engine";
 import { CircuitProjectSchema } from "@icm/model";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
-import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
+import {
+  builtInSymbols,
+  createProjectSymbolResolver,
+  projectCellSymbolTerminals,
+} from "@icm/symbols";
 
 import {
   replaceProjectDocument,
@@ -32,6 +36,8 @@ const SYMBOL_DEFINITION_EDIT_KINDS = new Set<SchematicEdit["kind"]>([
   "remove_cell_terminal",
   "reorder_cell_terminals",
   "set_cell_symbol_presentation",
+  "upsert_schematic_annotation",
+  "remove_schematic_annotation",
 ]);
 
 function transactionMayChangeSymbolDefinitions(
@@ -58,7 +64,9 @@ function documentSymbolDefinitionChanged(
     JSON.stringify(before.netlist?.terminals) !==
       JSON.stringify(after.netlist?.terminals) ||
     JSON.stringify(before.presentation.cellSymbol) !==
-      JSON.stringify(after.presentation.cellSymbol)
+      JSON.stringify(after.presentation.cellSymbol) ||
+    JSON.stringify(projectCellSymbolTerminals(before)) !==
+      JSON.stringify(projectCellSymbolTerminals(after))
   );
 }
 

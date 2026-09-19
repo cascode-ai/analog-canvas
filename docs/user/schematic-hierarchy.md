@@ -30,6 +30,10 @@ body size, pin side/offset, and canvas drag handles. A layout edit updates every
 instance and follows connected routes in the same undoable transaction. Native
 PDK device symbols retain their reviewed artwork instead of exposing generic
 block resize handles.
+Port names do not infer subscripts from spelling. Local Cell symbols inherit
+the representative Port annotation's explicit RichText formatting, including
+subscripts; generic External pin names remain whole by default. This does not
+change electrical names or the typography of device references such as M1.
 
 Use **New Cell** in the Cell Manager to create a module. **Place Cell** in the
 hierarchy row, or **Edit → Place Cell from this Project…**, opens the Insert

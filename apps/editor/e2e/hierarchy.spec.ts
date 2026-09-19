@@ -212,6 +212,12 @@ test("creates and places an external interface with connected netlist semantics"
     .locator('[data-canvas-hit-kind="instance"]')
     .getAttribute("data-canvas-hit-id");
   expect(externalId).toBeTruthy();
+  await expect(
+    page.locator('[data-pin-name="IN"] [data-text-run="subscript"]'),
+  ).toHaveCount(0);
+  await expect(
+    page.locator('[data-pin-name="OUT"] [data-text-run="subscript"]'),
+  ).toHaveCount(0);
   await page.keyboard.press("Control+z");
   await expect(page.getByTestId("active-instance-count")).toHaveText("0");
   await page.keyboard.press("Control+Shift+z");
@@ -339,6 +345,64 @@ test("creates and places an external interface with connected netlist semantics"
   await expect(page.getByTestId("netlist-preview")).toContainText(
     new RegExp(`${instance.reference}\\s+\\S+\\s+\\S+\\s+external_load`, "u"),
   );
+});
+
+test("inherits explicit Port subscripts without guessing from pin names", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await createCell(page, "FormattedStage");
+  await placeCellPin(page, { name: "Vout", position: { x: 300, y: 180 } });
+  const internalLabel = page.locator('[data-object-id="instance-label-P1"]');
+  await expect(
+    internalLabel.locator('[data-text-run="subscript"]'),
+  ).toHaveCount(0);
+  await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
+  const editor = page.getByRole("textbox", { name: "Canvas text editor" });
+  await editor.fill("Vout");
+  await editor.press("Home");
+  await editor.press("ArrowRight");
+  await editor.press("Shift+End");
+  await page.getByRole("button", { name: "Subscript", exact: true }).click();
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  await expect(internalLabel.locator('[data-text-run="subscript"]')).toHaveText(
+    "out",
+  );
+  await page
+    .getByTestId("cell-navigation")
+    .getByRole("button", { name: "Top", exact: true })
+    .click();
+  await runCellCommand(page, "Place Cell");
+  await page
+    .getByRole("dialog", { name: "Place Hierarchical Cell" })
+    .getByRole("option", { name: /FormattedStage/ })
+    .click();
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 420, y: 180 } });
+  await page.keyboard.press("Escape");
+  const parentPin = page.locator('[data-pin-name="Vout"]');
+  await expect(parentPin.locator('[data-text-run="subscript"]')).toHaveText(
+    "out",
+  );
+  await page.getByTestId("hit-X1").dblclick();
+  await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
+  await editor.focus();
+  await editor.press("Control+Home");
+  await editor.press("ArrowRight");
+  await editor.press("Shift+End");
+  await page.getByRole("button", { name: "Subscript", exact: true }).click();
+  await expect(editor.locator("sub")).toHaveCount(0);
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  await expect(
+    internalLabel.locator('[data-text-run="subscript"]'),
+  ).toHaveCount(0);
+  await page
+    .getByTestId("cell-navigation")
+    .getByRole("button", { name: "Top", exact: true })
+    .click();
+  await expect(parentPin).toHaveText("Vout");
+  await expect(parentPin.locator('[data-text-run="subscript"]')).toHaveCount(0);
 });
 
 test("places an unreferenced top Cell in an ordinary new Cell", async ({

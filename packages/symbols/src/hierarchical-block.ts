@@ -1,4 +1,8 @@
-import { deriveStableId, projectCellInterface } from "@icm/model";
+import {
+  deriveStableId,
+  projectCellInterface,
+  semanticTextDocument,
+} from "@icm/model";
 import type {
   CellSymbolPresentation,
   CircuitProject,
@@ -37,6 +41,15 @@ export function createBlockSymbol(layout: BlockSymbolLayout): SymbolDefinition {
   );
   return SymbolDefinitionSchema.parse({
     ...positional,
+    pins: positional.pins.map((pin) => ({
+      ...pin,
+      presentation: {
+        ...pin.presentation,
+        nameContent:
+          layout.terminals.find((terminal) => terminal.name === pin.name)
+            ?.nameContent ?? semanticTextDocument(pin.name, "formal-port"),
+      },
+    })),
     id: layout.id,
     name: layout.name,
     hierarchicalBlock: true,
@@ -44,16 +57,48 @@ export function createBlockSymbol(layout: BlockSymbolLayout): SymbolDefinition {
   });
 }
 
+type CellSymbolSource = Pick<SchematicDocument, "netlist"> &
+  Partial<Pick<SchematicDocument, "annotations">>;
+
+/** Same representative declaration as the effective interface, including its authored format. */
+export function projectCellSymbolTerminals(
+  document: CellSymbolSource,
+): HierarchicalBlockTerminal[] {
+  return projectCellInterface(document.netlist).ports.map((port) => {
+    const terminal = document.netlist!.terminals.find(
+      (item) => item.id === port.id,
+    )!;
+    const annotation = document.annotations?.find(
+      (item) =>
+        (item.binding?.kind === "cell-terminal-name" &&
+          item.binding.terminalId === port.id) ||
+        (!item.binding &&
+          (item.id === terminal.interfaceAnnotationId ||
+            (item.kind === "instance-label" &&
+              item.anchor.kind === "object" &&
+              terminal.interfaceInstanceIds.includes(item.anchor.objectId)))),
+    );
+    return {
+      ...port,
+      nameContent:
+        annotation?.formatOverride ??
+        (!annotation?.binding ? annotation?.content : undefined) ??
+        semanticTextDocument(port.name, "formal-port"),
+    };
+  });
+}
+
 export function createHierarchicalBlockSymbol(
   document: Pick<SchematicDocument, "name" | "sourceBinding" | "netlist"> & {
     readonly presentation?: SchematicDocument["presentation"];
+    readonly annotations?: SchematicDocument["annotations"];
   },
 ): SymbolDefinition | null {
   // The current netlist name is the local Cell identity. sourceBinding keeps
   // import provenance and intentionally does not change when the local Cell is
   // renamed, so it must not select the runtime symbol identity.
   const cellName = document.netlist?.name;
-  const terminals = projectCellInterface(document.netlist).ports;
+  const terminals = projectCellSymbolTerminals(document);
   if (!cellName) return null;
   return createBlockSymbol({
     id: hierarchicalSymbolId(cellName),
