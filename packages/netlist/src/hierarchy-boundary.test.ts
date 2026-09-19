@@ -45,6 +45,31 @@ function fixture() {
 }
 
 describe("hierarchy netlist boundaries", () => {
+  it("keeps formal node order independent of symbol body and pin sides", () => {
+    const { project, child } = fixture();
+    const before = analyzeDesignNetlistForAuthoring(project).ir!;
+    child.presentation.cellSymbol = {
+      minimumBodySize: { width: 200, height: 160 },
+      pinPlacements: [
+        { terminalId: "port-OUT", side: "north", offset: 20 },
+        { terminalId: "port-IN", side: "south", offset: -20 },
+      ],
+    };
+    const after = analyzeDesignNetlistForAuthoring(project).ir!;
+    expect(
+      after.cells.map((cell) => ({
+        id: cell.id,
+        ports: cell.ports,
+        instances: cell.instances,
+      })),
+    ).toEqual(
+      before.cells.map((cell) => ({
+        id: cell.id,
+        ports: cell.ports,
+        instances: cell.instances,
+      })),
+    );
+  });
   it.each([false, true])(
     "preserves missing positional nodes for external=%s authoring only",
     (external) => {
