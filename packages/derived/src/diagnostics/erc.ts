@@ -71,6 +71,39 @@ export function runErcChecks(
       });
     }
 
+    // An Instance the Cell holds but the sheet does not draw is still a device:
+    // it keeps its reference, its Net terminals and its cards in the netlist,
+    // and a reader looking at the drawing cannot see any of that. The
+    // Placement Tray lists them; this says they are there at all.
+    const undrawn = document.instances.filter(
+      (instance) => instance.placement === null,
+    );
+    if (undrawn.length > 0) {
+      diagnostics.push({
+        id: `erc:instance-not-drawn:${document.id}`,
+        domain: "erc",
+        code: "ERC_INSTANCE_NOT_DRAWN",
+        severity: "warning",
+        confidence: "high",
+        gateEligible: false,
+        message: `${undrawn.length} ${
+          undrawn.length === 1 ? "Instance is" : "Instances are"
+        } in this Cell but not drawn on the sheet (${undrawn
+          .slice(0, 5)
+          .map((instance) => instance.reference ?? instance.id)
+          .join(
+            ", ",
+          )}${undrawn.length > 5 ? ", …" : ""}); the Placement Tray holds them`,
+        primary: directObjectLocator(document.id, "instance", undrawn[0]!.id),
+        related: undrawn
+          .slice(1)
+          .map((instance) =>
+            directObjectLocator(document.id, "instance", instance.id),
+          ),
+        parameters: { count: undrawn.length },
+      });
+    }
+
     // ERC_UNRESOLVED_SYMBOL and hierarchy interface checks. These run before
     // pin connectivity checks so unknown symbols never get silently skipped.
     for (const instance of document.instances) {

@@ -134,6 +134,35 @@ function connectDrainAndSource(project: CircuitProject): void {
 }
 
 describe("ERC engine", () => {
+  it("says how many Instances the Cell holds but the sheet does not draw", () => {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    document.instances.push(
+      { id: "M9", reference: "M9", symbolId: "mos", placement: null },
+      { id: "M10", reference: "M10", symbolId: "mos", placement: null },
+    );
+    const finding = run(project).find(
+      (diagnostic) => diagnostic.code === "ERC_INSTANCE_NOT_DRAWN",
+    );
+    expect(finding?.severity).toBe("warning");
+    expect(finding?.message).toContain("2 Instances");
+    expect(finding?.message).toContain("M9, M10");
+    expect(finding?.related).toHaveLength(1);
+
+    // Drawn Instances are not the tray's business.
+    document.instances[0]!.placement = {
+      position: { x: 0, y: 0 },
+      rotation: 0,
+      mirror: "none",
+    };
+    document.instances[1]!.placement = {
+      position: { x: 40, y: 0 },
+      rotation: 0,
+      mirror: "none",
+    };
+    expect(codes(project)).not.toContain("ERC_INSTANCE_NOT_DRAWN");
+  });
+
   it("does not group independent same-name Cell Pins for live ERC", () => {
     const project = emptyProject();
     const document = project.documents[0]!;

@@ -287,7 +287,8 @@
   width: 18px;
   height: 18px;
 }
-.netlist-default-action {
+.netlist-default-action,
+.netlist-fill-defaults {
   min-height: 30px;
   min-width: 76px;
 }
