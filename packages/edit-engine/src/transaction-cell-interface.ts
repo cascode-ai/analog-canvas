@@ -1,4 +1,4 @@
-import { CellNetlistTerminalSchema } from "@icm/model";
+import { CellNetlistTerminalSchema, projectCellInterface } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 
 import type { EditTransaction } from "./edit-schema.js";
@@ -27,6 +27,42 @@ export interface CellInterfaceEditContext {
 export type CellInterfaceEditOutcome = EditMutationOutcome;
 
 export function applyCellInterfaceEdit(
+  edit: CellInterfaceEdit,
+  context: CellInterfaceEditContext,
+): CellInterfaceEditOutcome {
+  const { draft, changedObjectIds } = context;
+  const placements = draft.presentation.cellSymbol?.pinPlacements;
+  const before = projectCellInterface(draft.netlist).ports;
+  const outcome = mutateCellInterface(edit, context);
+  if (!outcome.ok || !placements?.length) return outcome;
+
+  // Layout belongs to the effective interface, not whichever marker happens
+  // to represent it. Existing names win merges; a split leaves the old layout
+  // with the surviving interface. Only a one-to-one rename follows identity.
+  const after = projectCellInterface(draft.netlist).ports;
+  const afterKeys = new Set(after.map((port) => port.key));
+  const retained = after.flatMap((port) => {
+    const previous =
+      before.find((candidate) => candidate.key === port.key) ??
+      before.find(
+        (candidate) =>
+          !afterKeys.has(candidate.key) &&
+          candidate.terminalIds.some((id) => port.terminalIds.includes(id)),
+      );
+    const placement =
+      previous && placements.find((item) => item.terminalId === previous.id);
+    return placement ? [{ ...placement, terminalId: port.id }] : [];
+  });
+  if (JSON.stringify(placements) !== JSON.stringify(retained)) {
+    if (retained.length)
+      draft.presentation.cellSymbol!.pinPlacements = retained;
+    else delete draft.presentation.cellSymbol!.pinPlacements;
+    changedObjectIds.add(draft.id);
+  }
+  return outcome;
+}
+
+function mutateCellInterface(
   edit: CellInterfaceEdit,
   context: CellInterfaceEditContext,
 ): CellInterfaceEditOutcome {
@@ -148,22 +184,6 @@ export function applyCellInterfaceEdit(
         };
       }
       const [removedTerminal] = draft.netlist.terminals.splice(index, 1);
-      if (draft.presentation.cellSymbol?.pinPlacements) {
-        const retained = draft.presentation.cellSymbol.pinPlacements.filter(
-          (placement) => placement.terminalId !== edit.terminalId,
-        );
-        if (
-          retained.length !== draft.presentation.cellSymbol.pinPlacements.length
-        ) {
-          draft.presentation.cellSymbol = {
-            ...draft.presentation.cellSymbol,
-            ...(retained.length > 0 ? { pinPlacements: retained } : {}),
-          };
-          if (retained.length === 0) {
-            delete draft.presentation.cellSymbol.pinPlacements;
-          }
-        }
-      }
       changedObjectIds.add(edit.terminalId);
       if (removedTerminal) deferNetPrune(removedTerminal.netId);
       return { ok: true, connectivityChanged: true };

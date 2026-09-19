@@ -328,6 +328,12 @@ describe("Project structural transaction", () => {
       netId: "net-new",
     });
     project.documents.push(child);
+    child.presentation.cellSymbol = {
+      pinPlacements: [
+        { terminalId: "terminal-old", side: "west", offset: 0 },
+        { terminalId: "terminal-new", side: "north", offset: 20 },
+      ],
+    };
     const parent = project.documents[0]!;
     parent.instances.push(hierarchyInstance("X1", "Child", child.id));
     parent.nets.push(
@@ -366,6 +372,9 @@ describe("Project structural transaction", () => {
     });
 
     if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+    expect(
+      result.project.documents[1]!.presentation.cellSymbol?.pinPlacements,
+    ).toEqual([{ terminalId: "terminal-old", side: "north", offset: 20 }]);
     const updatedParent = result.project.documents[0]!;
     expect(updatedParent.nets).toEqual([
       expect.objectContaining({ id: "net-parent-old", terminals: [] }),
@@ -411,6 +420,11 @@ describe("Project structural transaction", () => {
     });
     project.documents.push(child);
     const parent = project.documents[0]!;
+    child.presentation.cellSymbol = {
+      pinPlacements: [
+        { terminalId: "terminal-in-1", side: "north", offset: 20 },
+      ],
+    };
     parent.instances.push(hierarchyInstance("X1", "Child", child.id));
     parent.nets.push({
       id: "net-parent-in",
@@ -426,6 +440,9 @@ describe("Project structural transaction", () => {
     });
 
     if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+    expect(
+      result.project.documents[1]!.presentation.cellSymbol?.pinPlacements,
+    ).toEqual([{ terminalId: "terminal-in-2", side: "north", offset: 20 }]);
     expect(result.project.documents[0]!.nets).toEqual([
       {
         id: "net-parent-in",
@@ -455,6 +472,11 @@ describe("Project structural transaction", () => {
     });
     project.documents.push(child);
     const parent = project.documents[0]!;
+    child.presentation.cellSymbol = {
+      pinPlacements: [
+        { terminalId: "terminal-in-1", side: "north", offset: 20 },
+      ],
+    };
     parent.instances.push(hierarchyInstance("X1", "Child", child.id));
     parent.nets.push({
       id: "net-parent-in",
@@ -486,6 +508,9 @@ describe("Project structural transaction", () => {
     });
 
     if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+    expect(
+      result.project.documents[1]!.presentation.cellSymbol?.pinPlacements,
+    ).toEqual([{ terminalId: "terminal-in-2", side: "north", offset: 20 }]);
     const updatedParent = result.project.documents[0]!;
     expect(updatedParent.nets).toEqual([
       {
