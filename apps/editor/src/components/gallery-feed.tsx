@@ -46,7 +46,6 @@ import { GalleryChrome } from "./gallery-chrome";
 import { Masonry } from "./masonry";
 import { ShelfWall } from "./shelf-wall";
 import { GalleryDuplicateCheck } from "./gallery-duplicate-check";
-import { GalleryDeviceModelFill } from "./gallery-device-model-fill";
 import type { GalleryDuplicateReport } from "../gallery-duplicates";
 
 /**
@@ -1084,15 +1083,6 @@ export function GalleryFeed({
               {/* The curator's scan wears the same pill as the filters and
                   takes the free end of their row; what it reports breaks onto
                   its own line below them. */}
-              {isOwner ? (
-                <GalleryDeviceModelFill
-                  onFilled={() => {
-                    // Marks and previews are re-answered server side; let the
-                    // wall read them again.
-                    setRefreshSignal((signal) => signal + 1);
-                  }}
-                />
-              ) : null}
               {isOwner ? (
                 <GalleryDuplicateCheck
                   onReport={setDuplicateReport}

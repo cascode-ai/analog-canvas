@@ -147,6 +147,13 @@ test("admin checks duplicates and cleans selected copies with partial failure re
   });
   await page.goto("/?author=tz");
   await expect(page.getByTestId("gallery-tile-original")).toBeVisible();
+  await expect(page.getByTestId("gallery-check-duplicates")).toBeVisible();
+  await expect(
+    page.getByRole("button", {
+      name: "Fill missing SKY130 models",
+      exact: true,
+    }),
+  ).toHaveCount(0);
   await page.getByTestId("gallery-check-duplicates").click();
   const panel = page.getByTestId("gallery-duplicates");
   await expect(panel.getByRole("status")).toContainText(
@@ -242,6 +249,12 @@ for (const role of ["visitor", "user", "moderator"]) {
     await page.goto("/");
     await expect(page.getByTestId(`gallery-tile-${ENTRY.id}`)).toBeVisible();
     await expect(page.getByTestId("gallery-check-duplicates")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", {
+        name: "Fill missing SKY130 models",
+        exact: true,
+      }),
+    ).toHaveCount(0);
   });
 }
 

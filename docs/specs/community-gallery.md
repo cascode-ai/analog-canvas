@@ -158,15 +158,9 @@ submitter until the Owner restores the entry.
   which applies to every account carrying that verified email. A
   moderator curates; quality advice is non-blocking for every role. The recycle bin and
   maintenance stay admin-only.
-- An owner may give the library the device models its circuits were drawn
-  without: **Fill missing SKY130 models** runs the editor's own fill over every
-  published circuit through `PUT /api/gallery/<id>`, writing only what is
-  missing — a model for a device that has none, and the dimensions the process
-  template carries with it — and leaving every authored model, dimension and
-  value as its author left it. Each write is an ordinary entry update, so the
-  preview is re-rendered, the netlist mark re-answered and the byline kept; the
-  run reports the circuits and devices it changed and names the ones it could
-  not write.
+- The Gallery has no bulk process-model fill action, including for the Owner.
+  One-off library repairs belong outside the Gallery browsing interface;
+  process and model editing remain available inside each circuit's editor.
 
 Every community tile carries a Like toggle backed by
 `POST /api/gallery/<id>/like` (same-origin): a signed-in account holds at most
