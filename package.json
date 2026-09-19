@@ -11,6 +11,7 @@
   "dependencies": {
     "@icm/agent-adapter": "workspace:*",
     "@icm/derived": "workspace:*",
+    "@icm/devices": "workspace:*",
     "@icm/model": "workspace:*",
     "@icm/netlist": "workspace:*",
     "@icm/project-protocol": "workspace:*",

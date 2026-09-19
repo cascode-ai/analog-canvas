@@ -13,6 +13,9 @@ importers:
       "@icm/derived":
         specifier: workspace:*
         version: link:packages/derived
+      "@icm/devices":
+        specifier: workspace:*
+        version: link:packages/devices
       "@icm/model":
         specifier: workspace:*
         version: link:packages/model
