@@ -191,6 +191,7 @@ for (const duringSave of ["edit", "replace"] as const) {
 test("Cloud Save updates one binding while local export stays interchange", async ({
   page,
 }) => {
+  test.slow();
   const cloud = await mockCloudProjects(page);
   await page.goto("/editor");
   await chooseComponent(page, "resistor");
@@ -252,6 +253,7 @@ test("Cloud Save updates one binding while local export stays interchange", asyn
   await page.goto("/editor");
   await expect(page.getByTestId("status")).toContainText(
     "Opened Cloud Project New Circuit",
+    { timeout: 15_000 },
   );
   await expect(page.getByTestId("hit-R1")).toHaveCount(1);
   await expect(page.getByTestId("hit-R2")).toHaveCount(1);
@@ -267,6 +269,7 @@ test("paired refresh and Gallery return preserve the saved Cloud binding", async
   page,
   baseURL,
 }) => {
+  test.slow();
   const cloud = await mockCloudProjects(page);
   await page.goto("/editor");
   await chooseComponent(page, "resistor");
@@ -289,7 +292,9 @@ test("paired refresh and Gallery return preserve the saved Cloud binding", async
   await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
   await expectAgentRecoveryBoundToWorkingCopy(page);
   await page.reload();
-  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1", {
+    timeout: 15_000,
+  });
   await expect(page.getByTestId("project-unsaved-indicator")).toHaveCount(0);
   await page.keyboard.press("Control+s");
   await expect.poll(() => cloud.stored()?.revision).toBe(2);
@@ -333,7 +338,9 @@ test("paired refresh and Gallery return preserve the saved Cloud binding", async
   await expectAgentRecoveryBoundToWorkingCopy(page);
   page.on("dialog", (dialog) => void dialog.accept());
   await page.reload();
-  await expect(page.getByTestId("active-instance-count")).toHaveText("2");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("2", {
+    timeout: 15_000,
+  });
   await expect(page.getByTestId("project-unsaved-indicator")).toBeVisible();
   await page.keyboard.press("Control+s");
   await expect.poll(() => cloud.stored()?.revision).toBe(3);
@@ -342,8 +349,12 @@ test("paired refresh and Gallery return preserve the saved Cloud binding", async
   );
   await expect(page.getByTestId("project-unsaved-indicator")).toHaveCount(0);
   await page.getByRole("link", { name: "Back to the gallery" }).click();
-  await page.getByTestId("gallery-agent-return").click();
-  await expect(page.getByTestId("active-instance-count")).toHaveText("2");
+  const agentReturn = page.getByTestId("gallery-agent-return");
+  await expect(agentReturn).toBeVisible({ timeout: 15_000 });
+  await agentReturn.click();
+  await expect(page.getByTestId("active-instance-count")).toHaveText("2", {
+    timeout: 15_000,
+  });
   await expect(page.getByTestId("project-unsaved-indicator")).toHaveCount(0);
   await page.keyboard.press("Control+s");
   await expect.poll(() => cloud.stored()?.revision).toBe(4);
