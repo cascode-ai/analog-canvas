@@ -1,4 +1,22 @@
 {
+  "componentDefinitions": [
+    {
+      "symbol": {
+        "id": "port",
+        "name": "Port",
+        "pins": [
+          {"at": {"x": 0, "y": 0}, "direction": "east", "name": "P", "presentation": {"leadLength": 10, "visibility": "visible"}, "role": "port"}
+        ],
+        "primitives": [
+          {"center": {"x": -7.086614, "y": 0}, "fill": "none", "kind": "circle", "radius": 2.47907, "stroke": "foreground", "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}},
+          {"from": {"x": 0, "y": 0}, "kind": "line", "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}, "to": {"x": -4.607544, "y": 0}}
+        ],
+        "schemaVersion": 1,
+        "variants": [],
+        "viewBox": {"height": 14, "width": 18, "x": -14, "y": -7}
+      }
+    }
+  ],
   "documents": [
     {
       "annotations": [],
@@ -170,7 +188,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-routing",
   "name": "Phase 3 Routing Demo",
-  "schemaVersion": 57,
+  "schemaVersion": 58,
   "simulationFolders": [],
   "source": {
     "dialect": "none",

@@ -1,4 +1,165 @@
 {
+  "componentDefinitions": [
+    {
+      "electrical": {
+        "capabilities": {
+          "supportsBulkBinding": false,
+          "supportsModel": false,
+          "supportsValueAnnotation": false
+        },
+        "deviceClass": "net-marker",
+        "dialects": [
+          "spice",
+          "spectre"
+        ],
+        "id": "ground",
+        "parameters": [],
+        "pinOrder": [
+          "0"
+        ],
+        "referencePrefix": null,
+        "symbolId": "ground",
+        "targetPolicy": "none"
+      },
+      "symbol": {
+        "id": "ground",
+        "labelVisibility": "hidden",
+        "name": "Ground",
+        "pins": [
+          {"at": {"x": 0, "y": -10}, "direction": "north", "name": "0", "presentation": {"leadLength": 10, "visibility": "visible"}, "role": "ground"}
+        ],
+        "primitives": [
+          {"from": {"x": 0, "y": -10}, "kind": "line", "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}, "to": {"x": 0, "y": 0}},
+          {"from": {"x": -6.395349, "y": 0}, "kind": "line", "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "ground"}, "to": {"x": 6.395349, "y": 0}},
+          {"from": {"x": -4.069767, "y": 5.813953}, "kind": "line", "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "ground"}, "to": {"x": 4.069767, "y": 5.813953}},
+          {"from": {"x": -2.325581, "y": 11.046512}, "kind": "line", "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "ground"}, "to": {"x": 2.325581, "y": 11.046512}}
+        ],
+        "schemaVersion": 1,
+        "variants": [],
+        "viewBox": {"height": 31, "width": 24, "x": -12, "y": -14}
+      }
+    },
+    {
+      "electrical": {
+        "capabilities": {
+          "supportsBulkBinding": true,
+          "supportsModel": true,
+          "supportsValueAnnotation": true
+        },
+        "deviceClass": "mos",
+        "dialects": [
+          "spice",
+          "spectre"
+        ],
+        "id": "nmos",
+        "mosBulkClass": "nmos",
+        "parameters": [
+          {"defaultValue": "1u", "displayRole": "width", "editor": "text", "help": "Total channel width", "label": "W", "name": "w", "placeholder": "1u", "required": true, "unitHint": "m"},
+          {"defaultValue": "150n", "displayRole": "length", "editor": "text", "help": "Channel length", "label": "L", "name": "l", "placeholder": "150n", "required": true, "unitHint": "m"},
+          {"defaultValue": "1", "displayRole": "finger-count", "editor": "decimal", "help": "Finger count, so finger width is W / NF", "label": "NF", "name": "nf", "placeholder": "1", "required": false},
+          {"defaultValue": "1", "displayRole": "multiplier", "editor": "decimal", "help": "Parallel multiplier", "label": "M", "name": "m", "placeholder": "1", "required": false}
+        ],
+        "pinOrder": [
+          "D",
+          "G",
+          "S",
+          "B"
+        ],
+        "referencePrefix": "M",
+        "seriesInsertionPinPair": [
+          "D",
+          "S"
+        ],
+        "symbolId": "nmos",
+        "targetPolicy": "required-model"
+      },
+      "symbol": {
+        "defaultVariantId": "textbook-3terminal",
+        "id": "nmos",
+        "name": "NMOS",
+        "pins": [
+          {"at": {"x": 10, "y": -20}, "direction": "north", "name": "D", "presentation": {"leadLength": 10, "visibility": "visible"}, "role": "drain"},
+          {"at": {"x": -20, "y": 0}, "direction": "west", "name": "G", "presentation": {"leadLength": 10, "visibility": "visible"}, "role": "gate"},
+          {"at": {"x": 10, "y": 20}, "direction": "south", "name": "S", "presentation": {"leadLength": 10, "visibility": "visible"}, "role": "source"},
+          {"at": {"x": 20, "y": 0}, "direction": "east", "name": "B", "presentation": {"leadLength": 10, "visibility": "visible"}, "role": "bulk"}
+        ],
+        "primitives": [
+          {"kind": "polyline", "points": [{"x": -4.244186, "y": -6.976744}, {"x": 10, "y": -6.976744}, {"x": 10, "y": -20}], "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}},
+          {"kind": "polyline", "part": "source-arrow-host", "points": [{"x": -4.244186, "y": 6.976744}, {"x": 10, "y": 6.976744}, {"x": 10, "y": 20}], "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}},
+          {"fill": "foreground", "kind": "polygon", "part": "gate-bar", "points": [{"x": -11.802326, "y": -9.593023}, {"x": -11.802326, "y": 9.593023}, {"x": -8.895349, "y": 9.593023}, {"x": -8.895349, "y": -9.593023}], "stroke": "none"},
+          {"fill": "foreground", "kind": "polygon", "part": "gate-bar", "points": [{"x": -6.569767, "y": -12.5}, {"x": -6.569767, "y": 12.5}, {"x": -3.662791, "y": 12.5}, {"x": -3.662791, "y": -12.5}], "stroke": "none"},
+          {"from": {"x": -8.895349, "y": 0}, "kind": "line", "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}, "to": {"x": -20, "y": 0}},
+          {"from": {"x": -3.662791, "y": 0}, "kind": "line", "part": "bulk-lead", "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}, "to": {"x": 10, "y": 0}},
+          {"from": {"x": 16.395349, "y": 0}, "kind": "line", "part": "bulk-lead", "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}, "to": {"x": 20, "y": 0}},
+          {"fill": "foreground", "kind": "polygon", "part": "bulk-lead", "points": [{"x": 10, "y": 0}, {"x": 16.395349, "y": -3.488372}, {"x": 16.395349, "y": 3.488372}], "stroke": "none"}
+        ],
+        "schemaVersion": 1,
+        "variants": [
+          {
+            "additionalPrimitives": [
+              {"kind": "polyline", "part": "source-arrow", "points": [{"x": -3.662791, "y": 6.976744}, {"x": 10, "y": 6.976744}, {"x": 10, "y": 20}], "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}},
+              {"fill": "foreground", "kind": "polygon", "part": "source-arrow", "points": [{"x": 10.581395, "y": 6.976744}, {"x": 1.27907, "y": 2.906977}, {"x": 1.27907, "y": 11.046512}], "stroke": "none"}
+            ],
+            "auxiliaryPins": [
+              {
+                "at": {"x": -4, "y": 0},
+                "direction": "east",
+                "name": "B",
+                "routing": {
+                  "escape": "outward",
+                  "preferredLanding": {
+                    "x": 0,
+                    "y": 0
+                  }
+                }
+              }
+            ],
+            "hiddenPinNames": [
+              "B"
+            ],
+            "hiddenPrimitiveParts": [
+              "bulk-lead",
+              "source-arrow-host"
+            ],
+            "id": "textbook-3terminal"
+          }
+        ],
+        "viewBox": {"height": 48, "width": 48, "x": -24, "y": -24}
+      }
+    },
+    {
+      "symbol": {
+        "id": "port",
+        "name": "Port",
+        "pins": [
+          {"at": {"x": 0, "y": 0}, "direction": "east", "name": "P", "presentation": {"leadLength": 10, "visibility": "visible"}, "role": "port"}
+        ],
+        "primitives": [
+          {"center": {"x": -7.086614, "y": 0}, "fill": "none", "kind": "circle", "radius": 2.47907, "stroke": "foreground", "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}},
+          {"from": {"x": 0, "y": 0}, "kind": "line", "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}, "to": {"x": -4.607544, "y": 0}}
+        ],
+        "schemaVersion": 1,
+        "variants": [],
+        "viewBox": {"height": 14, "width": 18, "x": -14, "y": -7}
+      }
+    },
+    {
+      "symbol": {
+        "id": "port-filled",
+        "name": "Filled Port",
+        "pins": [
+          {"at": {"x": 0, "y": 0}, "direction": "east", "name": "P", "presentation": {"leadLength": 10, "visibility": "visible"}, "role": "port"}
+        ],
+        "primitives": [
+          {"center": {"x": -7.086614, "y": 0}, "fill": "foreground", "kind": "circle", "radius": 2.47907, "stroke": "foreground", "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}},
+          {"from": {"x": 0, "y": 0}, "kind": "line", "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}, "to": {"x": -4.607544, "y": 0}}
+        ],
+        "schemaVersion": 1,
+        "variants": [],
+        "viewBox": {"height": 14, "width": 18, "x": -14, "y": -7}
+      }
+    }
+  ],
   "documents": [
     {
       "annotations": [
@@ -421,7 +582,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-phase-5-dense-analog",
   "name": "Current Differential Stage",
-  "schemaVersion": 57,
+  "schemaVersion": 58,
   "simulationFolders": [],
   "source": {
     "dialect": "none",

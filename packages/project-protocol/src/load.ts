@@ -92,6 +92,7 @@ const UPGRADE_CHAIN: ReadonlyArray<
   upgradeSchema54To55,
   upgradeSchema55To56,
   upgradeSchema56To57,
+  (raw) => ({ ...raw, schemaVersion: 58 }),
 ];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -220,9 +221,49 @@ export function tryParseProjectWithMetadata(
   current = reviewedReferenceRepair.project;
   const diagnostics = invalidProjectDiagnostics(current);
   if (diagnostics.length > 0) return { ok: false, diagnostics };
+  const project = CircuitProjectSchema.parse(current);
+  if (project.componentDefinitions) {
+    const definitions = new Map(
+      project.componentDefinitions.map((definition) => [
+        definition.symbol.id,
+        definition.symbol,
+      ]),
+    );
+    for (const document of project.documents) {
+      const uses = [
+        ...document.instances.map((instance) => ({
+          id: instance.symbolId,
+          variant: instance.symbolVariantId,
+        })),
+        ...(document.drafting?.objects ?? []).flatMap((object) =>
+          object.kind === "floating-symbol"
+            ? [{ id: object.symbolId, variant: undefined }]
+            : [],
+        ),
+      ];
+      for (const use of uses) {
+        const definition = definitions.get(use.id);
+        if (
+          !definition ||
+          (use.variant &&
+            !definition.variants.some((variant) => variant.id === use.variant))
+        )
+          return {
+            ok: false,
+            diagnostics: [
+              {
+                code: "INVALID_PROJECT",
+                path: ["componentDefinitions"],
+                message: `Missing included component definition or variant: ${use.id}${use.variant ? `/${use.variant}` : ""}`,
+              },
+            ],
+          };
+      }
+    }
+  }
   return {
     ok: true,
-    project: CircuitProjectSchema.parse(current),
+    project,
     sourceSchemaVersion,
     migrated,
   };

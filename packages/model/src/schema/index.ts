@@ -14,3 +14,5 @@ export * from "./validation.js";
 export * from "./document.js";
 export * from "./project.js";
 export * from "./types.js";
+export * from "./symbol-definition.js";
+export * from "./component-definition.js";

@@ -1,7 +1,10 @@
 import { SymbolDefinitionSchema } from "./schema.js";
 import type { SymbolDefinition, SymbolVariant } from "./schema.js";
 import type { CircuitProject } from "@icm/model";
-import { createProjectHierarchicalSymbols } from "./hierarchical-block.js";
+import {
+  createProjectHierarchicalSymbols,
+  projectSymbolSources,
+} from "./hierarchical-block.js";
 
 export interface ResolvedSymbol {
   definition: SymbolDefinition;
@@ -41,18 +44,54 @@ export class InMemorySymbolResolver implements SymbolResolver {
 
 export function createProjectSymbolResolver(
   project: Pick<CircuitProject, "documents" | "topDocumentId"> &
-    Partial<Pick<CircuitProject, "externalSubcircuitDefinitions">>,
+    Partial<
+      Pick<
+        CircuitProject,
+        "externalSubcircuitDefinitions" | "componentDefinitions"
+      >
+    >,
   baseDefinitions: readonly SymbolDefinition[],
 ): InMemorySymbolResolver {
-  return new InMemorySymbolResolver([
-    ...baseDefinitions,
-    ...createProjectHierarchicalSymbols(project, baseDefinitions),
+  const definitions = new Map(
+    baseDefinitions.map((definition) => [definition.id, definition]),
+  );
+  for (const definition of project.componentDefinitions ?? [])
+    definitions.set(definition.symbol.id, definition.symbol);
+  const sources = projectSymbolSources(project);
+  const captured = new Map(
+    (project.componentDefinitions ?? []).map((definition) => [
+      definition.symbol.id,
+      definition,
+    ]),
+  );
+  const hierarchical = createProjectHierarchicalSymbols(project, [
+    ...definitions.values(),
   ]);
+  for (const definition of hierarchical) {
+    const existing = definitions.get(definition.id);
+    // A changed Cell interface owns its pins. A stable interface keeps its
+    // captured/customized artwork instead of following website releases.
+    if (
+      !existing?.hierarchicalBlock ||
+      (captured.get(definition.id)?.generatedFrom &&
+        JSON.stringify(captured.get(definition.id)!.generatedFrom) !==
+          JSON.stringify(sources.get(definition.id))) ||
+      JSON.stringify(existing.pins.map((pin) => pin.name)) !==
+        JSON.stringify(definition.pins.map((pin) => pin.name))
+    )
+      definitions.set(definition.id, definition);
+  }
+  return new InMemorySymbolResolver([...definitions.values()]);
 }
 
 export function findUnsupportedProjectSymbolIds(
   project: Pick<CircuitProject, "documents" | "topDocumentId"> &
-    Partial<Pick<CircuitProject, "externalSubcircuitDefinitions">>,
+    Partial<
+      Pick<
+        CircuitProject,
+        "externalSubcircuitDefinitions" | "componentDefinitions"
+      >
+    >,
   baseDefinitions: readonly SymbolDefinition[],
 ): string[] {
   const resolver = createProjectSymbolResolver(project, baseDefinitions);

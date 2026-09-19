@@ -482,3 +482,37 @@ describe("EditorDocumentController", () => {
     expect(controller.document.revision).toBe(revisionBefore);
   });
 });
+
+it("removes unused classes, restores custom geometry on undo, and inserts fresh library geometry", () => {
+  const project = createEmptyProject("class-history", "Class history");
+  project.documents[0]!.instances.push(instance("R1"));
+  const initial = new EditorDocumentController(project);
+  const saved = structuredClone(initial.project);
+  const definition = saved.componentDefinitions![0]!;
+  definition.symbol.primitives = [
+    { kind: "circle", center: { x: 0, y: 0 }, radius: 9 },
+  ];
+  const controller = new EditorDocumentController(saved);
+  expect(
+    controller.transact([{ kind: "remove_instance", instanceId: "R1" }]).ok,
+  ).toBe(true);
+  expect(controller.project.componentDefinitions).toBeUndefined();
+  expect(controller.transact([{ kind: "undo" }]).ok).toBe(true);
+  expect(
+    controller.resolver.resolve("resistor")!.definition.primitives,
+  ).toEqual(definition.symbol.primitives);
+  expect(controller.transact([{ kind: "redo" }]).ok).toBe(true);
+  expect(controller.project.componentDefinitions).toBeUndefined();
+  expect(
+    controller.transact([{ kind: "add_instance", instance: instance("R2") }])
+      .ok,
+  ).toBe(true);
+  expect(
+    controller.resolver.resolve("resistor")!.definition.primitives,
+  ).not.toEqual(definition.symbol.primitives);
+  expect(controller.transact([{ kind: "undo" }]).ok).toBe(true);
+  expect(controller.transact([{ kind: "undo" }]).ok).toBe(true);
+  expect(
+    controller.resolver.resolve("resistor")!.definition.primitives,
+  ).toEqual(definition.symbol.primitives);
+});

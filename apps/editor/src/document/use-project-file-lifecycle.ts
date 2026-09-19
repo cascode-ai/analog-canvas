@@ -6,7 +6,7 @@ import { serializeProject } from "@icm/project-protocol";
 import {
   builtInSymbols,
   findUnsupportedProjectSymbolIds,
-  InMemorySymbolResolver,
+  createProjectSymbolResolver,
 } from "@icm/symbols";
 
 import { materializeRazaviProjectBulkConnections } from "../presentation/razavi-presentation";
@@ -42,8 +42,6 @@ import {
 import type { ProjectStoreCopy } from "./release-channel";
 
 export const REFRESH_RESTORE_STORAGE_KEY = "icm.restore-after-refresh.v1";
-
-const projectImportSymbolResolver = new InMemorySymbolResolver(builtInSymbols);
 
 export interface SavedProjectBaseline {
   project: CircuitProject;
@@ -601,7 +599,7 @@ export function useProjectFileLifecycle({
     }
     const normalized = normalizeImportedProject(
       staged.project,
-      projectImportSymbolResolver,
+      createProjectSymbolResolver(staged.project, builtInSymbols),
     );
     const openedProject = normalized.project;
     const normalizedDocumentCount = normalized.changedDocumentIds.length;

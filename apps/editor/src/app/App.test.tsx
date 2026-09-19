@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { createEmptyProject, createSimulationFolder } from "@icm/model";
+import { hierarchicalSymbolId } from "@icm/symbols";
 import { serializeProject } from "@icm/project-protocol";
 import { EditTransactionSchema } from "@icm/edit-engine";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -163,7 +164,7 @@ describe("editor shell", () => {
     };
     topDocument.instances.push({
       id: "X1",
-      symbolId: "hierarchical-child",
+      symbolId: hierarchicalSymbolId("child"),
       placement: null,
       reference: "X1",
       netlist: {

@@ -1,4 +1,220 @@
 {
+  "componentDefinitions": [
+    {
+      "electrical": {
+        "capabilities": {
+          "supportsBulkBinding": true,
+          "supportsModel": true,
+          "supportsValueAnnotation": true
+        },
+        "deviceClass": "mos",
+        "dialects": [
+          "spice",
+          "spectre"
+        ],
+        "id": "nmos",
+        "mosBulkClass": "nmos",
+        "parameters": [
+          {"defaultValue": "1u", "displayRole": "width", "editor": "text", "help": "Total channel width", "label": "W", "name": "w", "placeholder": "1u", "required": true, "unitHint": "m"},
+          {"defaultValue": "150n", "displayRole": "length", "editor": "text", "help": "Channel length", "label": "L", "name": "l", "placeholder": "150n", "required": true, "unitHint": "m"},
+          {"defaultValue": "1", "displayRole": "finger-count", "editor": "decimal", "help": "Finger count, so finger width is W / NF", "label": "NF", "name": "nf", "placeholder": "1", "required": false},
+          {"defaultValue": "1", "displayRole": "multiplier", "editor": "decimal", "help": "Parallel multiplier", "label": "M", "name": "m", "placeholder": "1", "required": false}
+        ],
+        "pinOrder": [
+          "D",
+          "G",
+          "S",
+          "B"
+        ],
+        "referencePrefix": "M",
+        "seriesInsertionPinPair": [
+          "D",
+          "S"
+        ],
+        "symbolId": "nmos",
+        "targetPolicy": "required-model"
+      },
+      "symbol": {
+        "defaultVariantId": "textbook-3terminal",
+        "id": "nmos",
+        "name": "NMOS",
+        "pins": [
+          {"at": {"x": 10, "y": -20}, "direction": "north", "name": "D", "presentation": {"leadLength": 10, "visibility": "visible"}, "role": "drain"},
+          {"at": {"x": -20, "y": 0}, "direction": "west", "name": "G", "presentation": {"leadLength": 10, "visibility": "visible"}, "role": "gate"},
+          {"at": {"x": 10, "y": 20}, "direction": "south", "name": "S", "presentation": {"leadLength": 10, "visibility": "visible"}, "role": "source"},
+          {"at": {"x": 20, "y": 0}, "direction": "east", "name": "B", "presentation": {"leadLength": 10, "visibility": "visible"}, "role": "bulk"}
+        ],
+        "primitives": [
+          {"kind": "polyline", "points": [{"x": -4.244186, "y": -6.976744}, {"x": 10, "y": -6.976744}, {"x": 10, "y": -20}], "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}},
+          {"kind": "polyline", "part": "source-arrow-host", "points": [{"x": -4.244186, "y": 6.976744}, {"x": 10, "y": 6.976744}, {"x": 10, "y": 20}], "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}},
+          {"fill": "foreground", "kind": "polygon", "part": "gate-bar", "points": [{"x": -11.802326, "y": -9.593023}, {"x": -11.802326, "y": 9.593023}, {"x": -8.895349, "y": 9.593023}, {"x": -8.895349, "y": -9.593023}], "stroke": "none"},
+          {"fill": "foreground", "kind": "polygon", "part": "gate-bar", "points": [{"x": -6.569767, "y": -12.5}, {"x": -6.569767, "y": 12.5}, {"x": -3.662791, "y": 12.5}, {"x": -3.662791, "y": -12.5}], "stroke": "none"},
+          {"from": {"x": -8.895349, "y": 0}, "kind": "line", "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}, "to": {"x": -20, "y": 0}},
+          {"from": {"x": -3.662791, "y": 0}, "kind": "line", "part": "bulk-lead", "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}, "to": {"x": 10, "y": 0}},
+          {"from": {"x": 16.395349, "y": 0}, "kind": "line", "part": "bulk-lead", "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}, "to": {"x": 20, "y": 0}},
+          {"fill": "foreground", "kind": "polygon", "part": "bulk-lead", "points": [{"x": 10, "y": 0}, {"x": 16.395349, "y": -3.488372}, {"x": 16.395349, "y": 3.488372}], "stroke": "none"}
+        ],
+        "schemaVersion": 1,
+        "variants": [
+          {
+            "additionalPrimitives": [
+              {"kind": "polyline", "part": "source-arrow", "points": [{"x": -3.662791, "y": 6.976744}, {"x": 10, "y": 6.976744}, {"x": 10, "y": 20}], "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}},
+              {"fill": "foreground", "kind": "polygon", "part": "source-arrow", "points": [{"x": 10.581395, "y": 6.976744}, {"x": 1.27907, "y": 2.906977}, {"x": 1.27907, "y": 11.046512}], "stroke": "none"}
+            ],
+            "auxiliaryPins": [
+              {
+                "at": {"x": -4, "y": 0},
+                "direction": "east",
+                "name": "B",
+                "routing": {
+                  "escape": "outward",
+                  "preferredLanding": {
+                    "x": 0,
+                    "y": 0
+                  }
+                }
+              }
+            ],
+            "hiddenPinNames": [
+              "B"
+            ],
+            "hiddenPrimitiveParts": [
+              "bulk-lead",
+              "source-arrow-host"
+            ],
+            "id": "textbook-3terminal"
+          }
+        ],
+        "viewBox": {"height": 48, "width": 48, "x": -24, "y": -24}
+      }
+    },
+    {
+      "electrical": {
+        "capabilities": {
+          "supportsBulkBinding": true,
+          "supportsModel": true,
+          "supportsValueAnnotation": true
+        },
+        "deviceClass": "mos",
+        "dialects": [
+          "spice",
+          "spectre"
+        ],
+        "id": "pmos",
+        "mosBulkClass": "pmos",
+        "parameters": [
+          {"defaultValue": "1u", "displayRole": "width", "editor": "text", "help": "Total channel width", "label": "W", "name": "w", "placeholder": "1u", "required": true, "unitHint": "m"},
+          {"defaultValue": "150n", "displayRole": "length", "editor": "text", "help": "Channel length", "label": "L", "name": "l", "placeholder": "150n", "required": true, "unitHint": "m"},
+          {"defaultValue": "1", "displayRole": "finger-count", "editor": "decimal", "help": "Finger count, so finger width is W / NF", "label": "NF", "name": "nf", "placeholder": "1", "required": false},
+          {"defaultValue": "1", "displayRole": "multiplier", "editor": "decimal", "help": "Parallel multiplier", "label": "M", "name": "m", "placeholder": "1", "required": false}
+        ],
+        "pinOrder": [
+          "D",
+          "G",
+          "S",
+          "B"
+        ],
+        "referencePrefix": "M",
+        "seriesInsertionPinPair": [
+          "D",
+          "S"
+        ],
+        "symbolId": "pmos",
+        "targetPolicy": "required-model"
+      },
+      "symbol": {
+        "defaultVariantId": "textbook-3terminal",
+        "id": "pmos",
+        "name": "PMOS",
+        "pins": [
+          {"at": {"x": 10, "y": 20}, "direction": "south", "name": "D", "presentation": {"leadLength": 10, "visibility": "visible"}, "role": "drain"},
+          {"at": {"x": -20, "y": 0}, "direction": "west", "name": "G", "presentation": {"leadLength": 10, "visibility": "visible"}, "role": "gate"},
+          {"at": {"x": 10, "y": -20}, "direction": "north", "name": "S", "presentation": {"leadLength": 10, "visibility": "visible"}, "role": "source"},
+          {"at": {"x": 20, "y": 0}, "direction": "east", "name": "B", "presentation": {"leadLength": 10, "visibility": "visible"}, "role": "bulk"}
+        ],
+        "primitives": [
+          {"kind": "polyline", "points": [{"x": -4.244186, "y": 6.976744}, {"x": 10, "y": 6.976744}, {"x": 10, "y": 20}], "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}},
+          {"kind": "polyline", "part": "source-arrow-host", "points": [{"x": -4.244186, "y": -6.976744}, {"x": 10, "y": -6.976744}, {"x": 10, "y": -20}], "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}},
+          {"fill": "foreground", "kind": "polygon", "part": "gate-bar", "points": [{"x": -11.802326, "y": -9.593023}, {"x": -11.802326, "y": 9.593023}, {"x": -8.895349, "y": 9.593023}, {"x": -8.895349, "y": -9.593023}], "stroke": "none"},
+          {"fill": "foreground", "kind": "polygon", "part": "gate-bar", "points": [{"x": -6.569767, "y": -12.5}, {"x": -6.569767, "y": 12.5}, {"x": -3.662791, "y": 12.5}, {"x": -3.662791, "y": -12.5}], "stroke": "none"},
+          {"from": {"x": -8.895349, "y": 0}, "kind": "line", "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}, "to": {"x": -20, "y": 0}},
+          {"from": {"x": -3.662791, "y": 0}, "kind": "line", "part": "bulk-lead", "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}, "to": {"x": 13.604651, "y": 0}},
+          {"fill": "foreground", "kind": "polygon", "part": "bulk-lead", "points": [{"x": 20, "y": 0}, {"x": 13.604651, "y": -3.77907}, {"x": 13.604651, "y": 3.77907}], "stroke": "none"}
+        ],
+        "schemaVersion": 1,
+        "variants": [
+          {
+            "additionalPrimitives": [
+              {"kind": "polyline", "part": "source-arrow", "points": [{"x": 5.639535, "y": -7.122093}, {"x": 10, "y": -7.122093}, {"x": 10, "y": -20}], "style": {"lineCap": "butt", "lineJoin": "miter", "strokeRole": "normal"}},
+              {"fill": "foreground", "kind": "polygon", "part": "source-arrow", "points": [{"x": -3.662791, "y": -7.122093}, {"x": 5.639535, "y": -11.19186}, {"x": 5.639535, "y": -3.052326}], "stroke": "none"}
+            ],
+            "auxiliaryPins": [
+              {
+                "at": {"x": -4, "y": 0},
+                "direction": "east",
+                "name": "B",
+                "routing": {
+                  "escape": "outward",
+                  "preferredLanding": {
+                    "x": 0,
+                    "y": 0
+                  }
+                }
+              }
+            ],
+            "hiddenPinNames": [
+              "B"
+            ],
+            "hiddenPrimitiveParts": [
+              "bulk-lead",
+              "source-arrow-host"
+            ],
+            "id": "textbook-3terminal"
+          }
+        ],
+        "viewBox": {"height": 48, "width": 48, "x": -24, "y": -24}
+      }
+    },
+    {
+      "electrical": {
+        "capabilities": {
+          "supportsBulkBinding": false,
+          "supportsModel": false,
+          "supportsValueAnnotation": true
+        },
+        "deviceClass": "resistor",
+        "dialects": [
+          "spice",
+          "spectre"
+        ],
+        "id": "resistor",
+        "parameters": [
+          {"defaultValue": "1k", "displayRole": "value", "editor": "text", "help": "Resistance", "label": "Value", "name": "value", "placeholder": "1k", "required": true, "unitHint": "Ohm"}
+        ],
+        "pinOrder": [
+          "1",
+          "2"
+        ],
+        "referencePrefix": "R",
+        "symbolId": "resistor",
+        "targetPolicy": "builtin"
+      },
+      "symbol": {
+        "id": "resistor",
+        "name": "Resistor",
+        "pins": [
+          {"at": {"x": 0, "y": -20}, "direction": "north", "name": "1", "presentation": {"leadLength": 10, "visibility": "visible"}, "role": "passive"},
+          {"at": {"x": 0, "y": 20}, "direction": "south", "name": "2", "presentation": {"leadLength": 10, "visibility": "visible"}, "role": "passive"}
+        ],
+        "primitives": [
+          {"bounds": {"height": 40, "width": 10.360465, "x": -4.988372, "y": -20}, "data": "M 0 -20 L 0 -8.72093 L 5.372093 -6.395349 L -4.604651 -4.069767 L 5.372093 -1.162791 L -4.988372 1.744186 L 5.372093 4.651163 L -4.604651 7.55814 L 0 8.72093 L 0 20", "kind": "path", "style": {"lineCap": "butt", "lineJoin": "miter", "miterLimit": 12, "strokeRole": "normal"}}
+        ],
+        "schemaVersion": 1,
+        "variants": [],
+        "viewBox": {"height": 48, "width": 20, "x": -10, "y": -24}
+      }
+    }
+  ],
   "documents": [
     {
       "annotations": [],
@@ -58,7 +274,7 @@
   "externalSubcircuitDefinitions": [],
   "id": "project-phase-1-manual",
   "name": "Phase 1 Manual Editor",
-  "schemaVersion": 57,
+  "schemaVersion": 58,
   "simulationFolders": [],
   "source": {
     "dialect": "none",

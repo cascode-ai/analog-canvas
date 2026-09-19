@@ -1,3 +1,4 @@
+import type { CircuitProject } from "@icm/model";
 import type {
   BuiltInSubcircuitDescriptor,
   DeviceDescriptor,
@@ -38,8 +39,14 @@ export const builtInDeviceDescriptors: readonly DeviceDescriptor[] =
 
 export function deviceDescriptor(
   symbolId: string,
+  project?: Pick<CircuitProject, "componentDefinitions">,
 ): DeviceDescriptor | undefined {
-  return deviceRegistry.bySymbolId(symbolId);
+  const local = project?.componentDefinitions?.find(
+    (definition) => definition.symbol.id === symbolId,
+  );
+  return local
+    ? (local.electrical as DeviceDescriptor | undefined)
+    : deviceRegistry.bySymbolId(symbolId);
 }
 
 export function deviceDescriptorById(id: string): DeviceDescriptor | undefined {
@@ -70,6 +77,10 @@ export const builtInSubcircuitDescriptors: readonly BuiltInSubcircuitDescriptor[
 
 export function subcircuitDescriptor(
   symbolId: string,
+  project?: Pick<CircuitProject, "componentDefinitions">,
 ): BuiltInSubcircuitDescriptor | undefined {
-  return subcircuitsBySymbolId.get(symbolId);
+  const local = project?.componentDefinitions?.find(
+    (definition) => definition.symbol.id === symbolId,
+  );
+  return local ? local.subcircuit : subcircuitsBySymbolId.get(symbolId);
 }

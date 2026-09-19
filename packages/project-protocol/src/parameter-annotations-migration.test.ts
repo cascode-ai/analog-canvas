@@ -1,3 +1,4 @@
+import { withProjectComponentDefinitions } from "@icm/symbols";
 import {
   AnnotationSchema,
   CURRENT_PROJECT_SCHEMA_VERSION,
@@ -55,7 +56,9 @@ describe("schema 54 named parameter annotations", () => {
     const project = fixture();
     project.documents[0]!.annotations.push(annotation);
     const text = serializeProject(project);
-    expect(parseProject(text)).toEqual(project);
+    expect(parseProject(text)).toEqual(
+      withProjectComponentDefinitions(project),
+    );
     expect(serializeProject(parseProject(text))).toBe(text);
   });
   it("accepts named and aggregate bindings but rejects invalid parameter names and unknown fields", () => {

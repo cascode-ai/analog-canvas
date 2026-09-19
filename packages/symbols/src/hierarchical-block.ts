@@ -153,3 +153,41 @@ export function createProjectHierarchicalSymbols(
   );
   return [...internal, ...external];
 }
+
+/** Authored inputs of generated blocks; used to invalidate only changed
+ * interfaces/presentations while retaining captured artwork across releases. */
+export function projectSymbolSources(
+  project: Pick<CircuitProject, "documents" | "topDocumentId"> &
+    Partial<Pick<CircuitProject, "externalSubcircuitDefinitions">>,
+) {
+  const sources = new Map<
+    string,
+    import("@icm/model").ComponentDefinitionSource
+  >();
+  for (const document of project.documents) {
+    if (!document.netlist) continue;
+    sources.set(hierarchicalSymbolId(document.netlist.name), {
+      name: document.name,
+      terminals: projectCellSymbolTerminals(document).map(
+        ({ id, name, direction, nameContent }) => ({
+          id,
+          name,
+          direction,
+          ...(nameContent ? { nameContent } : {}),
+        }),
+      ),
+      ...(document.presentation.cellSymbol
+        ? { presentation: document.presentation.cellSymbol }
+        : {}),
+    });
+  }
+  for (const definition of project.externalSubcircuitDefinitions ?? [])
+    sources.set(externalSubcircuitSymbolId(definition.id), {
+      name: definition.name,
+      terminals: definition.terminals,
+      ...(definition.presentation
+        ? { presentation: definition.presentation }
+        : {}),
+    });
+  return sources;
+}

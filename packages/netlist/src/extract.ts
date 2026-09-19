@@ -265,6 +265,7 @@ function encodeCandidate(
  */
 function withNetlistPowerMarkerClaims(
   document: SchematicDocument,
+  project?: CircuitProject,
 ): SchematicDocument {
   const logicalNets = resolveDocumentLogicalNets(document);
   const claimedMarkers = new Set(
@@ -282,7 +283,7 @@ function withNetlistPowerMarkerClaims(
       claimedMarkers.has(instance.id)
     )
       continue;
-    const pinName = deviceDescriptor(instance.symbolId)?.pinOrder[0];
+    const pinName = deviceDescriptor(instance.symbolId, project)?.pinOrder[0];
     if (!pinName) continue;
     const nets = document.nets.filter((net) =>
       net.terminals.some(
@@ -323,6 +324,7 @@ function withNetlistPowerMarkerClaims(
 }
 
 function buildNetContext(
+  project: CircuitProject,
   sourceDocument: SchematicDocument,
   documentsById: Map<string, SchematicDocument>,
   externalDefinitionsById: ReadonlyMap<string, ExternalSubcircuitDefinition>,
@@ -330,7 +332,7 @@ function buildNetContext(
   options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
 ): CellNetContext {
-  const document = withNetlistPowerMarkerClaims(sourceDocument);
+  const document = withNetlistPowerMarkerClaims(sourceDocument, project);
   if (document.nets.length > MAX_NETS_PER_CELL) {
     diagnostic(
       diagnostics,
@@ -626,7 +628,7 @@ function buildNetContext(
             ? reviewed.terminals.map((terminal) => terminal.pinName)
             : externalDefinition
               ? externalDefinition.terminals.map((terminal) => terminal.name)
-              : deviceDescriptor(instance.symbolId)?.pinOrder;
+              : deviceDescriptor(instance.symbolId, project)?.pinOrder;
         if (allowedPins && !allowedPins.includes(terminal.pinName)) {
           diagnostic(
             diagnostics,
@@ -1227,12 +1229,13 @@ function extractBuiltInSubcircuitInstance(
 }
 
 function extractDeviceInstance(
+  project: CircuitProject,
   document: SchematicDocument,
   instance: Instance,
   context: CellNetContext,
   diagnostics: NetlistDiagnostic[],
 ): DesignNetlistInstance | null {
-  const definition = deviceDescriptor(instance.symbolId);
+  const definition = deviceDescriptor(instance.symbolId, project);
   if (!definition) {
     diagnostic(
       diagnostics,
@@ -1567,6 +1570,7 @@ function extractCell(
     );
   }
   const context = buildNetContext(
+    project,
     document,
     documentsById,
     new Map(
@@ -1693,7 +1697,7 @@ function extractCell(
       });
     }
   }
-  const referenceIndex = createReferenceIndex(document);
+  const referenceIndex = createReferenceIndex(document, project);
   const syntheticReferences = new Map<string, string>();
   const reservedReferences = new Set(referenceIndex.byReference.keys());
   for (const instance of [...document.instances].sort((left, right) =>
@@ -1760,7 +1764,7 @@ function extractCell(
       : source;
     if (cellPinInstanceIds.has(instance.id)) continue;
     const binding = instance.netlist?.binding;
-    const builtInSubcircuit = subcircuitDescriptor(instance.symbolId);
+    const builtInSubcircuit = subcircuitDescriptor(instance.symbolId, project);
     const extracted = builtInSubcircuit
       ? extractBuiltInSubcircuitInstance(
           document,
@@ -1791,7 +1795,13 @@ function extractCell(
               context,
               diagnostics,
             )
-          : extractDeviceInstance(document, instance, context, diagnostics);
+          : extractDeviceInstance(
+              project,
+              document,
+              instance,
+              context,
+              diagnostics,
+            );
     if (extracted) instances.push(extracted);
   }
   return {
@@ -2013,7 +2023,7 @@ function analyzeDesign(
         });
       }
     }
-    const descriptor = subcircuitDescriptor(instance.symbolId);
+    const descriptor = subcircuitDescriptor(instance.symbolId, project);
     if (!descriptor) continue;
     const target =
       binding?.kind === "unresolved-subcircuit"

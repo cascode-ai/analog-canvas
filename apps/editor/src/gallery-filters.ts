@@ -15,6 +15,8 @@ export interface GalleryFilterState {
   /** Which wall: the community gallery, or the reader's own shelf. */
   view: GalleryView;
   author: string | null;
+  /** Stable identity for the selected author; null for legacy links/entries. */
+  ownerUserId: string | null;
   tags: string[];
   /** Free text over name, author, description and tags. */
   search: string;
@@ -35,12 +37,20 @@ const MAX_FILTER_TAGS = 64;
  * them is a request for exactly that slice, so it replaces the stored
  * preference outright instead of intersecting with it.
  */
-const NARROWING_PARAMS = ["author", "tags", "q", "netlist", "liked"] as const;
+const NARROWING_PARAMS = [
+  "author",
+  "owner",
+  "tags",
+  "q",
+  "netlist",
+  "liked",
+] as const;
 
 export function createDefaultGalleryFilters(): GalleryFilterState {
   return {
     view: "gallery",
     author: null,
+    ownerUserId: null,
     tags: [],
     search: "",
     netlistable: false,
@@ -52,6 +62,7 @@ export function createDefaultGalleryFilters(): GalleryFilterState {
 export function galleryFiltersNarrowWall(filters: GalleryFilterState): boolean {
   return (
     filters.author !== null ||
+    filters.ownerUserId !== null ||
     filters.tags.length > 0 ||
     filters.search.trim().length > 0 ||
     filters.netlistable ||
@@ -68,6 +79,7 @@ export function galleryFiltersNarrowQuery(
 ): boolean {
   return (
     filters.author !== null ||
+    filters.ownerUserId !== null ||
     filters.tags.length > 0 ||
     filters.netlistable ||
     filters.liked
@@ -95,10 +107,15 @@ export function parseGalleryFilterQuery(search: string): {
 } {
   const params = new URLSearchParams(search);
   const author = params.get("author")?.trim() ?? "";
+  const ownerUserId = params.get("owner")?.trim() ?? "";
   return {
     filters: {
       view: params.get("view") === "shelf" ? "shelf" : "gallery",
       author: author.length > 0 ? author.slice(0, MAX_FILTER_LENGTH) : null,
+      ownerUserId:
+        ownerUserId.length > 0
+          ? ownerUserId.slice(0, MAX_FILTER_LENGTH)
+          : null,
       tags: boundedTags((params.get("tags") ?? "").split(",")),
       search: (params.get("q") ?? "").slice(0, MAX_FILTER_LENGTH),
       netlistable: params.get("netlist") === "1",
@@ -124,6 +141,7 @@ export function galleryFilterSearch(
   };
   set("view", filters.view === "shelf" ? "shelf" : null);
   set("author", filters.author);
+  set("owner", filters.ownerUserId);
   set("tags", filters.tags.length > 0 ? filters.tags.join(",") : null);
   set("q", filters.search.trim().length > 0 ? filters.search : null);
   set("netlist", filters.netlistable ? "1" : null);
@@ -148,9 +166,15 @@ export function parseStoredGalleryFilters(
   }
   const record = parsed as Record<string, unknown>;
   const author = typeof record.author === "string" ? record.author.trim() : "";
+  const ownerUserId =
+    typeof record.ownerUserId === "string" ? record.ownerUserId.trim() : "";
   return {
     view: record.view === "shelf" ? "shelf" : "gallery",
     author: author.length > 0 ? author.slice(0, MAX_FILTER_LENGTH) : null,
+    ownerUserId:
+      ownerUserId.length > 0
+        ? ownerUserId.slice(0, MAX_FILTER_LENGTH)
+        : null,
     tags: boundedTags(Array.isArray(record.tags) ? record.tags : []),
     search:
       typeof record.search === "string"

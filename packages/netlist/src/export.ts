@@ -237,7 +237,7 @@ export function createDesignNetlistExport(
     for (const document of draft.documents) {
       for (const instance of document.instances) {
         if (!affected.get(document.id)?.has(instance.id)) continue;
-        const definition = deviceDescriptor(instance.symbolId);
+        const definition = deviceDescriptor(instance.symbolId, project);
         // Same reading as extraction: an absent record is an empty one, and
         // the placeholders below are exactly what fills it.
         const netlist = (instance.netlist ??= { parameters: {} });

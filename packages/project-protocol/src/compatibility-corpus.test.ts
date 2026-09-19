@@ -1,3 +1,4 @@
+import { withProjectComponentDefinitions } from "@icm/symbols";
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
@@ -83,7 +84,9 @@ describe("supported Project compatibility corpus", () => {
       expect(result.migrated).toBe(true);
       const saved = serializeProject(result.project);
       assertCurrentForm(saved);
-      expect(parseProject(saved)).toEqual(result.project);
+      expect(parseProject(saved)).toEqual(
+        withProjectComponentDefinitions(result.project),
+      );
     }
   });
 

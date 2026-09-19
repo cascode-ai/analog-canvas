@@ -2,16 +2,46 @@
 
 Status: `accepted`
 
-Project schema: `57`
+Project schema: `58`
 
 Primary owners: `packages/model` (current shape) and
 `packages/project-protocol` (file boundary)
 
 An `.icproj.json` file is canonical JSON for one complete `CircuitProject`.
-The current-only model validates schema 57. The public `parseProject` boundary
-accepts schemas 24 through 57, runs the explicit contiguous upgrade chain, and
-returns only the current shape. Serialization writes only schema 57.
+The current-only model validates schema 58. The public `parseProject` boundary
+accepts schemas 24 through 58, runs the explicit contiguous upgrade chain, and
+returns only the current shape. Serialization writes only schema 58.
 Versions outside that range are rejected.
+
+## Included component definitions
+
+Schema 58 saves each referenced Symbol once in `componentDefinitions`.
+`Instance.symbolId` and drafting `floating-symbol.symbolId` reference these
+local classes. Each class contains the complete Symbol geometry, pins,
+variants, formula presentation, and its primitive electrical or black-box
+subcircuit contract when applicable. Instance parameters and placement remain
+on the Instance. An included definition takes precedence over the website's
+built-in library. Editing its geometry updates every instance of that class;
+copy the class to a new `symbol.id` (and matching electrical `symbolId`) and
+change selected instances' `symbolId` to customize only those instances.
+
+Serialization collects references across **all** Project Documents and removes
+only unused classes. It never deletes a Document, Instance, parameter, or
+setting to shorten the code. Editor undo retains deleted classes with its
+history snapshots. Deleting the last use removes the live class; a later fresh
+library insertion uses the current built-in definition.
+
+Generated hierarchical artwork also carries its small `generatedFrom` input
+record. Stable Cell interfaces preserve captured artwork; an intentional
+interface or Cell-symbol presentation edit regenerates that class. These
+records are ordinary source data, with no content-hash checks.
+
+Older Projects without included definitions remain readable and capture the
+available library on entry/save. They cannot recover artwork from an earlier
+website version that was never stored. When a file supplies a definition
+collection, missing referenced classes or variants are an error rather than a
+silent fallback. Custom definitions must follow the supported primitive and
+electrical schemas; they are data, not executable scripts or model libraries.
 
 [The loader](../../packages/project-protocol/src/load.ts) and its adjacent
 transforms/tests own individual migration steps. Adapters preserve authored
@@ -120,8 +150,8 @@ an unsolicited bulk conversion of Gallery, Cloud or recovery data.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project schema 24 through 57
--> converge to schema 57 -> strict schema-57 validation -> install unbound
+import text -> parse JSON -> require Project schema 24 through 58
+-> converge to schema 58 -> strict schema-58 validation -> install unbound
 export -> strict validation -> canonical key ordering -> Blob download
 ```
 
@@ -145,7 +175,7 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its `current` entries must all be
-already canonical Project schema 57. Explicit `migrated` witnesses retain their
+already canonical Project schema 58. Explicit `migrated` witnesses retain their
 source bytes and declared source version; loading and saving must produce a
 byte-stable current Project. The rejected corpus names expected validation
 failures. These are test inventory categories, not new Project fields.

@@ -162,6 +162,8 @@ export interface GalleryFeedEntry {
   id: string;
   name: string;
   author: string;
+  /** Stable identity for contributor filtering; absent on an older API. */
+  ownerUserId?: string | null;
   description: string;
   createdAt: string;
   /** Absent only while a newer client is rolling out against an older API. */
@@ -219,6 +221,7 @@ export interface GalleryTagOption {
 /** One public byline and its contribution to the whole Gallery wall. */
 export interface GalleryAuthorOption {
   author: string;
+  ownerUserId?: string | null;
   count: number;
 }
 
@@ -227,6 +230,7 @@ export async function loadGalleryFeed(
   options: {
     cursor?: string | null;
     author?: string | null;
+    ownerUserId?: string | null;
     tags?: readonly string[];
     /** Only circuits whose drawing extracts to a netlist. */
     netlistable?: boolean;
@@ -237,6 +241,7 @@ export async function loadGalleryFeed(
 ): Promise<GalleryFeedPage | null> {
   const params = new URLSearchParams();
   if (options.author) params.set("author", options.author);
+  if (options.ownerUserId) params.set("owner", options.ownerUserId);
   if (options.tags && options.tags.length > 0) {
     params.set("tags", options.tags.join(","));
   }

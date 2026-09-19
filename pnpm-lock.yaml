@@ -369,6 +369,9 @@ importers:
       "@icm/netlist":
         specifier: workspace:*
         version: link:../netlist
+      "@icm/symbols":
+        specifier: workspace:*
+        version: link:../symbols
 
   packages/render-svg:
     dependencies:

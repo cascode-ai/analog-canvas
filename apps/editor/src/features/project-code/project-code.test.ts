@@ -1,3 +1,4 @@
+import { withProjectComponentDefinitions } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 import { createEmptyProject } from "@icm/model";
 import { createRoutingDemoProject } from "../../demos/routing-demo";
@@ -69,7 +70,7 @@ describe("Project Code", () => {
       changed: true,
       activeDocumentId: replacement.topDocumentId,
       project: {
-        ...replacement,
+        ...withProjectComponentDefinitions(replacement),
         id: project.id,
         structureRevision: 1,
         documents: replacement.documents.map((document) => ({

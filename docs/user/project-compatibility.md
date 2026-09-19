@@ -1,6 +1,6 @@
 # Project File Compatibility
 
-The current Project schema version is `57`. It retains schematic-only
+The current Project schema version is `58`. It retains schematic-only
 hierarchy integrity, a Project structural revision, stable formal Cell ports,
 and definition-level Cell symbol presentation. It also has one typed Instance
 netlist authority, formal Cell parameters, and Project-local external
@@ -38,7 +38,7 @@ An Instance may also carry optional schematic-only `signalFlowParameters`
 netlist/SPICE parameters. Width and height are optional 10-unit-grid minimums:
 the shared Transfer Function renderer expands beyond them when 12-unit formula
 text, a fraction, or a coefficient needs more room, and never clips or shrinks
-the formula to satisfy an undersized request. A canonical v57 file can be
+the formula to satisfy an undersized request. A canonical v58 file can be
 opened, saved, reopened, and saved again without byte drift.
 
 Schemas v24 through v56 are accepted through the explicit chained upgrades.
@@ -77,7 +77,7 @@ arrowheads, dots, no head, and legacy open arrowheads. Unset ends preserve the
 previous head style, placement, and scale; v54 content changes only its stamp.
 These additions do not invent intent while upgrading an older Project.
 The original file is never overwritten silently. Schemas older than v24 and
-versions newer than v57 are rejected by the project-file boundary.
+versions newer than v58 are rejected by the project-file boundary.
 
 The canonical-current corpus at
 [`fixtures/projects/compatibility-corpus.json`](../../fixtures/projects/compatibility-corpus.json)
@@ -90,7 +90,7 @@ Retired fields such as first-class
 
 An incompatible Project is rejected before it can replace the current browser
 Project. Conversion, when needed, is an explicit external operation that must
-produce and validate a complete v57 candidate before a human chooses to load it.
+produce and validate a complete v58 candidate before a human chooses to load it.
 
 Equal visible Label, Port, power-marker, and explicit global-declaration names
 resolve to one Logical Net without erasing their separate Base Net identities.

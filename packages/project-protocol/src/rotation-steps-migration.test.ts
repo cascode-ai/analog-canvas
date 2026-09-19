@@ -1,3 +1,4 @@
+import { withProjectComponentDefinitions } from "@icm/symbols";
 import { CURRENT_PROJECT_SCHEMA_VERSION, createEmptyProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
@@ -34,6 +35,8 @@ describe("schema 52 to 53 rotation-step migration", () => {
       },
     });
 
-    expect(parseProject(serializeProject(project))).toEqual(project);
+    expect(parseProject(serializeProject(project))).toEqual(
+      withProjectComponentDefinitions(project),
+    );
   });
 });

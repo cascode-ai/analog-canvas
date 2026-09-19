@@ -5,7 +5,7 @@ Status: `accepted`
 Primary owner: Worker Cloud Project storage, `packages/project-protocol`, and
 the editor document lifecycle
 
-Project content uses canonical schema-57 JSON. A private Cloud Project is the
+Project content uses canonical schema-58 JSON. A private Cloud Project is the
 formal saved resource; `.icproj.json` is portable import/export and backup.
 The current-only model in `packages/model` validates the normalized shape;
 `packages/project-protocol` owns parsing, compatibility diagnostics,
@@ -16,7 +16,7 @@ supported historical content before current-schema validation; all writers emit
 the current schema. Persistence does not maintain a separate migration policy.
 
 Recovery state is a non-authoritative browser safety copy. It may restore a
-complete schema-57 Project or a supported historical record that validates
+complete schema-58 Project or a supported historical record that validates
 after the chained upgrade, associated with a recorded working-copy session.
 Corrupt, incompatible, or partial recovery data is discarded or retained as raw
 data without changing the live Project. User-saved Library examples and their

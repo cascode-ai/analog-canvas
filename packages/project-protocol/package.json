@@ -16,6 +16,7 @@
   "dependencies": {
     "@icm/devices": "workspace:*",
     "@icm/model": "workspace:*",
-    "@icm/netlist": "workspace:*"
+    "@icm/netlist": "workspace:*",
+    "@icm/symbols": "workspace:*"
   }
 }

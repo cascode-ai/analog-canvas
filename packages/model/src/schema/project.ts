@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ComponentDefinitionSchema } from "./component-definition.js";
 
 import { CURRENT_PROJECT_SCHEMA_VERSION, StableIdSchema } from "./common.js";
 import { SourceManifestSchema, SymbolLibraryLockSchema } from "./source.js";
@@ -35,6 +36,10 @@ export const CircuitProjectSchema = z
     name: z.string().min(1),
     source: SourceManifestSchema,
     symbolLibrary: SymbolLibraryLockSchema,
+    componentDefinitions: z
+      .array(ComponentDefinitionSchema)
+      .max(4096)
+      .optional(),
     structureRevision: z.number().int().nonnegative(),
     topDocumentId: StableIdSchema,
     documents: z.array(SchematicDocumentSchema).min(1),
@@ -47,6 +52,18 @@ export const CircuitProjectSchema = z
     simulationFolders: z.array(ProjectSimulationFolderSchema).max(64),
   })
   .superRefine((project, context) => {
+    const symbolIds = new Set<string>();
+    for (const [index, definition] of (
+      project.componentDefinitions ?? []
+    ).entries()) {
+      if (symbolIds.has(definition.symbol.id))
+        context.addIssue({
+          code: "custom",
+          path: ["componentDefinitions", index, "symbol", "id"],
+          message: "Duplicate local component definition",
+        });
+      symbolIds.add(definition.symbol.id);
+    }
     const cellNames = new Set<string>();
     for (const [documentIndex, document] of project.documents.entries()) {
       const name = document.netlist?.name.toLowerCase();

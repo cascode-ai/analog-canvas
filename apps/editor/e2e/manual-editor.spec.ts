@@ -4755,10 +4755,36 @@ test("pastes complete Project Code between independent sessions with identical a
     await sourceEditor.focus();
     await sourcePage.keyboard.press("ControlOrMeta+a");
     await sourcePage.keyboard.press("ControlOrMeta+c");
-    const sourceCode = await sourcePage.evaluate(() =>
+    let sourceCode = await sourcePage.evaluate(() =>
       navigator.clipboard.readText(),
     );
-    const sourceProject = JSON.parse(sourceCode);
+    let sourceProject = JSON.parse(sourceCode);
+    const beforeCustomization = await sourcePage
+      .locator('[data-layer="formal"]')
+      .innerHTML();
+    const definition = sourceProject.componentDefinitions.find(
+      (item: { symbol: { id: string } }) => item.symbol.id === "resistor",
+    );
+    expect(definition).toBeDefined();
+    definition.symbol.primitives.push({
+      kind: "circle",
+      center: { x: 9, y: 0 },
+      radius: 4,
+    });
+    await sourceEditor.fill(JSON.stringify(sourceProject, null, 2));
+    await sourcePage
+      .getByRole("button", { name: "Apply", exact: true })
+      .click();
+    await expect
+      .poll(() => sourcePage.locator('[data-layer="formal"]').innerHTML())
+      .not.toBe(beforeCustomization);
+    await sourceEditor.focus();
+    await sourcePage.keyboard.press("ControlOrMeta+a");
+    await sourcePage.keyboard.press("ControlOrMeta+c");
+    sourceCode = await sourcePage.evaluate(() =>
+      navigator.clipboard.readText(),
+    );
+    sourceProject = JSON.parse(sourceCode);
     const artwork = await sourcePage
       .locator('[data-layer="formal"]')
       .innerHTML();
