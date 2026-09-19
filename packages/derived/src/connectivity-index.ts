@@ -16,7 +16,11 @@ import {
 } from "./connectivity.js";
 import type { RoutingGuide } from "./routing-guidance.js";
 import { endpointKey, isVisibleEndpoint, netEndpoints } from "./endpoint.js";
-import { directObjectLocator, type ObjectLocator } from "./object-locator.js";
+import {
+  directObjectLocator,
+  type ObjectLocator,
+  type HierarchyFrame,
+} from "./object-locator.js";
 import type { ResolvedNetLabelBinding } from "./net-label.js";
 import { resolveAnnotationText } from "./annotation-text.js";
 import {
@@ -75,6 +79,8 @@ export interface HierarchyEdge {
 }
 
 export interface HierarchyConnectivityIndex {
+  /** Structural calls exist even without pins, wiring or resolved symbols. */
+  calls: readonly HierarchyFrame[];
   edges: readonly HierarchyEdge[];
 }
 
@@ -397,11 +403,17 @@ function buildHierarchyIndex(
   resolver: SymbolResolver,
   documents: ReadonlyMap<string, DocumentConnectivityIndex>,
 ): HierarchyConnectivityIndex {
+  const calls: HierarchyFrame[] = [];
   const edges: HierarchyEdge[] = [];
   for (const parent of project.documents) {
     for (const instance of parent.instances) {
       const childId = referencedDocumentId(project, instance);
       if (!childId) continue;
+      calls.push({
+        parentDocumentId: parent.id,
+        instanceId: instance.id,
+        childDocumentId: childId,
+      });
       const child = project.documents.find(
         (candidate) => candidate.id === childId,
       );
@@ -448,7 +460,13 @@ function buildHierarchyIndex(
       a.instanceId.localeCompare(b.instanceId, "en") ||
       a.parentPinName.localeCompare(b.parentPinName, "en"),
   );
-  return { edges };
+  calls.sort(
+    (a, b) =>
+      a.parentDocumentId.localeCompare(b.parentDocumentId, "en") ||
+      a.instanceId.localeCompare(b.instanceId, "en") ||
+      a.childDocumentId.localeCompare(b.childDocumentId, "en"),
+  );
+  return { calls, edges };
 }
 
 function buildGlobalNetIndex(

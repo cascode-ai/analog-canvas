@@ -2,21 +2,20 @@ import type { HierarchyFrame } from "./object-locator.js";
 import type { ProjectConnectivityIndex } from "./connectivity-index.js";
 
 /**
- * Find a deterministic concrete instance path through the imported hierarchy.
+ * Find deterministic concrete instance paths through structural Cell calls.
  * Multiple instances may reference the same child Cell, so this returns frames
- * rather than a lossy list of document ids. Breadth-first search selects the
- * shortest path and the stable edge order makes ties repeatable.
+ * rather than a lossy list of document ids. Stable call order makes traversal
+ * repeatable, independently of symbol resolution and electrical connectivity.
  */
 function hierarchyFramesByParent(
   index: ProjectConnectivityIndex,
 ): ReadonlyMap<string, readonly HierarchyFrame[]> {
-  const edges = [...index.hierarchy.edges]
+  const edges = [...index.hierarchy.calls]
     .sort(
       (left, right) =>
         left.parentDocumentId.localeCompare(right.parentDocumentId, "en") ||
         left.instanceId.localeCompare(right.instanceId, "en") ||
-        left.childDocumentId.localeCompare(right.childDocumentId, "en") ||
-        left.parentPinName.localeCompare(right.parentPinName, "en"),
+        left.childDocumentId.localeCompare(right.childDocumentId, "en"),
     )
     .map((edge): HierarchyFrame => ({
       parentDocumentId: edge.parentDocumentId,

@@ -1,4 +1,5 @@
 import type { CircuitProject } from "@icm/model";
+import { projectCellInterface } from "@icm/model";
 
 export interface CellCallerSummary {
   readonly documentId: string;
@@ -22,7 +23,7 @@ export function summarizeProjectCells(
     id: cell.id,
     name: cell.name,
     isTop: cell.id === project.topDocumentId,
-    portCount: cell.netlist?.terminals.length ?? 0,
+    portCount: projectCellInterface(cell.netlist).ports.length,
     callers: project.documents.flatMap((parent) =>
       parent.instances.flatMap((instance) => {
         const binding = instance.netlist?.binding;

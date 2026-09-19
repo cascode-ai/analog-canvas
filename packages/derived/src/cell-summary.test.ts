@@ -48,7 +48,7 @@ describe("Cell summary", () => {
       }),
       expect.objectContaining({
         id: "child",
-        portCount: 2,
+        portCount: 1,
         callers: [
           expect.objectContaining({ instanceId: "X1" }),
           expect.objectContaining({ instanceId: "X2" }),

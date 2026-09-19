@@ -34,6 +34,31 @@ const dual = {
 };
 
 describe("hierarchy navigation", () => {
+  it("keeps zero-port and unresolved-symbol calls navigable without electrical edges", () => {
+    const project = createEmptyProject("project", "Project", "top");
+    const child = createEmptyProject("child-project", "Child", "child")
+      .documents[0]!;
+    project.documents.push(child);
+    project.documents[0]!.instances = ["X2", "X1"].map((id) => ({
+      id,
+      symbolId: "unresolved",
+      placement: null,
+      netlist: {
+        parameters: {},
+        binding: { kind: "subcircuit" as const, childDocumentId: child.id },
+      },
+    }));
+    const index = buildProjectConnectivityIndex(
+      project,
+      new InMemorySymbolResolver([]),
+    );
+    expect(index.hierarchy.edges).toEqual([]);
+    expect(findHierarchyPaths(index, "top", "child")).toEqual([
+      [{ parentDocumentId: "top", instanceId: "X1", childDocumentId: "child" }],
+      [{ parentDocumentId: "top", instanceId: "X2", childDocumentId: "child" }],
+    ]);
+  });
+
   it("finds stable paths through typed subcircuit bindings", () => {
     const project = createEmptyProject("project", "Project", "top");
     project.documents[0]!.instances = ["X2", "X1"].map((id) => ({
