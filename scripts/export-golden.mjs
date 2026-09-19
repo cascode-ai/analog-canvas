@@ -11,10 +11,10 @@ import {
 } from "../packages/symbols/dist/index.js";
 
 const check = process.argv.includes("--check");
-const fixtureRoot = resolve("fixtures/exports/phase-7-dense-analog");
+const fixtureRoot = resolve("fixtures/exports/differential-stage");
 const project = parseProject(
   await readFile(
-    resolve("fixtures/projects/phase-5-dense-analog/project.icproj.json"),
+    resolve("fixtures/projects/differential-stage/project.icproj.json"),
     "utf8",
   ),
 );
@@ -39,7 +39,7 @@ const manifest = Buffer.from(
     {
       version: "0.1.0",
       sourceProject:
-        "fixtures/projects/phase-5-dense-analog/project.icproj.json",
+        "fixtures/projects/differential-stage/project.icproj.json",
       bounds: source.bounds,
       raster: {
         scale: 3,

@@ -23,7 +23,7 @@ function fixtureProject() {
     readFileSync(
       resolve(
         process.cwd(),
-        "fixtures/projects/phase-5-dense-analog/project.icproj.json",
+        "fixtures/projects/differential-stage/project.icproj.json",
       ),
       "utf8",
     ),

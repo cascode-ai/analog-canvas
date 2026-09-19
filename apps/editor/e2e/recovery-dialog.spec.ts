@@ -18,7 +18,7 @@ import {
 const fixtureText = readFileSync(
   resolve(
     process.cwd(),
-    "fixtures/projects/phase-1-manual/project.icproj.json",
+    "fixtures/projects/manual-basics/project.icproj.json",
   ),
   "utf8",
 );

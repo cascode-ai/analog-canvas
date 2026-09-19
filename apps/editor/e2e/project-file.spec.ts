@@ -607,7 +607,7 @@ test("replacement guard offers cancel, discard, and Cloud Save", async ({
   const input = page.getByTestId("project-file");
   const replacement = resolve(
     process.cwd(),
-    "fixtures/projects/phase-1-manual/project.icproj.json",
+    "fixtures/projects/manual-basics/project.icproj.json",
   );
   await input.setInputFiles(replacement);
   const dialog = page.getByRole("dialog", {

@@ -61,7 +61,7 @@ describe("shared connectivity context (#17)", () => {
         readFileSync(
           resolve(
             process.cwd(),
-            "fixtures/projects/phase-3-routing/project.icproj.json",
+            "fixtures/projects/crossing-routing/project.icproj.json",
           ),
           "utf8",
         ),

@@ -395,7 +395,7 @@ describe("editor shell", () => {
     const fixture = readFileSync(
       resolve(
         process.cwd(),
-        "fixtures/projects/phase-1-manual/project.icproj.json",
+        "fixtures/projects/manual-basics/project.icproj.json",
       ),
       "utf8",
     );
@@ -407,7 +407,7 @@ describe("editor shell", () => {
     const fixture = readFileSync(
       resolve(
         process.cwd(),
-        "fixtures/projects/phase-3-routing/project.icproj.json",
+        "fixtures/projects/crossing-routing/project.icproj.json",
       ),
       "utf8",
     );

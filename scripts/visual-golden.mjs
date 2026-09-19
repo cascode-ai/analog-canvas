@@ -11,14 +11,14 @@ import {
 
 const fixtures = [
   {
-    input: "fixtures/projects/phase-3-routing/project.icproj.json",
-    output: "fixtures/visual-golden/phase-3-crossing.svg",
+    input: "fixtures/projects/crossing-routing/project.icproj.json",
+    output: "fixtures/visual-golden/crossing-routing.svg",
     title: "Phase 3 Crossing",
     crossingRoutes: true,
   },
   {
-    input: "fixtures/projects/phase-5-dense-analog/project.icproj.json",
-    output: "fixtures/visual-golden/phase-5-dense-analog.svg",
+    input: "fixtures/projects/differential-stage/project.icproj.json",
+    output: "fixtures/visual-golden/differential-stage.svg",
     title: "project",
   },
 ];

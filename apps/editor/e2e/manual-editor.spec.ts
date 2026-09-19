@@ -4812,7 +4812,7 @@ test("retains recovery across export but honors explicit discard on replacement"
     .setInputFiles(
       resolve(
         process.cwd(),
-        "fixtures/projects/phase-1-manual/project.icproj.json",
+        "fixtures/projects/manual-basics/project.icproj.json",
       ),
     );
   await page

@@ -10,7 +10,7 @@ test("an opened Project is auto-fitted to the camera", async ({ page }) => {
     .setInputFiles(
       resolve(
         process.cwd(),
-        "fixtures/projects/phase-3-routing/project.icproj.json",
+        "fixtures/projects/crossing-routing/project.icproj.json",
       ),
     );
   // The landing fit is silent: the open's own status survives.

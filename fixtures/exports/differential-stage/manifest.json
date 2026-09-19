@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "sourceProject": "fixtures/projects/phase-5-dense-analog/project.icproj.json",
+  "sourceProject": "fixtures/projects/differential-stage/project.icproj.json",
   "bounds": {
     "x": 38.251712000000005,
     "y": 132.1282,
