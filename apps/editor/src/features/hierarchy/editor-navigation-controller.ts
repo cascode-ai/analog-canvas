@@ -1,8 +1,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 
 import {
-  findHierarchyPath,
-  findHierarchyPaths,
   resolveEndpointConnection,
   type Diagnostic,
   type GlobalNetTraceHop,
@@ -127,35 +125,33 @@ export function createEditorNavigationController({
   };
 
   const selectDocumentFromHierarchy = (nextDocumentId: string): void => {
-    const paths = findHierarchyPaths(
-      connectivityIndex,
-      project.topDocumentId,
-      nextDocumentId,
-    );
-    setDocumentStack(paths?.length === 1 ? [...paths[0]!] : []);
-    switchDocument(nextDocumentId);
-    if (paths && paths.length > 1) {
-      setStatus(
-        `Opened shared Cell without caller context (${paths.length} instance paths)`,
-      );
+    if (!project.documents.some((cell) => cell.id === nextDocumentId)) {
+      setStatus(`Document not found: ${nextDocumentId}`);
+      return;
     }
+    // A definition selection carries no occurrence identity, even with one caller.
+    setDocumentStack([]);
+    switchDocument(nextDocumentId);
   };
 
   const jumpToCaller = (parentDocumentId: string, instanceId: string): void => {
-    const path = findHierarchyPath(
-      connectivityIndex,
-      project.topDocumentId,
-      parentDocumentId,
+    const parent = project.documents.find(
+      (cell) => cell.id === parentDocumentId,
     );
-    if (!path) {
-      setStatus("Caller path could not be resolved");
+    if (!parent?.instances.some((instance) => instance.id === instanceId)) {
+      setStatus("Caller no longer exists");
       return;
     }
-    setDocumentStack([...path]);
-    switchDocument(parentDocumentId);
-    selectOnly("instance", [instanceId]);
+    navigateToLocator(
+      {
+        documentId: parentDocumentId,
+        kind: "instance",
+        objectId: instanceId,
+        hierarchyPath: parentDocumentId === document.id ? documentStack : [],
+      },
+      `Opened caller ${parent.name}.${instanceId}`,
+    );
     setCellManagerOpen(false);
-    setStatus(`Opened caller ${parentDocumentId}.${instanceId}`);
   };
 
   const navigateToLocator = (
@@ -169,15 +165,23 @@ export function createEditorNavigationController({
       setStatus(`Document not found: ${locator.documentId}`);
       return;
     }
-    const derivedPath = findHierarchyPath(
-      connectivityIndex,
-      project.topDocumentId,
-      locator.documentId,
-    );
-    const hierarchyPath =
-      locator.hierarchyPath.length > 0
-        ? locator.hierarchyPath
-        : (derivedPath ?? []);
+    const pathValid =
+      locator.hierarchyPath.at(-1)?.childDocumentId === locator.documentId &&
+      locator.hierarchyPath.every((frame, index, path) => {
+        const parent = project.documents.find(
+          (cell) => cell.id === frame.parentDocumentId,
+        );
+        const instance = parent?.instances.find(
+          (item) => item.id === frame.instanceId,
+        );
+        return (
+          instance &&
+          referencedDocumentId(project, instance) === frame.childDocumentId &&
+          (index === 0 ||
+            path[index - 1]!.childDocumentId === frame.parentDocumentId)
+        );
+      });
+    const hierarchyPath = pathValid ? locator.hierarchyPath : [];
     documentViewBoxes.current.set(document.id, viewBox);
     const opened = openDocument(locator.documentId);
     if (!opened) {
@@ -293,12 +297,7 @@ export function createEditorNavigationController({
       navigateToLocator(
         {
           documentId: target.id,
-          hierarchyPath:
-            findHierarchyPath(
-              connectivityIndex,
-              project.topDocumentId,
-              target.id,
-            ) ?? [],
+          hierarchyPath: target.id === document.id ? documentStack : [],
           kind: "document",
           objectId: target.id,
         },
@@ -355,8 +354,18 @@ export function createEditorNavigationController({
   const returnToParentDocument = (): void => {
     const frame = documentStack.at(-1);
     if (!frame) return;
+    const parent = project.documents.find(
+      (cell) => cell.id === frame.parentDocumentId,
+    );
+    if (!parent) {
+      setDocumentStack([]);
+      setStatus("Parent Cell no longer exists");
+      return;
+    }
     setDocumentStack((current) => current.slice(0, -1));
     switchDocument(frame.parentDocumentId);
+    if (parent?.instances.some((instance) => instance.id === frame.instanceId))
+      selectOnly("instance", [frame.instanceId]);
   };
 
   const returnToTopDocument = (): void => {
@@ -385,11 +394,7 @@ export function createEditorNavigationController({
     endpoint?: RouteEndpoint,
     hierarchyPath: readonly HierarchyFrame[] = documentId === document.id
       ? documentStack
-      : (findHierarchyPath(
-          connectivityIndex,
-          project.topDocumentId,
-          documentId,
-        ) ?? []),
+      : [],
   ): void => {
     setHighlightedNetOrigin({
       documentId,

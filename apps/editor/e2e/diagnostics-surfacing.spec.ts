@@ -17,6 +17,7 @@ test("Check and Save surfaces findings in the existing workbench and canvas", as
   page,
 }) => {
   await page.goto("/editor");
+  await awaitEditorReady(page);
 
   // A fresh document rests at a quiet, still-clickable entry point.
   const badge = page.getByTestId("statusbar-issues");

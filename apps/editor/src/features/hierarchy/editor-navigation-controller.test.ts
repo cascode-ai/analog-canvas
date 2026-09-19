@@ -1,5 +1,9 @@
 import { buildProjectConnectivityIndex } from "@icm/derived";
-import { createEmptyProject, createRoutePath } from "@icm/model";
+import {
+  createEmptyProject,
+  createEmptyDocument,
+  createRoutePath,
+} from "@icm/model";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { describe, expect, it, vi } from "vitest";
 
@@ -46,6 +50,109 @@ function dependencies(
 }
 
 describe("editor navigation controller", () => {
+  it.each([1, 2])(
+    "opens a definition without inventing any of its %i caller paths",
+    (count) => {
+      const input = dependencies();
+      const child = createEmptyDocument("child", "Child");
+      input.project.documents.push(child);
+      for (let index = 0; index < count; index++)
+        input.document.instances.push({
+          id: `X${index}`,
+          symbolId: "unresolved-block",
+          placement: null,
+          netlist: {
+            parameters: {},
+            binding: { kind: "subcircuit", childDocumentId: child.id },
+          },
+        });
+      input.connectivityIndex = buildProjectConnectivityIndex(
+        input.project,
+        input.resolver,
+      );
+      createEditorNavigationController(input).selectDocumentFromHierarchy(
+        child.id,
+      );
+      expect(input.setDocumentStack).toHaveBeenCalledWith([]);
+      expect(input.setStatus).toHaveBeenCalledWith("Opened Cell Child");
+    },
+  );
+
+  it("opens and focuses a caller in an unreferenced parent definition", () => {
+    const input = dependencies();
+    const parent = createEmptyDocument("detached", "Detached");
+    parent.instances.push({
+      id: "X1",
+      symbolId: "unresolved-block",
+      placement: { position: { x: 500, y: 300 }, rotation: 0, mirror: "none" },
+      netlist: {
+        parameters: {},
+        binding: { kind: "subcircuit", childDocumentId: input.document.id },
+      },
+    });
+    input.project.documents.push(parent);
+    createEditorNavigationController(input).jumpToCaller(parent.id, "X1");
+    expect(input.setDocumentStack).toHaveBeenCalledWith([]);
+    expect(input.selectOnly).toHaveBeenCalledWith("instance", ["X1"]);
+    expect(input.setViewBox).toHaveBeenLastCalledWith(
+      { x: 420, y: 240, width: 160, height: 120 },
+      parent.presentation.grid,
+    );
+    expect(input.setCellManagerOpen).toHaveBeenCalledWith(false);
+  });
+
+  it("returns to the actual parent instance and preserves an explicit locator path only while valid", () => {
+    const input = dependencies();
+    const parent = input.document;
+    const child = createEmptyDocument("child", "Child");
+    input.project.documents.push(child);
+    parent.instances.push({
+      id: "X1",
+      symbolId: "unresolved-block",
+      placement: null,
+      netlist: {
+        parameters: {},
+        binding: { kind: "subcircuit", childDocumentId: child.id },
+      },
+    });
+    const path = [
+      {
+        parentDocumentId: parent.id,
+        instanceId: "X1",
+        childDocumentId: child.id,
+      },
+    ];
+    const controller = createEditorNavigationController({
+      ...input,
+      document: child,
+      documentStack: path,
+    });
+    controller.returnToParentDocument();
+    expect(input.selectOnly).toHaveBeenCalledWith("instance", ["X1"]);
+    controller.navigateToLocator(
+      {
+        documentId: child.id,
+        hierarchyPath: path,
+        kind: "document",
+        objectId: child.id,
+      },
+      "found",
+    );
+    expect(input.setDocumentStack).toHaveBeenLastCalledWith(path);
+    parent.instances = parent.instances.filter(
+      (instance) => instance.id !== "X1",
+    );
+    controller.navigateToLocator(
+      {
+        documentId: child.id,
+        hierarchyPath: path,
+        kind: "document",
+        objectId: child.id,
+      },
+      "found",
+    );
+    expect(input.setDocumentStack).toHaveBeenLastCalledWith([]);
+  });
   it("owns search-result focus and closes the search session", () => {
     const input = dependencies();
     const controller = createEditorNavigationController(input);
