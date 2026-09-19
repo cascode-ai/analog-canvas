@@ -46,9 +46,9 @@
     "gate:affected": "node scripts/gate-run.mjs --stage affected",
     "gate:full": "pnpm ci:check",
     "setup:e2e": "playwright install --with-deps chromium",
-    "ci:static": "pnpm format:check && pnpm docs:check && pnpm agent-docs:check && pnpm references:check && pnpm components:check && pnpm agent-kit:catalog:check && pnpm mcp:distribution:check && pnpm typecheck",
+    "ci:static": "pnpm format:check && pnpm docs:check && pnpm agent-docs:generated:check && pnpm references:check && pnpm components:check && pnpm agent-kit:catalog:check && pnpm mcp:distribution:check && pnpm typecheck",
     "ci:unit": "pnpm test",
-    "ci:e2e": "pnpm -r --filter \"!@icm/editor\" --filter \"!interactive-circuit-maker\" build && playwright test",
+    "ci:e2e": "pnpm --filter \"@icm/editor^...\" --if-present build && playwright test",
     "ci:check": "pnpm ci:static && pnpm test:local && pnpm build && pnpm release:verify:built && pnpm test:e2e:local",
     "verify:branch": "pnpm ci:static && pnpm test:local && pnpm build && node scripts/editor-production-smoke.mjs --check",
     "format": "prettier --write \"apps/**/*.{ts,tsx,json,css,html}\" \"packages/**/*.{ts,tsx,json}\" \"references/**/*.json\" \"scripts/**/*.mjs\" \"*.{json,yaml}\"",
@@ -98,7 +98,8 @@
     "components:generate": "node scripts/generate-component-library.mjs && node scripts/generate-razavi-symbol-catalog.mjs && node scripts/generate-agent-authoring-catalog.mjs",
     "components:check": "node scripts/generate-component-library.mjs --check && node scripts/generate-razavi-symbol-catalog.mjs --check",
     "agent-docs:generate": "node scripts/generate-agent-docs.mjs",
-    "agent-docs:check": "node scripts/generate-agent-docs.mjs --check && pnpm test:local scripts/generate-agent-docs.test.mjs"
+    "agent-docs:generated:check": "node scripts/generate-agent-docs.mjs --check",
+    "agent-docs:check": "pnpm agent-docs:generated:check && pnpm test:local scripts/generate-agent-docs.test.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",

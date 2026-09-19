@@ -19,7 +19,7 @@ an index for change impact, not a claim that the listed suites are exhaustive.
 | Agent authentication, permissions, and session lifetime          | `packages/agent-adapter/src/{session-state,service,request-contract}.test.ts`                                      | browser Agent session workflow                                  |
 | Browser recovery and persistence hardening                       | editor document unit contracts                                                                                     | recovery dialog and hardening Playwright specs                  |
 | User-visible editing workflows                                   | focused editor unit contracts                                                                                      | `apps/editor/e2e/` scenarios                                    |
-| Validation policy and change-impact selection                    | `scripts/lib/{validation-gates,ci-validation-plan,test-impact}.test.mjs`                                           | focused required browser checks, small fallback, nightly audits |
+| Validation policy and change-impact selection                    | `scripts/lib/{validation-gates,ci-validation-plan,test-impact}.test.mjs`                                           | focused required browser checks, small fallback, weekly audits  |
 
 When a change touches more than one row, add or update a cross-module test only
 for the shared fact. Do not duplicate all lower-level cases in Playwright.

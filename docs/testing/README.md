@@ -47,7 +47,7 @@ shipped product paths into focused browser contracts. Unit tests, package
 manifests, the Node-only local host and Node platform package stay in Core
 contracts instead of allocating a browser. An unmapped browser path gets a
 small insertion/runtime-safety fallback. The complete browser suite remains a
-nightly and manual audit.
+weekly scheduled and manual audit.
 
 `gate:preflight` runs cheap static contracts and cross-checks the commit's test
 impact declaration. `gate:affected` runs the catalog's bounded unit, focused
@@ -81,8 +81,8 @@ affected selection contains at least twelve spec files, with three workers
 per runner. A lightweight `Browser tests` aggregation job preserves the required
 check name and succeeds only after all selected shards pass. This keeps broad but
 legitimate focused selections within the PR wall-clock budget without raising
-per-runner Chromium contention; nightly and manual audits retain their separate
-four-shard full-suite route.
+per-runner Chromium contention; weekly scheduled and manual audits retain their
+separate four-shard full-suite route.
 
 ## Local iteration and batch validation
 
@@ -127,11 +127,14 @@ Every implementation pull request keeps two required checks:
   insertion and runtime-crash fallback. A non-browser implementation change
   skips this required job successfully without allocating a runner. GitHub's
   runner Chrome avoids downloading a separate browser image. `ci:e2e` first
-  compiles only the non-editor workspace projects, whose `dist/` the Vite
+  compiles only the editor's workspace dependencies whose `dist/` the Vite
   configuration and the Node-side specs load; Vite serves the editor sources
   directly because the Core job already owns the production build.
 
-Nightly and manual workflows run the complete browser suite in four shards.
+Weekly scheduled and manual workflows run the complete browser suite in four
+shards. The scheduled audit skips Core contracts because the audited `main`
+commit already passed them in its pull request; manual full validation retains
+both layers.
 A PR based on current `main` merges after its two required checks without
 repeating them in a merge queue. CI does not repeat on the subsequent `main`
 push; the deploy workflow chosen by the pull request's `preview` label builds,

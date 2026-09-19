@@ -4,7 +4,9 @@ on:
   pull_request:
   workflow_dispatch:
   schedule:
-    - cron: "23 18 * * *"
+    # PRs already validate every change. One weekly full-browser audit is
+    # enough to catch latent cross-suite drift without repeating it every day.
+    - cron: "23 18 * * 0"
 
 permissions:
   contents: read
@@ -61,12 +63,17 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: node scripts/check-test-impact.mjs --base "$BASE_SHA"
       - name: Check local Markdown links
+        # Core contracts includes this check for implementation changes.
+        # Keep it here only so documentation-only PRs still have a gate.
+        if: steps.plan.outputs.mode == 'documentation'
         run: node scripts/check-markdown-links.mjs
 
   core:
     name: Core contracts
     needs: changes
-    if: needs.changes.outputs.heavy == 'true'
+    # A scheduled run audits the browser suite against a commit that already
+    # passed Core contracts as a PR. Manual runs still execute both layers.
+    if: needs.changes.outputs.heavy == 'true' && github.event_name != 'schedule'
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
@@ -144,8 +151,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Full coverage is an audit, not a per-PR tax. Four shards retain its
-        # wall-clock speed without charging every candidate for all 489 tests.
+        # Full coverage is a weekly/manual audit, not a per-PR tax. Four shards
+        # retain its wall-clock speed without charging every candidate for the
+        # complete browser suite.
         shard:
           - 1/4
           - 2/4

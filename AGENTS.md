@@ -225,8 +225,9 @@ Before a non-document change is merged or pushed to `main`:
    only the mapped affected specs, or a small insertion/runtime fallback for
    an unmapped product path. The branch must still be based on current `main`;
    if `main` changes while checks run, update once and revalidate. Current
-   branches merge directly after this one CI pass. Nightly and manual CI runs
-   retain the complete four-shard browser audit.
+   branches merge directly after this one CI pass. Weekly scheduled and manual
+   CI runs retain the complete four-shard browser audit; the scheduled audit
+   does not repeat Core contracts for a commit that already passed them.
 5. If a remote check fails, keep the target active: inspect its log, repair the
    reported cause, and repeat verification. A successful `git push` is not a
    completed delivery.
