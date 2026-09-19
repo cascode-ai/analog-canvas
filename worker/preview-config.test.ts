@@ -206,6 +206,7 @@ describe("the preview channel configuration (Deployment rationale)", () => {
       { tag: "v3", new_sqlite_classes: ["GalleryDO"] },
       { tag: "v4", new_sqlite_classes: ["AuthDO"] },
       { tag: "v5", new_sqlite_classes: ["SimulationControlDO"] },
+      { tag: "v6", new_sqlite_classes: ["ComponentLibraryDO"] },
     ]);
     for (const binding of production.durable_objects!.bindings)
       expect(binding.script_name).toBeUndefined();

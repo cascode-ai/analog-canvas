@@ -1,7 +1,7 @@
 import { useReducer, useRef } from "react";
 import type { SetStateAction } from "react";
 
-import type { Mirror, Point, Rotation } from "@icm/model";
+import type { ComponentDefinition, Mirror, Point, Rotation } from "@icm/model";
 import type {
   WireCornerOrder,
   WireDraftStep,
@@ -60,6 +60,7 @@ export type DrawingTool = Extract<
 export type InteractionMode = InteractionState<unknown>["kind"];
 
 export interface PendingComponentPlacement {
+  componentDefinition?: ComponentDefinition;
   kind:
     | "symbol"
     | "cell"

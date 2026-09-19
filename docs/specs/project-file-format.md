@@ -25,8 +25,13 @@ built-in library. Editing its geometry updates every instance of that class;
 copy the class to a new `symbol.id` (and matching electrical `symbolId`) and
 change selected instances' `symbolId` to customize only those instances.
 
-Custom component internals are authored through Project Code, not through
-mouse-drawn shapes or a separate graphical component editor. Canvas transforms
+Custom component internals are authored through Project Code or the
+code-and-preview definition workspace (E / Edit Component Definition), not
+through mouse-drawn shapes. The definition workspace publishes every save to
+the public User Defined library and forks a new class for the selected
+instance. Shared library revisions have versioned Symbol IDs; a Project keeps
+its embedded definition even if the public entry is updated or removed.
+Canvas transforms
 edit Instance placement and never rewrite a shared class. Component definition
 changes use the existing validated, undoable Project commit. Future graphical
 definition editing must write this same representation rather than introduce

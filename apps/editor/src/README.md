@@ -52,6 +52,8 @@ and Durable Object storage. `src/` and the top-level Worker only mount it.
   - `simulation/`: the analog Simulation workspace, run history and results,
     and the local-development digital timing panel.
   - `text-editing/`: annotation and drafting-text editing.
+  - `user-components/`: code and preview authoring, the public component library,
+    shared definition contracts, and instance-isolated application.
   - `wiring/`: wire proposals, manual paths, and route interaction geometry.
   - `logical-net-choices.ts`, at the `features/` root: the Logical Net choice
     list read by `app/`, `editor-shell/`, and `simulation/`.

@@ -1,7 +1,8 @@
-import type { Rotation } from "@icm/model";
+import type { ComponentDefinition, Rotation } from "@icm/model";
 
 export interface SymbolInsertRequest {
   kind: "symbol";
+  componentDefinition?: ComponentDefinition;
   symbolId: string;
   symbolName: string;
   parameters: Record<string, string>;

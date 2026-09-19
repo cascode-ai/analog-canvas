@@ -30,6 +30,11 @@ import {
   type ChannelEnv,
 } from "./channel";
 import { routeAuthRequest, type AuthNamespaceLike } from "./auth";
+import {
+  routeComponentLibraryRequest,
+  type ComponentLibraryEnv,
+} from "./component-library";
+export { ComponentLibraryDO } from "./component-library";
 
 export { AnalyticsDO } from "../apps/editor/analytics/worker";
 export { AgentSessionDO } from "./agent-session";
@@ -37,7 +42,8 @@ export { GalleryDO } from "./gallery";
 export { AuthDO } from "./auth";
 export { SimulationControlDO } from "./simulation-control-do";
 
-type Env = SimulationEnv &
+type Env = ComponentLibraryEnv &
+  SimulationEnv &
   SimulationOperationsEnv &
   ChannelEnv & {
     ASSETS: { fetch(request: Request): Promise<Response> };
@@ -108,6 +114,9 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   const galleryResponse = await routeGalleryRequest(request, env);
   if (galleryResponse) return galleryResponse;
+
+  const componentsResponse = await routeComponentLibraryRequest(request, env);
+  if (componentsResponse) return componentsResponse;
 
   const managedSimulationResponse = await routeManagedSimulationRequest(
     request,

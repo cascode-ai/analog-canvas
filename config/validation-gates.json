@@ -108,6 +108,12 @@
       "apps/editor/e2e/component-insert.spec.ts",
       "apps/editor/e2e/component-properties-catalog.spec.ts"
     ],
+    "userComponents": [
+      "apps/editor/src/features/user-components/**",
+      "apps/editor/src/features/editor-shell/shapes-panel.tsx",
+      "worker/component-library*",
+      "apps/editor/e2e/user-components.spec.ts"
+    ],
     "hierarchy": [
       "apps/editor/src/features/hierarchy/**",
       "apps/editor/e2e/hierarchy.spec.ts",
@@ -319,6 +325,18 @@
           "apps/editor/e2e/component-properties-catalog.spec.ts"
         ]
       }
+    },
+    {
+      "id": "user-components-browser",
+      "stage": "affected",
+      "groups": ["userComponents"],
+      "description": "Validate shared component creation, isolated editing, insertion and administration.",
+      "command": [
+        "pnpm",
+        "test:e2e:local",
+        "apps/editor/e2e/user-components.spec.ts"
+      ],
+      "ci": { "e2eArgs": ["apps/editor/e2e/user-components.spec.ts"] }
     },
     {
       "id": "hierarchy-browser",
@@ -648,6 +666,7 @@
         "static-contracts",
         "workspace-unit",
         "component-insert-browser",
+        "user-components-browser",
         "hierarchy-browser",
         "project-file-browser",
         "gallery-browser",

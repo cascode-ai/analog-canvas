@@ -19,6 +19,7 @@ import { translateDraftingObject } from "@icm/edit-engine";
 import type { SchematicEdit } from "@icm/edit-engine";
 import type {
   Annotation,
+  CircuitProject,
   CellNetlistTerminal,
   ConnectivityEvidence,
   DraftingObject,
@@ -1157,6 +1158,7 @@ export function proposePaste(
   clipboard: SchematicClipboard,
   offset: Point,
   sequence: number,
+  project?: Pick<CircuitProject, "componentDefinitions">,
 ): PasteProposal {
   const occupied = new Set<string>(
     [
@@ -1181,7 +1183,7 @@ export function proposePaste(
           occupied,
         )
       : undefined;
-  const referenceIndex = createReferenceIndex(document);
+  const referenceIndex = createReferenceIndex(document, project);
   const reservedReferences = new Set<string>();
   const occupiedReferences = new Set(
     document.instances.flatMap((instance) =>
@@ -1202,7 +1204,7 @@ export function proposePaste(
         reservedReferences.add(instance.reference.toLowerCase());
         return [[instance.id, instance.reference] as const];
       }
-      const policy = referencePolicyForInstance(instance);
+      const policy = referencePolicyForInstance(instance, project);
       if (policy.kind === "none") {
         const reference = nextUnconstrainedReference(
           instance.reference,
@@ -1239,6 +1241,7 @@ export function proposePaste(
     for (const source of clipboard.instances) {
       const instance = createNewInstance(allocationDocument, source, {
         id: instanceIds.get(source.id)!,
+        project,
       });
       freshInstances.set(source.id, instance);
       allocationDocument.instances.push(instance);

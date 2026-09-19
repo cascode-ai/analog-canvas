@@ -55,6 +55,7 @@
   },
   "durable_objects": {
     "bindings": [
+      { "name": "COMPONENT_LIBRARY", "class_name": "ComponentLibraryDO" },
       { "name": "ANALYTICS", "class_name": "AnalyticsDO" },
       { "name": "AGENT_SESSION", "class_name": "AgentSessionDO" },
       // The preview's own private Project store. Public Gallery reads are
@@ -113,6 +114,7 @@
     // namespace, and its billed instance go with this migration.
     { "tag": "v6", "deleted_classes": ["NgspiceContainer"] },
     { "tag": "v7", "new_sqlite_classes": ["SimulationControlDO"] },
+    { "tag": "v8", "new_sqlite_classes": ["ComponentLibraryDO"] },
   ],
   "observability": {
     "enabled": true,

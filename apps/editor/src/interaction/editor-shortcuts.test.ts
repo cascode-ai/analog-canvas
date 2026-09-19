@@ -52,6 +52,23 @@ function resolve(
 const command = (value: object) => ({ kind: "run-command", command: value });
 
 describe("editor shortcut contract", () => {
+  it("opens a selected component definition with E without stealing typing, Q or hierarchy navigation", () => {
+    expect(resolve("e", { hasDefinitionSelection: true })).toEqual({
+      kind: "edit-component-definition",
+    });
+    expect(
+      resolve("e", { hasDefinitionSelection: true, isTyping: true }),
+    ).toBeNull();
+    expect(resolve("q", { hasDefinitionSelection: true })).toEqual(
+      command({ id: "properties.open" }),
+    );
+    expect(resolve("e", { hasHierarchyEnterSelection: true })).toEqual({
+      kind: "enter-hierarchy",
+    });
+    expect(
+      resolve("e", { canReturnToParent: true }, { shiftKey: true }),
+    ).toEqual({ kind: "return-to-parent" });
+  });
   it("maps history and file chords on either command modifier without stealing copy/paste chords", () => {
     expect(resolve("u")).toEqual(command({ id: "history.undo" }));
     expect(resolve("u", {}, { shiftKey: true })).toEqual(
@@ -354,7 +371,7 @@ describe("editor shortcut contract", () => {
     });
     expect(resolve("e", active)).toEqual({
       kind: "blocked-interaction-command",
-      command: "Enter Cell",
+      command: "Edit Component Definition",
     });
     expect(resolve("Delete", active)).toEqual({
       kind: "blocked-interaction-command",

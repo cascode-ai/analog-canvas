@@ -29,7 +29,7 @@ export const EDITOR_SHORTCUT_REFERENCE = [
   { keys: ["Q"], action: "Toggle Properties" },
   { keys: ["L"], action: "Create and place Net Label" },
   { keys: ["H"], action: "Toggle Net highlight" },
-  { keys: ["E"], action: "Enter selected Cell" },
+  { keys: ["E"], action: "Edit Component Definition / enter selected Cell" },
   { keys: ["Shift", "E"], action: "Return to parent Cell" },
   { keys: ["["], action: "Decrease selected line width" },
   { keys: ["]"], action: "Increase selected line width" },

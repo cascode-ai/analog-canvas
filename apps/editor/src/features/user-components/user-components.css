@@ -1,0 +1,149 @@
+.user-components-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 0;
+}
+.user-components-tools input:not([type="checkbox"]) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.user-components-library > p {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.user-components-library > small {
+  display: block;
+  padding: 6px 0;
+}
+.user-component-tile {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.user-component-tile .shapes-chip {
+  width: 100%;
+}
+.user-component-edit {
+  border: 0;
+  background: transparent;
+  color: var(--accent, #247ce0);
+  font-size: 10px;
+  padding: 3px 0;
+  cursor: pointer;
+}
+.component-definition-dialog {
+  width: min(1100px, 94vw);
+  max-width: 94vw;
+  height: min(800px, 90vh);
+  max-height: 90vh;
+  padding: 16px;
+  border: 1px solid #d4d4d4;
+  border-radius: 10px;
+  color: #242424;
+  background: #fff;
+}
+.component-definition-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.component-definition-dialog::backdrop {
+  background: rgb(0 0 0 / 25%);
+}
+.component-definition-dialog > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.component-definition-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.component-definition-note {
+  font-size: 12px;
+  color: #666;
+  margin: 0;
+}
+.component-definition-workspace {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(320px, 1.8fr);
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+.component-definition-preview {
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+}
+.component-definition-art {
+  flex: 1;
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  background-image: radial-gradient(#ddd 1px, transparent 1px);
+  background-size: 10px 10px;
+}
+.component-definition-artwork {
+  width: 100%;
+  height: 100%;
+  max-height: 430px;
+}
+.component-definition-preview ul {
+  padding-left: 20px;
+}
+.component-definition-code {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+}
+.component-definition-code > div {
+  flex: 1;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+.component-definition-code .cm-editor {
+  height: 100%;
+}
+.component-definition-code .cm-scroller {
+  overflow: auto;
+}
+.component-definition-dialog [role="alert"] {
+  color: #a12626;
+  font-size: 12px;
+  margin: 0;
+  max-height: 60px;
+  overflow: auto;
+}
+.component-definition-dialog [role="status"] {
+  font-size: 12px;
+  margin: 0;
+}
+@media (max-width: 700px) {
+  .component-definition-workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(140px, 30%) 1fr;
+  }
+  .component-definition-art {
+    min-height: 80px;
+  }
+  .component-definition-preview ul,
+  .component-definition-preview > label,
+  .component-definition-preview > small {
+    display: none;
+  }
+  .component-definition-dialog > header {
+    flex-wrap: wrap;
+  }
+}

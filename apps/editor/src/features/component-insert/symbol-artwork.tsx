@@ -43,7 +43,8 @@ export function SymbolArtwork({
   rotation?: Rotation;
   paddingRatio?: number;
 }) {
-  const variantId = defaultRazaviSymbolVariantId(symbol.id);
+  const variantId =
+    defaultRazaviSymbolVariantId(symbol.id) ?? symbol.defaultVariantId;
   const variant = symbol.variants.find(
     (candidate) => candidate.id === variantId,
   );

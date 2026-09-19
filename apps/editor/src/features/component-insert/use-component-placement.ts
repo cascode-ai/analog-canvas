@@ -54,6 +54,7 @@ import {
   nextInstanceId,
 } from "../netlist-export/netlist-authoring";
 import { defaultRazaviSymbolVariantId } from "../../presentation/razavi-presentation";
+import { sharedComponentNetlist } from "../user-components/component-definition-edit";
 import type { ScreenFlip } from "../../interaction/shortcut-orientation";
 import type { PendingComponentPlacement } from "../../interaction/interaction-state";
 import type { DrawingTool } from "../../interaction/interaction-state";
@@ -151,23 +152,33 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     placementRequest: PendingComponentPlacement,
   ): void => {
     if (placementRequest.kind !== "symbol") return;
+    const customDefinition = placementRequest.componentDefinition;
     const instance = createNewInstance(
       options.document,
       {
         symbolId,
-        symbolVariantId: defaultRazaviSymbolVariantId(symbolId),
+        symbolVariantId: customDefinition
+          ? customDefinition.symbol.defaultVariantId
+          : defaultRazaviSymbolVariantId(symbolId),
         placement: {
           position,
           rotation: options.componentPlacementRotation,
           mirror: options.componentPlacementMirror,
         },
-        netlist: initialInstanceNetlist(
-          symbolId,
-          placementRequest.parameters,
-          options.processModelTarget(symbolId),
-        ),
+        netlist: customDefinition
+          ? sharedComponentNetlist(customDefinition)
+          : initialInstanceNetlist(
+              symbolId,
+              placementRequest.parameters,
+              options.processModelTarget(symbolId),
+            ),
       },
-      { reference: placementRequest.referenceText ?? undefined },
+      {
+        reference: placementRequest.referenceText ?? undefined,
+        project: customDefinition
+          ? { componentDefinitions: [customDefinition] }
+          : options.project,
+      },
     );
     const id = instance.id;
     const displayAnnotations = defaultInstanceDisplayAnnotations(

@@ -12,6 +12,7 @@ import {
   type ArrowPreset,
 } from "../features/drafting/arrow-presets";
 import {
+  lazy,
   Suspense,
   useCallback,
   useEffect,
@@ -19,6 +20,29 @@ import {
   useRef,
   useState,
 } from "react";
+import type { ComponentDefinition, Instance } from "@icm/model";
+import type { SharedComponent } from "../features/user-components/component-library-contract";
+import { publishedDefinition } from "../features/user-components/component-library-contract";
+import {
+  newComponentDefinition,
+  planComponentDefinitionEdit,
+  sharedComponentInsertRequest,
+} from "../features/user-components/component-definition-edit";
+
+const UserComponentsLibrary = lazy(
+  () => import("../features/user-components/user-components-library"),
+);
+const ComponentDefinitionEditor = lazy(
+  () => import("../features/user-components/component-definition-editor"),
+);
+
+interface ComponentEditorSession {
+  key: string;
+  definition: ComponentDefinition;
+  mode: "new" | "instance" | "library";
+  entry?: SharedComponent;
+  target?: { projectSessionId: string; documentId: string; instance: Instance };
+}
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import "../styles/editor-entry.css";
 import type {
@@ -426,6 +450,9 @@ export function App({
       ).project,
   );
   const [status, setStatus] = useState("Ready");
+  const [componentEditor, setComponentEditor] =
+    useState<ComponentEditorSession | null>(null);
+  const [componentLibraryRefresh, setComponentLibraryRefresh] = useState(0);
   const helpButtonRef = useRef<HTMLButtonElement>(null);
   const helpCloseRef = useRef<HTMLButtonElement>(null);
   const libraryResizeOriginRef = useRef<{
@@ -590,6 +617,8 @@ export function App({
     canvasDragSessionRef.current?.cancel();
     stageRecovery(project, { cloudBinding });
   });
+  const definitionProjectRef = useRef({ project, projectSessionId });
+  definitionProjectRef.current = { project, projectSessionId };
   const projectConnectivityIndex = useMemo(
     () => buildProjectConnectivityIndex(project, resolver),
     [project, resolver],
@@ -3531,6 +3560,66 @@ export function App({
         )
       : undefined;
 
+  function openSelectedComponentDefinition(): void {
+    if (!selectedInstance) {
+      setStatus("Select one component to edit its definition");
+      return;
+    }
+    if (hasHierarchyEnterSelection) {
+      enterSelectedHierarchy();
+      return;
+    }
+    const definition = project.componentDefinitions?.find(
+      (item) => item.symbol.id === selectedInstance.symbolId,
+    );
+    if (!definition) {
+      setStatus("No component definition is available for this selection");
+      return;
+    }
+    cancelAllTransientInteraction();
+    setCanvasContextMenu(null);
+    setComponentEditor({
+      key: crypto.randomUUID(),
+      mode: "instance",
+      definition: structuredClone(definition),
+      target: {
+        projectSessionId,
+        documentId: document.id,
+        instance: structuredClone(selectedInstance),
+      },
+    });
+  }
+
+  function insertSharedComponent(entry: SharedComponent): void {
+    try {
+      editorDocumentController.offerComponentDefinition(entry.definition);
+      synchronizeExternalCommit();
+      editorCommands.execute({
+        id: "insert.start",
+        launch: { kind: "quick", request: sharedComponentInsertRequest(entry) },
+      });
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  function componentEditPlan(definition: ComponentDefinition) {
+    const target = componentEditor?.target;
+    const live = definitionProjectRef.current;
+    if (!target || live.projectSessionId !== target.projectSessionId)
+      return {
+        ok: false as const,
+        message: "The Project changed. Reopen the component before applying.",
+      };
+    return planComponentDefinitionEdit(
+      live.project,
+      target.documentId,
+      target.instance.id,
+      target.instance,
+      definition,
+    );
+  }
+
   function commitProjectName(): void {
     setProjectNameDraft(null);
     renameProject(projectNameDraft);
@@ -4020,6 +4109,7 @@ export function App({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
+      if (componentEditor) return;
       // The source workbench owns its keyboard scope, including portalled menus.
       if (
         event.target instanceof Element &&
@@ -4134,6 +4224,11 @@ export function App({
         ),
         propertiesOpen: selectionOpen,
         hasHierarchyEnterSelection,
+        hasDefinitionSelection: Boolean(
+          selectedInstance &&
+          !resolver.resolve(selectedInstance.symbolId)?.definition
+            .hierarchicalBlock,
+        ),
         canReturnToParent: documentStack.length > 0,
       });
       if (!shortcut) return;
@@ -4198,11 +4293,14 @@ export function App({
         case "enter-hierarchy":
           enterSelectedHierarchy();
           return;
+        case "edit-component-definition":
+          openSelectedComponentDefinition();
+          return;
         case "return-to-parent":
           returnToParentDocument();
           return;
         case "hierarchy-selection-required":
-          setStatus("Select a hierarchical block before entering a Cell");
+          setStatus("Select one component to edit its definition");
           return;
         case "step-drafting-style": {
           if (!selectedDrafting) return;
@@ -5407,6 +5505,31 @@ export function App({
           <ShapesPanel
             styleProfileId={document.presentation.styleProfileId}
             open={visibleLibraryPanelOpen}
+            userComponents={
+              <Suspense fallback={null}>
+                <UserComponentsLibrary
+                  refresh={componentLibraryRefresh}
+                  onCreate={() => {
+                    cancelAllTransientInteraction();
+                    setComponentEditor({
+                      key: crypto.randomUUID(),
+                      mode: "new",
+                      definition: newComponentDefinition(),
+                    });
+                  }}
+                  onEdit={(entry) => {
+                    cancelAllTransientInteraction();
+                    setComponentEditor({
+                      key: crypto.randomUUID(),
+                      mode: "library",
+                      definition: entry.definition,
+                      entry,
+                    });
+                  }}
+                  onInsert={insertSharedComponent}
+                />
+              </Suspense>
+            }
             onStartInsert={(launch) =>
               editorCommands.execute({ id: "insert.start", launch })
             }
@@ -7062,6 +7185,24 @@ export function App({
             }
             actions={[
               {
+                label: "Edit Component Definition (E)",
+                enabled: Boolean(
+                  selectedInstance &&
+                  !resolver.resolve(selectedInstance.symbolId)?.definition
+                    .hierarchicalBlock,
+                ),
+                execute: openSelectedComponentDefinition,
+              },
+              ...(hasHierarchyEnterSelection
+                ? [
+                    {
+                      label: "Enter Cell (E)",
+                      enabled: true,
+                      execute: enterSelectedHierarchy,
+                    },
+                  ]
+                : []),
+              {
                 label: "Properties (Q)",
                 enabled: editorCommands.state({ id: "properties.open" })
                   .enabled,
@@ -7134,6 +7275,44 @@ export function App({
           onStatus={setStatus}
           onPlaceOnCanvas={beginWaveformPlacement}
         />
+      ) : null}
+      {componentEditor ? (
+        <Suspense fallback={null}>
+          <ComponentDefinitionEditor
+            key={componentEditor.key}
+            definition={componentEditor.definition}
+            mode={componentEditor.mode}
+            {...(componentEditor.entry ? { entry: componentEditor.entry } : {})}
+            validateApply={(definition) => {
+              if (!componentEditor.target) return null;
+              const plan = componentEditPlan(
+                publishedDefinition(definition, componentEditor.key, 1),
+              );
+              return plan.ok ? null : plan.message;
+            }}
+            onSaved={(entry) => {
+              setComponentLibraryRefresh((value) => value + 1);
+              if (componentEditor.target) {
+                const plan = componentEditPlan(entry.definition);
+                if (!plan.ok) return plan.message;
+                try {
+                  commitProjectStructure(plan.project, plan.activeDocumentId);
+                  selectOnly("instance", [componentEditor.target.instance.id]);
+                  setStatus(
+                    "Saved publicly and applied to the selected component",
+                  );
+                } catch (error) {
+                  return error instanceof Error ? error.message : String(error);
+                }
+              } else if (componentEditor.mode === "new")
+                insertSharedComponent(entry);
+              if (componentEditor.mode !== "library") setComponentEditor(null);
+              return null;
+            }}
+            onManaged={() => setComponentLibraryRefresh((value) => value + 1)}
+            onClose={() => setComponentEditor(null)}
+          />
+        </Suspense>
       ) : null}
       <SelectionFilterPopover
         open={selectionFilterOpen}

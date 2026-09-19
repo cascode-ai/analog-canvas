@@ -57,6 +57,7 @@ test("right-click on a device only offers direct selection actions", async ({
   const menu = page.getByTestId("canvas-context-menu");
   await expect(menu).toBeVisible();
   await expect(menu.getByRole("menuitem")).toHaveText([
+    "Edit Component Definition (E)",
     "Properties (Q)",
     "Duplicate (C)",
     "Rotate 90° (R)",

@@ -1,4 +1,5 @@
 import type {
+  CircuitProject,
   Instance,
   InstanceNetlistBinding,
   InstanceNetlistData,
@@ -66,7 +67,11 @@ export function createNewInstance(
     | "styleOverride"
     | "signalFlowParameters"
   >,
-  options: { id?: string | undefined; reference?: string | undefined } = {},
+  options: {
+    id?: string | undefined;
+    reference?: string | undefined;
+    project?: Pick<CircuitProject, "componentDefinitions"> | undefined;
+  } = {},
 ): Instance {
   const {
     symbolId,
@@ -88,8 +93,8 @@ export function createNewInstance(
   const reference =
     options.reference ??
     nextReference(
-      createReferenceIndex(document),
-      referencePolicyForInstance(instance),
+      createReferenceIndex(document, options.project),
+      referencePolicyForInstance(instance, options.project),
     );
   if (reference) instance.reference = reference;
   return instance;

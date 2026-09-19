@@ -421,7 +421,13 @@ export function prepareProjectCopy(
     if (!resolver.resolve(instance.symbolId))
       throw new Error(`Copied Symbol is unavailable: ${instance.symbolId}`);
   }
-  const preflight = proposePaste(document, clipboard, { x: 0, y: 0 }, 0);
+  const preflight = proposePaste(
+    document,
+    clipboard,
+    { x: 0, y: 0 },
+    0,
+    prepared,
+  );
   if (preflight.errors.length) throw new Error(preflight.errors.join("; "));
   return { clipboard, dependencyEdits: edits, resolver };
 }
@@ -434,7 +440,13 @@ export function planProjectCopyPlacement(
   sequence: number,
 ) {
   const prepared = prepareProjectCopy(project, document, clipboard);
-  const proposal = proposePaste(document, prepared.clipboard, offset, sequence);
+  const proposal = proposePaste(
+    document,
+    prepared.clipboard,
+    offset,
+    sequence,
+    project,
+  );
   if (proposal.errors.length) throw new Error(proposal.errors.join("; "));
   const gate = gateRoutingOperationPlan(document, proposal.operationPlan, {
     symbolResolver: prepared.resolver,

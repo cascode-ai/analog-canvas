@@ -67,7 +67,7 @@ export function deriveSelectionInspectionModel({
       )
     : undefined;
   const selectedDevice = selectedInstance
-    ? deviceDescriptor(selectedInstance.symbolId)
+    ? deviceDescriptor(selectedInstance.symbolId, project)
     : undefined;
   const selectedCapacitorPlateRows = selectedInstance
     ? capacitorPlatePropertyRows(document, selectedInstance)

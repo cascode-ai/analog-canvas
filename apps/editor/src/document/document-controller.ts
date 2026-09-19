@@ -15,7 +15,7 @@ import type {
   ProjectTransactionResult,
   SchematicEdit,
 } from "@icm/edit-engine";
-import { CircuitProjectSchema } from "@icm/model";
+import { CircuitProjectSchema, ComponentDefinitionSchema } from "@icm/model";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import {
   builtInSymbols,
@@ -120,6 +120,31 @@ export class EditorDocumentController {
     object,
     ComponentDefinition
   >();
+  private readonly availableComponents = new Map<string, ComponentDefinition>();
+
+  /** An insertion candidate is not Project content until a real instance is placed. */
+  offerComponentDefinition(value: ComponentDefinition): void {
+    const definition = ComponentDefinitionSchema.parse(structuredClone(value));
+    if (!definition.symbol.id.startsWith("user-"))
+      throw new Error(
+        "Shared component IDs must be versioned user definitions",
+      );
+    const existing =
+      this.projectValue.componentDefinitions?.find(
+        (item) => item.symbol.id === definition.symbol.id,
+      ) ?? this.availableComponents.get(definition.symbol.id);
+    if (existing && JSON.stringify(existing) !== JSON.stringify(definition))
+      throw new Error("A placed component version cannot be overwritten");
+    this.availableComponents.set(definition.symbol.id, definition);
+    this.resolverValue = this.projectResolver(this.projectValue);
+  }
+
+  private projectResolver(project: CircuitProject): ProjectSymbolResolver {
+    return createProjectSymbolResolver(project, [
+      ...builtInSymbols,
+      ...[...this.availableComponents.values()].map((item) => item.symbol),
+    ]);
+  }
   private readonly liveResolver = {
     resolve: (id: string, variant?: string) =>
       this.resolverValue.resolve(id, variant),
@@ -214,11 +239,9 @@ export class EditorDocumentController {
     this.projectValue = withProjectComponentDefinitions(
       CircuitProjectSchema.parse(structuredClone(nextProject)),
     );
+    this.availableComponents.clear();
     this.activeDocumentIdValue = this.projectValue.topDocumentId;
-    this.resolverValue = createProjectSymbolResolver(
-      this.projectValue,
-      builtInSymbols,
-    );
+    this.resolverValue = this.projectResolver(this.projectValue);
     const document = this.document;
     this.historyValue = new DocumentHistory(document, {
       symbolResolver: this.liveResolver,
@@ -269,10 +292,7 @@ export class EditorDocumentController {
     this.projectRedoStack.length = 0;
     this.projectValue = parsed;
     this.activeDocumentIdValue = activeDocumentId;
-    this.resolverValue = createProjectSymbolResolver(
-      this.projectValue,
-      builtInSymbols,
-    );
+    this.resolverValue = this.projectResolver(this.projectValue);
     this.resetHistoriesFromProject();
     return this.document;
   }
@@ -408,13 +428,16 @@ export class EditorDocumentController {
       )!;
       try {
         const definitions = new Map(currentDefinitions);
+        for (const [id, definition] of this.availableComponents) {
+          if (!definitions.has(id)) definitions.set(id, definition);
+        }
         if (historyEdit?.kind === "undo" || historyEdit?.kind === "redo") {
           for (const object of [
             ...result.document.instances,
             ...(result.document.drafting?.objects ?? []),
           ]) {
             const definition = this.componentHistory.get(object);
-            if (definition && !definitions.has(definition.symbol.id))
+            if (definition && !currentDefinitions.has(definition.symbol.id))
               definitions.set(definition.symbol.id, definition);
           }
         }
@@ -452,10 +475,7 @@ export class EditorDocumentController {
           (transactionMayChangeSymbolDefinitions(request.edits) &&
             documentSymbolDefinitionChanged(previousDocument, result.document))
         ) {
-          this.resolverValue = createProjectSymbolResolver(
-            this.projectValue,
-            builtInSymbols,
-          );
+          this.resolverValue = this.projectResolver(this.projectValue);
         }
         if (
           !request.edits.some(
@@ -562,7 +582,7 @@ export class EditorDocumentController {
     )
       ? target.activeDocumentId
       : restored.topDocumentId;
-    this.resolverValue = createProjectSymbolResolver(restored, builtInSymbols);
+    this.resolverValue = this.projectResolver(restored);
     this.resetHistoriesFromProject();
     const document =
       restored.documents.find((item) => item.id === documentId) ??

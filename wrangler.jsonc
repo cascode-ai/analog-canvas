@@ -42,6 +42,7 @@
   },
   "durable_objects": {
     "bindings": [
+      { "name": "COMPONENT_LIBRARY", "class_name": "ComponentLibraryDO" },
       {
         "name": "ANALYTICS",
         "class_name": "AnalyticsDO",
@@ -117,6 +118,7 @@
       "tag": "v5",
       "new_sqlite_classes": ["SimulationControlDO"],
     },
+    { "tag": "v6", "new_sqlite_classes": ["ComponentLibraryDO"] },
   ],
   "observability": {
     "enabled": true,

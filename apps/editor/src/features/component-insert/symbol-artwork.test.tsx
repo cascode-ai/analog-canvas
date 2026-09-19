@@ -54,6 +54,18 @@ describe("SymbolArtwork pin-name previews", () => {
     expectDffPinNames(markup);
   });
 
+  it("honors the default variant embedded in a user component", () => {
+    const symbol = structuredClone(dff);
+    symbol.id = "user-custom-dff-r1";
+    symbol.defaultVariantId = "hide-clock";
+    symbol.variants = [{ id: "hide-clock", hiddenPinNames: ["CK"] }];
+    const markup = renderToStaticMarkup(
+      <SymbolArtwork symbol={symbol} className="test-artwork" />,
+    );
+    expect(markup).toContain('data-pin-name="D"');
+    expect(markup).not.toContain('data-pin-name="CK"');
+  });
+
   it("renders the reset terminal inside the resettable DFF body", () => {
     const resettable = requireRazaviCatalogSymbol("d-flip-flop-reset");
     const markup = renderToStaticMarkup(

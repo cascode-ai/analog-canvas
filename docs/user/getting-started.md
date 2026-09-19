@@ -250,7 +250,29 @@ press Ctrl/⌘ + Enter) to reproduce the drawing, including its component
 definitions. The receiving editor keeps its own Project identity and Cloud
 binding. Apply is undoable; invalid code leaves the live drawing unchanged.
 
-Custom component artwork is edited **only in code**. Find its entry in
+To edit one component, select it and press **E**, or right-click and choose
+**Edit Component Definition**. **Q** continues to edit instance properties.
+The definition workspace shows code and a live, isolated preview with pin
+coordinates. It does not provide mouse drawing tools. **Save & apply** publishes
+a new shared component and changes only the selected instance; peers retain
+their existing definitions. It supports normal Project Undo. A hierarchical
+Cell still uses **E / Enter Cell** to navigate into its circuit.
+
+The Library ends with **User Defined**, after **Extended Devices**. Choose
+**Create component**, edit the starter code, and **Save & place**. Signing in
+is required to save; every saved definition is public, with no private-library
+option. Other people can place it or fork it as a new component. Authors can
+update their own library entries; each revision is captured independently
+when placed, so updates never silently rewrite existing drawings.
+
+Administrators can mark an entry **Official**, delete it from the public list,
+or restore it using the **Deleted** filter. Official entries can be updated
+only by an administrator; anyone may fork them. Deletion retains the stored
+definition, and circuits that already contain it remain complete and usable.
+Official here means an administrator-reviewed public library entry, not an
+automatic change to the repository's built-in component files.
+
+Custom component artwork is also editable through complete Project Code. Find its entry in
 `componentDefinitions`: `symbol` contains the shapes and pins, while
 `electrical` and optional `subcircuit` describe its netlist interface. Edit the
 included definition and apply it to update every instance that references its
@@ -266,8 +288,9 @@ its identity; existing route geometry may need a manual adjustment.
 
 The Project carries one definition per used component type, including uses in
 other Cells. Deleting its final use removes the definition; Undo restores it.
-Unused definitions are not a component library. Keep a placed instance while
-developing a new definition, or save its code separately. An Agent can make
+Unused definitions inside a Project are not a component library. When editing
+through Project Code, keep a placed instance while developing a definition.
+The User Defined library stores published definitions independently. An Agent can make
 the same changes in the complete Project code without a separate file format.
 
 SPICE files are import inputs, not embedded source attachments. Saving an

@@ -26,6 +26,7 @@ export interface EditorShortcutContext {
   hasRemovableWireWaypoint: boolean;
   propertiesOpen: boolean;
   hasHierarchyEnterSelection: boolean;
+  hasDefinitionSelection?: boolean;
   canReturnToParent: boolean;
 }
 
@@ -36,6 +37,7 @@ export type EditorShortcutIntent =
   | { kind: "save" | "open" }
   | { kind: "edit-net-label" | "toggle-display-settings" }
   | { kind: "toggle-net-highlight" }
+  | { kind: "edit-component-definition" }
   | {
       kind:
         "enter-hierarchy" | "return-to-parent" | "hierarchy-selection-required";
@@ -236,7 +238,7 @@ export function resolveEditorShortcut(
       m: "Move",
       t: "Text",
       h: "Net Highlight",
-      e: "Enter Cell",
+      e: "Edit Component Definition",
       r: "Rotate or Mirror",
       "[": "Drafting Style",
       "]": "Drafting Style",
@@ -257,6 +259,8 @@ export function resolveEditorShortcut(
     if (event.shiftKey) {
       return context.canReturnToParent ? { kind: "return-to-parent" } : null;
     }
+    if (context.hasDefinitionSelection)
+      return { kind: "edit-component-definition" };
     return context.hasHierarchyEnterSelection
       ? { kind: "enter-hierarchy" }
       : { kind: "hierarchy-selection-required" };
