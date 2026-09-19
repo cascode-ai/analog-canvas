@@ -356,6 +356,15 @@ export function createPropertyEditPlanner({
     instance: SchematicDocument["instances"][number],
   ) => {
     const binding = instance.netlist?.binding;
+    const declaredParameters =
+      binding?.kind === "subcircuit"
+        ? project.documents.find((cell) => cell.id === binding.childDocumentId)
+            ?.netlist?.formalParameters
+        : binding?.kind === "external-subcircuit"
+          ? project.externalSubcircuitDefinitions.find(
+              (definition) => definition.id === binding.definitionId,
+            )?.formalParameters
+          : undefined;
     if (binding?.kind === "external-subcircuit") {
       const definition = project.externalSubcircuitDefinitions.find(
         (candidate) => candidate.id === binding.definitionId,
@@ -369,6 +378,21 @@ export function createPropertyEditPlanner({
       if (reviewed) {
         return reviewedExternalComponentParameters(reviewed);
       }
+    }
+    if (declaredParameters) {
+      return declaredParameters.map((parameter) => ({
+        definitionParameter: true,
+        key: parameter.name,
+        label: parameter.name,
+        placeholder: parameter.defaultValue ?? "Required",
+        ...(parameter.defaultValue !== undefined
+          ? { defaultValue: parameter.defaultValue }
+          : {}),
+        help:
+          parameter.defaultValue !== undefined
+            ? `Inherited: ${parameter.defaultValue}. Empty uses the definition default.`
+            : "This definition requires an instance value.",
+      }));
     }
     return componentParameters(instance.symbolId);
   };

@@ -197,7 +197,14 @@ export function componentDetailFields(
       label: parameter.label,
       kind: parameter.options ? ("choice" as const) : ("text" as const),
       ...(parameter.options ? { options: parameter.options } : {}),
-      description: parameter.unit ?? "",
+      description:
+        parameter.definitionParameter &&
+        !effectiveComponentParameterValue(instance, parameter)
+          ? parameter.defaultValue !== undefined
+            ? `Default: ${parameter.defaultValue}`
+            : "Required"
+          : (parameter.unit ?? ""),
+      help: parameter.help,
     })),
     {
       path: "netlistTarget",

@@ -15,6 +15,8 @@ export interface ComponentParameter {
   options?: readonly { readonly value: string; readonly label: string }[];
   visibleForSourceWaveforms?: readonly ("pulse" | "sin" | "pwl")[];
   compatibilityOnly?: boolean;
+  /** The value belongs to the called definition unless this instance overrides it. */
+  definitionParameter?: boolean;
 }
 
 const TIME_SCALE_PS: Readonly<Record<string, number>> = {

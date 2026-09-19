@@ -6,6 +6,10 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it, vi } from "vitest";
 
 import { createPropertyEditPlanner } from "./property-edit-planner";
+import {
+  componentPropertyDetailsValue,
+  componentDetailFields,
+} from "./component-property-details";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
@@ -62,6 +66,91 @@ function routedFixture() {
 }
 
 describe("property edit planner", () => {
+  it.each(["subcircuit", "external-subcircuit"] as const)(
+    "projects %s declarations without materializing inherited defaults",
+    (kind) => {
+      const input = fixture();
+      const formalParameters = [
+        { name: "Rbase", defaultValue: "1k" },
+        { name: "gain" },
+      ];
+      const child = createEmptyProject("child-project", "Child").documents[0]!;
+      child.id = "child";
+      child.netlist = { name: "Child", terminals: [], formalParameters };
+      input.project.documents.push(child);
+      input.project.externalSubcircuitDefinitions.push({
+        id: "external",
+        interfaceStatus: "declared",
+        name: "External",
+        terminals: [],
+        formalParameters,
+      });
+      const instance = {
+        id: "X1",
+        symbolId: "subcircuit:Child",
+        reference: "X1",
+        placement: {
+          position: { x: 0, y: 0 },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+        netlist: {
+          parameters: {} as Record<string, string>,
+          binding:
+            kind === "subcircuit"
+              ? { kind, childDocumentId: child.id }
+              : { kind, definitionId: "external" },
+        },
+      };
+      input.document.instances.push(instance);
+      const planner = createPropertyEditPlanner(input);
+      const parameters = planner.propertyParametersForInstance(instance);
+      expect(parameters.map((parameter) => parameter.key)).toEqual([
+        "Rbase",
+        "gain",
+      ]);
+      const context = { parameters };
+      expect(
+        componentPropertyDetailsValue(instance, context).parameters,
+      ).toEqual({ Rbase: "", gain: "" });
+      expect(componentDetailFields(instance, context)).toContainEqual(
+        expect.objectContaining({
+          path: "parameters.Rbase",
+          description: "Default: 1k",
+        }),
+      );
+      const draft = {
+        instanceId: instance.id,
+        parameters: { Rbase: "", gain: "" },
+        x: "0",
+        y: "0",
+        rotation: "0" as const,
+      };
+      expect(planner.instancePropertyEdits(draft).edits).toEqual([]);
+      expect(
+        planner.instancePropertyEdits({
+          ...draft,
+          parameters: { Rbase: "2k", gain: "3" },
+        }).edits,
+      ).toEqual([
+        {
+          kind: "patch_instance_netlist_parameters",
+          instanceId: "X1",
+          set: { Rbase: "2k", gain: "3" },
+        },
+      ]);
+      instance.netlist.parameters = { Rbase: "2k" };
+      expect(planner.instancePropertyEdits(draft).edits).toEqual([
+        {
+          kind: "patch_instance_netlist_parameters",
+          instanceId: "X1",
+          unset: ["Rbase"],
+        },
+      ]);
+      expect(child.netlist.formalParameters).toEqual(formalParameters);
+    },
+  );
+
   it("retains an imported route label id and dragged anchor while renaming", () => {
     const input = routedFixture();
     input.document.annotations.push({
