@@ -4741,6 +4741,91 @@ test("edits the complete Project Code with one undo boundary and protects a stal
   await expect(projectCode).toContainText('"name": "Canvas changed"');
 });
 
+test("pastes complete Project Code between independent sessions with identical artwork and undo", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  const sourceContext = await browser.newContext(baseURL ? { baseURL } : {});
+  try {
+    const sourcePage = await sourceContext.newPage();
+    await sourcePage.goto("/editor");
+    await sourcePage
+      .getByTestId("project-file")
+      .setInputFiles(
+        resolve("apps/editor/src/examples/common-source-amplifier.icproj.json"),
+      );
+    await sourcePage.getByTestId("project-code-toggle").click();
+    const sourceEditor = sourcePage.getByRole("textbox", {
+      name: "Project code",
+    });
+    await expect(sourceEditor).toBeVisible();
+    // CodeMirror virtualizes long documents; select/copy reads the whole file.
+    await sourceContext.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await sourceEditor.focus();
+    await sourcePage.keyboard.press("ControlOrMeta+a");
+    await sourcePage.keyboard.press("ControlOrMeta+c");
+    const sourceCode = await sourcePage.evaluate(() =>
+      navigator.clipboard.readText(),
+    );
+    const sourceProject = JSON.parse(sourceCode);
+    const artwork = await sourcePage
+      .locator('[data-layer="formal"]')
+      .innerHTML();
+    expect(artwork.length).toBeGreaterThan(100);
+
+    await page.goto("/editor");
+    const recipient = createEmptyProject("paste-recipient", "Recipient");
+    recipient.documents[0]!.id = "recipient-cell";
+    recipient.topDocumentId = "recipient-cell";
+    await page.getByTestId("project-file").setInputFiles({
+      name: "recipient.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(recipient)),
+    });
+    const original = JSON.parse(
+      (await downloadBytes(page, "File", "Export Project File…")).toString(
+        "utf8",
+      ),
+    );
+    await page.getByTestId("project-code-toggle").click();
+    const recipientEditor = page.getByRole("textbox", { name: "Project code" });
+    await expect(recipientEditor).toBeVisible();
+    expect(original.id).not.toBe(sourceProject.id);
+    await recipientEditor.fill(sourceCode);
+    await page.getByRole("button", { name: "Apply", exact: true }).click();
+    await expect(page.getByTestId("project-name-input")).toHaveValue(
+      sourceProject.name,
+    );
+    await expect
+      .poll(() => page.locator('[data-layer="formal"]').innerHTML())
+      .toBe(artwork);
+
+    const applied = JSON.parse(
+      (await downloadBytes(page, "File", "Export Project File…")).toString(
+        "utf8",
+      ),
+    );
+    expect(applied).toEqual({
+      ...sourceProject,
+      id: original.id,
+      structureRevision: original.structureRevision + 1,
+      documents: sourceProject.documents.map((document: SchematicDocument) => ({
+        ...document,
+        revision: 0,
+      })),
+    });
+
+    await page.getByTestId("draw-tool-undo").click();
+    await expect(page.getByTestId("project-name-input")).toHaveValue(
+      original.name,
+    );
+    await expect(page.getByTestId("canvas-empty-state")).toBeVisible();
+  } finally {
+    await sourceContext.close();
+  }
+});
+
 test("shows the component-library tooltip without a native hover delay", async ({
   page,
 }) => {

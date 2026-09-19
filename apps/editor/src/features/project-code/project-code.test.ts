@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createEmptyProject } from "@icm/model";
+import { createRoutingDemoProject } from "../../demos/routing-demo";
 
 import {
   formatProjectCode,
@@ -44,10 +45,19 @@ describe("Project Code", () => {
     });
   });
 
-  it("rejects invalid JSON and a Project identity swap", () => {
+  it("rejects invalid JSON and invalid source identities before rebinding", () => {
     const project = createEmptyProject("project", "Project");
     expect(validateProjectCode("{", project.id)).toMatchObject({ ok: false });
-    const replacement = createEmptyProject("other", "Other");
+    expect(
+      validateProjectCode(JSON.stringify({ ...project, id: "" }), project.id),
+    ).toMatchObject({ ok: false });
+  });
+
+  it("pastes all content from another Project while retaining recipient identity", () => {
+    const project = createEmptyProject("recipient", "Recipient");
+    const replacement = createRoutingDemoProject();
+    replacement.structureRevision = 42;
+    replacement.documents[0]!.revision = 17;
     expect(
       planProjectCodeCommit(
         project,
@@ -55,9 +65,21 @@ describe("Project Code", () => {
         project.topDocumentId,
       ),
     ).toEqual({
-      ok: false,
-      message: "Project id is fixed for this editing session (project)",
+      ok: true,
+      changed: true,
+      activeDocumentId: replacement.topDocumentId,
+      project: {
+        ...replacement,
+        id: project.id,
+        structureRevision: 1,
+        documents: replacement.documents.map((document) => ({
+          ...document,
+          revision: 0,
+        })),
+      },
     });
+    expect(replacement.id).toBe("project-routing");
+    expect(replacement.documents[0]!.revision).toBe(17);
   });
 
   it("treats typed revision changes as editor-managed no-ops", () => {

@@ -37,13 +37,10 @@ export function validateProjectCode(
       message: diagnosticMessage(parsed.diagnostics[0]!),
     };
   }
-  if (parsed.project.id !== projectId) {
-    return {
-      ok: false,
-      message: `Project id is fixed for this editing session (${projectId})`,
-    };
-  }
-  return { ok: true, project: parsed.project };
+  // Pasted code owns the complete drawing, not the receiving editor session.
+  // Keep the recipient's Project identity so cross-Project paste uses the same
+  // undoable commit and connected Agent session. Drawing references stay intact.
+  return { ok: true, project: { ...parsed.project, id: projectId } };
 }
 
 function documentWithoutRevision(document: SchematicDocument): unknown {
