@@ -73,6 +73,9 @@ Top** follows the saved default; another selection drives the preview, structura
 check and copied netlist without changing Top or your editing location. Code
 edits apply to the displayed Cell's actual devices. Entry selection is disabled
 while a text draft is pending, and resets for a different opened Project.
+New simulation folders have their own **Simulation Cell** choice. The experiment
+keeps that circuit binding when the Project's default Top changes; simulation
+source files and analysis settings remain owned by the experiment.
 
 Use **Import Cell** in the Cell Manager to copy a Cell from another signed-in
 Cloud Project. The import includes every child Cell it calls, compatible

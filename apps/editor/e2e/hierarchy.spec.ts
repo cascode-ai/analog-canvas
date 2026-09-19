@@ -259,6 +259,76 @@ test("edits independent parent parameter overrides and follows definition rename
   ).toEqual({});
 });
 
+test("keeps a chosen simulation Cell independent of later default Top changes", async ({
+  page,
+}) => {
+  const project = hierarchyParameterFixture();
+  const other = createEmptyDocument("other", "Other");
+  project.documents.push(other);
+  await page.route("**/api/simulate", (route) =>
+    route.fulfill({
+      json: {
+        configured: false,
+        rawfileCollection: "native-multi-ascii",
+        inputs: ["source"],
+        analyses: ["op"],
+        parsedAnalyses: ["op"],
+        profiles: [],
+        maxTimeoutMs: 15000,
+        maxInputBytes: 1048576,
+        cancel: true,
+      },
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "simulation-entry.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("open-analog-simulation").click();
+  const panel = page.getByRole("region", { name: "Analog simulation" });
+  await panel
+    .getByRole("button", { name: "Set up manually", exact: true })
+    .click();
+  await panel
+    .getByLabel("Simulation Cell", { exact: true })
+    .selectOption("resistors");
+  const name = panel.getByRole("textbox", {
+    name: "New simulation folder name",
+  });
+  await name.fill("Child experiment");
+  await name.press("Enter");
+  await expect(
+    panel.getByRole("treeitem", {
+      name: "Folder Child experiment",
+      exact: true,
+    }),
+  ).toBeVisible();
+  const snapshot = async (): Promise<CircuitProject> =>
+    JSON.parse(
+      (await downloadBytes(page, "File", "Export Project File…")).toString(),
+    );
+  const before = await snapshot();
+  expect(before.topDocumentId).toBe(project.topDocumentId);
+  expect(before.simulationFolders[0]!.input.circuitBindings).toContainEqual(
+    expect.objectContaining({ documentId: "resistors" }),
+  );
+  await runCellCommand(page, "Manage Cells…");
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager
+    .getByRole("complementary", { name: "Cells", exact: true })
+    .getByRole("button", { name: /Other/ })
+    .click();
+  await manager
+    .getByRole("button", { name: "Set as Top", exact: true })
+    .click();
+  await manager.getByLabel("Close Cell Manager").click();
+  const after = await snapshot();
+  expect(after.topDocumentId).toBe("other");
+  expect(after.simulationFolders).toEqual(before.simulationFolders);
+});
+
 test("sets a Cell as default Top without changing its circuit and supports Undo", async ({
   page,
 }) => {
