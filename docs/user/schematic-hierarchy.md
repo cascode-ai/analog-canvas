@@ -80,11 +80,11 @@ adapt without a separate interface editor.
 
 Each visible marker remains an ordinary Instance for selection, move, wiring,
 copy, and deletion. Copying a Cell Pin creates a new formal terminal with an
-independent stable identity, name, direction, and internal Base Net. An
-in-place copy retains the same visible name; later edits to either Pin do not
-affect the other. As with every copied connected component, a Pin
-whose Net crosses the selection boundary remains attached to that existing
-Net, but its declaration identity is still independent. Placing or renaming a
+independent stable identity and a freshly allocated interface name, with its
+direction preserved. Copy follows ordinary insertion: destination contacts
+determine connectivity; off-selection source connectivity is not inherited.
+Only explicitly selected wires travel with the copy. Later edits to either
+Pin do not affect the other. Placing or renaming a
 Pin to the same name never attaches it to another Pin or merges their Nets.
 
 When the Cell is used as a hierarchical block or exported, a read-only final
