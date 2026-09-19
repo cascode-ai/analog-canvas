@@ -363,6 +363,9 @@ interface PreviewRow extends PreviewAccessRow {
 
 const TOKENZHANG_BYLINE_MIGRATION = "2026-08-26-tokenzhang-to-zhishuai-zhang";
 const TOKENZHANG_BYLINE = "Zhishuai Zhang";
+const MAGIC_LI_BYLINE_MIGRATION = "2026-09-19-3187863239-netizen-to-magic-li";
+const MAGIC_LI_LEGACY_BYLINE = "3187863239-netizen";
+const MAGIC_LI_BYLINE = "Magic Li";
 const VERSION_RETENTION_MIGRATION = "2026-08-27-gallery-version-retention-2";
 const PREVIEW_DIMENSIONS_MIGRATION = "2026-09-02-gallery-preview-dimensions";
 
@@ -580,6 +583,30 @@ export class GalleryDO {
       this.sql.exec(
         "INSERT INTO data_migrations(id, applied_at) VALUES (?, ?)",
         TOKENZHANG_BYLINE_MIGRATION,
+        new Date().toISOString(),
+      );
+    });
+    this.state.storage.transactionSync(() => {
+      const applied = this.sql
+        .exec<{ id: string }>(
+          "SELECT id FROM data_migrations WHERE id = ?",
+          MAGIC_LI_BYLINE_MIGRATION,
+        )
+        .toArray();
+      if (applied.length > 0) return;
+      // A restored snapshot must not bring the old public byline back, so the
+      // current entries and their restorable histories move together.
+      for (const table of ["gallery_entries", "gallery_entry_versions"]) {
+        this.sql.exec(
+          `UPDATE ${table} SET author = ?
+           WHERE LOWER(TRIM(author)) = LOWER(?)`,
+          MAGIC_LI_BYLINE,
+          MAGIC_LI_LEGACY_BYLINE,
+        );
+      }
+      this.sql.exec(
+        "INSERT INTO data_migrations(id, applied_at) VALUES (?, ?)",
+        MAGIC_LI_BYLINE_MIGRATION,
         new Date().toISOString(),
       );
     });

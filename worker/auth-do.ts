@@ -22,6 +22,9 @@ export const AUTH_DISPLAY_NAME_MAX = 40;
 const TOKENZHANG_DISPLAY_NAME_MIGRATION =
   "2026-08-26-tokenzhang-to-zhishuai-zhang";
 const TOKENZHANG_DISPLAY_NAME = "Zhishuai Zhang";
+const MAGIC_LI_DISPLAY_NAME_MIGRATION = "2026-09-19-gallery-owner-to-magic-li";
+const MAGIC_LI_USER_ID = "2cf8ed78-a15d-4a24-8020-74dca560a897";
+const MAGIC_LI_DISPLAY_NAME = "Magic Li";
 
 type SqlResult<T> = {
   toArray(): T[];
@@ -245,6 +248,28 @@ export class AuthDO {
       this.sql.exec(
         "INSERT INTO data_migrations(id, applied_at) VALUES (?, ?)",
         TOKENZHANG_DISPLAY_NAME_MIGRATION,
+        new Date().toISOString(),
+      );
+    });
+    state.storage.transactionSync(() => {
+      const applied = this.sql
+        .exec<{ id: string }>(
+          "SELECT id FROM data_migrations WHERE id = ?",
+          MAGIC_LI_DISPLAY_NAME_MIGRATION,
+        )
+        .toArray();
+      if (applied.length > 0) return;
+      // This identity owns the legacy Gallery byline migrated alongside this
+      // account change. Updating the account keeps future submissions under
+      // the same public name; the marker preserves later profile choices.
+      this.sql.exec(
+        "UPDATE users SET display_name = ? WHERE id = ?",
+        MAGIC_LI_DISPLAY_NAME,
+        MAGIC_LI_USER_ID,
+      );
+      this.sql.exec(
+        "INSERT INTO data_migrations(id, applied_at) VALUES (?, ?)",
+        MAGIC_LI_DISPLAY_NAME_MIGRATION,
         new Date().toISOString(),
       );
     });

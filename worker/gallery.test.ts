@@ -379,6 +379,85 @@ describe("gallery data migrations", () => {
     ).toBe("Token Zhang");
   });
 
+  it("renames the Magic Li byline across entries and restorable versions once", () => {
+    const state = sqliteState();
+    new GalleryDO(state);
+    state.storage.sql.exec(
+      `INSERT INTO gallery_entries
+       (id, name, author, description, created_at, schema_version, status,
+        project_text, svg_text)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      "magic-li-entry",
+      "Magic Li circuit",
+      " 3187863239-NETIZEN ",
+      "",
+      "2026-09-19T00:00:00.000Z",
+      CURRENT_PROJECT_SCHEMA_VERSION,
+      "public",
+      projectText("Magic Li circuit"),
+      "<svg/>",
+      "unrelated-entry",
+      "Unrelated",
+      "Another Contributor",
+      "",
+      "2026-09-19T00:00:00.000Z",
+      CURRENT_PROJECT_SCHEMA_VERSION,
+      "recycled",
+      projectText("Unrelated"),
+      "<svg/>",
+    );
+    state.storage.sql.exec(
+      `INSERT INTO gallery_entry_versions
+       (id, entry_id, version_no, name, author, description, schema_version,
+        project_text, svg_text, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      "magic-li-version",
+      "magic-li-entry",
+      1,
+      "Magic Li circuit",
+      "3187863239-netizen",
+      "",
+      CURRENT_PROJECT_SCHEMA_VERSION,
+      projectText("Magic Li circuit"),
+      "<svg/>",
+      "2026-09-19T00:00:00.000Z",
+    );
+    state.storage.sql.exec(
+      "DELETE FROM data_migrations WHERE id LIKE '%magic-li%'",
+    );
+
+    new GalleryDO(state);
+    expect(
+      state.storage.sql
+        .exec<{ id: string; author: string }>(
+          "SELECT id, author FROM gallery_entries ORDER BY id",
+        )
+        .toArray(),
+    ).toEqual([
+      { id: "magic-li-entry", author: "Magic Li" },
+      { id: "unrelated-entry", author: "Another Contributor" },
+    ]);
+    expect(
+      state.storage.sql
+        .exec<{ author: string }>(
+          "SELECT author FROM gallery_entry_versions WHERE id = 'magic-li-version'",
+        )
+        .one().author,
+    ).toBe("Magic Li");
+
+    state.storage.sql.exec(
+      "UPDATE gallery_entries SET author = '3187863239-netizen' WHERE id = 'magic-li-entry'",
+    );
+    new GalleryDO(state);
+    expect(
+      state.storage.sql
+        .exec<{ author: string }>(
+          "SELECT author FROM gallery_entries WHERE id = 'magic-li-entry'",
+        )
+        .one().author,
+    ).toBe("3187863239-netizen");
+  });
+
   it("migrates histories to two versions and removes orphaned data", () => {
     const state = sqliteState();
     new GalleryDO(state);

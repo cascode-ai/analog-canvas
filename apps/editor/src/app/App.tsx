@@ -4617,6 +4617,7 @@ export function App({
         simulationState={analogSimulationState}
         releaseChannel={releaseChannel}
         projectName={project.name}
+        galleryEntryMetadata={galleryEntryContext}
         projectSchemaVersion={project.schemaVersion}
         projectNameDraft={projectNameDraft}
         hasUnsavedWork={isDirtyWork()}

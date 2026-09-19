@@ -1133,6 +1133,88 @@
   outline: 0;
 }
 
+/* An opened Gallery circuit keeps its public context beside its name. The
+   summary makes the byline and a note excerpt continuously visible; opening
+   it reveals the complete stored text without spending permanent menubar
+   width on publication metadata. */
+.app-gallery-entry-details {
+  position: relative;
+  min-width: 0;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  line-height: var(--icm-line-tight);
+}
+
+.app-gallery-entry-details summary {
+  display: flex;
+  min-width: 0;
+  cursor: pointer;
+  list-style: none;
+  white-space: nowrap;
+}
+
+.app-gallery-entry-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.app-gallery-entry-author {
+  flex: 0 0 auto;
+  color: var(--icm-text);
+  font-weight: 600;
+}
+
+.app-gallery-entry-description {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-chrome-main .app-brand-copy:has(.app-gallery-entry-details[open]) {
+  overflow: visible;
+}
+
+.app-gallery-entry-popover {
+  position: fixed;
+  z-index: 40;
+  top: calc(var(--icm-menubar-h) - 1px);
+  left: var(--icm-space-3);
+  width: min(28rem, calc(100vw - 24px));
+  max-height: calc(100dvh - var(--icm-menubar-h) - 12px);
+  padding: var(--icm-space-3);
+  overflow: auto;
+  border: 1px solid var(--icm-border-strong);
+  border-radius: var(--icm-radius-md);
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  box-shadow: var(--icm-shadow-lg);
+  white-space: normal;
+}
+
+.app-gallery-entry-popover dl,
+.app-gallery-entry-popover dd {
+  margin: 0;
+}
+
+.app-gallery-entry-popover dl {
+  display: grid;
+  gap: var(--icm-space-3);
+}
+
+.app-gallery-entry-popover dt {
+  margin-bottom: var(--icm-space-1);
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.app-gallery-entry-popover dd {
+  line-height: var(--icm-line-normal);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .project-unsaved-indicator {
   color: var(--icm-accent);
   font-size: 0.62rem;

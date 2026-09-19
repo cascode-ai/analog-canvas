@@ -1596,6 +1596,16 @@ test("a gallery tile opens its circuit in the editor", async ({ page }) => {
   );
   // The circuit name is an editable field now, so it is read as a value.
   await expect(page.getByTestId("project-name-input")).toHaveValue(ENTRY.name);
+  const gallerySummary = page.getByTestId("gallery-entry-summary");
+  await expect(gallerySummary).toContainText(`by ${ENTRY.author}`);
+  await expect(gallerySummary).toContainText(ENTRY.description);
+  await gallerySummary.click();
+  const galleryInformation = page.getByTestId("gallery-entry-popover");
+  await expect(galleryInformation).toBeVisible();
+  await expect(galleryInformation).toContainText("Contributor");
+  await expect(galleryInformation).toContainText(ENTRY.author);
+  await expect(galleryInformation).toContainText("Notes");
+  await expect(galleryInformation).toContainText(ENTRY.description);
 
   // The brand mark is the single way back; a second toolbar link said the
   // same thing twice.

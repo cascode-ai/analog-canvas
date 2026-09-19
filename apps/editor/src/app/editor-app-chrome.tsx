@@ -27,6 +27,10 @@ interface AlignmentAction extends CommandAction {
 
 export interface EditorAppChromeProps {
   projectName: string;
+  galleryEntryMetadata: {
+    author: string;
+    description: string;
+  } | null;
   projectSchemaVersion: number;
   projectNameDraft: string | null;
   hasUnsavedWork: boolean;
@@ -89,6 +93,7 @@ export function ReleaseChannelBadge({
 /** Persistent command chrome above the document workspace. */
 export function EditorAppChrome({
   projectName,
+  galleryEntryMetadata,
   projectSchemaVersion,
   projectNameDraft,
   hasUnsavedWork,
@@ -135,6 +140,9 @@ export function EditorAppChrome({
   releaseChannel,
 }: EditorAppChromeProps) {
   const displayedProjectName = projectNameDraft ?? projectName;
+  const galleryContributor =
+    galleryEntryMetadata?.author.trim() || "Unknown contributor";
+  const galleryNotes = galleryEntryMetadata?.description.trim() ?? "";
   const copyNetlist = (format: "spice" | "spectre") => {
     dismissOpenCommandMenus();
     onExportNetlist(format);
@@ -194,6 +202,49 @@ export function EditorAppChrome({
               ) : null}{" "}
               / <span data-testid="active-document-name">{documentName}</span>
             </p>
+            {galleryEntryMetadata ? (
+              <details
+                className="app-gallery-entry-details"
+                data-testid="gallery-entry-details"
+              >
+                <summary
+                  data-testid="gallery-entry-summary"
+                  title={
+                    galleryNotes
+                      ? `Contributor: ${galleryContributor}\nNotes: ${galleryNotes}`
+                      : `Contributor: ${galleryContributor}`
+                  }
+                >
+                  <span className="app-gallery-entry-author">
+                    by {galleryContributor}
+                  </span>
+                  {galleryNotes ? (
+                    <span className="app-gallery-entry-description">
+                      {" · "}
+                      {galleryNotes}
+                    </span>
+                  ) : null}
+                </summary>
+                <div
+                  className="app-gallery-entry-popover"
+                  data-testid="gallery-entry-popover"
+                  aria-label="Gallery entry information"
+                >
+                  <dl>
+                    <div>
+                      <dt>Contributor</dt>
+                      <dd>{galleryContributor}</dd>
+                    </div>
+                    {galleryNotes ? (
+                      <div>
+                        <dt>Notes</dt>
+                        <dd>{galleryNotes}</dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                </div>
+              </details>
+            ) : null}
           </div>
         </div>
         <nav

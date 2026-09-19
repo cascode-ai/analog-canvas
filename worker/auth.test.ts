@@ -195,6 +195,62 @@ describe("account data migrations", () => {
         .one().display_name,
     ).toBe("Token Zhang");
   });
+
+  it("renames the Magic Li account once without touching another matching handle", () => {
+    const state = sqliteState();
+    new AuthDO(state, {} as AuthEnv);
+    state.storage.sql.exec(
+      `INSERT INTO users
+       (id, provider, provider_id, email, display_name, role, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?)`,
+      "2cf8ed78-a15d-4a24-8020-74dca560a897",
+      "github",
+      "3187863239",
+      null,
+      "3187863239-netizen",
+      "user",
+      "2026-09-19T00:00:00.000Z",
+      "other-user",
+      "github",
+      "same-handle",
+      null,
+      "3187863239-netizen",
+      "user",
+      "2026-09-19T00:00:00.000Z",
+    );
+    state.storage.sql.exec(
+      "DELETE FROM data_migrations WHERE id LIKE '%magic-li%'",
+    );
+
+    new AuthDO(state, {} as AuthEnv);
+    expect(
+      state.storage.sql
+        .exec<{ id: string; display_name: string }>(
+          "SELECT id, display_name FROM users ORDER BY id",
+        )
+        .toArray(),
+    ).toEqual([
+      {
+        id: "2cf8ed78-a15d-4a24-8020-74dca560a897",
+        display_name: "Magic Li",
+      },
+      { id: "other-user", display_name: "3187863239-netizen" },
+    ]);
+
+    state.storage.sql.exec(
+      `UPDATE users SET display_name = 'Personal Choice'
+       WHERE id = '2cf8ed78-a15d-4a24-8020-74dca560a897'`,
+    );
+    new AuthDO(state, {} as AuthEnv);
+    expect(
+      state.storage.sql
+        .exec<{ display_name: string }>(
+          `SELECT display_name FROM users
+           WHERE id = '2cf8ed78-a15d-4a24-8020-74dca560a897'`,
+        )
+        .one().display_name,
+    ).toBe("Personal Choice");
+  });
 });
 
 describe("providers visibility (dark ship)", () => {
