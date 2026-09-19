@@ -1,4 +1,8 @@
-import { CellNetlistTerminalSchema, projectCellInterface } from "@icm/model";
+import {
+  CellNetlistTerminalSchema,
+  flattenRichText,
+  projectCellInterface,
+} from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 
 import type { EditTransaction } from "./edit-schema.js";
@@ -25,6 +29,41 @@ export interface CellInterfaceEditContext {
 }
 
 export type CellInterfaceEditOutcome = EditMutationOutcome;
+
+/** Reconcile after all edits: deletion planners may remove annotations first. */
+export function inheritCellPortFormatting(
+  before: SchematicDocument,
+  after: SchematicDocument,
+  changedObjectIds: Set<string>,
+): void {
+  const oldPorts = projectCellInterface(before.netlist).ports;
+  for (const port of projectCellInterface(after.netlist).ports) {
+    const previous = oldPorts.find((item) => item.key === port.key);
+    if (!previous || previous.id === port.id) continue;
+    const source = before.annotations.find(
+      (item) =>
+        item.binding?.kind === "cell-terminal-name" &&
+        item.binding.terminalId === previous.id,
+    );
+    const target = after.annotations.find(
+      (item) =>
+        item.binding?.kind === "cell-terminal-name" &&
+        item.binding.terminalId === port.id,
+    );
+    // An authored surviving marker wins. Never change electrical spelling or
+    // replace an explicit annotation edit made in this same transaction.
+    if (
+      !source?.formatOverride ||
+      !target ||
+      target.formatOverride ||
+      changedObjectIds.has(target.id) ||
+      flattenRichText(source.formatOverride) !== port.name
+    )
+      continue;
+    target.formatOverride = structuredClone(source.formatOverride);
+    changedObjectIds.add(target.id);
+  }
+}
 
 export function applyCellInterfaceEdit(
   edit: CellInterfaceEdit,

@@ -7,7 +7,11 @@ import {
 import { describe, expect, it } from "vitest";
 
 import { createEmptyDocument, createEmptyProject } from "@icm/model";
-import { externalSubcircuitSymbolId, hierarchicalSymbolId } from "@icm/symbols";
+import {
+  externalSubcircuitSymbolId,
+  hierarchicalSymbolId,
+  projectCellSymbolTerminals,
+} from "@icm/symbols";
 
 import {
   planRenameCell,
@@ -110,6 +114,66 @@ function addCellPin(
 }
 
 describe("Project structural transaction", () => {
+  it.each([false, true])(
+    "retains effective Port formatting after representative deletion (authored survivor: %s)",
+    (authored) => {
+      const project = createEmptyProject("project", "Project");
+      const child = createEmptyDocument("child", "Child");
+      project.documents.push(child);
+      const formatted = {
+        runs: [
+          { kind: "text" as const, value: "V" },
+          {
+            kind: "span" as const,
+            style: "subscript" as const,
+            children: [{ kind: "text" as const, value: "out" }],
+          },
+        ],
+      };
+      for (const id of ["one", "two"]) {
+        addCellPin(child, {
+          instanceId: `P-${id}`,
+          terminalId: id,
+          name: "Vout",
+          netId: `net-${id}`,
+        });
+        child.annotations.push({
+          id: `label-${id}`,
+          kind: "instance-label",
+          binding: { kind: "cell-terminal-name", terminalId: id },
+          anchor: {
+            kind: "object",
+            objectId: `P-${id}`,
+            localOffset: { x: 0, y: 0 },
+            fallbackPosition: { x: 0, y: 0 },
+          },
+          alignment: "middle",
+          rotation: 0,
+          locked: false,
+          ...(id === "one"
+            ? { formatOverride: formatted }
+            : authored
+              ? { formatOverride: plainNameDocument("Vout") }
+              : {}),
+        });
+      }
+      const result = executeProjectTransaction(project, {
+        transactionId: "remove-formatted-marker",
+        projectId: project.id,
+        expectedStructureRevision: project.structureRevision,
+        actor: { kind: "human", id: "local" },
+        edits: planRemoveCellTerminal(project, child.id, "one"),
+      });
+      if (!result.ok) throw new Error(JSON.stringify(result));
+      const updated = result.project.documents[1]!;
+      expect(updated.annotations).toHaveLength(1);
+      expect(projectCellSymbolTerminals(updated)[0]!.nameContent).toEqual(
+        authored ? plainNameDocument("Vout") : formatted,
+      );
+      expect(child.annotations).toHaveLength(2);
+    },
+  );
+
   it("accepts a Gallery-sized nested document transaction within its bound", () => {
     const project = createEmptyProject("gallery-sized-project", "Gallery");
     const edits = Array.from({ length: 272 }, () => ({

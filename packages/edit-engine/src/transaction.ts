@@ -34,7 +34,10 @@ import {
   nextPhysicalContactOperation,
 } from "./transaction-connectivity-normalizer.js";
 import { applyCellResetEdit } from "./transaction-cell-reset.js";
-import { applyCellInterfaceEdit } from "./transaction-cell-interface.js";
+import {
+  applyCellInterfaceEdit,
+  inheritCellPortFormatting,
+} from "./transaction-cell-interface.js";
 import { applyInstanceLifecycleEdit } from "./transaction-instance-lifecycle.js";
 import { applyInstanceNetlistEdit } from "./transaction-instance-netlist.js";
 import { applyInstanceSignalFlowEdit } from "./transaction-instance-signal-flow.js";
@@ -1128,6 +1131,7 @@ export function executeTransaction(
   }
   draft.revision = proposedRevision;
 
+  inheritCellPortFormatting(document, draft, changedObjectIds);
   const candidate = SchematicDocumentSchema.safeParse(draft);
   if (!candidate.success) {
     return rejectTransaction(
