@@ -154,6 +154,7 @@
         "editor": "text",
         "unitHint": "V",
         "placeholder": "1.8",
+        "defaultValue": "1",
         "help": "DC value and operating-point bias",
         "displayRole": "value"
       },

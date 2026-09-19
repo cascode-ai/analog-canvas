@@ -138,6 +138,7 @@
         "editor": "text",
         "unitHint": "A",
         "placeholder": "1m",
+        "defaultValue": "1m",
         "help": "DC value and operating-point bias",
         "displayRole": "value"
       },

@@ -187,8 +187,10 @@ describe("component parameter catalogue", () => {
       expect(parameters.some((parameter) => parameter.compatibilityOnly)).toBe(
         false,
       );
+      // A source lands with a bias to start from, the way R and C land with
+      // 1k and 1p, so a freshly drawn one is not a TODO field.
       expect(initialComponentParameterValues(symbolId)).toMatchObject({
-        dc: "",
+        dc: unit === "V" ? "1" : "1m",
         waveform: "dc",
         acMagnitude: "",
         acPhase: "",
