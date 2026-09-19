@@ -487,10 +487,9 @@
 
 .cell-parameter-row {
   display: grid;
-  grid-template-columns: minmax(4rem, 1fr) minmax(4rem, 1fr) minmax(
-      3rem,
-      auto
-    ) 28px;
+  grid-template-columns:
+    minmax(4rem, 1fr) minmax(4rem, 1fr) minmax(3rem, auto)
+    28px;
   align-items: center;
   gap: 4px;
 }
