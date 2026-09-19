@@ -169,7 +169,7 @@ describe("validation gate planning", () => {
     );
     expect(
       ids(["apps/editor/src/features/component-insert/placement-near-miss.ts"]),
-    ).toContain("placement-near-miss-browser");
+    ).toContain("component-insert-browser");
     expect(ids(["apps/editor/src/canvas/canvas-hit-resolver.ts"])).toContain(
       "thin-target-hit-browser",
     );

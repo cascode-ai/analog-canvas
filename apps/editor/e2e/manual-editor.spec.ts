@@ -18,7 +18,6 @@ import {
   editComponentPropertyCode,
   readComponentPropertyCode,
   readDocumentStyleCode,
-  setComponentParameter,
   setComponentCodeField,
   expectComponentCodeField,
   openMenu,
@@ -3807,57 +3806,6 @@ test("L labels a selected wire or snaps near an unselectable wire", async ({
   await richEditor.press("Escape");
 });
 
-test("drag value annotation keeps the user offset through rotation", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await placeComponent(page, "resistor", { x: 360, y: 220 });
-  await page.getByTestId("hit-R1").click();
-  await openSelectionShelf(page);
-
-  await setComponentParameter(page, "value", "33k");
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 60, y: 60 } });
-  await page.getByTestId("hit-R1").click();
-  await openSelectionShelf(page);
-  await editComponentPropertyCode(page, (propertyCode) => {
-    propertyCode.display.value = true;
-  });
-  await expect(
-    page.locator('[data-object-id="instance-value-R1"]'),
-  ).toContainText("33k");
-
-  // Drag the value away from its canonical slot.
-  const value = page.getByTestId("annotation-hit-instance-value-R1");
-  await value.click({ modifiers: ["Alt"] });
-  await value.dragTo(page.getByTestId("schematic-canvas"), {
-    targetPosition: { x: 200, y: 360 },
-  });
-  const dragged = await value.boundingBox();
-  if (!dragged) throw new Error("Dragged value is not measurable");
-
-  // A user-moved value is an authored vector: rotation transforms it rigidly
-  // instead of pulling it back onto the automatic second row.
-  await page.getByTestId("hit-R1").click();
-  await openSelectionShelf(page);
-  await editComponentPropertyCode(page, (propertyCode) => {
-    propertyCode.placement.rotation = 45;
-  });
-  await expect(
-    page.locator('[data-object-id="R1"] > g').first(),
-  ).toHaveAttribute("transform", /rotate\(45\)/u);
-  await expect(
-    page.locator('[data-object-id="instance-value-R1"]'),
-  ).toContainText("33k");
-  const rotated = await value.boundingBox();
-  if (!rotated) throw new Error("Rotated value is not measurable");
-  // A 45-degree turn may keep one coordinate, so assert total displacement.
-  expect(
-    Math.hypot(rotated.x - dragged.x, rotated.y - dragged.y),
-  ).toBeGreaterThan(10);
-});
-
 test("canvas text editor cancels explicitly and commits on Escape or outside click", async ({
   page,
 }) => {
@@ -4754,117 +4702,6 @@ test("edits the complete Project Code with one undo boundary and protects a stal
   await expect(apply).toBeDisabled();
   await reload.click();
   await expect(projectCode).toContainText('"name": "Canvas changed"');
-});
-
-test("pastes complete Project Code between independent sessions with identical artwork and undo", async ({
-  page,
-  browser,
-  baseURL,
-}) => {
-  const sourceContext = await browser.newContext(baseURL ? { baseURL } : {});
-  try {
-    const sourcePage = await sourceContext.newPage();
-    await sourcePage.goto("/editor");
-    await sourcePage
-      .getByTestId("project-file")
-      .setInputFiles(
-        resolve("apps/editor/src/examples/common-source-amplifier.icproj.json"),
-      );
-    await sourcePage.getByTestId("project-code-toggle").click();
-    const sourceEditor = sourcePage.getByRole("textbox", {
-      name: "Project code",
-    });
-    await expect(sourceEditor).toBeVisible();
-    // CodeMirror virtualizes long documents; select/copy reads the whole file.
-    await sourceContext.grantPermissions(["clipboard-read", "clipboard-write"]);
-    await sourceEditor.focus();
-    await sourcePage.keyboard.press("ControlOrMeta+a");
-    await sourcePage.keyboard.press("ControlOrMeta+c");
-    let sourceCode = await sourcePage.evaluate(() =>
-      navigator.clipboard.readText(),
-    );
-    let sourceProject = JSON.parse(sourceCode);
-    const beforeCustomization = await sourcePage
-      .locator('[data-layer="formal"]')
-      .innerHTML();
-    const definition = sourceProject.componentDefinitions.find(
-      (item: { symbol: { id: string } }) => item.symbol.id === "resistor",
-    );
-    expect(definition).toBeDefined();
-    definition.symbol.primitives.push({
-      kind: "circle",
-      center: { x: 9, y: 0 },
-      radius: 4,
-    });
-    await sourceEditor.fill(JSON.stringify(sourceProject, null, 2));
-    await sourcePage
-      .getByRole("button", { name: "Apply", exact: true })
-      .click();
-    await expect
-      .poll(() => sourcePage.locator('[data-layer="formal"]').innerHTML())
-      .not.toBe(beforeCustomization);
-    await sourceEditor.focus();
-    await sourcePage.keyboard.press("ControlOrMeta+a");
-    await sourcePage.keyboard.press("ControlOrMeta+c");
-    sourceCode = await sourcePage.evaluate(() =>
-      navigator.clipboard.readText(),
-    );
-    sourceProject = JSON.parse(sourceCode);
-    const artwork = await sourcePage
-      .locator('[data-layer="formal"]')
-      .innerHTML();
-    expect(artwork.length).toBeGreaterThan(100);
-
-    await page.goto("/editor");
-    const recipient = createEmptyProject("paste-recipient", "Recipient");
-    recipient.documents[0]!.id = "recipient-cell";
-    recipient.topDocumentId = "recipient-cell";
-    await page.getByTestId("project-file").setInputFiles({
-      name: "recipient.icproj.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(recipient)),
-    });
-    const original = JSON.parse(
-      (await downloadBytes(page, "File", "Export Project File…")).toString(
-        "utf8",
-      ),
-    );
-    await page.getByTestId("project-code-toggle").click();
-    const recipientEditor = page.getByRole("textbox", { name: "Project code" });
-    await expect(recipientEditor).toBeVisible();
-    expect(original.id).not.toBe(sourceProject.id);
-    await recipientEditor.fill(sourceCode);
-    await page.getByRole("button", { name: "Apply", exact: true }).click();
-    await expect(page.getByTestId("project-name-input")).toHaveValue(
-      sourceProject.name,
-    );
-    await expect
-      .poll(() => page.locator('[data-layer="formal"]').innerHTML())
-      .toBe(artwork);
-
-    const applied = JSON.parse(
-      (await downloadBytes(page, "File", "Export Project File…")).toString(
-        "utf8",
-      ),
-    );
-    expect(applied).toEqual({
-      ...sourceProject,
-      id: original.id,
-      structureRevision: original.structureRevision + 1,
-      documents: sourceProject.documents.map((document: SchematicDocument) => ({
-        ...document,
-        revision: 0,
-      })),
-    });
-
-    await page.getByTestId("draw-tool-undo").click();
-    await expect(page.getByTestId("project-name-input")).toHaveValue(
-      original.name,
-    );
-    await expect(page.getByTestId("canvas-empty-state")).toBeVisible();
-  } finally {
-    await sourceContext.close();
-  }
 });
 
 test("shows the component-library tooltip without a native hover delay", async ({

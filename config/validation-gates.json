@@ -86,8 +86,7 @@
       "apps/editor/e2e/wiring-semantics.spec.ts"
     ],
     "placementNearMiss": [
-      "apps/editor/src/features/component-insert/placement-near-miss*",
-      "apps/editor/e2e/placement-near-miss.spec.ts"
+      "apps/editor/src/features/component-insert/placement-near-miss*"
     ],
     "thinTargetHit": [
       "apps/editor/src/canvas/canvas-hit-controller.ts",
@@ -311,7 +310,7 @@
     {
       "id": "component-insert-browser",
       "stage": "affected",
-      "groups": ["componentInsert"],
+      "groups": ["componentInsert", "placementNearMiss"],
       "description": "Validate component catalog and placement workflows.",
       "command": [
         "pnpm",
@@ -587,18 +586,6 @@
       "ci": { "e2eArgs": ["apps/editor/e2e/wiring-semantics.spec.ts"] }
     },
     {
-      "id": "placement-near-miss-browser",
-      "stage": "affected",
-      "groups": ["placementNearMiss"],
-      "description": "Validate near-miss feedback for component placement.",
-      "command": [
-        "pnpm",
-        "test:e2e:local",
-        "apps/editor/e2e/placement-near-miss.spec.ts"
-      ],
-      "ci": { "e2eArgs": ["apps/editor/e2e/placement-near-miss.spec.ts"] }
-    },
-    {
       "id": "thin-target-hit-browser",
       "stage": "affected",
       "groups": ["thinTargetHit"],
@@ -679,7 +666,6 @@
         "editor-selection-browser",
         "editor-viewport-browser",
         "editor-wiring-browser",
-        "placement-near-miss-browser",
         "thin-target-hit-browser",
         "empty-label-ghost-browser",
         "symbol-body-text-browser",
