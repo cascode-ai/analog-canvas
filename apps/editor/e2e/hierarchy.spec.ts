@@ -223,6 +223,69 @@ test("creates and places an external interface with connected netlist semantics"
   await page.getByTestId(`terminal-${externalId}-OUT`).click();
   await page.getByTestId("terminal-R1-2").click();
   await page.keyboard.press("Escape");
+  await page.getByTestId(`hit-${externalId}`).click();
+  await revealPropertiesShelf(page);
+  const layoutShelf = page.getByTestId("selection-shelf");
+  if ((await layoutShelf.getAttribute("aria-expanded")) === "false")
+    await layoutShelf.click();
+  const layout = page.getByLabel("Cell symbol layout");
+  await expect(layout).toBeVisible();
+  await layout.getByLabel("Cell symbol width").fill("160");
+  await layout.getByLabel("Cell symbol width").press("Tab");
+  await layout.getByLabel("Cell symbol IN pin side").selectOption("north");
+  await layout.getByLabel("Cell symbol IN pin offset").fill("20");
+  await layout.getByLabel("Cell symbol IN pin offset").press("Tab");
+  await layout
+    .getByRole("button", { name: "Edit symbol layout on canvas" })
+    .click();
+  const inputHandle = page
+    .locator('[data-testid^="cell-symbol-pin-handle-"]')
+    .first();
+  const pinBox = (await inputHandle.boundingBox())!;
+  await page.mouse.move(
+    pinBox.x + pinBox.width / 2,
+    pinBox.y + pinBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    pinBox.x + pinBox.width / 2 + 20,
+    pinBox.y + pinBox.height / 2,
+  );
+  await expect(page.getByTestId("cell-symbol-layout-preview")).toContainText(
+    "IN",
+  );
+  await page.mouse.up();
+  const movedPinOffset = Number(
+    await layout.getByLabel("Cell symbol IN pin offset").inputValue(),
+  );
+  expect(movedPinOffset).toBeGreaterThan(20);
+  const bodyHandle = page.getByTestId("cell-symbol-body-handle");
+  const box = (await bodyHandle.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    box.x + box.width / 2 + 30,
+    box.y + box.height / 2 + 20,
+  );
+  await expect(page.getByTestId("cell-symbol-layout-preview")).toBeVisible();
+  await page.mouse.up();
+  await expect(page.getByTestId("cell-symbol-layout-preview")).toHaveCount(0);
+  await layout
+    .getByRole("button", { name: "Done editing canvas layout" })
+    .click();
+  // The same history path restores the definition and following routes.
+  const resizedWidth = await layout
+    .getByLabel("Cell symbol width")
+    .inputValue();
+  expect(Number(resizedWidth)).toBeGreaterThan(160);
+  await page.keyboard.press("Control+z");
+  await expect(layout.getByLabel("Cell symbol width")).toHaveValue("160");
+  await page.keyboard.press("Control+Shift+z");
+  await expect(layout.getByLabel("Cell symbol width")).toHaveValue(
+    resizedWidth,
+  );
+  await layoutShelf.click();
+  await expect(page.getByTestId("cell-symbol-layout-overlay")).toHaveCount(0);
   const project = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
       "utf8",
@@ -238,6 +301,15 @@ test("creates and places an external interface with connected netlist semantics"
     kind: "external-subcircuit",
     definitionId: project.externalSubcircuitDefinitions[0].id,
   });
+  expect(
+    project.externalSubcircuitDefinitions[0].presentation.pinPlacements,
+  ).toEqual([
+    {
+      terminalId: project.externalSubcircuitDefinitions[0].terminals[0].id,
+      side: "north",
+      offset: movedPinOffset,
+    },
+  ]);
   for (const pinName of ["IN", "OUT"]) {
     expect(
       document.nets.some(

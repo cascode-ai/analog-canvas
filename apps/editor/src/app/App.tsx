@@ -148,6 +148,7 @@ import {
   type TimingWaveformLayout,
 } from "../features/simulation/timing-waveform";
 import { useCellSymbolLayout } from "../features/hierarchy/use-cell-symbol-layout";
+import { selectedBlockSymbolTarget } from "../features/hierarchy/block-symbol-layout-target";
 import {
   cellInsertLaunch,
   fullInsertLaunch,
@@ -2016,6 +2017,10 @@ export function App({
     setSimulationPickMode(active ? "net" : null);
   const setSimulationTerminalPickMode = (active: boolean): void =>
     setSimulationPickMode(active ? "terminal" : null);
+  const selectedBlockLayout = useMemo(
+    () => selectedBlockSymbolTarget(project, selectedInstance),
+    [project, selectedInstance],
+  );
   const {
     enabled: cellSymbolLayoutEnabled,
     layout: selectedCellSymbolLayout,
@@ -2028,7 +2033,7 @@ export function App({
     completeDrag: completeCellSymbolLayoutDrag,
   } = useCellSymbolLayout({
     selectedInstance,
-    child: selectedHierarchyCell,
+    target: selectedBlockLayout,
     resolver,
     selectionOpen,
     canvasPointFromEvent: (event) =>
@@ -4965,7 +4970,7 @@ export function App({
                         masterName: candidate.masterName,
                         parameters: {},
                         initialRotation: 0,
-                        showReference: true,
+                        showReference: !candidate.symbol.hierarchicalBlock,
                         referenceText: null,
                         showValue: true,
                       },
@@ -6118,20 +6123,20 @@ export function App({
                           }
                         },
                       },
-                      cellSymbolLayout: selectedHierarchyCell
+                      cellSymbolLayout: selectedBlockLayout
                         ? {
-                            cell: selectedHierarchyCell,
+                            target: selectedBlockLayout,
                             enabled: cellSymbolLayoutEnabled,
                             onToggle: toggleCellSymbolLayout,
                             onBodySizeChange: (width, height) =>
                               setCellSymbolBodySize(
-                                selectedHierarchyCell,
+                                selectedBlockLayout,
                                 width,
                                 height,
                               ),
                             onPortPlacementChange: (terminalId, side, offset) =>
                               setCellSymbolPortPlacement(
-                                selectedHierarchyCell,
+                                selectedBlockLayout,
                                 terminalId,
                                 side,
                                 offset,

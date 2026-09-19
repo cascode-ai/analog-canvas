@@ -4,6 +4,7 @@ import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { describe, expect, it, vi } from "vitest";
 
 import { createProjectStructureCommands } from "./project-structure-commands";
+import { localBlockSymbolTarget } from "./block-symbol-layout-target";
 
 function dependencies() {
   const project = createEmptyProject("project", "Project");
@@ -166,7 +167,11 @@ describe("Project structure commands", () => {
     const input = dependencies();
     const commands = createProjectStructureCommands(input);
 
-    commands.setCellSymbolBodySize(input.activeDocument, 95, 100);
+    commands.setCellSymbolBodySize(
+      localBlockSymbolTarget(input.activeDocument),
+      95,
+      100,
+    );
 
     expect(input.commitStructure).not.toHaveBeenCalled();
     expect(input.setStatus).toHaveBeenCalledWith(

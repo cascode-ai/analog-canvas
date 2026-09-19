@@ -1,15 +1,15 @@
-import { projectCellInterface, type SchematicDocument } from "@icm/model";
+import type { BlockSymbolLayoutTarget } from "../hierarchy/block-symbol-layout-target";
 
 type PinSide = "north" | "east" | "south" | "west" | "auto";
 
 export function CellSymbolLayoutProperties({
-  cell,
+  target,
   enabled,
   onToggle,
   onBodySizeChange,
   onPortPlacementChange,
 }: {
-  cell: SchematicDocument;
+  target: BlockSymbolLayoutTarget;
   enabled: boolean;
   onToggle: () => void;
   onBodySizeChange: (width: number, height: number) => void;
@@ -19,7 +19,7 @@ export function CellSymbolLayoutProperties({
     offset: number,
   ) => void;
 }) {
-  const bodySize = cell.presentation.cellSymbol?.minimumBodySize;
+  const bodySize = target.presentation?.minimumBodySize;
   return (
     <div
       className="cell-symbol-layout-properties"
@@ -45,7 +45,7 @@ export function CellSymbolLayoutProperties({
         <label>
           Width
           <input
-            key={`${cell.id}-${cell.revision}-symbol-width`}
+            key={`${target.id}-${target.revision}-symbol-width`}
             aria-label="Cell symbol width"
             defaultValue={String(bodySize?.width ?? 100)}
             inputMode="numeric"
@@ -60,7 +60,7 @@ export function CellSymbolLayoutProperties({
         <label>
           Height
           <input
-            key={`${cell.id}-${cell.revision}-symbol-height`}
+            key={`${target.id}-${target.revision}-symbol-height`}
             aria-label="Cell symbol height"
             defaultValue={String(bodySize?.height ?? 60)}
             inputMode="numeric"
@@ -82,11 +82,10 @@ export function CellSymbolLayoutProperties({
           </tr>
         </thead>
         <tbody>
-          {projectCellInterface(cell.netlist).ports.map((terminal) => {
-            const pinPlacement =
-              cell.presentation.cellSymbol?.pinPlacements?.find(
-                (placement) => placement.terminalId === terminal.id,
-              );
+          {target.terminals.map((terminal) => {
+            const pinPlacement = target.presentation?.pinPlacements?.find(
+              (placement) => placement.terminalId === terminal.id,
+            );
             return (
               <tr key={terminal.id}>
                 <th scope="row" title={terminal.name}>
@@ -94,7 +93,7 @@ export function CellSymbolLayoutProperties({
                 </th>
                 <td>
                   <select
-                    key={`${cell.revision}-${terminal.id}-side`}
+                    key={`${target.revision}-${terminal.id}-side`}
                     aria-label={`Cell symbol ${terminal.name} pin side`}
                     defaultValue={pinPlacement?.side ?? "auto"}
                     onChange={(event) =>
@@ -114,7 +113,7 @@ export function CellSymbolLayoutProperties({
                 </td>
                 <td>
                   <input
-                    key={`${cell.revision}-${terminal.id}-offset`}
+                    key={`${target.revision}-${terminal.id}-offset`}
                     aria-label={`Cell symbol ${terminal.name} pin offset`}
                     defaultValue={String(pinPlacement?.offset ?? 0)}
                     inputMode="numeric"

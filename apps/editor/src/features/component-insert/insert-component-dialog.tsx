@@ -305,7 +305,7 @@ export function InsertComponentDialog({
         masterName: choice.masterName ?? choice.symbol.name,
         parameters: {},
         initialRotation: 0,
-        showReference: true,
+        showReference: !choice.symbol.hierarchicalBlock,
         referenceText: null,
         showValue: true,
       });

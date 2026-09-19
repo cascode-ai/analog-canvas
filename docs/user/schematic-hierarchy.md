@@ -25,6 +25,11 @@ to start ordinary canvas placement; **Save definition** updates its interface.
 Validation errors appear inside the Manager. Its pins connect to Nets and
 export as an external subcircuit call, but simulation still requires the actual
 model implementation in the simulation source files.
+Generic External blocks share the Cell symbol layout controls in Properties:
+body size, pin side/offset, and canvas drag handles. A layout edit updates every
+instance and follows connected routes in the same undoable transaction. Native
+PDK device symbols retain their reviewed artwork instead of exposing generic
+block resize handles.
 
 Use **New Cell** in the Cell Manager to create a module. **Place Cell** in the
 hierarchy row, or **Edit → Place Cell from this Project…**, opens the Insert

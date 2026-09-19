@@ -1,7 +1,14 @@
 import { deriveStableId, projectCellInterface } from "@icm/model";
-import type { CircuitProject, SchematicDocument } from "@icm/model";
+import type {
+  CellSymbolPresentation,
+  CircuitProject,
+  SchematicDocument,
+} from "@icm/model";
 
-import { createHierarchicalBlockGeometry } from "./hierarchical-block-geometry.js";
+import {
+  createHierarchicalBlockGeometry,
+  type HierarchicalBlockTerminal,
+} from "./hierarchical-block-geometry.js";
 import { resolvePdkSymbolMappingForTerminalOrder } from "./pdk-registry.js";
 import { SymbolDefinitionSchema } from "./schema.js";
 import type { SymbolDefinition } from "./schema.js";
@@ -15,6 +22,28 @@ export function externalSubcircuitSymbolId(definitionId: string): string {
   return deriveStableId("external-subcircuit-symbol", definitionId);
 }
 
+/** Shared generic block artwork contract, independent of its definition owner. */
+export interface BlockSymbolLayout {
+  id: string;
+  name: string;
+  terminals: readonly HierarchicalBlockTerminal[];
+  presentation?: CellSymbolPresentation | undefined;
+}
+
+export function createBlockSymbol(layout: BlockSymbolLayout): SymbolDefinition {
+  const positional = createHierarchicalBlockGeometry(
+    layout.terminals,
+    layout.presentation,
+  );
+  return SymbolDefinitionSchema.parse({
+    ...positional,
+    id: layout.id,
+    name: layout.name,
+    hierarchicalBlock: true,
+    variants: [],
+  });
+}
+
 export function createHierarchicalBlockSymbol(
   document: Pick<SchematicDocument, "name" | "sourceBinding" | "netlist"> & {
     readonly presentation?: SchematicDocument["presentation"];
@@ -26,17 +55,11 @@ export function createHierarchicalBlockSymbol(
   const cellName = document.netlist?.name;
   const terminals = projectCellInterface(document.netlist).ports;
   if (!cellName) return null;
-  const positional = createHierarchicalBlockGeometry(
-    terminals,
-    document.presentation?.cellSymbol,
-  );
-  return SymbolDefinitionSchema.parse({
-    ...positional,
+  return createBlockSymbol({
     id: hierarchicalSymbolId(cellName),
     name: document.name,
-    hierarchicalBlock: true,
-    pins: positional.pins,
-    variants: [],
+    terminals,
+    presentation: document.presentation?.cellSymbol,
   });
 }
 
@@ -73,22 +96,12 @@ export function createProjectHierarchicalSymbols(
           }),
         ];
       }
-      const positional = createHierarchicalBlockGeometry(
-        definition.terminals.map((terminal) => ({
-          id: terminal.id,
-          name: terminal.name,
-          direction: terminal.direction,
-        })),
-        definition.presentation,
-      );
       return [
-        SymbolDefinitionSchema.parse({
-          ...positional,
+        createBlockSymbol({
           id: externalSubcircuitSymbolId(definition.id),
           name: definition.name,
-          hierarchicalBlock: true,
-          pins: positional.pins,
-          variants: [],
+          terminals: definition.terminals,
+          presentation: definition.presentation,
         }),
       ];
     },

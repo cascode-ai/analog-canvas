@@ -9,7 +9,6 @@ import {
   planReorderCellPort,
   planReorderCellTerminal,
   planSetCellSymbolPresentation,
-  planSetCellTerminalPlacement,
   planUpdateCellTerminalDirection,
   planUpdateCellPortDirection,
   proposeSetCellFormalParameters,
@@ -29,6 +28,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
+import type { BlockSymbolLayoutTarget } from "./block-symbol-layout-target";
 
 type CellDirection = "input" | "output" | "inout" | "passive";
 type CellPinSide = "north" | "east" | "south" | "west" | "auto";
@@ -412,8 +412,31 @@ export function createProjectStructureCommands({
     }
   };
 
+  const saveBlockSymbolPresentation = (
+    target: BlockSymbolLayoutTarget,
+    presentation: NonNullable<BlockSymbolLayoutTarget["presentation"]>,
+  ): ProjectStructureEdit[] => {
+    if (target.kind === "cell") {
+      return planSetCellSymbolPresentation(
+        project,
+        target.ownerId,
+        presentation,
+      );
+    }
+    const definition = project.externalSubcircuitDefinitions.find(
+      (item) => item.id === target.ownerId,
+    );
+    if (!definition) throw new Error("External definition no longer exists");
+    return [
+      {
+        kind: "upsert_external_subcircuit_definition",
+        definition: { ...definition, presentation },
+      },
+    ];
+  };
+
   const setCellSymbolBodySize = (
-    child: SchematicDocument,
+    child: BlockSymbolLayoutTarget,
     width: number,
     height: number,
   ): void => {
@@ -428,11 +451,11 @@ export function createProjectStructureCommands({
       setStatus("Cell symbol size must use positive 10-unit grid values");
       return;
     }
-    const current = child.presentation.cellSymbol;
+    const current = child.presentation;
     if (
       commitStructure(
         "resize-cell-symbol",
-        planSetCellSymbolPresentation(project, child.id, {
+        saveBlockSymbolPresentation(child, {
           ...(current?.pinPlacements
             ? { pinPlacements: current.pinPlacements }
             : {}),
@@ -445,22 +468,26 @@ export function createProjectStructureCommands({
   };
 
   const setCellSymbolPortPlacement = (
-    child: SchematicDocument,
+    child: BlockSymbolLayoutTarget,
     terminalId: string,
     side: CellPinSide,
     offset: number,
   ): void => {
     try {
+      if (!Number.isInteger(offset) || offset % 10 !== 0) {
+        throw new Error("Cell Pin position must be a multiple of 10");
+      }
+      const pinPlacements = (child.presentation?.pinPlacements ?? []).filter(
+        (pin) => pin.terminalId !== terminalId,
+      );
+      if (side !== "auto") pinPlacements.push({ terminalId, side, offset });
       if (
         commitStructure(
           "move-cell-symbol-pin",
-          planSetCellTerminalPlacement(
-            project,
-            child.id,
-            terminalId,
-            side,
-            offset,
-          ),
+          saveBlockSymbolPresentation(child, {
+            ...child.presentation,
+            pinPlacements,
+          }),
         )
       ) {
         setStatus("Moved Cell symbol pin in every parent instance");

@@ -3,28 +3,29 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 
 import {
   inverseTransformPoint,
-  projectCellInterface,
   type CellSymbolSide,
   type Point,
   type SchematicDocument,
 } from "@icm/model";
 import {
-  createHierarchicalBlockSymbol,
+  createBlockSymbol,
   type SymbolDefinition,
   type SymbolPin,
   type SymbolResolver,
 } from "@icm/symbols";
+
+import type { BlockSymbolLayoutTarget } from "./block-symbol-layout-target";
 
 import { snapCoordinate } from "../../snap/engine";
 
 type Instance = SchematicDocument["instances"][number];
 
 export interface CellSymbolLayoutSession {
-  child: SchematicDocument;
+  target: BlockSymbolLayoutTarget;
   instance: Instance;
   body: { left: number; right: number; top: number; bottom: number };
   pins: readonly {
-    terminal: ReturnType<typeof projectCellInterface>["ports"][number];
+    terminal: BlockSymbolLayoutTarget["terminals"][number];
     pin: SymbolPin;
   }[];
 }
@@ -48,7 +49,7 @@ export type CellSymbolLayoutEdit =
 
 export function cellSymbolLayoutEditAtLocalPoint(
   layout: Pick<CellSymbolLayoutSession, "body"> &
-    Partial<Pick<CellSymbolLayoutSession, "child">>,
+    Partial<Pick<CellSymbolLayoutSession, "target">>,
   drag: Pick<CellSymbolLayoutDrag, "kind" | "terminalId">,
   local: Point,
 ): CellSymbolLayoutEdit {
@@ -74,7 +75,7 @@ export function cellSymbolLayoutEditAtLocalPoint(
     10,
   );
   const occupied = new Set(
-    (layout.child?.presentation.cellSymbol?.pinPlacements ?? [])
+    (layout.target?.presentation?.pinPlacements ?? [])
       .filter((pin) => pin.terminalId !== drag.terminalId && pin.side === side)
       .map((pin) => pin.offset),
   );
@@ -94,7 +95,7 @@ export function cellSymbolLayoutEditAtLocalPoint(
 
 export function useCellSymbolLayout({
   selectedInstance,
-  child,
+  target,
   resolver,
   selectionOpen,
   canvasPointFromEvent,
@@ -102,17 +103,17 @@ export function useCellSymbolLayout({
   setPortPlacement,
 }: {
   selectedInstance: Instance | undefined;
-  child: SchematicDocument | undefined;
+  target: BlockSymbolLayoutTarget | undefined;
   resolver: SymbolResolver;
   selectionOpen: boolean;
   canvasPointFromEvent: (event: ReactPointerEvent<SVGSVGElement>) => Point;
   setBodySize: (
-    child: SchematicDocument,
+    target: BlockSymbolLayoutTarget,
     width: number,
     height: number,
   ) => void;
   setPortPlacement: (
-    child: SchematicDocument,
+    target: BlockSymbolLayoutTarget,
     terminalId: string,
     side: CellSymbolSide,
     offset: number,
@@ -122,8 +123,7 @@ export function useCellSymbolLayout({
   const [targetInstanceId, setTargetInstanceId] = useState<string | null>(null);
   const [drag, setDrag] = useState<CellSymbolLayoutDrag | null>(null);
   const layout = useMemo<CellSymbolLayoutSession | null>(() => {
-    if (!enabled || !selectedInstance?.placement || !child?.netlist)
-      return null;
+    if (!enabled || !selectedInstance?.placement || !target) return null;
     const definition = resolver.resolve(selectedInstance.symbolId)?.definition;
     const body = definition?.primitives.find(
       (primitive) => primitive.kind === "polygon",
@@ -132,7 +132,7 @@ export function useCellSymbolLayout({
     const xs = body.points.map((point) => point.x);
     const ys = body.points.map((point) => point.y);
     return {
-      child,
+      target,
       instance: selectedInstance,
       body: {
         left: Math.min(...xs),
@@ -140,14 +140,14 @@ export function useCellSymbolLayout({
         top: Math.min(...ys),
         bottom: Math.max(...ys),
       },
-      pins: projectCellInterface(child.netlist).ports.flatMap((terminal) => {
+      pins: target.terminals.flatMap((terminal) => {
         const pin = definition.pins.find(
           (candidate) => candidate.name === terminal.name,
         );
         return pin ? [{ terminal, pin }] : [];
       }),
     };
-  }, [child, enabled, resolver, selectedInstance]);
+  }, [target, enabled, resolver, selectedInstance]);
 
   const cancelDrag = (): void => {
     if (drag?.captureTarget?.hasPointerCapture(drag.pointerId)) {
@@ -164,8 +164,8 @@ export function useCellSymbolLayout({
 
   useEffect(() => {
     if (!enabled) return;
-    if (selectedInstance?.id !== targetInstanceId || !child?.netlist) exit();
-  }, [child?.netlist, enabled, selectedInstance?.id, targetInstanceId]);
+    if (selectedInstance?.id !== targetInstanceId || !target) exit();
+  }, [target, enabled, selectedInstance?.id, targetInstanceId]);
 
   useEffect(() => {
     if (!selectionOpen && enabled) exit();
@@ -176,7 +176,7 @@ export function useCellSymbolLayout({
       exit();
       return;
     }
-    if (!child?.netlist || !selectedInstance?.placement) return;
+    if (!target || !selectedInstance?.placement) return;
     setTargetInstanceId(selectedInstance.id);
     setEnabled(true);
   };
@@ -212,28 +212,25 @@ export function useCellSymbolLayout({
       inverseTransformPoint(point, placement.position, placement),
     );
     if (!edit) return null;
-    const current = layout.child.presentation.cellSymbol;
-    return createHierarchicalBlockSymbol({
-      ...layout.child,
+    const current = layout.target.presentation;
+    return createBlockSymbol({
+      ...layout.target,
       presentation: {
-        ...layout.child.presentation,
-        cellSymbol: {
-          ...current,
-          ...(edit.kind === "body"
-            ? { minimumBodySize: { width: edit.width, height: edit.height } }
-            : {
-                pinPlacements: [
-                  ...(current?.pinPlacements ?? []).filter(
-                    (pin) => pin.terminalId !== edit.terminalId,
-                  ),
-                  {
-                    terminalId: edit.terminalId,
-                    side: edit.side,
-                    offset: edit.offset,
-                  },
-                ],
-              }),
-        },
+        ...current,
+        ...(edit.kind === "body"
+          ? { minimumBodySize: { width: edit.width, height: edit.height } }
+          : {
+              pinPlacements: [
+                ...(current?.pinPlacements ?? []).filter(
+                  (pin) => pin.terminalId !== edit.terminalId,
+                ),
+                {
+                  terminalId: edit.terminalId,
+                  side: edit.side,
+                  offset: edit.offset,
+                },
+              ],
+            }),
       },
     });
   };
@@ -246,9 +243,9 @@ export function useCellSymbolLayout({
     const edit = cellSymbolLayoutEditAtLocalPoint(layout, drag, local);
     cancelDrag();
     if (edit?.kind === "body") {
-      setBodySize(layout.child, edit.width, edit.height);
+      setBodySize(layout.target, edit.width, edit.height);
     } else if (edit?.kind === "pin") {
-      setPortPlacement(layout.child, edit.terminalId, edit.side, edit.offset);
+      setPortPlacement(layout.target, edit.terminalId, edit.side, edit.offset);
     }
     return true;
   };

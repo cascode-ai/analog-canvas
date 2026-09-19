@@ -16,6 +16,7 @@ import {
   planEditCellTerminalAnnotation,
   planRenameCellTerminal,
   planSetCellSymbolPresentation,
+  createExternalSubcircuitInstance,
 } from "./hierarchy-planner.js";
 import { executeProjectTransaction } from "./project-transaction.js";
 
@@ -1553,90 +1554,133 @@ describe("Project structural transaction", () => {
     });
   });
 
-  it("follows caller Route geometry when a definition pin moves", () => {
-    const project = createEmptyProject("project", "Project");
-    const child = createEmptyDocument("document-child", "Child");
-    child.instances.push({
-      id: "P1",
-      symbolId: "port",
-      placement: null,
-    });
-    child.nets.push({
-      id: "net-in",
+  it.each(["cell", "external"] as const)(
+    "follows caller Route geometry when a %s definition pin moves",
+    (kind) => {
+      const project = createEmptyProject("project", "Project");
+      const child = createEmptyDocument("document-child", "Child");
+      child.instances.push({
+        id: "P1",
+        symbolId: "port",
+        placement: null,
+      });
+      child.nets.push({
+        id: "net-in",
 
-      terminals: [{ instanceId: "P1", pinName: "P" }],
-    });
-    child.netlist!.terminals.push({
-      id: "terminal-in",
-      name: "IN",
-      netId: "net-in",
-      direction: "input",
-      interfaceInstanceIds: ["P1"],
-    });
-    project.documents.push(child);
-    const parent = project.documents[0]!;
-    parent.instances.push(hierarchyInstance("X1", "Child", child.id));
-    parent.nets.push({
-      id: "net-parent",
+        terminals: [{ instanceId: "P1", pinName: "P" }],
+      });
+      child.netlist!.terminals.push({
+        id: "terminal-in",
+        name: "IN",
+        netId: "net-in",
+        direction: "input",
+        interfaceInstanceIds: ["P1"],
+      });
+      project.documents.push(child);
+      const parent = project.documents[0]!;
+      parent.instances.push(hierarchyInstance("X1", "Child", child.id));
+      parent.nets.push({
+        id: "net-parent",
 
-      terminals: [{ instanceId: "X1", pinName: "IN" }],
-    });
-    parent.junctions.push({
-      id: "J1",
-      netId: "net-parent",
-      position: { x: -150, y: 0 },
-    });
-    parent.routes.push(
-      createRoutePath({
-        id: "route-input",
+        terminals: [{ instanceId: "X1", pinName: "IN" }],
+      });
+      parent.junctions.push({
+        id: "J1",
         netId: "net-parent",
-        start: { kind: "terminal", instanceId: "X1", pinName: "IN" },
-        end: { kind: "junction", junctionId: "J1" },
-        bends: [],
-        modes: ["auto"],
-      }),
-    );
+        position: { x: -150, y: 0 },
+      });
+      parent.routes.push(
+        createRoutePath({
+          id: "route-input",
+          netId: "net-parent",
+          start: { kind: "terminal", instanceId: "X1", pinName: "IN" },
+          end: { kind: "junction", junctionId: "J1" },
+          bends: [],
+          modes: ["auto"],
+        }),
+      );
 
-    const result = executeProjectTransaction(project, {
-      transactionId: "move-child-input-pin",
-      projectId: project.id,
-      expectedStructureRevision: project.structureRevision,
-      actor: { kind: "human", id: "human-local" },
-      edits: planSetCellSymbolPresentation(project, child.id, {
+      const presentation = {
         pinPlacements: [
-          { terminalId: "terminal-in", side: "north", offset: 0 },
+          { terminalId: "terminal-in", side: "north" as const, offset: 0 },
         ],
-      }),
-    });
+      };
+      const external = {
+        id: "external-child",
+        name: "ExternalChild",
+        terminals: [
+          { id: "terminal-in", name: "IN", direction: "input" as const },
+        ],
+        formalParameters: [],
+        interfaceStatus: "declared" as const,
+      };
+      if (kind === "external") {
+        project.externalSubcircuitDefinitions.push(external);
+        parent.instances[0] = createExternalSubcircuitInstance(
+          "X1",
+          external,
+          parent.instances[0]!.placement!,
+        );
+      }
+      const anotherCaller = structuredClone(parent);
+      anotherCaller.id = "document-other";
+      anotherCaller.name = "Other";
+      anotherCaller.netlist!.name = "Other";
+      project.documents.push(anotherCaller);
+      const result = executeProjectTransaction(project, {
+        transactionId: "move-child-input-pin",
+        projectId: project.id,
+        expectedStructureRevision: project.structureRevision,
+        actor: { kind: "human", id: "human-local" },
+        edits:
+          kind === "cell"
+            ? planSetCellSymbolPresentation(project, child.id, presentation)
+            : [
+                {
+                  kind: "upsert_external_subcircuit_definition",
+                  definition: { ...external, presentation },
+                },
+              ],
+      });
 
-    expect(result).toMatchObject({
-      ok: true,
-      applied: true,
-      changedDocumentIds: ["document-child", "document-main"],
-      project: {
-        documents: [
-          {
-            routes: [
-              {
-                id: "route-input",
-                legs: [
-                  {
-                    mode: "auto",
-                    to: {
-                      kind: "bend",
-                      position: { x: -150, y: -30 },
+      expect(result).toMatchObject({
+        ok: true,
+        applied: true,
+        changedDocumentIds:
+          kind === "cell"
+            ? ["document-child", "document-main", "document-other"]
+            : ["document-main", "document-other"],
+        project: {
+          documents: [
+            {
+              routes: [
+                {
+                  id: "route-input",
+                  legs: [
+                    {
+                      mode: "auto",
+                      to: {
+                        kind: "bend",
+                        position: { x: -150, y: -30 },
+                      },
                     },
-                  },
-                  { mode: "auto", to: { kind: "endpoint" } },
-                ],
-              },
-            ],
-          },
-          {},
-        ],
-      },
-    });
-  });
+                    { mode: "auto", to: { kind: "endpoint" } },
+                  ],
+                },
+              ],
+            },
+            {},
+            {},
+          ],
+        },
+      });
+      if (result.ok) {
+        expect(result.project.documents[2]!.routes).toEqual(
+          result.project.documents[0]!.routes,
+        );
+      }
+    },
+  );
 
   it("preserves a canonical MOS caller while its reviewed external definition stays compatible", () => {
     const project = createEmptyProject("project", "Project");

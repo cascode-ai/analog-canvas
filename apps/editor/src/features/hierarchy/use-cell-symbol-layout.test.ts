@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createEmptyDocument } from "@icm/model";
 
 import { cellSymbolLayoutEditAtLocalPoint } from "./use-cell-symbol-layout";
+import { localBlockSymbolTarget } from "./block-symbol-layout-target";
 
 const layout = {
   body: { left: -40, right: 40, top: -30, bottom: 30 },
@@ -28,7 +29,7 @@ describe("cell symbol layout session", () => {
     };
     expect(
       cellSymbolLayoutEditAtLocalPoint(
-        { ...layout, child },
+        { ...layout, target: localBlockSymbolTarget(child) },
         { kind: "pin", terminalId: "moving" },
         { x: -40, y: 20 },
       ),

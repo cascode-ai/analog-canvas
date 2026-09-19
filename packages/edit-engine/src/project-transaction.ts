@@ -301,6 +301,7 @@ export function executeProjectTransaction(
   const documentResults: EditTransactionResult[] = [];
   const explicitlyTouchedDocumentIds = new Set<string>();
   const cellSymbolChangedDocumentIds = new Set<string>();
+  const externalSymbolChangedIds = new Set<string>();
   let structuralChange = false;
 
   for (const [editIndex, edit] of transaction.edits.entries()) {
@@ -450,6 +451,7 @@ export function executeProjectTransaction(
     }
 
     if (edit.kind === "upsert_external_subcircuit_definition") {
+      externalSymbolChangedIds.add(edit.definition.id);
       const index = candidate.externalSubcircuitDefinitions.findIndex(
         (definition) => definition.id === edit.definition.id,
       );
@@ -626,7 +628,10 @@ export function executeProjectTransaction(
     }
   }
 
-  if (cellSymbolChangedDocumentIds.size > 0) {
+  if (
+    cellSymbolChangedDocumentIds.size > 0 ||
+    externalSymbolChangedIds.size > 0
+  ) {
     const originalResolver = createProjectSymbolResolver(
       project,
       builtInSymbols,
@@ -643,8 +648,10 @@ export function executeProjectTransaction(
       const callerIds = new Set(
         parent.instances.flatMap((instance) => {
           const binding = instance.netlist?.binding;
-          return binding?.kind === "subcircuit" &&
-            cellSymbolChangedDocumentIds.has(binding.childDocumentId)
+          return (binding?.kind === "subcircuit" &&
+            cellSymbolChangedDocumentIds.has(binding.childDocumentId)) ||
+            (binding?.kind === "external-subcircuit" &&
+              externalSymbolChangedIds.has(binding.definitionId))
             ? [instance.id]
             : [];
         }),

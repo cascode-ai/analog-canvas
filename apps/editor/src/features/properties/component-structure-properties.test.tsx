@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { CellSymbolLayoutProperties } from "./component-structure-properties";
+import { localBlockSymbolTarget } from "../hierarchy/block-symbol-layout-target";
 
 function cell() {
   const document = createEmptyDocument("cell", "Amplifier");
@@ -32,7 +33,7 @@ describe("component structure properties", () => {
     });
     const markup = renderToStaticMarkup(
       <CellSymbolLayoutProperties
-        cell={document}
+        target={localBlockSymbolTarget(document)}
         enabled
         onToggle={vi.fn()}
         onBodySizeChange={vi.fn()}
