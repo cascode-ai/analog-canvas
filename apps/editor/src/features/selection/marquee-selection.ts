@@ -5,6 +5,7 @@ import {
 import type { SchematicStyleProfile } from "@icm/derived";
 import type { Point, Rect, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
+import type { VisualSelection } from "./visual-selection";
 
 import {
   circleBoundaryIntersectsRect,
@@ -37,14 +38,6 @@ export function marqueeMode(start: Point, end: Point): MarqueeMode {
   return end.x < start.x ? "crossing" : "window";
 }
 
-export interface MarqueeSelectionSet {
-  instanceIds: string[];
-  routeIds: string[];
-  junctionIds: string[];
-  annotationIds: string[];
-  draftingIds: string[];
-}
-
 /**
  * The complete marquee selection for one normalized rectangle. Only geometry
  * decides membership: a junction is its point in both modes; every other
@@ -63,7 +56,7 @@ export function marqueeSelection(
     document,
     DEFAULT_SELECTION_FILTER,
   ),
-): MarqueeSelectionSet {
+): VisualSelection {
   const window = mode === "window";
   const boxSelected = (bounds: Rect): boolean =>
     window ? rectContainsRect(rect, bounds) : rectsIntersect(bounds, rect);

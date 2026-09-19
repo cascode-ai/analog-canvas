@@ -193,9 +193,9 @@ import { useProjectCheck } from "./use-project-check";
 import { summarizeVisualDiagnostics } from "../features/selection/selection-inspector-details";
 import {
   type HighlightedNetOrigin,
-  type RoutingGuidanceView,
   useEditorDerivedModel,
 } from "./use-editor-derived-model";
+import type { RoutingGuidanceView } from "../interaction/interaction-state";
 import {
   quickPlaceRequest,
   ShapesPanel,
