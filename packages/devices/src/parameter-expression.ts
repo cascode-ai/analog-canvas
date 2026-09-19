@@ -1,3 +1,11 @@
+/** Native scalar expressions cannot replace point lists or derived digital-clock controls. */
+export function supportsScalarParameterExpression(
+  symbolId: string,
+  parameter: string,
+): boolean {
+  return parameter !== "pwlPoints" && symbolId !== "pulse-voltage-source";
+}
+
 /**
  * Recognize one delimited native parameter expression, without evaluating it.
  * Unknown parameters/functions belong to ngspice. Card delimiters and unfinished

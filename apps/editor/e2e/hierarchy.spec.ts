@@ -99,6 +99,53 @@ async function setCellTerminalDirection(
   await manager.getByLabel("Close Cell Manager").click();
 }
 
+test("creates a Cell parameter from a device JSON field with atomic Undo", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await createCell(page, "Resistors");
+  const childId = await page.getByTestId("active-document-id").innerText();
+  await placeComponent(page, "resistor", { x: 320, y: 200 });
+  await page.getByTestId("hit-R1").click();
+  await revealPropertiesShelf(page);
+  const shelf = page.getByTestId("selection-shelf");
+  if ((await shelf.getAttribute("aria-expanded")) === "false")
+    await shelf.click();
+  await page
+    .getByRole("button", { name: "Use Cell parameter for Value" })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "Cell parameter · value" });
+  await dialog.getByLabel("Cell parameter name").fill("Rbase");
+  await dialog.getByLabel("Cell parameter default").fill("1k");
+  await page.keyboard.press("Delete");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  await dialog.getByRole("button", { name: "Create and use" }).click();
+  await expect(dialog).toHaveCount(0);
+  const save = async () =>
+    JSON.parse(
+      (await downloadBytes(page, "File", "Export Project File…")).toString(
+        "utf8",
+      ),
+    );
+  const child = (project: Awaited<ReturnType<typeof save>>) =>
+    project.documents.find(
+      (document: { id: string }) => document.id === childId,
+    );
+  const bound = child(await save());
+  expect(bound.netlist.formalParameters).toEqual([
+    { name: "Rbase", defaultValue: "1k" },
+  ]);
+  expect(bound.instances[0].netlist.parameters.value).toBe("{Rbase}");
+  await page.keyboard.press("Control+z");
+  const undone = child(await save());
+  expect(undone.netlist.formalParameters).toEqual([]);
+  expect(undone.instances[0].netlist.parameters.value).not.toBe("{Rbase}");
+  await page.keyboard.press("Control+Shift+z");
+  expect(child(await save()).instances[0].netlist.parameters.value).toBe(
+    "{Rbase}",
+  );
+});
+
 test("sets a Cell as default Top without changing its circuit and supports Undo", async ({
   page,
 }) => {

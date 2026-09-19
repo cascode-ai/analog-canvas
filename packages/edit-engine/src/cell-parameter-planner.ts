@@ -2,6 +2,7 @@ import {
   deviceDescriptor,
   parameterReferences,
   renameParameterReference,
+  supportsScalarParameterExpression,
 } from "@icm/devices";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { ProjectStructureEdit } from "./project-transaction.js";
@@ -77,6 +78,8 @@ export function planBindCellParameter(
   const instance = cell.instances.find((item) => item.id === instanceId);
   if (!instance?.netlist)
     throw new Error("Instance has no electrical parameters");
+  if (!supportsScalarParameterExpression(instance.symbolId, field))
+    throw new Error("This field is not a native scalar parameter expression");
   if (!expressionEntries(instance).some(([key]) => key === field))
     throw new Error("Choose an existing expression-capable device field");
   const existing = cell.netlist.formalParameters.find(

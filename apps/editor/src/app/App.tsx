@@ -27,6 +27,7 @@ import type {
 } from "@icm/agent-adapter";
 import {
   planProjectCellImport,
+  planBindCellParameter,
   planSetDeviceModelTarget,
   planSetVddConnectionMode,
   planInstanceUnplacement,
@@ -106,6 +107,7 @@ import {
 import { resolveSimulationTransport } from "../features/simulation/deployment-transport";
 import { createCanvasHitController } from "../canvas/canvas-hit-controller";
 import { CellInterfaceConfirmationDialog } from "../features/hierarchy/cell-interface-confirmation";
+import { CellParameterDialog } from "../features/hierarchy/cell-parameter-dialog";
 import type { CellInterfaceConfirmation } from "../features/hierarchy/project-structure-commands";
 import { screenScaleHitRadius } from "../canvas/canvas-hit-resolver";
 import { buildDiagnosticMarkers } from "../canvas/diagnostic-markers";
@@ -1197,6 +1199,13 @@ export function App({
   const [interfaceConfirmation, setInterfaceConfirmation] = useState<{
     request: CellInterfaceConfirmation;
     snapshot: typeof project;
+  } | null>(null);
+  const [parameterBinding, setParameterBinding] = useState<{
+    snapshot: CircuitProject;
+    cell: SchematicDocument;
+    instanceId: string;
+    field: string;
+    value: string;
   } | null>(null);
   const { commitStructure, transact, transactConnectivity } =
     createEditorTransactionCommands({
@@ -4028,7 +4037,7 @@ export function App({
         return;
       // The interface confirmation owns keys even though this router captures
       // at window level before the modal's React handlers.
-      if (interfaceConfirmation) return;
+      if (interfaceConfirmation || parameterBinding) return;
       // File flyout arrows navigate the focused menu, never pan the canvas.
       if (
         event.target instanceof Element &&
@@ -4535,6 +4544,53 @@ export function App({
 
   return (
     <main className="app-shell">
+      {parameterBinding ? (
+        <CellParameterDialog
+          cell={parameterBinding.cell}
+          field={parameterBinding.field}
+          value={parameterBinding.value}
+          onCancel={() => setParameterBinding(null)}
+          onApply={(name, defaultValue) => {
+            if (project !== parameterBinding.snapshot)
+              return {
+                ok: false,
+                message:
+                  "Project changed. Close this dialog and select the field again.",
+              };
+            try {
+              const edits = planBindCellParameter(
+                project,
+                parameterBinding.cell.id,
+                parameterBinding.instanceId,
+                parameterBinding.field,
+                name,
+                defaultValue,
+              );
+              const ok = commitStructure("bind-cell-parameter", edits);
+              if (ok) {
+                setParameterBinding(null);
+                setStatus(`Using Cell parameter ${name}`);
+              }
+              return {
+                ok,
+                ...(!ok
+                  ? {
+                      message: "Could not bind the Cell parameter; see status.",
+                    }
+                  : {}),
+              };
+            } catch (error) {
+              return {
+                ok: false,
+                message:
+                  error instanceof Error
+                    ? error.message
+                    : "Could not bind Cell parameter",
+              };
+            }
+          }}
+        />
+      ) : null}
       {interfaceConfirmation ? (
         <CellInterfaceConfirmationDialog
           request={interfaceConfirmation.request}
@@ -5893,6 +5949,21 @@ export function App({
                   ? {
                       code: {
                         instance: selectedInstance,
+                        ...(document.netlist
+                          ? {
+                              onUseCellParameter: (
+                                field: string,
+                                value: string,
+                              ) =>
+                                setParameterBinding({
+                                  snapshot: project,
+                                  cell: document,
+                                  instanceId: selectedInstance.id,
+                                  field,
+                                  value,
+                                }),
+                            }
+                          : {}),
                         displayName: selectedDisplayName,
                         defaultForeground: styleProfile.foreground,
                         revision: document.revision,
