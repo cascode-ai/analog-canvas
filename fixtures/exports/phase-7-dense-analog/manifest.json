@@ -2,28 +2,28 @@
   "version": "0.1.0",
   "sourceProject": "fixtures/projects/phase-5-dense-analog/project.icproj.json",
   "bounds": {
-    "x": 0.2517120000000048,
-    "y": 94.12819999999999,
-    "width": 459.496576,
-    "height": 262.8718
+    "x": 38.251712000000005,
+    "y": 132.1282,
+    "width": 383.496576,
+    "height": 186.8718
   },
   "raster": {
     "scale": 3,
-    "width": 1378,
-    "height": 789
+    "width": 1150,
+    "height": 561
   },
   "files": {
     "schematic.svg": {
-      "byteLength": 11879,
-      "sha256": "09d686dce53137756b9de2ae76df9c5f7aa0930597a9478f3073a5d2a2ab4f17"
+      "byteLength": 11861,
+      "sha256": "8f57158c6925eca8971ce2b1ebb8ead96d76b45a5afd99971799e9f2442825b8"
     },
     "schematic.png": {
-      "byteLength": 16556,
-      "sha256": "6b5ebb76919677048c609f9ddbd423a176e3426f2b473066e1aed6940ac9faaa"
+      "byteLength": 13945,
+      "sha256": "1617ba497f49ae9c07c7a2c2f3f733cc7aa126d8f7cd9bd1c5d61903b872ecb3"
     },
     "schematic.pdf": {
-      "byteLength": 10198,
-      "sha256": "e31e11b5bbf75478d31dcef78c5b4ef451b6b7167d56c67100dc2a5ae0b15439"
+      "byteLength": 8691,
+      "sha256": "b7c01ed684454a3b46d2fe80b170d1788010770f89d5660bf857167650cc7679"
     }
   }
 }
