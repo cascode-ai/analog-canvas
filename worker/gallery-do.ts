@@ -722,7 +722,7 @@ export class GalleryDO {
           String(body.previewSvg),
         );
       case "schema-backup":
-        return this.schemaBackup();
+        return this.schemaBackup(body);
       case "schema-converge":
         return this.schemaConverge(body.apply === true);
       case "schema-restore":
@@ -1485,7 +1485,72 @@ export class GalleryDO {
   }
 
   /** Full-fidelity administrator backup before an online schema migration. */
-  private schemaBackup(): Response {
+  private schemaBackup(body: Record<string, unknown>): Response {
+    // Bound each response to one record: a complete store can exceed the
+    // Worker's memory limit before Response.json has even serialized it.
+    // These names are an allowlist, never caller-supplied SQL identifiers.
+    const tables = {
+      galleryEntries: { name: "gallery_entries", keys: ["id"] },
+      galleryEntryVersions: { name: "gallery_entry_versions", keys: ["id"] },
+      cloudProjects: { name: "cloud_projects", keys: ["id"] },
+      galleryLikes: { name: "gallery_likes", keys: ["entry_id", "user_id"] },
+    };
+    if (body.table === "inventory") {
+      return Response.json({
+        format: "analog-canvas-gallery-backup-inventory-v1",
+        exportedAt: new Date().toISOString(),
+        tables: Object.fromEntries(
+          Object.entries(tables).map(([key, table]) => [
+            key,
+            this.sql
+              .exec<{ count: number }>(
+                `SELECT COUNT(*) AS count FROM ${table.name}`,
+              )
+              .toArray()[0]!.count,
+          ]),
+        ),
+      });
+    }
+    if (body.table != null) {
+      const table = Object.hasOwn(tables, String(body.table))
+        ? tables[body.table as keyof typeof tables]
+        : undefined;
+      if (!table)
+        return Response.json({ error: "invalid-table" }, { status: 400 });
+      let after: unknown = null;
+      try {
+        if (body.after) after = JSON.parse(String(body.after));
+      } catch {
+        return Response.json({ error: "invalid-cursor" }, { status: 400 });
+      }
+      if (
+        after !== null &&
+        (!Array.isArray(after) ||
+          after.length !== table.keys.length ||
+          after.some((key) => typeof key !== "string"))
+      ) {
+        return Response.json({ error: "invalid-cursor" }, { status: 400 });
+      }
+      const columns = table.keys.join(", ");
+      const condition =
+        table.keys.length === 1
+          ? `${columns} > ?`
+          : `(${columns}) > (${table.keys.map(() => "?").join(", ")})`;
+      const rows = this.sql
+        .exec<Record<string, unknown>>(
+          `SELECT * FROM ${table.name}${after ? ` WHERE ${condition}` : ""} ORDER BY ${columns} LIMIT 1`,
+          ...((after as string[] | null) ?? []),
+        )
+        .toArray();
+      return Response.json({
+        format: "analog-canvas-gallery-backup-page-v1",
+        table: body.table,
+        rows,
+        nextCursor: rows.length
+          ? JSON.stringify(table.keys.map((key) => rows[0]![key]))
+          : null,
+      });
+    }
     return Response.json({
       format: "analog-canvas-gallery-schema-backup-v1",
       exportedAt: new Date().toISOString(),

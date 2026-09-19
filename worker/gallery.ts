@@ -664,7 +664,10 @@ export async function routeGalleryRequest(
     if (!(await isAdmin(request, env))) {
       return Response.json({ error: "unauthorized" }, { status: 401 });
     }
-    const { status, payload } = await callGallery(env, "schema-backup", {});
+    const { status, payload } = await callGallery(env, "schema-backup", {
+      table: url.searchParams.get("table"),
+      after: url.searchParams.get("after"),
+    });
     return Response.json(payload, {
       status,
       headers: {

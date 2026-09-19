@@ -3609,6 +3609,90 @@ describe("gallery administration", () => {
     }
   });
 
+  it("backs up every raw row through bounded admin-only pages, including likes", async () => {
+    const env = environment();
+    const cookie = await adminOf(env);
+    const id = await submitOne(env, "Paged backup", { cookie });
+    await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}`, {
+        method: "PUT",
+        headers: {
+          ...cookieHeaders(cookie),
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "Updated",
+          projectText: projectText("Updated"),
+        }),
+      }),
+    );
+    env.gallerySql.exec(
+      "INSERT INTO gallery_likes VALUES (?, ?, ?)",
+      id,
+      "u1",
+      "2026-09-20",
+    );
+    env.gallerySql.exec(
+      "INSERT INTO gallery_likes VALUES (?, ?, ?)",
+      id,
+      "u2",
+      "2026-09-20",
+    );
+    const endpoint = `${ORIGIN}/api/gallery/maintenance/schema-backup`;
+    const denied = await route(env, new Request(`${endpoint}?table=inventory`));
+    expect(denied.status).toBe(401);
+    const get = (query: string) =>
+      route(
+        env,
+        new Request(`${endpoint}?${query}`, { headers: cookieHeaders(cookie) }),
+      );
+    const inventory = (await (await get("table=inventory")).json()) as any;
+    expect(inventory.tables).toEqual({
+      galleryEntries: 1,
+      galleryEntryVersions: 1,
+      cloudProjects: 0,
+      galleryLikes: 2,
+    });
+    for (const [key, name] of Object.entries({
+      galleryEntries: "gallery_entries",
+      galleryEntryVersions: "gallery_entry_versions",
+      cloudProjects: "cloud_projects",
+      galleryLikes: "gallery_likes",
+    })) {
+      const expected = env.gallerySql
+        .exec(
+          `SELECT * FROM ${name} ORDER BY ${key === "galleryLikes" ? "entry_id, user_id" : "id"}`,
+        )
+        .toArray();
+      const rows = [];
+      let cursor = null;
+      env.galleryQueries.length = 0;
+      do {
+        const response = await get(
+          `table=${key}${cursor ? `&after=${encodeURIComponent(cursor)}` : ""}`,
+        );
+        expect(response.status).toBe(200);
+        const page = (await response.json()) as any;
+        expect(page.rows.length).toBeLessThanOrEqual(1);
+        rows.push(...page.rows);
+        cursor = page.nextCursor;
+      } while (cursor);
+      expect(rows).toEqual(expected);
+      expect(
+        env.galleryQueries.filter((q) => q.startsWith("SELECT * FROM")),
+      ).toSatisfy((queries: string[]) =>
+        queries.every((q) => q.endsWith("LIMIT 1")),
+      );
+    }
+    expect((await get("table=not-a-table")).status).toBe(400);
+    expect((await get("table=galleryEntries&after=bad-json")).status).toBe(400);
+    expect(
+      (await get(`table=galleryLikes&after=${encodeURIComponent('["one"]')}`))
+        .status,
+    ).toBe(400);
+  });
+
   it("reapplies two-version retention when restoring a legacy backup", async () => {
     const env = environment();
     const adminCookie = await adminOf(env);
