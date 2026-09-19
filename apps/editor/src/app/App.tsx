@@ -4942,6 +4942,36 @@ export function App({
                   setCellFormalParameters(formalParameters, documentId),
                 externalDefinitions: project.externalSubcircuitDefinitions,
                 onSetExternalDefinition: setExternalSubcircuitDefinition,
+                onPlaceExternal: (definitionId) => {
+                  const candidate = externalSubcircuitInsertCandidates.find(
+                    (item) => item.definitionId === definitionId,
+                  );
+                  if (!candidate) {
+                    setStatus(
+                      "The selected external master has no resolved symbol",
+                    );
+                    return;
+                  }
+                  setCellManagerOpen(false);
+                  editorCommands.execute({
+                    id: "insert.start",
+                    launch: {
+                      kind: "quick",
+                      request: {
+                        kind: "external-subcircuit",
+                        definitionId,
+                        symbolId: candidate.symbol.id,
+                        symbolName: candidate.masterName,
+                        masterName: candidate.masterName,
+                        parameters: {},
+                        initialRotation: 0,
+                        showReference: true,
+                        referenceText: null,
+                        showValue: true,
+                      },
+                    },
+                  });
+                },
                 onReset: commitManagedCellReset,
                 cloudProjects,
                 activeCloudProjectId: cloudBinding?.id ?? null,

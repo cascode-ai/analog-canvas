@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ExternalSubcircuitDefinition } from "@icm/model";
+import { createId } from "@icm/model";
+import type { ExternalDefinitionResult } from "./project-structure-commands";
 
 /** Project-level external declaration; there is no local schematic body. */
 export function ExternalCircuitEditor({
@@ -7,9 +9,11 @@ export function ExternalCircuitEditor({
   onSetExternalDefinition,
 }: {
   definition: ExternalSubcircuitDefinition | undefined;
-  onSetExternalDefinition(definition: ExternalSubcircuitDefinition): void;
+  onSetExternalDefinition(
+    definition: ExternalSubcircuitDefinition,
+  ): ExternalDefinitionResult;
 }) {
-  const externalId = definition?.id ?? "__new__";
+  const [result, setResult] = useState<ExternalDefinitionResult | null>(null);
   const [externalName, setExternalName] = useState("");
   const [externalTerminals, setExternalTerminals] = useState("");
   const [externalParameters, setExternalParameters] = useState("");
@@ -40,13 +44,15 @@ export function ExternalCircuitEditor({
     <section aria-label="External circuit interface">
       <p className="cell-interface-empty">
         Interface for an external model, not a local schematic. Terminals must
-        match the model’s port order.
+        match the model’s port order. Simulation also requires the external
+        model implementation in its source files.
       </p>
       <div className="cell-external-grid">
         <label>
           Target
           <input
             aria-label="External subcircuit target"
+            placeholder="amplifier"
             value={externalName}
             onChange={(event) => setExternalName(event.currentTarget.value)}
           />
@@ -77,7 +83,13 @@ export function ExternalCircuitEditor({
           type="button"
           onClick={() => {
             const target = externalName.trim();
-            if (!target) return;
+            if (!target) {
+              setResult({
+                ok: false,
+                message: "Enter an external model target name.",
+              });
+              return;
+            }
             const fields = externalParameters
               .split(",")
               .map((item) => item.trim())
@@ -90,40 +102,38 @@ export function ExternalCircuitEditor({
                   ...(defaultValue ? { defaultValue } : {}),
                 };
               });
-            onSetExternalDefinition({
-              ...definition,
-              id:
-                externalId === "__new__"
-                  ? `external-subcircuit-${target
-                      .toLowerCase()
-                      .replaceAll(/[^a-z0-9_-]/gu, "-")}`
-                  : externalId,
-              name: target,
-              terminals: externalTerminals
-                .split(",")
-                .map((item) => item.trim())
-                .filter(Boolean)
-                .map((name, index) => {
-                  const existing = definition?.terminals.find(
-                    (terminal) =>
-                      terminal.name.toLowerCase() === name.toLowerCase(),
-                  );
-                  return {
-                    id:
-                      existing?.id ??
-                      `external-terminal-${externalId === "__new__" ? target.toLowerCase().replaceAll(/[^a-z0-9_-]/gu, "-") : externalId}-${index + 1}`,
-                    name,
-                    direction: existing?.direction ?? ("passive" as const),
-                  };
-                }),
-              formalParameters: fields,
-              interfaceStatus: "declared",
-            });
+            setResult(
+              onSetExternalDefinition({
+                ...definition,
+                id: definition?.id ?? createId("external-subcircuit"),
+                name: target,
+                terminals: externalTerminals
+                  .split(/[,，\s]+/u)
+                  .map((item) => item.trim())
+                  .filter(Boolean)
+                  .map((name) => {
+                    const existing = definition?.terminals.find(
+                      (terminal) =>
+                        terminal.name.toLowerCase() === name.toLowerCase(),
+                    );
+                    return {
+                      id: existing?.id ?? createId("external-terminal"),
+                      name,
+                      direction: existing?.direction ?? ("passive" as const),
+                    };
+                  }),
+                formalParameters: fields,
+                interfaceStatus: "declared",
+              }),
+            );
           }}
         >
-          Apply definition
+          {definition ? "Save definition" : "Create External Circuit"}
         </button>
       </div>
+      {result ? (
+        <p role={result.ok ? "status" : "alert"}>{result.message}</p>
+      ) : null}
     </section>
   );
 }

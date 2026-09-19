@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { analyzeDesignNetlist } from "@icm/netlist";
 
 import {
   revealPropertiesShelf,
@@ -126,7 +127,9 @@ test("manages external declarations independently of local Cell interfaces", asy
   await manager
     .getByLabel("External subcircuit formal parameters")
     .fill("gain=10");
-  await manager.getByRole("button", { name: "Apply definition" }).click();
+  await manager
+    .getByRole("button", { name: "Create External Circuit", exact: true })
+    .click();
   const externalList = manager.getByRole("complementary", {
     name: "External Circuits",
   });
@@ -137,7 +140,7 @@ test("manages external declarations independently of local Cell interfaces", asy
   await manager
     .getByLabel("External subcircuit formal parameters")
     .fill("gain=20");
-  await manager.getByRole("button", { name: "Apply definition" }).click();
+  await manager.getByRole("button", { name: "Save definition" }).click();
   await types.getByRole("button", { name: "Cells", exact: true }).click();
   await expect(
     manager.getByLabel("Cell interface", { exact: true }),
@@ -159,6 +162,111 @@ test("manages external declarations independently of local Cell interfaces", asy
   await expect(
     manager.getByLabel("External subcircuit formal parameters"),
   ).toHaveValue("gain=10");
+});
+
+test("creates and places an external interface with connected netlist semantics", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await runCellCommand(page, "Manage Cells…");
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager
+    .getByRole("group", { name: "Definition type" })
+    .getByRole("button", { name: "External Circuits" })
+    .click();
+  const create = manager.getByRole("button", {
+    name: "Create External Circuit",
+    exact: true,
+  });
+  await create.click();
+  await expect(manager.getByRole("alert")).toContainText("target name");
+  await manager.getByLabel("External subcircuit target").fill("external_load");
+  await manager.getByLabel("External subcircuit terminals").fill("IN IN");
+  await create.click();
+  await expect(manager.getByRole("alert")).toContainText(/duplicate/i);
+  await manager.getByLabel("External subcircuit terminals").fill("IN OUT");
+  await create.click();
+  await expect(
+    manager.getByRole("button", { name: "Save definition" }),
+  ).toBeVisible();
+  await manager
+    .getByRole("button", { name: "New External Circuit", exact: true })
+    .click();
+  await expect(manager.getByLabel("External subcircuit target")).toHaveValue(
+    "",
+  );
+  await manager.getByLabel("External subcircuit target").fill("external_load");
+  await create.click();
+  await expect(manager.getByRole("alert")).toContainText(/duplicate/i);
+  await manager
+    .getByRole("complementary", { name: "External Circuits" })
+    .getByRole("button", { name: /external_load/ })
+    .click();
+  await manager.getByRole("button", { name: "Place", exact: true }).click();
+  await expect(manager).toHaveCount(0);
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 260, y: 200 } });
+  await page.keyboard.press("Escape");
+  const externalId = await page
+    .locator('[data-canvas-hit-kind="instance"]')
+    .getAttribute("data-canvas-hit-id");
+  expect(externalId).toBeTruthy();
+  await page.keyboard.press("Control+z");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("0");
+  await page.keyboard.press("Control+Shift+z");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  await placeComponent(page, "resistor", { x: 500, y: 220 });
+  await page.keyboard.press("w");
+  await page.getByTestId(`terminal-${externalId}-IN`).click();
+  await page.getByTestId("terminal-R1-1").click();
+  await page.getByTestId(`terminal-${externalId}-OUT`).click();
+  await page.getByTestId("terminal-R1-2").click();
+  await page.keyboard.press("Escape");
+  const project = JSON.parse(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  const document = project.documents.find(
+    (item: { id: string }) => item.id === project.topDocumentId,
+  );
+  const instance = document.instances.find(
+    (item: { id: string }) => item.id === externalId,
+  );
+  expect(instance.netlist.binding).toEqual({
+    kind: "external-subcircuit",
+    definitionId: project.externalSubcircuitDefinitions[0].id,
+  });
+  for (const pinName of ["IN", "OUT"]) {
+    expect(
+      document.nets.some(
+        (net: { terminals: { instanceId: string; pinName: string }[] }) =>
+          net.terminals.some(
+            (pin) => pin.instanceId === externalId && pin.pinName === pinName,
+          ) && net.terminals.some((pin) => pin.instanceId === "R1"),
+      ),
+    ).toBe(true);
+  }
+  const analyzed = analyzeDesignNetlist(project);
+  expect(
+    analyzed.diagnostics.filter((item) => item.severity === "error"),
+  ).toEqual([]);
+  const call = analyzed.ir?.cells
+    .flatMap((cell) => cell.instances)
+    .find((item) => item.reference === instance.reference);
+  expect(call?.target).toBe("external_load");
+  expect(call?.nodes.map((node) => node.pinName)).toEqual(["IN", "OUT"]);
+  expect(analyzed.ir?.externalMasters?.map((master) => master.name)).toContain(
+    "external_load",
+  );
+  expect(analyzed.ir?.cells.map((cell) => cell.name)).not.toContain(
+    "external_load",
+  );
+  await clickCommand(page, "Netlist", "Check Report…");
+  await expect(page.getByTestId("netlist-preview")).toContainText(
+    new RegExp(`${instance.reference}\\s+\\S+\\s+\\S+\\s+external_load`, "u"),
+  );
 });
 
 test("places an unreferenced top Cell in an ordinary new Cell", async ({

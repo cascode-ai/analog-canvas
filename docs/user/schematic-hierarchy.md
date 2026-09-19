@@ -19,6 +19,12 @@ ordered terminals, and formal parameters. Use **New External Circuit** in
 the external list to add a declaration, or select an existing one to edit it.
 External definitions have no local schematic to open or reset. Editing their
 declaration does not import or modify the external model implementation.
+Enter a target name and its ordered terminals (commas or spaces), then use
+**Create External Circuit**. Select a saved declaration and choose **Place**
+to start ordinary canvas placement; **Save definition** updates its interface.
+Validation errors appear inside the Manager. Its pins connect to Nets and
+export as an external subcircuit call, but simulation still requires the actual
+model implementation in the simulation source files.
 
 Use **New Cell** in the Cell Manager to create a module. **Place Cell** in the
 hierarchy row, or **Edit → Place Cell from this Project…**, opens the Insert

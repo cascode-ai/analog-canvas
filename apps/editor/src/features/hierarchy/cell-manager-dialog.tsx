@@ -14,6 +14,7 @@ import type { CloudProjectSummary } from "../editor-shell/cloud-projects";
 
 import { CellInterfaceEditor } from "./cell-interface-dialog";
 import { ExternalCircuitEditor } from "./external-circuit-editor";
+import type { ExternalDefinitionResult } from "./project-structure-commands";
 
 const RESET_ACTIONS: readonly {
   intent: CellResetIntent;
@@ -52,6 +53,7 @@ export function CellManagerDialog({
   onSetFormalParameters,
   externalDefinitions,
   onSetExternalDefinition,
+  onPlaceExternal,
   onReset,
   cloudProjects,
   activeCloudProjectId,
@@ -81,7 +83,10 @@ export function CellManagerDialog({
     >["formalParameters"],
   ): void;
   externalDefinitions: readonly ExternalSubcircuitDefinition[];
-  onSetExternalDefinition(definition: ExternalSubcircuitDefinition): void;
+  onSetExternalDefinition(
+    definition: ExternalSubcircuitDefinition,
+  ): ExternalDefinitionResult;
+  onPlaceExternal(definitionId: string): void;
   onReset(plan: CellResetPlan, command: string): boolean;
   cloudProjects: readonly CloudProjectSummary[];
   activeCloudProjectId: string | null;
@@ -100,6 +105,7 @@ export function CellManagerDialog({
     "local",
   );
   const [externalId, setExternalId] = useState<string | null>(null);
+  const [externalDraft, setExternalDraft] = useState(0);
   const [draftName, setDraftName] = useState("");
   const [creating, setCreating] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
@@ -297,7 +303,10 @@ export function CellManagerDialog({
               <button
                 type="button"
                 className="cell-manager-new"
-                onClick={() => setExternalId(null)}
+                onClick={() => {
+                  setExternalId(null);
+                  setExternalDraft((value) => value + 1);
+                }}
               >
                 New External Circuit
               </button>
@@ -312,13 +321,22 @@ export function CellManagerDialog({
                     <h3>{selectedExternal?.name ?? "New External Circuit"}</h3>
                     <span>External</span>
                   </div>
+                  {selectedExternal ? (
+                    <button
+                      type="button"
+                      onClick={() => onPlaceExternal(selectedExternal.id)}
+                    >
+                      Place
+                    </button>
+                  ) : null}
                 </header>
                 <ExternalCircuitEditor
-                  key={selectedExternal?.id ?? "new"}
+                  key={selectedExternal?.id ?? `new-${externalDraft}`}
                   definition={selectedExternal}
                   onSetExternalDefinition={(definition) => {
-                    onSetExternalDefinition(definition);
-                    setExternalId(definition.id);
+                    const result = onSetExternalDefinition(definition);
+                    if (result.ok) setExternalId(definition.id);
+                    return result;
                   }}
                 />
               </>

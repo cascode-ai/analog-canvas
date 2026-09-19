@@ -27,6 +27,59 @@ function dependencies() {
 }
 
 describe("Project structure commands", () => {
+  it("returns actionable external definition validation and commit results", () => {
+    const input = dependencies();
+    const commands = createProjectStructureCommands(input);
+    const definition = {
+      id: "external-amp",
+      name: "amplifier",
+      terminals: [{ id: "in", name: "IN", direction: "passive" as const }],
+      formalParameters: [],
+      interfaceStatus: "declared" as const,
+    };
+    expect(commands.setExternalSubcircuitDefinition(definition).ok).toBe(true);
+    input.commitStructure.mockClear();
+    const duplicate = commands.setExternalSubcircuitDefinition({
+      ...definition,
+      terminals: [
+        ...definition.terminals,
+        { id: "in2", name: "IN", direction: "passive" },
+      ],
+    });
+    expect(duplicate.ok).toBe(false);
+    expect(duplicate.message).toMatch(/duplicate/i);
+    expect(input.commitStructure).not.toHaveBeenCalled();
+    input.commitStructure.mockReturnValue(false);
+    expect(commands.setExternalSubcircuitDefinition(definition)).toMatchObject({
+      ok: false,
+      message: expect.stringContaining("not changed"),
+    });
+  });
+
+  it("does not silently replace a same-named external or shadow a local Cell", () => {
+    const input = dependencies();
+    const definition = {
+      id: "external-amp",
+      name: "amplifier",
+      terminals: [],
+      formalParameters: [],
+      interfaceStatus: "declared" as const,
+    };
+    input.project.externalSubcircuitDefinitions.push(definition);
+    const commands = createProjectStructureCommands(input);
+    expect(
+      commands.setExternalSubcircuitDefinition({ ...definition, id: "new-id" })
+        .ok,
+    ).toBe(false);
+    expect(
+      commands.setExternalSubcircuitDefinition({
+        ...definition,
+        name: input.activeDocument.netlist!.name,
+      }).ok,
+    ).toBe(false);
+    expect(input.commitStructure).not.toHaveBeenCalled();
+  });
+
   it("creates a trimmed Cell with inherited presentation and activates it", () => {
     const input = dependencies();
     input.activeDocument.presentation.grid = 25;

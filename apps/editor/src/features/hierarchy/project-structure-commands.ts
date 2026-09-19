@@ -19,6 +19,7 @@ import type { ProjectStructureEdit, SchematicEdit } from "@icm/edit-engine";
 import {
   createEmptyDocument,
   createId,
+  CircuitProjectSchema,
   semanticTextDocument,
 } from "@icm/model";
 import type {
@@ -34,6 +35,11 @@ type CellPinSide = "north" | "east" | "south" | "west" | "auto";
 type FormalParameters = NonNullable<
   SchematicDocument["netlist"]
 >["formalParameters"];
+
+export interface ExternalDefinitionResult {
+  ok: boolean;
+  message: string;
+}
 
 export interface ProjectStructureCommandDependencies {
   project: CircuitProject;
@@ -349,27 +355,56 @@ export function createProjectStructureCommands({
 
   const setExternalSubcircuitDefinition = (
     definition: ExternalSubcircuitDefinition,
-  ): void => {
+  ): ExternalDefinitionResult => {
+    const fail = (message: string): ExternalDefinitionResult => {
+      setStatus(message);
+      return { ok: false, message };
+    };
     try {
+      const collision = project.documents.some(
+        (document) =>
+          document.netlist?.name.toLowerCase() ===
+          definition.name.toLowerCase(),
+      );
+      if (collision)
+        return fail("An existing Cell already uses this target name.");
+      const candidate = CircuitProjectSchema.safeParse({
+        ...project,
+        externalSubcircuitDefinitions: [
+          ...project.externalSubcircuitDefinitions.filter(
+            (item) => item.id !== definition.id,
+          ),
+          definition,
+        ],
+      });
+      if (!candidate.success) {
+        return fail(
+          candidate.error.issues.map((issue) => issue.message).join("; "),
+        );
+      }
       const proposal = proposeUpsertExternalSubcircuitDefinition(
         project,
         definition,
       );
       if (proposal.diagnostics.length > 0) {
-        setStatus(
+        return fail(
           `Cannot update external interface: ${proposal.diagnostics[0]}`,
         );
-        return;
       }
       if (
         commitStructure("upsert-external-subcircuit-interface", [
           ...proposal.edits,
         ])
       ) {
-        setStatus(`Updated external subcircuit ${definition.name}`);
+        const message = `Updated external subcircuit ${definition.name}`;
+        setStatus(message);
+        return { ok: true, message };
       }
+      return fail(
+        "Could not save the external interface. The Project was not changed.",
+      );
     } catch (error) {
-      setStatus(
+      return fail(
         error instanceof Error
           ? error.message
           : "Could not update external subcircuit interface",
