@@ -108,9 +108,11 @@ async function prepareImportedFixture() {
       ),
     ).toBe(true);
   }
-  expect(
-    prepared.input.files.find((f) => f.path === "circuit.spice").text,
-  ).toMatch(/subckt\s+\S+\s*\(vss ibias vdd vinn vinp vout\)/u);
+  const circuit = prepared.input.files.find(
+    (f) => f.path === "circuit.spice",
+  ).text;
+  expect(circuit).toMatch(/subckt\s+\S+\s*\(vdd vss ibias vinn vinp vout\)/u);
+  expect(circuit).toMatch(/XDUT\s+\(vdd 0 ibias vinn vinp vout\)\s+\S+/u);
   expect(
     testbench.instances.find((i) => i.id === "XDUT").netlist.binding
       .childDocumentId,
