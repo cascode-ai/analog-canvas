@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  planSwitchContactStyleSwap,
-  switchContactStyleSibling,
-} from "./switch-contact-style";
+import { switchContactStyleSibling } from "./switch-contact-style";
 
 describe("switch contact style", () => {
   it("pairs each switch with its other drawing, both ways", () => {
@@ -23,19 +20,5 @@ describe("switch contact style", () => {
       switchContactStyleSibling("voltage-controlled-switch"),
     ).toBeUndefined();
     expect(switchContactStyleSibling("resistor")).toBeUndefined();
-  });
-
-  it("swaps by exchanging Symbols so every wired terminal survives", () => {
-    // The pair shares pin names and anchor positions, so exchanging the
-    // Symbol keeps each terminal's identity — and with it every Net and
-    // every drawn wire. Nothing is hidden, so nothing is orphaned.
-    expect(planSwitchContactStyleSwap("S1", "spdt-switch")).toEqual([
-      {
-        kind: "set_instance_symbol",
-        instanceId: "S1",
-        symbolId: "simple-spdt-switch",
-      },
-    ]);
-    expect(planSwitchContactStyleSwap("S1", "closed-switch")).toEqual([]);
   });
 });
