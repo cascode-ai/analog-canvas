@@ -12,6 +12,14 @@ declarations. A referenced Cell's delete control is
 disabled; delete its caller Instances normally before deleting the now
 unreferenced definition.
 
+The Manager separates **Cells** (local schematics) from **External Circuits**
+(project-level declarations for external models). Local Cell interfaces come
+from their canvas Pins; external declarations specify the model target,
+ordered terminals, and formal parameters. Use **New External Circuit** in
+the external list to add a declaration, or select an existing one to edit it.
+External definitions have no local schematic to open or reset. Editing their
+declaration does not import or modify the external model implementation.
+
 Use **New Cell** in the Cell Manager to create a module. **Place Cell** in the
 hierarchy row, or **Edit → Place Cell from this Project…**, opens the Insert
 dialog as a searchable, Cells-only **Place Hierarchical Cell** picker. Select a

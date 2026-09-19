@@ -185,7 +185,7 @@
 .cell-manager-dialog {
   position: relative;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   width: min(64rem, calc(100vw - 2.5rem));
   height: min(34rem, calc(100dvh - 2.5rem));
   overflow: hidden;
@@ -230,6 +230,18 @@
 .cell-manager-header h2 {
   margin-top: 2px;
   font-size: var(--icm-font-lg);
+}
+
+.cell-manager-resource-tabs {
+  display: flex;
+  gap: var(--icm-space-2);
+  padding: var(--icm-space-2) var(--icm-space-4);
+  border-bottom: 1px solid var(--icm-border);
+}
+
+.cell-manager-resource-tabs button[aria-pressed="true"] {
+  background: var(--icm-surface-muted);
+  font-weight: 700;
 }
 
 .cell-manager-body {
@@ -372,7 +384,6 @@
 }
 
 .cell-interface-section,
-.cell-external-interface,
 .cell-manager-callers {
   min-width: 0;
   border: 1px solid var(--icm-border);
@@ -485,7 +496,6 @@
   margin-top: auto;
 }
 
-.cell-external-interface summary,
 .cell-manager-callers summary,
 .cell-manager-danger-zone summary {
   display: flex;
@@ -499,16 +509,9 @@
   font-weight: 600;
 }
 
-.cell-external-interface summary::-webkit-details-marker,
 .cell-manager-callers summary::-webkit-details-marker,
 .cell-manager-danger-zone summary::-webkit-details-marker {
   display: none;
-}
-
-.cell-external-interface summary small {
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-  font-weight: 500;
 }
 
 .cell-external-grid {

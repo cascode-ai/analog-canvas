@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
 
-import type {
-  ExternalSubcircuitDefinition,
-  SchematicDocument,
-} from "@icm/model";
+import type { SchematicDocument } from "@icm/model";
 import { projectCellInterface } from "@icm/model";
 
 type FormalParameter = NonNullable<
@@ -17,8 +14,6 @@ export function CellInterfaceEditor({
   onSetPortDirection,
   onMovePort,
   onSetFormalParameters,
-  externalDefinitions,
-  onSetExternalDefinition,
 }: {
   cell: SchematicDocument;
   callerCount: number;
@@ -28,46 +23,14 @@ export function CellInterfaceEditor({
   ): void;
   onMovePort(portId: string, delta: -1 | 1): void;
   onSetFormalParameters(formalParameters: FormalParameter[]): void;
-  externalDefinitions: readonly ExternalSubcircuitDefinition[];
-  onSetExternalDefinition(definition: ExternalSubcircuitDefinition): void;
 }) {
   const [formalParameters, setFormalParameters] = useState<FormalParameter[]>(
     [],
   );
-  const [externalId, setExternalId] = useState<string>("__new__");
-  const [externalName, setExternalName] = useState("");
-  const [externalTerminals, setExternalTerminals] = useState("");
-  const [externalParameters, setExternalParameters] = useState("");
 
   useEffect(() => {
     setFormalParameters(cell.netlist?.formalParameters ?? []);
   }, [cell.id, cell.revision]);
-
-  useEffect(() => {
-    if (externalId === "__new__") {
-      setExternalName("");
-      setExternalTerminals("");
-      setExternalParameters("");
-      return;
-    }
-    const definition = externalDefinitions.find(
-      (item) => item.id === externalId,
-    );
-    if (!definition) return;
-    setExternalName(definition.name);
-    setExternalTerminals(
-      definition.terminals.map((terminal) => terminal.name).join(", "),
-    );
-    setExternalParameters(
-      definition.formalParameters
-        .map((parameter) =>
-          parameter.defaultValue === undefined
-            ? parameter.name
-            : `${parameter.name}=${parameter.defaultValue}`,
-        )
-        .join(", "),
-    );
-  }, [externalDefinitions, externalId]);
 
   if (!cell.netlist) return null;
   const projection = projectCellInterface(cell.netlist);
@@ -256,111 +219,6 @@ export function CellInterfaceEditor({
           ) : null}
         </section>
       </div>
-
-      <details className="cell-external-interface">
-        <summary>
-          <span>External subcircuit definitions</span>
-          <small>{externalDefinitions.length} shared</small>
-        </summary>
-        <div className="cell-external-grid">
-          <label>
-            Definition
-            <select
-              aria-label="External subcircuit definition"
-              value={externalId}
-              onChange={(event) => setExternalId(event.currentTarget.value)}
-            >
-              <option value="__new__">New definition</option>
-              {externalDefinitions.map((definition) => (
-                <option key={definition.id} value={definition.id}>
-                  {definition.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Target
-            <input
-              aria-label="External subcircuit target"
-              value={externalName}
-              onChange={(event) => setExternalName(event.currentTarget.value)}
-            />
-          </label>
-          <label>
-            Ordered terminals
-            <input
-              aria-label="External subcircuit terminals"
-              placeholder="INP, INN, OUT"
-              value={externalTerminals}
-              onChange={(event) =>
-                setExternalTerminals(event.currentTarget.value)
-              }
-            />
-          </label>
-          <label>
-            Formal parameters
-            <input
-              aria-label="External subcircuit formal parameters"
-              placeholder="gain=10, bias"
-              value={externalParameters}
-              onChange={(event) =>
-                setExternalParameters(event.currentTarget.value)
-              }
-            />
-          </label>
-          <button
-            type="button"
-            onClick={() => {
-              const target = externalName.trim();
-              if (!target) return;
-              const fields = externalParameters
-                .split(",")
-                .map((item) => item.trim())
-                .filter(Boolean)
-                .map((item) => {
-                  const [name, ...defaultParts] = item.split("=");
-                  const defaultValue = defaultParts.join("=").trim();
-                  return {
-                    name: name!.trim(),
-                    ...(defaultValue ? { defaultValue } : {}),
-                  };
-                });
-              onSetExternalDefinition({
-                id:
-                  externalId === "__new__"
-                    ? `external-subcircuit-${target
-                        .toLowerCase()
-                        .replaceAll(/[^a-z0-9_-]/gu, "-")}`
-                    : externalId,
-                name: target,
-                terminals: externalTerminals
-                  .split(",")
-                  .map((item) => item.trim())
-                  .filter(Boolean)
-                  .map((name, index) => {
-                    const existing = externalDefinitions
-                      .find((definition) => definition.id === externalId)
-                      ?.terminals.find(
-                        (terminal) =>
-                          terminal.name.toLowerCase() === name.toLowerCase(),
-                      );
-                    return {
-                      id:
-                        existing?.id ??
-                        `external-terminal-${externalId === "__new__" ? target.toLowerCase().replaceAll(/[^a-z0-9_-]/gu, "-") : externalId}-${index + 1}`,
-                      name,
-                      direction: existing?.direction ?? ("passive" as const),
-                    };
-                  }),
-                formalParameters: fields,
-                interfaceStatus: "declared",
-              });
-            }}
-          >
-            Apply definition
-          </button>
-        </div>
-      </details>
     </div>
   );
 }

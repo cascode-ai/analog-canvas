@@ -98,6 +98,69 @@ async function setCellTerminalDirection(
   await manager.getByLabel("Close Cell Manager").click();
 }
 
+test("manages external declarations independently of local Cell interfaces", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await runCellCommand(page, "Manage Cells…");
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  const types = manager.getByRole("group", { name: "Definition type" });
+  await expect(
+    manager.getByLabel("Cell interface", { exact: true }),
+  ).toBeVisible();
+  await expect(manager.getByLabel("External subcircuit target")).toHaveCount(0);
+  await types
+    .getByRole("button", { name: "External Circuits", exact: true })
+    .click();
+  await expect(
+    manager.getByLabel("Cell interface", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    manager.getByRole("button", { name: "Open", exact: true }),
+  ).toHaveCount(0);
+  await expect(manager.getByText("Reset Cell", { exact: true })).toHaveCount(0);
+  await manager.getByLabel("External subcircuit target").fill("amplifier");
+  await manager
+    .getByLabel("External subcircuit terminals")
+    .fill("IN, OUT, VDD, VSS");
+  await manager
+    .getByLabel("External subcircuit formal parameters")
+    .fill("gain=10");
+  await manager.getByRole("button", { name: "Apply definition" }).click();
+  const externalList = manager.getByRole("complementary", {
+    name: "External Circuits",
+  });
+  await externalList.getByRole("button", { name: /amplifier/ }).click();
+  await expect(manager.getByLabel("External subcircuit terminals")).toHaveValue(
+    "IN, OUT, VDD, VSS",
+  );
+  await manager
+    .getByLabel("External subcircuit formal parameters")
+    .fill("gain=20");
+  await manager.getByRole("button", { name: "Apply definition" }).click();
+  await types.getByRole("button", { name: "Cells", exact: true }).click();
+  await expect(
+    manager.getByLabel("Cell interface", { exact: true }),
+  ).toBeVisible();
+  await expect(manager.getByLabel("External subcircuit target")).toHaveCount(0);
+  await types
+    .getByRole("button", { name: "External Circuits", exact: true })
+    .click();
+  await expect(
+    manager.getByLabel("External subcircuit formal parameters"),
+  ).toHaveValue("gain=20");
+  await manager.getByLabel("Close Cell Manager").click();
+  await page.keyboard.press("Control+z");
+  await runCellCommand(page, "Manage Cells…");
+  await types
+    .getByRole("button", { name: "External Circuits", exact: true })
+    .click();
+  await externalList.getByRole("button", { name: /amplifier/ }).click();
+  await expect(
+    manager.getByLabel("External subcircuit formal parameters"),
+  ).toHaveValue("gain=10");
+});
+
 test("places an unreferenced top Cell in an ordinary new Cell", async ({
   page,
 }) => {

@@ -38,8 +38,6 @@ describe("CellInterfaceEditor", () => {
         onSetPortDirection={vi.fn()}
         onMovePort={vi.fn()}
         onSetFormalParameters={vi.fn()}
-        externalDefinitions={[]}
-        onSetExternalDefinition={vi.fn()}
       />,
     );
 
@@ -76,8 +74,6 @@ describe("CellInterfaceEditor", () => {
         onSetPortDirection={vi.fn()}
         onMovePort={vi.fn()}
         onSetFormalParameters={vi.fn()}
-        externalDefinitions={[]}
-        onSetExternalDefinition={vi.fn()}
       />,
     );
 
