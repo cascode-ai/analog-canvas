@@ -1103,8 +1103,25 @@ test("same-name Cell Pins stay independent while the final interface groups them
 
   await page.getByTestId("hit-P2").click();
   await renameCellPinOnCanvas(page, "P2", "vin");
-
-  await expect(page.getByTestId("status")).toContainText("Renamed Cell Pin");
+  const merge = page.getByRole("dialog", { name: "Merge Cell Ports?" });
+  await expect(merge).toBeVisible();
+  await page.keyboard.press("Delete");
+  await expect(page.getByTestId("hit-P2")).toHaveCount(1);
+  await merge.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.locator('[data-object-id="instance-label-P2"]')).toHaveText(
+    "ALIAS",
+  );
+  await renameCellPinOnCanvas(page, "P2", "vin");
+  await page.getByRole("button", { name: "Merge Ports", exact: true }).click();
+  await expect(merge).toHaveCount(0);
+  await page.keyboard.press("Control+z");
+  await expect(page.locator('[data-object-id="instance-label-P2"]')).toHaveText(
+    "ALIAS",
+  );
+  await page.keyboard.press("Control+Shift+z");
+  await expect(page.locator('[data-object-id="instance-label-P2"]')).toHaveText(
+    "vin",
+  );
   await runCellCommand(page, "Manage Cells…");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await expect(

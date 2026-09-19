@@ -105,6 +105,8 @@ import {
 } from "../document/release-channel";
 import { resolveSimulationTransport } from "../features/simulation/deployment-transport";
 import { createCanvasHitController } from "../canvas/canvas-hit-controller";
+import { CellInterfaceConfirmationDialog } from "../features/hierarchy/cell-interface-confirmation";
+import type { CellInterfaceConfirmation } from "../features/hierarchy/project-structure-commands";
 import { screenScaleHitRadius } from "../canvas/canvas-hit-resolver";
 import { buildDiagnosticMarkers } from "../canvas/diagnostic-markers";
 import {
@@ -1192,6 +1194,10 @@ export function App({
   const documentContactEvidence = projectConnectivityIndex.documents.get(
     document.id,
   )?.contactEvidence;
+  const [interfaceConfirmation, setInterfaceConfirmation] = useState<{
+    request: CellInterfaceConfirmation;
+    snapshot: typeof project;
+  } | null>(null);
   const { commitStructure, transact, transactConnectivity } =
     createEditorTransactionCommands({
       project,
@@ -1220,6 +1226,8 @@ export function App({
     removeCellTerminalSelection,
     renameProject,
   } = createProjectStructureCommands({
+    requestConfirmation: (request) =>
+      setInterfaceConfirmation({ request, snapshot: project }),
     project,
     activeDocument: document,
     resolver,
@@ -4017,6 +4025,9 @@ export function App({
         )
       )
         return;
+      // The interface confirmation owns keys even though this router captures
+      // at window level before the modal's React handlers.
+      if (interfaceConfirmation) return;
       // File flyout arrows navigate the focused menu, never pan the canvas.
       if (
         event.target instanceof Element &&
@@ -4523,6 +4534,30 @@ export function App({
 
   return (
     <main className="app-shell">
+      {interfaceConfirmation ? (
+        <CellInterfaceConfirmationDialog
+          request={interfaceConfirmation.request}
+          onCancel={() => setInterfaceConfirmation(null)}
+          onConfirm={() => {
+            setInterfaceConfirmation(null);
+            if (project !== interfaceConfirmation.snapshot) {
+              setStatus(
+                "Project changed. Repeat the operation to review its current impact.",
+              );
+              return;
+            }
+            try {
+              interfaceConfirmation.request.apply();
+            } catch (error) {
+              setStatus(
+                error instanceof Error
+                  ? error.message
+                  : "Could not update Cell interface",
+              );
+            }
+          }}
+        />
+      ) : null}
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
       <EditorAppChrome
         {...(publicSimulationUiEnabled

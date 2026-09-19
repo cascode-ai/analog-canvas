@@ -20,6 +20,8 @@ import {
   createId,
   CircuitProjectSchema,
   semanticTextDocument,
+  foldNetName,
+  projectCellInterface,
 } from "@icm/model";
 import type {
   Annotation,
@@ -42,6 +44,7 @@ export interface ExternalDefinitionResult {
 }
 
 export interface ProjectStructureCommandDependencies {
+  requestConfirmation?: (request: CellInterfaceConfirmation) => void;
   project: CircuitProject;
   activeDocument: SchematicDocument;
   resolver: SymbolResolver;
@@ -54,6 +57,13 @@ export interface ProjectStructureCommandDependencies {
   onCellCreated: () => void;
   nextSequence: () => number;
   createDocumentId?: () => string;
+}
+
+export interface CellInterfaceConfirmation {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  apply(): boolean;
 }
 
 /**
@@ -71,7 +81,79 @@ export function createProjectStructureCommands({
   onCellCreated,
   nextSequence,
   createDocumentId = () => createId("document"),
+  requestConfirmation,
 }: ProjectStructureCommandDependencies) {
+  const confirm = (request: CellInterfaceConfirmation): boolean => {
+    if (!requestConfirmation) {
+      setStatus(request.message);
+      return false;
+    }
+    requestConfirmation(request);
+    return true;
+  };
+  const isMerge = (
+    document: SchematicDocument,
+    terminalId: string,
+    name: string,
+  ) => {
+    const terminal = document.netlist?.terminals.find(
+      (item) => item.id === terminalId,
+    );
+    return (
+      terminal &&
+      foldNetName(terminal.name) !== foldNetName(name) &&
+      document.netlist!.terminals.some(
+        (item) =>
+          item.id !== terminalId &&
+          foldNetName(item.name) === foldNetName(name),
+      )
+    );
+  };
+  const confirmMerge = (name: string, apply: () => boolean) =>
+    confirm({
+      title: "Merge Cell Ports?",
+      confirmLabel: "Merge Ports",
+      message: `Merge into ${name}. This electrically joins the Ports and their connected parent networks. Undo restores the change.`,
+      apply,
+    });
+  const commitRemoval = (
+    terminalIds: readonly string[],
+    apply: () => boolean,
+  ) => {
+    const removed = new Set(terminalIds);
+    const disappearing = projectCellInterface(
+      activeDocument.netlist,
+    ).ports.filter((port) => port.terminalIds.every((id) => removed.has(id)));
+    const names = new Set(disappearing.map((port) => port.name));
+    const callers = project.documents.flatMap((parent) =>
+      parent.instances
+        .filter((instance) => {
+          const binding = instance.netlist?.binding;
+          return (
+            binding?.kind === "subcircuit" &&
+            binding.childDocumentId === activeDocument.id &&
+            parent.nets.some((net) =>
+              net.terminals.some(
+                (terminal) =>
+                  terminal.instanceId === instance.id &&
+                  names.has(terminal.pinName),
+              ),
+            )
+          );
+        })
+        .map(
+          (instance) => `${parent.name}/${instance.reference ?? instance.id}`,
+        ),
+    );
+    return callers.length
+      ? confirm({
+          title: "Delete connected Cell Ports?",
+          confirmLabel: "Delete Ports",
+          message: `Delete ${disappearing.map((port) => port.name).join(", ")}. Wires remain disconnected in: ${callers.join(", ")}.`,
+          apply,
+        })
+      : apply();
+  };
   const createCell = (inputName: string): void => {
     const name = inputName.trim();
     if (!name) return;
@@ -169,6 +251,21 @@ export function createProjectStructureCommands({
       (candidate) => candidate.id === terminalId,
     );
     if (!terminal || !nextName || terminal.name === nextName) return;
+    if (isMerge(targetDocument!, terminalId, nextName)) {
+      confirmMerge(nextName, () =>
+        commitStructure(
+          transactionId,
+          planRenameCellTerminal(
+            project,
+            targetDocumentId,
+            terminalId,
+            nextName,
+            { mergeExistingPort: true },
+          ),
+        ),
+      );
+      return;
+    }
     try {
       if (
         commitStructure(
@@ -227,6 +324,21 @@ export function createProjectStructureCommands({
           : {}),
       };
       const renamed = terminal.name !== inputName;
+      if (isMerge(activeDocument, terminal.id, inputName)) {
+        return confirmMerge(inputName, () =>
+          commitStructure(
+            "merge-cell-pin-label",
+            planEditCellTerminalAnnotation(
+              project,
+              activeDocument.id,
+              terminal.id,
+              normalizedAnnotation,
+              inputName,
+              { mergeExistingPort: true },
+            ),
+          ),
+        );
+      }
       const edits = planEditCellTerminalAnnotation(
         project,
         activeDocument.id,
@@ -259,11 +371,13 @@ export function createProjectStructureCommands({
     terminalIds: readonly string[],
     documentEdits: readonly SchematicEdit[],
   ): boolean =>
-    commitStructure(
-      "delete-cell-pin-selection",
-      planRemoveCellTerminals(project, activeDocument.id, terminalIds, [
-        ...documentEdits,
-      ]),
+    commitRemoval(terminalIds, () =>
+      commitStructure(
+        "delete-cell-pin-selection",
+        planRemoveCellTerminals(project, activeDocument.id, terminalIds, [
+          ...documentEdits,
+        ]),
+      ),
     );
 
   const deleteCellTerminal = (
@@ -286,7 +400,9 @@ export function createProjectStructureCommands({
           nextSequence(),
         ),
       );
-      const committed = commitStructure("delete-cell-pin", edits);
+      const committed = commitRemoval([terminalId], () =>
+        commitStructure("delete-cell-pin", edits),
+      );
       if (committed) setStatus(`Deleted Cell Pin ${terminal.name}`);
       return committed;
     } catch (error) {
