@@ -181,7 +181,12 @@ const AdvancedTransactArgs = z.strictObject({
   documentId: z.string().min(1).optional(),
   edits: z.array(z.unknown()).min(1).max(256).optional(),
   structureEdits: z.array(z.unknown()).min(1).max(256).optional(),
-  wireIntent: AgentWireIntentSchema.optional(),
+  wireIntent: z
+    .union([
+      AgentWireIntentSchema,
+      z.array(AgentWireIntentSchema).min(1).max(64),
+    ])
+    .optional(),
   semanticIntent: AgentSemanticIntentSchema.optional(),
   command: AgentAuthoringCommandSchema.optional(),
   dryRun: z.boolean().optional(),
@@ -360,13 +365,21 @@ const TOOLS: readonly ToolEntry[] = [
             code: error.code,
             message: error.message,
             stage: request.operation,
+            ...(error.httpStatus === undefined
+              ? {}
+              : { httpStatus: error.httpStatus }),
             recovery:
               error.category === "unrecoverable-credential"
                 ? "reauthorize"
-                : error.category === "request-rejected" &&
-                    error.code !== "INVALID_RESPONSE"
-                  ? "fix-input"
-                  : "retry-same-request",
+                : error.httpStatus !== undefined &&
+                    (error.httpStatus >= 500 ||
+                      error.httpStatus === 429 ||
+                      error.httpStatus === 408)
+                  ? "retry-same-request"
+                  : error.category === "request-rejected" &&
+                      error.code !== "INVALID_RESPONSE"
+                    ? "fix-input"
+                    : "retry-same-request",
           },
         };
       }

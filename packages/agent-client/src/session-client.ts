@@ -100,6 +100,7 @@ export interface ApplyActionsReport {
   projectStructure?: AgentTransactResponse["projectStructure"];
   semantic?: AgentTransactResponse["semantic"];
   resolvedRoutes?: AgentTransactResponse["resolvedRoutes"];
+  terminalConnectivityChanged?: boolean;
   ok: boolean;
   stage: "compile" | "commit" | "done";
   /** Machine code for a failure (`STATE_CHANGED`, engine code, ...). */
@@ -501,6 +502,18 @@ export class AgentSessionClient {
         revision: entry.revision,
       };
     }
+    if (
+      compiled.length > 1 &&
+      compiled.every((item) => item.form === "wire-intent")
+    ) {
+      return this.submitTransaction(
+        entry,
+        { wireIntent: compiled.map((item) => item.wireIntent!) },
+        {
+          dryRun: options.dryRunOnly ?? false,
+        },
+      );
+    }
     if (compiled.length !== 1)
       return {
         ok: false,
@@ -646,6 +659,9 @@ export class AgentSessionClient {
       proposedRevision: response.proposedRevision,
       dryRun: options.dryRun ?? false,
       changedObjectIds: response.diff.changedObjectIds,
+      ...(response.terminalConnectivityChanged !== undefined
+        ? { terminalConnectivityChanged: response.terminalConnectivityChanged }
+        : {}),
       editKinds: response.diff.editKinds,
       diagnostics: response.diagnostics,
       errors: response.diagnostics.filter((item) => item.severity === "error")

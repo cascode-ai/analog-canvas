@@ -17,6 +17,8 @@ import {
 
 export type { WireSource } from "@icm/edit-engine";
 
+export type RoutingGuidanceView = "focused" | "all" | "hidden";
+
 /**
  * Where the far end of an in-flight wire draft currently rests.
  *

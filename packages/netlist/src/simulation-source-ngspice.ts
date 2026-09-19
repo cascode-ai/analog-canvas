@@ -13,6 +13,7 @@ import {
   type SimulationRunVariant,
 } from "@icm/model";
 import { projectSourceSimulation } from "./simulation-source-projection.js";
+import { simulationNetlistDiagnostic } from "./simulation-diagnostic.js";
 import { sha256Hex } from "@icm/derived";
 import {
   mapSimulationFile,
@@ -214,15 +215,7 @@ export function compileNgspiceSourceSimulation(
       terminalInstrumentations: instrumentations,
     });
     if (plan.ok) instrumentations = plan.terminalInstrumentations;
-    else
-      diagnostics.push(
-        ...plan.diagnostics.map((item) => ({
-          code: item.code,
-          severity: item.severity,
-          message: item.message,
-          field: item.documentId,
-        })),
-      );
+    else diagnostics.push(...plan.diagnostics.map(simulationNetlistDiagnostic));
   }
   if (diagnostics.some((d) => d.severity === "error"))
     return { ok: false, diagnostics };
@@ -235,21 +228,10 @@ export function compileNgspiceSourceSimulation(
     if (!plan.ok)
       return {
         ok: false,
-        diagnostics: plan.diagnostics.map((item) => ({
-          code: item.code,
-          severity: item.severity,
-          message: item.message,
-        })),
+        diagnostics: plan.diagnostics.map(simulationNetlistDiagnostic),
       };
     plans.set(id, plan);
-    diagnostics.push(
-      ...plan.warnings.map((item) => ({
-        code: item.code,
-        severity: item.severity,
-        message: item.message,
-        field: item.documentId,
-      })),
-    );
+    diagnostics.push(...plan.warnings.map(simulationNetlistDiagnostic));
   }
   // A generated definition is emitted once even when two bound roots reach it.
   const definitions = new Map<

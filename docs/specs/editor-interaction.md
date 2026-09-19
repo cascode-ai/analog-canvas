@@ -193,7 +193,12 @@ document edits. Filled foreground interiors remain selectable, while a
 background shape uses its border as the hit target so it cannot block circuit
 editing above it.
 
-The **Placement Tray** is the only retained-unplaced presentation surface. A
+The **Placement Tray** is the only retained-unplaced presentation surface, and
+it holds every Instance the Cell carries without a placement — returned,
+pasted, or imported alike. An Instance no surface lists is one nobody can place
+or delete while it still holds its reference, its Net terminals and its netlist
+cards, so the tray admits them all and the Check Report counts them
+(`ERC_INSTANCE_NOT_DRAWN`). A
 tray item may be dragged, entered into the ordinary placement cursor, or placed
 with **Place all** into a deterministic starter grid in the current view.
 **Return to tray** and **Return all** use the same lifecycle planner and retain

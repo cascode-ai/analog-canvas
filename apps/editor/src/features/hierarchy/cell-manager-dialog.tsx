@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ProjectCellSummary } from "@icm/derived";
 
 import type {
   CircuitProject,
@@ -14,18 +15,6 @@ import type {
   CellParameterChange,
   ExternalDefinitionResult,
 } from "./project-structure-commands";
-
-export interface CellManagerEntry {
-  readonly id: string;
-  readonly name: string;
-  readonly isTop: boolean;
-  readonly portCount: number;
-  readonly callers: readonly {
-    documentId: string;
-    documentName: string;
-    instanceId: string;
-  }[];
-}
 
 function CellName({
   name,
@@ -90,7 +79,7 @@ export function CellManagerDialog({
   onImportCloudCell,
 }: {
   open: boolean;
-  cells: readonly CellManagerEntry[];
+  cells: readonly ProjectCellSummary[];
   project: CircuitProject;
   hierarchyCalls: readonly HierarchyFrame[];
   onOpenOccurrence(documentId: string, path: readonly HierarchyFrame[]): void;

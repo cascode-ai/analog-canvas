@@ -73,6 +73,7 @@ function diagnostic(
   message: string,
   objectIds: StableId[] = [],
   severity: "error" | "warning" = "error",
+  parameter?: string,
 ): void {
   diagnostics.push({
     code,
@@ -81,6 +82,7 @@ function diagnostic(
     objectIds,
     primary: directObjectLocator(documentId, "document", documentId),
     message,
+    ...(parameter === undefined ? {} : { parameter }),
   });
 }
 
@@ -1367,6 +1369,8 @@ function extractDeviceInstance(
         "MISSING_REQUIRED_PARAMETER",
         `Instance ${instance.reference!} requires parameter ${parameter}`,
         [instance.id],
+        "error",
+        parameter,
       );
     }
   }

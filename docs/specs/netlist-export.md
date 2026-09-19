@@ -409,8 +409,11 @@ Authored W/L and values survive process changes, and reviewed SKY130 calls use
 the existing canonical unit/interface conversion. TSMC 28 maps `m` to `multi`;
 switching back restores `m`. Process selection preserves names and stable
 instance IDs; dialect naming happens only during extraction. Custom external
-blocks keep their own interfaces. Default restores the SKY130 mapping and output
-preferences without overwriting authored parameter values. These choices are remembered locally.
+blocks keep their own interfaces. Default restores the mapping the editor starts
+in and output preferences, without overwriting authored parameter values. A
+circuit drawn before a process was chosen says so: the panel counts the devices
+that still have no model — the same plan, counted rather than committed — and
+offers them in one undoable click, filling only what is missing. These choices are remembered locally.
 The adjacent menu offers Configuration…, Instances…, Check Report…, and Check
 and Save; it has no format choice. Clipboard rejection leaves selectable code
 and a status message, without a download fallback.

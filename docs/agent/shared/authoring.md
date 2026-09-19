@@ -59,6 +59,30 @@ and current capabilities. Never send an MCP tool envelope to HTTP.
 - Read, edit, refresh, render and inspect diagnostics. Use current revisions;
   on a conflict reconsider instead of overwriting human work.
 
+## Local rearrangement and electrical facts
+
+Prefer existing move, mirror, group transform and route edits for ordinary
+layout cleanup. Agent geometry moves do not invoke GUI drag-to-connect snapping:
+touching artwork is not electrical evidence. Ordinary document transaction
+receipts include `terminalConnectivityChanged`, comparing document-local terminal
+equivalence before and after (or the proposed preview). This does not assert
+unchanged device parameters, bulk defaults or hierarchical connectivity; omitted
+means unreported, not false. Use Snapshot for those facts. Keep raw typed edits
+available; these are workflow guidance, not new permission gates.
+
+Use reset-placement only for an intentional redraw; read its existing effects
+and retained objects rather than assuming it only adjusts positions.
+
+For MOS devices, read Snapshot `mosBulk` and `mosBulkDefaults` before authoring.
+The resolved net and status distinguish explicit, default and instance override
+bindings. Reuse defaults for ordinary devices; use the advertised bulk edits for
+intentional changes. A hidden B pin needs no decorative wire. Explicit four-pin
+presentation is separate from electrical binding.
+
+Anonymous internal nets are valid. If simulation source refers to an exported
+automatic net name, assign a deliberate stable name before relying on that
+reference across structural edits; informational export names are not errors.
+
 ## Simulation tasks
 
 Follow the [shared simulation workflow](simulation.md), then the selected

@@ -2,6 +2,7 @@ import {
   resolveSimulationInputPath,
   type SimulationSourceInput,
   type SourceSpan,
+  type ObjectLocator,
 } from "@icm/model";
 
 export interface SimulationSourceDiagnostic {
@@ -12,6 +13,9 @@ export interface SimulationSourceDiagnostic {
   related?: { message: string; sourceRef: SourceSpan }[];
   path?: string;
   field?: string;
+  primary?: Omit<ObjectLocator, "hierarchyPath"> & {
+    hierarchyPath: ObjectLocator["hierarchyPath"][number][];
+  };
 }
 export interface InspectedSourceItem<T> {
   statement: T;

@@ -2,8 +2,8 @@ import {
   createSimulationFolder,
   readSimulationExperimentConfig,
 } from "@icm/model";
-import { describe, expect, it } from "vitest";
-import { AgentSessionClient } from "@icm/agent-client";
+import { describe, expect, it, vi } from "vitest";
+import { AgentSessionClient, AgentSessionError } from "@icm/agent-client";
 import {
   capabilitiesResponse,
   FakeAgentHttp,
@@ -33,6 +33,69 @@ function parseText(result: {
 }
 
 describe("mcp tool surface", () => {
+  it.each([500, 502, 429, 408, 400])(
+    "classifies HTTP %s without changing the retry identity",
+    async (httpStatus) => {
+      const { session } = await toolSession();
+      vi.spyOn(session.client, "simulationResource").mockRejectedValue(
+        new AgentSessionError(
+          "HTTP_ERROR",
+          `HTTP ${httpStatus}`,
+          "request-rejected",
+          httpStatus,
+        ),
+      );
+      const result = await callTool(
+        "simulation",
+        {
+          requestId: "same-start",
+          request: {
+            operation: "start",
+            preparedId: "prepared",
+            digest: "a".repeat(64),
+          },
+        },
+        session,
+      );
+      expect(parseText(result)).toMatchObject({
+        ok: false,
+        requestId: "same-start",
+        error: {
+          httpStatus,
+          stage: "start",
+          recovery: httpStatus === 400 ? "fix-input" : "retry-same-request",
+        },
+      });
+      expect(session.client.simulationResource).toHaveBeenCalledTimes(1);
+    },
+  );
+  it("submits several connect actions as one atomic wire transaction", async () => {
+    const { session, http } = await toolSession();
+    await callTool("connect", { claimCode: "session-1.code" }, session);
+    http.circuitHandler = async ({ request }) =>
+      request.operation === "transact"
+        ? transactSuccessResponse(request.requestId, request.expectedRevision)
+        : request.operation === "snapshot"
+          ? snapshotResponse(request.requestId)
+          : capabilitiesResponse(request.requestId);
+    const result = await callTool(
+      "apply_actions",
+      {
+        actions: ["G", "D"].map((pin) => ({
+          kind: "connect",
+          from: { kind: "pin", instance: "M1", pin },
+          to: { kind: "pin", instance: "R1", pin: "2" },
+        })),
+      },
+      session,
+    );
+    expect(parseText(result)).toMatchObject({ ok: true, transactions: 1 });
+    const requests = http.circuitCalls
+      .map((c) => c.request)
+      .filter((r) => r.operation === "transact");
+    expect(requests).toHaveLength(1);
+    expect(requests[0]!.wireIntent).toHaveLength(2);
+  });
   it("reports the actual runtime origin without remote pairing for local readiness", async () => {
     const { session, http } = await toolSession();
     const result = parseText(
@@ -184,7 +247,10 @@ describe("mcp tool surface", () => {
           session,
         ),
       ),
-    ).toMatchObject({ ok: true });
+    ).toMatchObject({
+      ok: true,
+      folder: { id: "copy", name: "AC", entry: folder.input.entry },
+    });
     expect(writes[0]).toMatchObject({
       structureEdits: [
         {

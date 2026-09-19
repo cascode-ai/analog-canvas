@@ -54,6 +54,8 @@ import {
 
 /** Cloudflare Durable Object owning one temporary Agent session. */
 export class AgentSessionDO {
+  /** Reason-only tombstone: no bearer, connector, editor proof or Project data. */
+  private replacedUntil = 0;
   private machine: AgentSessionMachine | null = null;
   private readonly ready: Promise<void>;
   private creating = false;
@@ -78,6 +80,13 @@ export class AgentSessionDO {
     const allowedOrigin = this.env.AGENT_ALLOWED_ORIGIN ?? null;
     if (request.method === "POST" && url.pathname === "/create") {
       return this.create(request, allowedOrigin);
+    }
+    if (this.replacedUntil > Date.now()) {
+      return jsonResponse(
+        errorBody("PROJECT_REPLACED", errorMessage("PROJECT_REPLACED")),
+        transportStatus("PROJECT_REPLACED"),
+        allowedOrigin,
+      );
     }
     const machine = await this.loadMachine();
     if (!machine) {
@@ -274,6 +283,7 @@ export class AgentSessionDO {
     }
     this.pendingForwards.clear();
     const status = this.machine?.statusAt(Date.now());
+    if (this.replacedUntil > Date.now()) return;
     if (status === "revoked" || status === "expired") {
       await this.state.storage.deleteAll?.();
     } else {
@@ -283,6 +293,16 @@ export class AgentSessionDO {
 
   async alarm(): Promise<void> {
     await this.ready;
+    if (this.replacedUntil) {
+      if (Date.now() < this.replacedUntil) {
+        await this.state.storage.setAlarm?.(this.replacedUntil);
+      } else {
+        await this.state.storage.deleteAll?.();
+        this.replacedUntil = 0;
+        this.machine = null;
+      }
+      return;
+    }
     const machine = await this.loadMachine();
     if (machine && Date.now() < machine.expiresAt - EXPIRY_WARNING_MS) {
       await this.state.storage.setAlarm?.(
@@ -1139,6 +1159,14 @@ export class AgentSessionDO {
       );
     if (body.action === "revoke" || body.action === "replace-project") {
       await this.state.storage.deleteAll?.();
+      if (body.action === "replace-project") {
+        this.replacedUntil = Date.now() + 30 * 60_000;
+        await this.state.storage.put(
+          "project-replaced-until",
+          this.replacedUntil,
+        );
+        await this.state.storage.setAlarm?.(this.replacedUntil);
+      }
     } else {
       machine.recordActivity(Date.now());
       await this.persist();
@@ -1290,6 +1318,8 @@ export class AgentSessionDO {
   }
 
   private async initialize(): Promise<void> {
+    this.replacedUntil =
+      (await this.state.storage.get<number>("project-replaced-until")) ?? 0;
     const stored =
       await this.state.storage.get<PersistedAgentSessionState>(
         SESSION_STATE_KEY,
@@ -1305,6 +1335,7 @@ export class AgentSessionDO {
   }
 
   private async persist(): Promise<void> {
+    if (this.replacedUntil > Date.now()) return;
     if (!this.machine) return;
     const status = this.machine.statusAt(Date.now());
     if (status === "revoked" || status === "expired") {

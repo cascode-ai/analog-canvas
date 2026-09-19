@@ -128,10 +128,7 @@ function resolveRouteAnchor(
     );
   }
   return {
-    position:
-      anchor.orientation === "horizontal"
-        ? placement.conductorPoint
-        : placement.labelPoint,
+    position: placement.labelPoint,
     rotation: anchor.orientation === "horizontal" ? 0 : placement.rotation,
     resolved: true,
   };

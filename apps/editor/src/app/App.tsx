@@ -197,9 +197,9 @@ import { useProjectCheck } from "./use-project-check";
 import { summarizeVisualDiagnostics } from "../features/selection/selection-inspector-details";
 import {
   type HighlightedNetOrigin,
-  type RoutingGuidanceView,
   useEditorDerivedModel,
 } from "./use-editor-derived-model";
+import type { RoutingGuidanceView } from "../interaction/interaction-state";
 import {
   quickPlaceRequest,
   ShapesPanel,
@@ -850,6 +850,7 @@ export function App({
   const browserAgentFileHost = useMemo(
     () =>
       new BrowserAgentFileHost({
+        transport: simulationTransport,
         getProjectSessionId: () => editorDocumentController.projectSessionId,
         getProject: () => editorDocumentController.project,
         getDocument: (documentId) =>
@@ -861,7 +862,7 @@ export function App({
         dispatchProjectTransaction: (request) =>
           browserAgentHost.dispatchProjectTransaction(request),
       }),
-    [editorDocumentController, projectSessionId],
+    [editorDocumentController, projectSessionId, simulationTransport],
   );
   const projectRunHistory = useMemo(
     () => new ProjectRunHistory(editorDocumentController.project.id),
@@ -1582,8 +1583,13 @@ export function App({
         copyPlacement.previewPoint.y - copyPlacement.anchor.y
       })`
     : undefined;
+  // Every Instance the Cell holds but the sheet does not show. Import is one
+  // way to get there and was once the only one the tray admitted, but a
+  // returned or pasted Instance lands in the same state — and an Instance
+  // nothing lists is one nobody can place or delete, while it still holds its
+  // reference, its Net terminals and its place in the netlist.
   const unplaced = document.instances.filter(
-    (instance) => instance.importProvenance && instance.placement === null,
+    (instance) => instance.placement === null,
   );
   const returnablePlacedInstances = document.instances.filter(
     (instance) => instance.importProvenance && instance.placement !== null,

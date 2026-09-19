@@ -411,7 +411,12 @@ describe("current Agent Circuit API service", () => {
         },
       ],
     });
-    expect(committed).toMatchObject({ ok: true, applied: true, revision: 1 });
+    expect(committed).toMatchObject({
+      ok: true,
+      applied: true,
+      revision: 1,
+      terminalConnectivityChanged: false,
+    });
     const callsAfterCommit = resolveCalls;
 
     const after = fixture.service.handle(snapshotRequest("snapshot-after"));

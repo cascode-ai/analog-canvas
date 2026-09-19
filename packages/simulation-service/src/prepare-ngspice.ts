@@ -18,8 +18,10 @@ import { problem, type Capabilities, type Problem } from "./contract.js";
 import type { ExecutionInput } from "./executor.js";
 import { sha256 } from "./content-digest.js";
 import { sourceInputRevision } from "./input-identity.js";
-import { literalSourceAnalyses } from "./source-analysis.js";
-import { outputVolumeWarning } from "./result-volume.js";
+import {
+  literalSourceAnalyses,
+  sourceOutputVolumeWarning,
+} from "./source-analysis.js";
 
 async function sourceCompilationProblem(
   diagnostics: SimulationSourceDiagnostic[],
@@ -249,14 +251,12 @@ export async function prepareNgspiceExecutionInput(
       "prepare",
     );
   const inputRevision = await sourceInputRevision(folder, compiled);
-  const analyses = literalSourceAnalyses(
-    inspectSimulationSourceGraph({ ...folder.input, files: compiled.files }),
-  );
-  const volume = outputVolumeWarning(
-    analyses,
-    Math.max(1, compiled.vectors.length),
-    caps.maxOutputBytes,
-  );
+  const graph = inspectSimulationSourceGraph({
+    ...folder.input,
+    files: compiled.files,
+  });
+  const analyses = literalSourceAnalyses(graph);
+  const volume = sourceOutputVolumeWarning(graph, caps.maxOutputBytes);
   const unqualified = [...new Set(analyses.map((a) => a.kind))].filter(
     (kind) => !caps.analyses.includes(kind),
   );
@@ -289,7 +289,9 @@ export async function prepareNgspiceExecutionInput(
     deviceOperatingPoints: compiled.deviceOperatingPoints,
     measurements: config.measurements,
     warnings: [
-      ...compiled.warnings.map((item) => item.message),
+      ...compiled.warnings
+        .filter((item) => item.code !== "GENERATED_NET_NAME")
+        .map((item) => item.message),
       ...(volume ? [volume] : []),
       ...(unqualified.length
         ? [

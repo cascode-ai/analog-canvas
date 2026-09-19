@@ -731,6 +731,57 @@ describe("public Agent session routes", () => {
     });
   });
 
+  it("retains only a bounded replacement reason across relay restart", async () => {
+    const storage = new MemoryStorage();
+    const object = new AgentSessionDO({ storage }, {});
+    const created = (await (
+      await object.fetch(
+        new Request("https://agent-session.internal/create", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            sessionId: "replaced",
+            projectSessionId: "project:1",
+            projectId: "project",
+            documentIds: ["document-main"],
+            scopes: ["circuit.snapshot"],
+          }),
+        }),
+      )
+    ).json()) as { session: { editorSecret: string } };
+    const response = await object.fetch(
+      new Request("https://agent-session.internal/control", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-editor-secret": created.session.editorSecret,
+        },
+        body: JSON.stringify({ action: "replace-project" }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    await object.webSocketClose();
+    expect([...storage.values.keys()]).toEqual(["project-replaced-until"]);
+    const restarted = new AgentSessionDO({ storage }, {});
+    for (const path of ["status", "resume-connector", "editor"]) {
+      const result = await restarted.fetch(
+        new Request(`https://agent-session.internal/${path}`),
+      );
+      expect(result.status).toBe(409);
+      expect(await result.json()).toMatchObject({
+        error: { code: "PROJECT_REPLACED" },
+      });
+    }
+    const deadline = storage.alarm!;
+    const now = vi.spyOn(Date, "now").mockReturnValue(deadline + 1);
+    try {
+      await restarted.alarm();
+      expect(storage.values.size).toBe(0);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
   it("acknowledges the editor close handshake so the browser can reconnect", async () => {
     const close = vi.fn();
     const socket = {

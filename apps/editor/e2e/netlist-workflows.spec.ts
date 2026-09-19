@@ -733,6 +733,79 @@ test("edits output configuration without creating another electrical authority",
   expect(netlist).toContain("simulator lang=spectre");
 });
 
+test("fills a circuit drawn before the process in one click", async ({
+  page,
+}) => {
+  // A circuit from before the editor bound devices: two MOS with no model and
+  // no dimensions, so every card it prints is a TODO field. The panel offers
+  // exactly the devices it would fill, and filling them leaves none.
+  const project = createEmptyProject("bare-devices", "Bare devices");
+  const document = project.documents[0]!;
+  for (const [reference, symbolId] of [
+    ["M1", "nmos"],
+    ["M2", "pmos"],
+  ] as const) {
+    document.instances.push({
+      id: reference,
+      reference,
+      symbolId,
+      placement: null,
+      netlist: { parameters: {} },
+    });
+  }
+  document.nets.push(
+    {
+      id: "shared-drain",
+      terminals: [
+        { instanceId: "M1", pinName: "D" },
+        { instanceId: "M2", pinName: "D" },
+      ],
+    },
+    {
+      id: "shared-gate",
+      terminals: [
+        { instanceId: "M1", pinName: "G" },
+        { instanceId: "M2", pinName: "G" },
+      ],
+    },
+    {
+      id: "m1-source",
+      terminals: [
+        { instanceId: "M1", pinName: "S" },
+        { instanceId: "M1", pinName: "B" },
+      ],
+    },
+    {
+      id: "m2-source",
+      terminals: [
+        { instanceId: "M2", pinName: "S" },
+        { instanceId: "M2", pinName: "B" },
+      ],
+    },
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "bare-devices.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await expect(page.getByTestId("status")).toContainText("Opened");
+  const code = page.getByLabel("Netlist code", { exact: true });
+  await expect(code).toContainText("TODO");
+  const fill = page.getByTestId("netlist-fill-defaults");
+  await expect(fill).toHaveText("Fill 2 devices");
+  await fill.click();
+  await expect(code).toContainText("sky130_fd_pr__nfet_01v8");
+  await expect(code).not.toContainText("TODO");
+  await expect(fill).toHaveCount(0);
+  // One undo step: the circuit is back to what was opened.
+  await clickCommand(page, "Edit", "Undo");
+  await expect(code).toContainText("TODO");
+  await expect(page.getByTestId("netlist-fill-defaults")).toHaveText(
+    "Fill 2 devices",
+  );
+});
+
 test("retains copyable TODO fields when the user clears a template default", async ({
   page,
 }) => {

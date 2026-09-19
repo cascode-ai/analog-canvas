@@ -287,7 +287,10 @@ Abstract, SKY130, TSMC 28, TSMC 180 or Custom, then optionally choose
 NMOS/PMOS/R/C/L targets below the code. Process changes update the circuit and
 can be undone; existing values are retained. Unbound native devices use the
 cached template's defaults when the panel opens. **Default** restores the
-SKY130 mapping and output preferences. The code area is as tall as the netlist,
+mapping the editor starts in and output preferences. An older circuit whose
+devices have no model shows **Fill N devices** beside it: one undoable click
+gives exactly those devices the selected process's model and dimensions, and
+leaves every value you authored alone. The code area is as tall as the netlist,
 up to the room the sidebar has, and scrolls inside itself beyond that.
 The selected templates, format and port-name case are remembered in this browser.
 Editing the circuit refreshes the visible code. Clipboard failures leave the

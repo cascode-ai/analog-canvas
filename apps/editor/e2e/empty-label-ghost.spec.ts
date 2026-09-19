@@ -7,16 +7,14 @@ import { chooseComponent } from "./editor-fixtures.js";
 // box, a marquee target, and an SVG text element with a lone line break. The
 // person saw blank canvas and clicked something.
 //
-// Logic gates, signal-flow blocks, and the interface Ports lack a descriptor,
-// some of them deliberately (#386 dropped signal-flow designators on purpose).
-// Analog Blocks now carry X references because they export as unresolved
-// subcircuits. This sweep retains the families that are still intentionally
-// undesignated: the fix belongs to the empty text, not to any one family.
-for (const [family, symbolId] of [
-  ["logic gate", "nand-gate"],
-  ["signal flow", "adder"],
+// Logic gates now carry X references as Blocks (#895). Signal-flow designators
+// remain deliberately hidden (#386). Check both sides of visibility: retain
+// a real designator, but never leave a hit target for a hidden/empty label.
+for (const [family, symbolId, label] of [
+  ["logic gate", "nand-gate", "X1"],
+  ["signal flow", "adder", ""],
 ] as const) {
-  test(`a ${family} with no designator leaves no invisible hit target behind`, async ({
+  test(`a ${family} exposes hit targets only for its visible labels`, async ({
     page,
   }) => {
     await page.goto("/editor");
@@ -29,11 +27,15 @@ for (const [family, symbolId] of [
     await expect(page.getByTestId("hit-X1")).toBeVisible();
     await expect(
       page.locator('[data-canvas-hit-kind="annotation"]'),
-    ).toHaveCount(0);
+    ).toHaveCount(label ? 1 : 0);
     // Nor an empty glyph in the drawing itself.
     await expect(page.locator('[data-layer="annotations"] text')).toHaveCount(
-      0,
+      label ? 1 : 0,
     );
+    if (label)
+      await expect(page.locator('[data-layer="annotations"] text')).toHaveText(
+        label,
+      );
   });
 }
 
