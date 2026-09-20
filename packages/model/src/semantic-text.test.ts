@@ -8,31 +8,23 @@ import {
 } from "./semantic-text.js";
 
 describe("canonical Port text", () => {
-  it.each([
-    ["IN", "N"],
-    ["out", "ut"],
-    ["VDD", "DD"],
-  ])(
-    "formats %s without changing its electrical spelling",
-    (name, storedTail) => {
+  it.each(["IN", "out", "VND"])(
+    "formats %s without changing its visible or electrical spelling",
+    (name) => {
       const content = canonicalPortTextDocument(name);
 
       expect(flattenRichText(content)).toBe(name);
-      expect(content.runs[0]).toMatchObject({
+      expect(content.runs[0]).toEqual({
+        kind: "span",
         style: "italic",
-        children: [{ style: "uppercase" }],
+        children: [{ kind: "text", value: name.slice(0, 1) }],
       });
       expect(content.runs[1]).toEqual({
         kind: "span",
         style: "subscript",
-        children: [
-          {
-            kind: "span",
-            style: "lowercase",
-            children: [{ kind: "text", value: storedTail }],
-          },
-        ],
+        children: [{ kind: "text", value: name.slice(1) }],
       });
+      expect(JSON.stringify(content)).not.toMatch(/uppercase|lowercase/u);
     },
   );
 
@@ -41,9 +33,10 @@ describe("canonical Port text", () => {
 
     expect(flattenRichText(content)).toBe("a");
     expect(content.runs).toHaveLength(1);
-    expect(content.runs[0]).toMatchObject({
+    expect(content.runs[0]).toEqual({
+      kind: "span",
       style: "italic",
-      children: [{ style: "uppercase" }],
+      children: [{ kind: "text", value: "a" }],
     });
   });
 });
@@ -92,51 +85,44 @@ describe("other semantic text remains unchanged", () => {
 });
 
 describe("generated voltage-node text", () => {
-  it.each([
-    ["Vin", "in"],
-    ["Vout", "out"],
-    ["VB1", "b1"],
-    ["VB2", "b2"],
-  ])("renders %s as an italic V with an upright subscript", (name, suffix) => {
-    const content = voltageNodeTextDocument(name);
+  it.each(["Vin", "Vout", "VB1", "VB2", "VND"])(
+    "renders %s as an italic V with a case-preserving upright subscript",
+    (name) => {
+      const content = voltageNodeTextDocument(name);
 
-    expect(flattenRichText(content)).toBe(name);
-    expect(content).toEqual({
-      runs: [
-        {
-          kind: "span",
-          style: "italic",
-          children: [{ kind: "text", value: "V" }],
-        },
-        {
-          kind: "span",
-          style: "subscript",
-          children: [
-            {
-              kind: "span",
-              style: "lowercase",
-              children: [
-                {
-                  kind: "text",
-                  value: name.slice(1),
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    });
-    expect(suffix).toBe(name.slice(1).toLowerCase());
-    expect(JSON.stringify(content)).not.toContain('"bold"');
-  });
+      expect(flattenRichText(content)).toBe(name);
+      expect(content).toEqual({
+        runs: [
+          {
+            kind: "span",
+            style: "italic",
+            children: [{ kind: "text", value: "V" }],
+          },
+          {
+            kind: "span",
+            style: "subscript",
+            children: [{ kind: "text", value: name.slice(1) }],
+          },
+        ],
+      });
+      expect(JSON.stringify(content)).not.toMatch(/uppercase|lowercase/u);
+      expect(JSON.stringify(content)).not.toContain('"bold"');
+    },
+  );
 
-  it("uppercases a lowercase leading v visually without changing the name", () => {
+  it("keeps a lowercase leading v visible when the user authored it", () => {
     const content = voltageNodeTextDocument("vBIAS");
 
     expect(flattenRichText(content)).toBe("vBIAS");
-    expect(content.runs[0]).toMatchObject({
+    expect(content.runs[0]).toEqual({
+      kind: "span",
       style: "italic",
-      children: [{ style: "uppercase" }],
+      children: [{ kind: "text", value: "v" }],
+    });
+    expect(content.runs[1]).toEqual({
+      kind: "span",
+      style: "subscript",
+      children: [{ kind: "text", value: "BIAS" }],
     });
   });
 

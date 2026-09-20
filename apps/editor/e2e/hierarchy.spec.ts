@@ -982,7 +982,7 @@ test("formats every Port label in the current Cell without renaming it", async (
   page,
 }) => {
   await page.goto("/editor");
-  await placeCellPin(page, { name: "IN", position: { x: 280, y: 160 } });
+  await placeCellPin(page, { name: "IND", position: { x: 280, y: 160 } });
   await placeCellPin(page, { name: "out", position: { x: 280, y: 240 } });
   const firstLabel = page.locator('[data-object-id="instance-label-P1"]');
   const secondLabel = page.locator('[data-object-id="instance-label-P2"]');
@@ -1001,11 +1001,11 @@ test("formats every Port label in the current Cell without renaming it", async (
   );
   await manager.getByLabel("Close Cell Manager").click();
 
-  await expect(firstLabel).toHaveText("In");
+  await expect(firstLabel).toHaveText("IND");
   await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveText(
-    "n",
+    "ND",
   );
-  await expect(secondLabel).toHaveText("Out");
+  await expect(secondLabel).toHaveText("out");
   await expect(secondLabel.locator('[data-text-run="subscript"]')).toHaveText(
     "ut",
   );
@@ -1018,10 +1018,10 @@ test("formats every Port label in the current Cell without renaming it", async (
     project.documents[0]!.netlist?.terminals.map(
       (port: { name: string }) => port.name,
     ),
-  ).toEqual(["IN", "out"]);
+  ).toEqual(["IND", "out"]);
 
   await page.keyboard.press("Control+z");
-  await expect(firstLabel).toHaveText("IN");
+  await expect(firstLabel).toHaveText("IND");
   await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveCount(
     0,
   );
@@ -1442,13 +1442,13 @@ test("copies and independently deletes Formal Cell Pins", async ({ page }) => {
 
   await expect(page.getByTestId("hit-P1-copy-1")).toBeVisible();
   await expect(page.locator('[data-object-id="instance-label-P1"]')).toHaveText(
-    "Vin",
+    "VIN",
   );
   await expect(
     page
       .locator('[data-object-id="instance-label-P1"]')
       .locator('[data-text-run="subscript"]'),
-  ).toHaveText("in");
+  ).toHaveText("IN");
   await expect(
     page.locator('[data-object-id="instance-label-P1-copy-1"]'),
   ).toHaveText("Vout");
@@ -1492,12 +1492,12 @@ test("edits a Cell Pin name and RichText presentation in place", async ({
   await expect(page.getByLabel("Cell Pin properties")).toHaveCount(0);
   await expect(
     page.locator('[data-object-id="instance-label-P1"]'),
-  ).toContainText("Vbias");
+  ).toContainText("VBIAS");
   await expect(
     page
       .locator('[data-object-id="instance-label-P1"]')
       .locator('[data-text-run="subscript"]'),
-  ).toHaveText("bias");
+  ).toHaveText("BIAS");
 
   await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
   await page
@@ -1505,9 +1505,9 @@ test("edits a Cell Pin name and RichText presentation in place", async ({
     .fill("vINPUT");
   await page.getByRole("button", { name: "Apply text changes" }).click();
   const renamedLabel = page.locator('[data-object-id="instance-label-P1"]');
-  await expect(renamedLabel).toHaveText("Vinput");
+  await expect(renamedLabel).toHaveText("vINPUT");
   await expect(renamedLabel.locator('[data-text-run="subscript"]')).toHaveText(
-    "input",
+    "INPUT",
   );
 
   await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
@@ -1516,7 +1516,7 @@ test("edits a Cell Pin name and RichText presentation in place", async ({
   await page.getByTestId("hit-P1").click();
   await expect(
     page.locator('[data-object-id="instance-label-P1"]'),
-  ).toContainText("Vinput");
+  ).toContainText("vINPUT");
 
   await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
   await page.getByRole("textbox", { name: "Canvas text editor" }).fill("VINP");
@@ -1857,7 +1857,7 @@ test("same-name Cell Pins stay independent while the final interface groups them
   );
   await page.keyboard.press("Control+Shift+z");
   await expect(page.locator('[data-object-id="instance-label-P2"]')).toHaveText(
-    "Vin",
+    "vin",
   );
   await expect(
     page

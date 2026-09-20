@@ -57,26 +57,26 @@ describe("Razavi schematic typography", () => {
     );
   });
 
-  it("lowercases only the visual suffix of a generated voltage name", () => {
+  it("preserves the authored suffix case of a generated voltage name", () => {
     const rendered = renderRichTextDocument(
       voltageNodeTextDocument("VB12"),
       razaviTextbookProfile,
     );
 
     expect(rendered).toContain('data-text-run="subscript"');
-    expect(rendered).toContain(">b12</tspan>");
-    expect(rendered).not.toContain(">B12</tspan>");
+    expect(rendered).toContain(">B12</tspan>");
+    expect(rendered).not.toContain(">b12</tspan>");
   });
 
-  it("uppercases only the visual head of a lowercase voltage name", () => {
+  it("preserves an authored lowercase voltage head and uppercase suffix", () => {
     const rendered = renderRichTextDocument(
       voltageNodeTextDocument("vBIAS"),
       razaviTextbookProfile,
     );
 
-    expect(rendered).toContain(">V</tspan>");
-    expect(rendered).toContain(">bias</tspan>");
-    expect(rendered).not.toContain(">v</tspan>");
+    expect(rendered).toContain(">v</tspan>");
+    expect(rendered).toContain(">BIAS</tspan>");
+    expect(rendered).not.toContain(">V</tspan>");
   });
 
   it("keeps a default Net Label bold italic without an implicit subscript", () => {

@@ -88,9 +88,10 @@ export function plainNameDocument(value: string): RichTextDocument {
  * Presentation for generated voltage-node names such as Vin, Vout and VB1.
  *
  * The electrical name stays ordinary identifier text. Only its visual
- * projection follows the conventional math spelling: an italic V followed by
- * a smaller, lowercase upright subscript. Unlike the bold Razavi house labels,
- * this is deliberately the same weight as ordinary LaTeX math.
+ * projection follows the conventional math spelling: an italic leading V
+ * followed by a smaller upright subscript. Letter case is authored content,
+ * not presentation, so both halves preserve it exactly. Unlike the bold Razavi
+ * house labels, this is deliberately the same weight as ordinary LaTeX math.
  */
 export function voltageNodeTextDocument(value: string): RichTextDocument {
   if (value.length === 0) return { runs: [{ kind: "line-break" }] };
@@ -99,20 +100,11 @@ export function voltageNodeTextDocument(value: string): RichTextDocument {
   if (head.toLowerCase() !== "v" || /\s/u.test(value)) {
     return { runs: [{ kind: "text", value }] };
   }
-  const visualHead =
-    head === "V"
-      ? { kind: "text" as const, value: head }
-      : span([{ kind: "text", value: head }], "uppercase");
   return {
     runs: [
-      span([visualHead], "italic"),
+      span([{ kind: "text", value: head }], "italic"),
       ...(tail.length > 0
-        ? [
-            span(
-              [span([{ kind: "text" as const, value: tail }], "lowercase")],
-              "subscript",
-            ),
-          ]
+        ? [span([{ kind: "text" as const, value: tail }], "subscript")]
         : []),
     ],
   };
@@ -122,10 +114,9 @@ export function voltageNodeTextDocument(value: string): RichTextDocument {
  * Canonical presentation applied by the explicit "format all Ports" action.
  *
  * Unlike the automatic formal-Port default, this applies to every Port name:
- * its first character is visually uppercase and italic, while the remaining
- * characters are visually lowercase, upright, and subscripted. The authored
- * characters stay untouched so electrical identity and netlist spelling are
- * preserved exactly.
+ * its first character is italic, while the remaining characters are upright
+ * and subscripted. Letter case is authored content and stays visible exactly
+ * as entered, along with the electrical identity and netlist spelling.
  */
 export function canonicalPortTextDocument(value: string): RichTextDocument {
   if (value.length === 0) return { runs: [{ kind: "line-break" }] };
@@ -133,14 +124,9 @@ export function canonicalPortTextDocument(value: string): RichTextDocument {
   const tail = tailCharacters.join("");
   return {
     runs: [
-      span([span([{ kind: "text", value: head! }], "uppercase")], "italic"),
+      span([{ kind: "text", value: head! }], "italic"),
       ...(tail.length > 0
-        ? [
-            span(
-              [span([{ kind: "text" as const, value: tail }], "lowercase")],
-              "subscript",
-            ),
-          ]
+        ? [span([{ kind: "text" as const, value: tail }], "subscript")]
         : []),
     ],
   };
