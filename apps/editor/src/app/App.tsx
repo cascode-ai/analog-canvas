@@ -242,6 +242,7 @@ import {
   primeGalleryPreview,
   subscribeGalleryRefresh,
 } from "../gallery-client";
+import { projectWithTopologyRoot } from "../features/editor-shell/gallery-topology-project";
 import { fetchSessionUser, type SessionUser } from "../components/account";
 import {
   evaluateSubmissionGates,
@@ -617,6 +618,10 @@ export function App({
     canvasDragSessionRef.current?.cancel();
     stageRecovery(project, { cloudBinding });
   });
+  const galleryTopologyProject = useMemo(
+    () => projectWithTopologyRoot(project, document.id),
+    [document.id, project],
+  );
   const definitionProjectRef = useRef({ project, projectSessionId });
   definitionProjectRef.current = { project, projectSessionId };
   const projectConnectivityIndex = useMemo(
@@ -5538,6 +5543,7 @@ export function App({
         ) : (
           <ExamplesPanel
             open={visibleLibraryPanelOpen}
+            topologyProject={galleryTopologyProject}
             onOpenGalleryExample={(id) => void insertGalleryEntryById(id)}
             onOpenExample={openLibraryExample}
           />

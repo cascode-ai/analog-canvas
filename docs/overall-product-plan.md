@@ -18,7 +18,8 @@ raw/CSV evidence.
 A Project persists circuit facts and named simulation source folders. It does not persist simulator processes, prepared
 decks, run receipts, or numeric results. Browser recovery and managed execution
 retention serve different lifecycles; neither is another source of circuit facts.
-Preview and Production availability follow [deployment](deployment.md).
+Hosted availability and the dormant Preview data boundary follow
+[deployment](deployment.md).
 
 ## Sources of truth
 

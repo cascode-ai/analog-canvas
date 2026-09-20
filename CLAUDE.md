@@ -9,7 +9,8 @@ web: hierarchical Cells, structural SPICE/Spectre interchange, private Cloud
 Projects, a Community Gallery, formal SVG/PDF/PNG and netlist export, and
 analog simulation orchestration. Supported native primitives and qualified
 device models run through the selected executor Profile — ngspice, plus
-VACASK as a second engine configured only on Preview; unsupported blocks are
+VACASK as a second Production engine whose operator-host resources retain their
+historical `preview` names; unsupported blocks are
 diagnosed. Humans and authorized Agents share the typed Edit Engine.
 [Product architecture](docs/overall-product-plan.md) owns the complete boundary;
 [simulation](docs/specs/simulation.md) owns saved intent and execution contracts.
@@ -76,11 +77,11 @@ Regeneration order when symbol data changes:
 
 [AGENTS.md](AGENTS.md) defines the mandatory working discipline; read it before working. Summary:
 
-- **Three stages**: (1) local iteration — continue the current local batch branch (a new batch starts as `codex/local-batch` from `main`); each bounded target ends with its own local commit and validation, never an automatic push, PR, merge, deploy, or version bump; (2) delivery when the user asks — one PR, the mainline delivery gate, merge, verify the deployed channel. The PR's `preview` label decides the channel (Deployment rationale): unlabeled merges deploy directly to Production; labeled PRs deploy to Preview on every push and on merge. Label large or risky work and anything someone should click through first; ask when unsure. (3) Promote Preview-accepted work to Production only when the user requests or has authorized it. Track an in-progress batch in the untracked `plan/local-batch.md`.
+- **Two stages**: (1) local iteration — continue the current local batch branch (a new batch starts as `codex/local-batch` from `main`); each bounded target ends with its own local commit and validation; (2) Production delivery — one PR, the mainline delivery gate, merge, deploy, and verify Production. The hosted Preview channel is retired; its isolated data is dormant and retained. Track an in-progress batch in the untracked `plan/local-batch.md`.
 - **Before editing tracked files**: run `git status --short --branch` and audit dirty paths by ownership (unrelated dirty files don't block; overlapping or unclear ones do). Know the target's goal, owned paths, and shared contracts; `plan/` is the untracked scratch area.
 - **Test impact**: a commit that changes implementation code — `.ts/.tsx/.js/.mjs` under `apps/*/src/`, `packages/*/src/`, `worker/`, or `scripts/` — carries a `Test-Impact:` trailer: `tests-updated`, or `no-test-change — <evidence>`. `pnpm test:impact -- --base <ref>` cross-checks the claim against the diff and CI runs the same check.
 - **Validation is risk-proportional**: run the smallest deterministic checks that cover the change (documentation-only → `pnpm docs:check`); full suites only when breadth, risk, or policy justifies them. Every target closes with `git diff --check`, `git status --short --branch`, and a commit message that stands alone: what changed, why, the validation and chosen gates, and the trailer.
-- **Mainline delivery gate**: follow the selected gates and the required `Core contracts` and `Browser tests` checks in [AGENTS.md](AGENTS.md); [deployment](docs/deployment.md) owns Preview/Production promotion.
+- **Mainline delivery gate**: follow the selected gates and the required `Core contracts` and `Browser tests` checks in [AGENTS.md](AGENTS.md); [deployment](docs/deployment.md) owns Production release and recovery.
 - **Circuit assets**: one circuit per `netlists/<name>/` directory; `.subckt` interfaces and instance pin order are shared contracts (check every caller before changing); never claim electrical correctness from syntax inspection alone; never silently replace vendor/foundry model data with illustrative values.
 - Commit subjects use conventional scopes: `feat(editor):`, `fix(netlist):`, `docs(specs):`, `test(editor):`.
 
@@ -94,11 +95,11 @@ Regeneration order when symbol data changes:
 - `containers/` — simulator images and host tooling: `ngspice/` (gateway, run supervisor, rawfile collector, hosted SKY130 profile), `vacask/` (HTTP executor, job runner, model symbols), and `simulation/run-local-files.mjs`.
 - `netlists/<circuit>/` — one simulation example or acceptance circuit per directory (native ngspice, SKY130, VACASK, held-out Phase 9 cases).
 - `fixtures/` — cross-package test data: Agent API artifacts, the Razavi visual reference, visual and export goldens, ngspice rawfiles, legacy and Gallery-redline Projects, SPICE baselines and vendor decks, simulation acceptance.
-- `scripts/` — generators, gate planning (`gate-plan.mjs`, `gate-run.mjs`, `ci-plan.mjs`, `lib/`), packaging, release/Preview smoke, and simulation acceptance, with `*.test.mjs` beside them.
+- `scripts/` — generators, gate planning (`gate-plan.mjs`, `gate-run.mjs`, `ci-plan.mjs`, `lib/`), packaging, release smoke, and simulation acceptance, with `*.test.mjs` beside them.
 - `tools/` — Python PDF-vector extraction and Razavi calibration tooling.
-- `config/` — the validation-gate catalog, the MCP distribution declaration (`agent-mcp-distribution.json` holds the published MCP version), and the VACASK Preview environment.
+- `config/` — the validation-gate catalog, the MCP distribution declaration (`agent-mcp-distribution.json` holds the published MCP version), and the historically named VACASK candidate environment.
 - `skills/circuit-layout/` — the repo-local Agent layout skill. `references/` — pinned research-only reference repositories (fetched into the ignored `.reference-src/`, never imported or bundled).
-- `docs/` — product plan, ADRs, specs, user and Agent guides, roadmap, testing, deployment. `.github/workflows/` — `ci`, `deploy-preview`, `cloudflare` (production), `container`, `simulator-host`, `mcp-release`.
+- `docs/` — product plan, ADRs, specs, user and Agent guides, roadmap, testing, deployment. `.github/workflows/` — `ci`, `cloudflare` (production), `retire-preview` (manual dormant-data shutdown), `container`, `simulator-host`, `mcp-release`.
 
 ### Package layering
 
@@ -126,7 +127,7 @@ Dependencies flow strictly downward and pnpm's topological order is the only bui
 - `apps/editor` — the React/SVG editor and installable PWA, plus the Gallery, account, and moderation surfaces. `analytics/` is the self-contained first-party analytics module; `dev/` holds the Vite dev-server plugins (local Agent relay, netlist conversion, local simulation).
 - `apps/local-host` — loopback-only static host for `apps/editor/dist` with a local simulation transport seam (`bin: interactive-circuit-maker`; its only dependency is `@icm/spice-run`).
 - `apps/mcp-server` — stdio MCP server (`bin: analog-canvas-mcp`) over `agent-client`, with generated doc resources. Release packaging (`scripts/package-mcp.mjs`) bundles it with Vite and takes the version from `config/agent-mcp-distribution.json`, not from its `package.json`.
-- `worker/` — Cloudflare Worker (`worker/index.ts`) serving `apps/editor/dist` and `/api/*`: Durable Objects `AnalyticsDO` (from `apps/editor/analytics`), `AgentSessionDO`, `GalleryDO`, `AuthDO`, and `SimulationControlDO`, plus the `SIMULATION_JOBS` queue and `SIMULATION_ARTIFACTS` R2 bucket behind hosted simulation (`simulation-ngspice.ts`, `simulation-vacask.ts`). Releases are routed by the PR's `preview` label (Deployment rationale): `.github/workflows/cloudflare.yml` deploys an unlabeled merge directly to Production (`wrangler.jsonc`) and promotes Preview-accepted commits on `main` from a `v*` tag or manual dispatch; `.github/workflows/deploy-preview.yml` deploys labeled PR heads, their merges, and manual branch runs to Preview (`wrangler.preview.jsonc`). Both build candidates through `.github/actions/build-deployment-candidate`, and `scripts/release-route.mjs` reads the label. Markdown/`docs/`-only merges deploy nothing.
+- `worker/` — Cloudflare Worker (`worker/index.ts`) serving `apps/editor/dist` and `/api/*`: Durable Objects `AnalyticsDO` (from `apps/editor/analytics`), `AgentSessionDO`, `GalleryDO`, `AuthDO`, and `SimulationControlDO`, plus the `SIMULATION_JOBS` queue and `SIMULATION_ARTIFACTS` R2 bucket behind hosted simulation (`simulation-ngspice.ts`, `simulation-vacask.ts`). `.github/workflows/cloudflare.yml` builds and deploys every non-documentation merge directly to Production (`wrangler.jsonc`); tags and manual dispatches may release only commits already on `main`. The retired Preview Worker remains route-free through `wrangler.preview.jsonc` solely to preserve its isolated data. Markdown/`docs/`-only merges deploy nothing.
 
 ### Build mechanics
 

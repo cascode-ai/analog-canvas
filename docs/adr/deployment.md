@@ -1,38 +1,40 @@
-# Deployment Channels and Release Routing
+# Production-Only Hosted Delivery
 
 Status: `accepted`
 
-Owners: `.github/workflows`, `scripts/release-route.mjs`, `worker`
+Owners: `.github/workflows`, `worker`
 
 ## Decision
 
-Use separately configured Preview and Production channels, with the PR's
-`preview` label selecting the merge route. [Deployment](../deployment.md)
-owns exact entrances, candidate handling, verification and recovery; it is the
-single release-policy reference.
+Use Production as the only hosted application channel. Every merged
+non-documentation change builds and deploys its exact `main` commit after the
+required PR checks. Production verification and rollback remain mandatory.
+[Deployment](../deployment.md) owns exact entrances, candidate handling,
+verification and recovery; it is the single release-policy reference.
+
+The hosted Preview channel was retired on 2026-09-20. Its custom domain and
+execution entrances are removed, while its Worker, Durable Object namespaces,
+R2 bucket, queues, accounts, and Projects remain dormant for possible recovery.
 
 ## Context
 
-Unreleased work needs an acceptance surface that cannot write Production data.
-Small changes also need a deliberate direct-release route without forcing a
-second manual promotion for every merge.
+Preview had drifted behind Production and no longer provided a reliable
+acceptance boundary. Maintaining route selection, a second deployment workflow,
+candidate promotion, credentials, and hosted journeys made ordinary releases
+slower without supplying evidence that the required PR checks and Production
+verification did not already provide.
 
 ## Rationale
 
-Separate complete configurations make storage and credential boundaries
-explicit; inherited overrides or shared Production bindings would rely on
-remembering every exception. Preview Gallery read-through provides realistic
-public examples without private storage authority. Public visibility and
-`noindex` are not authentication.
+One hosted channel makes the release route unambiguous and removes duplicate
+candidate handling. Requiring every tag or manual release commit to already be
+on `main` prevents unreviewed branch heads from becoming Production releases.
+The Production candidate is built once and the exact verified bytes are
+deployed. Runtime bindings stay outside the candidate, and reverting a Worker
+still cannot roll back a storage migration.
 
-A visible label expresses the chosen route independently of the merger's
-identity or guessed risk from changed paths. The accepted cost is that an
-unlabeled merge skips Preview acceptance; required checks and Production
-verification/rollback protect that route. A failed route lookup must fail
-closed rather than guess.
-
-One candidate build prevents promotion from accepting one artifact and serving
-another. Requiring promoted commits on main prevents debug PR heads from
-becoming Production releases. Channel bindings stay outside the candidate;
-Preview data is not promoted with code, and reverting a Worker cannot roll
-back a storage migration.
+Deleting the Preview Worker would make data recovery uncertain or impossible,
+especially for Durable Objects. A route-free Worker therefore remains as the
+storage authority. Its configuration deliberately has no assets, public URL,
+custom domain, cron, or queue consumer. Retirement verifies that the Worker,
+R2 bucket, and queue resources continue to exist.

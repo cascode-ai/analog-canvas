@@ -13,6 +13,10 @@ import { describe, expect, it } from "vitest";
  * matters.
  */
 const workflow = readFileSync(".github/workflows/cloudflare.yml", "utf8");
+const retirementWorkflow = readFileSync(
+  ".github/workflows/retire-preview.yml",
+  "utf8",
+);
 
 function step(name) {
   const start = workflow.indexOf(`- name: ${name}`);
@@ -22,33 +26,25 @@ function step(name) {
 }
 
 describe("production entrances (Deployment rationale)", () => {
-  it("deploys unlabeled merges directly and promotes tags or selected refs", () => {
+  it("deploys every main merge, tag, or selected main ref directly", () => {
     expect(workflow).toMatch(/branches:\s*\n\s*- main/u);
     expect(workflow).toMatch(/tags:\s*\n\s*- "v\*"/u);
     expect(workflow).toMatch(/workflow_dispatch:\s*\n\s*inputs:\s*\n\s*ref:/u);
     expect(workflow).toContain('default: "main"');
-    // The route is the pull request's `preview` label, read from GitHub;
-    // a labeled merge stays on Preview until it is promoted.
-    expect(workflow).toContain("pull-requests: read");
-    expect(workflow).toContain(
-      'node scripts/release-route.mjs --sha "$GITHUB_SHA" --github-output',
-    );
-    expect(workflow).toContain("needs.route.outputs.target == 'production'");
-    expect(workflow).toContain("needs.route.result == 'success'");
-    expect(workflow).toContain("startsWith(github.ref, 'refs/tags/')");
+    expect(workflow).not.toContain("pull-requests: read");
+    expect(workflow).not.toContain("release-route.mjs");
+    expect(workflow).not.toContain("needs.route");
+    expect(workflow).not.toContain("preview-candidate-");
   });
 
   it("resolves the selected ref once and deploys that exact commit", () => {
     expect(workflow).toContain("ref: ${{ inputs.ref || github.ref }}");
     expect(workflow).toContain("git rev-parse 'HEAD^{commit}'");
-    expect(workflow).toContain(
-      "DIRECT_RELEASE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}",
-    );
+    expect(workflow).not.toContain("DIRECT_RELEASE");
   });
 
   it("releases only commits that are already on main", () => {
-    // A labeled pull request deploys its unmerged head to Preview; that
-    // candidate must never become a way to ship unmerged code.
+    // Tags and manual dispatches must never become a way to ship unmerged code.
     const resolve = step("Resolve the release commit");
     expect(workflow).toContain("fetch-depth: 0");
     expect(resolve).toContain(
@@ -57,36 +53,8 @@ describe("production entrances (Deployment rationale)", () => {
     expect(resolve).toContain("is not on main");
   });
 
-  it("refuses to promote a commit the preview never proved", () => {
-    // A promotion is only as good as the Preview run behind it. Releasing a
-    // commit with no green preview deploy is the 2026-09-01 outage waiting to
-    // happen again.
-    const gate = step("The release must have a green preview deploy");
-    expect(gate).toContain("if: env.DIRECT_RELEASE != 'true'");
-    expect(gate).toContain("--workflow deploy-preview.yml");
-    expect(gate).toContain("--status success");
-    expect(gate).toContain("No successful preview deploy exists");
-  });
-
-  it("promotes the exact candidate preserved by that successful Preview run", () => {
-    const download = step("Download the accepted Preview candidate");
-    expect(download).toContain("if: env.DIRECT_RELEASE != 'true'");
-    expect(download).toContain("actions/download-artifact@v4");
-    expect(download).toContain(
-      "preview-candidate-${{ steps.release.outputs.release_sha }}",
-    );
-    expect(download).toContain("run-id: ${{ steps.preview.outputs.run_id }}");
-    expect(workflow).toContain("deployment-candidate.mjs verify");
-    expect(workflow).toContain("--no-bundle");
-    expect(workflow).toContain('--assets "$CANDIDATE_DIR/editor"');
-    expect(workflow).not.toContain("playwright install");
-  });
-
-  it("builds a direct release once, with the action Preview uses", () => {
-    // The only build in this workflow is the shared action, and only for a
-    // direct release; a promotion deploys Preview's bytes unchanged.
-    const build = step("Build the merged commit's deployment candidate");
-    expect(build).toContain("if: env.DIRECT_RELEASE == 'true'");
+  it("builds every release once with the shared candidate action", () => {
+    const build = step("Build the deployment candidate");
     expect(build).toContain(
       "uses: ./.github/actions/build-deployment-candidate",
     );
@@ -96,9 +64,9 @@ describe("production entrances (Deployment rationale)", () => {
     );
     expect(workflow).not.toContain("pnpm install --frozen-lockfile");
     expect(workflow).not.toContain("wrangler.preview.jsonc");
-    expect(
-      workflow.indexOf("Build the merged commit's deployment candidate"),
-    ).toBeLessThan(workflow.indexOf("Verify the deployment candidate"));
+    expect(workflow.indexOf("Build the deployment candidate")).toBeLessThan(
+      workflow.indexOf("Verify the deployment candidate"),
+    );
     expect(workflow.indexOf("Verify the deployment candidate")).toBeLessThan(
       workflow.indexOf("id: deploy_worker"),
     );
@@ -115,10 +83,29 @@ describe("production entrances (Deployment rationale)", () => {
 
   it("has no staging job and deploys no environment", () => {
     // env.staging inherited the production custom domain on 2026-09-03 and
-    // took the public site down; the preview replaced it (Deployment rationale).
+    // took the public site down. No second hosted channel replaces it.
     expect(workflow).not.toContain("Deploy staging");
     expect(workflow).not.toContain("--env");
     expect(workflow).not.toContain("STAGING_ACCESS_KEY");
+  });
+});
+
+describe("retired Preview data boundary", () => {
+  it("removes only the hosted entrance while retaining storage resources", () => {
+    expect(retirementWorkflow).toContain("wrangler.preview.jsonc");
+    expect(retirementWorkflow).toContain(
+      "analog-canvas-preview.tokenzhang.com",
+    );
+    expect(retirementWorkflow).toContain(
+      "analog-canvas-simulation-artifacts-preview",
+    );
+    expect(retirementWorkflow).toContain(
+      "analog-canvas-simulation-preview-dlq",
+    );
+    expect(retirementWorkflow).toContain("deployments list");
+    expect(retirementWorkflow).not.toMatch(/wrangler@[^\n]* delete/u);
+    expect(retirementWorkflow).not.toContain("r2 bucket delete");
+    expect(retirementWorkflow).not.toContain("queues delete");
   });
 });
 

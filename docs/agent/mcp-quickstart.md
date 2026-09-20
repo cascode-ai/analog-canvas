@@ -11,8 +11,9 @@ Read `analog-canvas://reference/authoring` for the shared native placement,
 display, Port, Net Label and simulation-result workflow. Both surfaces are generated directly from the same source; the tool
 examples below are MCP-specific mappings, not a separate operating policy.
 
-Production and Preview both expose the Agent UI. Their accounts, Projects and
-connector bindings remain separate.
+Production exposes the hosted Agent UI. The retired Preview service is offline;
+its former accounts, Projects, and connector bindings remain isolated and
+dormant.
 
 Before pairing, `connection_status({"refresh":false})` identifies the loaded
 MCP version and exact API origin without a network request. Installation and

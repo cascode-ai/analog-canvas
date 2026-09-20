@@ -77,6 +77,20 @@ restrictive content-security-policy.
   its renderer, symbol catalogue, and bundled Projects only after the remote
   feed has settled empty or unavailable; a populated Gallery never pays for
   those fallback-only dependencies.
+- The editor Gallery panel offers an on-demand **Check current topology**
+  action above its filters. It compares the currently visible Cell (not
+  unconditionally the Project's root Cell) against every public Gallery
+  entry in a Web Worker. Exact topology results ignore instance, Net, Cell and
+  external-port names; model and parameter values; top-level port order; and
+  whether an external rail was represented as a Port or a global power Net.
+  Device classes, recognizable MOS/BJT polarity, terminal roles and actual
+  connectivity remain structural evidence. This topology-only contract is
+  intentionally broader than the administrator's exact electrical duplicate
+  contract. After exact topology matches, the panel shows at most five nearest
+  structural results ranked by device/pin/external-terminal populations and
+  their electrical neighborhoods. The action is public and read-only: results
+  open the existing Gallery entry, and no cleanup authority is exposed in the
+  editor.
 
 ## Publishing
 
@@ -291,6 +305,9 @@ header buys nothing. Without such a session every admin route answers
 - `GET /api/gallery/rejected` — rejected entries and their reasons.
 - `GET /api/gallery/maintenance/schema-backup` — download a full-fidelity
   administrator backup of entries, saved versions, and private Cloud Projects.
+- `GET /api/gallery/maintenance/automated-backup` — bounded Gallery-only pages
+  for the dedicated read-only backup credential; no Cloud Projects or writes.
+  See [off-site backups and recovery](../gallery-backup.md).
 - `POST /api/gallery/maintenance/schema-current` — validate or transactionally
   converge every stored Project to `CURRENT_PROJECT_FILE_VERSION`. The
   request body is `{ "apply": false }` for a dry run and `{ "apply": true }`

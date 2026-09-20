@@ -9,35 +9,25 @@ Notes you keep while working — scratch plans, checklists, drafts — belong in
 the untracked `plan/` directory. They are a local working area and are not
 published.
 
-## Three-Stage Development and Delivery
+## Development and Delivery
 
-The cadence is local iteration, a delivered pull request, and, for work routed
-to Preview, a deliberate promotion. A request to change the editor starts in
-the local stage unless the user explicitly requests a later stage.
+The cadence is local iteration followed by a delivered pull request. A request
+to change the editor proceeds through both stages unless the user explicitly
+asks for local-only work or a branch backup instead of publication.
 
 1. **Local iteration.** Continue the current local batch branch, or create
    `codex/local-batch` from current `main` when starting a new batch. Use
    `pnpm dev` for feedback and focused checks for each bounded target. Keep
    separate, explanatory local commits for separate targets. A completed local
-   target ends with its commit and validation; it does not automatically open a
-   PR, push, merge, deploy, or bump the product version. Push a branch for backup
-   when requested without treating that backup as a delivery.
-2. **Delivery.** When the user asks to deliver, open one pull request for the
-   completed change or batch, run the mainline delivery gate, wait for the
-   required PR checks, merge, and verify the deployed channel. The pull
-   request's `preview` label chooses that channel (Deployment rationale): without it, the
-   merge deploys directly to Production; with it, every push deploys the pull
-   request to Preview and the merge deploys to Preview only. Label large or
-   risky changes, work a collaborator debugs on Preview, and anything someone
-   should click through first; ask when the choice is unclear. Batching is
-   optional. A change means one independently useful feature, fix, or
+   target ends with its commit and validation, then proceeds to Delivery unless
+   the user limited the request to local work. A branch pushed only for backup
+   is not a delivery.
+2. **Delivery.** Open one pull request for the completed change or batch, run
+   the mainline delivery gate, wait for the required PR checks, merge, and
+   verify Production. Every non-documentation merge to `main` follows this one
+   route. Batching is optional. A change means one independently useful feature, fix, or
    improvement; supporting tests, repair commits, files, and formatting do not
    count as extra changes. Prepare any intended release version before merging.
-3. **Promotion.** Promote a Preview-accepted commit on `main` when the user
-   requests Production publication or has already authorized that release.
-   Passing Preview is not itself a Production trigger. Use the existing
-   version-tag or explicit-dispatch route, and finish deployed verification.
-   Do not ask again for authorization already given.
 
 Keep a short working list in `plan/local-batch.md` while a batch is in
 progress: the branch, completed changes and count, validation still needed,
@@ -103,7 +93,7 @@ the boundary has moved.
   affected, build, or release gates, and use
   `pnpm gate:affected -- --base <target-base>` for the bounded gates the target
   needs. The Test-Impact check reads commit messages, so check its declaration
-  after committing. A planned `full-delivery` gate is owed at batch promotion;
+  after committing. A planned `full-delivery` gate is owed at batch delivery;
   it is not an instruction to rerun full delivery after each local edit. Run
   broader local checks earlier when the target's actual risk requires them.
 - Prefer the smallest deterministic validation that covers changed behavior,
@@ -182,8 +172,8 @@ Before considering a local target complete:
    only when justified by breadth, risk, or project policy.
 2. At minimum, run `git diff --check` and `git status --short --branch`.
 3. Review the diff, stage only intended files, and commit locally on the batch
-   branch. Update the batch working list. Push and merge belong to the Preview
-   stage; a local target can be complete while its batch awaits publication.
+   branch. Update the batch working list. Push and merge belong to Delivery; a
+   local target can be complete while its batch awaits publication.
 4. Write the commit message so it stands alone: what changed, why, the
    validation that backs it, and the `Test-Impact:` trailer. State anything a
    reader would otherwise have to reconstruct — a defect's root cause, a
@@ -195,16 +185,15 @@ Before considering a local target complete:
 ## Mainline Delivery Gate
 
 Focused validation is the normal local development loop. Run this delivery
-gate when the accumulated batch is ready for Preview, using the entire batch
+gate when the accumulated batch is ready for Production, using the entire batch
 relative to its mainline base. Delivery keeps full unit, release, and performance
 protection for the implementation batch while the browser layer is selected by
 impact.
 
-Merging a pull request labeled `preview` deploys only the **preview** channel;
-merging any other pull request deploys directly to the public site. A
-promotion deploys only from a `v*` release tag, or a manual dispatch of an
-accepted ref, whose commit is on `main` and already has a green preview
-deploy; see Deployment rationale and `docs/deployment.md`.
+Every non-documentation merge deploys directly to the public site. A `v*`
+release tag or manual dispatch may redeploy a selected commit only when that
+commit is already on `main`; see Deployment rationale and
+`docs/deployment.md`.
 
 Before a non-document change is merged or pushed to `main`:
 

@@ -662,6 +662,52 @@ export async function routeGalleryRequest(
   if (
     segments.length === 2 &&
     segments[0] === "maintenance" &&
+    segments[1] === "automated-backup"
+  ) {
+    // A dedicated credential authorizes this GET only: never admin writes,
+    // unbounded dumps, or private Cloud Projects. Do not add it to isAdmin.
+    const expected = env.GALLERY_BACKUP_TOKEN;
+    const supplied = request.headers
+      .get("Authorization")
+      ?.replace(/^Bearer /, "");
+    let difference = 0;
+    if (expected && supplied?.length === expected.length) {
+      for (let i = 0; i < expected.length; i++)
+        difference |= expected.charCodeAt(i) ^ supplied.charCodeAt(i);
+    } else difference = 1;
+    if (difference !== 0)
+      return Response.json(
+        { error: "unauthorized" },
+        { status: 401, headers: { "cache-control": "no-store" } },
+      );
+    if (request.method !== "GET")
+      return Response.json(
+        { error: "method-not-allowed" },
+        { status: 405, headers: { Allow: "GET", "cache-control": "no-store" } },
+      );
+    const table = url.searchParams.get("table");
+    if (
+      ![
+        "inventory",
+        "galleryEntries",
+        "galleryEntryVersions",
+        "galleryLikes",
+      ].includes(table ?? "")
+    )
+      return Response.json({ error: "invalid-table" }, { status: 400 });
+    const { status, payload } = await callGallery(env, "schema-backup", {
+      scope: "gallery",
+      table,
+      after: url.searchParams.get("after"),
+    });
+    return Response.json(payload, {
+      status,
+      headers: { "cache-control": "no-store" },
+    });
+  }
+  if (
+    segments.length === 2 &&
+    segments[0] === "maintenance" &&
     segments[1] === "schema-backup" &&
     request.method === "GET"
   ) {

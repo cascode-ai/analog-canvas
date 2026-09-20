@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { resolveSimulationTransport } from "./deployment-transport";
 
 describe("simulation deployment transport", () => {
-  it("uses the promoted managed service on both hosted channels", () => {
+  it("uses managed transport when a hosted build explicitly requests it", () => {
     expect(resolveSimulationTransport("production", "managed")).toBe("managed");
     expect(resolveSimulationTransport("preview", "managed")).toBe("managed");
   });
