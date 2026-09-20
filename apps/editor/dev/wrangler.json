@@ -4,6 +4,12 @@
   "tsconfig": "../../../tsconfig.check.json",
   "compatibility_date": "2026-08-11",
   "send_metrics": false,
+  "r2_buckets": [
+    {
+      "binding": "SIMULATION_ARTIFACTS",
+      "bucket_name": "local-agent-artifacts"
+    }
+  ],
   "durable_objects": {
     "bindings": [{ "name": "AGENT_SESSION", "class_name": "AgentSessionDO" }]
   },

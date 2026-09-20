@@ -15,6 +15,41 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 describe("agent http client", () => {
+  it("keeps streamed artifact authorization on this session and refuses redirects", async () => {
+    let calls = 0;
+    const http = new AgentHttpClient({
+      baseUrl: BASE,
+      fetch: async (url, init) => {
+        calls++;
+        expect(String(url)).toBe(
+          `${BASE}/api/agent/sessions/session/artifacts/file`,
+        );
+        expect(init?.redirect).toBe("error");
+        expect(new Headers(init?.headers).get("authorization")).toBe(
+          "Bearer private-token",
+        );
+        expect(new Headers(init?.headers).get("range")).toBe("bytes=5-");
+        return new Response("bytes");
+      },
+    });
+    const response = await http.downloadArtifact(
+      "session",
+      "private-token",
+      "/api/agent/sessions/session/artifacts/file",
+      5,
+    );
+    expect(await response.text()).toBe("bytes");
+    for (const path of [
+      "https://elsewhere.test/file",
+      "/api/agent/sessions/other/artifacts/file",
+      "/api/agent/sessions/session/artifacts/../status",
+    ]) {
+      await expect(
+        http.downloadArtifact("session", "private-token", path),
+      ).rejects.toThrow();
+    }
+    expect(calls).toBe(1);
+  });
   it("accepts Port case styles and locates errors within the matching Snapshot branch", async () => {
     const body = snapshotResponse("case-styles");
     if (!body.ok || body.operation !== "snapshot")

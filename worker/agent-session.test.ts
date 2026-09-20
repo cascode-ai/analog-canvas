@@ -493,6 +493,7 @@ describe("public Agent session routes", () => {
     expect(Object.keys(contract.paths).sort()).toEqual([
       "/api/agent/claims",
       "/api/agent/connectors/resume",
+      "/api/agent/sessions/{sessionId}/artifacts/{fileId}",
       "/api/agent/sessions/{sessionId}/circuit",
       "/api/agent/sessions/{sessionId}/files",
       "/api/agent/sessions/{sessionId}/projects",

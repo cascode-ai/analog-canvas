@@ -51,9 +51,11 @@ import {
   type PendingForward,
   type WebSocketPairConstructor,
 } from "./agent-session-runtime";
+import { AgentArtifacts } from "./agent-artifacts";
 
 /** Cloudflare Durable Object owning one temporary Agent session. */
 export class AgentSessionDO {
+  private readonly artifacts: AgentArtifacts;
   /** Reason-only tombstone: no bearer, connector, editor proof or Project data. */
   private replacedUntil = 0;
   private machine: AgentSessionMachine | null = null;
@@ -70,6 +72,10 @@ export class AgentSessionDO {
     private readonly state: DurableStateLike,
     private readonly env: AgentSessionEnv,
   ) {
+    this.artifacts = new AgentArtifacts(
+      state.storage,
+      env.SIMULATION_ARTIFACTS,
+    );
     this.ready = this.initialize();
     this.state.blockConcurrencyWhile?.(() => this.ready);
   }
@@ -95,6 +101,46 @@ export class AgentSessionDO {
         404,
         allowedOrigin,
       );
+    }
+    if (url.pathname.startsWith("/artifacts/")) {
+      const now = Date.now();
+      if (request.method === "PUT") {
+        if (!machine.authorizeEditor(editorSecret(request)))
+          return jsonResponse({ error: "Unauthorized" }, 401, allowedOrigin);
+        if (machine.statusAt(now) !== "active")
+          return jsonResponse(
+            { error: "Session is not active" },
+            403,
+            allowedOrigin,
+          );
+      } else {
+        const auth = machine.authorize(bearerToken(request), now);
+        if (!auth.ok)
+          return jsonResponse(
+            errorBody(auth.code, errorMessage(auth.code)),
+            transportStatus(auth.code),
+            allowedOrigin,
+          );
+        if (!machine.assertScope(auth.session.scopes, "simulation.run").ok)
+          return jsonResponse(
+            errorBody(
+              "TOKEN_SCOPE_INSUFFICIENT",
+              errorMessage("TOKEN_SCOPE_INSUFFICIENT"),
+            ),
+            403,
+            allowedOrigin,
+          );
+      }
+      const response = await this.artifacts.handle(
+        request,
+        machine.sessionId,
+        url.pathname.slice("/artifacts/".length),
+      );
+      if (response.ok) {
+        machine.recordActivity(now);
+        await this.persist();
+      }
+      return response;
     }
     if (request.method === "POST" && url.pathname === "/claim") {
       return this.claim(request, machine, allowedOrigin);
@@ -285,7 +331,7 @@ export class AgentSessionDO {
     const status = this.machine?.statusAt(Date.now());
     if (this.replacedUntil > Date.now()) return;
     if (status === "revoked" || status === "expired") {
-      await this.state.storage.deleteAll?.();
+      await this.clearStoredSession();
     } else {
       await this.persist();
     }
@@ -297,7 +343,7 @@ export class AgentSessionDO {
       if (Date.now() < this.replacedUntil) {
         await this.state.storage.setAlarm?.(this.replacedUntil);
       } else {
-        await this.state.storage.deleteAll?.();
+        await this.clearStoredSession();
         this.replacedUntil = 0;
         this.machine = null;
       }
@@ -337,7 +383,7 @@ export class AgentSessionDO {
     for (const subscriber of [...this.eventSubscribers.keys()]) {
       this.removeEventSubscriber(subscriber, true);
     }
-    await this.state.storage.deleteAll?.();
+    await this.clearStoredSession();
     this.machine = null;
   }
 
@@ -1158,7 +1204,7 @@ export class AgentSessionDO {
         allowedOrigin,
       );
     if (body.action === "revoke" || body.action === "replace-project") {
-      await this.state.storage.deleteAll?.();
+      await this.clearStoredSession();
       if (body.action === "replace-project") {
         this.replacedUntil = Date.now() + 30 * 60_000;
         await this.state.storage.put(
@@ -1209,7 +1255,7 @@ export class AgentSessionDO {
       type: "session.revoked",
       sessionId: machine.sessionId,
     });
-    await this.state.storage.deleteAll?.();
+    await this.clearStoredSession();
     return new Response(null, {
       status: 204,
       headers: relayHeaders(allowedOrigin),
@@ -1339,7 +1385,7 @@ export class AgentSessionDO {
     if (!this.machine) return;
     const status = this.machine.statusAt(Date.now());
     if (status === "revoked" || status === "expired") {
-      await this.state.storage.deleteAll?.();
+      await this.clearStoredSession();
       return;
     }
     await this.state.storage.put(SESSION_STATE_KEY, this.machine.serialize());
@@ -1356,5 +1402,10 @@ export class AgentSessionDO {
       this.emit(event);
       this.notifyEditor(event);
     }
+  }
+
+  private async clearStoredSession(): Promise<void> {
+    await this.artifacts.clear();
+    await this.state.storage.deleteAll?.();
   }
 }

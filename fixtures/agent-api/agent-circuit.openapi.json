@@ -5,6 +5,109 @@
     "version": "3.0"
   },
   "paths": {
+    "/api/agent/sessions/{sessionId}/artifacts/{fileId}": {
+      "get": {
+        "operationId": "agentSessionArtifactDownload",
+        "description": "Download immutable simulation bytes with the existing simulation.run bearer. Obtain the path from File simulation-input action download; text action artifact remains a preview. Stream to local disk; Range and If-Range support byte-resume. No browser Cookie or bearer in URLs. A registered transfer remains downloadable while its session is authorized even if the browser is temporarily offline. Session transfer replicas are removed on revocation or expiry; downloaded local files are independent.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,128}$"
+            }
+          },
+          {
+            "name": "Range",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "pattern": "^bytes=[0-9]+-[0-9]*$"
+            }
+          },
+          {
+            "name": "If-Range",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Complete file byte stream",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Requested byte range",
+            "headers": {
+              "Content-Range": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Typed Agent session transport error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/agentTransportErrorResponse"
+                },
+                "example": {
+                  "ok": false,
+                  "error": {
+                    "code": "TOKEN_INVALID",
+                    "message": "Bearer token is missing or unknown"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Session is paused or lacks simulation.run"
+          },
+          "404": {
+            "description": "No registered transfer for this file and session"
+          },
+          "416": {
+            "description": "Invalid or unavailable byte range"
+          }
+        }
+      }
+    },
     "/api/agent/sessions/{sessionId}/status": {
       "get": {
         "operationId": "agentSessionStatus",
@@ -758,7 +861,7 @@
     "/api/agent/sessions/{sessionId}/simulation": {
       "post": {
         "operationId": "agentSessionSimulationResource",
-        "description": "Discover Profiles and native authoring help; prepare saved Project-folder or session-workspace source, then start/read/cancel/export runs and batches. Exact start request-ID and payload retries do not execute twice. Read full artifacts when a receipt is a preview. Input/execution failures do not revoke the session; this is not a durable job queue.",
+        "description": "Discover Profiles and native authoring help; prepare saved Project-folder or session-workspace source, then start/read/catalog/cancel/export runs and batches. Catalog returns file roles, datasets, axes, units and representation selectors without samples. Exact start request-ID and payload retries do not execute twice. Download full artifacts for local analysis. Input/execution failures do not revoke the session; this is not a durable job queue.",
         "security": [
           {
             "bearerAuth": []
@@ -31823,6 +31926,23 @@
                     "properties": {
                       "action": {
                         "type": "string",
+                        "const": "download"
+                      },
+                      "artifactId": {
+                        "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema4"
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "artifactId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
                         "const": "artifact"
                       },
                       "artifactId": {
@@ -32307,25 +32427,56 @@
                             "type": "boolean",
                             "const": true
                           },
+                          "artifact": {
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema2"
+                          },
+                          "download": {
+                            "type": "object",
+                            "properties": {
+                              "path": {
+                                "type": "string",
+                                "pattern": "^\\/api\\/agent\\/sessions\\/[^/]+\\/artifacts\\/[a-zA-Z0-9_-]{1,128}$"
+                              }
+                            },
+                            "required": [
+                              "path"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "artifact",
+                          "download"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "ok": {
+                            "type": "boolean",
+                            "const": true
+                          },
                           "workspaces": {
                             "type": "array",
                             "items": {
                               "type": "object",
                               "properties": {
                                 "id": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema2"
-                                },
-                                "revision": {
                                   "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
                                 },
-                                "entry": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
-                                },
-                                "configPath": {
+                                "revision": {
                                   "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema5"
                                 },
-                                "expiresAt": {
+                                "entry": {
                                   "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema6"
+                                },
+                                "configPath": {
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
+                                },
+                                "expiresAt": {
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
                                 }
                               },
                               "required": [
@@ -32356,16 +32507,16 @@
                             "type": "object",
                             "properties": {
                               "id": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema2"
-                              },
-                              "revision": {
                                 "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
                               },
+                              "revision": {
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema5"
+                              },
                               "entry": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema6"
                               },
                               "configPath": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema5"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
                               },
                               "files": {
                                 "type": "array",
@@ -32387,7 +32538,7 @@
                                 }
                               },
                               "expiresAt": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema6"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
                               }
                             },
                             "required": [
@@ -32418,15 +32569,15 @@
                             "type": "object",
                             "properties": {
                               "owner": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema9"
                               },
                               "revision": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
                               },
                               "entry": {
                                 "anyOf": [
                                   {
-                                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema5"
+                                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
                                   },
                                   {
                                     "type": "null"
@@ -32434,7 +32585,7 @@
                                 ]
                               },
                               "configPath": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema5"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
                               },
                               "drafts": {
                                 "type": "array",
@@ -32442,7 +32593,7 @@
                                   "type": "object",
                                   "properties": {
                                     "path": {
-                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema5"
+                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
                                     },
                                     "base": {
                                       "type": "string"
@@ -32454,13 +32605,13 @@
                                       "type": "object",
                                       "properties": {
                                         "id": {
-                                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema9"
+                                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
                                         },
                                         "path": {
-                                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema5"
+                                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
                                         },
                                         "documentId": {
-                                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema9"
+                                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
                                         },
                                         "emission": {
                                           "type": "string",
@@ -32493,7 +32644,7 @@
                                   "type": "object",
                                   "properties": {
                                     "path": {
-                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema5"
+                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
                                     },
                                     "kind": {
                                       "type": "string",
@@ -32504,7 +32655,7 @@
                                       ]
                                     },
                                     "byteLength": {
-                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
+                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
                                     }
                                   },
                                   "required": [
@@ -32556,27 +32707,27 @@
                             "const": true
                           },
                           "owner": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema9"
                           },
                           "revision": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
                           },
                           "path": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema5"
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
                           },
                           "textDigest": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
                           },
                           "text": {
                             "type": "string"
                           },
                           "offset": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
                           },
                           "nextOffset": {
                             "anyOf": [
                               {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
                               },
                               {
                                 "type": "null"
@@ -32589,16 +32740,16 @@
                               "type": "object",
                               "properties": {
                                 "documentId": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema2"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
                                 },
                                 "instanceId": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema2"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
                                 },
                                 "startOffset": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
                                 },
                                 "endOffset": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
                                 }
                               },
                               "required": [
@@ -32616,19 +32767,19 @@
                               "type": "object",
                               "properties": {
                                 "from": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
                                 },
                                 "to": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
                                 },
                                 "label": {
                                   "type": "string"
                                 },
                                 "documentId": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema2"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
                                 },
                                 "instanceId": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema2"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
                                 },
                                 "parameter": {
                                   "type": "string"
@@ -32666,72 +32817,18 @@
                             "const": true
                           },
                           "artifact": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema2"
-                              },
-                              "fileId": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema2"
-                              },
-                              "name": {
-                                "type": "string"
-                              },
-                              "mediaType": {
-                                "type": "string"
-                              },
-                              "byteLength": {
-                                "type": "integer",
-                                "minimum": 0,
-                                "maximum": 9007199254740991
-                              },
-                              "sha256": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
-                              },
-                              "role": {
-                                "type": "string",
-                                "enum": [
-                                  "source",
-                                  "prepared",
-                                  "source-map",
-                                  "execution-input",
-                                  "executed",
-                                  "raw",
-                                  "result",
-                                  "table",
-                                  "specs",
-                                  "log",
-                                  "manifest"
-                                ]
-                              },
-                              "sourcePath": {
-                                "type": "string"
-                              },
-                              "analysisIndex": {
-                                "type": "integer",
-                                "minimum": 0,
-                                "maximum": 9007199254740991
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "name",
-                              "mediaType",
-                              "byteLength",
-                              "sha256"
-                            ],
-                            "additionalProperties": false
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema2"
                           },
                           "text": {
                             "type": "string"
                           },
                           "offset": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
                           },
                           "nextOffset": {
                             "anyOf": [
                               {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
                               },
                               {
                                 "type": "null"
@@ -32761,7 +32858,7 @@
                         "type": "object",
                         "properties": {
                           "code": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema2"
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
                           },
                           "message": {
                             "type": "string"
@@ -32793,7 +32890,7 @@
                             "minimum": 0
                           },
                           "correlationId": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema2"
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
                           },
                           "currentRevision": {
                             "type": "integer",
@@ -32806,7 +32903,7 @@
                               "type": "object",
                               "properties": {
                                 "code": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema2"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
                                 },
                                 "message": {
                                   "type": "string"
@@ -32823,13 +32920,13 @@
                                   "type": "object",
                                   "properties": {
                                     "documentId": {
-                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema9"
+                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
                                     },
                                     "hierarchyPath": {
                                       "maxItems": 32,
                                       "type": "array",
                                       "items": {
-                                        "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                                        "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
                                       }
                                     },
                                     "kind": {
@@ -32846,7 +32943,7 @@
                                       ]
                                     },
                                     "objectId": {
-                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema9"
+                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
                                     },
                                     "endpoint": {
                                       "oneOf": [
@@ -32858,7 +32955,7 @@
                                               "const": "terminal"
                                             },
                                             "instanceId": {
-                                              "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema9"
+                                              "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
                                             },
                                             "pinName": {
                                               "type": "string",
@@ -32880,7 +32977,7 @@
                                               "const": "junction"
                                             },
                                             "junctionId": {
-                                              "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema9"
+                                              "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
                                             }
                                           },
                                           "required": [
@@ -32892,7 +32989,7 @@
                                       ]
                                     },
                                     "sourceRef": {
-                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
+                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema13"
                                     }
                                   },
                                   "required": [
@@ -32910,7 +33007,7 @@
                                   "type": "string"
                                 },
                                 "sourceRef": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema13"
                                 },
                                 "source": {
                                   "type": "object",
@@ -32927,7 +33024,7 @@
                                       "type": "string"
                                     },
                                     "textDigest": {
-                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
+                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
                                     },
                                     "startOffset": {
                                       "type": "integer",
@@ -33087,7 +33184,7 @@
                 "const": true
               },
               "candidate": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema15"
               }
             },
             "required": [
@@ -33148,7 +33245,7 @@
                 "const": true
               },
               "candidate": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema15"
               },
               "approval": {
                 "type": "string",
@@ -33230,16 +33327,77 @@
             "maxLength": 256
           },
           "__schema2": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
+              },
+              "fileId": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
+              },
+              "name": {
+                "type": "string"
+              },
+              "mediaType": {
+                "type": "string"
+              },
+              "byteLength": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "sha256": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "source",
+                  "prepared",
+                  "source-map",
+                  "execution-input",
+                  "executed",
+                  "raw",
+                  "result",
+                  "table",
+                  "specs",
+                  "log",
+                  "manifest"
+                ]
+              },
+              "sourcePath": {
+                "type": "string"
+              },
+              "analysisIndex": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "mediaType",
+              "byteLength",
+              "sha256"
+            ],
+            "additionalProperties": false
+          },
+          "__schema3": {
             "type": "string",
             "minLength": 1,
             "maxLength": 256
           },
-          "__schema3": {
+          "__schema4": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "__schema5": {
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
           },
-          "__schema4": {
+          "__schema6": {
             "anyOf": [
               {
                 "type": "string"
@@ -33249,13 +33407,13 @@
               }
             ]
           },
-          "__schema5": {
+          "__schema7": {
             "type": "string"
           },
-          "__schema6": {
+          "__schema8": {
             "type": "number"
           },
-          "__schema7": {
+          "__schema9": {
             "oneOf": [
               {
                 "type": "object",
@@ -33265,7 +33423,7 @@
                     "const": "session-workspace"
                   },
                   "workspaceId": {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema2"
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
                   }
                 },
                 "required": [
@@ -33282,7 +33440,7 @@
                     "const": "project-folder"
                   },
                   "folderId": {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema2"
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
                   }
                 },
                 "required": [
@@ -33293,31 +33451,27 @@
               }
             ]
           },
-          "__schema8": {
+          "__schema10": {
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
           },
-          "__schema9": {
+          "__schema11": {
             "type": "string",
             "minLength": 1,
             "maxLength": 256
           },
-          "__schema10": {
-            "type": "string",
-            "pattern": "^[a-f0-9]{64}$"
-          },
-          "__schema11": {
+          "__schema12": {
             "type": "object",
             "properties": {
               "parentDocumentId": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema9"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
               },
               "instanceId": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema9"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
               },
               "childDocumentId": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema9"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
               }
             },
             "required": [
@@ -33327,17 +33481,17 @@
             ],
             "additionalProperties": false
           },
-          "__schema12": {
+          "__schema13": {
             "type": "object",
             "properties": {
               "fileId": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema9"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
               },
               "start": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema13"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
               },
               "end": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema13"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
               }
             },
             "required": [
@@ -33347,7 +33501,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema13": {
+          "__schema14": {
             "type": "object",
             "properties": {
               "offset": {
@@ -33373,7 +33527,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema14": {
+          "__schema15": {
             "type": "object",
             "properties": {
               "candidateId": {

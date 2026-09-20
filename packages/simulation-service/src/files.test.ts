@@ -1,6 +1,50 @@
 import { describe, it, expect } from "vitest";
-import { SimulationFiles, sha256 } from "./files.js";
+import { ArtifactDownloadError, SimulationFiles, sha256 } from "./files.js";
 describe("simulation File Resource evidence", () => {
+  it("registers one whole-file transfer and retries failed publication without losing preview", async () => {
+    const files = new SimulationFiles();
+    const artifact = await files.put("out.raw", "text/plain", "data");
+    let calls = 0;
+    files.setArtifactPublisher(async (ref, text) => {
+      expect(text).toBe("data");
+      if (++calls === 1) throw new Error("offline");
+      return `/api/agent/sessions/s/artifacts/${ref.fileId}`;
+    });
+    expect(
+      await files.handle({ action: "download", artifactId: artifact.id }),
+    ).toMatchObject({ ok: false, error: { recovery: "retry-after" } });
+    expect(
+      await files.handle({ action: "artifact", artifactId: artifact.id }),
+    ).toMatchObject({ ok: true, text: "data" });
+    for (let i = 0; i < 2; i++)
+      expect(
+        await files.handle({ action: "download", artifactId: artifact.id }),
+      ).toMatchObject({
+        ok: true,
+        artifact,
+        download: {
+          path: `/api/agent/sessions/s/artifacts/${artifact.fileId}`,
+        },
+      });
+    expect(calls).toBe(2);
+    files.setArtifactPublisher(async () => {
+      throw new ArtifactDownloadError(
+        "ARTIFACT_TOO_LARGE",
+        "not-retryable",
+        "File exceeds transfer capacity",
+      );
+    });
+    expect(
+      await files.handle({ action: "download", artifactId: artifact.id }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: "ARTIFACT_TOO_LARGE",
+        stage: "export",
+        recovery: "not-retryable",
+      },
+    });
+  });
   it("uses the same owner-addressed listing and paged reading for session text", async () => {
     const files = new SimulationFiles();
     const created = await files.handle({ action: "create" });
@@ -166,7 +210,7 @@ describe("simulation File Resource evidence", () => {
         artifactId: artifact.id,
         offset,
       });
-      if (!chunk.ok || !("artifact" in chunk))
+      if (!chunk.ok || !("artifact" in chunk) || !("text" in chunk))
         throw Error(JSON.stringify(chunk));
       expect(chunk.text.length).toBeLessThanOrEqual(65536);
       expect(chunk.artifact.sha256).toBe(artifact.sha256);

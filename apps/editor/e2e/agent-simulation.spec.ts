@@ -347,6 +347,36 @@ test("HTTP Kit alone authors native objects and hands off a Project-folder run",
   expect(
     (await send("simulation", { operation: "read", runId: run.id })).run.state,
   ).toBe("finished");
+  const resultCatalog = (
+    await send("simulation", { operation: "catalog", runId: run.id })
+  ).catalog;
+  const raw = resultCatalog.files.find(
+    (file: { role?: string }) => file.role === "raw",
+  );
+  expect(raw).toBeTruthy();
+  const transfer = (
+    await send("files", {
+      operation: "simulation-input",
+      input: { action: "download", artifactId: raw.id },
+    })
+  ).result;
+  expect(transfer.ok, JSON.stringify(transfer.error)).toBe(true);
+  const downloaded = await request.get(`${baseURL}${transfer.download.path}`, {
+    headers: { authorization: `Bearer ${session.agentToken}` },
+  });
+  expect(downloaded.status()).toBe(200);
+  expect(await downloaded.text()).toBe(rawfile);
+  const suffix = await request.get(`${baseURL}${transfer.download.path}`, {
+    headers: {
+      authorization: `Bearer ${session.agentToken}`,
+      range: "bytes=10-",
+    },
+  });
+  expect(suffix.status()).toBe(206);
+  expect(await suffix.body()).toEqual(Buffer.from(rawfile).subarray(10));
+  expect(
+    (await request.get(`${baseURL}${transfer.download.path}`)).status(),
+  ).toBe(401);
   const exported = await send("files", {
     operation: "download",
     artifact: "project",

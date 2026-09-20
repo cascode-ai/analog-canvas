@@ -318,6 +318,23 @@ export class AgentSessionClient {
   }
 
   /** Invoke the canonical browser-hosted simulation-resource contract. */
+  async downloadArtifact(
+    path: string,
+    offset = 0,
+    digest?: string,
+  ): Promise<Response> {
+    return this.withAuthorization((session) =>
+      this.http.downloadArtifact(
+        session.sessionId,
+        session.agentToken,
+        path,
+        offset,
+        digest,
+      ),
+    );
+  }
+
+  /** Invoke the canonical browser-hosted simulation-resource contract. */
   async simulationResource(
     request: AgentSimulationResourceRequest,
   ): Promise<AgentSimulationResourceResponse> {

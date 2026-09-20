@@ -23,6 +23,15 @@ import {
 import { problem, type ArtifactRef, type Problem } from "./contract.js";
 
 export { MAX_SIMULATION_INPUT_BYTES };
+export class ArtifactDownloadError extends Error {
+  constructor(
+    readonly code: string,
+    readonly recovery: Problem["recovery"],
+    message: string,
+  ) {
+    super(message);
+  }
+}
 const TTL = 15 * 60_000;
 export { sha256 } from "./content-digest.js";
 export function safeInputPath(path: string): boolean {
@@ -31,6 +40,15 @@ export function safeInputPath(path: string): boolean {
 
 /** One File Resource; session storage is local, Project edits use host transactions. */
 export class SimulationFiles {
+  private publisher?:
+    ((ref: ArtifactRef, text: string) => Promise<string>) | undefined;
+  private downloads = new Map<string, Promise<string>>();
+  setArtifactPublisher(
+    publisher: (ref: ArtifactRef, text: string) => Promise<string>,
+  ) {
+    this.publisher = publisher;
+    this.downloads.clear();
+  }
   private epoch = 0;
   private workspaces = new Map<string, Workspace>();
   private artifacts = new Map<
@@ -48,6 +66,8 @@ export class SimulationFiles {
     this.epoch++;
     this.workspaces.clear();
     this.artifacts.clear();
+    this.downloads.clear();
+    this.publisher = undefined;
   }
   private prune() {
     const now = this.now();
@@ -114,7 +134,7 @@ export class SimulationFiles {
       this.workspaces.set(workspace.id, workspace);
       return { ok: true as const, workspace: structuredClone(workspace) };
     }
-    if (op.action === "artifact") {
+    if (op.action === "artifact" || op.action === "download") {
       const item = this.artifacts.get(op.artifactId);
       if (!item)
         return problem(
@@ -123,6 +143,44 @@ export class SimulationFiles {
           "export",
           "not-retryable",
         );
+      if (op.action === "download") {
+        if (!this.publisher)
+          return problem(
+            "ARTIFACT_DOWNLOAD_UNAVAILABLE",
+            "This host has not attached the authenticated download transport",
+            "export",
+            "retry-after",
+          );
+        const publisher = this.publisher;
+        const epoch = this.epoch;
+        let upload = this.downloads.get(item.ref.id);
+        if (!upload) {
+          upload = publisher(item.ref, item.text);
+          this.downloads.set(item.ref.id, upload);
+        }
+        try {
+          const path = await upload;
+          if (this.epoch !== epoch || this.publisher !== publisher)
+            return problem(
+              "SESSION_CHANGED",
+              "The download session changed",
+              "export",
+              "reauthorize",
+            );
+          return { ok: true, artifact: item.ref, download: { path } };
+        } catch (error) {
+          if (this.downloads.get(item.ref.id) === upload)
+            this.downloads.delete(item.ref.id);
+          if (error instanceof ArtifactDownloadError)
+            return problem(error.code, error.message, "export", error.recovery);
+          return problem(
+            "ARTIFACT_UPLOAD_FAILED",
+            "File transfer could not be prepared; the original artifact remains available",
+            "export",
+            "retry-after",
+          );
+        }
+      }
       if (op.offset > item.text.length)
         return problem(
           "ARTIFACT_OFFSET_INVALID",

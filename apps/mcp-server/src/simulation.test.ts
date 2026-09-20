@@ -226,7 +226,20 @@ describe("MCP / browser Simulation Resource parity", () => {
         return response!;
       },
     });
+    const transfers = new Map<string, string>();
+    files.setArtifactPublisher(async (ref, text) => {
+      const path = `/api/agent/sessions/session-1/artifacts/${ref.fileId ?? ref.id}`;
+      transfers.set(path, text);
+      return path;
+    });
     class Relay extends FakeAgentHttp {
+      override async downloadArtifact(
+        _session: string,
+        _token: string,
+        path: string,
+      ) {
+        return new Response(transfers.get(path) ?? null);
+      }
       override async simulation(
         _session: string,
         _token: string,

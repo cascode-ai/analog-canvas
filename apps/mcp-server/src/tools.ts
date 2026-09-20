@@ -1,5 +1,6 @@
 import { agentToolHelp } from "./guidance.generated.js";
 import { z } from "zod";
+import { downloadSimulationArtifact } from "./artifact-download.js";
 import { simulationAuthoringTools } from "./simulation-authoring-tools.js";
 import { SimulationOperationSchema } from "@icm/simulation-service/contract";
 import { SimulationFileOperationSchema } from "@icm/simulation-service/files";
@@ -29,11 +30,7 @@ import {
   searchSnapshot,
   type SearchKind,
 } from "./results.js";
-import {
-  exportFile,
-  importFile,
-  exportSimulationArtifact,
-} from "./file-operations.js";
+import { exportFile, importFile } from "./file-operations.js";
 
 /**
  * The default MCP tool surface (Agent rationale) stays compact. The full
@@ -395,7 +392,11 @@ const TOOLS: readonly ToolEntry[] = [
     handle: async (args, session) => {
       const { request, requestId, outputPath } =
         SimulationFilesArgs.parse(args);
-      if (outputPath && request.action !== "artifact")
+      if (
+        outputPath &&
+        request.action !== "artifact" &&
+        request.action !== "download"
+      )
         return {
           ok: false,
           error: {
@@ -404,47 +405,34 @@ const TOOLS: readonly ToolEntry[] = [
             recovery: "fix-input",
           },
         };
+      if (outputPath && request.action === "artifact" && request.offset !== 0)
+        return {
+          ok: false,
+          error: {
+            code: "EXPORT_REQUIRES_START",
+            message: "A local export starts at offset 0",
+            recovery: "fix-input",
+          },
+        };
       const response = await session.client.fileResource({
         apiVersion: AGENT_API_VERSION,
         requestId: requestId ?? crypto.randomUUID(),
         operation: "simulation-input",
-        input: request,
+        input:
+          outputPath && request.action === "artifact"
+            ? { action: "download", artifactId: request.artifactId }
+            : request,
       });
       if (!response.ok || response.operation !== "simulation-input")
         return response;
-      if (outputPath && response.result.ok && "artifact" in response.result) {
-        let chunk = response.result;
-        if (chunk.offset !== 0)
-          return {
-            ok: false,
-            error: {
-              code: "EXPORT_REQUIRES_START",
-              message: "A local export starts at offset 0",
-              recovery: "fix-input",
-            },
-          };
-        let text = chunk.text;
-        while (chunk.nextOffset !== null) {
-          const next = await session.client.fileResource({
-            apiVersion: AGENT_API_VERSION,
-            requestId: crypto.randomUUID(),
-            operation: "simulation-input",
-            input: {
-              action: "artifact",
-              artifactId: chunk.artifact.id,
-              offset: chunk.nextOffset,
-              maxChars: 65536,
-            },
-          });
-          if (!next.ok || next.operation !== "simulation-input") return next;
-          if (!next.result.ok || !("artifact" in next.result))
-            return next.result;
-          chunk = next.result;
-          text += chunk.text;
-        }
-        return exportSimulationArtifact(
-          { artifact: chunk.artifact, text },
-          outputPath,
+      if (outputPath && response.result.ok && "download" in response.result) {
+        const { artifact, download } = response.result;
+        return downloadSimulationArtifact(artifact, outputPath, (offset) =>
+          session.client.downloadArtifact(
+            download.path,
+            offset,
+            artifact.sha256,
+          ),
         );
       }
       return response.result;

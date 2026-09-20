@@ -61,6 +61,10 @@ export const SimulationFileOperationSchema = z.discriminatedUnion("action", [
       .default([]),
   }),
   z.strictObject({
+    action: z.literal("download"),
+    artifactId: Id,
+  }),
+  z.strictObject({
     action: z.literal("artifact"),
     artifactId: Id,
     offset: Revision.default(0),
@@ -85,6 +89,17 @@ export const SimulationSourceListingSchema = z.strictObject({
   ),
 });
 export const SimulationFileResultSchema = z.union([
+  z.strictObject({
+    ok: z.literal(true),
+    artifact: ArtifactRefSchema,
+    download: z.strictObject({
+      path: z
+        .string()
+        .regex(
+          /^\/api\/agent\/sessions\/[^/]+\/artifacts\/[a-zA-Z0-9_-]{1,128}$/u,
+        ),
+    }),
+  }),
   z.strictObject({
     ok: z.literal(true),
     workspaces: z.array(WorkspaceSchema.omit({ files: true })),

@@ -26,6 +26,8 @@ import {
 } from "@icm/agent-adapter";
 import { sha256Hex } from "@icm/derived";
 import type { CircuitProject } from "@icm/model";
+import type { ArtifactRef } from "@icm/simulation-service/contract";
+import { ArtifactDownloadError } from "@icm/simulation-service/files";
 
 import type { AgentConnectionStatus } from "./connect-agent-panel";
 import { transitionAgentSession } from "./agent-session-state-machine";
@@ -161,6 +163,9 @@ export interface UseAgentSessionOptions {
   projectSessionId: string;
   host: AgentOperationHost;
   fileHost?: {
+    setArtifactPublisher?: (
+      publisher: (ref: ArtifactRef, text: string) => Promise<string>,
+    ) => void;
     handle: (
       request: AgentFileResourceRequest,
     ) => Promise<AgentFileResourceResponse>;
@@ -384,6 +389,42 @@ export function useAgentSession(
           requestHashes: new Map(),
         };
         liveRef.current = live;
+        options.fileHost?.setArtifactPublisher?.(async (ref, text) => {
+          if (liveRef.current !== live) throw new Error("Session changed");
+          const path = `/api/agent/sessions/${encodeURIComponent(live.sessionId)}/artifacts/${encodeURIComponent(ref.fileId ?? ref.id)}`;
+          const response = await fetch(path, {
+            method: "PUT",
+            headers: {
+              "x-editor-secret": live.editorSecret,
+              "x-artifact-ref": encodeURIComponent(JSON.stringify(ref)),
+            },
+            body: new Blob([text], { type: ref.mediaType }),
+            signal: AbortSignal.timeout(120_000),
+          });
+          if (!response.ok) {
+            const body = (await response.json().catch(() => null)) as {
+              error?: { code?: string };
+            } | null;
+            throw new ArtifactDownloadError(
+              typeof body?.error?.code === "string"
+                ? body.error.code
+                : "ARTIFACT_UPLOAD_FAILED",
+              response.status === 401
+                ? "reauthorize"
+                : response.status === 413 || response.status === 409
+                  ? "not-retryable"
+                  : "retry-after",
+              `Artifact transfer rejected (HTTP ${response.status}); original browser evidence is unchanged`,
+            );
+          }
+          if (liveRef.current !== live)
+            throw new ArtifactDownloadError(
+              "SESSION_CHANGED",
+              "reauthorize",
+              "The download session changed",
+            );
+          return path;
+        });
 
         const syncDeadline = (expiresAt: number) => {
           live.expiresAt = expiresAt;

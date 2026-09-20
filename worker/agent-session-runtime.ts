@@ -19,6 +19,7 @@ import {
   type AgentTransportErrorResponse,
 } from "@icm/agent-adapter";
 import { agentOperatingKit } from "@icm/agent-adapter/kit";
+import type { AgentArtifactBucket } from "./agent-artifacts";
 
 export const SESSION_STATE_KEY = "agent-session-v1";
 export const EDITOR_SOCKET_TAG = "editor";
@@ -65,6 +66,7 @@ export type DurableStateLike = {
 
 export type AgentSessionEnv = {
   AGENT_ALLOWED_ORIGIN?: string;
+  SIMULATION_ARTIFACTS?: AgentArtifactBucket;
 };
 
 export type WebSocketPairShape = { 0: WebSocket; 1: WebSocket };
@@ -155,10 +157,13 @@ export async function routeAgentSessionRequest(
   }
   if (request.method === "OPTIONS") {
     const headers = relayHeaders(allowedOrigin);
-    headers.set("access-control-allow-methods", "GET, POST, DELETE, OPTIONS");
+    headers.set(
+      "access-control-allow-methods",
+      "GET, HEAD, PUT, POST, DELETE, OPTIONS",
+    );
     headers.set(
       "access-control-allow-headers",
-      "authorization, content-type, x-editor-secret",
+      "authorization, content-type, x-editor-secret, x-artifact-ref, range, if-range",
     );
     return new Response(null, { status: 204, headers });
   }
@@ -302,7 +307,7 @@ export async function routeAgentSessionRequest(
   }
 
   const match =
-    /^\/api\/agent\/sessions\/([^/]+)(?:\/(circuit|files|simulation|projects|events|editor|control|status))?$/u.exec(
+    /^\/api\/agent\/sessions\/([^/]+)(?:\/(circuit|files|simulation|projects|events|editor|control|status|artifacts\/[a-zA-Z0-9_-]{1,128}))?$/u.exec(
       url.pathname,
     );
   if (!match) return jsonResponse({ error: "Not found" }, 404, allowedOrigin);
@@ -310,8 +315,14 @@ export async function routeAgentSessionRequest(
   const internalPath = resource ? `/${resource}` : "/session";
   const headers = new Headers(request.headers);
   headers.delete("host");
-  const init: RequestInit = { method: request.method, headers };
-  if (request.method !== "GET" && request.method !== "HEAD") {
+  const init: RequestInit & { duplex?: "half" } = {
+    method: request.method,
+    headers,
+  };
+  if (resource?.startsWith("artifacts/") && request.method === "PUT") {
+    init.body = request.body;
+    init.duplex = "half";
+  } else if (request.method !== "GET" && request.method !== "HEAD") {
     const body = await readBoundedText(
       request,
       DEFAULT_AGENT_SESSION_LIMITS.maxRequestBytes,

@@ -133,6 +133,47 @@ export class AgentHttpClient {
     return this.baseUrlValue;
   }
 
+  /** Authorized byte stream; never send a bearer to a returned external URL. */
+  async downloadArtifact(
+    sessionId: string,
+    agentToken: string,
+    path: string,
+    offset = 0,
+    digest?: string,
+  ): Promise<Response> {
+    const prefix = `/api/agent/sessions/${encodeURIComponent(sessionId)}/artifacts/`;
+    if (
+      !path.startsWith(prefix) ||
+      !/^[a-zA-Z0-9_-]{1,128}$/u.test(path.slice(prefix.length))
+    )
+      throw invalidResponseFailure(
+        "Artifact download is outside the authorized session",
+      );
+    const response = await this.send(
+      path,
+      {
+        method: "GET",
+        redirect: "error",
+        headers: {
+          authorization: `Bearer ${agentToken}`,
+          ...(offset
+            ? {
+                range: `bytes=${offset}-`,
+                ...(digest ? { "if-range": `"${digest}"` } : {}),
+              }
+            : {}),
+        },
+      },
+      120_000,
+    );
+    if (!response.ok)
+      throw this.transportError(
+        response.status,
+        await response.json().catch(() => null),
+      );
+    return response;
+  }
+
   /**
    * Redeem a `<sessionId>.<code>` claim code. The session ID travels in the
    * claim code prefix, so the response alone is sufficient afterwards.

@@ -11,7 +11,9 @@ export const agentApiHelp = {
   agentSessionFileResource:
     "Export Project/SVG/PNG/PDF; stage and inspect import candidates; read/update simulation source or retrieve immutable run artifacts. Staging alone never replaces the Project: browser-human confirmation is required. Source updates use their owner's revision; artifact access does not grant arbitrary host files.",
   agentSessionSimulationResource:
-    "Discover Profiles and native authoring help; prepare saved Project-folder or session-workspace source, then start/read/cancel/export runs and batches. Exact start request-ID and payload retries do not execute twice. Read full artifacts when a receipt is a preview. Input/execution failures do not revoke the session; this is not a durable job queue.",
+    "Discover Profiles and native authoring help; prepare saved Project-folder or session-workspace source, then start/read/catalog/cancel/export runs and batches. Catalog returns file roles, datasets, axes, units and representation selectors without samples. Exact start request-ID and payload retries do not execute twice. Download full artifacts for local analysis. Input/execution failures do not revoke the session; this is not a durable job queue.",
+  agentSessionArtifactDownload:
+    "Download immutable simulation bytes with the existing simulation.run bearer. Obtain the path from File simulation-input action download; text action artifact remains a preview. Stream to local disk; Range and If-Range support byte-resume. No browser Cookie or bearer in URLs. A registered transfer remains downloadable while its session is authorized even if the browser is temporarily offline. Session transfer replicas are removed on revocation or expiry; downloaded local files are independent.",
   agentSessionProjectResource:
     "Discover Cells in the signed-in user's Cloud Projects and import one dependency closure as an independent project-local copy through the live editor transaction boundary.",
 };

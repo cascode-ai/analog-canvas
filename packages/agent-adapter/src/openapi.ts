@@ -374,6 +374,58 @@ export const agentCircuitOpenApi = {
     version: AGENT_API_VERSION,
   },
   paths: {
+    "/api/agent/sessions/{sessionId}/artifacts/{fileId}": {
+      get: {
+        operationId: "agentSessionArtifactDownload",
+        description: agentApiHelp.agentSessionArtifactDownload,
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: "sessionId",
+            in: "path",
+            required: true,
+            schema: { type: "string", minLength: 1 },
+          },
+          {
+            name: "fileId",
+            in: "path",
+            required: true,
+            schema: { type: "string", pattern: "^[a-zA-Z0-9_-]{1,128}$" },
+          },
+          {
+            name: "Range",
+            in: "header",
+            schema: { type: "string", pattern: "^bytes=[0-9]+-[0-9]*$" },
+          },
+          { name: "If-Range", in: "header", schema: { type: "string" } },
+        ],
+        responses: {
+          "200": {
+            description: "Complete file byte stream",
+            content: {
+              "application/octet-stream": {
+                schema: { type: "string", format: "binary" },
+              },
+            },
+          },
+          "206": {
+            description: "Requested byte range",
+            headers: { "Content-Range": { schema: { type: "string" } } },
+            content: {
+              "application/octet-stream": {
+                schema: { type: "string", format: "binary" },
+              },
+            },
+          },
+          "401": transportErrorResponse(agentTransportErrorExamples["401"]),
+          "403": { description: "Session is paused or lacks simulation.run" },
+          "404": {
+            description: "No registered transfer for this file and session",
+          },
+          "416": { description: "Invalid or unavailable byte range" },
+        },
+      },
+    },
     "/api/agent/sessions/{sessionId}/status": {
       get: {
         operationId: "agentSessionStatus",
