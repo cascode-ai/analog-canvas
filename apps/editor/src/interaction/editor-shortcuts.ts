@@ -36,6 +36,10 @@ export type EditorShortcutIntent =
   | { kind: "block-browser-bookmark" }
   | { kind: "save" | "open" }
   | { kind: "edit-net-label" | "toggle-display-settings" }
+  | {
+      kind: "toggle-panel";
+      panel: "gallery" | "library" | "netlist";
+    }
   | { kind: "toggle-net-highlight" }
   | { kind: "edit-component-definition" }
   | {
@@ -266,6 +270,15 @@ export function resolveEditorShortcut(
       : { kind: "hierarchy-selection-required" };
   }
 
+  if (plain && key === "g") {
+    return { kind: "toggle-panel", panel: "gallery" };
+  }
+  if (plain && key === "b") {
+    return { kind: "toggle-panel", panel: "library" };
+  }
+  if (plain && key === "n") {
+    return { kind: "toggle-panel", panel: "netlist" };
+  }
   if (plain && key === "c") {
     return { kind: "run-command", command: { id: "selection.copy" } };
   }

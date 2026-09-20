@@ -4752,17 +4752,40 @@ test("edits the complete Project Code with one undo boundary and protects a stal
   await expect(projectCode).toContainText('"name": "Canvas changed"');
 });
 
-test("shows the component-library tooltip without a native hover delay", async ({
+test("keeps panel tooltips visible and exposes panel keyboard shortcuts", async ({
   page,
 }) => {
   await page.goto("/editor");
-  const library = page.getByTestId("library-toggle");
-  if ((await library.getAttribute("aria-pressed")) === "true") {
-    await library.click();
+  const gallery = page.getByTestId("examples-toggle");
+  await expect(gallery).not.toHaveAttribute("title");
+  await expect(gallery).toHaveAttribute("aria-keyshortcuts", "G");
+  await gallery.hover();
+  const tooltip = page.getByRole("tooltip");
+  await expect(tooltip).toContainText("circuit gallery");
+  await expect(tooltip).toContainText("(G)");
+  const tooltipBounds = await tooltip.boundingBox();
+  expect(tooltipBounds).not.toBeNull();
+  expect(tooltipBounds!.x).toBeGreaterThanOrEqual(8);
+  expect(tooltipBounds!.x + tooltipBounds!.width).toBeLessThanOrEqual(
+    await page.evaluate(() => window.innerWidth - 8),
+  );
+
+  const shortcuts = [
+    ["g", "examples-toggle"],
+    ["b", "library-toggle"],
+    ["n", "netlist-panel-toggle"],
+  ] as const;
+  for (const [key, testId] of shortcuts) {
+    const toggle = page.getByTestId(testId);
+    const initialPressed = await toggle.getAttribute("aria-pressed");
+    await page.keyboard.press(key);
+    await expect(toggle).toHaveAttribute(
+      "aria-pressed",
+      initialPressed === "true" ? "false" : "true",
+    );
+    await page.keyboard.press(key);
+    await expect(toggle).toHaveAttribute("aria-pressed", initialPressed!);
   }
-  await expect(library).not.toHaveAttribute("title");
-  await library.hover();
-  await expect(page.getByRole("tooltip")).toHaveText("Show component library");
 });
 
 test("uses automatic recovery and guards shortcuts while typing", async ({

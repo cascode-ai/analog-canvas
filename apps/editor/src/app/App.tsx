@@ -4292,6 +4292,15 @@ export function App({
         case "toggle-net-highlight":
           toggleHighlightedNet();
           return;
+        case "toggle-panel":
+          if (shortcut.panel === "gallery") {
+            toggleExamplesPanel();
+          } else if (shortcut.panel === "library") {
+            toggleLibraryPanel();
+          } else if (shortcut.panel === "netlist") {
+            toggleProjectPanel("netlist");
+          }
+          return;
         case "enter-hierarchy":
           enterSelectedHierarchy();
           return;

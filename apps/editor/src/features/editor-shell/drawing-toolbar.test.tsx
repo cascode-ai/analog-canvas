@@ -29,6 +29,9 @@ describe("DrawingToolbar", () => {
 
     expect(markup).toContain('data-testid="draw-toolbar"');
     expect(markup).toContain('data-testid="examples-toggle"');
+    expect(markup).toContain('aria-keyshortcuts="G"');
+    expect(markup).toContain('aria-keyshortcuts="B"');
+    expect(markup).toContain('aria-keyshortcuts="N"');
     expect(markup).toContain('data-testid="netlist-panel-toggle"');
     expect(markup).toContain('data-testid="project-code-toggle"');
     expect(markup).toContain('data-testid="draw-tool-wire"');
