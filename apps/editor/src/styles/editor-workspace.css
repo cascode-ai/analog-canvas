@@ -763,10 +763,11 @@
 }
 
 .examples-topology-check {
-  flex: 1 0 100%;
+  flex: 0 0 auto;
   display: grid;
+  align-content: start;
   gap: var(--icm-space-2);
-  padding-bottom: var(--icm-space-2);
+  padding: 0 var(--icm-space-2) var(--icm-space-2);
   border-bottom: 1px solid var(--icm-border);
 }
 

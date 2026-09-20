@@ -7,7 +7,11 @@ import {
   createEmptyProject,
   CURRENT_PROJECT_SCHEMA_VERSION,
 } from "@icm/model";
-import { serializeProject, parseProject } from "@icm/project-protocol";
+import {
+  serializeProject,
+  parseProject,
+  CURRENT_PROJECT_FILE_VERSION,
+} from "@icm/project-protocol";
 import { hierarchicalSymbolId } from "@icm/symbols";
 
 import {
@@ -477,6 +481,7 @@ test("the editor Gallery finds exact and nearest matches for the current topolog
     .boundingBox();
   expect(buttonBox).not.toBeNull();
   expect(searchBox).not.toBeNull();
+  expect(buttonBox!.height).toBeLessThan(44);
   expect(buttonBox!.y).toBeLessThan(searchBox!.y);
 
   await check.click();
@@ -1969,7 +1974,7 @@ test("a signed-in member publishes directly, bylined by the account", async ({
       hasAuthor: false,
       name: "Session Publish",
       tags: ["amplifier", "latch"],
-      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+      schemaVersion: CURRENT_PROJECT_FILE_VERSION,
     },
   ]);
 
