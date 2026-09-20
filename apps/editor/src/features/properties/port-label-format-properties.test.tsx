@@ -14,8 +14,8 @@ describe("PortLabelFormatProperties", () => {
     );
 
     expect(markup).toContain('aria-label="Port label formatting"');
-    expect(markup).toContain("Port label rules");
-    expect(markup).toContain("New V… Ports use a bold italic V");
+    expect(markup).toContain("Ports in current Cell");
+    expect(markup).toContain("New hollow Ports start with Vin_p, Vin_n");
     expect(markup).toContain("Existing suffix case");
     expect(markup).toContain('aria-label="Port label suffix case"');
     expect(markup).toContain("Keep typed case");
@@ -25,7 +25,7 @@ describe("PortLabelFormatProperties", () => {
     expect(markup).toContain('aria-label="Port label suffix position"');
     expect(markup).toContain("Subscript");
     expect(markup).toContain("Baseline");
-    expect(markup).toContain("Format all Port labels");
+    expect(markup).toContain("Format all Port labels in this Cell");
     expect(markup).toContain("Formats 3 existing labels in this Cell");
   });
 
@@ -39,7 +39,7 @@ describe("PortLabelFormatProperties", () => {
     );
 
     expect(markup).toContain(
-      '<button type="button" disabled="">Format all Port labels</button>',
+      '<button type="button" disabled="">Format all Port labels in this Cell</button>',
     );
   });
 });

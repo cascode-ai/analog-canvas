@@ -1233,10 +1233,12 @@ test("P shortcut starts Cell Pin placement", async ({ page }) => {
   await canvas.hover({ position: { x: 320, y: 180 } });
   await expect(page.getByTestId("component-placement-preview")).toBeVisible();
   await canvas.click({ position: { x: 320, y: 180 } });
-  await expect(page.getByTestId("status")).toContainText("Added Cell Pin Vin");
+  await expect(page.getByTestId("status")).toContainText(
+    "Added Cell Pin Vin_p",
+  );
   await expect(page.getByTestId("hit-P1")).toBeVisible();
   const inputLabel = page.locator('[data-object-id="instance-label-P1"]');
-  await expect(inputLabel).toHaveText("Vin");
+  await expect(inputLabel).toHaveText("Vin_p");
   await expect(
     inputLabel.locator(
       '[data-text-run="span"][style*="font-style:italic"][style*="font-weight:700"]',
@@ -1246,14 +1248,16 @@ test("P shortcut starts Cell Pin placement", async ({ page }) => {
     inputLabel.locator(
       '[data-text-run="subscript"] [data-text-run="span"][style*="font-style:normal"][style*="font-weight:700"]',
     ),
-  ).toHaveText("in");
+  ).toHaveText("in_p");
 
   await canvas.click({ position: { x: 520, y: 180 } });
-  await expect(page.getByTestId("status")).toContainText("Added Cell Pin Vout");
+  await expect(page.getByTestId("status")).toContainText(
+    "Added Cell Pin Vin_n",
+  );
   const outputLabel = page.locator('[data-object-id="instance-label-P2"]');
-  await expect(outputLabel).toHaveText("Vout");
+  await expect(outputLabel).toHaveText("Vin_n");
   await expect(outputLabel.locator('[data-text-run="subscript"]')).toHaveText(
-    "out",
+    "in_n",
   );
   await page.keyboard.press("Escape");
 
@@ -5614,7 +5618,14 @@ test("docked Style JSON offers bounded choices, scales fonts, and resets appeara
   const label = page.locator('[data-kind="instance-label"]').first();
   await expect(label).toHaveAttribute("font-size", "15.116");
 
-  // Style stays one copyable JSON surface; bounded values gain inline menus.
+  // Properties is the visible, non-modal home for current-Cell Port tools and
+  // the copyable Style JSON surface.
+  const propertiesButton = page.getByTestId("draw-tool-document-style");
+  await expect(propertiesButton).toHaveText("Properties");
+  await expect(propertiesButton).toHaveAttribute(
+    "title",
+    "Properties: Ports, canvas, and selected objects",
+  );
   await clickDrawTool(page, "document-style");
   const settings = page.getByLabel("Document settings");
   const portRules = page.getByRole("region", {
@@ -5623,8 +5634,13 @@ test("docked Style JSON offers bounded choices, scales fonts, and resets appeara
   await expect(settings).toBeVisible();
   await expect(portRules).toBeVisible();
   await expect(portRules).toContainText(
-    "New V… Ports use a bold italic V with the typed suffix upright and subscripted",
+    "New hollow Ports start with Vin_p, Vin_n, then Vout",
   );
+  await expect(
+    portRules.getByRole("button", {
+      name: "Format all Port labels in this Cell",
+    }),
+  ).toBeVisible();
   const portRulesBox = await portRules.boundingBox();
   const settingsBox = await settings.boundingBox();
   expect(portRulesBox).not.toBeNull();

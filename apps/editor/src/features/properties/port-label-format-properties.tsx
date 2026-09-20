@@ -25,10 +25,11 @@ export function PortLabelFormatProperties({
       className="property-section port-label-format-properties"
       aria-label="Port label formatting"
     >
-      <div className="property-section-heading">Port label rules</div>
+      <div className="property-section-heading">Ports in current Cell</div>
       <small>
-        New V… Ports use a bold italic V with the typed suffix upright and
-        subscripted. Other new names keep their authored styling.
+        New hollow Ports start with Vin_p, Vin_n, then Vout. New V… labels use a
+        bold italic V with the typed suffix upright and subscripted. Other new
+        names keep their authored styling.
       </small>
       <div className="port-label-format-controls">
         <label>
@@ -66,7 +67,7 @@ export function PortLabelFormatProperties({
         disabled={labelCount === 0}
         onClick={() => onFormat({ suffixCase, suffixPlacement })}
       >
-        Format all Port labels
+        Format all Port labels in this Cell
       </button>
       <small>
         Formats {labelCount} existing label{labelCount === 1 ? "" : "s"} in this

@@ -268,11 +268,11 @@ export function DrawingToolbar({
         className="draw-tool"
         data-testid="draw-tool-document-style"
         aria-pressed={documentSettingsOpen}
-        title="Document settings"
+        title="Properties: Ports, canvas, and selected objects"
         onClick={onOpenDocumentSettings}
       >
         <ToolIcon name="style" />
-        <span>Style</span>
+        <span>Properties</span>
       </button>
       {simulation ? (
         <button

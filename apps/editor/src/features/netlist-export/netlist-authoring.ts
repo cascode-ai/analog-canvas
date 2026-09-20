@@ -117,13 +117,16 @@ export function nextCellPinName(
     while (unavailable(`VB${ordinal}`)) ordinal += 1;
     return `VB${ordinal}`;
   }
-  let pair = 1;
+  let group = 1;
   while (true) {
-    for (const base of ["Vin", "Vout"] as const) {
-      const name = pair === 1 ? base : `${base}${pair}`;
+    const names =
+      group === 1
+        ? ["Vin_p", "Vin_n", "Vout"]
+        : [`Vin${group}_p`, `Vin${group}_n`, `Vout${group}`];
+    for (const name of names) {
       if (!unavailable(name)) return name;
     }
-    pair += 1;
+    group += 1;
   }
 }
 
