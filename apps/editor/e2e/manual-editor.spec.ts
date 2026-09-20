@@ -3801,7 +3801,7 @@ test("L labels a selected wire or snaps near an unselectable wire", async ({
   await expect(page.getByTestId("flightline")).toHaveCount(0);
 
   // Selection Filter must not disable an electrical creation target.
-  await page.keyboard.press("Control+f");
+  await page.keyboard.press("Control+Shift+f");
   const filter = page.getByTestId("selection-filter-popover");
   await filter.getByRole("button", { name: "None" }).click();
   await filter.getByRole("button", { name: "Close" }).click();
@@ -5243,7 +5243,7 @@ test("Selection Filter blocks direct wire, junction, and shape operations", asyn
     buffer: Buffer.from(JSON.stringify(project)),
   });
 
-  await page.keyboard.press("Control+f");
+  await page.keyboard.press("Control+Shift+f");
   const filter = page.getByTestId("selection-filter-popover");
   await filter.getByRole("button", { name: "None" }).click();
   await filter.getByRole("button", { name: "Close" }).click();
