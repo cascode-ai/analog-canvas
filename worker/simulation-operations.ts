@@ -21,6 +21,7 @@ const MAX_MANAGED_INPUT_BYTES = 2 * 1024 * 1024;
 const CONTROL_NAME = "simulation";
 
 export interface SimulationArtifactObject {
+  readonly body: ReadableStream<Uint8Array>;
   text(): Promise<string>;
 }
 
@@ -443,7 +444,9 @@ export async function routeManagedSimulationRequest(
       return ownedResponse(
         Response.json({ error: "RESULT_EXPIRED" }, { status: 410 }),
       );
-    return new Response(await object.text(), {
+    // R2 already exposes a byte stream. Do not materialize another complete
+    // raw/result envelope in the Worker just to relay it to its owner.
+    return new Response(object.body, {
       headers: {
         "content-type": result.mediaType,
         "cache-control": "private, no-store",

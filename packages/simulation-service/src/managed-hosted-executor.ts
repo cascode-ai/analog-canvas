@@ -60,10 +60,21 @@ export function createManagedHostedExecutor(
         true,
       );
     }
-    const body = (await response.json().catch(() => null)) as Record<
-      string,
-      unknown
-    > | null;
+    let body: Record<string, unknown> | null;
+    try {
+      body = await response.json();
+    } catch {
+      throw new ExecutionFailure(
+        {
+          code: "RUN_RESPONSE_UNKNOWN",
+          message:
+            "The managed response body could not be read completely. The existing run remains server-owned; do not submit a new start.",
+          stage: "read",
+          recovery: "retry-same-request",
+        },
+        true,
+      );
+    }
     if (!response.ok) {
       const code =
         typeof body?.error === "string" ? body.error : "SIMULATION_HTTP_ERROR";

@@ -29,6 +29,73 @@ function startRequest() {
 }
 
 describe("managed simulation operations", () => {
+  it("streams retained results without buffering and checks ownership before accessing bytes", async () => {
+    const { env, jobs, runtime, bucket, close } = harness();
+    try {
+      const accepted = await routeManagedSimulationRequest(
+        startRequest(),
+        env,
+        runtime,
+      );
+      const id = (await accepted!.json()).run.id;
+      await consumeSimulationJobs(
+        { messages: [{ body: jobs[0]!, ack: vi.fn(), retry: vi.fn() }] },
+        env,
+        runtime,
+      );
+      let emitted = 0;
+      const chunk = new Uint8Array(64 * 1024).fill(65);
+      const text = vi.fn(async () => {
+        throw new Error("must not buffer retained evidence");
+      });
+      const get = vi.spyOn(bucket, "get").mockImplementation(async () => ({
+        text,
+        body: new ReadableStream<Uint8Array>({
+          pull(controller) {
+            if (emitted === 256) controller.close();
+            else {
+              emitted++;
+              controller.enqueue(chunk);
+            }
+          },
+        }),
+      }));
+      const url = `https://canvas.test/api/simulation/runs/${id}/result`;
+      const denied = await routeManagedSimulationRequest(
+        new Request(url),
+        env,
+        {
+          ...runtime,
+          principalOf: async () => ({
+            ...(await runtime.principalOf()),
+            id: "other-owner",
+          }),
+        },
+      );
+      expect(denied!.status).toBe(404);
+      expect(get).not.toHaveBeenCalled();
+      const response = await routeManagedSimulationRequest(
+        new Request(url),
+        env,
+        runtime,
+      );
+      expect(emitted).toBeLessThanOrEqual(1);
+      expect(response!.headers.get("cache-control")).toBe("private, no-store");
+      const reader = response!.body!.getReader();
+      let bytes = 0;
+      while (true) {
+        const next = await reader.read();
+        if (next.done) break;
+        bytes += next.value.byteLength;
+        expect(next.value[0]).toBe(65);
+      }
+      expect(bytes).toBe(16 * 1024 * 1024);
+      expect(text).not.toHaveBeenCalled();
+      expect(get).toHaveBeenCalledOnce();
+    } finally {
+      close();
+    }
+  });
   it("reports queued cancellation as terminal, not result-not-ready, without dispatching", async () => {
     const { env, jobs, runtime, close } = harness();
     const execute = vi.fn();

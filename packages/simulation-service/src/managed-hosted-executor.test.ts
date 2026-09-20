@@ -65,6 +65,50 @@ const result = {
 };
 
 describe("managed hosted executor", () => {
+  it("reports broken result streams as uncertain and preserves admission identity on retry", async () => {
+    let resultReads = 0;
+    const fetch = vi.fn<typeof globalThis.fetch>(async (path) => {
+      if (String(path).endsWith("/result")) {
+        if (++resultReads === 1)
+          return new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.error(new Error("connection lost"));
+              },
+            }),
+          );
+        return Response.json(result);
+      }
+      return Response.json({
+        run: { ...baseRun, state: "succeeded", finishedAt: 3 },
+      });
+    });
+    const executor = createManagedHostedExecutor({ fetch });
+    const identity = {
+      preparedId: "prepared-a",
+      preparedDigest: "b".repeat(64),
+    };
+    await expect(
+      executor.execute(input, "request-a", undefined, identity),
+    ).rejects.toMatchObject({
+      problem: {
+        code: "RUN_RESPONSE_UNKNOWN",
+        recovery: "retry-same-request",
+        stage: "read",
+      },
+    });
+    await expect(
+      executor.execute(input, "request-a", undefined, identity),
+    ).resolves.toMatchObject({ result: { outcome: { status: "completed" } } });
+    const admissions = fetch.mock.calls.filter(
+      ([, init]) => init?.method === "POST",
+    );
+    expect(admissions).toHaveLength(2);
+    // Re-admission uses the same request and immutable input, so the server's
+    // existing idempotency record resolves to the original run, not a new run.
+    expect(admissions[0]?.[1]?.body).toBe(admissions[1]?.[1]?.body);
+    expect(resultReads).toBe(2);
+  });
   it("keeps a failed analysis result instead of replacing its evidence with the run error", async () => {
     const failed = {
       ...result,

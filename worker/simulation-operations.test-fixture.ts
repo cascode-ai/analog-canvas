@@ -3,6 +3,7 @@ import { nativeWorkerEnv } from "./simulation.test-fixture";
 import { SimulationControlDO } from "./simulation-control-do";
 import type {
   SimulationArtifactBucket,
+  SimulationArtifactObject,
   SimulationJobMessage,
   SimulationOperationsEnv,
 } from "./simulation-operations";
@@ -47,9 +48,11 @@ function sqliteState() {
 
 class MemoryBucket implements SimulationArtifactBucket {
   readonly objects = new Map<string, string>();
-  async get(key: string) {
+  async get(key: string): Promise<SimulationArtifactObject | null> {
     const value = this.objects.get(key);
-    return value === undefined ? null : { text: async () => value };
+    return value === undefined
+      ? null
+      : { body: new Blob([value]).stream(), text: async () => value };
   }
   async put(key: string, value: string) {
     this.objects.set(key, value);
