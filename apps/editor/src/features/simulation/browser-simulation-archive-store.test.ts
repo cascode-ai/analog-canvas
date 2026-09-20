@@ -42,6 +42,89 @@ function archive(id: string, createdAt: string): SimulationRunArchiveV1 {
 }
 
 describe("browser simulation archive store", () => {
+  it("backfills old shared-body references once under concurrent reconciliation without reading bodies", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArchiveStore({ idbFactory: factory });
+    const evidence = createBrowserSimulationArtifactStore("project", factory)!;
+    const original: SimulationRunArchiveV1 = {
+      ...archive("legacy-shared", new Date(0).toISOString()),
+      artifacts: [
+        {
+          originalId: "legacy-body",
+          name: "result.raw",
+          mediaType: "text/plain",
+          byteLength: 4,
+          sha256: "a".repeat(64),
+          text: "data",
+        },
+      ],
+      byteLength: 4,
+    };
+    expect((await store.save(original)).ok).toBe(true);
+    const previousKey = await new Promise<string>((resolve, reject) => {
+      const request = factory.open("analog-canvas-simulation-archives");
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction("runs", "readwrite");
+        let key: string;
+        const get = tx.objectStore("runs").get(original.id);
+        get.onsuccess = () => {
+          const { retentionKey, ...old } = get.result;
+          key = retentionKey;
+          tx.objectStore("runs").put(old, original.id);
+        };
+        tx.oncomplete = () => {
+          db.close();
+          resolve(key!);
+        };
+        tx.onerror = () => {
+          db.close();
+          reject(tx.error);
+        };
+      };
+    });
+    await evidence.releaseReferences(previousKey);
+    expect(await evidence.referencedArtifactIds()).toEqual([]);
+    const peer = createBrowserSimulationArchiveStore({ idbFactory: factory });
+    const originalGet = IDBObjectStore.prototype.get;
+    const get = vi
+      .spyOn(IDBObjectStore.prototype, "get")
+      .mockImplementation(function (this: IDBObjectStore, key) {
+        if (this.name === "bodies")
+          throw new Error("Migration must not read body content");
+        return originalGet.call(this, key);
+      });
+    try {
+      const replies = await Promise.all([
+        store.reconcileReferences("project"),
+        peer.reconcileReferences("project"),
+      ]);
+      expect(replies.every((reply) => reply.ok)).toBe(true);
+      expect(
+        replies.reduce((n, reply) => n + (reply.ok ? reply.value : 0), 0),
+      ).toBe(1);
+      expect(await evidence.referencedArtifactIds()).toEqual(["legacy-body"]);
+      expect(await store.reconcileReferences("other")).toEqual({
+        ok: true,
+        value: 0,
+      });
+    } finally {
+      get.mockRestore();
+    }
+    expect(await store.read(original.id)).toEqual({
+      ok: true,
+      value: original,
+    });
+    expect(await store.reconcileReferences("project")).toEqual({
+      ok: true,
+      value: 0,
+    });
+    await store.delete(original.id);
+    expect(await evidence.referencedArtifactIds()).toEqual([]);
+    store.close();
+    peer.close();
+  });
   it("rolls back new ownership when archive publication fails without releasing old evidence", async () => {
     const factory = new IDBFactory();
     const store = createBrowserSimulationArchiveStore({ idbFactory: factory });
@@ -195,6 +278,10 @@ describe("browser simulation archive store", () => {
     });
     filesDb.close();
     expect(await reopened.read("second")).toMatchObject({
+      ok: false,
+      message: expect.stringContaining("ARTIFACT_UNAVAILABLE"),
+    });
+    expect(await reopened.reconcileReferences("project")).toMatchObject({
       ok: false,
       message: expect.stringContaining("ARTIFACT_UNAVAILABLE"),
     });

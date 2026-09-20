@@ -56,6 +56,10 @@ export interface BrowserSimulationArchiveStore {
     archive: SimulationRunArchiveV1,
   ): Promise<SimulationArchiveStoreResult<SimulationRunArchiveSummary>>;
   delete(id: string): Promise<SimulationArchiveStoreResult<boolean>>;
+  /** Protect pre-reference-registry archives before any physical reclamation. */
+  reconcileReferences(
+    projectId: string,
+  ): Promise<SimulationArchiveStoreResult<number>>;
   close(): void;
 }
 
@@ -239,6 +243,63 @@ export function createBrowserSimulationArchiveStore(
   }
 
   return {
+    async reconcileReferences(projectId) {
+      try {
+        const db = await open();
+        const directory = db.transaction(DIRECTORY_NAME, "readonly");
+        const summaries = (await requestValue(
+          directory
+            .objectStore(DIRECTORY_NAME)
+            .index("projectId")
+            .getAll(projectId),
+        )) as SimulationRunArchiveSummary[];
+        await transactionDone(directory);
+        let registered = 0;
+        // Self-contained legacy archives do not depend on shared file bodies.
+        for (const summary of summaries) {
+          const read = db.transaction(STORE_NAME, "readonly");
+          const record = (await requestValue(
+            read.objectStore(STORE_NAME).get(summary.id),
+          )) as StoredArchive | undefined;
+          await transactionDone(read);
+          if (
+            !record ||
+            record.projectId !== projectId ||
+            record.storageFormat !== "artifact-references-v1"
+          )
+            continue;
+          const retentionKey =
+            record.retentionKey ??
+            `archive:${record.id}:${crypto.randomUUID()}`;
+          await evidenceStore(projectId).retainReferences(
+            retentionKey,
+            record.artifacts.map((file) => file.storageId),
+          );
+          if (record.retentionKey) continue;
+          const next = { ...record, retentionKey };
+          try {
+            const tx = db.transaction(STORE_NAME, "readwrite");
+            const done = transactionDone(tx);
+            void done.catch(() => {});
+            const store = tx.objectStore(STORE_NAME);
+            const current = await requestValue(store.get(record.id));
+            // Compare metadata, never overwrite a concurrent replacement/delete.
+            const unchanged =
+              JSON.stringify(current) === JSON.stringify(record);
+            if (unchanged) store.put(next, record.id);
+            await done;
+            if (unchanged) registered++;
+            else await release(next);
+          } catch (error) {
+            await release(next);
+            throw error;
+          }
+        }
+        return { ok: true, value: registered };
+      } catch (error) {
+        return failure(error);
+      }
+    },
     async list(projectId) {
       try {
         const db = await open();
