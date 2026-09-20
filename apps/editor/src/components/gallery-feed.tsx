@@ -1,5 +1,5 @@
 import { GalleryAttentionReview } from "./gallery-attention-review";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { TilePreview } from "./tile-preview";
 import "../styles/gallery-entry.css";
 
@@ -10,6 +10,7 @@ import {
   galleryPreviewUrl,
   loadGalleryAuthors,
   loadGalleryFeed,
+  loadGalleryTagSummary,
   loadGalleryTags,
   subscribeGalleryRefresh,
   type GalleryAuthorOption,
@@ -17,7 +18,7 @@ import {
   type GalleryFeedPage,
   type GalleryFeedState,
   type GalleryTagOption,
-  type GalleryTagGroupOption,
+  type GalleryLandingPreload,
 } from "../gallery-client";
 import {
   GALLERY_FILTERS_KEY,
@@ -48,9 +49,16 @@ import { fetchSessionUser } from "./account";
 import { GalleryChrome } from "./gallery-chrome";
 import { GalleryTagSidebar } from "./gallery-tag-sidebar";
 import { Masonry } from "./masonry";
-import { ShelfWall } from "./shelf-wall";
-import { GalleryDuplicateCheck } from "./gallery-duplicate-check";
 import type { GalleryDuplicateReport } from "../gallery-duplicates";
+
+const ShelfWall = lazy(() =>
+  import("./shelf-wall").then((module) => ({ default: module.ShelfWall })),
+);
+const GalleryDuplicateCheck = lazy(() =>
+  import("./gallery-duplicate-check").then((module) => ({
+    default: module.GalleryDuplicateCheck,
+  })),
+);
 
 const OWNER_REJECT_REASONS = [
   "too ugly",
@@ -452,8 +460,10 @@ function savedAtLabel(createdAt: string): string {
  */
 export function GalleryFeed({
   visitStats,
+  preload,
 }: {
   visitStats?: { pv: number; uv: number } | null | undefined;
+  preload?: GalleryLandingPreload;
 }) {
   // Which wall, whose circuits, which tags, which words, which marks: one
   // state, because a reader changes them for one reason. It rides in the URL
@@ -544,32 +554,22 @@ export function GalleryFeed({
 
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
-      try {
-        const response = await fetch("/api/gallery/tags", {
-          credentials: "same-origin",
-        });
-        if (!response.ok) return;
-        const payload = (await response.json()) as {
-          tags?: { tag: string; count: number }[];
-          groups?: GalleryTagGroupOption[];
-        };
-        if (!cancelled) {
-          setTagOptions(payload.tags ?? []);
-          setTagGroupCounts(
-            Object.fromEntries(
-              (payload.groups ?? []).map(({ group, count }) => [group, count]),
-            ),
-          );
-        }
-      } catch {
-        // No menu without the worker; the wall itself still works.
+    const request =
+      refreshSignal === 0 && preload ? preload.tags : loadGalleryTagSummary();
+    void request.then((payload) => {
+      if (!cancelled) {
+        setTagOptions(payload.tags);
+        setTagGroupCounts(
+          Object.fromEntries(
+            payload.groups.map(({ group, count }) => [group, count]),
+          ),
+        );
       }
-    })();
+    });
     return () => {
       cancelled = true;
     };
-  }, [refreshSignal]);
+  }, [preload, refreshSignal]);
   const [state, setState] = useState<GalleryFeedState>({
     status: "loading",
     entries: [],
@@ -668,14 +668,18 @@ export function GalleryFeed({
         total: null,
       });
     }
-    void loadGalleryFeed(fetch, {
-      author,
-      ownerUserId,
-      tags: selectedTags,
-      netlistable: netlistableOnly,
-      liked: likedOnly,
-      attention: attentionOnly,
-    }).then((page) => {
+    const request =
+      refreshSignal === 0 && preload?.feed
+        ? preload.feed
+        : loadGalleryFeed(fetch, {
+            author,
+            ownerUserId,
+            tags: selectedTags,
+            netlistable: netlistableOnly,
+            liked: likedOnly,
+            attention: attentionOnly,
+          });
+    void request.then((page) => {
       if (cancelled || generation !== feedGenerationRef.current) return;
       firstPageLoadingRef.current = false;
       if (page) {
@@ -701,6 +705,7 @@ export function GalleryFeed({
     netlistableOnly,
     likedOnly,
     attentionOnly,
+    preload,
     refreshSignal,
   ]);
 
@@ -943,7 +948,17 @@ export function GalleryFeed({
           />
         ) : null}
       </div>
-      {view === "shelf" ? <ShelfWall /> : null}
+      {view === "shelf" ? (
+        <Suspense
+          fallback={
+            <p className="gallery-status" data-testid="shelf-loading">
+              Loading your shelf…
+            </p>
+          }
+        >
+          <ShelfWall />
+        </Suspense>
+      ) : null}
 
       {view === "gallery" ? (
         <div className="gallery-browser">
@@ -1011,15 +1026,17 @@ export function GalleryFeed({
             }
             adminTools={
               isOwner ? (
-                <GalleryDuplicateCheck
-                  onReport={setDuplicateReport}
-                  onRecycled={(ids) => {
-                    // The scan covers the whole library, while this feed may
-                    // be filtered. Let the server recalculate its counts.
-                    setRefreshSignal((signal) => signal + 1);
-                    if (ids[0]) announceGalleryChange({ entryId: ids[0] });
-                  }}
-                />
+                <Suspense fallback={null}>
+                  <GalleryDuplicateCheck
+                    onReport={setDuplicateReport}
+                    onRecycled={(ids) => {
+                      // The scan covers the whole library, while this feed may
+                      // be filtered. Let the server recalculate its counts.
+                      setRefreshSignal((signal) => signal + 1);
+                      if (ids[0]) announceGalleryChange({ entryId: ids[0] });
+                    }}
+                  />
+                </Suspense>
               ) : null
             }
           />

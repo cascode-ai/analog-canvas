@@ -2,9 +2,15 @@ import {
   isAgentSessionScope,
   type AgentSessionScope,
 } from "@icm/agent-adapter";
+import {
+  AGENT_SESSION_RECOVERY_STORAGE_KEY,
+  type BrowserStorageLike,
+} from "./session-recovery-presence";
 
-export const AGENT_SESSION_RECOVERY_STORAGE_KEY =
-  "icm.agent-session-recovery.v1";
+export {
+  AGENT_SESSION_RECOVERY_STORAGE_KEY,
+  type BrowserStorageLike,
+} from "./session-recovery-presence";
 
 export interface AgentSessionRecoveryRecord {
   readonly version: 1;
@@ -14,12 +20,6 @@ export interface AgentSessionRecoveryRecord {
   readonly projectSessionId: string;
   readonly scopes: readonly AgentSessionScope[];
   readonly expiresAt: number;
-}
-
-export interface BrowserStorageLike {
-  getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
-  removeItem(key: string): void;
 }
 
 export interface RecoveryTarget {

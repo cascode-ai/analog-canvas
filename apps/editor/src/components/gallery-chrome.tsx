@@ -1,6 +1,6 @@
 import { AccountMenu } from "./account";
 import { BugReportLink } from "./bug-report-link";
-import { peekAgentSessionRecovery } from "../agent/session-recovery";
+import { hasAgentSessionRecovery } from "../agent/session-recovery-presence";
 
 /**
  * The one gallery site header, shared by the feed and every gallery
@@ -16,9 +16,8 @@ export function GalleryChrome({
   visitStats?: { pv: number; uv: number } | null | undefined;
 }) {
   const paired =
-    typeof window === "undefined"
-      ? null
-      : peekAgentSessionRecovery(window.sessionStorage);
+    typeof window !== "undefined" &&
+    hasAgentSessionRecovery(window.sessionStorage);
   return (
     <header className="gallery-chrome">
       <div className="app-brand">

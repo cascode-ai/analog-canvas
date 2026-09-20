@@ -1151,9 +1151,12 @@ test("the left sidebar hosts overall search and grouped tags at desktop, half-sc
     "current mirror",
     "ldo",
   ];
+  let tagRequestCount = 0;
+  let galleryRequestCount = 0;
   await page.route("**/api/gallery**", (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/gallery/tags") {
+      tagRequestCount += 1;
       return route.fulfill({
         json: {
           tags: tags.map((tag, index) => ({ tag, count: index + 1 })),
@@ -1162,6 +1165,7 @@ test("the left sidebar hosts overall search and grouped tags at desktop, half-sc
       });
     }
     if (url.pathname !== "/api/gallery") return route.fallback();
+    galleryRequestCount += 1;
     return route.fulfill({
       json: {
         entries: [
@@ -1190,6 +1194,8 @@ test("the left sidebar hosts overall search and grouped tags at desktop, half-sc
   const sidebar = page.getByTestId("gallery-tag-sidebar");
   const tile = page.getByTestId("gallery-tile-t-one");
   await expect(sidebar).toBeVisible();
+  await expect.poll(() => tagRequestCount).toBe(1);
+  await expect.poll(() => galleryRequestCount).toBe(1);
   await expect(page.getByText("Browse", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Categories", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Tagged circuits", { exact: true })).toHaveCount(
@@ -1588,6 +1594,9 @@ test("the wall states how many circuits the gallery holds", async ({
   await page.route("**/api/gallery/tags", (route) =>
     route.fulfill({ json: { tags: [] } }),
   );
+  await page.route("**/api/projects", (route) =>
+    route.fulfill({ status: 401, json: { error: "authentication-required" } }),
+  );
   await page.goto("/");
   await expect(page.getByTestId("gallery-count-panel")).toHaveText(
     "128 circuits",
@@ -1595,6 +1604,7 @@ test("the wall states how many circuits the gallery holds", async ({
   // The shelf states its own count; the community total stays off it.
   await page.getByTestId("gallery-view-shelf").click();
   await expect(page.getByTestId("gallery-count-panel")).toHaveCount(0);
+  await expect(page.getByTestId("shelf-signed-out")).toBeVisible();
 });
 
 test("the wall count opens a contributor ranking whose names open each gallery", async ({

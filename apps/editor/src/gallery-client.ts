@@ -301,6 +301,16 @@ export interface GalleryTagGroupOption {
   count: number;
 }
 
+export interface GalleryTagSummary {
+  tags: GalleryTagOption[];
+  groups: GalleryTagGroupOption[];
+}
+
+export interface GalleryLandingPreload {
+  feed?: Promise<GalleryFeedPage | null>;
+  tags: Promise<GalleryTagSummary>;
+}
+
 /** One public byline and its contribution to the whole Gallery wall. */
 export interface GalleryAuthorOption {
   author: string;
@@ -375,22 +385,27 @@ export async function loadGalleryAuthors(
   }
 }
 
-/** The tag menu's options. An unreachable worker leaves the menu empty. */
-export async function loadGalleryTags(
+/** The grouped tag menu. An unreachable worker leaves the menu empty. */
+export async function loadGalleryTagSummary(
   fetchLike: typeof fetch = fetch,
-): Promise<GalleryTagOption[]> {
+): Promise<GalleryTagSummary> {
   try {
     const response = await fetchLike("/api/gallery/tags", {
       credentials: "same-origin",
     });
-    if (!response.ok) return [];
-    const payload = (await response.json()) as {
-      tags?: GalleryTagOption[];
-    };
-    return payload.tags ?? [];
+    if (!response.ok) return { tags: [], groups: [] };
+    const payload = (await response.json()) as Partial<GalleryTagSummary>;
+    return { tags: payload.tags ?? [], groups: payload.groups ?? [] };
   } catch {
-    return [];
+    return { tags: [], groups: [] };
   }
+}
+
+/** Backward-compatible tag-only reader for the Editor's narrow Gallery dock. */
+export async function loadGalleryTags(
+  fetchLike: typeof fetch = fetch,
+): Promise<GalleryTagOption[]> {
+  return (await loadGalleryTagSummary(fetchLike)).tags;
 }
 
 /**

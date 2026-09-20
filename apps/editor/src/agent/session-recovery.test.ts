@@ -7,6 +7,7 @@ import {
   writeAgentSessionRecovery,
   type BrowserStorageLike,
 } from "./session-recovery";
+import { hasAgentSessionRecovery } from "./session-recovery-presence";
 
 class MemoryStorage implements BrowserStorageLike {
   readonly values = new Map<string, string>();
@@ -54,12 +55,25 @@ describe("Agent same-browser session recovery", () => {
     writeAgentSessionRecovery(storage, record());
 
     expect(readAgentSessionRecovery(storage, target)).toEqual(record());
+    expect(hasAgentSessionRecovery(storage)).toBe(true);
     expect(storage.getItem(AGENT_SESSION_RECOVERY_STORAGE_KEY)).not.toContain(
       "agentToken",
     );
     expect(storage.getItem(AGENT_SESSION_RECOVERY_STORAGE_KEY)).not.toContain(
       "claimCode",
     );
+  });
+
+  it("checks Gallery recovery presence without accepting malformed storage", () => {
+    const storage = new MemoryStorage();
+    expect(hasAgentSessionRecovery(storage)).toBe(false);
+    storage.setItem(AGENT_SESSION_RECOVERY_STORAGE_KEY, "not-json");
+    expect(hasAgentSessionRecovery(storage)).toBe(false);
+    storage.setItem(
+      AGENT_SESSION_RECOVERY_STORAGE_KEY,
+      JSON.stringify({ ...record(), sessionId: "" }),
+    );
+    expect(hasAgentSessionRecovery(storage)).toBe(false);
   });
 
   it("deletes a malformed, expired, or Project-mismatched record", () => {

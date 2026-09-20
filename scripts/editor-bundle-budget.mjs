@@ -1,9 +1,8 @@
-// Editor first-paint byte budget.
+// Editor and Gallery first-paint byte budgets.
 //
-// The eager set is whatever `/editor` and `/g/<id>` fetch before the first
-// schematic pixel: the static shell plus every asset the path-gated preload
-// script injects. That script is generated from Vite's real chunk graph by
-// `apps/editor/build/editor-preload.ts`, so this measures the shipping
+// Each eager set is the static shell plus the matching assets injected by the
+// path-gated preload script. That script is generated from Vite's real chunk
+// graph by `apps/editor/build/editor-preload.ts`, so this measures the shipping
 // decision, not a guess about it.
 //
 //   node scripts/editor-bundle-budget.mjs           # report, rewrite ceilings
@@ -19,79 +18,99 @@ import { brotliCompressSync, gzipSync } from "node:zlib";
 
 const check = process.argv.includes("--check");
 const distDir = resolve(
-  process.argv.find((a) => a.startsWith("--dist="))?.slice(7) ??
+  process.argv.find((argument) => argument.startsWith("--dist="))?.slice(7) ??
     "apps/editor/dist",
 );
 const budgetPath = resolve("fixtures/editor-bundle-budget/report.json");
 
 const html = await readFile(join(distDir, "index.html"), "utf8");
-
-/** Assets `/editor` fetches before it can paint. */
-const eager = new Set();
-// Static shell: the module entry, static modulepreloads and stylesheets.
+const shell = new Set();
 for (const match of html.matchAll(
   /<(?:script|link)[^>]*?(?:src|href)="(\/assets\/[^"]+)"/g,
 )) {
-  eager.add(match[1]);
+  shell.add(match[1]);
 }
-// The path-gated inline preload: [["modulepreload","/assets/x.js"], ...]
-for (const match of html.matchAll(
-  /\["(?:modulepreload|preload)","(\/assets\/[^"]+)"\]/g,
-)) {
-  eager.add(match[1]);
-}
-if (eager.size === 0) {
+if (shell.size === 0) {
   throw new Error(
     `No eager assets found in ${join(distDir, "index.html")}. Was the editor built?`,
   );
 }
 
-const rows = [];
-for (const href of eager) {
-  const path = join(distDir, href.replace(/^\//u, ""));
-  const bytes = await readFile(path);
-  rows.push({
-    file: basename(href),
-    raw: bytes.byteLength,
-    gzip: gzipSync(bytes, { level: 9 }).byteLength,
-    brotli: brotliCompressSync(bytes).byteLength,
-  });
+function routeAssets(route) {
+  const match = new RegExp(
+    `const ${route}Resources = (\\[\\[.*?\\]\\]);`,
+    "s",
+  ).exec(html);
+  if (!match) {
+    throw new Error(`No ${route} preload resources found in index.html`);
+  }
+  return new Set([...shell, ...JSON.parse(match[1]).map((entry) => entry[1])]);
 }
-rows.sort((left, right) => right.gzip - left.gzip);
 
 const kib = (value) => Math.round((value / 1024) * 10) / 10;
-const totals = {
-  files: rows.length,
-  rawKib: kib(rows.reduce((sum, row) => sum + row.raw, 0)),
-  gzipKib: kib(rows.reduce((sum, row) => sum + row.gzip, 0)),
-  brotliKib: kib(rows.reduce((sum, row) => sum + row.brotli, 0)),
+
+async function measure(route) {
+  const rows = [];
+  for (const href of routeAssets(route)) {
+    const path = join(distDir, href.replace(/^\//u, ""));
+    const bytes = await readFile(path);
+    rows.push({
+      file: basename(href),
+      raw: bytes.byteLength,
+      gzip: gzipSync(bytes, { level: 9 }).byteLength,
+      brotli: brotliCompressSync(bytes).byteLength,
+    });
+  }
+  rows.sort((left, right) => right.gzip - left.gzip);
+  return {
+    rows,
+    totals: {
+      files: rows.length,
+      rawKib: kib(rows.reduce((sum, row) => sum + row.raw, 0)),
+      gzipKib: kib(rows.reduce((sum, row) => sum + row.gzip, 0)),
+      brotliKib: kib(rows.reduce((sum, row) => sum + row.brotli, 0)),
+    },
+  };
+}
+
+const measuredRoutes = {
+  editor: await measure("editor"),
+  gallery: await measure("gallery"),
 };
 
-process.stdout.write(
-  `\n/editor eager payload: ${totals.files} files, ` +
-    `${totals.rawKib} KiB raw, ${totals.gzipKib} KiB gzip, ${totals.brotliKib} KiB brotli\n`,
-);
-process.stdout.write("  largest (gzip):\n");
-for (const row of rows.slice(0, 8)) {
+for (const [route, { rows, totals }] of Object.entries(measuredRoutes)) {
   process.stdout.write(
-    `    ${String(kib(row.gzip)).padStart(7)} KiB  ${row.file}\n`,
+    `\n/${route} eager payload: ${totals.files} files, ` +
+      `${totals.rawKib} KiB raw, ${totals.gzipKib} KiB gzip, ${totals.brotliKib} KiB brotli\n`,
   );
+  process.stdout.write("  largest (gzip):\n");
+  for (const row of rows.slice(0, 8)) {
+    process.stdout.write(
+      `    ${String(kib(row.gzip)).padStart(7)} KiB  ${row.file}\n`,
+    );
+  }
 }
 
 if (!check) {
   // Ceilings carry a little slack so an unrelated rename does not trip them;
   // the point is to catch a step change, not to pin today's number.
   const ceiling = (value) => Math.ceil(value * 1.02);
-  const report = {
-    version: "0.1.0",
-    note: "Ceilings for the /editor first-paint payload. Raising one requires a recorded reason; a faster or slower machine is not one.",
+  const routeReport = (totals) => ({
     budget: {
-      files: totals.files,
+      files: ceiling(totals.files),
       rawKib: ceiling(totals.rawKib),
       gzipKib: ceiling(totals.gzipKib),
       brotliKib: ceiling(totals.brotliKib),
     },
     measured: totals,
+  });
+  const report = {
+    version: "0.2.0",
+    note: "Ceilings for the /editor and / Gallery first-paint payloads. Raising one requires a recorded reason; a faster or slower machine is not one.",
+    routes: {
+      editor: routeReport(measuredRoutes.editor.totals),
+      gallery: routeReport(measuredRoutes.gallery.totals),
+    },
   };
   await mkdir(resolve("fixtures/editor-bundle-budget"), { recursive: true });
   await writeFile(budgetPath, `${JSON.stringify(report, null, 2)}\n`);
@@ -99,17 +118,23 @@ if (!check) {
 } else {
   const report = JSON.parse(await readFile(budgetPath, "utf8"));
   const failures = [];
-  for (const key of ["files", "rawKib", "gzipKib", "brotliKib"]) {
-    const ceiling = report.budget[key];
-    const measured = totals[key];
-    if (measured > ceiling) {
-      failures.push(`${key}: ${measured} exceeds the ${ceiling} ceiling`);
+  for (const [route, measurement] of Object.entries(measuredRoutes)) {
+    for (const key of ["files", "rawKib", "gzipKib", "brotliKib"]) {
+      const ceiling = report.routes?.[route]?.budget?.[key];
+      const measured = measurement.totals[key];
+      if (typeof ceiling !== "number") {
+        failures.push(`/${route} ${key}: budget is missing`);
+      } else if (measured > ceiling) {
+        failures.push(
+          `/${route} ${key}: ${measured} exceeds the ${ceiling} ceiling`,
+        );
+      }
     }
   }
   if (failures.length > 0) {
     process.stdout.write(
-      `\nEditor eager payload exceeded its budget:\n  ${failures.join("\n  ")}\n` +
-        `\nLargest chunks:\n${rows
+      `\nRoute eager payload exceeded its budget:\n  ${failures.join("\n  ")}\n` +
+        `\nLargest Gallery chunks:\n${measuredRoutes.gallery.rows
           .slice(0, 8)
           .map(
             (row) => `  ${String(kib(row.gzip)).padStart(7)} KiB  ${row.file}`,
