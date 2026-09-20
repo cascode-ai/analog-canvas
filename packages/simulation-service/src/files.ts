@@ -33,6 +33,15 @@ export class ArtifactDownloadError extends Error {
   }
 }
 const TTL = 15 * 60_000;
+export const MAX_ARTIFACT_BYTES = 64 * 1024 * 1024;
+export const MAX_ARTIFACT_STORE_BYTES = 1024 * 1024 * 1024;
+export const MAX_ARTIFACT_FILES = 1024;
+const CACHE_BYTES = 16 * 1024 * 1024;
+export interface SimulationArtifactStore {
+  put(ref: ArtifactRef, text: string): Promise<void>;
+  get(id: string): Promise<{ ref: ArtifactRef; text: string } | null>;
+}
+type CachedArtifact = { ref: ArtifactRef; text?: string };
 export { sha256 } from "./content-digest.js";
 export function safeInputPath(path: string): boolean {
   return isSimulationInputPath(path);
@@ -61,16 +70,14 @@ export class SimulationFiles {
   }
   private epoch = 0;
   private workspaces = new Map<string, Workspace>();
-  private artifacts = new Map<
-    string,
-    { ref: ArtifactRef; text: string; expiresAt: number }
-  >();
+  private artifacts = new Map<string, CachedArtifact>();
   constructor(
     private now: () => number = Date.now,
     private projectHost?: ProjectSimulationFileHost,
     private selectEngine?: (
       folder: import("@icm/model").ProjectSimulationFolder,
     ) => Promise<"ngspice" | "vacask">,
+    private artifactStore?: SimulationArtifactStore,
   ) {}
   clear() {
     this.epoch++;
@@ -86,8 +93,6 @@ export class SimulationFiles {
     const now = this.now();
     for (const [id, w] of this.workspaces)
       if (w.expiresAt <= now) this.workspaces.delete(id);
-    for (const [id, a] of this.artifacts)
-      if (a.expiresAt <= now) this.artifacts.delete(id);
   }
   async handle(
     input: unknown,
@@ -148,11 +153,36 @@ export class SimulationFiles {
       return { ok: true as const, workspace: structuredClone(workspace) };
     }
     if (op.action === "artifact" || op.action === "download") {
-      const item = this.artifacts.get(op.artifactId);
+      const epoch = this.epoch;
+      let item = this.artifacts.get(op.artifactId);
+      if (!item && this.artifactStore) {
+        try {
+          const restored = await this.artifactStore.get(op.artifactId);
+          if (epoch !== this.epoch)
+            return problem(
+              "SESSION_CHANGED",
+              "The file session changed",
+              "export",
+              "reauthorize",
+            );
+          if (restored) {
+            item = restored;
+            this.artifacts.set(restored.ref.id, restored);
+            this.trimCache();
+          }
+        } catch {
+          return problem(
+            "ARTIFACT_STORAGE_UNAVAILABLE",
+            "Persistent evidence could not be read; retry without restarting the simulation",
+            "export",
+            "retry-after",
+          );
+        }
+      }
       if (!item)
         return problem(
           "ARTIFACT_UNAVAILABLE",
-          "Artifact expired or was not created in this session",
+          "Artifact is not available in this Project's evidence storage",
           "export",
           "not-retryable",
         );
@@ -210,19 +240,37 @@ export class SimulationFiles {
           );
         }
       }
-      if (op.offset > item.text.length)
+      let text: string;
+      try {
+        text = await this.artifactText(item);
+      } catch {
+        return problem(
+          "ARTIFACT_STORAGE_UNAVAILABLE",
+          "Persistent evidence could not be read",
+          "export",
+          "retry-after",
+        );
+      }
+      if (epoch !== this.epoch)
+        return problem(
+          "SESSION_CHANGED",
+          "The file session changed",
+          "export",
+          "reauthorize",
+        );
+      if (op.offset > text.length)
         return problem(
           "ARTIFACT_OFFSET_INVALID",
           "Offset exceeds artifact length",
           "export",
         );
-      const end = Math.min(item.text.length, op.offset + op.maxChars);
+      const end = Math.min(text.length, op.offset + op.maxChars);
       return {
         ok: true as const,
         artifact: item.ref,
-        text: item.text.slice(op.offset, end),
+        text: text.slice(op.offset, end),
         offset: op.offset,
-        nextOffset: end < item.text.length ? end : null,
+        nextOffset: end < text.length ? end : null,
       };
     }
     const owner = op.owner as Extract<
@@ -343,7 +391,63 @@ export class SimulationFiles {
     this.workspaces.set(next.id, next);
     return this.listWorkspace(next);
   }
-  private startDownload(item: { ref: ArtifactRef; text: string }) {
+  private trimCache() {
+    if (!this.artifactStore) return;
+    let bytes = [...this.artifacts.values()].reduce(
+      (n, item) => n + (item.text === undefined ? 0 : item.ref.byteLength),
+      0,
+    );
+    for (const item of this.artifacts.values()) {
+      if (bytes <= CACHE_BYTES) break;
+      if (item.text !== undefined) {
+        delete item.text;
+        bytes -= item.ref.byteLength;
+      }
+    }
+  }
+  private async artifactText(item: CachedArtifact): Promise<string> {
+    if (item.text !== undefined) return item.text;
+    const restored = await this.artifactStore?.get(item.ref.id);
+    if (!restored) throw new Error("ARTIFACT_UNAVAILABLE");
+    return restored.text;
+  }
+  /** Host-local whole-file access. Never embed this body in the relay RPC. */
+  async readArtifact(
+    id: string,
+  ): Promise<
+    | { ok: true; artifact: ArtifactRef; text: string }
+    | { ok: false; error: Problem }
+  > {
+    const epoch = this.epoch;
+    try {
+      const item =
+        this.artifacts.get(id) ?? (await this.artifactStore?.get(id));
+      if (!item)
+        return problem(
+          "ARTIFACT_UNAVAILABLE",
+          "Artifact is unavailable in this Project",
+          "export",
+          "not-retryable",
+        );
+      const text = await this.artifactText(item);
+      if (epoch !== this.epoch)
+        return problem(
+          "SESSION_CHANGED",
+          "The file session changed",
+          "export",
+          "reauthorize",
+        );
+      return { ok: true, artifact: item.ref, text };
+    } catch {
+      return problem(
+        "ARTIFACT_STORAGE_UNAVAILABLE",
+        "Persistent evidence could not be read",
+        "export",
+        "retry-after",
+      );
+    }
+  }
+  private startDownload(item: CachedArtifact) {
     const upload: { result?: { path: string } | { error: unknown } } = {};
     this.downloads.set(item.ref.id, upload);
     const publisher = this.publisher!;
@@ -354,7 +458,14 @@ export class SimulationFiles {
       this.uploading++;
       let promise: Promise<string>;
       try {
-        promise = publisher(item.ref, item.text);
+        promise =
+          item.text !== undefined
+            ? publisher(item.ref, item.text)
+            : this.artifactText(item).then((text) => {
+                if (epoch !== this.publicationEpoch)
+                  throw new Error("SESSION_CHANGED");
+                return publisher(item.ref, text);
+              });
       } catch (error) {
         promise = Promise.reject(error);
       }
@@ -432,11 +543,12 @@ export class SimulationFiles {
     this.prune();
     const byteLength = new TextEncoder().encode(text).byteLength;
     if (
-      byteLength > 4 * 1024 * 1024 ||
-      this.artifacts.size >= 256 ||
-      [...this.artifacts.values()].reduce((n, a) => n + a.ref.byteLength, 0) +
-        byteLength >
-        16 * 1024 * 1024
+      byteLength > MAX_ARTIFACT_BYTES ||
+      this.artifacts.size >= MAX_ARTIFACT_FILES ||
+      (!this.artifactStore &&
+        [...this.artifacts.values()].reduce((n, a) => n + a.ref.byteLength, 0) +
+          byteLength >
+          CACHE_BYTES)
     )
       throw new Error("ARTIFACT_CAPACITY");
     const id = crypto.randomUUID();
@@ -449,8 +561,20 @@ export class SimulationFiles {
       ...metadata,
       fileId: metadata.fileId ?? id,
     };
-    this.artifacts.set(ref.id, { ref, text, expiresAt: this.now() + TTL });
-    if (this.publisher) this.startDownload({ ref, text });
+    if (this.artifactStore) {
+      try {
+        await this.artifactStore.put(ref, text);
+      } catch (error) {
+        if (error instanceof Error && error.message === "ARTIFACT_CAPACITY")
+          throw error;
+        throw new Error("ARTIFACT_STORAGE_UNAVAILABLE");
+      }
+    }
+    if (epoch !== this.epoch) throw new Error("SESSION_CHANGED");
+    const item = { ref, text };
+    this.artifacts.set(ref.id, item);
+    this.trimCache();
+    if (this.publisher) this.startDownload(item);
     return ref;
   }
 }

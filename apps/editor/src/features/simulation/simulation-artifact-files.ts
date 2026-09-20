@@ -57,29 +57,12 @@ export async function readSimulationArtifact(
   files: SimulationFiles,
   artifact: ArtifactRef,
 ): Promise<ArtifactReadResult> {
-  let offset: number | null = 0;
-  let text = "";
-  while (offset !== null) {
-    const result = await files.handle({
-      action: "artifact",
-      artifactId: artifact.id,
-      offset,
-    });
-    if (!result.ok) return result;
-    if (!("text" in result))
-      return {
-        ok: false,
-        error: {
-          code: "ARTIFACT_READ_FAILED",
-          message: "The selected artifact did not return readable content",
-          stage: "export",
-          recovery: "not-retryable",
-        },
-      };
-    text += result.text;
-    offset = result.nextOffset;
-  }
-  return { ok: true, content: { artifact, text, truncated: false } };
+  const result = await files.readArtifact(artifact.id);
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    content: { artifact, text: result.text, truncated: false },
+  };
 }
 
 export async function buildSimulationArtifactArchive(

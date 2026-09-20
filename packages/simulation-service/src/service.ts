@@ -999,9 +999,12 @@ export class SimulationService {
           code:
             error instanceof Error && error.message === "ARTIFACT_CAPACITY"
               ? "ARTIFACT_CAPACITY"
-              : "INTERNAL_ERROR",
+              : error instanceof Error &&
+                  error.message === "ARTIFACT_STORAGE_UNAVAILABLE"
+                ? "ARTIFACT_STORAGE_UNAVAILABLE"
+                : "INTERNAL_ERROR",
           message:
-            "Run evidence could not be fully collected. Existing artifacts remain available; export them before the retention window expires.",
+            "Run evidence could not be fully collected. Existing artifacts remain available; inspect the collection error before starting another run.",
           stage: "read",
           recovery: "not-retryable",
           correlationId: crypto.randomUUID(),

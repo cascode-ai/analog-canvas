@@ -23,6 +23,7 @@ import type { SymbolResolver } from "@icm/symbols";
 import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formula-artifacts";
 import { importChunk } from "../components/chunk-import";
 import { simulationFileEngine } from "../features/simulation/file-engine";
+import { createBrowserSimulationArtifactStore } from "../features/simulation/browser-simulation-artifact-store";
 
 type StoredCandidate = {
   project: CircuitProject;
@@ -71,6 +72,7 @@ export class BrowserAgentFileHost {
           })
         : undefined,
       simulationFileEngine(options),
+      createBrowserSimulationArtifactStore(options.getProject().id),
     );
   }
 

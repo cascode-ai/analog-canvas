@@ -11,6 +11,7 @@ import type { ProjectRunHistory } from "./project-run-history";
 import { sourcePresentation } from "./source-presentation";
 import { serializeProject } from "@icm/project-protocol";
 import { simulationFileEngine } from "./file-engine";
+import { createBrowserSimulationArtifactStore } from "./browser-simulation-artifact-store";
 
 /** Do not export a pre-prepare Project when editing raced with compilation. */
 export function unchangedProjectSnapshot(
@@ -57,6 +58,7 @@ export class BrowserSimulationSession {
         Date.now,
         options.projectFiles,
         simulationFileEngine(options),
+        createBrowserSimulationArtifactStore(options.getProject().id),
       );
   }
   async clear() {

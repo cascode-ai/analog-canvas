@@ -282,11 +282,15 @@ describe("simulation File Resource evidence", () => {
     expect(joined).toBe(text);
     expect(await sha256(joined)).toBe(artifact.sha256);
   });
-  it("expiration reports unavailability rather than serving another artifact", async () => {
+  it("keeps immutable evidence for the owning host lifetime, not a short TTL", async () => {
     let now = 0;
     const files = new SimulationFiles(() => now);
     const a = await files.put("x", "text/plain", "x");
     now = 16 * 60000;
+    expect(
+      await files.handle({ action: "artifact", artifactId: a.id }),
+    ).toMatchObject({ ok: true, text: "x" });
+    files.clear();
     expect(
       await files.handle({ action: "artifact", artifactId: a.id }),
     ).toMatchObject({ ok: false, error: { code: "ARTIFACT_UNAVAILABLE" } });
