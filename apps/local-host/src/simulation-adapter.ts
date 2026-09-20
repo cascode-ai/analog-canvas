@@ -1,4 +1,8 @@
-import { SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES } from "@icm/spice-run";
+import {
+  SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES,
+  SIMULATION_EXECUTOR_STREAM_MAX_BYTES,
+  SIMULATION_EXECUTOR_TRANSFER_HEADER,
+} from "@icm/spice-run";
 
 /** Explicit loopback transport. The executor owns runtime discovery, capabilities
  * and process lifetime; this adapter never starts or retries a simulation. */
@@ -42,12 +46,18 @@ export function createLocalSimulationHandler(
     try {
       const reply = await fetchImpl(target, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          [SIMULATION_EXECUTOR_TRANSFER_HEADER]: "receipt-v1",
+        },
         body: text,
         redirect: "error",
         signal: AbortSignal.timeout(operation === undefined ? 150000 : 10000),
       });
       const reader = reply.body?.getReader();
+      const maximum = reply.headers.has("x-analog-simulation-receipt")
+        ? SIMULATION_EXECUTOR_STREAM_MAX_BYTES
+        : SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES;
       let size = 0;
       // Preserve backpressure: the adapter must not buffer or duplicate the
       // complete numerical envelope. Once headers are sent, a broken body is
@@ -63,7 +73,7 @@ export function createLocalSimulationHandler(
                   return;
                 }
                 size += next.value.byteLength;
-                if (size > SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES)
+                if (size > maximum)
                   throw new Error("Executor response too large");
                 controller.enqueue(next.value);
               } catch (error) {

@@ -57,7 +57,10 @@ describe("explicit local executor adapter", () => {
         method: "POST",
         redirect: "error",
         body: JSON.stringify(body),
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          "x-analog-execution-transfer": "receipt-v1",
+        },
       }),
     );
   });

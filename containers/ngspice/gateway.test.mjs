@@ -2,7 +2,10 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { once } from "node:events";
 import { readFile } from "node:fs/promises";
-import { SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES } from "@icm/spice-run";
+import {
+  SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES,
+  SIMULATION_EXECUTOR_STREAM_MAX_BYTES,
+} from "@icm/spice-run";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -81,10 +84,11 @@ describe("operator-host simulation gateway", () => {
       "containers/vacask/host/compose.yaml",
       "utf8",
     );
-    const limit = Number(
+    const configuredLimit = Number(
       /SIMULATION_GATEWAY_MAX_RESPONSE_BYTES: "(\d+)"/u.exec(compose)?.[1],
     );
-    expect(limit).toBe(SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES);
+    expect(configuredLimit).toBe(SIMULATION_EXECUTOR_STREAM_MAX_BYTES);
+    const limit = SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES;
     let bytes = 4 * 1024 * 1024 + 512;
     const executor = createServer((_request, response) =>
       response.end("x".repeat(bytes)),

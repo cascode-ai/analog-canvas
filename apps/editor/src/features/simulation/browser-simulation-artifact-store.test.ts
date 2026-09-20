@@ -107,13 +107,13 @@ describe("persistent simulation evidence", () => {
     expect(await other.history(10)).toEqual({ runs: [], nextCursor: null });
     expect(await other.catalog("run-one")).toBeUndefined();
   });
-  it("spills a file above the old cache limit and reopens it after clear without crossing Projects", async () => {
+  it("spills a file above the retired 64 MiB file limit and reopens it after clear without crossing Projects", async () => {
     const factory = new IDBFactory();
     const store = createBrowserSimulationArtifactStore("project", factory)!;
     const get = vi.spyOn(store, "get");
     let now = 0;
     const files = new SimulationFiles(() => now, undefined, undefined, store);
-    const text = "0123456789abcdef".repeat(17 * 65536);
+    const text = "0123456789abcdef".repeat(65 * 65536);
     const ref = await files.put("large.raw", "text/plain", text, {
       role: "raw",
     });

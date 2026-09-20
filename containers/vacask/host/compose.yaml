@@ -29,7 +29,7 @@ services:
       SIMULATION_ACCESS_TOKEN: ${SIMULATION_ACCESS_TOKEN:?set a candidate-only credential}
       SIMULATION_EXECUTOR_URL: http://executor:8080
       # Match the shared native transport ceiling, not the gateway's 4 MiB default.
-      SIMULATION_GATEWAY_MAX_RESPONSE_BYTES: "8388608"
+      SIMULATION_GATEWAY_MAX_RESPONSE_BYTES: "268435456"
     volumes:
       - type: bind
         source: ../../ngspice/gateway.mjs

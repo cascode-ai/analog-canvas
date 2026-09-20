@@ -15,7 +15,7 @@ import { sha256 } from "@icm/simulation-service/files";
 import { readSimulationArtifact } from "./simulation-artifact-files";
 
 export const SIMULATION_ARCHIVE_VERSION = 1 as const;
-export const MAX_SIMULATION_ARCHIVE_BYTES = 32 * 1024 * 1024;
+export const MAX_SIMULATION_ARCHIVE_BYTES = 512 * 1024 * 1024;
 
 export interface SimulationArchivePresentation {
   readonly origin?: "agent" | "human";
@@ -116,7 +116,7 @@ export async function captureSimulationRunArchive(
     if (byteLength > MAX_SIMULATION_ARCHIVE_BYTES)
       return archiveProblem(
         "SIMULATION_ARCHIVE_TOO_LARGE",
-        "This run exceeds the 32 MiB local archive limit; export its ZIP instead",
+        "This run exceeds the 512 MiB local archive limit; export its ZIP instead",
       );
     artifacts.push({ ...artifact, originalId: artifact.id, text });
   }

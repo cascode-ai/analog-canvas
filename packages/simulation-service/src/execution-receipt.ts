@@ -1,6 +1,6 @@
 import {
   SimulationResultSchema,
-  SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES,
+  SIMULATION_EXECUTOR_STREAM_MAX_BYTES,
 } from "@icm/spice-run";
 import { z } from "zod";
 
@@ -16,7 +16,7 @@ export const ExecutionReceiptSchema = z.strictObject({
     .number()
     .int()
     .positive()
-    .max(SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES),
+    .max(SIMULATION_EXECUTOR_STREAM_MAX_BYTES),
   sha256: digest,
   executedFilesSha256: digest,
   outcome: SimulationResultSchema.shape.outcome,

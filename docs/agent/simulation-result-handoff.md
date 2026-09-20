@@ -48,14 +48,15 @@ GUI without executing it again.
 
 The originating session still owns execution and cancellation. A project-scoped
 observer polls individual and batch runs even if the Agent does not call read.
-Completed artifacts are hash-verified and copied into the existing IndexedDB
-archive store. Agent revocation cannot erase a completed handoff or cancel a
+Completed artifacts are verified and stored as Project evidence; archives
+reference those bodies instead of copying them again. Agent revocation cannot erase a completed handoff or cancel a
 human run. Revocation before handoff is reported as unavailable, not success.
 Session-workspace inputs remain private to that session because they have no
 Project folder to attach to.
 
 Archives are local to this browser/origin, not Cloud Save. The existing limits
-apply: ten archives per Project and 32 MiB per archive. A storage failure leaves
+apply: ten archives per Project and 512 MiB per archive, subject to browser quota
+and the shared 1 GiB Project evidence budget (256 MiB per file). A storage failure leaves
 the in-memory result available with an explicit session-only warning. Refresh
 can recover successful archives under **Saved results**; deleting one removes
 that browser copy. Old results are saved input snapshots, not a fresh validation

@@ -371,6 +371,10 @@ describe("native simulation route", () => {
             "Bearer operator-token",
           );
           expect(init?.redirect).toBe("manual");
+          if (new URL(String(url)).pathname === "/run")
+            expect(
+              new Headers(init?.headers).get("x-analog-execution-transfer"),
+            ).toBe("receipt-v1");
           return new URL(String(url)).pathname === "/health"
             ? Response.json(nativeHealth)
             : Response.json(await nativeReply());

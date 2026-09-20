@@ -38,7 +38,7 @@ export class ArtifactDownloadError extends Error {
     super(message);
   }
 }
-export const MAX_ARTIFACT_BYTES = 64 * 1024 * 1024;
+export const MAX_ARTIFACT_BYTES = 256 * 1024 * 1024;
 export const MAX_ARTIFACT_STORE_BYTES = 1024 * 1024 * 1024;
 export const MAX_ARTIFACT_FILES = 1024;
 const CACHE_BYTES = 16 * 1024 * 1024;

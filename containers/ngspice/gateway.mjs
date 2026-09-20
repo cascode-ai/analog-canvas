@@ -86,7 +86,13 @@ const server = createServer(async (request, response) => {
       ...(body
         ? {
             body,
-            headers: { "content-type": "application/json" },
+            headers: {
+              "content-type": "application/json",
+              ...(request.headers["x-analog-execution-transfer"] ===
+              "receipt-v1"
+                ? { "x-analog-execution-transfer": "receipt-v1" }
+                : {}),
+            },
           }
         : {}),
       signal: AbortSignal.timeout(140_000),

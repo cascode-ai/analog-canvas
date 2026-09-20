@@ -93,7 +93,7 @@
     },
     {
       "source": "docs/agent/simulation-result-handoff.md",
-      "sha256": "ba1d809c242d302ad73debb92b2301ec160e2f9275279e26a204c7248da87788"
+      "sha256": "c57fab80637c51d8a7333c19d2b6f0aeea0ed657d0b037c392de0df8e7c17ea2"
     },
     {
       "source": "docs/agent/mcp/tools.md",
@@ -613,7 +613,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/knowledge/patterns.md"
       ],
-      "sha256": "8f63fa77f1b94625daec8560507100ac35e6ebfd0141181cf2e619210f6a4a8b"
+      "sha256": "35e26ecf402df361deb0bef67a1fb271e39a6b47ddf9b58eda4889f315721e8a"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -642,7 +642,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/knowledge/patterns.md"
       ],
-      "sha256": "47269dc1792255594bf011d3a2a6e5526b752dc63be877a8f35f86a5e20c6746"
+      "sha256": "ac2a610eb1062e5647af2cb4fb62962459c5e309374c22fa9dc1a982554178cb"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",

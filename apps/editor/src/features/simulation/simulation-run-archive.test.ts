@@ -4,6 +4,8 @@ import { createEmptyProject, createSimulationFolder } from "@icm/model";
 import type { Prepared, Run } from "@icm/simulation-service/contract";
 import { SimulationFiles } from "@icm/simulation-service/files";
 import { resultCatalog } from "@icm/simulation-service";
+import { IDBFactory } from "fake-indexeddb";
+import { createBrowserSimulationArtifactStore } from "./browser-simulation-artifact-store";
 
 import {
   captureSimulationRunArchive,
@@ -19,6 +21,60 @@ const folder = createSimulationFolder({
 const presentation = sourcePresentation(folder);
 
 describe("simulation run archive", () => {
+  it("captures evidence larger than the retired 32 MiB archive ceiling", async () => {
+    const source = new SimulationFiles(
+      Date.now,
+      undefined,
+      undefined,
+      createBrowserSimulationArtifactStore("large-project", new IDBFactory()),
+    );
+    const large = await source.put(
+      "large.raw",
+      "text/plain",
+      "x".repeat(33 * 1024 * 1024),
+      { role: "raw" },
+    );
+    const outputData = {
+      schemaVersion: 1 as const,
+      analyses: [],
+      diagnostics: [],
+    };
+    const result = await source.put(
+      "outputs.json",
+      "application/json",
+      JSON.stringify(outputData),
+    );
+    const prepared: Prepared = {
+      id: "prepared",
+      digest: "a".repeat(64),
+      inputRevision: "revision",
+      expiresAt: 100,
+      mode: "structured",
+      environment: { profileId: "test" },
+      vectors: [],
+      outputs: [],
+      deviceOperatingPoints: [],
+      artifacts: [],
+      warnings: [],
+    };
+    const captured = await captureSimulationRunArchive(source, {
+      projectId: "large-project",
+      presentation,
+      prepared,
+      run: {
+        id: "run",
+        preparedId: prepared.id,
+        inputRevision: prepared.inputRevision,
+        state: "finished",
+        outputData,
+        artifacts: [large, result],
+      },
+    });
+    expect(captured.ok).toBe(true);
+    if (!captured.ok) throw new Error(captured.error.message);
+    expect(captured.value.byteLength).toBeGreaterThan(32 * 1024 * 1024);
+    expect(captured.value.artifacts[0]?.text.length).toBe(33 * 1024 * 1024);
+  });
   it.each([false, true])(
     "restores legacy or Spec-only archives (Spec: %s)",
     async (current) => {

@@ -26,6 +26,20 @@ afterEach(async () => {
     await rm(root, { recursive: true, force: true });
 });
 describe("native run-local collection", () => {
+  it("collects an exact 64 MiB file without shortening it", async () => {
+    const root = await directory();
+    const size = 64 * 1024 * 1024;
+    await writeFile(join(root, "large.raw"), Buffer.alloc(size, 49));
+    const result = await collectVacaskRawfiles(root, {
+      ...limits,
+      maxBytes: size,
+    });
+    expect(result.truncated).toBe(false);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.bytes).toBe(size);
+    expect(result.rawfiles[0].text.length).toBe(size);
+    expect(result.rawfiles[0].text.at(-1)).toBe("1");
+  });
   it("collects multiple nested files exactly while excluding input and dependency subtrees", async () => {
     const root = await directory();
     await mkdir(join(root, "nested"));

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createSimulationEnvironmentMetadata,
   SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES,
+  SIMULATION_EXECUTOR_STREAM_MAX_BYTES,
 } from "@icm/spice-run";
 import { createVacaskHttpServer } from "./http-server.mjs";
 import { createHash } from "node:crypto";
@@ -281,6 +282,61 @@ describe("native HTTP transport", () => {
     expect(() => readExecutionReceipt("%invalid")).toThrow();
     expect(readExecutionReceipt(null)).toBeNull();
   });
+  it("transfers a 9 MiB evidence file only to an opted-in streaming reader", async () => {
+    const { post } = await start();
+    const evidence = "x".repeat(9 * 1024 * 1024);
+    const input = {
+      runToken: token,
+      language: "vacask",
+      inputRevision: "large",
+      environment: { profileId: runtime.environment.profileId },
+      entryPath: "run.sim",
+    };
+    const output = {
+      result: {
+        outcome: { status: "completed" },
+        log: "",
+        diagnostics: [],
+        durationMs: 1,
+        metadata: {
+          schemaVersion: 1,
+          input: {
+            inputRevision: "large",
+            netlistSha256: "a".repeat(64),
+            testbenchSha256: "b".repeat(64),
+            deckSha256: "c".repeat(64),
+          },
+          configuration: { modelLibrary: null },
+          environment: runtime.environment,
+        },
+      },
+      executedFiles: [{ path: "run.sim", text: "original" }],
+      rawfiles: [{ path: "large.raw", text: evidence }],
+      cancelled: false,
+      collectionStatus: "complete",
+    };
+    vi.mocked(executeVacask).mockResolvedValue({ ok: true, output });
+    const response = await post(input, "/run", {
+      "x-analog-execution-transfer": "receipt-v1",
+    });
+    const receipt = readExecutionReceipt(
+      response.headers.get(EXECUTION_RECEIPT_HEADER),
+    );
+    const bytes = await response.text();
+    expect(receipt.byteLength).toBeGreaterThan(
+      SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES,
+    );
+    expect(receipt.sha256).toBe(
+      createHash("sha256").update(bytes).digest("hex"),
+    );
+    expect(JSON.parse(bytes).rawfiles[0].text).toBe(evidence);
+    const legacy = await post(input);
+    expect(await legacy.json()).toMatchObject({
+      collectionStatus: "partial",
+      rawfiles: [],
+      outcome: { status: "failed" },
+    });
+  });
   it("reports uncertain completion and retired capacity without leaking host errors", async () => {
     const { post } = await start();
     vi.mocked(executeVacask).mockRejectedValueOnce(
@@ -357,7 +413,7 @@ describe("native HTTP transport", () => {
     expect(JSON.stringify(await reply.json())).toContain(text);
     expect(() =>
       createVacaskHttpServer({
-        maxResponseBytes: SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES + 1,
+        maxResponseBytes: SIMULATION_EXECUTOR_STREAM_MAX_BYTES + 1,
       }),
     ).toThrow(/ceiling/u);
   });

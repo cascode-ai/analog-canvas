@@ -90,13 +90,13 @@ format. A minimal **local OP test** configuration is:
     "maxTimeoutMs": 15000,
     "maxInputFiles": 24,
     "maxInputBytes": 1048576,
-    "maxOutputBytes": 1048576,
+    "maxOutputBytes": 67108864,
     "cancel": true
   },
   "limits": {
     "maxInputFiles": 24,
     "maxInputBytes": 1048576,
-    "maxOutputBytes": 1048576,
+    "maxOutputBytes": 67108864,
     "maxLogBytes": 65536,
     "maxRawFiles": 64,
     "maxEntries": 4096
@@ -332,13 +332,16 @@ The transient capture requires more than 1 MB, so this test advertises an
 `ICM_VACASK_EVIDENCE_DIR` retains exact prepared/input/result artifacts in a
 fresh `ota-public-*` directory, including failed-run evidence. Those artifacts
 are observations, not auto-approved numerical baselines.
-The serialized executor envelope has its own shared 8 MiB ceiling, consumed
-by native HTTP, the local forwarder and Worker. Raw-byte budgets do not include
-JSON escaping or parsed-result duplication, so oversized envelopes still fail
-explicitly without automatic re-execution. An isolated migration gateway must
-set its existing `SIMULATION_GATEWAY_MAX_RESPONSE_BYTES` to 8388608; this does
-not alter or redeploy the shared ngspice gateway. Larger/streamed artifact
-transport is not claimed by these local checks.
+The serialized executor envelope allows 256 MiB when an updated caller requests
+`x-analog-execution-transfer: receipt-v1`; legacy buffered readers keep the
+8 MiB ceiling. The native Worker and local forwarder negotiate this explicitly.
+The isolated native gateway forwards the opt-in and sets
+`SIMULATION_GATEWAY_MAX_RESPONSE_BYTES` to 268435456. Its accepted executor
+configuration separately declares matching collector limits and capabilities;
+the local example above budgets 64 MiB. Raw budgets exclude JSON escaping and
+parsed-result duplication, so they must leave envelope headroom. Oversized
+responses still fail explicitly without automatic re-execution. None of these
+configuration changes deploys or modifies an already running operator host.
 A passing run proves this local integration only: it does not certify model
 accuracy, all analyses/corners, GUI/public MCP transport or hosted isolation.
 

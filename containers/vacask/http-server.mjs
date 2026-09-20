@@ -8,6 +8,8 @@ import {
 } from "@icm/simulation-service";
 import {
   SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES,
+  SIMULATION_EXECUTOR_STREAM_MAX_BYTES,
+  SIMULATION_EXECUTOR_TRANSFER_HEADER,
   verifySimulationEnvironmentMetadata,
 } from "@icm/spice-run";
 import { executeVacask } from "./execute.mjs";
@@ -42,11 +44,11 @@ export function createVacaskHttpServer({
   limits,
   supervisor = new SimulationRunSupervisor(),
   maxRequestBytes = 4 * 1024 * 1024,
-  maxResponseBytes = SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES,
+  maxResponseBytes = SIMULATION_EXECUTOR_STREAM_MAX_BYTES,
   maxConnections = 16,
 }) {
   if (
-    maxResponseBytes > SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES ||
+    maxResponseBytes > SIMULATION_EXECUTOR_STREAM_MAX_BYTES ||
     ![maxRequestBytes, maxResponseBytes, maxConnections].every(
       (n) => Number.isSafeInteger(n) && n > 0,
     )
@@ -109,10 +111,14 @@ export function createVacaskHttpServer({
   const server = createServer(
     { requestTimeout: 10000, headersTimeout: 5000, maxHeaderSize: 16384 },
     (request, response) => {
+      const responseLimit =
+        request.headers[SIMULATION_EXECUTOR_TRANSFER_HEADER] === "receipt-v1"
+          ? maxResponseBytes
+          : Math.min(maxResponseBytes, SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES);
       const send = (status, payload, headers = {}, serialized) => {
         if (response.destroyed || response.writableEnded) return;
         let body = serialized ?? JSON.stringify(payload);
-        if (Buffer.byteLength(body) > maxResponseBytes) {
+        if (Buffer.byteLength(body) > responseLimit) {
           status = 502;
           body = JSON.stringify({
             error: "executor-response-too-large",
@@ -242,8 +248,13 @@ export function createVacaskHttpServer({
               const { result, ...artifacts } = reply.output;
               let payload = { ...result, ...artifacts };
               if (
-                Buffer.byteLength(JSON.stringify(payload)) > maxResponseBytes
-              ) {
+                ["cloudflare-container", "operator-host"].includes(
+                  body.execution?.target,
+                )
+              )
+                payload.execution = { target: body.execution.target };
+              let serialized = JSON.stringify(payload);
+              if (Buffer.byteLength(serialized) > responseLimit) {
                 // The process has terminated: preserve that fact instead of a
                 // proxy error that loses timeout/cancel status. Never advertise
                 // successful numerical data after dropping its evidence.
@@ -264,15 +275,12 @@ export function createVacaskHttpServer({
                   ...artifacts,
                   rawfiles: [],
                   collectionStatus: "partial",
+                  ...(payload.execution
+                    ? { execution: payload.execution }
+                    : {}),
                 };
+                serialized = JSON.stringify(payload);
               }
-              if (
-                ["cloudflare-container", "operator-host"].includes(
-                  body.execution?.target,
-                )
-              )
-                payload.execution = { target: body.execution.target };
-              const serialized = JSON.stringify(payload);
               const headers = {};
               // Only canonical successful executor replies carry a receipt.
               // The existing body remains unchanged for older clients. Hashing
@@ -283,7 +291,7 @@ export function createVacaskHttpServer({
                 payload.metadata &&
                 payload.outcome &&
                 payload.collectionStatus &&
-                Buffer.byteLength(serialized) <= maxResponseBytes
+                Buffer.byteLength(serialized) <= responseLimit
               ) {
                 try {
                   // The producer validates numeric/file relationships before

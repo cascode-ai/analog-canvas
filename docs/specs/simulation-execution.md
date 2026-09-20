@@ -104,7 +104,13 @@ During rolling upgrades, an executor without this header still uses the
 existing bounded JSON validation path. Malformed or mismatched receipts fail;
 they do not silently fall back. Body interruption is an uncertain response,
 never permission to execute the run again. These streaming changes alone do
-not increase collector or response byte ceilings or qualify large simulations.
+not qualify large simulations. Updated callers negotiate `receipt-v1` with the
+`x-analog-execution-transfer` request header: the receipt-bound response ceiling
+is 256 MiB, while old buffered readers remain limited to 8 MiB. The operator
+gateway must forward that opt-in and allow 256 MiB streams. Collector budgets
+are separately advertised by the accepted runtime configuration; a client must
+not override them. The local configuration example budgets 64 MiB for collected
+output, leaving envelope space for parsed representations and JSON escaping.
 
 The model-library and legacy container sections below describe the retained
 ngspice baseline, not this native route. Their replacement Profile/image remains
@@ -564,7 +570,9 @@ legacy output artifacts remain readable/exportable without being regenerated.
 
 Automatic retention and **Archive current run** capture a run's verified artifact
 set and compact presentation metadata in browser IndexedDB. At most ten runs
-per Project and 32 MiB per run are accepted. Opening an archive republishes its
+per Project and 512 MiB per run are accepted, within browser quota and the shared
+1 GiB Project evidence budget. Individual evidence files allow 256 MiB, with
+only a bounded cache held in memory. Opening an archive republishes its
 verified files into the current session File Resource and decodes the ordinary
 result contracts; it does not rerun ngspice or silently substitute the current
 Project revision. Complete-run ZIP remains the portable/Agent-accessible

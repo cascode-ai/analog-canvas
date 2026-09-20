@@ -12,6 +12,7 @@ import {
 } from "@icm/simulation-service";
 import {
   SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES,
+  SIMULATION_EXECUTOR_TRANSFER_HEADER,
   createSimulationInputMetadata,
   verifySimulationEnvironmentMetadata,
 } from "@icm/spice-run";
@@ -143,6 +144,11 @@ function selectRunner(
   return {
     fetch: (path, init) => {
       const headers = new Headers({ "content-type": "application/json" });
+      if (
+        new Headers(init?.headers).get(SIMULATION_EXECUTOR_TRANSFER_HEADER) ===
+        "receipt-v1"
+      )
+        headers.set(SIMULATION_EXECUTOR_TRANSFER_HEADER, "receipt-v1");
       if (env.SIMULATION_UPSTREAM_TOKEN)
         headers.set("authorization", `Bearer ${env.SIMULATION_UPSTREAM_TOKEN}`);
       return fetch(new URL(new URL(path).pathname, base), {
@@ -358,7 +364,10 @@ export async function routeVacaskSimulationRequest(
   try {
     response = await runner.fetch("http://container/run", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        [SIMULATION_EXECUTOR_TRANSFER_HEADER]: "receipt-v1",
+      },
       body: JSON.stringify({
         ...input,
         timeoutMs,
