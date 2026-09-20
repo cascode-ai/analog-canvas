@@ -61,7 +61,7 @@ jobs:
             curl --fail --silent --show-error -X DELETE \
               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
               "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/domains/$domain_id" \
-              | jq -e '.success' >/dev/null
+              --output /dev/null
           fi
           remaining="$(curl --fail --silent --show-error \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \

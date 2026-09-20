@@ -106,6 +106,10 @@ describe("retired Preview data boundary", () => {
     expect(retirementWorkflow).not.toMatch(/wrangler@[^\n]* delete/u);
     expect(retirementWorkflow).not.toContain("r2 bucket delete");
     expect(retirementWorkflow).not.toContain("queues delete");
+    expect(retirementWorkflow).toMatch(
+      /workers\/domains\/\$domain_id" \\\n\s+--output \/dev\/null/u,
+    );
+    expect(retirementWorkflow).not.toContain("jq -e '.success'");
   });
 
   it("prepares the Worker bundle and resolves the account before mutating Cloudflare", () => {
