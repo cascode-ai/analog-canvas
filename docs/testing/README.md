@@ -137,9 +137,9 @@ commit already passed them in its pull request; manual full validation retains
 both layers.
 A PR based on current `main` merges after its two required checks without
 repeating them in a merge queue. CI does not repeat on the subsequent `main`
-push; the deploy workflow chosen by the pull request's `preview` label builds,
-deploys, and verifies the merged commit. A promotion of Preview-accepted work
-is a separate release-tag or explicit-dispatch step.
+push; the Production workflow builds, deploys, and verifies the merged commit.
+A release tag or explicit dispatch may redeploy another selected commit only
+when that commit is already on `main`.
 [Deployment](../deployment.md) owns that sequence and recovery.
 
 ## Change discipline

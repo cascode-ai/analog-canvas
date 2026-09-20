@@ -1,73 +1,30 @@
 {
   "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
-  // The preview channel (Deployment rationale). Its own file on purpose: an environment
-  // inside wrangler.jsonc inherits every key it does not override, and that is
-  // how a staging deploy took the production custom domain on 2026-09-03.
-  // Nothing here inherits from anything.
+  // Dormant Preview storage authority. The hosted Preview channel was retired
+  // on 2026-09-20. This script has no route, workers.dev address, scheduled
+  // trigger or queue consumer. Keep its Durable Object migrations and data
+  // bindings intact so Preview accounts and Projects remain recoverable.
   "name": "interactive-circuit-maker-preview",
   "main": "./worker/index.ts",
   "compatibility_date": "2026-08-11",
-  // One address. The workers.dev and version-preview hostnames would be two
-  // more doors to the same build, uncounted and unlisted.
   "workers_dev": false,
   "preview_urls": false,
-  "routes": [
-    {
-      "pattern": "analog-canvas-preview.tokenzhang.com",
-      "custom_domain": true,
-    },
-  ],
+  "routes": [],
   "vars": {
-    // Read by worker/channel.ts and, through /api/channel, by the editor.
     "ICM_CHANNEL": "preview",
-    // Where the preview reads the gallery from: the public site's own public
-    // API, over HTTP, exactly as any anonymous visitor would. No Durable
-    // Object of the production script is bound here, because a binding has
-    // no read-only mode and this Worker runs code production has not
-    // accepted yet. Gallery writes never leave this Worker (see channel.ts).
     "ICM_GALLERY_UPSTREAM": "https://analog-canvas.tokenzhang.com",
-    // Where simulations run: the operator-run host behind its Cloudflare
-    // Tunnel (docs/deployment.md, "Where the simulator runs"). The Worker
-    // presents the host's token from the secret SIMULATION_UPSTREAM_TOKEN.
-    // The preview's Cloudflare Container was removed on 2026-09-04 (migration
-    // v6): a cold spare that had to be woken and paid for on every merge, for
-    // a switch nobody would make without editing this file anyway. A request
-    // that names `cloudflare-container` explicitly is answered "not
-    // configured", never routed elsewhere. Production uses the same gateway
-    // with its own managed queue, records, and artifact store.
     "SIMULATION_UPSTREAM_URL": "https://sim-fra.analog-canvas.tokenzhang.com",
     "SIMULATION_DEFAULT_EXECUTOR": "operator-host",
     "VACASK_UPSTREAM_URL": "https://vacask-preview-sim.tokenzhang.com",
     "VACASK_PROFILE_ID": "vacask-sky130-candidate",
-    // PREVIEW_ACCEPTANCE_TOKEN is a Worker secret, set by the Preview deploy.
-    // It authorizes only the CI journey's isolated Cloud Project shelf.
-  },
-  "assets": {
-    "binding": "ASSETS",
-    "directory": "./apps/editor/dist",
-    "not_found_handling": "single-page-application",
-    // Every path runs the Worker first here, unlike production. The noindex
-    // stamp and the robots answer live in the Worker, and a path the asset
-    // layer answers on its own is a path they never reach: the first live
-    // verification found the shell served without noindex for exactly that
-    // reason. What is served does not change; only that the Worker sees it.
-    "run_worker_first": true,
   },
   "durable_objects": {
     "bindings": [
       { "name": "COMPONENT_LIBRARY", "class_name": "ComponentLibraryDO" },
       { "name": "ANALYTICS", "class_name": "AnalyticsDO" },
       { "name": "AGENT_SESSION", "class_name": "AgentSessionDO" },
-      // The preview's own private Project store. Public Gallery reads are
-      // served from the production site through ICM_GALLERY_UPSTREAM and all
-      // Gallery writes are refused before routing. Authenticated /api/projects
-      // requests use only this isolated namespace.
       { "name": "GALLERY", "class_name": "GalleryDO" },
-      // Preview accounts are isolated from production accounts. The deploy
-      // workflow installs a preview-only Google OAuth client.
       { "name": "AUTH", "class_name": "AuthDO" },
-      // Server-side authority for queued runs. Large immutable bytes live in
-      // R2; this object stores only lifecycle, ownership and artifact refs.
       { "name": "SIMULATION_CONTROL", "class_name": "SimulationControlDO" },
     ],
   },
@@ -77,46 +34,17 @@
       "bucket_name": "analog-canvas-simulation-artifacts-preview",
     },
   ],
-  // Re-answers stored Gallery netlist marks a deployed rule change left
-  // behind, one batch a tick. It reads a single count and stops when none of
-  // them is stale, which is every tick but the ones after such a change.
-  "triggers": {
-    "crons": ["*/5 * * * *"],
-  },
-  "queues": {
-    "producers": [
-      {
-        "binding": "SIMULATION_JOBS",
-        "queue": "analog-canvas-simulation-preview",
-      },
-    ],
-    "consumers": [
-      {
-        "queue": "analog-canvas-simulation-preview",
-        "max_batch_size": 1,
-        "max_batch_timeout": 1,
-        // The Frankfurt harness currently owns one ngspice slot. Consumer
-        // concurrency must never promise more capacity than the executor.
-        "max_concurrency": 1,
-        "max_retries": 3,
-        "retry_delay": 2,
-        "dead_letter_queue": "analog-canvas-simulation-preview-dlq",
-      },
-    ],
-  },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["AnalyticsDO"] },
     { "tag": "v2", "new_sqlite_classes": ["AgentSessionDO"] },
     { "tag": "v3", "new_sqlite_classes": ["AuthDO"] },
     { "tag": "v4", "new_sqlite_classes": ["GalleryDO"] },
     { "tag": "v5", "new_sqlite_classes": ["NgspiceContainer"] },
-    // The simulator moved to the operator host; the container class, its
-    // namespace, and its billed instance go with this migration.
     { "tag": "v6", "deleted_classes": ["NgspiceContainer"] },
     { "tag": "v7", "new_sqlite_classes": ["SimulationControlDO"] },
     { "tag": "v8", "new_sqlite_classes": ["ComponentLibraryDO"] },
   ],
   "observability": {
-    "enabled": true,
+    "enabled": false,
   },
 }

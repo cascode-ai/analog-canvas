@@ -467,14 +467,13 @@ install action. The server accepts only loopback connections.
 
 ## Deployment
 
-The editor is served by the Cloudflare Worker in `worker/`. A merged pull
-request deploys directly to Production through
-`.github/workflows/cloudflare.yml` unless it carries the `preview` label; a
-labeled pull request, before and after merging, deploys to the Preview channel
-through `.github/workflows/deploy-preview.yml`. Preview-accepted work reaches
-Production with a `v*` release tag or an explicit dispatch. Each channel's
-Worker hosts the built editor and the gallery, account, Agent-session, and
-simulation endpoints behind it; see [deployment](../deployment.md).
+The editor is served by the Production Cloudflare Worker in `worker/`. A merged
+non-documentation pull request deploys through
+`.github/workflows/cloudflare.yml`; a `v*` release tag or explicit dispatch may
+redeploy a selected commit already on `main`. The Worker hosts the built editor
+and the gallery, account, Agent-session, and simulation endpoints behind it;
+see [deployment](../deployment.md). The former hosted Preview site is offline,
+with its isolated data retained but unreachable.
 
 The private Cloud Project is the formal saved copy. Exported `.icproj.json`
 and downloaded backups remain portable user-owned copies. Browser recovery is

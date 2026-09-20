@@ -214,8 +214,6 @@
     "gateContract": [
       ".github/workflows/**",
       ".github/actions/**",
-      "scripts/release-route.mjs",
-      "scripts/lib/release-route*.mjs",
       "AGENTS.md",
       "package.json",
       "pnpm-lock.yaml",

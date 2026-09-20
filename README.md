@@ -91,13 +91,11 @@ also ends local sessions;
 after restarting it, create a new connection. Cloud account, Gallery, and
 hosted simulation services are not started by this local relay.
 
-Development follows three stages: iterate locally with focused checks and
-local commits; deliver a pull request, which deploys directly to Production
-unless it carries the `preview` label, in which case it goes to Preview; then
-promote Preview-accepted work to Production when that release is authorized.
-Each local edit ends at the local stage by default. See the
-[working rules](AGENTS.md#three-stage-development-and-delivery)
-and [delivery cadence](docs/deployment.md#development-and-publication-cadence).
+Development follows two stages: iterate locally with focused checks and local
+commits, then deliver a pull request whose merge deploys directly to
+Production. See the
+[working rules](AGENTS.md#development-and-delivery)
+and [delivery cadence](docs/deployment.md#development-and-delivery-cadence).
 
 ## What the repository contains
 
@@ -134,13 +132,13 @@ and [delivery cadence](docs/deployment.md#development-and-publication-cadence).
 - `worker/`: Cloudflare Worker host and Durable Objects for static hosting,
   Gallery, accounts, Cloud Projects, simulation, and Agent relay sessions.
 - `containers/`: simulator images, gateways, and operator-host topologies for
-  ngspice and the Preview VACASK candidate.
+  ngspice and the historically named VACASK candidate used by Production.
 - `netlists/`: one circuit per directory for the SPICE import corpus,
   simulation examples and qualification, and Agent layout evaluation.
 - `fixtures/`: Project, SPICE, rawfile, export, Agent API, and visual-reference
   test inputs and goldens.
 - `scripts/` and `config/`: build, generation, validation-gate, release, and
-  deployment tooling, with the gate catalog and pinned MCP and VACASK Preview
+  deployment tooling, with the gate catalog and pinned MCP and VACASK
   declarations.
 - `tools/`, `skills/`, and `references/`: manual Razavi calibration and PDF
   extraction tools, the repository-local `circuit-layout` Agent Skill, and the
@@ -149,9 +147,9 @@ and [delivery cadence](docs/deployment.md#development-and-publication-cadence).
   delivery plans.
 
 The [Razavi reference manifest](fixtures/visual-reference/razavi-reference-v1/)
-is the sole visual authority. A merge to `main` deploys to Production, or to
-Preview when its pull request is labeled `preview`; Preview-accepted work is
-promoted with a release tag or explicit dispatch.
+is the sole visual authority. Every non-documentation merge to `main` deploys
+to Production; release tags and explicit dispatches may redeploy a commit that
+is already on `main`.
 See [deployment](docs/deployment.md) for the release and recovery contract.
 
 ## Netlist conversion

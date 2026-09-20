@@ -134,7 +134,7 @@ function remoteRunner(base: string, token: string | undefined): NgspiceRunner {
 }
 
 /**
- * Resolve one explicitly named executor. A Preview deployment may register
+ * Resolve one explicitly named executor. A configured deployment may register
  * both at once; selecting one never wakes, probes, or retries through the
  * other. An uncertain run must not be duplicated on a fallback executor.
  */

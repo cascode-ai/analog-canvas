@@ -18,7 +18,7 @@ The implementation has these boundaries:
   preparation module resolves capabilities and immutable input identity.
 - SimulationService owns preparation and the session-facing run presentation.
   Its Executor is the execution port; GUI and MCP use the same service and File
-  Resource. On both hosted channels, the managed control plane owns authoritative run
+  Resource. On Production, the managed control plane owns authoritative run
   admission, idempotency, queueing, retry, cancellation and retention. Local
   direct transports keep the same semantic service contract.
 - spice-run separates request/result types, deck assembly, metadata and terminal

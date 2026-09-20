@@ -62,13 +62,10 @@ jq -e '.status=="ready" and .environment.simulator.name=="vacask" and .environme
 expected=$(jq -r '.runtime.expectedEnvironment.fingerprint' candidate-download/native-compose-config.json)
 jq -e --arg expected "$expected" '.environment.fingerprint==$expected' candidate-download/health.json >/dev/null
 [ "$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 -X POST "https://$host/run")" = 401 ]
-# The gateway owns one rotating bearer. Install it on both isolated channel
-# Workers before either channel advertises the Profile. Worker source
-# deployment remains a later step; updating a secret does not deploy code.
-for worker in interactive-circuit-maker-preview interactive-circuit-maker; do
-  jq -cn --arg text "$access_token" '{name:"VACASK_UPSTREAM_TOKEN",type:"secret_text",text:$text}' | \
-    curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H 'content-type: application/json' \
-    -X PUT "$base/accounts/$account/workers/scripts/$worker/secrets" --data-binary @- | jq -e '.success' >/dev/null
-done
+# The gateway owns one rotating bearer. Only Production is hosted; the retired
+# Preview Worker stays dormant and receives no further credential mutations.
+jq -cn --arg text "$access_token" '{name:"VACASK_UPSTREAM_TOKEN",type:"secret_text",text:$text}' | \
+  curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H 'content-type: application/json' \
+  -X PUT "$base/accounts/$account/workers/scripts/interactive-circuit-maker/secrets" --data-binary @- | jq -e '.success' >/dev/null
 ssh sim "docker image inspect icm-vacask-preview:$GITHUB_SHA --format '{{.Id}}'"
-echo "Native executor ready for Preview and Production at https://$host; shared ngspice untouched."
+echo "Native executor candidate ready for Production at https://$host; shared ngspice untouched."
