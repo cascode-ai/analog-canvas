@@ -1177,8 +1177,12 @@ test("the left tag sidebar groups and searches tags at desktop, half-screen and 
   const tile = page.getByTestId("gallery-tile-t-one");
   await expect(sidebar).toBeVisible();
   await expect(
-    sidebar.locator("summary").filter({ hasText: "Amplifiers & filters" }),
+    sidebar.locator("summary").filter({ hasText: "Amplifiers" }),
   ).toBeVisible();
+  await sidebar
+    .locator("summary")
+    .filter({ hasText: /^Power/ })
+    .click();
   await expect(page.getByTestId("gallery-tag-option-ldo")).toBeVisible();
   expect(
     (await sidebar.boundingBox())!.x + (await sidebar.boundingBox())!.width,
@@ -3030,4 +3034,95 @@ test("bundled VDD rails keep their current presentation in the Gallery and edito
       '[data-testid="schematic-canvas"] [data-layer="junctions"] circle[cx="380"][cy="160"], [data-testid="schematic-canvas"] [data-layer="junctions"] circle[cx="500"][cy="160"]',
     ),
   ).toHaveCount(0);
+});
+
+test("authors can filter pending visual reviews and resolve their own drawing", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "maker-1",
+          displayName: "Maker",
+          email: "maker@example.com",
+          provider: "github",
+          isAdmin: false,
+          role: "user",
+        },
+      },
+    }),
+  );
+  let entry = {
+    ...ENTRY,
+    id: "review-me",
+    ownerUserId: "maker-1",
+    categories: ["amplifiers"],
+    tags: ["amplifier"],
+    curationRevision: 1,
+    attention: {
+      status: "needs-attention",
+      issues: [
+        {
+          kind: "suspected-disconnection",
+          detail: "Output wire has a visible gap near OUT.",
+        },
+      ],
+    },
+    assessedPreviewRevision: ENTRY.previewRevision,
+  };
+  await page.route("**/api/gallery**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/gallery/tags")
+      return route.fulfill({
+        json: {
+          tags: [{ tag: "amplifier", count: 1 }],
+          categories: [{ id: "amplifiers", count: 1 }],
+        },
+      });
+    if (url.pathname === "/api/gallery/review-me/curation") {
+      const body = route.request().postDataJSON();
+      expect(body.expectedCurationRevision).toBe(1);
+      expect(body.expectedPreviewRevision).toBe(ENTRY.previewRevision);
+      entry = { ...entry, attention: body.attention, curationRevision: 2 };
+      return route.fulfill({ json: { entry } });
+    }
+    if (url.pathname === "/api/gallery") {
+      const included =
+        url.searchParams.get("attention") !== "1" ||
+        entry.attention.status === "needs-attention";
+      return route.fulfill({
+        json: {
+          entries: included ? [entry] : [],
+          nextCursor: null,
+          total: included ? 1 : 0,
+        },
+      });
+    }
+    if (url.pathname.endsWith("/preview.svg"))
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"/>',
+      });
+    return route.fallback();
+  });
+  await page.goto("/");
+  const categories = page.getByRole("navigation", {
+    name: "Circuit categories",
+  });
+  await categories
+    .getByRole("button", { name: "Amplifiers & buffers" })
+    .click();
+  await expect(page).toHaveURL(/category=amplifiers/);
+  await page.getByTestId("gallery-filter-attention").click();
+  await expect(page).toHaveURL(/attention=1/);
+  const review = page.getByTestId("gallery-attention-review-me");
+  await review.locator("summary").click();
+  await expect(review).toContainText("Output wire has a visible gap");
+  await review.getByRole("button", { name: "Mark resolved" }).click();
+  await expect(page.getByTestId("gallery-tile-review-me")).toHaveCount(0);
+  await page.getByTestId("gallery-filter-attention").click();
+  await expect(page.getByTestId("gallery-attention-review-me")).toContainText(
+    "Reviewed · resolved",
+  );
 });

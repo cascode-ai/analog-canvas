@@ -1,3 +1,8 @@
+import {
+  readGalleryCuration,
+  type GalleryAttention,
+  type GalleryCuration,
+} from "./gallery-curation";
 // Community example gallery: publish-first with an admin recycle bin.
 //
 // Trust boundary: the only accepted input is Project JSON that passes the
@@ -149,8 +154,8 @@ export const GALLERY_DAILY_SUBMISSION_LIMIT = 100;
  * of deleting their own entry outright in one step.
  */
 export const GALLERY_RECYCLED_KEEP_PER_ACCOUNT = 25;
-export const GALLERY_MAX_TAGS = 5;
-export const GALLERY_MAX_TAG_LENGTH = 24;
+export const GALLERY_MAX_TAGS = 12;
+export const GALLERY_MAX_TAG_LENGTH = 32;
 /** How many previous states each Gallery entry retains. */
 export const GALLERY_MAX_VERSIONS_PER_ENTRY = 2;
 export const GALLERY_DEFAULT_LIST_LIMIT = 30;
@@ -251,6 +256,10 @@ export type GalleryEnv = {
 };
 
 export interface GalleryEntrySummary {
+  categories: string[];
+  curationRevision: number;
+  attention?: GalleryAttention;
+  assessedPreviewRevision?: string;
   id: string;
   name: string;
   author: string;
@@ -285,7 +294,10 @@ export interface GalleryEntrySummary {
  * inner whitespace collapsed, `[a-z0-9 +/-]` only, capped in length and
  * count, deduplicated.
  */
-export function sanitizeGalleryTags(value: unknown): string[] {
+export function sanitizeGalleryTags(
+  value: unknown,
+  limit = GALLERY_MAX_TAGS,
+): string[] {
   if (!Array.isArray(value)) return [];
   const tags: string[] = [];
   for (const raw of value) {
@@ -299,7 +311,7 @@ export function sanitizeGalleryTags(value: unknown): string[] {
       .trim();
     if (tag.length === 0 || tags.includes(tag)) continue;
     tags.push(tag);
-    if (tags.length === GALLERY_MAX_TAGS) break;
+    if (tags.length === limit) break;
   }
   return tags;
 }
@@ -315,6 +327,7 @@ function unwrapTags(stored: string | null): string[] {
 }
 
 interface EntryRow {
+  curation_json: string;
   id: string;
   name: string;
   author: string;
@@ -348,6 +361,7 @@ type EntrySummaryRow = Pick<
   | "owner_user_id"
   | "schema_version"
   | "tags"
+  | "curation_json"
   | "netlistable"
   | "preview_revision"
   | "preview_width"
@@ -374,8 +388,18 @@ const PREVIEW_DIMENSIONS_MIGRATION = "2026-09-02-gallery-preview-dimensions";
 
 function summaryOf(
   row: EntrySummaryRow & { likes?: number; liked_by_viewer?: number },
+  includeAttention = false,
 ): GalleryEntrySummary {
+  const curation = readGalleryCuration(row.curation_json);
   return {
+    categories: curation?.categories ?? [],
+    curationRevision: curation?.revision ?? 0,
+    ...(includeAttention && curation?.attention
+      ? {
+          attention: curation.attention,
+          assessedPreviewRevision: curation.assessedPreviewRevision,
+        }
+      : {}),
     id: row.id,
     name: row.name,
     author: row.author,
@@ -398,6 +422,22 @@ function summaryOf(
     likes: row.likes ?? 0,
     likedByViewer: (row.liked_by_viewer ?? 0) === 1,
   };
+}
+
+/** Republication invalidates in-flight metadata writes even if the SVG stays identical. */
+function advanceCurationRevision(row: EntryRow, at: string): string {
+  const previous = readGalleryCuration(row.curation_json);
+  return JSON.stringify({
+    ...(previous ?? {
+      categories: [],
+      attention: null,
+      assessedPreviewRevision: "",
+      updatedAt: at,
+      updatedBy: "",
+      source: "manual",
+    }),
+    revision: (previous?.revision ?? 0) + 1,
+  });
 }
 
 /** Storage-only Durable Object; policy lives in `routeGalleryRequest`. */
@@ -512,6 +552,8 @@ export class GalleryDO {
     }
     // Additive columns for pre-existing databases.
     for (const alteration of [
+      "ALTER TABLE gallery_entries ADD COLUMN curation_json TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE gallery_entry_versions ADD COLUMN curation_json TEXT NOT NULL DEFAULT ''",
       "ALTER TABLE gallery_entries ADD COLUMN reject_reason TEXT",
       "ALTER TABLE gallery_entries ADD COLUMN reviewed_at TEXT",
       "ALTER TABLE gallery_entries ADD COLUMN reviewed_by TEXT",
@@ -681,6 +723,8 @@ export class GalleryDO {
         return this.allIds();
       case "netlistable-refresh":
         return this.refreshNetlistable(body);
+      case "curate":
+        return this.curate(body);
       case "tags":
         return this.tagCounts();
       case "authors":
@@ -899,10 +943,25 @@ export class GalleryDO {
       conditions.push("e.author = ?");
       bindings.push(author);
     }
-    const tags = sanitizeGalleryTags(body.tags);
+    const tags = sanitizeGalleryTags(body.tags, 256);
     if (tags.length > 0) {
       conditions.push(`(${tags.map(() => "e.tags LIKE ?").join(" OR ")})`);
       for (const tag of tags) bindings.push(`%,${tag},%`);
+    }
+    if (typeof body.category === "string" && body.category) {
+      conditions.push(
+        "EXISTS (SELECT 1 FROM json_each(CASE WHEN e.curation_json = '' THEN '{}' ELSE e.curation_json END, '$.categories') WHERE value = ?)",
+      );
+      bindings.push(body.category);
+    }
+    if (body.attention === true) {
+      conditions.push(
+        "json_extract(CASE WHEN e.curation_json = '' THEN '{}' ELSE e.curation_json END, '$.attention.status') = 'needs-attention'",
+      );
+      if (body.isAdmin !== true) {
+        conditions.push("e.owner_user_id = ?");
+        bindings.push(viewerId);
+      }
     }
     if (body.netlistable === true) conditions.push("e.netlistable = 1");
     // Whose likes: the session's, so a signed-out reader asking for their
@@ -933,7 +992,7 @@ export class GalleryDO {
       .exec<EntrySummaryRow & { likes: number; liked_by_viewer: number }>(
         `SELECT e.id, e.name, e.author, e.description, e.created_at,
            e.owner_user_id,
-           e.schema_version, e.tags, e.netlistable, e.preview_revision,
+           e.schema_version, e.tags, e.curation_json, e.netlistable, e.preview_revision,
            e.preview_width, e.preview_height,
            (SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id) AS likes,
            (SELECT COUNT(*) FROM gallery_likes
@@ -950,7 +1009,17 @@ export class GalleryDO {
       rows.length > limit && page.length > 0
         ? `${page.at(-1)!.created_at}|${page.at(-1)!.id}`
         : null;
-    return Response.json({ entries: page.map(summaryOf), nextCursor, total });
+    return Response.json({
+      entries: page.map((row) =>
+        summaryOf(
+          row,
+          body.isAdmin === true ||
+            (!!viewerId && viewerId === row.owner_user_id),
+        ),
+      ),
+      nextCursor,
+      total,
+    });
   }
 
   /** Minimum row needed to decide whether an immutable preview cache hit is valid. */
@@ -1000,7 +1069,7 @@ export class GalleryDO {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
     return Response.json({
-      entry: summaryOf(row),
+      entry: summaryOf(row, true),
       status: row.status,
       ownerUserId: row.owner_user_id,
       submitterEmail: row.submitter_email,
@@ -1024,8 +1093,8 @@ export class GalleryDO {
     this.sql.exec(
       `INSERT INTO gallery_entry_versions(
         id, entry_id, version_no, name, author, description, tags,
-        schema_version, project_text, svg_text, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        schema_version, project_text, svg_text, created_at, curation_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       shortId(),
       row.id,
       lastVersion + 1,
@@ -1037,8 +1106,60 @@ export class GalleryDO {
       row.project_text,
       row.svg_text,
       at,
+      row.curation_json ?? "",
     );
     pruneGalleryEntryVersions(this.sql, row.id);
+  }
+
+  private curate(body: Record<string, unknown>): Response {
+    const row = this.sql
+      .exec<EntryRow>(
+        "SELECT * FROM gallery_entries WHERE id = ?",
+        String(body.id),
+      )
+      .toArray()[0];
+    if (!row) return Response.json({ error: "not-found" }, { status: 404 });
+    const previous = readGalleryCuration(row.curation_json);
+    if (
+      body.expectedPreviewRevision !== (row.preview_revision || "legacy") ||
+      body.expectedCurationRevision !== (previous?.revision ?? 0)
+    ) {
+      return Response.json(
+        {
+          error: "stale-curation",
+          message: "The circuit or its review changed. Reload before saving.",
+        },
+        { status: 409 },
+      );
+    }
+    const curation: GalleryCuration = {
+      categories: body.categories as string[],
+      attention: body.attention as GalleryAttention | null,
+      revision: (previous?.revision ?? 0) + 1,
+      assessedPreviewRevision: String(body.expectedPreviewRevision),
+      updatedAt: String(body.at),
+      updatedBy: String(body.userId),
+      source: body.source === "visual-audit" ? "visual-audit" : "manual",
+    };
+    this.state.storage.transactionSync(() => {
+      this.snapshotEntry(row, String(body.at));
+      this.sql.exec(
+        "UPDATE gallery_entries SET tags = ?, curation_json = ? WHERE id = ?",
+        wrapTags(sanitizeGalleryTags(body.tags)),
+        JSON.stringify(curation),
+        row.id,
+      );
+    });
+    return Response.json({
+      entry: summaryOf(
+        {
+          ...row,
+          tags: wrapTags(sanitizeGalleryTags(body.tags)),
+          curation_json: JSON.stringify(curation),
+        },
+        true,
+      ),
+    });
   }
 
   private replaceEntry(body: Record<string, unknown>): Response {
@@ -1059,7 +1180,7 @@ export class GalleryDO {
          SET name = ?, author = ?, description = ?, project_text = ?,
              svg_text = ?, schema_version = ?, status = ?, tags = ?,
              netlistable = ?, netlistable_version = ?, preview_revision = ?,
-             preview_width = ?, preview_height = ?
+             preview_width = ?, preview_height = ?, curation_json = ?
          WHERE id = ?`,
         String(body.name),
         String(body.author),
@@ -1074,6 +1195,7 @@ export class GalleryDO {
         previewRevision,
         previewDimensions?.width ?? null,
         previewDimensions?.height ?? null,
+        advanceCurationRevision(row, String(body.at ?? row.created_at)),
         row.id,
       );
     });
@@ -1210,6 +1332,7 @@ export class GalleryDO {
         author: string;
         description: string;
         tags: string | null;
+        curation_json: string;
         schema_version: number;
         project_text: string;
         svg_text: string;
@@ -1238,6 +1361,17 @@ export class GalleryDO {
     const netlistable = designExtractsNetlist(restoredProject) ? 1 : 0;
     const previewRevision = sha256Hex(version.svg_text);
     const previewDimensions = svgPreviewDimensions(version.svg_text);
+    const restoredCuration = readGalleryCuration(version.curation_json);
+    const restoredReview: GalleryCuration = {
+      categories: restoredCuration?.categories ?? [],
+      attention: restoredCuration?.attention ?? null,
+      revision: (readGalleryCuration(entry.curation_json)?.revision ?? 0) + 1,
+      assessedPreviewRevision:
+        restoredCuration?.assessedPreviewRevision ?? previewRevision,
+      updatedAt: String(body.at),
+      updatedBy: String(body.reviewerId ?? ""),
+      source: "manual",
+    };
     this.state.storage.transactionSync(() => {
       this.snapshotEntry(entry, String(body.at));
       this.sql.exec(
@@ -1245,7 +1379,7 @@ export class GalleryDO {
          SET name = ?, author = ?, description = ?, project_text = ?,
              svg_text = ?, schema_version = ?, tags = ?, netlistable = ?,
              netlistable_version = ?, preview_revision = ?, preview_width = ?,
-             preview_height = ?
+             preview_height = ?, curation_json = ?
          WHERE id = ?`,
         version.name,
         entry.author,
@@ -1259,6 +1393,7 @@ export class GalleryDO {
         previewRevision,
         previewDimensions?.width ?? null,
         previewDimensions?.height ?? null,
+        JSON.stringify(restoredReview),
         entry.id,
       );
     });
@@ -1649,20 +1784,21 @@ export class GalleryDO {
            (id, name, author, description, created_at, schema_version, status,
             recycled_at, owner_user_id, submitter_email, submitter_provider,
             project_text, svg_text, reject_reason, reviewed_at, reviewed_by,
-            tags, netlistable, preview_revision, preview_width, preview_height)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            tags, netlistable, preview_revision, preview_width, preview_height, curation_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           ...values,
           sha256Hex(svgText),
           previewDimensions?.width ?? null,
           previewDimensions?.height ?? null,
+          typeof row.curation_json === "string" ? row.curation_json : "",
         );
       }
       for (const row of galleryEntryVersions) {
         this.sql.exec(
           `INSERT INTO gallery_entry_versions
            (id, entry_id, version_no, name, author, description, tags,
-            schema_version, project_text, svg_text, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            schema_version, project_text, svg_text, created_at, curation_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           ...rowValues(row, [
             "id",
             "entry_id",
@@ -1676,6 +1812,7 @@ export class GalleryDO {
             "svg_text",
             "created_at",
           ]),
+          typeof row.curation_json === "string" ? row.curation_json : "",
         );
       }
       deleteOrphanGalleryData(this.sql);
@@ -2340,12 +2477,15 @@ export class GalleryDO {
   /** Distinct public tags with counts, most frequent first (G4 menu). */
   private tagCounts(): Response {
     const rows = this.sql
-      .exec<{ tags: string | null }>(
-        "SELECT tags FROM gallery_entries WHERE status = 'public'",
+      .exec<{ tags: string | null; curation_json: string }>(
+        "SELECT tags, curation_json FROM gallery_entries WHERE status = 'public'",
       )
       .toArray();
     const counts = new Map<string, number>();
+    const categoryCounts = new Map<string, number>();
     for (const row of rows) {
+      for (const id of readGalleryCuration(row.curation_json)?.categories ?? [])
+        categoryCounts.set(id, (categoryCounts.get(id) ?? 0) + 1);
       for (const tag of unwrapTags(row.tags)) {
         counts.set(tag, (counts.get(tag) ?? 0) + 1);
       }
@@ -2353,7 +2493,10 @@ export class GalleryDO {
     const tags = [...counts.entries()]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "en"))
       .map(([tag, count]) => ({ tag, count }));
-    return Response.json({ tags });
+    return Response.json({
+      tags,
+      categories: [...categoryCounts].map(([id, count]) => ({ id, count })),
+    });
   }
 
   /** Public contributors ranked by visible circuits and keyed by identity. */
@@ -2475,7 +2618,7 @@ export class GalleryDO {
     this.sql.exec(
       `UPDATE gallery_entries
        SET project_text = ?, schema_version = ?, svg_text = ?,
-           preview_revision = ?, preview_width = ?, preview_height = ?
+           preview_revision = ?, preview_width = ?, preview_height = ?, curation_json = ?
        WHERE id = ?`,
       String(body.projectText),
       Number(body.schemaVersion),
@@ -2483,6 +2626,7 @@ export class GalleryDO {
       previewRevision,
       previewDimensions?.width ?? null,
       previewDimensions?.height ?? null,
+      advanceCurationRevision(row, String(body.at ?? row.created_at)),
       String(body.id),
     );
     return Response.json({ id: row.id, previewRevision });

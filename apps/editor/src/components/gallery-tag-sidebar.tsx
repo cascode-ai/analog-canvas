@@ -1,3 +1,4 @@
+import taxonomy from "../../../../config/gallery-taxonomy.json";
 import {
   useEffect,
   useRef,
@@ -22,32 +23,31 @@ function readSidebarWidth(): number | null {
   }
 }
 
-const TAG_GROUPS = [
-  [
-    "Amplifiers & filters",
-    "amplifier,ota,op,lna,buffer,class ab,differential,common source,gain-boost,cmfb,filter,equalizer",
-  ],
-  ["Data converters", "adc,dac,comparator,tdc,vtc,v-i,mixed-signal"],
-  [
-    "Timing & logic",
-    "oscillator,osc,vco,pll,cdr,frequency divider,cml divider,logic,latch,d-latch,tspc,timing",
-  ],
-  [
-    "Power & bias",
-    "power,power management,bias,current mirror,bandgap,bgr,ldo,low-dropout,dropout,linear regulator,regulator,dc-dc,dcdc,charge pump,rectifier,voltage multiplier",
-  ],
-  [
-    "Switching & sampling",
-    "switch,bootstrap,cts,bootstrapped cts,charge transfer switch,sample and hold,sha,switch capacitor",
-  ],
-] as const;
-
-/** Group presentation only: authored tags and shareable filter values stay intact. */
+const TAG_GROUPS = Object.entries(taxonomy.tagsByGroup);
+const TAG_ALIASES: Record<string, string> = {
+  op: "operational amplifier",
+  osc: "oscillator",
+  bgr: "bandgap",
+  dcdc: "dc-dc",
+  "d-latch": "d latch",
+  levelshifter: "level shifter",
+  sha: "sample and hold",
+  "switch capacitor": "switched capacitor",
+  cts: "charge transfer switch",
+  "v-i": "voltage to current",
+  vtc: "voltage to time",
+  tdc: "time to digital",
+  "gain-boost": "gain boosting",
+  "low-dropout": "ldo",
+  dropout: "ldo",
+  "linear regulator": "regulator",
+  "bootstrapped cts": "charge transfer switch",
+};
 function tagGroup(tag: string): string {
+  const key = TAG_ALIASES[tag.toLowerCase()] ?? tag.toLowerCase();
   return (
-    TAG_GROUPS.find(([, tags]) =>
-      tags.split(",").includes(tag.toLowerCase()),
-    )?.[0] ?? "Devices & other"
+    TAG_GROUPS.find(([, values]) => values.includes(key))?.[0] ??
+    "Custom & legacy"
   );
 }
 
@@ -56,11 +56,17 @@ export function GalleryTagSidebar({
   selected,
   onChange,
   quickFilters,
+  category = null,
+  categoryCounts = [],
+  onCategoryChange,
 }: {
   tags: GalleryTagOption[];
   selected: string[];
   onChange: (tags: string[]) => void;
   quickFilters: ReactNode;
+  category?: string | null;
+  categoryCounts?: { id: string; count: number }[];
+  onCategoryChange?: (id: string | null) => void;
 }) {
   const [query, setQuery] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -109,6 +115,9 @@ export function GalleryTagSidebar({
   // catalogue. Keep it visible and removable instead of hiding that filter.
   const options = [
     ...tags,
+    ...[...new Set(Object.values(taxonomy.tagsByGroup).flat())]
+      .filter((tag) => !tags.some((option) => option.tag === tag))
+      .map((tag) => ({ tag, count: 0 })),
     ...selected
       .filter((tag) => !tags.some((option) => option.tag === tag))
       .map((tag) => ({ tag, count: 0 })),
@@ -118,7 +127,7 @@ export function GalleryTagSidebar({
       selected.includes(tag) ||
       tag.toLowerCase().includes(query.trim().toLowerCase()),
   );
-  const groups = [...TAG_GROUPS.map(([name]) => name), "Devices & other"];
+  const groups = [...TAG_GROUPS.map(([name]) => name), "Custom & legacy"];
   const everyTagSelected =
     tags.length > 0 && tags.every(({ tag }) => selected.includes(tag));
   return (
@@ -169,6 +178,33 @@ export function GalleryTagSidebar({
             </button>
           ) : null}
         </div>
+        {onCategoryChange ? (
+          <nav className="gallery-categories" aria-label="Circuit categories">
+            <h2>Categories</h2>
+            <button
+              type="button"
+              className="gallery-sidebar-option"
+              aria-pressed={!category}
+              onClick={() => onCategoryChange(null)}
+            >
+              All categories
+            </button>
+            {Object.entries(taxonomy.categories).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className="gallery-sidebar-option"
+                aria-pressed={category === id}
+                onClick={() => onCategoryChange(category === id ? null : id)}
+              >
+                <span className="gallery-tag-name">{label}</span>
+                <span className="gallery-sidebar-count">
+                  {categoryCounts.find((item) => item.id === id)?.count ?? 0}
+                </span>
+              </button>
+            ))}
+          </nav>
+        ) : null}
         <div className="gallery-sidebar-heading">
           <h2>Tags</h2>
           {selected.length ? (
@@ -201,7 +237,11 @@ export function GalleryTagSidebar({
               <details
                 key={name}
                 className="gallery-tag-group"
-                open={query.trim().length > 0 || !collapsed[name]}
+                open={
+                  query.trim().length > 0 ||
+                  collapsed[name] === false ||
+                  group.some(({ tag }) => selected.includes(tag))
+                }
                 onToggle={(event) => {
                   if (query.trim()) return;
                   const closed = !event.currentTarget.open;

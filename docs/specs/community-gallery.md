@@ -48,7 +48,7 @@ restrictive content-security-policy.
   frequent first. The landing Gallery places these in a left sidebar grouped
   by circuit family, with independent tag search, per-tag counts and clearable
   multi-selection. Groups are presentation only: no authored tag or URL value
-  is rewritten, unknown tags remain available under Devices & other, and tags
+  is rewritten, unknown tags remain available under Custom & legacy, and tags
   restored from old links remain removable. Narrow mobile layouts collapse
   the sidebar behind a Filters & tags button. Circuit search stays above the
   wall; an empty tag selection result does not substitute unfiltered examples.
@@ -107,12 +107,54 @@ restrictive content-security-policy.
   external device pin mappings; unknown black-box targets remain distinct.
   The administrator's stricter netlist duplicate contract is unchanged.
 
+## Classification and visual attention
+
+[The taxonomy](../../config/gallery-taxonomy.json) separates functional categories
+from topology, implementation and architecture tags. A circuit may belong to
+up to three categories and carry up to twelve tags; catalog suggestions include
+unused tags so the current library does not define the limits of classification.
+Legacy/custom tags remain browsable. Categories, tag search and multi-selection
+live in the resizable left sidebar; its preferred width is local to the browser.
+`category=<id>` composes with the existing feed filters before pagination.
+The tags endpoint additionally returns `{categories: [{id, count}]}`.
+
+Visual attention is independent of publication status and netlist extraction.
+A suspected gap, unintended diagonal, overlap, clipping, unreadable label or
+incomplete drawing may be flagged with a location-specific explanation. A
+textbook abstraction, intentional open port or missing simulation model alone
+is not a drawing defect. Visual review does not certify electrical correctness.
+
+`attention=1` requires a session. Authors receive only their own pending entries;
+administrators receive all pending entries. Attention details on both the feed
+and individual entries are omitted for everyone else. The author/admin card
+allows adding a note, marking the finding resolved and reopening it. None of
+these actions unpublishes the circuit or changes its Project, name, owner,
+likes, preview, or visitor statistics.
+
+`PATCH /api/gallery/<id>/curation` accepts `categories`, `tags`, `attention`
+(`null` or `{status: "needs-attention" | "resolved", issues: [{kind, detail}]}`),
+`expectedPreviewRevision`, and `expectedCurationRevision`. It requires same-origin
+requests and the entry's author or an administrator. An empty pending finding
+is invalid. A changed image or review returns 409; an old review never silently
+overwrites newer work. Revisions are existing identifiers/counters, with no
+new payload hashing. A drawing changed after assessment retains its findings
+and displays a recheck notice. Metadata changes preserve a version snapshot;
+curation fields are included in backups and restores.
+
+A bulk visual audit records the inspected image revision, original tags,
+categories, proposed tags, findings and uncertainty for every entry. The
+[application script](../../scripts/curate-gallery.mjs) validates this report
+without writing by default. Explicit application requires an origin, a session
+cookie file and a before/after receipt. Changed entries are skipped for review;
+interruption can resume without repeating already-applied metadata. Local
+inspection does not authorize publication or a production data rewrite.
+
 ## Publishing
 
 `POST /api/gallery/submissions` (same-origin) publishes immediately with:
 trimmed `name` (required, ≤120), `description`
-(≤300), and `tags` (array; normalized lowercase `[a-z0-9 +/-]`, ≤24
-chars each, at most 5, deduplicated — `sanitizeGalleryTags` is the one
+(≤300), and `tags` (array; normalized lowercase `[a-z0-9 +/-]`, ≤32
+chars each, at most 12, deduplicated — `sanitizeGalleryTags` is the one
 normalization for writes and filters), `projectText` ≤2 MiB. The Worker validates, stamps the canonical
 serialization, renders the preview, and stores the entry as `public`.
 Ordinary submissions count against a per-account limit of 100 per UTC day,

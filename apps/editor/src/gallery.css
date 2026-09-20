@@ -1692,3 +1692,53 @@ div.gallery-contributor-status {
     display: block;
   }
 }
+
+.gallery-categories {
+  display: grid;
+  gap: 2px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--icm-border);
+}
+.gallery-categories h2 {
+  margin-bottom: 6px;
+}
+.gallery-attention {
+  margin: 0 8px 12px;
+  padding: 10px 12px;
+  font-size: 12px;
+  border: 1px solid var(--icm-border);
+  border-radius: 8px;
+  background: var(--icm-surface);
+}
+.gallery-attention summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.gallery-attention p,
+.gallery-attention li {
+  line-height: 1.5;
+}
+.gallery-attention ul {
+  padding-left: 18px;
+}
+.gallery-attention textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  padding: 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: 4px;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+}
+.gallery-attention-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.gallery-attention-actions button {
+  padding: 5px 8px;
+  font: inherit;
+  cursor: pointer;
+}

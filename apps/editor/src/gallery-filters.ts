@@ -1,3 +1,4 @@
+import taxonomy from "../../../config/gallery-taxonomy.json";
 /**
  * The Gallery's "show me only…" state, in one shape.
  *
@@ -14,6 +15,8 @@ export type GalleryView = "gallery" | "shelf";
 export interface GalleryFilterState {
   /** Which wall: the community gallery, or the reader's own shelf. */
   view: GalleryView;
+  category: string | null;
+  attention: boolean;
   author: string | null;
   /** Stable identity for the selected author; null for legacy links/entries. */
   ownerUserId: string | null;
@@ -30,7 +33,7 @@ export const GALLERY_FILTERS_KEY = "icm.gallery-filters.v1";
 
 /** Bounds on restored text, so a hand-edited store cannot grow a query. */
 const MAX_FILTER_LENGTH = 200;
-const MAX_FILTER_TAGS = 64;
+const MAX_FILTER_TAGS = 256;
 
 /**
  * The narrowing parameters, as distinct from `view`. A link that names one of
@@ -44,11 +47,15 @@ const NARROWING_PARAMS = [
   "q",
   "netlist",
   "liked",
+  "category",
+  "attention",
 ] as const;
 
 export function createDefaultGalleryFilters(): GalleryFilterState {
   return {
     view: "gallery",
+    category: null,
+    attention: false,
     author: null,
     ownerUserId: null,
     tags: [],
@@ -66,7 +73,9 @@ export function galleryFiltersNarrowWall(filters: GalleryFilterState): boolean {
     filters.tags.length > 0 ||
     filters.search.trim().length > 0 ||
     filters.netlistable ||
-    filters.liked
+    filters.liked ||
+    filters.category !== null ||
+    filters.attention
   );
 }
 
@@ -82,7 +91,9 @@ export function galleryFiltersNarrowQuery(
     filters.ownerUserId !== null ||
     filters.tags.length > 0 ||
     filters.netlistable ||
-    filters.liked
+    filters.liked ||
+    filters.category !== null ||
+    filters.attention
   );
 }
 
@@ -118,6 +129,10 @@ export function parseGalleryFilterQuery(search: string): {
       search: (params.get("q") ?? "").slice(0, MAX_FILTER_LENGTH),
       netlistable: params.get("netlist") === "1",
       liked: params.get("liked") === "1",
+      category: Object.hasOwn(taxonomy.categories, params.get("category") ?? "")
+        ? params.get("category")
+        : null,
+      attention: params.get("attention") === "1",
     },
     narrowed: NARROWING_PARAMS.some((name) => (params.get(name) ?? "") !== ""),
     namesView: params.has("view"),
@@ -144,6 +159,8 @@ export function galleryFilterSearch(
   set("q", filters.search.trim().length > 0 ? filters.search : null);
   set("netlist", filters.netlistable ? "1" : null);
   set("liked", filters.liked ? "1" : null);
+  set("category", filters.category);
+  set("attention", filters.attention ? "1" : null);
   const query = params.toString();
   return query.length > 0 ? `?${query}` : "";
 }
@@ -178,6 +195,12 @@ export function parseStoredGalleryFilters(
         : "",
     netlistable: record.netlistable === true,
     liked: record.liked === true,
+    category:
+      typeof record.category === "string" &&
+      Object.hasOwn(taxonomy.categories, record.category)
+        ? record.category
+        : null,
+    attention: record.attention === true,
   };
 }
 

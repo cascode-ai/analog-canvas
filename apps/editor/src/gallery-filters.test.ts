@@ -22,6 +22,8 @@ describe("gallery filter preferences", () => {
       search: "mirror",
       netlistable: true,
       liked: true,
+      category: null,
+      attention: false,
     });
     expect(narrowed).toBe(true);
   });
@@ -100,6 +102,8 @@ describe("gallery filter preferences", () => {
     });
     expect(resolveGalleryFilters("", stored)).toEqual({
       view: "gallery",
+      category: null,
+      attention: false,
       author: "alice",
       ownerUserId: "account-alice",
       tags: ["bias"],
@@ -162,4 +166,21 @@ describe("gallery filter preferences", () => {
     const liked = { ...createDefaultGalleryFilters(), liked: true };
     expect(galleryFiltersNarrowQuery(liked)).toBe(true);
   });
+});
+
+it("round-trips category and attention independently of tags", () => {
+  const filters = {
+    ...createDefaultGalleryFilters(),
+    category: "amplifiers",
+    attention: true,
+    tags: ["cascode"],
+  };
+  expect(
+    parseGalleryFilterQuery(galleryFilterSearch("", filters)).filters,
+  ).toEqual(filters);
+  expect(parseStoredGalleryFilters(JSON.stringify(filters))).toEqual(filters);
+  expect(galleryFiltersNarrowQuery(filters)).toBe(true);
+  expect(
+    parseGalleryFilterQuery("?category=unknown").filters.category,
+  ).toBeNull();
 });

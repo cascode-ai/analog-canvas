@@ -1,3 +1,4 @@
+import type { GalleryAttention } from "../../../worker/gallery-curation";
 const GALLERY_CHANGE_CHANNEL = "analog-canvas-gallery-change-v1";
 
 export interface GalleryChange {
@@ -159,6 +160,10 @@ export function subscribeGalleryRefresh(
  */
 
 export interface GalleryFeedEntry {
+  categories?: string[];
+  curationRevision?: number;
+  attention?: GalleryAttention;
+  assessedPreviewRevision?: string;
   id: string;
   name: string;
   author: string;
@@ -237,9 +242,13 @@ export async function loadGalleryFeed(
     /** Only circuits the signed-in viewer has liked. */
     liked?: boolean;
     limit?: number;
+    category?: string | null;
+    attention?: boolean;
   } = {},
 ): Promise<GalleryFeedPage | null> {
   const params = new URLSearchParams();
+  if (options.category) params.set("category", options.category);
+  if (options.attention) params.set("attention", "1");
   if (options.author) params.set("author", options.author);
   if (options.ownerUserId) params.set("owner", options.ownerUserId);
   if (options.tags && options.tags.length > 0) {

@@ -1,3 +1,4 @@
+import { GalleryAttentionReview } from "./gallery-attention-review";
 import { useEffect, useRef, useState } from "react";
 import { TilePreview } from "./tile-preview";
 import "../styles/gallery-entry.css";
@@ -476,12 +477,18 @@ export function GalleryFeed({
     search: searchQuery,
     netlistable: netlistableOnly,
     liked: likedOnly,
+    category,
+    attention: attentionOnly,
   } = filters;
   function updateFilters(patch: Partial<GalleryFilterState>): void {
     setFilters((previous) => ({ ...previous, ...patch }));
   }
   const [duplicateReport, setDuplicateReport] =
     useState<GalleryDuplicateReport | null>(null);
+  const [viewerId, setViewerId] = useState<string | null>(null);
+  const [categoryCounts, setCategoryCounts] = useState<
+    { id: string; count: number }[]
+  >([]);
   const [signedIn, setSignedIn] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [ownerBusy, setOwnerBusy] = useState<string | null>(null);
@@ -526,6 +533,7 @@ export function GalleryFeed({
     void fetchSessionUser().then((user) => {
       if (cancelled) return;
       setSignedIn(user !== null);
+      setViewerId(user?.id ?? null);
       setIsOwner(user?.isAdmin === true);
     });
     return () => {
@@ -543,8 +551,12 @@ export function GalleryFeed({
         if (!response.ok) return;
         const payload = (await response.json()) as {
           tags?: { tag: string; count: number }[];
+          categories?: { id: string; count: number }[];
         };
-        if (!cancelled) setTagOptions(payload.tags ?? []);
+        if (!cancelled) {
+          setTagOptions(payload.tags ?? []);
+          setCategoryCounts(payload.categories ?? []);
+        }
       } catch {
         // No menu without the worker; the wall itself still works.
       }
@@ -640,6 +652,8 @@ export function GalleryFeed({
       selectedTags.join(","),
       netlistableOnly ? "netlist" : "",
       likedOnly ? "liked" : "",
+      category ?? "",
+      attentionOnly ? "attention" : "",
     ].join("\u0000");
     const changingQuery = loadedQueryRef.current !== queryKey;
     if (changingQuery) {
@@ -656,6 +670,8 @@ export function GalleryFeed({
       tags: selectedTags,
       netlistable: netlistableOnly,
       liked: likedOnly,
+      category,
+      attention: attentionOnly,
     }).then((page) => {
       if (cancelled || generation !== feedGenerationRef.current) return;
       firstPageLoadingRef.current = false;
@@ -681,6 +697,8 @@ export function GalleryFeed({
     selectedTags,
     netlistableOnly,
     likedOnly,
+    category,
+    attentionOnly,
     refreshSignal,
   ]);
 
@@ -704,6 +722,8 @@ export function GalleryFeed({
         tags: selectedTags,
         netlistable: netlistableOnly,
         liked: likedOnly,
+        category,
+        attention: attentionOnly,
         cursor: nextCursor,
       }).then((page) => {
         if (generation !== feedGenerationRef.current) return;
@@ -730,6 +750,8 @@ export function GalleryFeed({
     selectedTags,
     netlistableOnly,
     likedOnly,
+    category,
+    attentionOnly,
   ]);
 
   function selectAuthor(
@@ -926,11 +948,25 @@ export function GalleryFeed({
       {view === "gallery" ? (
         <div className="gallery-browser">
           <GalleryTagSidebar
+            category={category}
+            categoryCounts={categoryCounts}
+            onCategoryChange={(category) => updateFilters({ category })}
             tags={tagOptions}
             selected={selectedTags}
             onChange={(tags) => updateFilters({ tags })}
             quickFilters={
               <>
+                {signedIn || attentionOnly ? (
+                  <button
+                    type="button"
+                    className="gallery-sidebar-option"
+                    aria-pressed={attentionOnly}
+                    onClick={() => updateFilters({ attention: !attentionOnly })}
+                    data-testid="gallery-filter-attention"
+                  >
+                    Needs attention{signedIn && !isOwner ? " · Mine" : ""}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className={
@@ -1158,6 +1194,22 @@ export function GalleryFeed({
                               ) : null}
                             </span>
                           </a>
+                          {isOwner ||
+                          (!!viewerId && viewerId === entry.ownerUserId) ? (
+                            <GalleryAttentionReview
+                              entry={entry}
+                              onChange={(updated) => {
+                                setState((previous) => ({
+                                  ...previous,
+                                  entries: previous.entries.map((item) =>
+                                    item.id === updated.id ? updated : item,
+                                  ),
+                                }));
+                                setRefreshSignal((signal) => signal + 1);
+                                announceGalleryChange({ entryId: entry.id });
+                              }}
+                            />
+                          ) : null}
                           {isOwner ? (
                             <>
                               <GalleryOwnerRejectButton

@@ -20,8 +20,8 @@ it("keeps every original tag and a removed tag from a saved filter reachable", (
     expect(
       markup.split(`data-testid="gallery-tag-option-${tag}"`),
     ).toHaveLength(2);
-  expect(markup).toContain("Amplifiers &amp; filters");
-  expect(markup).toContain("Data converters");
-  expect(markup).toContain("Devices &amp; other");
+  expect(markup).toContain("Amplifiers");
+  expect(markup).toContain("Conversion");
+  expect(markup).toContain("Custom &amp; legacy");
   expect(markup).toContain("Clear 1 selected");
 });
