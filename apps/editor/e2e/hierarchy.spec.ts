@@ -360,9 +360,9 @@ test("edits independent parent parameter overrides and follows definition rename
   await setComponentParameter(page, "Resistance", "");
   await expectComponentCodeField(page, "parameters.Resistance", "");
   await expect(page.getByText("// Default: 3k", { exact: true })).toBeVisible();
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expectComponentCodeField(page, "parameters.Resistance", "4k");
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   await expectComponentCodeField(page, "parameters.Resistance", "");
   const saved = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(

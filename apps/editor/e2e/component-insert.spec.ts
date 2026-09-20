@@ -140,7 +140,7 @@ test("C copy shows alignment guides, commits the preview and clears guides on Es
   await page.keyboard.press("Escape");
   await expect(ghost).toHaveCount(0);
   await expect(page.locator(".smart-snap-guide")).toHaveCount(0);
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(page.getByTestId("instance-count")).toHaveText("1");
 });
 
@@ -1390,7 +1390,7 @@ test("carries a default and manual Value through placement and Q property editin
   await expect(
     page.getByRole("button", { name: "Apply component properties" }),
   ).toHaveCount(0);
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expectComponentCodeField(page, "parameters.value", "1k");
   // Electrical renaming and the shared visual editor are distinct actions;
   // there is no second, plain-text Label field or heavyweight Identity card.
@@ -1634,10 +1634,10 @@ test("edits independent input and output swaps with undo, named connections and 
   expect(await terminalY("OUT+")).toBeLessThan(initialOutputY);
   await expect(amplifier.locator("text", { hasText: "G" })).toBeVisible();
 
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(outputs).toHaveAttribute("aria-checked", "false");
   await expect(inputs).toHaveAttribute("aria-checked", "true");
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   await expect(outputs).toHaveAttribute("aria-checked", "true");
   await setComponentCodeField(page, "appearance.inputsSwapped", false);
   await expect(amplifier).toHaveAttribute(
@@ -1953,8 +1953,8 @@ test("shows the complete foldable categorized Library, quick-places a device, an
   await expect(panel).toHaveAttribute("data-open", "true");
   const libraryChipCount = await libraryChips.count();
   expect(libraryChipCount).toBeGreaterThanOrEqual(35);
-  await expect(categories).toHaveCount(11);
-  await expect(page.getByTestId("shapes-category-user-defined")).toBeVisible();
+  await expect(categories).toHaveCount(10);
+  await expect(page.getByTestId("shapes-category-user-defined")).toHaveCount(0);
   const transistorCategory = page.getByTestId("shapes-category-transistors");
   const transistorChips = transistorCategory.locator(
     '[data-testid^="shapes-chip-"]',

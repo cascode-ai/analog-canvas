@@ -112,10 +112,10 @@ test("restores process and device choices, applies defaults and keeps edit/undo 
   await expect(code).toContainText("sky130_fd_pr__nfet_01v8");
   await expect(code).toContainText("XM1");
   await expect(mosLabel).toHaveText("M1");
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(code).toContainText("NMOS");
   await expect(code).not.toContainText("XM1");
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   await expect(code).toContainText("XM1");
   await expect(mosLabel).toHaveText("M1");
   await page
@@ -158,7 +158,7 @@ test("restores process and device choices, applies defaults and keeps edit/undo 
   await code.press("Enter");
   await expect(mosLabel).toHaveText("M_load");
   await expect(code).toContainText("XM_load");
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(mosLabel).toHaveText("M1");
   await expect(code).toContainText("XM1");
   await page
@@ -320,10 +320,10 @@ test("opens editable netlist by default, highlights a card, and synchronizes nam
   expect(instance.placement).toEqual(
     fixture().documents[0]!.instances[0]!.placement,
   );
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(label(page)).toContainText("R1");
   await expect(code).toContainText("10k");
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   await expect(label(page)).toContainText("R_load");
   await page.getByLabel("Netlist format").selectOption("spectre");
   await expect(code).toContainText("simulator lang=spectre");

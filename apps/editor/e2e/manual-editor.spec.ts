@@ -423,7 +423,7 @@ test("property code keeps a drawn wired instance visible and moves it with grid 
   await setComponentCodeField(page, "coordinate", [421, 281]);
   await expect(page.getByTestId("hit-R1")).toHaveCount(1);
   await expectComponentCodeField(page, "coordinate", [420, 280]);
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(page.getByTestId("hit-R1")).toHaveCount(1);
   await expectComponentCodeField(page, "coordinate", [
     before.documents[0].instances[0].placement.position.x,
@@ -2172,14 +2172,14 @@ test("changes wire line style while preserving color, arrow, export and undo", a
   await expect
     .poll(() => routeInk(page, "route-ui-1", "stroke-dasharray"))
     .toBe("2 3");
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   expect(
     JSON.parse(await readComponentPropertyCode(page)).appearance.lineStyle,
   ).toBe("dashed");
   await expect
     .poll(() => routeInk(page, "route-ui-1", "stroke-dasharray"))
     .toBe("6 4");
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   expect(
     JSON.parse(await readComponentPropertyCode(page)).appearance.lineStyle,
   ).toBe("dotted");
@@ -3229,7 +3229,7 @@ test("applies Route name, scope, and appearance from one JSON edit", async ({
       },
     }),
   );
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(page.getByTestId("revision")).toHaveText(String(revision + 2));
   expect(JSON.parse(await readComponentPropertyCode(page))).toMatchObject({
     type: "wire",
@@ -5710,7 +5710,7 @@ test("middle-click steers which way the wire corner turns", async ({
   expect(horizontal).toHaveLength(3);
   expect(horizontal[1]!.y).toBe(horizontal[0]!.y);
 
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(page.locator('[data-testid^="route-hit-"]')).toHaveCount(0);
 
   // One middle-click flips the corner onto the other axis.
@@ -6050,7 +6050,7 @@ test("normalizes overlapping branches without freezing the dragged wire", async 
     ),
   ).toBe(true);
 
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(dots).toHaveCount(1);
 
   // Moving beyond the old tip is legal too. Coverage is unioned instead of
@@ -6062,7 +6062,7 @@ test("normalizes overlapping branches without freezing the dragged wire", async 
     Math.min(...raised.flatMap((points) => points.map((p) => p.y))),
   ).toBeLessThan(fixedTapEnd.y);
   await expect(page.getByTestId("status")).not.toContainText("would overlap");
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(dots).toHaveCount(1);
   expect(Number(await dots.first().getAttribute("cy"))).toBe(dotBefore);
 });

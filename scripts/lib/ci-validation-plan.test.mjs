@@ -241,7 +241,7 @@ describe("CI validation planning", () => {
   it("does not allocate a browser runner for non-shipping tests and manifests", () => {
     expect(
       ciPlan([
-        "apps/editor/src/components/editor-help-dialog.test.tsx",
+        "apps/editor/src/app/App.test.tsx",
         "apps/local-host/src/local-host.test.ts",
         "apps/editor/package.json",
         "packages/platform-node/package.json",

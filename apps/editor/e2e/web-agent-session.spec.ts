@@ -566,7 +566,7 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
     .getByTestId("connect-agent-panel")
     .getByRole("button", { name: "Close Agent dialog" })
     .click();
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(page.getByTestId("active-instance-count")).toHaveText("0");
   await expect
     .poll(() =>
@@ -1023,11 +1023,11 @@ test("copies a working handoff through the normal local dev relay", async ({
   ).toBe("3.3k");
 
   // Both writers share history without disconnecting or freezing the canvas.
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   expect(
     JSON.parse(await readComponentPropertyCode(page)).parameters.value,
   ).toBe("2.2k");
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   const second = await client.circuit(session.sessionId, session.agentToken, {
     apiVersion: "3.0",
     requestId: "agent-second-resistor",
@@ -1067,7 +1067,7 @@ test("copies a working handoff through the normal local dev relay", async ({
     ]),
   );
   expect(wired.snapshot.document.routes).toHaveLength(1);
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   expect(
     (await readSnapshot("after-wire-undo")).snapshot.document.routes,
   ).toHaveLength(0);
@@ -1084,7 +1084,7 @@ test("copies a working handoff through the normal local dev relay", async ({
     }),
   ).rejects.toThrow();
   await panel.getByRole("button", { name: "Close Agent dialog" }).click();
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
 });
 

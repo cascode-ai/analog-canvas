@@ -27,9 +27,9 @@ test("bulk edits instance JSON in the sidebar with atomic undo and live netlist 
   await code.fill(pasted);
   // Live acknowledgement must preserve bulk-paste formatting/caret ownership.
   await expect(code).toHaveValue(pasted);
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(code).toHaveValue(original);
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   await expect
     .poll(async () =>
       Object.values(
@@ -44,11 +44,11 @@ test("bulk edits instance JSON in the sidebar with atomic undo and live netlist 
   await code.fill("{");
   await expect(panel.getByRole("alert")).toContainText("valid JSON");
   expect(await copyNetlistText(page)).toMatch(/R1 a b 10k\nR2 b a 10k/iu);
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   const live = page.getByRole("textbox", { name: "Netlist code", exact: true });
   await expect(live).toContainText(/R1 a b 1k/iu);
   await expect(live).toContainText(/R2 b a 2k/iu);
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   await expect(live).toContainText(/R1 a b 10k/iu);
   await expect(live).toContainText(/R2 b a 10k/iu);
 

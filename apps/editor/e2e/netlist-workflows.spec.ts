@@ -880,7 +880,7 @@ test("refreshes a legacy circuit with missing device defaults in one click", asy
   await expect(code).toContainText(/R1 \S+ \S+ 1k/u);
   await expect(fill).toHaveCount(0);
   // One undo step: the circuit is back to what was opened.
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(code).toHaveText("");
   await expect(page.getByTestId("netlist-fill-defaults")).toHaveText(
     "Fill 3 devices",
