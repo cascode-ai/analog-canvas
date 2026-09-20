@@ -42,6 +42,7 @@ import { exportFile, importFile } from "./file-operations.js";
 export interface ToolSessionState {
   client: AgentSessionClient;
   workspaceBase?: string;
+  workspaceBases?: Map<string, string>;
 }
 
 const ConnectArgs = z.strictObject({
@@ -94,10 +95,13 @@ async function localWorkspace(session: ToolSessionState, basePath?: string) {
     projectId: status.projectId,
     sessionId: status.sessionId,
   };
+  const key = `${new URL(scope.serverUrl).origin}\0${scope.projectId}`;
   const workspace = await LocalWorkspace.open(
     scope,
-    basePath ?? session.workspaceBase ?? defaultWorkspacePath(scope),
+    basePath ?? session.workspaceBases?.get(key) ?? defaultWorkspacePath(scope),
   );
+  session.workspaceBases ??= new Map();
+  session.workspaceBases.set(key, workspace.basePath);
   session.workspaceBase = workspace.basePath;
   return workspace;
 }
@@ -440,6 +444,10 @@ const TOOLS: readonly ToolEntry[] = [
       const { request, requestId, outputPath, basePath } =
         SimulationFilesArgs.parse(args);
       if (request.action === "workspace") {
+        // status() is a cached local observation, not a network lease refresh.
+        const status = await session.client.status();
+        if (status.sessionId && status.projectId)
+          return (await localWorkspace(session, basePath)).describe();
         const path = basePath ?? session.workspaceBase;
         if (path) {
           try {

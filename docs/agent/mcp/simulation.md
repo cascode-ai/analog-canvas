@@ -41,7 +41,12 @@ analyses or code. Basic OP/DC/AC/TRAN code needs no dedicated helper call.
 6. Use `simulation_files` with `request:{action:"sync",runId}` to obtain the
    catalog and download complete files into a local base. No path question is
    required: the default lives under the MCP process working directory's
-   `.analog-canvas/` and is isolated by server and session. The reply gives the
+   `.analog-canvas/` and is isolated by server and Project within the MCP host's
+   working directory. Reconnection or MCP restart reuses that default Project
+   base; a changed authorization session does not move downloaded evidence.
+   Explicit `basePath` choices are remembered per Project while the MCP process
+   lives. Existing older session-named bases remain readable by supplying their
+   path; nothing is moved or deleted automatically. The reply gives the
    absolute base/index/work paths and identifies the filesystem as `mcp-host`.
    That host must share a filesystem with the Agent's local analysis tools;
    a remote MCP path is not automatically accessible from the Agent runtime.

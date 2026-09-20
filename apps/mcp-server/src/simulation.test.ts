@@ -64,6 +64,54 @@ async function nativeNumericReply(input: ExecutionInput) {
   });
 }
 describe("MCP / browser Simulation Resource parity", () => {
+  it("remembers custom bases per Project, never presents the last Project as the current one, and permits offline inspection", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "icm-workspace-scope-"));
+    const client = new AgentSessionClient({ http: new FakeAgentHttp() });
+    await client.connect("session-1.code");
+    const initial = await client.status();
+    let projectId: string | null = "project-a";
+    vi.spyOn(client, "status").mockImplementation(async () => ({
+      ...initial,
+      projectId,
+      sessionId: projectId ? "new-session" : null,
+    }));
+    const state = { client };
+    const invoke = async (basePath?: string) => {
+      const reply = await callTool(
+        "simulation_files",
+        { request: { action: "workspace" }, ...(basePath ? { basePath } : {}) },
+        state,
+      );
+      return JSON.parse(reply.content[0]!.text!);
+    };
+    try {
+      const a = join(directory, "a");
+      const b = join(directory, "b");
+      expect(await invoke(a)).toMatchObject({
+        basePath: a,
+        projectId: "project-a",
+      });
+      projectId = "project-b";
+      expect(await invoke(b)).toMatchObject({
+        basePath: b,
+        projectId: "project-b",
+      });
+      projectId = "project-a";
+      expect(await invoke()).toMatchObject({
+        basePath: a,
+        projectId: "project-a",
+      });
+      const wrong = await invoke(b);
+      expect(JSON.stringify(wrong)).toContain("WORKSPACE_PROJECT_MISMATCH");
+      projectId = null;
+      expect(await invoke()).toMatchObject({
+        basePath: a,
+        projectId: "project-a",
+      });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
   it("returns the generated start identity after a lost response so the same session can retry safely", async () => {
     const http = new FakeAgentHttp();
     const client = new AgentSessionClient({ http });

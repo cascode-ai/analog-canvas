@@ -33,16 +33,15 @@ const catalog = (files: ArtifactRef[]): ResultCatalog => ({
   datasets: [],
 });
 describe("local simulation workspace", () => {
-  it("defaults to a session/host-isolated directory without requesting a path", () => {
+  it("defaults to a Project/host-isolated directory stable across authorization sessions", () => {
     const first = defaultWorkspacePath(scope);
-    expect(first).not.toBe(
-      defaultWorkspacePath({ ...scope, sessionId: "other" }),
-    );
+    expect(first).toBe(defaultWorkspacePath({ ...scope, sessionId: "other" }));
     expect(first).not.toBe(
       defaultWorkspacePath({ ...scope, serverUrl: "https://preview.test" }),
     );
-    const sessionId = "11111111-2222-3333-4444-555555555555";
-    expect(defaultWorkspacePath({ ...scope, sessionId })).toContain(sessionId);
+    const projectId = "11111111-2222-3333-4444-555555555555";
+    expect(defaultWorkspacePath({ ...scope, projectId })).toContain(projectId);
+    expect(defaultWorkspacePath({ ...scope, projectId })).not.toBe(first);
   });
   it("syncs same-named files, preserves stable paths after remote locator changes, and is readable offline", async () => {
     const root = await mkdtemp(join(tmpdir(), "icm-base-"));
@@ -90,6 +89,33 @@ describe("local simulation workspace", () => {
       ).rejects.toThrow("WORKSPACE_PROJECT_MISMATCH");
     } finally {
       await rm(root, { recursive: true, force: true });
+    }
+  });
+  it("reopens the default base after a process restart without downloading again", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "icm-default-base-"));
+    try {
+      const first = await LocalWorkspace.open(
+        scope,
+        defaultWorkspacePath(scope, cwd),
+      );
+      const files = [file("one", "saved")];
+      await first.sync(catalog(files), async () => new Response("saved"));
+      vi.resetModules();
+      const fresh = await import("./local-workspace.js");
+      const renewed = { ...scope, sessionId: "renewed" };
+      const reopened = await fresh.LocalWorkspace.open(
+        renewed,
+        fresh.defaultWorkspacePath(renewed, cwd),
+      );
+      const fetch = vi.fn(async () => {
+        throw new Error("offline");
+      });
+      const result = await reopened.sync(catalog(files), fetch);
+      expect(result.files[0]?.reused).toBe(true);
+      expect(fetch).not.toHaveBeenCalled();
+      expect(await readFile(result.files[0]!.outputPath, "utf8")).toBe("saved");
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
     }
   });
   it("supports directory-only sync and records partial failure without losing completed files", async () => {

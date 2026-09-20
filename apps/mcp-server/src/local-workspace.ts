@@ -68,7 +68,7 @@ export function defaultWorkspacePath(
     cwd,
     ".analog-canvas",
     segment(new URL(scope.serverUrl).origin),
-    segment(scope.sessionId),
+    segment(scope.projectId),
   );
 }
 async function readIndex(path: string): Promise<Index | null> {
