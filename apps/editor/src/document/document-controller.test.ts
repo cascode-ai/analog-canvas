@@ -1,7 +1,11 @@
 import { createRoutePath } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
-import { createEmptyDocument, createEmptyProject } from "@icm/model";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  semanticTextDocument,
+} from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 import { diagnoseProjectSnapshot } from "@icm/derived";
 import { hierarchicalSymbolId } from "@icm/symbols";
@@ -375,11 +379,9 @@ describe("EditorDocumentController", () => {
     controller.transact([{ kind: "undo" }]);
     expect(controller.resolver).not.toBe(formatted);
     expect(
-      JSON.stringify(
-        controller.resolver.resolve(hierarchicalSymbolId("child"))!.definition
-          .pins[0]!.presentation.nameContent,
-      ),
-    ).not.toContain('"subscript"');
+      controller.resolver.resolve(hierarchicalSymbolId("child"))!.definition
+        .pins[0]!.presentation.nameContent,
+    ).toEqual(semanticTextDocument("Vout", "formal-port"));
   });
 
   it("accepts a human transaction via dispatch identical to transact", () => {
