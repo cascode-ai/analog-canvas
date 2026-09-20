@@ -72,6 +72,21 @@ describe("mixed fraction text", () => {
     }).width;
     expect(bars[0]![0]).toBeCloseTo(options.x - width / 2, 5);
   });
+  it("centers standalone plain fraction parts with native glyph advances", () => {
+    const svg = renderFractionText(
+      { runs: [fraction("WWW + MMM", "R")] },
+      razaviTextbookProfile,
+      options,
+    )!;
+
+    expect(svg).toMatch(
+      /data-role="fraction-numerator"><text x="100"[^>]+text-anchor="middle"/u,
+    );
+    expect(svg).toMatch(
+      /data-role="fraction-denominator"><text x="100"[^>]+text-anchor="middle"/u,
+    );
+    expect(svg).not.toContain("textLength");
+  });
   it("escapes user text and gives separate fraction lines enough vertical space", () => {
     const svg = renderFractionText(
       {
