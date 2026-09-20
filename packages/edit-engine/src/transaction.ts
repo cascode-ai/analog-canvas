@@ -690,8 +690,22 @@ export function executeTransaction(
         resolver,
         transaction.transactionId,
         changedObjectIds,
+        {
+          explicitlyAuthoredRouteIds,
+          deferNetPrune,
+          reject: (code, message, diagnostics, objectIds) =>
+            rejectTransaction(
+              document,
+              code,
+              message,
+              diagnostics,
+              [],
+              objectIds,
+            ),
+        },
         context.beforeContactEvidence,
       );
+      if (directContact.rejection) return directContact.rejection;
       geometryChanged ||= directContact.geometryChanged;
       for (const routeId of directContact.changedRouteIds) {
         changedRouteIds.add(routeId);

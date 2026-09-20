@@ -13,6 +13,7 @@ export * from "./direct-contact-planner.js";
 export * from "./instance-contact-planner.js";
 export * from "./instance-contact-transform.js";
 export * from "./direct-contact-route-normalization.js";
+export { transformMaySeparateDirectContact } from "./transaction-direct-contact.js";
 export * from "./routing-operation-plan.js";
 export * from "./routing-transform-planner.js";
 export * from "./routing-copy-fragment.js";
