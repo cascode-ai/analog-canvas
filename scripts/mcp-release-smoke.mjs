@@ -624,9 +624,12 @@ try {
       "Packaged MCP is missing independent parameter display controls",
     );
   if (
-    listed.tools.length !== 19 ||
+    listed.tools.length !== 22 ||
     ![
       "project_cells",
+      "gallery_circuits",
+      "project_code",
+      "netlist_code",
       "simulation",
       "simulation_folder",
       "simulation_output",
