@@ -1,5 +1,5 @@
 import { sourcePresentation } from "./source-presentation";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createEmptyProject, createSimulationFolder } from "@icm/model";
 import type { Prepared, Run } from "@icm/simulation-service/contract";
 import { SimulationFiles } from "@icm/simulation-service/files";
@@ -117,6 +117,97 @@ describe("simulation run archive", () => {
       expect(restored.value.run.catalog?.files[1]?.fileId).toBe(
         resultArtifact.fileId,
       );
+      const again = await restoreSimulationRunArchive(
+        destination,
+        captured.value,
+      );
+      expect(again).toEqual(restored);
     },
   );
+  it("remaps populated dataset representations and rejects missing references before restoring", async () => {
+    const source = new SimulationFiles();
+    const raw = await source.put(
+      "op.raw",
+      "text/plain",
+      "raw evidence fixture",
+      { role: "raw", sourcePath: "op.raw" },
+    );
+    const outputs = {
+      schemaVersion: 1 as const,
+      analyses: [],
+      diagnostics: [],
+    };
+    const report = await source.put(
+      "outputs.json",
+      "application/json",
+      JSON.stringify(outputs),
+    );
+    const prepared: Prepared = {
+      id: "prep",
+      digest: "a".repeat(64),
+      inputRevision: "rev",
+      expiresAt: 100,
+      mode: "raw",
+      environment: { profileId: "test" },
+      vectors: [],
+      outputs: [],
+      deviceOperatingPoints: [],
+      artifacts: [],
+      warnings: [],
+    };
+    const run: Run = {
+      id: "run",
+      preparedId: "prep",
+      inputRevision: "rev",
+      state: "finished",
+      artifacts: [raw, report],
+      outputData: outputs,
+    };
+    run.catalog = resultCatalog(run, "complete");
+    run.catalog.datasets = [
+      {
+        id: "run:analysis:0",
+        analysisIndex: 0,
+        analysis: "op",
+        plotName: "OP",
+        pointCount: 1,
+        signals: [{ name: "v(out)", quantity: "voltage", unit: "V" }],
+        representations: [
+          { artifactId: raw.id, fileId: raw.fileId!, selector: "plot:0" },
+        ],
+      },
+    ];
+    const captured = await captureSimulationRunArchive(source, {
+      projectId: "project",
+      presentation,
+      prepared,
+      run,
+    });
+    if (!captured.ok) throw Error(captured.error.message);
+    const destination = new SimulationFiles();
+    const restored = await restoreSimulationRunArchive(
+      destination,
+      captured.value,
+    );
+    if (!restored.ok) throw Error(restored.error.message);
+    expect(restored.value.run.catalog?.datasets[0]?.representations).toEqual([
+      {
+        artifactId: restored.value.run.artifacts[0]!.id,
+        fileId: raw.fileId,
+        selector: "plot:0",
+      },
+    ]);
+    expect(restored.value.run.artifacts[0]!.id).not.toBe(raw.id);
+    const invalid = structuredClone(captured.value);
+    invalid.run.catalog!.datasets[0]!.representations[0]!.artifactId =
+      "missing";
+    const put = vi.spyOn(destination, "put");
+    expect(
+      await restoreSimulationRunArchive(destination, invalid),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "SIMULATION_ARCHIVE_REFERENCE_MISSING" },
+    });
+    expect(put).not.toHaveBeenCalled();
+  });
 });

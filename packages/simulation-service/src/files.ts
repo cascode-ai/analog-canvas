@@ -45,6 +45,7 @@ const CACHE_BYTES = 16 * 1024 * 1024;
 export interface SimulationArtifactStore {
   put(ref: ArtifactRef, text: string): Promise<void>;
   get(id: string): Promise<{ ref: ArtifactRef; text: string } | null>;
+  find?(fileId: string): Promise<ArtifactRef | null>;
   saveCatalog?(record: StoredResultCatalog): Promise<void>;
   catalogs?(): Promise<StoredResultCatalog[]>;
 }
@@ -628,6 +629,39 @@ export class SimulationFiles {
     if (epoch !== this.epoch) throw new Error("SESSION_CHANGED");
     this.prune();
     const byteLength = new TextEncoder().encode(text).byteLength;
+    if (metadata.fileId) {
+      let existing: ArtifactRef | null | undefined = [
+        ...this.artifacts.values(),
+      ].find(
+        (item) => (item.ref.fileId ?? item.ref.id) === metadata.fileId,
+      )?.ref;
+      if (!existing) {
+        try {
+          existing = await this.artifactStore?.find?.(metadata.fileId);
+        } catch {
+          throw new Error("ARTIFACT_STORAGE_UNAVAILABLE");
+        }
+      }
+      if (epoch !== this.epoch) throw new Error("SESSION_CHANGED");
+      if (existing) {
+        if (
+          existing.sha256 !== digest ||
+          existing.byteLength !== byteLength ||
+          existing.name !== name ||
+          existing.mediaType !== mediaType ||
+          existing.role !== metadata.role ||
+          existing.sourcePath !== metadata.sourcePath ||
+          existing.analysisIndex !== metadata.analysisIndex
+        )
+          throw new Error("ARTIFACT_ID_CONFLICT");
+        const item = { ref: existing, text };
+        this.artifacts.set(existing.id, item);
+        this.trimCache();
+        if (this.publisher && !this.downloads.has(existing.id))
+          this.startDownload(item);
+        return existing;
+      }
+    }
     if (
       byteLength > MAX_ARTIFACT_BYTES ||
       this.artifacts.size >= MAX_ARTIFACT_FILES ||

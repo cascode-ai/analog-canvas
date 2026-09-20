@@ -50,6 +50,24 @@ export function createBrowserSimulationArtifactStore(
     return value(request);
   }
   return {
+    async find(fileId) {
+      const db = await open();
+      try {
+        const tx = db.transaction(DIRECTORY, "readonly");
+        const [records] = await Promise.all([
+          value(
+            tx.objectStore(DIRECTORY).index("projectId").getAll(projectId),
+          ) as Promise<Array<{ ref: ArtifactRef }>>,
+          completed(tx),
+        ]);
+        return (
+          records.find(({ ref }) => (ref.fileId ?? ref.id) === fileId)?.ref ??
+          null
+        );
+      } finally {
+        db.close();
+      }
+    },
     async saveCatalog(record) {
       const db = await open();
       try {

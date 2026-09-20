@@ -121,14 +121,29 @@ describe("persistent simulation evidence", () => {
     expect(await files.readArtifact(ref.id)).toMatchObject({ ok: true, text });
     expect(get).toHaveBeenCalledTimes(1); // body was evicted from the 16 MiB cache
     files.clear();
+    const durable = createBrowserSimulationArtifactStore("project", factory)!;
+    const write = vi.spyOn(durable, "put");
     const reopened = new SimulationFiles(
       Date.now,
       undefined,
       undefined,
-      createBrowserSimulationArtifactStore("project", factory),
+      durable,
     );
     const restored = await reopened.readArtifact(ref.id);
     expect(restored).toEqual({ ok: true, artifact: ref, text });
+    expect(
+      await reopened.put(ref.name, ref.mediaType, text, {
+        fileId: ref.fileId!,
+        role: "raw",
+      }),
+    ).toEqual(ref);
+    expect(write).not.toHaveBeenCalled();
+    await expect(
+      reopened.put(ref.name, ref.mediaType, "changed", {
+        fileId: ref.fileId!,
+        role: "raw",
+      }),
+    ).rejects.toThrow("ARTIFACT_ID_CONFLICT");
     const other = new SimulationFiles(
       Date.now,
       undefined,

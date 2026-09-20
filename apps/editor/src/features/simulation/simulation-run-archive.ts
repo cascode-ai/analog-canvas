@@ -198,6 +198,21 @@ export async function restoreSimulationRunArchive(
   files: SimulationFiles,
   archive: SimulationRunArchiveV1,
 ): Promise<ArchiveResult<{ prepared: Prepared; run: Run }>> {
+  const available = new Set(
+    archive.artifacts.map((artifact) => artifact.originalId),
+  );
+  if (
+    archive.prepared.artifactIds.some((id) => !available.has(id)) ||
+    archive.run.catalog?.datasets.some((dataset) =>
+      dataset.representations.some(
+        (representation) => !available.has(representation.artifactId),
+      ),
+    )
+  )
+    return archiveProblem(
+      "SIMULATION_ARCHIVE_REFERENCE_MISSING",
+      "The archive directory references missing evidence; no files were restored",
+    );
   const refs = new Map<string, ArtifactRef>();
   for (const artifact of archive.artifacts) {
     if ((await sha256(artifact.text)) !== artifact.sha256)
@@ -219,7 +234,20 @@ export async function restoreSimulationRunArchive(
             : {}),
         }),
       );
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message === "ARTIFACT_ID_CONFLICT")
+        return archiveProblem(
+          "SIMULATION_ARCHIVE_ID_CONFLICT",
+          "An existing immutable file has the same identity but different content or metadata",
+        );
+      if (
+        error instanceof Error &&
+        error.message === "ARTIFACT_STORAGE_UNAVAILABLE"
+      )
+        return archiveProblem(
+          "SIMULATION_ARCHIVE_STORAGE_UNAVAILABLE",
+          "The browser could not store restored evidence",
+        );
       return archiveProblem(
         "SIMULATION_ARCHIVE_RESTORE_CAPACITY",
         "The archived result is too large for the current Simulation session",
@@ -274,9 +302,7 @@ export async function restoreSimulationRunArchive(
                     representations: dataset.representations.map(
                       (representation) => ({
                         ...representation,
-                        artifactId:
-                          refs.get(representation.artifactId)?.id ??
-                          representation.artifactId,
+                        artifactId: refs.get(representation.artifactId)!.id,
                       }),
                     ),
                   })),
