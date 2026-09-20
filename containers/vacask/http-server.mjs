@@ -257,6 +257,7 @@ export function createVacaskHttpServer({
                   ],
                   ...artifacts,
                   rawfiles: [],
+                  collectionStatus: "partial",
                 };
               }
               send(200, payload);

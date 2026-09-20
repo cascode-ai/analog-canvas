@@ -432,6 +432,7 @@ export async function routeVacaskSimulationRequest(
       execution,
       rawfiles: output.rawfiles,
       executedFiles: output.executedFiles,
+      collectionStatus: output.collectionStatus,
       cancelled: output.cancelled,
     });
   } catch {

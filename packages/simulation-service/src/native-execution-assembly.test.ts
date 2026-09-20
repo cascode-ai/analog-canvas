@@ -228,10 +228,13 @@ describe("native result assembly", () => {
   it("supports programs requesting no numeric capture but rejects banner-only false success", async () => {
     const { input, job } = fixture("analysis bias op write=0");
     job.rawfiles = [];
-    expect(
-      (await assembleNativeExecutionOutput(input, job, await environment()))
-        .result.outcome.status,
-    ).toBe("completed");
+    const uncaptured = await assembleNativeExecutionOutput(
+      input,
+      job,
+      await environment(),
+    );
+    expect(uncaptured.result.outcome.status).toBe("completed");
+    expect(uncaptured.collectionStatus).toBe("complete");
     job.execution.stdout = "This is vacask 0.3.4.\n";
     expect(
       (await assembleNativeExecutionOutput(input, job, await environment()))
@@ -248,6 +251,7 @@ describe("native result assembly", () => {
     );
     expect(dropped.result.outcome.status).toBe("completed-with-dropped-input");
     expect(dropped.result.data).toBeUndefined();
+    expect(dropped.collectionStatus).toBe("complete");
     job.execution.stdout = "Simulating: Native observation\n";
     job.truncated = true;
     const truncated = await assembleNativeExecutionOutput(
@@ -258,6 +262,18 @@ describe("native result assembly", () => {
     expect(truncated.result.outcome.status).toBe("failed");
     expect(truncated.result.data).toBeUndefined();
     expect(truncated.rawfiles).toEqual(job.rawfiles);
+    expect(truncated.collectionStatus).toBe("partial");
+  });
+  it("marks collector failures partial without inferring them from process errors", async () => {
+    const { input, job } = fixture();
+    job.diagnostics.push({ severity: "error", text: "Unreadable output" });
+    const output = await assembleNativeExecutionOutput(
+      input,
+      job,
+      await environment(),
+    );
+    expect(output.collectionStatus).toBe("partial");
+    expect(output.rawfiles).toEqual(job.rawfiles);
   });
   it("reports the actual timeout ceiling and keeps cancellation distinct", async () => {
     const { input, job } = fixture();

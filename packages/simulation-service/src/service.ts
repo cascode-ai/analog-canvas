@@ -836,6 +836,7 @@ export class SimulationService {
     timeoutMs: number | undefined,
     epoch: number,
   ) {
+    let collectionStatus: "complete" | "partial" = "complete";
     try {
       const output = validateExecutionOutput(
         input,
@@ -846,6 +847,7 @@ export class SimulationService {
       );
       if (epoch !== this.epoch) return;
       run.view.result = output.result;
+      collectionStatus = output.collectionStatus ?? "complete";
       const nativeReports =
         output.result.metadata.environment.simulator.name === "vacask"
           ? vacaskMeasurementResults(
@@ -943,7 +945,7 @@ export class SimulationService {
         );
       const catalog = resultCatalog(
         { ...run.view, state: output.cancelled ? "cancelled" : "finished" },
-        "complete",
+        collectionStatus,
         run.prepared.signalTargets,
       );
       const evidenceArtifacts = run.view.artifacts.map((item) => ({ ...item }));
@@ -1008,7 +1010,7 @@ export class SimulationService {
     }
     run.view.catalog = resultCatalog(
       run.view,
-      run.view.error ? "partial" : "complete",
+      run.view.error ? "partial" : collectionStatus,
       run.prepared.signalTargets,
     );
     run.expiresAt = this.now() + TTL;

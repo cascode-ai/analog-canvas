@@ -244,6 +244,7 @@ describe("native execution transport and evidence", () => {
 
   it("keeps separate files, exact bytes and per-file plot identities through both executor routes", async () => {
     const output = await envelope();
+    output.collectionStatus = "partial";
     const before = structuredClone(output);
     const { result, ...files } = output;
     const decoded = decodeHostedExecutionPayload(input, {
@@ -255,6 +256,7 @@ describe("native execution transport and evidence", () => {
     );
     expect(decoded.rawfiles).toEqual(output.rawfiles);
     expect(decoded.executedFiles).toEqual(output.executedFiles);
+    expect(decoded.collectionStatus).toBe("partial");
     expect(decoded.result.data?.analyses.map((a) => a.analysis)).toEqual([
       "op",
       "ac",

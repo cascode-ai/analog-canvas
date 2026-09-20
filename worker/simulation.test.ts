@@ -195,6 +195,22 @@ describe("native simulation route", () => {
       expect((await response!.json()).outcome.status).toBe(status);
     },
   );
+  it("preserves collector partial status independently of a successful process", async () => {
+    const response = await routeSimulationRequest(
+      post(nativeInput()),
+      nativeWorkerEnv(async () =>
+        Response.json({
+          ...(await nativeReply()),
+          collectionStatus: "partial",
+        }),
+      ),
+    );
+    expect(response!.status).toBe(200);
+    expect(await response!.json()).toMatchObject({
+      outcome: { status: "completed" },
+      collectionStatus: "partial",
+    });
+  });
   it.each(["environment", "input", "files", "legacy-result", "malformed"])(
     "withholds invalid %s result evidence without retry",
     async (fault) => {

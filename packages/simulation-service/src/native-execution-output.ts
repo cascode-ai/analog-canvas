@@ -172,5 +172,9 @@ export async function assembleNativeExecutionOutput(
     rawfiles: job.rawfiles,
     executedFiles: job.executedFiles,
     cancelled: execution.cancelled,
+    collectionStatus:
+      job.truncated || job.diagnostics.some((d) => d.severity === "error")
+        ? "partial"
+        : "complete",
   });
 }

@@ -19,6 +19,7 @@ export function decodeHostedExecutionPayload(
     executedFiles,
     executedDeck,
     cancelled,
+    collectionStatus,
     ...value
   } = body ?? {};
   const output = validateExecutionOutput(input, {
@@ -28,6 +29,7 @@ export function decodeHostedExecutionPayload(
     executedFiles,
     executedDeck,
     cancelled,
+    collectionStatus,
   });
   const result = output.result;
   // Older executor images projected padded short vectors as sweep samples.

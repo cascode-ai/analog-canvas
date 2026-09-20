@@ -254,96 +254,109 @@ describe("shared simulation lifecycle", () => {
     });
   });
 
-  it("delivers the same captured Spec report through run reads and artifacts", async () => {
-    const f = fixture("ngspice");
-    const source =
-      "Spec fixture\nV1 out 0 1\nR1 out 0 1k\n* @spec peak <= 2 unit=V\n.control\nop\nmeas tran peak MAX v(out)\nwrite out.raw all\n.endc\n.end\n";
-    vi.mocked(f.executor.execute).mockImplementation(async (input) => ({
-      result: { ...(await ngspiceResult(input)), log: "peak = 1.8" },
-      rawfile: "raw numbers",
-    }));
-    const { prepared } = await prepareRaw(f, source);
-    const started = unwrap(
-      await f.service.handle(
-        {
-          operation: "start",
-          preparedId: prepared.id,
-          digest: prepared.digest,
-        },
-        "spec-start",
-      ),
-      "run",
-    );
-    await vi.waitFor(async () =>
+  it.each(["complete", "partial"] as const)(
+    "delivers captured Specs and %s collection status through run reads and artifacts",
+    async (collectionStatus) => {
+      const f = fixture("ngspice");
+      const source =
+        "Spec fixture\nV1 out 0 1\nR1 out 0 1k\n* @spec peak <= 2 unit=V\n.control\nop\nmeas tran peak MAX v(out)\nwrite out.raw all\n.endc\n.end\n";
+      vi.mocked(f.executor.execute).mockImplementation(async (input) => ({
+        result: { ...(await ngspiceResult(input)), log: "peak = 1.8" },
+        rawfile: "raw numbers",
+        collectionStatus,
+      }));
+      const { prepared } = await prepareRaw(f, source);
+      const started = unwrap(
+        await f.service.handle(
+          {
+            operation: "start",
+            preparedId: prepared.id,
+            digest: prepared.digest,
+          },
+          "spec-start",
+        ),
+        "run",
+      );
+      await vi.waitFor(async () =>
+        expect(
+          unwrap(
+            await f.service.handle(
+              { operation: "read", runId: started.id },
+              "spec-read",
+            ),
+            "run",
+          ).state,
+        ).toBe("finished"),
+      );
+      const finished = unwrap(
+        await f.service.handle(
+          { operation: "read", runId: started.id },
+          "spec-final",
+        ),
+        "run",
+      );
+      expect(finished.outputData?.specs).toMatchObject({
+        runId: started.id,
+        preparedId: prepared.id,
+        inputDigest: prepared.digest,
+        results: [{ name: "peak", value: 1.8, judgment: "pass" }],
+      });
+      const artifact = finished.artifacts.find((a) => a.name === "specs.json")!;
+      expect(finished.catalog).toMatchObject({
+        runId: finished.id,
+        execution: "completed",
+        collection: collectionStatus,
+        files: expect.arrayContaining([
+          expect.objectContaining({ id: artifact.id, role: "specs" }),
+          expect.objectContaining({ name: "prepared.cir", role: "prepared" }),
+          expect.objectContaining({ name: "deck.cir", role: "source" }),
+        ]),
+      });
       expect(
-        unwrap(
-          await f.service.handle(
-            { operation: "read", runId: started.id },
-            "spec-read",
-          ),
-          "run",
-        ).state,
-      ).toBe("finished"),
-    );
-    const finished = unwrap(
-      await f.service.handle(
-        { operation: "read", runId: started.id },
-        "spec-final",
-      ),
-      "run",
-    );
-    expect(finished.outputData?.specs).toMatchObject({
-      runId: started.id,
-      preparedId: prepared.id,
-      inputDigest: prepared.digest,
-      results: [{ name: "peak", value: 1.8, judgment: "pass" }],
-    });
-    const artifact = finished.artifacts.find((a) => a.name === "specs.json")!;
-    expect(finished.catalog).toMatchObject({
-      runId: finished.id,
-      execution: "completed",
-      collection: "complete",
-      files: expect.arrayContaining([
-        expect.objectContaining({ id: artifact.id, role: "specs" }),
-        expect.objectContaining({ name: "prepared.cir", role: "prepared" }),
-        expect.objectContaining({ name: "deck.cir", role: "source" }),
-      ]),
-    });
-    expect(
-      await f.service.handle(
-        { operation: "catalog", runId: finished.id },
-        "catalog",
-      ),
-    ).toEqual({ ok: true, catalog: finished.catalog });
-    const read = await f.files.handle({
-      action: "artifact",
-      artifactId: artifact.id,
-    });
-    if (!read.ok || !("text" in read)) throw Error("Missing Spec artifact");
-    expect(JSON.parse(read.text)).toEqual(finished.outputData?.specs);
-    expect(finished.artifacts.map((a) => a.name)).toEqual(
-      expect.arrayContaining(["out.raw", "specs.csv", "log.txt"]),
-    );
-    expect(finished.outputData).toEqual({
-      schemaVersion: 1,
-      analyses: [],
-      diagnostics: [],
-      specs: finished.outputData!.specs,
-    });
-    expect(
-      finished.artifacts
-        .filter((a) => a.name.endsWith(".csv"))
-        .map((a) => a.name)
-        .sort(),
-    ).toEqual(["op-0.csv", "specs.csv"]);
-    expect(finished.artifacts.map((a) => a.name)).not.toEqual(
-      expect.arrayContaining(["outputs.json"]),
-    );
-    expect(finished.artifacts.map((a) => a.name)).not.toEqual(
-      expect.arrayContaining(["native-measurements.json"]),
-    );
-    await f.service.clear();
-  });
+        await f.service.handle(
+          { operation: "catalog", runId: finished.id },
+          "catalog",
+        ),
+      ).toEqual({ ok: true, catalog: finished.catalog });
+      const manifest = await f.files.handle({
+        action: "artifact",
+        artifactId: finished.artifacts.find((a) => a.role === "manifest")!.id,
+      });
+      if (!manifest.ok || !("text" in manifest))
+        throw Error("Missing manifest");
+      expect(JSON.parse(manifest.text).catalog.collection).toBe(
+        collectionStatus,
+      );
+      const read = await f.files.handle({
+        action: "artifact",
+        artifactId: artifact.id,
+      });
+      if (!read.ok || !("text" in read)) throw Error("Missing Spec artifact");
+      expect(JSON.parse(read.text)).toEqual(finished.outputData?.specs);
+      expect(finished.artifacts.map((a) => a.name)).toEqual(
+        expect.arrayContaining(["out.raw", "specs.csv", "log.txt"]),
+      );
+      expect(finished.outputData).toEqual({
+        schemaVersion: 1,
+        analyses: [],
+        diagnostics: [],
+        specs: finished.outputData!.specs,
+      });
+      expect(
+        finished.artifacts
+          .filter((a) => a.name.endsWith(".csv"))
+          .map((a) => a.name)
+          .sort(),
+      ).toEqual(["op-0.csv", "specs.csv"]);
+      expect(finished.artifacts.map((a) => a.name)).not.toEqual(
+        expect.arrayContaining(["outputs.json"]),
+      );
+      expect(finished.artifacts.map((a) => a.name)).not.toEqual(
+        expect.arrayContaining(["native-measurements.json"]),
+      );
+      await f.service.clear();
+    },
+  );
   it("hands off one complete AC CSV and only authored metrics, with no automatic summaries", async () => {
     const f = fixture("ngspice");
     const source =

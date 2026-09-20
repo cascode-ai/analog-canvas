@@ -274,6 +274,7 @@ describe("native HTTP transport", () => {
         status === "timed-out" ? outcome : { status: "failed" },
       );
       expect(payload.rawfiles).toEqual([]);
+      expect(payload.collectionStatus).toBe("partial");
       expect(payload.data).toBeUndefined();
       expect(payload.executedFiles).toEqual(files);
       expect(payload.metadata.input.inputRevision).toBe("same");

@@ -43,6 +43,8 @@ export const ExecutionOutputSchema = z
     rawfile: z.string().optional(),
     executedDeck: z.string().optional(),
     cancelled: z.boolean().optional(),
+    /** Collector completeness is independent of process/analysis success. */
+    collectionStatus: z.enum(["complete", "partial"]).optional(),
   })
   .superRefine((output, context) => {
     if (output.result.metadata.environment.simulator.name !== "vacask") {
