@@ -86,10 +86,24 @@ export function createHostedExecutor(
         true,
       );
     }
-    const payload = (await response.json().catch(() => null)) as Record<
-      string,
-      unknown
-    > | null;
+    let payload: Record<string, unknown> | null;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new ExecutionFailure(
+        {
+          code:
+            stage === "cancel"
+              ? "cancel-response-unknown"
+              : "RUN_RESPONSE_UNKNOWN",
+          message:
+            "The executor response was incomplete or unreadable. Read this run; do not submit a new start.",
+          stage,
+          recovery: "retry-same-request",
+        },
+        true,
+      );
+    }
     if (!response.ok) {
       const code =
         typeof payload?.reason === "string"

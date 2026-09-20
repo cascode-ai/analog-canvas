@@ -48,31 +48,43 @@ export function createLocalSimulationHandler(
         signal: AbortSignal.timeout(operation === undefined ? 150000 : 10000),
       });
       const reader = reply.body?.getReader();
-      const chunks: Uint8Array[] = [];
       let size = 0;
-      try {
-        if (reader)
-          while (true) {
-            const next = await reader.read();
-            if (next.done) break;
-            size += next.value.byteLength;
-            if (size > SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES)
-              throw new Error("Executor response too large");
-            chunks.push(next.value);
-          }
-      } catch (error) {
-        await reader?.cancel().catch(() => {});
-        throw error;
-      } finally {
-        reader?.releaseLock();
-      }
+      // Preserve backpressure: the adapter must not buffer or duplicate the
+      // complete numerical envelope. Once headers are sent, a broken body is
+      // a stream failure, never a fabricated successful/complete JSON reply.
+      const body = reader
+        ? new ReadableStream<Uint8Array>({
+            async pull(controller) {
+              try {
+                const next = await reader.read();
+                if (next.done) {
+                  reader.releaseLock();
+                  controller.close();
+                  return;
+                }
+                size += next.value.byteLength;
+                if (size > SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES)
+                  throw new Error("Executor response too large");
+                controller.enqueue(next.value);
+              } catch (error) {
+                await reader.cancel().catch(() => {});
+                reader.releaseLock();
+                controller.error(error);
+              }
+            },
+            async cancel(reason) {
+              await reader.cancel(reason).catch(() => {});
+              reader.releaseLock();
+            },
+          })
+        : null;
       const headers = new Headers({
         "content-type": "application/json",
         "cache-control": "no-store",
       });
       const retry = reply.headers.get("retry-after");
       if (retry) headers.set("retry-after", retry);
-      return new Response(Buffer.concat(chunks), {
+      return new Response(body, {
         status: reply.status,
         headers,
       });

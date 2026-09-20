@@ -16,6 +16,37 @@ const input: ExecutionInput = {
   environment: { profileId: "p" },
 };
 describe("hosted executor recovery", () => {
+  it.each(["start", "cancel"] as const)(
+    "keeps %s uncertain when response streaming fails",
+    async (stage) => {
+      let requests = 0;
+      const executor = createHostedExecutor(async () => {
+        requests++;
+        return new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.error(new Error("broken stream"));
+            },
+          }),
+        );
+      });
+      await expect(
+        stage === "start"
+          ? executor.execute(input, "token")
+          : executor.cancel("token"),
+      ).rejects.toMatchObject({
+        problem: {
+          stage,
+          recovery: "retry-same-request",
+          code:
+            stage === "start"
+              ? "RUN_RESPONSE_UNKNOWN"
+              : "cancel-response-unknown",
+        },
+      });
+      expect(requests).toBe(1);
+    },
+  );
   it("normalizes scalar dimensions from an older executor without losing raw evidence or reviving withheld data", () => {
     const rawfile = readFileSync(
       new URL(

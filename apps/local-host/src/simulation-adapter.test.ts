@@ -97,11 +97,29 @@ describe("explicit local executor adapter", () => {
       "http://127.0.0.1:9000",
       forward,
     )(request({}));
-    expect(await reply.json()).toMatchObject({
-      error: "simulator-unreachable",
-    });
+    await expect(reply.text()).rejects.toThrow("Executor response too large");
     expect(cancelled).toHaveBeenCalledTimes(1);
     expect(forward).toHaveBeenCalledTimes(1);
+  });
+  it("returns before the body completes and propagates consumer cancellation", async () => {
+    const cancelled = vi.fn();
+    let pulls = 0;
+    const upstream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls++;
+        controller.enqueue(new Uint8Array(1024));
+      },
+      cancel: cancelled,
+    });
+    const reply = await createLocalSimulationHandler(
+      "http://127.0.0.1:9000",
+      async () => new Response(upstream),
+    )(request({}));
+    expect(pulls).toBeLessThanOrEqual(2);
+    const reader = reply.body!.getReader();
+    expect((await reader.read()).value).toHaveLength(1024);
+    await reader.cancel("not needed");
+    expect(cancelled).toHaveBeenCalledWith("not needed");
   });
   it("forwards a multi-analysis envelope at the shared ceiling without losing bytes", async () => {
     const text = "x".repeat(SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES);
