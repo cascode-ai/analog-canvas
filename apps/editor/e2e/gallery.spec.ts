@@ -1189,11 +1189,40 @@ test("the left sidebar hosts overall search and grouped tags at desktop, half-sc
     .locator("summary")
     .filter({ hasText: "Amplifiers" });
   await expect(amplifierGroup).toBeVisible();
-  await expect(amplifierGroup).toHaveCSS("font-weight", "700");
+  await expect(amplifierGroup).toHaveCSS("font-weight", "600");
   await amplifierGroup.click();
   const amplifier = page.getByTestId("gallery-tag-option-amplifier");
   await expect(amplifier).toContainText("General Amplifier");
   expect((await amplifier.boundingBox())!.height).toBeLessThanOrEqual(28);
+  const sidebarRhythm = await amplifierGroup.evaluate((summary) => {
+    const group = summary.parentElement!;
+    const items = [
+      ...group.querySelectorAll<HTMLElement>(".gallery-sidebar-tag"),
+    ];
+    const summaryStyle = getComputedStyle(summary);
+    const itemStyle = getComputedStyle(items[0]!);
+    const first = items[0]!.getBoundingClientRect();
+    const second = items[1]!.getBoundingClientRect();
+    return {
+      fontMatches: summaryStyle.fontFamily === itemStyle.fontFamily,
+      summaryFontSize: summaryStyle.fontSize,
+      summaryFontWeight: summaryStyle.fontWeight,
+      summaryPaddingBlock: [
+        summaryStyle.paddingTop,
+        summaryStyle.paddingBottom,
+      ],
+      groupMarginBottom: getComputedStyle(group).marginBottom,
+      itemGap: second.top - first.bottom,
+    };
+  });
+  expect(sidebarRhythm).toEqual({
+    fontMatches: true,
+    summaryFontSize: "12px",
+    summaryFontWeight: "600",
+    summaryPaddingBlock: ["6px", "6px"],
+    groupMarginBottom: "4px",
+    itemGap: 2,
+  });
   const search = page.getByTestId("gallery-search");
   await expect(search).toHaveCount(1);
   await expect(page.getByTestId("gallery-tag-search")).toHaveCount(0);

@@ -1426,6 +1426,14 @@ div.gallery-contributor-status {
   min-width: 0;
   border-right: 1px solid var(--icm-border);
   background: var(--icm-surface);
+  font-family:
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Helvetica,
+    Arial,
+    sans-serif;
 }
 
 .gallery-sidebar-resize-handle {
@@ -1545,17 +1553,18 @@ div.gallery-contributor-status {
 }
 
 .gallery-tag-group {
-  margin-bottom: 12px;
+  margin-bottom: 4px;
 }
 
 .gallery-tag-group > summary {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 4px;
+  padding: 6px 4px;
   color: var(--icm-text-muted);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
   list-style: none;
   cursor: pointer;
 }
@@ -1573,6 +1582,14 @@ div.gallery-contributor-status {
 
 .gallery-tag-group[open] > summary::before {
   transform: rotate(90deg);
+}
+
+.gallery-tag-group[open] > summary {
+  margin-bottom: 2px;
+}
+
+.gallery-sidebar-tag + .gallery-sidebar-tag {
+  margin-top: 2px;
 }
 
 .gallery-tag-group > summary > span {
@@ -1605,7 +1622,7 @@ div.gallery-contributor-status {
 .gallery-sidebar-count {
   margin-left: auto;
   color: var(--icm-text-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
