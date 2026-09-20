@@ -3,6 +3,7 @@ import { createEmptyProject } from "@icm/model";
 import type { DesignNetlistIR, DesignNetlistInstance } from "./ir.js";
 import {
   compareElectricalGraphs,
+  compareElectricalTopologies,
   electricalGraphTopologySimilarity,
   electricalGraphFromIR,
   projectElectricalGraph,
@@ -26,6 +27,30 @@ function resistor(
       { pinName: "2", netName: b },
     ],
     parameters: [{ name: "value", rawValue: value }],
+  };
+}
+function mos(
+  id: string,
+  target: string,
+  drain: string,
+  gate: string,
+  source: string,
+  bulk: string,
+  width = "1u",
+): DesignNetlistInstance {
+  return {
+    id,
+    reference: id,
+    deviceClass: "mos",
+    invocationKind: "primitive",
+    target,
+    nodes: [
+      { pinName: "D", netName: drain },
+      { pinName: "G", netName: gate },
+      { pinName: "S", netName: source },
+      { pinName: "B", netName: bulk },
+    ],
+    parameters: [{ name: "w", rawValue: width }],
   };
 }
 function circuit(
@@ -262,6 +287,38 @@ describe("electrical duplicate comparison", () => {
 });
 
 describe("electrical topology similarity", () => {
+  it("finds the same five-transistor OTA across renamed, reordered, and global supply terminals", () => {
+    const ota = circuit(
+      [
+        mos("M1", "NMOS", "mirror", "vin", "tail", "vss"),
+        mos("M2", "NMOS", "out", "vip", "tail", "vss"),
+        mos("M3", "NMOS", "tail", "bias", "vss", "vss"),
+        mos("M4", "PMOS", "out", "mirror", "vdd", "vdd"),
+        mos("M5", "PMOS", "mirror", "mirror", "vdd", "vdd"),
+      ],
+      ["vdd", "vss", "vin", "vip", "bias", "out"],
+    );
+    const renamed = circuit(
+      [
+        mos("Q20", "nfet_01v8", "nx", "input_a", "common", "low", "4u"),
+        mos("Q10", "nfet_01v8", "output", "input_b", "common", "low", "4u"),
+        mos("TAIL", "nfet_01v8", "common", "control", "low", "low", "8u"),
+        mos("LOAD2", "pfet_01v8", "output", "nx", "high", "high", "6u"),
+        mos("LOAD1", "pfet_01v8", "nx", "nx", "high", "high", "6u"),
+      ],
+      ["output", "control", "input_b", "input_a"],
+    );
+    for (const rail of ["high", "low"]) {
+      renamed.cells[0]!.nets.find((net) => net.name === rail)!.scope = "global";
+    }
+    const a = ready(electricalGraphFromIR(ota));
+    const b = ready(electricalGraphFromIR(renamed));
+
+    expect(compareElectricalGraphs(a, b)).toBe("different");
+    expect(compareElectricalTopologies(a, b)).toBe("equal");
+    expect(electricalGraphTopologySimilarity(a, b)).toBe(1);
+  });
+
   it("ranks the same topology above a partial or unrelated circuit without treating values as structure", () => {
     const reference = ready(
       electricalGraphFromIR(

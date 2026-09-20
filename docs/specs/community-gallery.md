@@ -80,15 +80,17 @@ restrictive content-security-policy.
 - The editor Gallery panel offers an on-demand **Check current topology**
   action above its filters. It compares the currently visible Cell (not
   unconditionally the Project's root Cell) against every public Gallery
-  entry in a Web Worker. Exact results use the same layout/name-independent
-  electrical graph contract as the administrator duplicate scan, including
-  values, models, pin roles and ordered ports. After exact matches, the panel
-  shows at most five nearest structural results ranked by device/pin/port
-  populations and their electrical neighborhoods; this similarity score
-  deliberately ignores model and parameter values and is ranking evidence,
-  never a declaration of equivalence. The action is public and read-only:
-  results open the existing Gallery entry, and no cleanup authority is
-  exposed in the editor.
+  entry in a Web Worker. Exact topology results ignore instance, Net, Cell and
+  external-port names; model and parameter values; top-level port order; and
+  whether an external rail was represented as a Port or a global power Net.
+  Device classes, recognizable MOS/BJT polarity, terminal roles and actual
+  connectivity remain structural evidence. This topology-only contract is
+  intentionally broader than the administrator's exact electrical duplicate
+  contract. After exact topology matches, the panel shows at most five nearest
+  structural results ranked by device/pin/external-terminal populations and
+  their electrical neighborhoods. The action is public and read-only: results
+  open the existing Gallery entry, and no cleanup authority is exposed in the
+  editor.
 
 ## Publishing
 

@@ -86,7 +86,7 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
           ? `Comparing ${report?.scanned ?? 0}${report?.total != null ? ` / ${report.total}` : ""} Gallery circuits…`
           : report?.complete && !report.sourceError
             ? exactCount > 0
-              ? `${exactCount} exact ${exactCount === 1 ? "match" : "matches"}; ${report.comparable} comparable circuits checked.`
+              ? `${exactCount} exact topology ${exactCount === 1 ? "match" : "matches"}; ${report.comparable} comparable circuits checked.`
               : `No exact match; showing the nearest of ${report.comparable} comparable circuits.`
             : null}
       </span>
@@ -129,7 +129,7 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
                 <small>{match.entry.author || "Gallery"}</small>
                 <small>
                   {match.exact
-                    ? "Exact electrical match"
+                    ? "Exact topology match"
                     : `${Math.round(match.similarity * 100)}% topology match`}
                 </small>
               </span>

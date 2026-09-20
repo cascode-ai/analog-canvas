@@ -57,7 +57,7 @@ describe("current Gallery topology matching", () => {
     );
   });
 
-  it("puts exact netlists first and ranks the nearest non-exact topology", async () => {
+  it("puts exact topologies first and ranks the nearest non-exact topology", async () => {
     const entries = [entry("partial"), entry("same-shape"), entry("exact")];
     const projects = new Map([
       ["partial", resistorProject("1k", 1)],
@@ -96,7 +96,7 @@ describe("current Gallery topology matching", () => {
       })),
     ).toEqual([
       { id: "exact", exact: true, similarity: 1 },
-      { id: "same-shape", exact: false, similarity: 1 },
+      { id: "same-shape", exact: true, similarity: 1 },
       {
         id: "partial",
         exact: false,

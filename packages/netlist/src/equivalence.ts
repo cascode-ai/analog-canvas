@@ -356,6 +356,26 @@ export function compareElectricalGraphs(
 }
 
 function topologyLabel(label: string): string {
+  // A topology search asks where the circuit reaches the outside world, not
+  // what an author called that boundary or whether they drew it as a Port,
+  // VDD/VSS power symbol, or another global rail. Exact duplicate checking
+  // deliberately keeps those interface contracts; topology matching does not.
+  if (label.startsWith("port:") || label.startsWith("global:"))
+    return "terminal";
+  if (label.startsWith("pin:")) {
+    const pin = label.slice("pin:".length).toLowerCase();
+    const aliases: Record<string, string> = {
+      drain: "d",
+      gate: "g",
+      source: "s",
+      bulk: "b",
+      body: "b",
+      collector: "c",
+      base: "b",
+      emitter: "e",
+    };
+    return `pin:${aliases[pin] ?? pin}`;
+  }
   if (!label.startsWith('["device"')) return label;
   try {
     const value = JSON.parse(label) as unknown[];
@@ -385,6 +405,30 @@ function topologyLabel(label: string): string {
   }
 }
 
+function topologyGraph(graph: ElectricalGraph): ElectricalGraph {
+  const labels = graph.labels.map(topologyLabel);
+  return {
+    labels,
+    edges: graph.edges,
+    bucket: JSON.stringify(
+      labels.map((label, index) => [label, graph.edges[index]!.length]).sort(),
+    ),
+  };
+}
+
+/**
+ * Exact graph isomorphism after removing author-facing names and interface
+ * representation. Device classes, transistor polarity, pin roles and actual
+ * connectivity remain structural evidence.
+ */
+export function compareElectricalTopologies(
+  a: ElectricalGraph,
+  b: ElectricalGraph,
+  maxSteps = 100_000,
+): "equal" | "different" | "unknown" {
+  return compareElectricalGraphs(topologyGraph(a), topologyGraph(b), maxSteps);
+}
+
 function multisetDice(
   left: readonly number[],
   right: readonly number[],
@@ -403,12 +447,13 @@ function multisetDice(
 }
 
 /**
- * Layout/name-independent topology closeness in [0, 1].
+ * Layout/name/interface-independent topology closeness in [0, 1].
  *
  * This is ranking evidence, never equivalence evidence. Exact duplicate
- * decisions still belong to compareElectricalGraphs. The score compares
- * device/pin/port populations and two rounds of their electrical
- * neighborhoods, while deliberately ignoring model and parameter values.
+ * decisions belong to compareElectricalTopologies. The score compares
+ * device/pin/external-terminal populations and two rounds of their electrical
+ * neighborhoods, while deliberately ignoring model and parameter values,
+ * names, top-level port order, and port-versus-global representation.
  */
 export function electricalGraphTopologySimilarity(
   a: ElectricalGraph,

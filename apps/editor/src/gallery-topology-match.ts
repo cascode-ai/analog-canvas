@@ -1,6 +1,6 @@
 import type { CircuitProject } from "@icm/model";
 import {
-  compareElectricalGraphs,
+  compareElectricalTopologies,
   electricalGraphTopologySimilarity,
   projectElectricalGraph,
 } from "@icm/netlist";
@@ -130,7 +130,7 @@ export async function scanGalleryTopologyMatches(
               parseProject(detail.projectText),
             );
             if (candidate.status !== "ready") throw new Error(candidate.reason);
-            const exact = compareElectricalGraphs(
+            const exact = compareElectricalTopologies(
               source.graph,
               candidate.graph,
             );

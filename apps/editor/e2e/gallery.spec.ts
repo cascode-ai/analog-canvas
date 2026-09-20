@@ -478,13 +478,13 @@ test("the editor Gallery finds exact and nearest matches for the current topolog
     "Exact resistor pair",
   );
   await expect(results.getByRole("link").nth(0)).toContainText(
-    "Exact electrical match",
+    "Exact topology match",
   );
   await expect(results.getByRole("link").nth(1)).toContainText(
     "Same topology, other value",
   );
   await expect(results.getByRole("link").nth(1)).toContainText(
-    "100% topology match",
+    "Exact topology match",
   );
   await expect(results.getByRole("link").nth(0)).toHaveAttribute(
     "href",
