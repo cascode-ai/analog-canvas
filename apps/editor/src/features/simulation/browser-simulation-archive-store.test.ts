@@ -187,7 +187,7 @@ describe("browser simulation archive store", () => {
       expect(listed).toMatchObject({ ok: true, value: expect.any(Array) });
       if (!listed.ok) throw Error(listed.message);
       expect(listed.value.map((item) => item.id)).toEqual(
-        Array.from({ length: 10 }, (_, i) => `run-${11 - i}`),
+        Array.from({ length: 12 }, (_, i) => `run-${11 - i}`),
       );
       expect(await store.list("other")).toMatchObject({
         ok: true,
@@ -195,7 +195,10 @@ describe("browser simulation archive store", () => {
       });
       expect(scan).not.toHaveBeenCalled();
       expect(cursor).not.toHaveBeenCalled();
-      expect(await store.read("run-0")).toEqual({ ok: true, value: null });
+      expect(await store.read("run-0")).toEqual({
+        ok: true,
+        value: archive("run-0", new Date(0).toISOString()),
+      });
       expect(await store.read("run-11")).toEqual({ ok: true, value: latest });
     } finally {
       scan.mockRestore();
@@ -244,7 +247,7 @@ describe("browser simulation archive store", () => {
     expect(old.presentation).toHaveProperty("setupId");
     store.close();
   });
-  it("survives store replacement and retains the ten newest Project runs", async () => {
+  it("survives store replacement without silently pruning older Project runs", async () => {
     const factory = new IDBFactory() as unknown as IDBFactory;
     const options = { idbFactory: factory, databaseName: "archive-test" };
     const first = createBrowserSimulationArchiveStore(options);
@@ -260,11 +263,11 @@ describe("browser simulation archive store", () => {
     const listed = await reopened.list("project");
     expect(listed.ok).toBe(true);
     if (!listed.ok) return;
-    expect(listed.value).toHaveLength(10);
+    expect(listed.value).toHaveLength(12);
     expect(listed.value[0]?.id).toBe("archive-11");
-    expect(listed.value.at(-1)?.id).toBe("archive-2");
-    const pruned = await reopened.read("archive-1");
-    expect(pruned.ok && pruned.value).toBeNull();
+    expect(listed.value.at(-1)?.id).toBe("archive-0");
+    const oldest = await reopened.read("archive-0");
+    expect(oldest.ok && oldest.value?.id).toBe("archive-0");
     const retained = await reopened.read("archive-11");
     expect(retained.ok && retained.value?.id).toBe("archive-11");
     expect(await reopened.delete("archive-11")).toMatchObject({
@@ -272,6 +275,6 @@ describe("browser simulation archive store", () => {
       value: true,
     });
     const afterDelete = await reopened.list("project");
-    expect(afterDelete.ok && afterDelete.value).toHaveLength(9);
+    expect(afterDelete.ok && afterDelete.value).toHaveLength(11);
   });
 });

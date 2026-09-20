@@ -56,6 +56,49 @@ async function fixture() {
 }
 
 describe("Project result handoff", () => {
+  it.each([false, true])(
+    "retains more than ten page results when persistence failure is %s",
+    async (fail) => {
+      const input = await fixture();
+      const store = createBrowserSimulationArchiveStore({
+        idbFactory: new IDBFactory(),
+      });
+      if (fail)
+        vi.spyOn(store, "save").mockResolvedValue({
+          ok: false,
+          code: "quota-exceeded",
+          message: "Quota full",
+        });
+      const history = new ProjectRunHistory("project", store);
+      try {
+        for (let i = 0; i < 12; i++) {
+          history.track({ ...input, run: { ...input.run, id: `run-${i}` } });
+          await vi.waitFor(() =>
+            expect(
+              history.snapshot().find((record) => record.id === `run-${i}`)
+                ?.archive,
+            ).toBeDefined(),
+          );
+        }
+        expect(history.snapshot()).toHaveLength(12);
+        const first = history
+          .snapshot()
+          .find((record) => record.id === "run-0")!;
+        if (fail) {
+          expect(first.memoryArchive?.artifacts).toHaveLength(1);
+          expect(first.error).toContain("session only");
+        } else {
+          expect(first.memoryArchive).toBeUndefined();
+          expect(await store.read(first.archive!.id)).toMatchObject({
+            ok: true,
+            value: { run: { id: "run-0" } },
+          });
+        }
+      } finally {
+        history.dispose();
+      }
+    },
+  );
   it("does not open or save archives when disposed during lazy handoff", async () => {
     const input = await fixture();
     const store = createBrowserSimulationArchiveStore({

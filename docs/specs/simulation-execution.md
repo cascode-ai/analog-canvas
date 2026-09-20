@@ -569,8 +569,9 @@ and diagnostic export, not duplicated beside its CSV in Explorer. Archived
 legacy output artifacts remain readable/exportable without being regenerated.
 
 Automatic retention and **Archive current run** capture a run's verified artifact
-set and compact presentation metadata in browser IndexedDB. At most ten runs
-per Project and 512 MiB per run are accepted, within browser quota and the shared
+set and compact presentation metadata in browser IndexedDB. Saving a new run
+does not evict older run records, including session-only results whose storage
+failed. Archives accept up to 512 MiB per run, within browser quota and the shared
 1 GiB Project evidence budget. Individual evidence files allow 256 MiB, with
 only a bounded cache held in memory. Opening an archive republishes its
 verified files into the current session File Resource and decodes the ordinary

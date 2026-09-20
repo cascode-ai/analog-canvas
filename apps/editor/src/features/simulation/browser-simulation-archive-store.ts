@@ -11,7 +11,6 @@ const DATABASE_NAME = "analog-canvas-simulation-archives";
 const DATABASE_VERSION = 2;
 const STORE_NAME = "runs";
 const DIRECTORY_NAME = "run-directory";
-const MAX_ARCHIVES_PER_PROJECT = 10;
 
 // Internal storage only. Portable archives still contain their full evidence.
 type StoredArchive = Omit<SimulationRunArchiveV1, "artifacts"> & {
@@ -261,21 +260,10 @@ export function createBrowserSimulationArchiveStore(
         );
         const directory = transaction.objectStore(DIRECTORY_NAME);
         const done = transactionDone(transaction);
-        const existing: SimulationRunArchiveSummary[] = await requestValue(
-          directory.index("projectId").getAll(archive.projectId),
-        );
         const store = transaction.objectStore(STORE_NAME);
         const summary = summarizeSimulationRunArchive(archive);
         store.put(stored, archive.id);
         directory.put(summary, archive.id);
-        const ordered = [
-          ...existing.filter((item) => item.id !== archive.id),
-          summary,
-        ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-        for (const stale of ordered.slice(MAX_ARCHIVES_PER_PROJECT)) {
-          store.delete(stale.id);
-          directory.delete(stale.id);
-        }
         await done;
         return { ok: true, value: summary };
       } catch (error) {

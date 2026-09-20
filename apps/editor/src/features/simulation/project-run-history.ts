@@ -132,14 +132,6 @@ export class ProjectRunHistory {
             record.memoryArchive = archive;
             record.error = `Result available for this session only: ${saved.message}`;
           }
-          const completed = [...this.records.values()].filter(
-            (item) => item.archive,
-          );
-          for (const old of completed.slice(
-            0,
-            Math.max(0, completed.length - 10),
-          ))
-            this.records.delete(old.id);
         }
         this.notify();
         return;
