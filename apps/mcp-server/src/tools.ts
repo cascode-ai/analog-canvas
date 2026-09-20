@@ -1,6 +1,7 @@
 import { agentToolHelp } from "./guidance.generated.js";
 import { z } from "zod";
 import { downloadSimulationArtifact } from "./artifact-download.js";
+import { LocalWorkspace, defaultWorkspacePath } from "./local-workspace.js";
 import { simulationAuthoringTools } from "./simulation-authoring-tools.js";
 import { SimulationOperationSchema } from "@icm/simulation-service/contract";
 import { SimulationFileOperationSchema } from "@icm/simulation-service/files";
@@ -40,6 +41,7 @@ import { exportFile, importFile } from "./file-operations.js";
  */
 export interface ToolSessionState {
   client: AgentSessionClient;
+  workspaceBase?: string;
 }
 
 const ConnectArgs = z.strictObject({
@@ -69,10 +71,60 @@ const ProjectCellsArgs = z.discriminatedUnion("action", [
   }),
 ]);
 const SimulationFilesArgs = z.strictObject({
-  request: SimulationFileOperationSchema,
+  request: z.union([
+    SimulationFileOperationSchema,
+    z.strictObject({ action: z.literal("workspace") }),
+    z.strictObject({
+      action: z.literal("sync"),
+      runId: z.string().min(1),
+      fileIds: z.array(z.string().min(1)).optional(),
+    }),
+  ]),
   requestId: z.string().min(1).optional(),
   outputPath: z.string().min(1).optional(),
+  basePath: z.string().min(1).optional(),
 });
+
+async function localWorkspace(session: ToolSessionState, basePath?: string) {
+  const status = await session.client.status();
+  if (!status.sessionId || !status.projectId)
+    throw new Error("Connect before creating or syncing a local workspace");
+  const scope = {
+    serverUrl: session.client.apiBaseUrl,
+    projectId: status.projectId,
+    sessionId: status.sessionId,
+  };
+  const workspace = await LocalWorkspace.open(
+    scope,
+    basePath ?? session.workspaceBase ?? defaultWorkspacePath(scope),
+  );
+  session.workspaceBase = workspace.basePath;
+  return workspace;
+}
+async function fetchWorkspaceArtifact(
+  session: ToolSessionState,
+  artifactId: string,
+  offset: number,
+) {
+  const response = await session.client.fileResource({
+    apiVersion: AGENT_API_VERSION,
+    requestId: crypto.randomUUID(),
+    operation: "simulation-input",
+    input: { action: "download", artifactId },
+  });
+  if (
+    !response.ok ||
+    response.operation !== "simulation-input" ||
+    !response.result.ok ||
+    !("download" in response.result)
+  )
+    throw new Error(JSON.stringify(response));
+  return session.client.downloadArtifact(
+    response.result.download.path,
+    offset,
+    response.result.artifact.sha256,
+  );
+}
 
 const ExportFileArgs = AgentFileDownloadOptionsSchema.safeExtend({
   outputPath: z.string().min(1),
@@ -390,8 +442,40 @@ const TOOLS: readonly ToolEntry[] = [
       inputSchema: jsonSchemaOf(SimulationFilesArgs),
     },
     handle: async (args, session) => {
-      const { request, requestId, outputPath } =
+      const { request, requestId, outputPath, basePath } =
         SimulationFilesArgs.parse(args);
+      if (request.action === "workspace") {
+        const path = basePath ?? session.workspaceBase;
+        if (path) {
+          try {
+            const result = await LocalWorkspace.inspect(path);
+            session.workspaceBase = result.basePath;
+            return result;
+          } catch (error) {
+            if (
+              !(error instanceof Error) ||
+              error.message !== "WORKSPACE_NOT_FOUND"
+            )
+              throw error;
+          }
+        }
+        return (await localWorkspace(session, basePath)).describe();
+      }
+      if (request.action === "sync") {
+        const response = await session.client.simulationResource({
+          apiVersion: AGENT_API_VERSION,
+          requestId: requestId ?? crypto.randomUUID(),
+          operation: "catalog",
+          runId: request.runId,
+        });
+        if (!response.ok || !("catalog" in response)) return response;
+        const workspace = await localWorkspace(session, basePath);
+        return workspace.sync(
+          response.catalog,
+          (ref, offset) => fetchWorkspaceArtifact(session, ref.id, offset),
+          request.fileIds,
+        );
+      }
       if (
         outputPath &&
         request.action !== "artifact" &&
@@ -434,6 +518,22 @@ const TOOLS: readonly ToolEntry[] = [
             artifact.sha256,
           ),
         );
+      }
+      if (
+        !outputPath &&
+        request.action === "download" &&
+        response.result.ok &&
+        "download" in response.result
+      ) {
+        const { artifact, download } = response.result;
+        const workspace = await localWorkspace(session, basePath);
+        return {
+          ...(await workspace.download(artifact, (ref, offset) =>
+            session.client.downloadArtifact(download.path, offset, ref.sha256),
+          )),
+          basePath: workspace.basePath,
+          indexPath: workspace.indexPath,
+        };
       }
       return response.result;
     },

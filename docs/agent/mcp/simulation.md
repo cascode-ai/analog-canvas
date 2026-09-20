@@ -38,13 +38,29 @@ analyses or code. Basic OP/DC/AC/TRAN code needs no dedicated helper call.
    Reuse the same outer request ID and payload for a transport retry.
    `read` / `cancel` use `runId`; each new poll has a new request ID.
    `inputStatus` reports later edits without rewriting that run's evidence.
-6. Use complete `result.data` directly. Run receipts already carry artifact
-   references; `export` is only needed to obtain a missing or refreshed inventory.
-   `simulation_files` with
-   `request:{action:"artifact",artifactId}` reads paged content; `outputPath`
-   saves complete bytes after length/SHA-256 verification. Deck, rawfile,
-   JSON, log and CSV share this File Resource. Large receipts set
-   `resultPreview`; full result/output artifacts remain available.
+6. Use `simulation_files` with `request:{action:"sync",runId}` to obtain the
+   catalog and download complete files into a local base. No path question is
+   required: the default lives under the MCP process working directory's
+   `.analog-canvas/` and is isolated by server and session. The reply gives the
+   absolute base/index/work paths and identifies the filesystem as `mcp-host`.
+   That host must share a filesystem with the Agent's local analysis tools;
+   a remote MCP path is not automatically accessible from the Agent runtime.
+   Optionally set `basePath` once; this MCP session remembers it.
+   Files are flat within each run directory, and `work/`
+   is for scripts and plots. Use ordinary local tools for analysis afterwards.
+   Set `fileIds` to select stable file IDs or current artifact IDs; `[]` updates
+   only the directory. Verified existing files are reused without re-downloading.
+   `request:{action:"workspace"}` inspects the base, even offline when its path
+   is known. A new MCP conversation can provide that path to continue. Local
+   files survive disconnect; the host, not the browser, controls their retention.
+   This is not an automatic source upload or a second circuit authority.
+7. For an individual file, `request:{action:"download",artifactId}` saves it
+   into the base; `outputPath` overrides its destination. Downloads stream to a
+   resumable partial file and only publish complete verified bytes, without
+   replacing unrelated files. `request:{action:"artifact",artifactId}` without
+   `outputPath` remains an optional text preview. `simulation` / `catalog` gives
+   dataset axes, units, representation selectors and file roles without samples.
+   `read` is for status and diagnostics, not the primary waveform transfer.
    For result fields, measurement verdicts and canonical output files, read
    [Spec rules](../simulation-specs.md). Browser visibility, archival limits
    and durable delivery follow [result handoff](../simulation-result-handoff.md).

@@ -270,8 +270,9 @@ describe("MCP / browser Simulation Resource parity", () => {
     });
     const client = new AgentSessionClient({ http });
     await client.connect("session-1.code");
+    const toolState = { client };
     const invoke = async (name: string, args: unknown) => {
-      const reply = await callTool(name, args, { client });
+      const reply = await callTool(name, args, toolState);
       return JSON.parse(reply.content[0]!.text!);
     };
     try {
@@ -370,6 +371,32 @@ describe("MCP / browser Simulation Resource parity", () => {
       // This captured raw record declares "notype" and the textual fixture has
       // no typed acquisition. Preserve an unknown unit rather than invent one.
       expect((await readFile(path, "utf8")).split("\n")).toContain("output,2,");
+      const download = vi.spyOn(http, "downloadArtifact");
+      const basePath = join(directory, "workspace");
+      const synced = await invoke("simulation_files", {
+        request: { action: "sync", runId: started.run.id },
+        basePath,
+      });
+      expect(synced).toMatchObject({
+        ok: true,
+        basePath,
+        downloadedFiles: finished.run.artifacts.length,
+      });
+      expect(synced.files).toHaveLength(finished.run.artifacts.length);
+      expect(
+        await invoke("simulation_files", { request: { action: "workspace" } }),
+      ).toMatchObject({ ok: true, basePath });
+      download.mockClear();
+      const reused = await invoke("simulation_files", {
+        request: { action: "sync", runId: started.run.id },
+      });
+      expect(reused.ok, JSON.stringify(reused.error)).toBe(true);
+      expect(
+        reused.files.every((file: { reused: boolean }) => file.reused),
+      ).toBe(true);
+      expect(download).not.toHaveBeenCalled();
+      const localIndex = JSON.parse(await readFile(synced.indexPath, "utf8"));
+      expect(localIndex.runs[0].runId).toBe(started.run.id);
       expect(http.claims).toHaveLength(1);
     } finally {
       await host.clear();
