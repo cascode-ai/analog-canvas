@@ -193,6 +193,9 @@ describe("editor shell", () => {
     expect(markup).toContain('data-testid="editor-report-bug"');
     expect(markup).toContain("Report bug");
     expect(markup).toContain(">Help</button>");
+    expect(markup).toContain('data-testid="statusbar-shortcut-hints"');
+    expect(markup).toContain("Hints</button>");
+    expect(markup).not.toContain('data-testid="canvas-shortcut-hints"');
     expect(markup).toContain('class="app-chrome-actions"');
     expect(markup).toContain("Presented by");
     expect(markup).toContain('href="https://tokenzhang.com"');
@@ -308,7 +311,8 @@ describe("editor shell", () => {
     expect(markup).not.toContain('data-testid="draw-tool-line"');
     expect(markup).not.toContain('data-testid="draw-tool-rectangle"');
     expect(markup).not.toContain('data-testid="draw-tool-circle"');
-    expect(markup).toContain("Selection filter");
+    expect(markup).toContain('data-testid="selection-filter-button"');
+    expect(markup).toContain("Selection Filter… (Ctrl+F)");
     expect(markup).not.toContain("Symbols &amp; Tools");
     expect(markup).not.toContain("Search components");
     expect(markup).not.toContain("Browse all");

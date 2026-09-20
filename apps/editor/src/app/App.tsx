@@ -685,6 +685,7 @@ export function App({
   }
   const cameraRuntime = cameraRuntimeRef.current;
   useEffect(() => () => cameraRuntime.dispose(), [cameraRuntime]);
+  const [shortcutHintsVisible, setShortcutHintsVisible] = useState(false);
   const [gridDotsVisible, setGridDotsVisible] = useState(true);
   // Which channel serves this build (Deployment rationale). Asked once; anything but a
   // clear "preview" is production, so the public site never wears its badge.
@@ -2857,11 +2858,6 @@ export function App({
     ? null
     : committedSceneState.scene.viewBox;
   const zoomPercent = Math.round((DEFAULT_VIEWBOX.width / viewBox.width) * 100);
-  const canvasIsEmpty =
-    document.instances.every((instance) => instance.placement === null) &&
-    document.routes.length === 0 &&
-    document.annotations.length === 0 &&
-    (document.drafting?.objects.length ?? 0) === 0;
   const {
     insertConstructionVertex,
     insertArrowWaypoint,
@@ -6722,11 +6718,7 @@ export function App({
           }
         />
         <EditorCanvasSurface
-          empty={canvasIsEmpty}
-          showQuickStart={
-            !analogSimulationOpen &&
-            !pendingComponentPlacement?.editAfterPlacement
-          }
+          shortcutHintsVisible={shortcutHintsVisible}
           cameraRuntime={cameraRuntime}
           onWheel={handleWheel}
           onPinch={zoomAtClientPoint}
@@ -7347,6 +7339,10 @@ export function App({
         wireCornerOrder={wireCornerOrder}
         recoveryLabel={isDirtyWork() ? recoveryStateLabel(recoveryState) : null}
         zoomPercent={zoomPercent}
+        shortcutHintsVisible={shortcutHintsVisible}
+        onToggleShortcutHints={() =>
+          setShortcutHintsVisible((visible) => !visible)
+        }
         gridVisible={gridDotsVisible}
         onToggleGrid={() => {
           setGridDotsVisible(!gridDotsVisible);

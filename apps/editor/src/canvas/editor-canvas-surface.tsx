@@ -31,8 +31,7 @@ import type { CameraRuntime } from "./camera-runtime";
 import { EDITOR_SHORTCUT_REFERENCE } from "../interaction/editor-shortcut-reference";
 
 export interface EditorCanvasSurfaceProps {
-  empty: boolean;
-  showQuickStart?: boolean;
+  shortcutHintsVisible: boolean;
   className: string;
   viewBox: string;
   cameraRuntime: CameraRuntime;
@@ -86,8 +85,7 @@ function CanvasShortcutChord({ keys }: { keys: readonly string[] }) {
 
 /** SVG scene composition; interaction semantics arrive through typed models. */
 export function EditorCanvasSurface({
-  empty,
-  showQuickStart = true,
+  shortcutHintsVisible,
   className,
   viewBox,
   cameraRuntime,
@@ -205,15 +203,15 @@ export function EditorCanvasSurface({
   }, [cameraRuntime]);
   return (
     <section className="canvas-panel">
-      {empty && showQuickStart ? (
+      {shortcutHintsVisible ? (
         <aside
           className="canvas-shortcut-menu"
-          data-testid="canvas-empty-state"
-          aria-label="Quick start shortcuts"
+          data-testid="canvas-shortcut-hints"
+          aria-label="Keyboard shortcuts"
         >
           <div className="canvas-shortcut-menu-heading">
-            <p className="canvas-shortcut-menu-title">Quick start</p>
-            <span>All shortcuts</span>
+            <p className="canvas-shortcut-menu-title">Keyboard shortcuts</p>
+            <span>Hints</span>
           </div>
           <ul className="canvas-shortcut-list">
             {EDITOR_SHORTCUT_REFERENCE.map((shortcut) => (

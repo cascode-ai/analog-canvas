@@ -992,7 +992,7 @@
   background: var(--icm-surface);
 }
 
-/* The grid toggle sits with the zoom controls at the right end. */
+/* On-demand canvas hints and the grid toggle sit with the view controls. */
 .statusbar-view-controls {
   display: flex;
   flex: 0 0 auto;
@@ -1000,8 +1000,9 @@
   gap: var(--icm-space-2);
 }
 
-/* Background grid on/off, one click from the canvas. Same chip language as
-   the status items; pressed while the grid is shown. */
+/* On-canvas references and background-grid visibility are one-click chips;
+   the pressed treatment means their corresponding layer is currently shown. */
+.statusbar-hints-toggle,
 .statusbar-grid-toggle {
   display: inline-flex;
   flex: 0 0 auto;
@@ -1021,10 +1022,12 @@
   cursor: pointer;
 }
 
+.statusbar-hints-toggle:hover,
 .statusbar-grid-toggle:hover {
   background: var(--icm-surface-hover);
 }
 
+.statusbar-hints-toggle[aria-pressed="true"],
 .statusbar-grid-toggle[aria-pressed="true"] {
   border-color: transparent;
   color: var(--icm-accent);

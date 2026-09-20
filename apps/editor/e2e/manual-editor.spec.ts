@@ -5589,7 +5589,6 @@ test("docked Style JSON offers bounded choices, scales fonts, and resets appeara
   await clickDrawTool(page, "document-style");
   const settings = page.getByLabel("Document settings");
   await expect(settings).toBeVisible();
-  await expect(page.getByTestId("canvas-empty-state")).toHaveCount(0);
   await expect(page.getByTestId("hit-R1")).toBeVisible();
   await expect(
     settings.getByLabel("Editable document Style code"),

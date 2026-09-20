@@ -5,7 +5,7 @@
  * but they are not commands a user can invoke.
  *
  * Keep this beside the resolver so adding a keyboard command and documenting
- * it are one change. Quick Start renders the complete list rather than a
+ * it are one change. Canvas Hints renders the complete list rather than a
  * separately curated subset.
  */
 export const EDITOR_SHORTCUT_REFERENCE = [

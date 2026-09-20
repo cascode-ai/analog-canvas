@@ -834,7 +834,6 @@ test("T previews text at the pointer without creating it and Escape cancels", as
   expect(expected.x % 10 !== 0 || expected.y % 10 !== 0).toBe(true);
 
   await page.keyboard.press("t");
-  await expect(page.getByTestId("canvas-empty-state")).toHaveCount(0);
   const preview = page.getByTestId("text-placement-preview");
   await expect(preview).toBeVisible();
   await expect(preview).toHaveText("Design note");
@@ -864,7 +863,6 @@ test("T previews text at the pointer without creating it and Escape cancels", as
   await expect(page.locator('[data-kind="draft-text"]')).toHaveCount(0);
   await expect(page.getByTestId("revision")).toHaveText("0");
   await expect(page.getByTestId("draw-tool-undo")).toBeDisabled();
-  await expect(page.getByTestId("canvas-empty-state")).toBeVisible();
 
   // The toolbar uses the same cancellable placement, then lets a new tool take over.
   await clickDrawTool(page, "text");

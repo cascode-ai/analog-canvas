@@ -52,6 +52,11 @@ test("carries the version and project resource links inside Help", async ({
   const about = page.getByRole("dialog");
   await expect(about).toContainText("About Analog Canvas");
   await expect(about).toContainText("Version 0.9.2");
+  await expect(about.getByText("Handbook", { exact: true })).toHaveCount(0);
+  await expect(
+    about.getByText("Keyboard shortcuts", { exact: true }),
+  ).toHaveCount(0);
+  await expect(about.locator("kbd")).toHaveCount(0);
   const repositoryLink = about.getByRole("link", { name: "Repository" });
   await expect(repositoryLink).toHaveAttribute(
     "href",

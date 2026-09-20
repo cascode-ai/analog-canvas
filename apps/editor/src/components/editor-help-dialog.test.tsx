@@ -21,65 +21,28 @@ describe("EditorHelpDialog", () => {
       'href="https://github.com/cascode-ai/analog-canvas/commits/main"',
     );
     expect(markup).toContain('href="https://www.tokenzhang.com"');
+    expect(markup).toContain(
+      'href="https://github.com/cascode-ai/analog-canvas/blob/main/docs/user/getting-started.md"',
+    );
+    expect(markup).toContain(
+      'href="https://github.com/cascode-ai/analog-canvas/blob/main/docs/user/troubleshooting.md"',
+    );
     expect(markup).toContain(">Change Log</a>");
     expect(markup).toContain(">Owner</a>");
     expect(markup).toContain('target="_blank"');
     expect(markup).toContain('rel="noreferrer"');
   });
 
-  it("presents the focused shortcut set as scannable grouped rows", () => {
-    const markup = renderToStaticMarkup(
-      <EditorHelpDialog closeButtonRef={{ current: null }} onClose={vi.fn()} />,
-    );
-    const shortcuts = markup.slice(
-      markup.indexOf('id="help-shortcuts"'),
-      markup.indexOf('id="help-data"'),
-    );
-
-    expect(shortcuts).toContain("Create");
-    expect(shortcuts).toContain("Edit");
-    expect(shortcuts).toContain("Workspace");
-    expect(shortcuts.match(/class="help-shortcut-item"/gu)).toHaveLength(12);
-    for (const key of ["I", "P", "W", "T", "Q", "U", "C", "R", "F"]) {
-      expect(shortcuts).toContain(`>${key}</kbd>`);
-    }
-    expect(shortcuts).toContain("Mirror left / right");
-    expect(shortcuts).toContain("Mirror top / bottom");
-    expect(shortcuts).not.toContain("File and history");
-    expect(shortcuts).not.toContain("Select all placed components");
-  });
-
-  it("describes explicit Cell authoring without a rectangle conversion", () => {
+  it("stays concise and leaves shortcut details to the on-canvas Hints control", () => {
     const markup = renderToStaticMarkup(
       <EditorHelpDialog closeButtonRef={{ current: null }} onClose={vi.fn()} />,
     );
 
-    expect(markup).toContain("Manage Cells…");
-    expect(markup).toContain("Place Cell");
-    expect(markup).toContain("Select a hierarchical block");
-    expect(markup).not.toContain("Select a rectangle");
-    expect(markup).not.toContain("convert it into a hierarchical block");
-    expect(markup).toContain("Cell and <strong>Place Cell</strong>");
-    expect(markup).toContain("Use <kbd>Shift+E</kbd>");
-  });
-
-  it("keeps prose separated from inline emphasis and shortcut keys", () => {
-    const markup = renderToStaticMarkup(
-      <EditorHelpDialog closeButtonRef={{ current: null }} onClose={vi.fn()} />,
-    );
-
-    for (const boundary of [
-      "inputs. Use <strong>File / Save</strong>",
-      "File / Refresh app</strong> when",
-      "tool from <strong>Draw</strong>",
-      "the left <strong>Library</strong>",
-      "Wire (or <kbd>W</kbd>)",
-      "Delete</kbd> or <kbd>Backspace</kbd>",
-      "places it and <kbd>Esc</kbd>",
-      "Cell and <strong>Place Cell</strong>",
-      "Use <kbd>Shift+E</kbd>",
-    ]) {
-      expect(markup).toContain(boundary);
-    }
+    expect(markup).toContain("Hints");
+    expect(markup).toContain("Projects and recovery");
+    expect(markup).not.toContain("Handbook");
+    expect(markup).not.toContain("Keyboard shortcuts</h3>");
+    expect(markup).not.toContain("<kbd>");
+    expect(markup).not.toContain("help-shortcut");
   });
 });

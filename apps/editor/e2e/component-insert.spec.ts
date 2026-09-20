@@ -420,21 +420,36 @@ test("refresh restores the circuit when the session started from a boot-target U
     .toBeNull();
 });
 
-test("keeps quick-start shortcuts in the upper-right corner until the first component is inserted", async ({
+test("keeps shortcuts hidden until the status-bar Hints control requests them", async ({
   page,
 }) => {
   await page.goto("/editor");
   await revealPropertiesShelf(page);
   await awaitEditorReady(page);
-  const quickStart = page.getByTestId("canvas-empty-state");
-  await expect(quickStart).toBeVisible();
-  await expect(quickStart).toHaveAttribute(
+  const hintsButton = page.getByTestId("statusbar-shortcut-hints");
+  const shortcutHints = page.getByTestId("canvas-shortcut-hints");
+  await expect(shortcutHints).toHaveCount(0);
+  await expect(hintsButton).toHaveText("Hints");
+  await expect(hintsButton).toHaveAttribute("aria-pressed", "false");
+  const gridButton = page.getByTestId("statusbar-grid-toggle");
+  const [hintsBounds, gridBounds] = await Promise.all([
+    hintsButton.boundingBox(),
+    gridButton.boundingBox(),
+  ]);
+  if (!hintsBounds || !gridBounds) {
+    throw new Error("Status-bar controls are not measurable");
+  }
+  expect(hintsBounds.x + hintsBounds.width).toBeLessThan(gridBounds.x);
+
+  await hintsButton.click();
+  await expect(hintsButton).toHaveAttribute("aria-pressed", "true");
+  await expect(shortcutHints).toBeVisible();
+  await expect(shortcutHints).toHaveAttribute(
     "aria-label",
-    "Quick start shortcuts",
+    "Keyboard shortcuts",
   );
-  await expect(quickStart).toContainText("Quick start");
-  await expect(quickStart).toContainText("All shortcuts");
-  await expect(quickStart.locator("li")).toHaveText([
+  await expect(shortcutHints).toContainText("Keyboard shortcuts");
+  await expect(shortcutHints.locator("li")).toHaveText([
     "Ctrl/CmdFSelection filter",
     "Ctrl/CmdShiftFSearch circuit",
     "FFit view",
@@ -475,13 +490,13 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
   ]);
   expect(
     (
-      await quickStart
+      await shortcutHints
         .locator(".canvas-shortcut-list")
         .evaluate((element) => getComputedStyle(element).gridTemplateColumns)
     ).split(" ").length,
   ).toBeGreaterThan(1);
   expect(
-    await quickStart.evaluate((element) => {
+    await shortcutHints.evaluate((element) => {
       const style = getComputedStyle(element);
       const bounds = element.getBoundingClientRect();
       const canvasBounds = element.parentElement?.getBoundingClientRect();
@@ -503,22 +518,22 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
   const initialViewport = page.viewportSize();
   if (!initialViewport) throw new Error("Viewport is not measurable");
   await page.setViewportSize({ width: 720, height: 720 });
-  const quickStartBox = await quickStart.boundingBox();
+  const shortcutHintsBox = await shortcutHints.boundingBox();
   const canvasPanelBox = await page.locator(".canvas-panel").boundingBox();
   const propertiesBox = await page
     .getByRole("complementary", { name: "Properties" })
     .boundingBox();
-  if (!quickStartBox || !canvasPanelBox || !propertiesBox) {
+  if (!shortcutHintsBox || !canvasPanelBox || !propertiesBox) {
     throw new Error("Narrow editor chrome is not measurable");
   }
   expect(
-    Math.round(propertiesBox.x - (quickStartBox.x + quickStartBox.width)),
+    Math.round(propertiesBox.x - (shortcutHintsBox.x + shortcutHintsBox.width)),
   ).toBe(12);
-  expect(quickStartBox.x).toBeGreaterThanOrEqual(canvasPanelBox.x + 11.5);
+  expect(shortcutHintsBox.x).toBeGreaterThanOrEqual(canvasPanelBox.x + 11.5);
   await expect
     .poll(async () => {
       const [menu, panel] = await Promise.all([
-        quickStart.boundingBox(),
+        shortcutHints.boundingBox(),
         page.locator(".canvas-panel").boundingBox(),
       ]);
       if (!menu || !panel) return Number.POSITIVE_INFINITY;
@@ -560,7 +575,10 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
   await canvas.click({ position: { x: 360, y: 230 } });
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("hit-R1")).toBeVisible();
-  await expect(quickStart).toHaveCount(0);
+  await expect(shortcutHints).toBeVisible();
+  await hintsButton.click();
+  await expect(shortcutHints).toHaveCount(0);
+  await expect(hintsButton).toHaveAttribute("aria-pressed", "false");
   await revealPropertiesShelf(page);
   await page.getByTestId("selection-shelf").click();
   await expect(page.getByTestId("selection-shelf")).toContainText(
