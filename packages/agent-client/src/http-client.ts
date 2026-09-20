@@ -25,15 +25,33 @@ interface ResponseIssue {
   code: string;
   path: PropertyKey[];
   errors?: ResponseIssue[][];
+  values?: unknown[];
 }
 
 /** Describe schema locations/codes only, never response values or unknown keys. */
 function responseIssueSummary(issues: readonly ResponseIssue[]): string {
-  const leaves = (items: readonly ResponseIssue[]): ResponseIssue[] =>
+  const leaves = (
+    items: readonly ResponseIssue[],
+    prefix: PropertyKey[] = [],
+  ): ResponseIssue[] =>
     items.flatMap((issue) => {
-      if (!issue.errors?.length) return [issue];
-      const branches = issue.errors.map(leaves);
-      return branches.sort((a, b) => a.length - b.length)[0] ?? [issue];
+      const path = [...prefix, ...issue.path];
+      if (!issue.errors?.length) return [{ ...issue, path }];
+      const branches = issue.errors.map((branch) => leaves(branch, path));
+      // A short, unrelated union branch (e.g. capabilities for a Snapshot)
+      // must not hide the actual invalid field in the matching branch.
+      const mismatches = (branch: ResponseIssue[]) =>
+        branch.filter(
+          (item) =>
+            item.code === "invalid_value" &&
+            item.values?.length === 1 &&
+            ["operation", "kind", "ok"].includes(String(item.path.at(-1))),
+        ).length;
+      return (
+        branches.sort(
+          (a, b) => mismatches(a) - mismatches(b) || a.length - b.length,
+        )[0] ?? [issue]
+      );
     });
   return leaves(issues)
     .slice(0, 3)

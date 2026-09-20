@@ -15,6 +15,54 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 describe("agent http client", () => {
+  it("accepts Port case styles and locates errors within the matching Snapshot branch", async () => {
+    const body = snapshotResponse("case-styles");
+    if (!body.ok || body.operation !== "snapshot")
+      throw new Error("Expected snapshot");
+    body.snapshot.document.annotations.push({
+      id: "port-case",
+      kind: "net-label",
+      netId: "net-vout",
+      content: {
+        runs: [
+          {
+            kind: "span",
+            style: "lowercase",
+            children: [{ kind: "text", value: "DD" }],
+          },
+          {
+            kind: "span",
+            style: "uppercase",
+            children: [{ kind: "text", value: "in" }],
+          },
+        ],
+      },
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      rotation: 0,
+      alignment: "start",
+      locked: false,
+    });
+    const http = new AgentHttpClient({
+      baseUrl: BASE,
+      fetch: async () => jsonResponse(200, body),
+    });
+    const request = {
+      apiVersion: "3.0" as const,
+      requestId: "case-styles",
+      operation: "snapshot" as const,
+      documentId: "main",
+    };
+    expect(await http.circuit("s", "t", request)).toEqual(body);
+    Object.assign(body.snapshot.document.annotations.at(-1)!, {
+      rotation: "private-invalid-value",
+    });
+    await expect(http.circuit("s", "t", request)).rejects.toThrow(
+      /snapshot.document.annotations.*rotation/,
+    );
+    await expect(http.circuit("s", "t", request)).rejects.not.toThrow(
+      "private-invalid-value",
+    );
+  });
   it("explains incompatible circuit responses without replaying mutations", async () => {
     let calls = 0;
     const client = new AgentHttpClient({

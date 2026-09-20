@@ -192,6 +192,29 @@ function snapshot() {
           locked: false,
           visible: false,
         },
+        {
+          id: "release-case-label",
+          kind: "net-label",
+          netId: "release-net",
+          content: {
+            runs: [
+              {
+                kind: "span",
+                style: "uppercase",
+                children: [{ kind: "text", value: "v" }],
+              },
+              {
+                kind: "span",
+                style: "lowercase",
+                children: [{ kind: "text", value: "DD" }],
+              },
+            ],
+          },
+          anchor: { kind: "free", position: { x: 40, y: 0 } },
+          rotation: 0,
+          alignment: "start",
+          locked: false,
+        },
       ],
       drafting: {
         objects: [
