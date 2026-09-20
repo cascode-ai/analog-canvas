@@ -8,6 +8,7 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
   const [report, setReport] = useState<GalleryTopologyMatchReport | null>(null);
   const [running, setRunning] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const [snapshot, setSnapshot] = useState<CircuitProject | null>(null);
 
   const stop = () => {
     worker.current?.terminate();
@@ -15,23 +16,19 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
     setRunning(false);
   };
   useEffect(() => {
-    worker.current?.terminate();
-    worker.current = null;
-    setRunning(false);
-    setReport(null);
-    setFailure(null);
     return () => {
       worker.current?.terminate();
       worker.current = null;
     };
-    // A new immutable Project object means the compared Cell changed. Keeping
-    // old results would be fast but false, so discard them immediately.
-  }, [project]);
+  }, []);
 
   const start = () => {
     stop();
     setReport(null);
     setFailure(null);
+    // postMessage clones this immutable Project synchronously. Later edits
+    // belong to the next check, not to this worker's captured circuit.
+    setSnapshot(project);
     try {
       const next = new Worker(
         new URL("../../gallery-duplicates.worker.ts", import.meta.url),
@@ -45,11 +42,13 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
         if (event.data.complete || event.data.error) stop();
       };
       next.onerror = () => {
+        if (worker.current !== next) return;
         stop();
         setFailure("Could not compare this Cell. Try again.");
       };
       next.postMessage({ type: "topology", project });
     } catch {
+      stop();
       setFailure("Could not start topology matching. Try again.");
     }
   };
@@ -81,15 +80,30 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
           </button>
         ) : null}
       </div>
+      {snapshot ? (
+        <p
+          className="examples-topology-message"
+          data-testid="gallery-topology-snapshot"
+        >
+          {snapshot !== project
+            ? "Canvas changed. This check still uses the circuit captured when you clicked Check."
+            : "Checking a snapshot of this Cell. You can keep editing."}
+        </p>
+      ) : null}
       <span role="status" className="examples-topology-status">
         {running
           ? `Comparing ${report?.scanned ?? 0}${report?.total != null ? ` / ${report.total}` : ""} Gallery circuits…`
           : report?.complete && !report.sourceError
             ? exactCount > 0
               ? `${exactCount} exact topology ${exactCount === 1 ? "match" : "matches"}; ${report.comparable} comparable circuits checked.`
-              : `No exact match; showing the nearest of ${report.comparable} comparable circuits.`
+              : `No confirmed exact match; ${report.comparable} comparable circuits checked.`
             : null}
       </span>
+      {report?.uncheckable ? (
+        <p className="examples-topology-message">
+          {report.uncheckable} circuits could not be fully compared.
+        </p>
+      ) : null}
       {failure || report?.sourceError || report?.error ? (
         <p role="alert" className="examples-topology-message">
           {failure ?? report?.sourceError ?? report?.error}
@@ -130,7 +144,7 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
                 <small>
                   {match.exact
                     ? "Exact topology match"
-                    : `${Math.round(match.similarity * 100)}% topology match`}
+                    : `${Math.min(99, Math.round(match.similarity * 100))}% structural similarity`}
                 </small>
               </span>
             </a>

@@ -1,3 +1,4 @@
+import { requestGalleryScan } from "./gallery-scan-request";
 import {
   compareElectricalGraphs,
   projectElectricalGraph,
@@ -37,17 +38,7 @@ export async function scanGalleryDuplicates(
   const seen = new Set<string>();
   const cursors = new Set<string>();
   let cursor: string | null = null;
-  const request = async (url: string) => {
-    const timeout = AbortSignal.timeout(15_000);
-    const response = await fetchLike(url, {
-      credentials: "omit",
-      cache: "no-store",
-      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-    });
-    if (!response.ok)
-      throw new Error(`Could not read Gallery (${response.status})`);
-    return response.json();
-  };
+  const request = (url: string) => requestGalleryScan(url, fetchLike, signal);
   const publish = () => {
     report.groups = [...buckets.values()].flatMap((bucket) =>
       bucket

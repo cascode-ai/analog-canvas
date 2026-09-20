@@ -250,11 +250,11 @@ export function ExamplesPanel({
       data-open={open ? "true" : "false"}
     >
       <div className="shapes-panel-body">
+        {topologyProject ? (
+          <GalleryTopologyCheck project={topologyProject} />
+        ) : null}
         {showGallery ? (
           <div className="examples-panel-controls">
-            {topologyProject ? (
-              <GalleryTopologyCheck project={topologyProject} />
-            ) : null}
             <input
               type="search"
               className="examples-panel-search"

@@ -426,7 +426,12 @@ test("the editor Gallery finds exact and nearest matches for the current topolog
     ["exact", galleryResistorProject()],
     ["partial", galleryResistorProject("1k", 1)],
   ]);
-  await context.route("**/api/gallery**", (route) => {
+  let releaseScan!: () => void;
+  const scanPaused = new Promise<void>((resolve) => {
+    releaseScan = resolve;
+  });
+  let detailRequests = 0;
+  await context.route("**/api/gallery**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/gallery")
       return route.fulfill({
@@ -441,7 +446,9 @@ test("the editor Gallery finds exact and nearest matches for the current topolog
       });
     const id = url.pathname.split("/").pop()!;
     const project = projects.get(id);
-    if (project)
+    if (project) {
+      detailRequests++;
+      await scanPaused;
       return route.fulfill({
         json: {
           status: "public",
@@ -449,6 +456,7 @@ test("the editor Gallery finds exact and nearest matches for the current topolog
           projectText: serializeProject(project),
         },
       });
+    }
     return route.fulfill({ status: 404, json: {} });
   });
 
@@ -472,6 +480,21 @@ test("the editor Gallery finds exact and nearest matches for the current topolog
   expect(buttonBox!.y).toBeLessThan(searchBox!.y);
 
   await check.click();
+  await expect.poll(() => detailRequests).toBe(3);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "edited.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(galleryResistorProject("1k", 1))),
+  });
+  await expect(page.getByTestId("status")).toContainText("edited.icproj.json");
+  await expect(check).toBeDisabled();
+  await expect(panel.getByTestId("gallery-topology-snapshot")).toContainText(
+    "Canvas changed",
+  );
+  await page.getByTestId("examples-toggle").click();
+  await page.getByTestId("examples-toggle").click();
+  await expect(check).toBeDisabled();
+  releaseScan();
   const results = panel.getByTestId("gallery-topology-results");
   await expect(results.getByRole("link")).toHaveCount(3);
   await expect(results.getByRole("link").nth(0)).toContainText(
@@ -490,6 +513,14 @@ test("the editor Gallery finds exact and nearest matches for the current topolog
     "href",
     "/g/exact",
   );
+  await expect(check).toBeEnabled();
+  await check.click();
+  await expect(results.getByRole("link").first()).toContainText(
+    "Single resistor",
+  );
+  await expect(
+    panel.getByTestId("gallery-topology-snapshot"),
+  ).not.toContainText("Canvas changed");
 });
 
 test("the site lands on the full-screen gallery feed", async ({ page }) => {

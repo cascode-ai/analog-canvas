@@ -287,6 +287,94 @@ describe("electrical duplicate comparison", () => {
 });
 
 describe("electrical topology similarity", () => {
+  it("matches reviewed SKY130 MOS wrappers to primitives without confusing polarity or pin roles", () => {
+    const primitive = circuit(
+      [mos("M1", "NMOS", "d", "g", "s", "b")],
+      ["d", "g", "s", "b"],
+    );
+    const wrapped = structuredClone(primitive);
+    const instance = wrapped.cells[0]!.instances[0]!;
+    instance.deviceClass = "hierarchical";
+    instance.invocationKind = "subcircuit";
+    instance.target = "sky130_fd_pr__nfet_01v8_lvt";
+    const a = ready(electricalGraphFromIR(primitive));
+    const b = ready(electricalGraphFromIR(wrapped));
+    expect(compareElectricalGraphs(a, b)).toBe("different");
+    expect(compareElectricalTopologies(a, b)).toBe("equal");
+    instance.target = "sky130_fd_pr__pfet_01v8";
+    expect(
+      compareElectricalTopologies(a, ready(electricalGraphFromIR(wrapped))),
+    ).toBe("different");
+    // An arbitrary four-pin external block is not evidence of a MOS device.
+    instance.target = "custom_four_pin_block";
+    expect(
+      compareElectricalTopologies(a, ready(electricalGraphFromIR(wrapped))),
+    ).toBe("different");
+  });
+
+  it("keeps unknown black-box identities distinct even with identical interfaces", () => {
+    const block = (target: string) =>
+      ready(
+        electricalGraphFromIR(
+          circuit([
+            {
+              id: "X1",
+              reference: "X1",
+              invocationKind: "subcircuit",
+              deviceClass: "hierarchical",
+              target,
+              nodes: ["VDD", "VSS", "IN", "OUT"].map((pinName) => ({
+                pinName,
+                netName: pinName,
+              })),
+              parameters: [],
+            },
+          ]),
+        ),
+      );
+    expect(
+      compareElectricalTopologies(block("amplifier"), block("comparator")),
+    ).toBe("different");
+    expect(
+      compareElectricalTopologies(block("amplifier"), block("amplifier")),
+    ).toBe("equal");
+  });
+
+  it("uses the authored MOS polarity with arbitrary process model names", () => {
+    const project = createEmptyProject("process", "Process");
+    const document = project.documents[0]!;
+    document.instances = ["M1", "M2"].map((id) => ({
+      id,
+      reference: id,
+      symbolId: "nmos",
+      placement: null,
+      netlist: {
+        binding: { kind: "model", deviceClass: "mos", name: "custom_n_lvt" },
+        parameters: { w: "1u", l: "100n" },
+      },
+    }));
+    document.nets = ["D", "G", "S", "B"].map((pinName) => ({
+      id: pinName,
+      terminals: document.instances.map(({ id }) => ({
+        instanceId: id,
+        pinName,
+      })),
+    }));
+    const a = ready(projectElectricalGraph(project));
+    document.instances[0]!.netlist!.binding = {
+      kind: "model",
+      deviceClass: "mos",
+      name: "another_n_model",
+    };
+    expect(
+      compareElectricalTopologies(a, ready(projectElectricalGraph(project))),
+    ).toBe("equal");
+    document.instances[0]!.symbolId = "pmos";
+    expect(
+      compareElectricalTopologies(a, ready(projectElectricalGraph(project))),
+    ).toBe("different");
+  });
+
   it("finds the same five-transistor OTA across renamed, reordered, and global supply terminals", () => {
     const ota = circuit(
       [

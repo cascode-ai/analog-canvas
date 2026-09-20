@@ -91,6 +91,15 @@ restrictive content-security-policy.
   their electrical neighborhoods. The action is public and read-only: results
   open the existing Gallery entry, and no cleanup authority is exposed in the
   editor.
+  The click captures the comparison Cell: subsequent edits, hiding the panel,
+  or refreshing its feed do not cancel the running scan or erase its results.
+  A notice identifies results from an earlier canvas state; checking again
+  captures the latest state. Only explicit Cancel or leaving the editor stops
+  the job. Transient read failures retry within a bounded budget. Unverified
+  comparisons are counted separately, and approximate results never display
+  100%. Topology projection uses authored transistor polarity and reviewed
+  external device pin mappings; unknown black-box targets remain distinct.
+  The administrator's stricter netlist duplicate contract is unchanged.
 
 ## Publishing
 

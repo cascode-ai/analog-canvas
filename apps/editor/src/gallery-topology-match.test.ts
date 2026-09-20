@@ -124,6 +124,39 @@ describe("current Gallery topology matching", () => {
     });
   });
 
+  it("uses captured source topology while comparing a freshly revised Gallery entry", async () => {
+    const source = resistorProject();
+    const report = await scanGalleryTopologyMatches(
+      source,
+      () => {},
+      async (input) => {
+        if (
+          new URL(String(input), "https://test.invalid").pathname ===
+          "/api/gallery"
+        ) {
+          // Even mutation after the asynchronous scan starts cannot alter the
+          // source graph already extracted before the first network request.
+          source.documents[0]!.instances.pop();
+          return json({ entries: [entry("revised")], nextCursor: null });
+        }
+        return json({
+          status: "public",
+          entry: { ...entry("revised"), previewRevision: "r2" },
+          projectText: serializeProject(resistorProject()),
+        });
+      },
+    );
+    expect(report).toMatchObject({
+      comparable: 1,
+      uncheckable: 0,
+      complete: true,
+    });
+    expect(report.matches[0]).toMatchObject({
+      exact: true,
+      entry: { previewRevision: "r2" },
+    });
+  });
+
   it("keeps partial progress when a later Gallery page fails", async () => {
     let listReads = 0;
     const report = await scanGalleryTopologyMatches(
