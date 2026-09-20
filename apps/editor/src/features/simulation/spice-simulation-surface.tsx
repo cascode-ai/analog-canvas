@@ -623,8 +623,24 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       setProblem(captured.error);
       return;
     }
+    const shared = sharedRuns.find((item) => item.id === run.id);
+    const existing = shared?.memoryArchive
+      ? { ok: true as const, value: shared.memoryArchive }
+      : shared?.archive
+        ? await archiveStore.read(shared.archive.id)
+        : undefined;
+    if (existing && (!existing.ok || !existing.value)) {
+      setArtifactBusy(undefined);
+      setProblem(
+        uiProblem(
+          "SIMULATION_ARCHIVE_UNAVAILABLE",
+          "The existing run archive could not be read; its evidence has not been replaced",
+        ),
+      );
+      return;
+    }
     const saved = await archiveStore.save(
-      sharedRuns.find((item) => item.id === run.id)?.archive ?? {
+      existing?.value ?? {
         ...captured.value,
         id: `run-${run.id}`,
         ...(openedProjectFile ? { projectFile: openedProjectFile } : {}),
@@ -653,7 +669,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     setArtifactBusy(`archive:open:${archiveId}`);
     const memoryArchive = sharedRuns.find(
       (item) => item.archive?.id === archiveId,
-    )?.archive;
+    )?.memoryArchive;
     const stored = memoryArchive
       ? { ok: true as const, value: memoryArchive }
       : await archiveStore.read(archiveId);

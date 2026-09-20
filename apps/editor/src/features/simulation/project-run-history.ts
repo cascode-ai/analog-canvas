@@ -11,7 +11,9 @@ import {
 import {
   captureSimulationRunArchive,
   MAX_SIMULATION_ARCHIVE_BYTES,
+  summarizeSimulationRunArchive,
   type SimulationArchivePresentation,
+  type SimulationRunArchiveSummary,
   type SimulationRunArchiveV1,
 } from "./simulation-run-archive";
 
@@ -20,7 +22,9 @@ export interface ProjectRunRecord {
   owner: "agent" | "human";
   presentation: SimulationArchivePresentation;
   state: Run["state"];
-  archive?: SimulationRunArchiveV1;
+  archive?: SimulationRunArchiveSummary;
+  /** Only retained when persistence fails; durable history holds metadata. */
+  memoryArchive?: SimulationRunArchiveV1;
   error?: string;
 }
 
@@ -103,7 +107,7 @@ export class ProjectRunHistory {
           const byteLength =
             captured.value.byteLength +
             new TextEncoder().encode(input.projectFile ?? "").byteLength;
-          record.archive = {
+          const archive: SimulationRunArchiveV1 = {
             ...captured.value,
             id: `run-${run.id}`,
             ...(input.projectFile && byteLength <= MAX_SIMULATION_ARCHIVE_BYTES
@@ -113,9 +117,12 @@ export class ProjectRunHistory {
           if (input.projectFile && byteLength > MAX_SIMULATION_ARCHIVE_BYTES)
             record.error =
               "Project snapshot exceeds the archive size limit; result-only export is available";
-          const saved = await this.store.save(record.archive);
-          if (!saved.ok)
+          const saved = await this.store.save(archive);
+          record.archive = summarizeSimulationRunArchive(archive);
+          if (!saved.ok) {
+            record.memoryArchive = archive;
             record.error = `Result available for this session only: ${saved.message}`;
+          }
           const completed = [...this.records.values()].filter(
             (item) => item.archive,
           );

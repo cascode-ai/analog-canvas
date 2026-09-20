@@ -79,6 +79,8 @@ describe("Project result handoff", () => {
     );
     expect(input.read).toHaveBeenCalledTimes(1);
     const archiveId = history.snapshot()[0]!.archive!.id;
+    expect(history.snapshot()[0]?.memoryArchive).toBeUndefined();
+    expect(history.snapshot()[0]?.archive).not.toHaveProperty("artifacts");
     await vi.waitFor(async () =>
       expect(await store.read(archiveId)).toMatchObject({
         ok: true,
@@ -129,6 +131,13 @@ describe("Project result handoff", () => {
       expect(history.snapshot()[0]?.error).toContain("session only"),
     );
     expect(history.snapshot()[0]?.archive).toBeDefined();
+    expect(history.snapshot()[0]?.memoryArchive?.artifacts).toHaveLength(1);
+    expect(
+      await restoreSimulationRunArchive(
+        new SimulationFiles(),
+        history.snapshot()[0]!.memoryArchive!,
+      ),
+    ).toMatchObject({ ok: true });
     history.dispose();
   });
   it("stops polling a revoked owner without calling another owner or deleting completed results", async () => {
