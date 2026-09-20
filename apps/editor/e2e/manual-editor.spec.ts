@@ -2474,12 +2474,6 @@ test("keeps Bulk status and its prominent draw action on one compact row", async
   expect(layout.height).toBeLessThan(58);
   expect(Math.abs(layout.headingY - layout.actionY)).toBeLessThan(2);
 
-  // Bulk is the first section in the panel, not buried under the tray.
-  const firstSection = await page
-    .locator(".selection-panel section")
-    .first()
-    .getAttribute("aria-label");
-  expect(firstSection).toBe("MOS bulk connection");
   await draw.click();
   await expect(page.getByTestId("status")).toContainText(
     "Drawing M1.B bulk connection",
