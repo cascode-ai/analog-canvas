@@ -1,6 +1,7 @@
 import type { WireCornerOrder, WireRoutingMode } from "@icm/edit-engine";
 
 import type { EditorTool } from "../../interaction/interaction-state";
+import { EDITOR_CHANGE_LOG_URL } from "./editor-resource-links";
 import { ToolIcon } from "./tool-icon";
 
 function toolLabel(
@@ -242,6 +243,15 @@ export function EditorStatusbar({
         </a>
       ) : null}
       <div className="statusbar-view-controls">
+        <a
+          className="statusbar-change-log"
+          data-testid="statusbar-change-log"
+          href={EDITOR_CHANGE_LOG_URL}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Change Log
+        </a>
         <button
           type="button"
           className="statusbar-hints-toggle"

@@ -22,7 +22,6 @@ function fixture(overrides: Partial<EditorCommandContext> = {}) {
     propertiesOpen: false,
     canUndo: true,
     canRedo: true,
-    helpOpen: false,
     canvasDragActive: false,
     hasClearableDraftingSelection: false,
     hasActiveNetHighlight: false,
@@ -30,7 +29,6 @@ function fixture(overrides: Partial<EditorCommandContext> = {}) {
     ...overrides,
   };
   const operations: EditorCommandOperations = {
-    closeHelp: vi.fn(),
     cancelCanvasDrag: vi.fn(),
     cancelInteraction: vi.fn(),
     clearDraftingSelection: vi.fn(),
@@ -124,15 +122,14 @@ describe("editor command router", () => {
   });
 
   it("keeps the established Escape priority in one command", () => {
-    const help = fixture({
-      helpOpen: true,
+    const drag = fixture({
       canvasDragActive: true,
       interactionMode: "wire",
       hasClearableDraftingSelection: true,
     });
-    help.router.execute({ id: "editor.cancel" });
-    expect(help.operations.closeHelp).toHaveBeenCalledOnce();
-    expect(help.operations.cancelCanvasDrag).not.toHaveBeenCalled();
+    drag.router.execute({ id: "editor.cancel" });
+    expect(drag.operations.cancelCanvasDrag).toHaveBeenCalledOnce();
+    expect(drag.operations.cancelInteraction).not.toHaveBeenCalled();
 
     const interaction = fixture({ interactionMode: "placing-vdd-rail" });
     interaction.router.execute({ id: "editor.cancel" });

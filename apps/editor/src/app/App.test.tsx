@@ -185,16 +185,24 @@ describe("editor shell", () => {
     expect(markup).toContain("dut (top)");
   });
 
-  it("provides one Help entry without rendering its dialog by default", () => {
-    const project = createEmptyProject("help-tutorial", "Help Tutorial");
+  it("links GitHub and the change log directly without a Help surface", () => {
+    const project = createEmptyProject("resource-links", "Resource Links");
     const markup = renderToStaticMarkup(<App project={project} />);
 
-    expect(markup).toContain('aria-haspopup="dialog"');
-    // About folded into Help: one entry, not two saying the same thing.
     expect(markup).not.toContain(">About</button>");
+    expect(markup).not.toContain(">Help</button>");
+    expect(markup).not.toContain('id="editor-help-dialog"');
     expect(markup).toContain('data-testid="editor-report-bug"');
     expect(markup).toContain("Report bug");
-    expect(markup).toContain(">Help</button>");
+    expect(markup).toContain('data-testid="editor-repository-link"');
+    expect(markup).toContain('aria-label="GitHub repository"');
+    expect(markup).toContain(
+      'href="https://github.com/cascode-ai/analog-canvas"',
+    );
+    expect(markup).toContain('data-testid="statusbar-change-log"');
+    expect(markup).toContain(
+      'href="https://github.com/cascode-ai/analog-canvas/commits/main"',
+    );
     expect(markup).toContain('data-testid="statusbar-shortcut-hints"');
     expect(markup).toContain("Hints</button>");
     expect(markup).not.toContain('data-testid="canvas-shortcut-hints"');
@@ -203,10 +211,12 @@ describe("editor shell", () => {
     expect(markup).toContain('href="https://tokenzhang.com"');
     expect(markup).toContain('src="/tokenzhang-favicon.png"');
     const navigationEnd = markup.indexOf("</nav>");
-    const helpButton = markup.indexOf(">Help</button>");
+    const repositoryLink = markup.indexOf(
+      'data-testid="editor-repository-link"',
+    );
     const ownerLink = markup.indexOf('href="https://tokenzhang.com"');
-    expect(helpButton).toBeGreaterThan(navigationEnd);
-    expect(ownerLink).toBeGreaterThan(helpButton);
+    expect(repositoryLink).toBeGreaterThan(navigationEnd);
+    expect(ownerLink).toBeGreaterThan(repositoryLink);
     expect(markup).not.toContain('role="dialog"');
     // Agent connects directly from the command row; no one-item menu or
     // connection panel appears before the user clicks it.

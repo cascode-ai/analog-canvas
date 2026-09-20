@@ -106,7 +106,6 @@
 }
 
 .toolbar-button,
-.menubar-help,
 .command-menu summary {
   min-height: var(--icm-control-h);
   border: 1px solid transparent;
@@ -128,7 +127,6 @@
 }
 
 .toolbar-button:hover:not(:disabled),
-.menubar-help:hover:not(:disabled),
 .command-menu summary:hover {
   border-color: transparent;
   background: var(--icm-surface-hover);
@@ -140,12 +138,6 @@
   color: var(--icm-accent);
   background: var(--icm-accent-tint);
   box-shadow: none;
-}
-
-.menubar-help {
-  height: var(--icm-control-h);
-  padding: 0 10px;
-  white-space: nowrap;
 }
 
 /* The check report had no styles at all, so each finding rendered its code
@@ -1028,6 +1020,20 @@
   text-underline-offset: 0.15rem;
 }
 
+.statusbar-change-log {
+  flex: 0 0 auto;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.statusbar-change-log:hover {
+  color: var(--icm-accent);
+  text-decoration: underline;
+  text-underline-offset: 0.15rem;
+}
+
 /* Root crash screen shown by the editor error boundary. */
 .editor-crash-screen {
   display: grid;
@@ -1272,8 +1278,7 @@
     padding-inline: 0.25rem;
   }
   .command-menu summary,
-  .toolbar-button,
-  .menubar-help {
+  .toolbar-button {
     padding-inline: 0.35rem;
   }
 }

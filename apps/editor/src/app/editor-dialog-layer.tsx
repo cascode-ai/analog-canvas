@@ -10,7 +10,6 @@ import {
 import {
   LazyCellManagerDialog,
   LazyConnectAgentPanel,
-  LazyEditorHelpDialog,
   LazyInsertComponentDialog,
   LazyNetlistPreflightDialog,
   LazyProjectSearchDialog,
@@ -21,7 +20,6 @@ import {
 } from "./lazy-editor-dialogs";
 
 export interface EditorDialogLayerProps {
-  help: ComponentProps<typeof LazyEditorHelpDialog> | null;
   chunkLoadFailure: ComponentProps<typeof ChunkLoadBanner> | null;
   recoveryFailure: ComponentProps<typeof RecoveryFailureBanner> | null;
   recoveryAvailable: ComponentProps<typeof RecoveryAvailableBanner> | null;
@@ -43,7 +41,6 @@ export interface EditorDialogLayerProps {
 
 /** All modal/overlay UI kept outside the persistent editor workspace. */
 export function EditorDialogLayer({
-  help,
   chunkLoadFailure,
   recoveryFailure,
   recoveryAvailable,
@@ -61,7 +58,6 @@ export function EditorDialogLayer({
   return (
     <>
       <Suspense fallback={null}>
-        {help ? <LazyEditorHelpDialog {...help} /> : null}
         {chunkLoadFailure ? <ChunkLoadBanner {...chunkLoadFailure} /> : null}
         {recoveryFailure ? (
           <RecoveryFailureBanner {...recoveryFailure} />

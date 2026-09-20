@@ -461,8 +461,6 @@ export function App({
     useState<ComponentEditorSession | null>(null);
   const [componentLibraryRefresh, setComponentLibraryRefresh] = useState(0);
   const [userComponentsOpen, setUserComponentsOpen] = useState(false);
-  const helpButtonRef = useRef<HTMLButtonElement>(null);
-  const helpCloseRef = useRef<HTMLButtonElement>(null);
   const libraryResizeOriginRef = useRef<{
     pointerX: number;
     width: number;
@@ -533,8 +531,6 @@ export function App({
     leftPanelMode,
     selectionOpen,
     setSelectionOpen,
-    helpOpen,
-    setHelpOpen,
     searchOpen,
     setSearchOpen,
     searchQuery,
@@ -545,7 +541,6 @@ export function App({
     setAgentDetailsOpen,
     agentStatusDismissed,
     setAgentStatusDismissed,
-    closeHelp,
     closeSearch,
     toggleExamplesPanel: toggleExamplesPanelFromShell,
     toggleLibraryPanel,
@@ -557,8 +552,6 @@ export function App({
       new URLSearchParams(window.location.search).get("new") === "1",
     libraryStorageKey: LIBRARY_PANEL_STORAGE_KEY,
     libraryWidthStorageKey: LIBRARY_WIDTH_STORAGE_KEY,
-    helpButtonRef,
-    helpCloseRef,
   });
   const visibleLibraryPanelOpen = compactLayout
     ? compactLibraryPanelOpen
@@ -3961,7 +3954,6 @@ export function App({
       propertiesOpen: selectionOpen,
       canUndo,
       canRedo,
-      helpOpen,
       canvasDragActive: canvasDragSessionRef.current !== null,
       hasClearableDraftingSelection:
         selectedDrafting?.kind === "arrow" ||
@@ -3972,7 +3964,6 @@ export function App({
       hasArmedVerb: armedVerb !== null,
     }),
     operations: {
-      closeHelp,
       cancelCanvasDrag: () => {
         canvasDragSessionRef.current?.cancel();
         setStatus("Cancelled canvas drag");
@@ -4972,9 +4963,6 @@ export function App({
           }
           setPublishGalleryOpen(true);
         }}
-        helpButtonRef={helpButtonRef}
-        helpOpen={helpOpen}
-        onOpenHelp={() => setHelpOpen(true)}
         drawingToolbar={{
           leftPanelMode,
           libraryPanelOpen: visibleLibraryPanelOpen,
@@ -5063,9 +5051,6 @@ export function App({
         }}
       />
       <EditorDialogLayer
-        help={
-          helpOpen ? { closeButtonRef: helpCloseRef, onClose: closeHelp } : null
-        }
         chunkLoadFailure={
           chunkLoadFailure === null
             ? null
