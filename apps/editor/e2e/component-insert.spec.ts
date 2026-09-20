@@ -1072,10 +1072,10 @@ test("places the VDD power-port device as the default VDD entry", async ({
   await expect(canvas.locator('[data-symbol-id="vdd-port"]')).toHaveCount(2);
   const powerLabels = canvas.locator('[data-kind="power-label"]');
   await expect(powerLabels).toHaveCount(2);
-  await expect(powerLabels).toHaveText(["Vdd", "Vdd"]);
+  await expect(powerLabels).toHaveText(["VDD", "VDD"]);
   await expect(powerLabels.locator('[data-text-run="subscript"]')).toHaveText([
-    "dd",
-    "dd",
+    "DD",
+    "DD",
   ]);
   await expect(page.getByTestId("instance-count")).toHaveText("2");
 
@@ -1194,12 +1194,12 @@ test("renames one supply marker without changing its same-name peer", async ({
   ).toContainText("AVDD");
   await expect(
     canvas.locator('[data-object-id="power-label-vdd2"]'),
-  ).toContainText("Vdd");
+  ).toContainText("VDD");
   await expect(
     canvas
       .locator('[data-object-id="power-label-vdd2"]')
       .locator('[data-text-run="subscript"]'),
-  ).toHaveText("dd");
+  ).toHaveText("DD");
 });
 
 test("reopens I and starts Copy from retained selection without stacking modes", async ({
