@@ -8,7 +8,7 @@
     "/api/agent/sessions/{sessionId}/artifacts/{fileId}": {
       "get": {
         "operationId": "agentSessionArtifactDownload",
-        "description": "Download immutable simulation bytes with the existing simulation.run bearer. Obtain the path from File simulation-input action download; text action artifact remains a preview. Stream to local disk; Range and If-Range support byte-resume. No browser Cookie or bearer in URLs. A registered transfer remains downloadable while its session is authorized even if the browser is temporarily offline. Session transfer replicas are removed on revocation or expiry; downloaded local files are independent.",
+        "description": "Download immutable simulation bytes with the existing simulation.run bearer. Obtain the path from File simulation-input action download; ARTIFACT_TRANSFER_PENDING means publication continues in the background: wait retryAfterMs, then query with a new request ID, never restart the simulation. Text action artifact remains a preview. Stream to local disk; Range and If-Range support byte-resume. No browser Cookie or bearer in URLs. A registered transfer remains downloadable while its session is authorized even if the browser is temporarily offline. Session transfer replicas are removed on revocation or expiry; downloaded local files are independent.",
         "security": [
           {
             "bearerAuth": []

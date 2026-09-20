@@ -106,12 +106,7 @@ async function fetchWorkspaceArtifact(
   artifactId: string,
   offset: number,
 ) {
-  const response = await session.client.fileResource({
-    apiVersion: AGENT_API_VERSION,
-    requestId: crypto.randomUUID(),
-    operation: "simulation-input",
-    input: { action: "download", artifactId },
-  });
+  const response = await session.client.prepareArtifactDownload(artifactId);
   if (
     !response.ok ||
     response.operation !== "simulation-input" ||
@@ -498,15 +493,19 @@ const TOOLS: readonly ToolEntry[] = [
             recovery: "fix-input",
           },
         };
-      const response = await session.client.fileResource({
-        apiVersion: AGENT_API_VERSION,
-        requestId: requestId ?? crypto.randomUUID(),
-        operation: "simulation-input",
-        input:
-          outputPath && request.action === "artifact"
-            ? { action: "download", artifactId: request.artifactId }
-            : request,
-      });
+      const response =
+        request.action === "download" ||
+        (outputPath && request.action === "artifact")
+          ? await session.client.prepareArtifactDownload(
+              request.artifactId,
+              requestId,
+            )
+          : await session.client.fileResource({
+              apiVersion: AGENT_API_VERSION,
+              requestId: requestId ?? crypto.randomUUID(),
+              operation: "simulation-input",
+              input: request,
+            });
       if (!response.ok || response.operation !== "simulation-input")
         return response;
       if (outputPath && response.result.ok && "download" in response.result) {

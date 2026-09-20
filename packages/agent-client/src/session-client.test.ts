@@ -29,6 +29,62 @@ async function freshClient(
 }
 
 describe("agent session client", () => {
+  it("waits for publication using fresh descriptor IDs without restarting the simulation", async () => {
+    const ids: string[] = [];
+    const http = new FakeAgentHttp({
+      files: async (request) => {
+        ids.push(request.requestId);
+        return {
+          apiVersion: "3.0",
+          requestId: request.requestId,
+          operation: "simulation-input",
+          ok: true,
+          result:
+            ids.length < 3
+              ? {
+                  ok: false,
+                  error: {
+                    code: "ARTIFACT_TRANSFER_PENDING",
+                    message: "Uploading",
+                    stage: "export",
+                    recovery: "retry-after",
+                    retryAfterMs: 2000,
+                  },
+                }
+              : {
+                  ok: true,
+                  artifact: {
+                    id: "file",
+                    name: "out.raw",
+                    mediaType: "text/plain",
+                    byteLength: 1,
+                    sha256: "a".repeat(64),
+                  },
+                  download: {
+                    path: "/api/agent/sessions/session-1/artifacts/file",
+                  },
+                },
+        };
+      },
+    });
+    const client = new AgentSessionClient({ http });
+    await client.connect("session-1.code");
+    const simulation = vi.spyOn(http, "simulation");
+    const sleep = vi.fn(async () => undefined);
+    expect(
+      await client.prepareArtifactDownload("file", "first", { sleep }),
+    ).toMatchObject({
+      result: {
+        ok: true,
+        download: { path: "/api/agent/sessions/session-1/artifacts/file" },
+      },
+    });
+    expect(ids[0]).toBe("first");
+    expect(new Set(ids).size).toBe(3);
+    expect(sleep).toHaveBeenCalledTimes(2);
+    expect(simulation).not.toHaveBeenCalled();
+    expect(http.claims).toHaveLength(1);
+  });
   it("retains a canonical request ID and payload through network recovery", async () => {
     const { client, http } = await freshClient();
     await client.connect("session-1.code");

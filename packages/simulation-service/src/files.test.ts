@@ -1,6 +1,67 @@
 import { describe, it, expect } from "vitest";
 import { ArtifactDownloadError, SimulationFiles, sha256 } from "./files.js";
 describe("simulation File Resource evidence", () => {
+  it("ignores old upload completions when a new publisher owns the queue", async () => {
+    const files = new SimulationFiles();
+    const old: Array<(path: string) => void> = [];
+    const current: Array<(path: string) => void> = [];
+    files.setArtifactPublisher(
+      () => new Promise((resolve) => old.push(resolve)),
+    );
+    for (const name of ["a", "b", "c"])
+      await files.put(name, "text/plain", name);
+    files.setArtifactPublisher(
+      () => new Promise((resolve) => current.push(resolve)),
+    );
+    expect(current).toHaveLength(2);
+    for (const resolve of old) resolve("/old");
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(current).toHaveLength(2);
+    current[0]!("/current");
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(current).toHaveLength(3);
+    expect(old).toHaveLength(2);
+  });
+  it("publishes outside RPC deadlines with bounded concurrency and never restarts a pending upload", async () => {
+    const files = new SimulationFiles();
+    const pending: Array<(path: string) => void> = [];
+    files.setArtifactPublisher(
+      () => new Promise((resolve) => pending.push(resolve)),
+    );
+    const one = await files.put("one.raw", "text/plain", "1");
+    await files.put("two.raw", "text/plain", "2");
+    const three = await files.put("three.raw", "text/plain", "3");
+    expect(pending).toHaveLength(2);
+    for (let i = 0; i < 3; i++)
+      expect(
+        await files.handle({ action: "download", artifactId: three.id }),
+      ).toMatchObject({
+        ok: false,
+        error: { code: "ARTIFACT_TRANSFER_PENDING", retryAfterMs: 2000 },
+      });
+    expect(pending).toHaveLength(2);
+    pending[0]!("/api/agent/sessions/s/artifacts/one");
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(pending).toHaveLength(3);
+    expect(
+      await files.handle({ action: "download", artifactId: one.id }),
+    ).toMatchObject({
+      ok: true,
+      download: { path: "/api/agent/sessions/s/artifacts/one" },
+    });
+    files.setArtifactPublisher(
+      async () => "/api/agent/sessions/new/artifacts/restored",
+    );
+    expect(
+      await files.handle({ action: "download", artifactId: one.id }),
+    ).toMatchObject({
+      ok: true,
+      download: { path: "/api/agent/sessions/new/artifacts/restored" },
+    });
+  });
   it("registers one whole-file transfer and retries failed publication without losing preview", async () => {
     const files = new SimulationFiles();
     const artifact = await files.put("out.raw", "text/plain", "data");

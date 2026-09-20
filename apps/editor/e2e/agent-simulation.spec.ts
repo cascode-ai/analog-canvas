@@ -354,12 +354,20 @@ test("HTTP Kit alone authors native objects and hands off a Project-folder run",
     (file: { role?: string }) => file.role === "raw",
   );
   expect(raw).toBeTruthy();
-  const transfer = (
-    await send("files", {
-      operation: "simulation-input",
-      input: { action: "download", artifactId: raw.id },
+  let transfer: any;
+  await expect
+    .poll(async () => {
+      transfer = (
+        await send("files", {
+          operation: "simulation-input",
+          input: { action: "download", artifactId: raw.id },
+        })
+      ).result;
+      if (!transfer.ok)
+        expect(transfer.error.code).toBe("ARTIFACT_TRANSFER_PENDING");
+      return transfer.ok;
     })
-  ).result;
+    .toBe(true);
   expect(transfer.ok, JSON.stringify(transfer.error)).toBe(true);
   const downloaded = await request.get(`${baseURL}${transfer.download.path}`, {
     headers: { authorization: `Bearer ${session.agentToken}` },

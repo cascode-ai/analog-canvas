@@ -317,6 +317,43 @@ export class AgentSessionClient {
     );
   }
 
+  /** Publication progresses independently of short relay RPCs. Poll metadata only. */
+  async prepareArtifactDownload(
+    artifactId: string,
+    requestId = this.newRequestId(),
+    options: { waitMs?: number; sleep?: (ms: number) => Promise<void> } = {},
+  ): Promise<AgentFileResourceResponse> {
+    const deadline =
+      Date.now() + Math.max(0, Math.min(options.waitMs ?? 120_000, 120_000));
+    const pause =
+      options.sleep ??
+      ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+    for (let attempt = 0; ; attempt++) {
+      const response = await this.fileResource({
+        apiVersion: AGENT_API_VERSION,
+        requestId: attempt ? this.newRequestId() : requestId,
+        operation: "simulation-input",
+        input: { action: "download", artifactId },
+      });
+      if (
+        !response.ok ||
+        response.operation !== "simulation-input" ||
+        response.result.ok ||
+        response.result.error.code !== "ARTIFACT_TRANSFER_PENDING" ||
+        Date.now() >= deadline ||
+        attempt >= 60
+      )
+        return response;
+      await pause(
+        Math.min(
+          Math.max(response.result.error.retryAfterMs ?? 2000, 500),
+          5000,
+          deadline - Date.now(),
+        ),
+      );
+    }
+  }
+
   /** Invoke the canonical browser-hosted simulation-resource contract. */
   async downloadArtifact(
     path: string,

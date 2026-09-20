@@ -42,12 +42,22 @@ export function safeInputPath(path: string): boolean {
 export class SimulationFiles {
   private publisher?:
     ((ref: ArtifactRef, text: string) => Promise<string>) | undefined;
-  private downloads = new Map<string, Promise<string>>();
+  private downloads = new Map<
+    string,
+    { result?: { path: string } | { error: unknown } }
+  >();
+  private uploadQueue: Array<() => void> = [];
+  private uploading = 0;
+  private publicationEpoch = 0;
   setArtifactPublisher(
     publisher: (ref: ArtifactRef, text: string) => Promise<string>,
   ) {
     this.publisher = publisher;
+    this.publicationEpoch++;
+    this.uploading = 0;
     this.downloads.clear();
+    this.uploadQueue = [];
+    for (const item of this.artifacts.values()) this.startDownload(item);
   }
   private epoch = 0;
   private workspaces = new Map<string, Workspace>();
@@ -64,9 +74,12 @@ export class SimulationFiles {
   ) {}
   clear() {
     this.epoch++;
+    this.publicationEpoch++;
+    this.uploading = 0;
     this.workspaces.clear();
     this.artifacts.clear();
     this.downloads.clear();
+    this.uploadQueue = [];
     this.publisher = undefined;
   }
   private prune() {
@@ -153,13 +166,12 @@ export class SimulationFiles {
           );
         const publisher = this.publisher;
         const epoch = this.epoch;
-        let upload = this.downloads.get(item.ref.id);
-        if (!upload) {
-          upload = publisher(item.ref, item.text);
-          this.downloads.set(item.ref.id, upload);
-        }
+        const upload =
+          this.downloads.get(item.ref.id) ?? this.startDownload(item);
+        // Let already-settled publishers report immediately, but never wait for
+        // network I/O inside the relay's short control-request deadline.
+        await Promise.resolve();
         try {
-          const path = await upload;
           if (this.epoch !== epoch || this.publisher !== publisher)
             return problem(
               "SESSION_CHANGED",
@@ -167,7 +179,24 @@ export class SimulationFiles {
               "export",
               "reauthorize",
             );
-          return { ok: true, artifact: item.ref, download: { path } };
+          if (!upload.result)
+            return {
+              ok: false,
+              error: {
+                code: "ARTIFACT_TRANSFER_PENDING",
+                message:
+                  "File publication is in progress; retry this descriptor, not the simulation",
+                stage: "export",
+                recovery: "retry-after",
+                retryAfterMs: 2000,
+              },
+            };
+          if ("error" in upload.result) throw upload.result.error;
+          return {
+            ok: true,
+            artifact: item.ref,
+            download: { path: upload.result.path },
+          };
         } catch (error) {
           if (this.downloads.get(item.ref.id) === upload)
             this.downloads.delete(item.ref.id);
@@ -314,6 +343,40 @@ export class SimulationFiles {
     this.workspaces.set(next.id, next);
     return this.listWorkspace(next);
   }
+  private startDownload(item: { ref: ArtifactRef; text: string }) {
+    const upload: { result?: { path: string } | { error: unknown } } = {};
+    this.downloads.set(item.ref.id, upload);
+    const publisher = this.publisher!;
+    const epoch = this.publicationEpoch;
+    const run = () => {
+      if (this.publisher !== publisher || epoch !== this.publicationEpoch)
+        return;
+      this.uploading++;
+      let promise: Promise<string>;
+      try {
+        promise = publisher(item.ref, item.text);
+      } catch (error) {
+        promise = Promise.reject(error);
+      }
+      void promise
+        .then(
+          (path) => {
+            upload.result = { path };
+          },
+          (error: unknown) => {
+            upload.result = { error };
+          },
+        )
+        .finally(() => {
+          if (epoch !== this.publicationEpoch) return;
+          this.uploading--;
+          this.uploadQueue.shift()?.();
+        });
+    };
+    if (this.uploading < 2) run();
+    else this.uploadQueue.push(run);
+    return upload;
+  }
   private listWorkspace(workspace: Workspace): SimulationFileResult {
     return {
       ok: true,
@@ -387,6 +450,7 @@ export class SimulationFiles {
       fileId: metadata.fileId ?? id,
     };
     this.artifacts.set(ref.id, { ref, text, expiresAt: this.now() + TTL });
+    if (this.publisher) this.startDownload({ ref, text });
     return ref;
   }
 }
