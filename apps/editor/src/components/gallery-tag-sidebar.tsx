@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import type { GalleryTagOption } from "../gallery-client";
-import { galleryTagLabel } from "../gallery-tag-label";
+import { compareGalleryTagLabels, galleryTagLabel } from "../gallery-tag-label";
 
 const WIDTH_KEY = "icm.gallery.sidebarWidth";
 const MIN_WIDTH = 180;
@@ -176,7 +176,7 @@ export function GalleryTagSidebar({
           {groups.map((name) => {
             const group = options
               .filter(({ tag }) => tagGroup(tag) === name)
-              .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+              .sort((a, b) => compareGalleryTagLabels(a.tag, b.tag));
             if (!group.length) return null;
             return (
               <details

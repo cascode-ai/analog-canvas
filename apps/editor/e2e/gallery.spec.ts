@@ -1228,6 +1228,33 @@ test("the left sidebar hosts overall search and grouped tags at desktop, half-sc
   await expect(page.getByTestId("gallery-tag-search")).toHaveCount(0);
   await sidebar.locator("summary").filter({ hasText: "Conversion" }).click();
   await expect(page.getByTestId("gallery-tag-option-adc")).toContainText("ADC");
+  const logicGroup = page.getByTestId("gallery-tag-option-and").locator("..");
+  await logicGroup.locator("summary").click();
+  await expect(
+    logicGroup
+      .locator(".gallery-tag-name")
+      .evaluateAll((items) => items.map((item) => item.textContent)),
+  ).resolves.toEqual([
+    "AND",
+    "CML",
+    "D Flip Flop",
+    "D Latch",
+    "DRAM",
+    "Flip Flop",
+    "Inverter",
+    "Latch",
+    "Level Shifter",
+    "Logic",
+    "Memory Cell",
+    "Multiplexer",
+    "NAND",
+    "NOR",
+    "OR",
+    "Sense Amplifier",
+    "SRAM",
+    "TSPC",
+    "XOR",
+  ]);
   await sidebar
     .locator("summary")
     .filter({ hasText: /^Power/ })

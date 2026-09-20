@@ -1420,20 +1420,17 @@ div.gallery-contributor-status {
 }
 
 .gallery-sidebar-slot {
+  --gallery-ui-font:
+    "SF Pro Text", "Segoe UI Variable Text", ui-sans-serif, system-ui,
+    -apple-system, BlinkMacSystemFont, sans-serif;
   position: relative;
   box-sizing: border-box;
   width: var(--gallery-sidebar-width, 238px);
   min-width: 0;
   border-right: 1px solid var(--icm-border);
   background: var(--icm-surface);
-  font-family:
-    ui-sans-serif,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Helvetica,
-    Arial,
-    sans-serif;
+  font-family: var(--gallery-ui-font);
+  font-synthesis: none;
 }
 
 .gallery-sidebar-resize-handle {
@@ -1563,7 +1560,10 @@ div.gallery-contributor-status {
   padding: 6px 4px;
   color: var(--icm-text-muted);
   font-size: 12px;
+  font-family: var(--gallery-ui-font);
   font-weight: 600;
+  font-style: normal;
+  letter-spacing: 0;
   line-height: 1.35;
   list-style: none;
   cursor: pointer;
@@ -1590,6 +1590,15 @@ div.gallery-contributor-status {
 
 .gallery-sidebar-tag + .gallery-sidebar-tag {
   margin-top: 2px;
+}
+
+.gallery-sidebar-tag,
+.gallery-sidebar-tag .gallery-tag-name,
+.gallery-sidebar-tag .gallery-sidebar-count {
+  font-family: var(--gallery-ui-font);
+  font-size: 12px;
+  font-style: normal;
+  letter-spacing: 0;
 }
 
 .gallery-tag-group > summary > span {
