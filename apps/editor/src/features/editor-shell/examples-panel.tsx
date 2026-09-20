@@ -13,12 +13,9 @@ import {
   galleryEntryMatchesQuery,
   galleryPreviewUrl,
   loadGalleryFeed,
-  loadGalleryTags,
   subscribeGalleryRefresh,
   type GalleryFeedEntry,
-  type GalleryTagOption,
 } from "../../gallery-client";
-import { galleryTagLabel } from "../../gallery-tag-label";
 import { GalleryTopologyCheck } from "./gallery-topology-check";
 
 export interface GalleryExampleSummary {
@@ -76,7 +73,7 @@ export interface GalleryPanelView {
  */
 export function deriveGalleryPanelView(
   feed: Pick<FeedState, "status" | "entries" | "nextCursor" | "total">,
-  options: { searchQuery: string; selectedTags: readonly string[] },
+  options: { searchQuery: string },
 ): GalleryPanelView {
   const normalizedQuery = options.searchQuery.trim().toLowerCase();
   const showGallery = feed.status === "ready" && feed.entries.length > 0;
@@ -91,7 +88,6 @@ export function deriveGalleryPanelView(
     visibleEntries,
     countLabel: showGallery
       ? galleryCountLabel(feed.total, {
-          filtered: options.selectedTags.length > 0,
           search: normalizedQuery
             ? { visible: visibleEntries.length, settled: exhausted }
             : null,
@@ -112,9 +108,10 @@ export function deriveGalleryPanelView(
  * circuit is the one you want to borrow from.
  *
  * It reads the same feed as the Gallery wall through the same shared data
- * layer, so paging, search and tag filtering behave identically in both
- * places. Only the presentation differs: the panel is narrow, so its tags live
- * in a menu rather than a chip row.
+ * layer, so paging and free-text search behave identically in both places.
+ * The dock is intentionally search-only: its narrow width cannot present the
+ * Gallery wall's complete tag navigation legibly, while the shared search
+ * already reaches entry tags.
  */
 export function ExamplesPanel({
   open,
@@ -125,10 +122,7 @@ export function ExamplesPanel({
 }: ExamplesPanelProps) {
   const fetcher = fetchImpl ?? fetch;
   const [feed, setFeed] = useState<FeedState>(EMPTY_FEED);
-  const [tagOptions, setTagOptions] = useState<GalleryTagOption[]>([]);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [tagMenuOpen, setTagMenuOpen] = useState(false);
   const [refreshSignal, setRefreshSignal] = useState(0);
   const loadGenerationRef = useRef(0);
   const loadingMoreRef = useRef(false);
@@ -141,24 +135,13 @@ export function ExamplesPanel({
     });
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    void loadGalleryTags(fetcher).then((tags) => {
-      if (!cancelled) setTagOptions(tags);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, fetcher, refreshSignal]);
-
-  // The first page for the current server-side filter. A changed tag selection
-  // is a new query, not more of the old one, so the list restarts.
+  // The first page of the current Gallery. Text search is local over loaded
+  // entries, so opening the dock or a Gallery refresh is the only restart.
   useEffect(() => {
     if (!open) return;
     const generation = ++loadGenerationRef.current;
     setFeed(EMPTY_FEED);
-    void loadGalleryFeed(fetcher, { tags: selectedTags }).then((page) => {
+    void loadGalleryFeed(fetcher).then((page) => {
       if (generation !== loadGenerationRef.current) return;
       setFeed(
         page === null
@@ -171,7 +154,7 @@ export function ExamplesPanel({
             },
       );
     });
-  }, [open, fetcher, selectedTags, refreshSignal]);
+  }, [open, fetcher, refreshSignal]);
 
   // More pages arrive as the sentinel comes into view. A filtered list stays
   // short, so the sentinel keeps showing and the feed keeps arriving until it
@@ -186,7 +169,7 @@ export function ExamplesPanel({
       if (loadingMoreRef.current) return;
       loadingMoreRef.current = true;
       const generation = loadGenerationRef.current;
-      void loadGalleryFeed(fetcher, { cursor, tags: selectedTags })
+      void loadGalleryFeed(fetcher, { cursor })
         .then((page) => {
           if (page === null || generation !== loadGenerationRef.current) return;
           setFeed((previous) => ({
@@ -202,10 +185,10 @@ export function ExamplesPanel({
     });
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [open, fetcher, feed.nextCursor, selectedTags]);
+  }, [open, fetcher, feed.nextCursor]);
 
   const { showGallery, visibleEntries, countLabel, emptyMessage } =
-    deriveGalleryPanelView(feed, { searchQuery, selectedTags });
+    deriveGalleryPanelView(feed, { searchQuery });
   const previewCache = useRef<Map<string, string> | null>(null);
   const bundledPreviews = useMemo(() => {
     if (!open || showGallery) return new Map<string, string>();
@@ -230,14 +213,6 @@ export function ExamplesPanel({
   }, [open, showGallery]);
   const exhausted = feed.nextCursor === null;
 
-  function toggleTag(tag: string): void {
-    setSelectedTags((previous) =>
-      previous.includes(tag)
-        ? previous.filter((candidate) => candidate !== tag)
-        : [...previous, tag],
-    );
-  }
-
   return (
     <aside
       id="examples-panel"
@@ -260,52 +235,11 @@ export function ExamplesPanel({
               type="search"
               className="examples-panel-search"
               value={searchQuery}
-              placeholder="Name, author, tag…"
+              placeholder="Search Gallery…"
               aria-label="Search circuits"
               data-testid="examples-panel-search"
               onChange={(event) => setSearchQuery(event.target.value)}
             />
-            {tagOptions.length > 0 ? (
-              <div className="examples-panel-tag-menu">
-                <button
-                  type="button"
-                  className="examples-panel-tag-toggle"
-                  aria-expanded={tagMenuOpen}
-                  data-testid="examples-panel-tag-toggle"
-                  onClick={() => setTagMenuOpen((previous) => !previous)}
-                >
-                  {selectedTags.length > 0
-                    ? `Tags (${selectedTags.length})`
-                    : "Tags"}
-                </button>
-                {tagMenuOpen ? (
-                  <div
-                    className="examples-panel-tag-options"
-                    role="group"
-                    aria-label="Filter by tag"
-                    data-testid="examples-panel-tag-options"
-                  >
-                    {tagOptions.map((option) => (
-                      <label
-                        key={option.tag}
-                        className="examples-panel-tag-option"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedTags.includes(option.tag)}
-                          data-testid={`examples-panel-tag-${option.tag}`}
-                          onChange={() => toggleTag(option.tag)}
-                        />
-                        <span>{galleryTagLabel(option.tag)}</span>
-                        <span className="examples-panel-tag-count">
-                          {option.count}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
             {countLabel ? (
               <span
                 className="examples-panel-count"

@@ -95,32 +95,19 @@ describe("gallery panel view", () => {
   };
 
   it("says the wall's size from the server, never a guess", () => {
-    expect(
-      deriveGalleryPanelView(feed, { searchQuery: "", selectedTags: [] })
-        .countLabel,
-    ).toBe("120 circuits");
+    expect(deriveGalleryPanelView(feed, { searchQuery: "" }).countLabel).toBe(
+      "120 circuits",
+    );
     // A pre-totals API answers null; the panel then says nothing at all.
     expect(
-      deriveGalleryPanelView(
-        { ...feed, total: null },
-        { searchQuery: "", selectedTags: [] },
-      ).countLabel,
+      deriveGalleryPanelView({ ...feed, total: null }, { searchQuery: "" })
+        .countLabel,
     ).toBeNull();
-  });
-
-  it("names a server-side narrowing as filtered, matching the wall", () => {
-    expect(
-      deriveGalleryPanelView(feed, {
-        searchQuery: "",
-        selectedTags: ["bias"],
-      }).countLabel,
-    ).toBe("120 filtered circuits");
   });
 
   it("counts text matches separately from the wall's size", () => {
     const view = deriveGalleryPanelView(feed, {
       searchQuery: "bandgap",
-      selectedTags: [],
     });
     expect(view.visibleEntries.map((candidate) => candidate.id)).toEqual([
       "g-2",
@@ -134,7 +121,6 @@ describe("gallery panel view", () => {
     for (const query of ["ring", "mei", "three-stage", "clock"]) {
       const view = deriveGalleryPanelView(feed, {
         searchQuery: query,
-        selectedTags: [],
       });
       expect(view.visibleEntries.some((c) => c.id === "g-1")).toBe(true);
     }
@@ -144,7 +130,6 @@ describe("gallery panel view", () => {
     const paging = { ...feed, nextCursor: "cursor-1" };
     const view = deriveGalleryPanelView(paging, {
       searchQuery: "zzz",
-      selectedTags: [],
     });
     expect(view.emptyMessage).toBe(
       "No matches yet — searching older circuits…",
@@ -155,7 +140,6 @@ describe("gallery panel view", () => {
   it("says nothing matches only once the feed is exhausted", () => {
     const view = deriveGalleryPanelView(feed, {
       searchQuery: "zzz",
-      selectedTags: [],
     });
     expect(view.emptyMessage).toBe("No circuits match “zzz”.");
     expect(view.countLabel).toBe("120 circuits · 0 matches");
@@ -165,7 +149,7 @@ describe("gallery panel view", () => {
     for (const status of ["loading", "unavailable"] as const) {
       const view = deriveGalleryPanelView(
         { status, entries: [], nextCursor: null, total: null },
-        { searchQuery: "", selectedTags: [] },
+        { searchQuery: "" },
       );
       expect(view.showGallery).toBe(false);
       expect(view.countLabel).toBeNull();

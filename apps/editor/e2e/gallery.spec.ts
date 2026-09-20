@@ -384,7 +384,7 @@ test("Gallery copies SKY130 dependencies with preview, repeat placement and atom
   );
   const count = source.documents.find((d) => d.id === source.topDocumentId)!
     .instances.length;
-  await mockGallery(page, [ENTRY]);
+  await mockGallery(page, [{ ...ENTRY, tags: ["clock"] }]);
   await page.route(`**/api/gallery/${ENTRY.id}`, (route) =>
     route.fulfill({
       json: { entry: ENTRY, projectText: serializeProject(source) },
@@ -393,6 +393,13 @@ test("Gallery copies SKY130 dependencies with preview, repeat placement and atom
   await page.goto("/editor");
   await awaitEditorReady(page);
   await page.getByTestId("examples-toggle").click();
+  const panel = page.getByTestId("examples-panel");
+  await expect(panel.getByTestId("examples-panel-tag-toggle")).toHaveCount(0);
+  const search = panel.getByTestId("examples-panel-search");
+  await expect(search).toHaveAttribute("placeholder", "Search Gallery…");
+  await search.fill("clock");
+  await expect(page.getByTestId(`gallery-example-${ENTRY.id}`)).toBeVisible();
+  await search.fill("");
   await page.getByTestId(`gallery-example-${ENTRY.id}`).click();
   const canvas = page.getByTestId("schematic-canvas");
   const box = await canvas.boundingBox();
