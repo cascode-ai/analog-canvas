@@ -10,7 +10,7 @@ describe("portable Project definitions", () => {
   it("preserves exact artwork and electrical contracts without the site library", () => {
     const project = parseProject(
       readFileSync(
-        "fixtures/projects/phase-5-dense-analog/project.icproj.json",
+        "fixtures/projects/differential-stage/project.icproj.json",
         "utf8",
       ),
     );
@@ -70,7 +70,7 @@ describe("portable Project definitions", () => {
   it("rejects duplicate classes and mismatched visual/electrical identities", () => {
     const project = parseProject(
       readFileSync(
-        "fixtures/projects/phase-5-dense-analog/project.icproj.json",
+        "fixtures/projects/differential-stage/project.icproj.json",
         "utf8",
       ),
     );
