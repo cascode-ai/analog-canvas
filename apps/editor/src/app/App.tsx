@@ -5303,6 +5303,7 @@ export function App({
                 defaultName: galleryEntryContext?.name ?? project.name,
                 session: publishSession,
                 gateReport: publishGates,
+                topologyProject: galleryTopologyProject,
                 updateTarget:
                   galleryEntryContext &&
                   publishSession &&
@@ -5554,7 +5555,6 @@ export function App({
         ) : (
           <ExamplesPanel
             open={visibleLibraryPanelOpen}
-            topologyProject={galleryTopologyProject}
             onOpenGalleryExample={(id) => void insertGalleryEntryById(id)}
             onOpenExample={openLibraryExample}
           />

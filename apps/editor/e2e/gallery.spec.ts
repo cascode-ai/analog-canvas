@@ -427,7 +427,7 @@ test("Gallery copies SKY130 dependencies with preview, repeat placement and atom
   await expect(page.getByTestId("instance-count")).toHaveText(String(count));
 });
 
-test("the editor Gallery finds exact and nearest matches for the current topology", async ({
+test("Publish checks exact and nearest duplicates without adding a Gallery control", async ({
   page,
   context,
 }) => {
@@ -446,6 +446,20 @@ test("the editor Gallery finds exact and nearest matches for the current topolog
     releaseScan = resolve;
   });
   let detailRequests = 0;
+  await context.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "publisher-1",
+          displayName: "Publisher",
+          email: "publisher@example.com",
+          provider: "github",
+          role: "user",
+          isAdmin: false,
+        },
+      },
+    }),
+  );
   await context.route("**/api/gallery**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/gallery")
@@ -484,34 +498,31 @@ test("the editor Gallery finds exact and nearest matches for the current topolog
   await expect(page.getByTestId("status")).toContainText("current.icproj.json");
   await page.getByTestId("examples-toggle").click();
   const panel = page.getByTestId("examples-panel");
-  const check = panel.getByTestId("gallery-find-similar");
+  await expect(panel.getByTestId("gallery-find-similar")).toHaveCount(0);
+  await expect(panel.getByText("Check current topology")).toHaveCount(0);
+  await page.getByTestId("examples-toggle").click();
+
+  await page.getByTestId("publish-gallery-button").click();
+  const dialog = page.getByTestId("publish-gallery-dialog");
+  const check = dialog.getByTestId("gallery-find-similar");
+  const publish = dialog.getByRole("button", { name: "Publish", exact: true });
   await expect(check).toBeVisible();
   const buttonBox = await check.boundingBox();
-  const searchBox = await panel
-    .getByTestId("examples-panel-search")
-    .boundingBox();
+  const publishBox = await publish.boundingBox();
   expect(buttonBox).not.toBeNull();
-  expect(searchBox).not.toBeNull();
+  expect(publishBox).not.toBeNull();
   expect(buttonBox!.height).toBeLessThan(44);
-  expect(buttonBox!.y).toBeLessThan(searchBox!.y);
+  expect(Math.abs(buttonBox!.y - publishBox!.y)).toBeLessThan(4);
 
   await check.click();
   await expect.poll(() => detailRequests).toBe(3);
-  await page.getByTestId("project-file").setInputFiles({
-    name: "edited.icproj.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(serializeProject(galleryResistorProject("1k", 1))),
-  });
-  await expect(page.getByTestId("status")).toContainText("edited.icproj.json");
   await expect(check).toBeDisabled();
-  await expect(panel.getByTestId("gallery-topology-snapshot")).toContainText(
-    "Canvas changed",
+  await expect(dialog.getByTestId("gallery-topology-snapshot")).toContainText(
+    "still publish",
   );
-  await page.getByTestId("examples-toggle").click();
-  await page.getByTestId("examples-toggle").click();
-  await expect(check).toBeDisabled();
+  await expect(publish).toBeEnabled();
   releaseScan();
-  const results = panel.getByTestId("gallery-topology-results");
+  const results = dialog.getByTestId("gallery-topology-results");
   await expect(results.getByRole("link")).toHaveCount(3);
   await expect(results.getByRole("link").nth(0)).toContainText(
     "Exact resistor pair",
@@ -530,13 +541,7 @@ test("the editor Gallery finds exact and nearest matches for the current topolog
     "/g/exact",
   );
   await expect(check).toBeEnabled();
-  await check.click();
-  await expect(results.getByRole("link").first()).toContainText(
-    "Single resistor",
-  );
-  await expect(
-    panel.getByTestId("gallery-topology-snapshot"),
-  ).not.toContainText("Canvas changed");
+  await expect(check).toHaveText("Check Again");
 });
 
 test("the site lands on the full-screen gallery feed", async ({ page }) => {

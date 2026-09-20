@@ -1,12 +1,10 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { createEmptyProject } from "@icm/model";
 import { describe, expect, it, vi } from "vitest";
 
 import { galleryEntryMatchesQuery } from "../../gallery-client";
 import { libraryProjectExamples } from "../../examples/library-examples";
 import { deriveGalleryPanelView, ExamplesPanel } from "./examples-panel";
-import { GalleryTopologyCheck } from "./gallery-topology-check";
 
 function entry(
   overrides: Partial<Parameters<typeof galleryEntryMatchesQuery>[0]> & {
@@ -55,6 +53,8 @@ describe("ExamplesPanel", () => {
     expect(markup).toContain('data-testid="examples-panel"');
     expect(markup).toContain("<svg");
     expect(markup).not.toContain('data-testid="shapes-fold-library"');
+    expect(markup).not.toContain('data-testid="gallery-topology-check"');
+    expect(markup).not.toContain("Check current topology");
     expect(markup.match(/data-testid="shapes-example-/g)).toHaveLength(
       libraryProjectExamples.length,
     );
@@ -62,18 +62,6 @@ describe("ExamplesPanel", () => {
       expect(markup).toContain(`data-testid="shapes-example-${example.id}"`);
       expect(markup).toContain(example.name);
     }
-  });
-
-  it("offers current-Cell topology matching without administrator cleanup", () => {
-    const markup = renderToStaticMarkup(
-      createElement(GalleryTopologyCheck, {
-        project: createEmptyProject("current", "Current Cell"),
-      }),
-    );
-    expect(markup).toContain("Check current topology");
-    expect(markup).toContain('data-testid="gallery-find-similar"');
-    expect(markup).not.toContain("Check duplicates");
-    expect(markup).not.toContain("Remove");
   });
 });
 

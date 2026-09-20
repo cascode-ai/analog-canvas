@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { renderDocumentSvg } from "@icm/render-svg";
-import type { CircuitProject } from "@icm/model";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
 import {
@@ -16,7 +15,6 @@ import {
   subscribeGalleryRefresh,
   type GalleryFeedEntry,
 } from "../../gallery-client";
-import { GalleryTopologyCheck } from "./gallery-topology-check";
 
 export interface GalleryExampleSummary {
   id: string;
@@ -30,8 +28,6 @@ export interface ExamplesPanelProps {
   open: boolean;
   onOpenGalleryExample?(id: string): void;
   onOpenExample(example: LibraryProjectExample): void;
-  /** Current Cell projected as the comparison root. */
-  topologyProject?: CircuitProject;
   /** Injected in tests; production uses the global. */
   fetchImpl?: typeof fetch;
 }
@@ -117,7 +113,6 @@ export function ExamplesPanel({
   open,
   onOpenGalleryExample,
   onOpenExample,
-  topologyProject,
   fetchImpl,
 }: ExamplesPanelProps) {
   const fetcher = fetchImpl ?? fetch;
@@ -226,9 +221,6 @@ export function ExamplesPanel({
       data-open={open ? "true" : "false"}
     >
       <div className="shapes-panel-body">
-        {topologyProject ? (
-          <GalleryTopologyCheck project={topologyProject} />
-        ) : null}
         {showGallery ? (
           <div className="examples-panel-controls">
             <input

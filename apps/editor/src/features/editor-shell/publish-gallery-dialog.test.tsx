@@ -1,5 +1,6 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { createEmptyProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import { PublishGalleryDialog } from "./publish-gallery-dialog";
@@ -31,6 +32,7 @@ describe("PublishGalleryDialog", () => {
         defaultName: "Ring Oscillator",
         session: { displayName: "Visitor", isAdmin: false, role: "user" },
         gateReport: { ok: true, failures: [] },
+        topologyProject: createEmptyProject("current", "Current Cell"),
         publish: () => Promise.resolve({ status: "unauthorized" as const }),
         onPublished: () => undefined,
         onClose: () => undefined,
@@ -41,6 +43,12 @@ describe("PublishGalleryDialog", () => {
     expect(markup).toContain('class="publish-gallery-primary"');
     expect(markup).toContain("Publishing as Visitor");
     expect(markup).toContain("goes up straight away");
+    expect(markup).toContain('data-testid="gallery-topology-check"');
+    expect(markup).toContain(">Check Duplicate</button>");
+    expect(markup).not.toContain("Check current topology");
+    expect(markup.indexOf("Check Duplicate")).toBeLessThan(
+      markup.indexOf(">Publish</button>"),
+    );
     // No queue to wait in, and no passphrase to guess.
     expect(markup).not.toContain("review");
     expect(markup).not.toContain("passphrase");

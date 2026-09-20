@@ -56,24 +56,24 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
   const exactCount = report?.matches.filter((match) => match.exact).length ?? 0;
   return (
     <section
-      className="examples-topology-check"
-      aria-label="Gallery topology matching"
+      className="publish-duplicate-check"
+      aria-label="Gallery duplicate check"
       data-testid="gallery-topology-check"
     >
-      <div className="examples-topology-actions">
+      <div className="publish-duplicate-actions">
         <button
           type="button"
-          className="examples-panel-match-button"
+          className="publish-duplicate-button"
           data-testid="gallery-find-similar"
           onClick={start}
           disabled={running}
         >
-          {report ? "Check current topology again" : "Check current topology"}
+          {report ? "Check Again" : "Check Duplicate"}
         </button>
         {running ? (
           <button
             type="button"
-            className="examples-panel-match-cancel"
+            className="publish-duplicate-cancel"
             onClick={stop}
           >
             Cancel
@@ -82,15 +82,15 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
       </div>
       {snapshot ? (
         <p
-          className="examples-topology-message"
+          className="publish-duplicate-message"
           data-testid="gallery-topology-snapshot"
         >
           {snapshot !== project
-            ? "Canvas changed. This check still uses the circuit captured when you clicked Check."
-            : "Checking a snapshot of this Cell. You can keep editing."}
+            ? "Canvas changed. These results still use the circuit captured when you clicked Check Duplicate."
+            : "Comparing a snapshot of this Cell. You can still publish while the check runs."}
         </p>
       ) : null}
-      <span role="status" className="examples-topology-status">
+      <span role="status" className="publish-duplicate-status">
         {running
           ? `Comparing ${report?.scanned ?? 0}${report?.total != null ? ` / ${report.total}` : ""} Gallery circuits…`
           : report?.complete && !report.sourceError
@@ -100,25 +100,25 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
             : null}
       </span>
       {report?.uncheckable ? (
-        <p className="examples-topology-message">
+        <p className="publish-duplicate-message">
           {report.uncheckable} circuits could not be fully compared.
         </p>
       ) : null}
       {failure || report?.sourceError || report?.error ? (
-        <p role="alert" className="examples-topology-message">
+        <p role="alert" className="publish-duplicate-message">
           {failure ?? report?.sourceError ?? report?.error}
         </p>
       ) : null}
       {report?.complete &&
       !report.sourceError &&
       report.matches.length === 0 ? (
-        <p className="examples-topology-message">
+        <p className="publish-duplicate-message">
           No comparable Gallery circuits were found.
         </p>
       ) : null}
       {report?.matches.length ? (
         <div
-          className="examples-topology-results"
+          className="publish-duplicate-results"
           data-testid="gallery-topology-results"
         >
           {report.matches.map((match) => (
@@ -127,7 +127,7 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
               href={`/g/${match.entry.id}`}
               target="_blank"
               rel="noreferrer"
-              className="examples-topology-result"
+              className="publish-duplicate-result"
               data-exact={match.exact}
             >
               <img

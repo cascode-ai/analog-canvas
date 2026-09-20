@@ -2,6 +2,7 @@ import taxonomy from "../../../../../config/gallery-taxonomy.json";
 import { useEffect, useState } from "react";
 
 import type { SubmissionGateReport } from "@icm/derived";
+import type { CircuitProject } from "@icm/model";
 import { galleryTagLabel } from "../../gallery-tag-label";
 
 import {
@@ -10,6 +11,7 @@ import {
   type GalleryPublishOutcome,
   type PublishSessionUser,
 } from "./gallery-publish";
+import { GalleryTopologyCheck } from "./gallery-topology-check";
 
 export interface PublishGalleryDialogProps {
   defaultName: string;
@@ -17,6 +19,8 @@ export interface PublishGalleryDialogProps {
   session?: PublishSessionUser | null;
   /** Quality-gate evaluation of the live Project. */
   gateReport?: SubmissionGateReport | null;
+  /** Current Cell projected as the duplicate-comparison root. */
+  topologyProject?: CircuitProject | null;
   /** Present when the current Project is associated with a gallery entry the
    * signed-in user may update (owner, admin, or moderator). */
   updateTarget?: { id: string; name: string } | null;
@@ -69,6 +73,7 @@ export function PublishGalleryDialog({
   defaultName,
   session = null,
   gateReport = null,
+  topologyProject = null,
   updateTarget = null,
   updateDefaults = null,
   publish,
@@ -371,6 +376,9 @@ export function PublishGalleryDialog({
           <button type="button" disabled={busy} onClick={onClose}>
             {signedOut ? "Close" : "Cancel"}
           </button>
+          {!signedOut && topologyProject ? (
+            <GalleryTopologyCheck project={topologyProject} />
+          ) : null}
           {signedOut ? null : (
             <button
               type="button"
