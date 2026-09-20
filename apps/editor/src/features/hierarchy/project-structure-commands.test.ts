@@ -1,5 +1,9 @@
 import type { ProjectStructureEdit } from "@icm/edit-engine";
-import { createEmptyDocument, createEmptyProject } from "@icm/model";
+import {
+  canonicalPortTextDocument,
+  createEmptyDocument,
+  createEmptyProject,
+} from "@icm/model";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { describe, expect, it, vi } from "vitest";
 
@@ -363,6 +367,63 @@ describe("Project structure commands", () => {
       ]),
     );
     expect(input.setStatus).toHaveBeenCalledWith("Deleted Cell Pin IN");
+  });
+
+  it("formats every Port label in a selected Cell as one atomic command", () => {
+    const input = dependencies();
+    const child = createEmptyDocument("child", "Child");
+    child.netlist!.terminals.push({
+      id: "terminal-in",
+      name: "IN",
+      netId: "net-in",
+      direction: "input",
+      interfaceInstanceIds: ["P1"],
+    });
+    child.annotations.push({
+      id: "label-in",
+      kind: "instance-label",
+      binding: { kind: "cell-terminal-name", terminalId: "terminal-in" },
+      formatOverride: { runs: [{ kind: "text", value: "IN" }] },
+      anchor: {
+        kind: "object",
+        objectId: "P1",
+        localOffset: { x: 0, y: 0 },
+        fallbackPosition: { x: 0, y: 0 },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
+    input.project.documents.push(child);
+    const commands = createProjectStructureCommands(input);
+
+    commands.formatCellTerminalAnnotations(child.id);
+
+    expect(input.commitStructure).toHaveBeenCalledWith(
+      "format-cell-port-labels",
+      [
+        expect.objectContaining({
+          kind: "transact_document",
+          documentId: child.id,
+          edits: [
+            expect.objectContaining({
+              annotation: expect.objectContaining({
+                formatOverride: canonicalPortTextDocument("IN"),
+              }),
+            }),
+          ],
+        }),
+      ],
+    );
+    expect(input.setStatus).toHaveBeenCalledWith("Formatted 1 Port label");
+    expect(input.activeDocument.annotations).toEqual([]);
+
+    input.commitStructure.mockClear();
+    commands.formatCellTerminalAnnotations(input.activeDocument.id);
+    expect(input.commitStructure).not.toHaveBeenCalled();
+    expect(input.setStatus).toHaveBeenLastCalledWith(
+      "This Cell has no Port labels to format",
+    );
   });
 
   it("renames an annotation-owned Power Rail Cell Pin", () => {

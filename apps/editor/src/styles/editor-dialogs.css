@@ -416,10 +416,16 @@
 
 .cell-manager-title-row,
 .cell-manager-actions,
+.cell-interface-header-actions,
 .cell-interface-order-actions {
   display: flex;
   align-items: center;
   gap: var(--icm-space-1);
+}
+
+.cell-interface-header-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .cell-manager-title-row h3 {

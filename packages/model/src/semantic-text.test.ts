@@ -1,10 +1,52 @@
 import { describe, expect, it } from "vitest";
 import { flattenRichText } from "./rich-text.js";
 import {
+  canonicalPortTextDocument,
   defaultDraftTextDocument,
   semanticTextDocument,
   voltageNodeTextDocument,
 } from "./semantic-text.js";
+
+describe("canonical Port text", () => {
+  it.each([
+    ["IN", "N"],
+    ["out", "ut"],
+    ["VDD", "DD"],
+  ])(
+    "formats %s without changing its electrical spelling",
+    (name, storedTail) => {
+      const content = canonicalPortTextDocument(name);
+
+      expect(flattenRichText(content)).toBe(name);
+      expect(content.runs[0]).toMatchObject({
+        style: "italic",
+        children: [{ style: "uppercase" }],
+      });
+      expect(content.runs[1]).toEqual({
+        kind: "span",
+        style: "subscript",
+        children: [
+          {
+            kind: "span",
+            style: "lowercase",
+            children: [{ kind: "text", value: storedTail }],
+          },
+        ],
+      });
+    },
+  );
+
+  it("formats a one-character Port without an empty subscript", () => {
+    const content = canonicalPortTextDocument("a");
+
+    expect(flattenRichText(content)).toBe("a");
+    expect(content.runs).toHaveLength(1);
+    expect(content.runs[0]).toMatchObject({
+      style: "italic",
+      children: [{ style: "uppercase" }],
+    });
+  });
+});
 
 describe("semantic formal-Port text", () => {
   it.each(["IN", "OUT", "CLK"])(

@@ -2,6 +2,7 @@ import {
   planEditCellTerminalAnnotation,
   planCreateCell,
   planDeleteCell,
+  planFormatCellTerminalAnnotations,
   planInstanceDeletion,
   planRemoveCellTerminals,
   planRenameCell,
@@ -396,6 +397,37 @@ export function createProjectStructureCommands({
     }
   };
 
+  const formatCellTerminalAnnotations = (
+    targetDocumentId = activeDocument.id,
+  ): void => {
+    const targetDocument = project.documents.find(
+      (candidate) => candidate.id === targetDocumentId,
+    );
+    if (!targetDocument) return;
+    const labelCount = targetDocument.annotations.filter(
+      (annotation) => annotation.binding?.kind === "cell-terminal-name",
+    ).length;
+    if (labelCount === 0) {
+      setStatus("This Cell has no Port labels to format");
+      return;
+    }
+    const edits = planFormatCellTerminalAnnotations(project, targetDocumentId);
+    if (edits.length === 0) {
+      setStatus("All Port labels already use the standard format");
+      return;
+    }
+    const formattedCount = edits.reduce(
+      (count, edit) =>
+        count + (edit.kind === "transact_document" ? edit.edits.length : 0),
+      0,
+    );
+    if (commitStructure("format-cell-port-labels", edits)) {
+      setStatus(
+        `Formatted ${formattedCount} Port label${formattedCount === 1 ? "" : "s"}`,
+      );
+    }
+  };
+
   const removeCellTerminalSelection = (
     terminalIds: readonly string[],
     documentEdits: readonly SchematicEdit[],
@@ -715,6 +747,7 @@ export function createProjectStructureCommands({
     updateCellPortDirection,
     renameCellTerminal,
     editCellTerminalAnnotation,
+    formatCellTerminalAnnotations,
     removeCellTerminalSelection,
     deleteCellTerminal,
     moveCellTerminal,

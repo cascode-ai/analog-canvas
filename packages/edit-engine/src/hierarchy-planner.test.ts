@@ -1,4 +1,4 @@
-import { createRoutePath } from "@icm/model";
+import { canonicalPortTextDocument, createRoutePath } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import { createEmptyDocument, createEmptyProject } from "@icm/model";
@@ -8,6 +8,7 @@ import {
   createHierarchyInstance,
   planCreateCellPin,
   planDeleteCell,
+  planFormatCellTerminalAnnotations,
   planPlaceCellInstance,
   planRemoveCellTerminal,
   planReorderCellPort,
@@ -20,6 +21,104 @@ import {
 import { executeProjectTransaction } from "./project-transaction.js";
 
 describe("hierarchy domain planners", () => {
+  it("formats every ordinary and power Cell Port label in one transaction", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.netlist!.terminals.push(
+      {
+        id: "terminal-in",
+        name: "IN",
+        netId: "net-in",
+        direction: "input",
+        interfaceInstanceIds: ["P1"],
+      },
+      {
+        id: "terminal-vdd",
+        name: "VDD",
+        netId: "net-vdd",
+        direction: "inout",
+        interfaceInstanceIds: [],
+        interfaceAnnotationId: "label-vdd",
+      },
+    );
+    document.annotations.push(
+      {
+        id: "label-in",
+        kind: "instance-label",
+        binding: { kind: "cell-terminal-name", terminalId: "terminal-in" },
+        formatOverride: { runs: [{ kind: "text", value: "IN" }] },
+        anchor: {
+          kind: "object",
+          objectId: "P1",
+          localOffset: { x: 2, y: 3 },
+          fallbackPosition: { x: 4, y: 5 },
+        },
+        alignment: "end",
+        rotation: 90,
+        locked: false,
+      },
+      {
+        id: "label-vdd",
+        kind: "power-label",
+        binding: {
+          kind: "cell-terminal-name",
+          terminalId: "terminal-vdd",
+        },
+        netId: "net-vdd",
+        anchor: {
+          kind: "object",
+          objectId: "VDD1",
+          localOffset: { x: 0, y: -10 },
+          fallbackPosition: { x: 0, y: -10 },
+        },
+        alignment: "middle",
+        rotation: 0,
+        locked: false,
+      },
+    );
+
+    const edits = planFormatCellTerminalAnnotations(project, document.id);
+
+    expect(edits).toEqual([
+      {
+        kind: "transact_document",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        edits: [
+          {
+            kind: "upsert_schematic_annotation",
+            annotation: {
+              ...document.annotations[0],
+              formatOverride: canonicalPortTextDocument("IN"),
+            },
+          },
+          {
+            kind: "upsert_schematic_annotation",
+            annotation: {
+              ...document.annotations[1],
+              formatOverride: canonicalPortTextDocument("VDD"),
+            },
+          },
+        ],
+      },
+    ]);
+    expect(
+      document.netlist!.terminals.map((terminal) => terminal.name),
+    ).toEqual(["IN", "VDD"]);
+    expect(document.annotations[0]?.anchor).toEqual({
+      kind: "object",
+      objectId: "P1",
+      localOffset: { x: 2, y: 3 },
+      fallbackPosition: { x: 4, y: 5 },
+    });
+
+    document.annotations = document.annotations.map((annotation, index) => ({
+      ...annotation,
+      formatOverride: canonicalPortTextDocument(index === 0 ? "IN" : "VDD"),
+    }));
+    expect(planFormatCellTerminalAnnotations(project, document.id)).toEqual([]);
+  });
+
   it("rejects deleting a referenced Cell before Project commit", () => {
     const project = createEmptyProject("project", "Project", "top");
     const child = createEmptyDocument("child", "Child");

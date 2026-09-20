@@ -118,6 +118,34 @@ export function voltageNodeTextDocument(value: string): RichTextDocument {
   };
 }
 
+/**
+ * Canonical presentation applied by the explicit "format all Ports" action.
+ *
+ * Unlike the automatic formal-Port default, this applies to every Port name:
+ * its first character is visually uppercase and italic, while the remaining
+ * characters are visually lowercase, upright, and subscripted. The authored
+ * characters stay untouched so electrical identity and netlist spelling are
+ * preserved exactly.
+ */
+export function canonicalPortTextDocument(value: string): RichTextDocument {
+  if (value.length === 0) return { runs: [{ kind: "line-break" }] };
+  const [head, ...tailCharacters] = Array.from(value);
+  const tail = tailCharacters.join("");
+  return {
+    runs: [
+      span([span([{ kind: "text", value: head! }], "uppercase")], "italic"),
+      ...(tail.length > 0
+        ? [
+            span(
+              [span([{ kind: "text" as const, value: tail }], "lowercase")],
+              "subscript",
+            ),
+          ]
+        : []),
+    ],
+  };
+}
+
 /** Construct current-authoring RichText for a conventional semantic label. */
 export function semanticTextDocument(
   value: string,

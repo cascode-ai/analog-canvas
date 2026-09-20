@@ -1285,6 +1285,7 @@ export function App({
     setCellSymbolBodySize,
     setCellSymbolPortPlacement,
     editCellTerminalAnnotation,
+    formatCellTerminalAnnotations,
     removeCellTerminalSelection,
     renameProject,
   } = createProjectStructureCommands({
@@ -5149,6 +5150,7 @@ export function App({
                   }
                 },
                 onJumpToCaller: jumpToCaller,
+                onFormatPortLabels: formatCellTerminalAnnotations,
                 onSetPortDirection: (documentId, portId, direction) =>
                   updateCellPortDirection(portId, direction, documentId),
                 onMovePort: (documentId, portId, delta) =>

@@ -11,6 +11,7 @@ export function CellInterfaceEditor({
   cell,
   project,
   callerCount,
+  onFormatPortLabels,
   onSetPortDirection,
   onMovePort,
   onEditParameter,
@@ -18,6 +19,7 @@ export function CellInterfaceEditor({
   cell: SchematicDocument;
   project: CircuitProject;
   callerCount: number;
+  onFormatPortLabels(): void;
   onSetPortDirection(
     portId: string,
     direction: "input" | "output" | "inout" | "passive",
@@ -47,7 +49,17 @@ export function CellInterfaceEditor({
                 {callerCount === 1 ? "" : "s"}. Equal names are one Port.
               </p>
             </div>
-            <span className="cell-count-badge">{ports.length}</span>
+            <div className="cell-interface-header-actions">
+              <button
+                type="button"
+                disabled={ports.length === 0}
+                onClick={onFormatPortLabels}
+                title="Uppercase italic first letter; lowercase upright subscript suffix"
+              >
+                Format all Port labels
+              </button>
+              <span className="cell-count-badge">{ports.length}</span>
+            </div>
           </header>
           {ports.length === 0 ? (
             <p className="cell-interface-empty">

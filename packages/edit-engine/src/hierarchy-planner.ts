@@ -7,6 +7,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import {
+  canonicalPortTextDocument,
   deriveStableId,
   foldNetName,
   projectCellInterface,
@@ -1427,6 +1428,43 @@ export function planRenameCellTerminal(
     options.mergeExistingPort,
   );
   return [...callerChanges.beforeChild, childEdit, ...callerChanges.afterChild];
+}
+
+/**
+ * Canonicalize every visible formal-Port label in one Cell without changing
+ * terminal names, connectivity, or annotation geometry. All changed labels
+ * share one document transaction so the action also has one Undo step.
+ */
+export function planFormatCellTerminalAnnotations(
+  project: CircuitProject,
+  documentId: string,
+): ProjectStructureEdit[] {
+  const document = requireDocument(project, documentId);
+  if (!document.netlist) throw new Error(`Cell does not exist: ${documentId}`);
+  const terminalById = new Map(
+    document.netlist.terminals.map((terminal) => [terminal.id, terminal]),
+  );
+  const edits = document.annotations.flatMap((annotation) => {
+    const binding = annotation.binding;
+    if (binding?.kind !== "cell-terminal-name") return [];
+    const terminal = terminalById.get(binding.terminalId);
+    if (!terminal) return [];
+    const formatOverride = canonicalPortTextDocument(terminal.name);
+    if (
+      annotation.formatOverride &&
+      JSON.stringify(annotation.formatOverride) ===
+        JSON.stringify(formatOverride)
+    ) {
+      return [];
+    }
+    return [
+      {
+        kind: "upsert_schematic_annotation" as const,
+        annotation: { ...annotation, formatOverride },
+      },
+    ];
+  });
+  return edits.length > 0 ? [transactDocument(project, documentId, edits)] : [];
 }
 
 /**

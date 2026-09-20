@@ -978,6 +978,59 @@ test("inherits explicit Port subscripts without guessing from pin names", async 
   );
 });
 
+test("formats every Port label in the current Cell without renaming it", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeCellPin(page, { name: "IN", position: { x: 280, y: 160 } });
+  await placeCellPin(page, { name: "out", position: { x: 280, y: 240 } });
+  const firstLabel = page.locator('[data-object-id="instance-label-P1"]');
+  const secondLabel = page.locator('[data-object-id="instance-label-P2"]');
+  await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveCount(
+    0,
+  );
+  await expect(secondLabel.locator('[data-text-run="subscript"]')).toHaveCount(
+    0,
+  );
+
+  await runCellCommand(page, "Manage Cells…");
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager.getByRole("button", { name: "Format all Port labels" }).click();
+  await expect(page.getByTestId("status")).toContainText(
+    "Formatted 2 Port labels",
+  );
+  await manager.getByLabel("Close Cell Manager").click();
+
+  await expect(firstLabel).toHaveText("In");
+  await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveText(
+    "n",
+  );
+  await expect(secondLabel).toHaveText("Out");
+  await expect(secondLabel.locator('[data-text-run="subscript"]')).toHaveText(
+    "ut",
+  );
+  const project = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(
+    project.documents[0]!.netlist?.terminals.map(
+      (port: { name: string }) => port.name,
+    ),
+  ).toEqual(["IN", "out"]);
+
+  await page.keyboard.press("Control+z");
+  await expect(firstLabel).toHaveText("IN");
+  await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveCount(
+    0,
+  );
+  await expect(secondLabel).toHaveText("out");
+  await expect(secondLabel.locator('[data-text-run="subscript"]')).toHaveCount(
+    0,
+  );
+});
+
 test("places an unreferenced top Cell in an ordinary new Cell", async ({
   page,
 }) => {
