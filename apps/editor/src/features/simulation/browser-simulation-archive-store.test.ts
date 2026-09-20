@@ -42,6 +42,44 @@ function archive(id: string, createdAt: string): SimulationRunArchiveV1 {
 }
 
 describe("browser simulation archive store", () => {
+  it("rolls back new ownership when archive publication fails without releasing old evidence", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArchiveStore({ idbFactory: factory });
+    const evidence = createBrowserSimulationArtifactStore("project", factory)!;
+    const record = (id: string): SimulationRunArchiveV1 => ({
+      ...archive("same", new Date(0).toISOString()),
+      artifacts: [
+        {
+          originalId: id,
+          name: `${id}.raw`,
+          mediaType: "text/plain",
+          byteLength: 4,
+          sha256: "a".repeat(64),
+          text: "data",
+        },
+      ],
+      byteLength: 4,
+    });
+    expect((await store.save(record("old"))).ok).toBe(true);
+    const put = IDBObjectStore.prototype.put;
+    const failure = vi
+      .spyOn(IDBObjectStore.prototype, "put")
+      .mockImplementation(function (this: IDBObjectStore, ...args) {
+        if (this.name === "runs") throw new Error("archive write failure");
+        return put.apply(this, args);
+      });
+    try {
+      expect(await store.save(record("new"))).toMatchObject({ ok: false });
+      expect(await evidence.referencedArtifactIds()).toEqual(["old"]);
+      expect(await store.read("same")).toEqual({
+        ok: true,
+        value: record("old"),
+      });
+    } finally {
+      failure.mockRestore();
+      store.close();
+    }
+  });
   it("persists imported evidence before publishing its archive directory entry", async () => {
     const factory = new IDBFactory();
     const store = createBrowserSimulationArchiveStore({ idbFactory: factory });
@@ -105,6 +143,7 @@ describe("browser simulation archive store", () => {
     const store = createBrowserSimulationArchiveStore({ idbFactory: factory });
     expect((await store.save(record)).ok).toBe(true);
     expect((await store.save({ ...record, id: "second" })).ok).toBe(true);
+    expect(await evidence.referencedArtifactIds()).toEqual(["current-locator"]);
     const db = await new Promise<IDBDatabase>((resolve) => {
       const request = factory.open("analog-canvas-simulation-archives");
       request.onsuccess = () => resolve(request.result);
@@ -128,6 +167,7 @@ describe("browser simulation archive store", () => {
     });
     expect(await reopened.read("shared")).toEqual({ ok: true, value: record });
     await reopened.delete("shared");
+    expect(await evidence.referencedArtifactIds()).toEqual(["current-locator"]);
     expect(await reopened.read("second")).toEqual({
       ok: true,
       value: { ...record, id: "second" },

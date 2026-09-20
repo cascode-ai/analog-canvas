@@ -13,6 +13,16 @@ const DATABASE = "analog-canvas-simulation-files";
 const BODY = "bodies";
 const DIRECTORY = "files";
 const CATALOGS = "catalogs";
+const REFERENCES = "references";
+export interface BrowserSimulationArtifactStore extends SimulationArtifactStore {
+  /** Private storage ownership, not a second Run/Dataset catalog. */
+  retainReferences(
+    owner: string,
+    artifactIds: readonly string[],
+  ): Promise<void>;
+  releaseReferences(owner: string): Promise<void>;
+  referencedArtifactIds(): Promise<string[]>;
+}
 function value<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
@@ -30,12 +40,12 @@ function completed(transaction: IDBTransaction): Promise<void> {
 export function createBrowserSimulationArtifactStore(
   projectId: string,
   factory: IDBFactory | undefined = globalThis.indexedDB,
-): SimulationArtifactStore | undefined {
+): BrowserSimulationArtifactStore | undefined {
   // Non-browser hosts retain bounded in-memory evidence. Real storage failures
   // are surfaced by put/get, never silently treated as durable success.
   if (!factory) return undefined;
   async function open() {
-    const request = factory!.open(DATABASE, 2);
+    const request = factory!.open(DATABASE, 3);
     request.onupgradeneeded = () => {
       if (!request.result.objectStoreNames.contains(BODY)) {
         request.result.createObjectStore(BODY);
@@ -43,13 +53,83 @@ export function createBrowserSimulationArtifactStore(
           .createObjectStore(DIRECTORY)
           .createIndex("projectId", "projectId");
       }
-      request.result
-        .createObjectStore(CATALOGS)
-        .createIndex("projectId", "projectId");
+      for (const name of [CATALOGS, REFERENCES])
+        if (!request.result.objectStoreNames.contains(name))
+          request.result
+            .createObjectStore(name)
+            .createIndex("projectId", "projectId");
     };
     return value(request);
   }
   return {
+    async retainReferences(owner, artifactIds) {
+      const db = await open();
+      try {
+        const tx = db.transaction([BODY, DIRECTORY, REFERENCES], "readwrite");
+        const done = completed(tx);
+        // Observe abort immediately, including a deliberate validation abort.
+        void done.catch(() => {});
+        try {
+          const ids = [...new Set(artifactIds)];
+          for (const id of ids)
+            if (
+              !(await value(tx.objectStore(DIRECTORY).get([projectId, id]))) ||
+              !(await value(tx.objectStore(BODY).getKey([projectId, id])))
+            )
+              throw new Error(`ARTIFACT_UNAVAILABLE: ${id}`);
+          tx.objectStore(REFERENCES).put({ projectId, artifactIds: ids }, [
+            projectId,
+            owner,
+          ]);
+          await done;
+        } catch (error) {
+          try {
+            tx.abort();
+          } catch {
+            /* transaction already completed */
+          }
+          await done.catch(() => {});
+          throw error;
+        }
+      } finally {
+        db.close();
+      }
+    },
+    async releaseReferences(owner) {
+      const db = await open();
+      try {
+        const tx = db.transaction(REFERENCES, "readwrite");
+        tx.objectStore(REFERENCES).delete([projectId, owner]);
+        await completed(tx);
+      } finally {
+        db.close();
+      }
+    },
+    async referencedArtifactIds() {
+      const db = await open();
+      try {
+        const tx = db.transaction([REFERENCES, CATALOGS], "readonly");
+        const [owners, catalogs] = await Promise.all([
+          value(
+            tx.objectStore(REFERENCES).index("projectId").getAll(projectId),
+          ) as Promise<Array<{ artifactIds: string[] }>>,
+          value(
+            tx.objectStore(CATALOGS).index("projectId").getAll(projectId),
+          ) as Promise<StoredResultCatalog[]>,
+          completed(tx),
+        ]);
+        return [
+          ...new Set([
+            ...owners.flatMap((owner) => owner.artifactIds),
+            ...catalogs.flatMap((record) =>
+              record.catalog.files.map((file) => file.id),
+            ),
+          ]),
+        ];
+      } finally {
+        db.close();
+      }
+    },
     async find(fileId) {
       const db = await open();
       try {

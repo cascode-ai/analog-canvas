@@ -15,6 +15,7 @@ const DIRECTORY_NAME = "run-directory";
 // Internal storage only. Portable archives still contain their full evidence.
 type StoredArchive = Omit<SimulationRunArchiveV1, "artifacts"> & {
   readonly storageFormat: "artifact-references-v1";
+  readonly retentionKey?: string;
   readonly artifacts: readonly (Omit<
     SimulationRunArchiveV1["artifacts"][number],
     "text"
@@ -111,6 +112,17 @@ export function createBrowserSimulationArchiveStore(
       throw new DOMException("IndexedDB is unavailable", "SecurityError");
     return store;
   }
+  async function release(stored: StoredArchive | undefined) {
+    if (!stored?.retentionKey) return;
+    try {
+      await evidenceStore(stored.projectId).releaseReferences(
+        stored.retentionKey,
+      );
+    } catch {
+      // A leaked storage reference is preferable to invalidating a committed
+      // archive. Reconciliation must recover abandoned reference generations.
+    }
+  }
 
   async function retain(
     archive: SimulationRunArchiveV1,
@@ -129,7 +141,17 @@ export function createBrowserSimulationArchiveStore(
         storageId: existing?.id ?? originalId,
       });
     }
-    return { ...archive, storageFormat: "artifact-references-v1", artifacts };
+    const retentionKey = `archive:${archive.id}:${crypto.randomUUID()}`;
+    await store.retainReferences(
+      retentionKey,
+      artifacts.map((file) => file.storageId),
+    );
+    return {
+      ...archive,
+      storageFormat: "artifact-references-v1",
+      retentionKey,
+      artifacts,
+    };
   }
 
   async function hydrate(
@@ -145,7 +167,11 @@ export function createBrowserSimulationArchiveStore(
     const stored = value as StoredArchive;
     if (!Array.isArray(stored.artifacts))
       throw new Error("Invalid archive references");
-    const { storageFormat: _format, ...metadata } = stored;
+    const {
+      storageFormat: _format,
+      retentionKey: _retention,
+      ...metadata
+    } = stored;
     const archive = readSimulationRunArchive({
       ...metadata,
       artifacts: stored.artifacts.map(({ storageId: _id, ...ref }) => ({
@@ -249,10 +275,11 @@ export function createBrowserSimulationArchiveStore(
       }
     },
     async save(archive) {
+      let stored: StoredArchive | undefined;
       try {
         // Commit the directory only after every referenced body is durable.
         // Existing records remain usable if any evidence write fails.
-        const stored = await retain(archive);
+        stored = await retain(archive);
         const db = await open();
         const transaction = db.transaction(
           [STORE_NAME, DIRECTORY_NAME],
@@ -261,12 +288,18 @@ export function createBrowserSimulationArchiveStore(
         const directory = transaction.objectStore(DIRECTORY_NAME);
         const done = transactionDone(transaction);
         const store = transaction.objectStore(STORE_NAME);
+        const previous = (await requestValue(store.get(archive.id))) as
+          StoredArchive | undefined;
         const summary = summarizeSimulationRunArchive(archive);
         store.put(stored, archive.id);
         directory.put(summary, archive.id);
         await done;
+        // Old references can safely leak if cleanup fails; the new archive is
+        // already committed and must not be reported as a failed save.
+        await release(previous);
         return { ok: true, value: summary };
       } catch (error) {
+        await release(stored);
         return failure(error);
       }
     },
@@ -277,9 +310,14 @@ export function createBrowserSimulationArchiveStore(
           [STORE_NAME, DIRECTORY_NAME],
           "readwrite",
         );
-        transaction.objectStore(STORE_NAME).delete(id);
+        const done = transactionDone(transaction);
+        const store = transaction.objectStore(STORE_NAME);
+        const previous = (await requestValue(store.get(id))) as
+          StoredArchive | undefined;
+        store.delete(id);
         transaction.objectStore(DIRECTORY_NAME).delete(id);
-        await transactionDone(transaction);
+        await done;
+        await release(previous);
         return { ok: true, value: true };
       } catch (error) {
         return failure(error);

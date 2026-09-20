@@ -6,6 +6,88 @@ import { SimulationService } from "@icm/simulation-service";
 import { createEmptyProject } from "@icm/model";
 
 describe("persistent simulation evidence", () => {
+  it("upgrades the previous database without rewriting bodies or catalogs", async () => {
+    const factory = new IDBFactory();
+    const ref = {
+      id: "old",
+      name: "old.raw",
+      mediaType: "text/plain",
+      byteLength: 3,
+      sha256: "a".repeat(64),
+    };
+    const catalog = {
+      schemaVersion: 1 as const,
+      runId: "old-run",
+      preparedId: "prepared",
+      inputRevision: "rev",
+      execution: "completed" as const,
+      collection: "complete" as const,
+      files: [ref],
+      datasets: [],
+    };
+    await new Promise<void>((resolve, reject) => {
+      const request = factory.open("analog-canvas-simulation-files", 2);
+      request.onupgradeneeded = () => {
+        request.result.createObjectStore("bodies");
+        request.result
+          .createObjectStore("files")
+          .createIndex("projectId", "projectId");
+        request.result
+          .createObjectStore("catalogs")
+          .createIndex("projectId", "projectId");
+      };
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction(["bodies", "files", "catalogs"], "readwrite");
+        tx.objectStore("bodies").put(new Blob(["old"]), ["project", "old"]);
+        tx.objectStore("files").put({ projectId: "project", ref }, [
+          "project",
+          "old",
+        ]);
+        tx.objectStore("catalogs").put(
+          { projectId: "project", catalog, storedAt: 1 },
+          ["project", "old-run"],
+        );
+        tx.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+        tx.onerror = () => {
+          db.close();
+          reject(tx.error);
+        };
+      };
+    });
+    const store = createBrowserSimulationArtifactStore("project", factory)!;
+    expect(await store.get("old")).toEqual({ ref, text: "old" });
+    expect(await store.catalogs!()).toEqual([{ catalog, storedAt: 1 }]);
+    await store.retainReferences("archive", ["old"]);
+    await store.releaseReferences("archive");
+    expect(await store.referencedArtifactIds()).toEqual(["old"]);
+  });
+  it("retains shared storage references atomically and isolates owners by Project", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArtifactStore("project", factory)!;
+    const files = new SimulationFiles(Date.now, undefined, undefined, store);
+    const ref = await files.put("shared.raw", "text/plain", "evidence");
+    await store.retainReferences("archive-a", [ref.id]);
+    await store.retainReferences("archive-b", [ref.id, ref.id]);
+    await expect(
+      store.retainReferences("archive-b", ["missing"]),
+    ).rejects.toThrow("ARTIFACT_UNAVAILABLE");
+    await store.releaseReferences("archive-a");
+    const reopened = createBrowserSimulationArtifactStore("project", factory)!;
+    expect(await reopened.referencedArtifactIds()).toEqual([ref.id]);
+    const other = createBrowserSimulationArtifactStore("other", factory)!;
+    await other.releaseReferences("archive-b");
+    expect(await other.referencedArtifactIds()).toEqual([]);
+    expect(await reopened.referencedArtifactIds()).toEqual([ref.id]);
+    await reopened.releaseReferences("archive-b");
+    expect(await reopened.referencedArtifactIds()).toEqual([]);
+    // Releasing one owner is not permission to delete file contents.
+    expect((await reopened.get(ref.id))?.text).toBe("evidence");
+  });
   it("discovers retained catalogs after host replacement without reading bodies or starting executions", async () => {
     const factory = new IDBFactory();
     let now = 100;
