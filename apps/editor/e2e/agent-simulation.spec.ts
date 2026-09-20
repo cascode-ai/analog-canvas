@@ -385,6 +385,40 @@ test("HTTP Kit alone authors native objects and hands off a Project-folder run",
   expect(
     (await request.get(`${baseURL}${transfer.download.path}`)).status(),
   ).toBe(401);
+  await page.reload();
+  await expect
+    .poll(async () => {
+      try {
+        const history = await send("simulation", { operation: "history" });
+        return history.runs?.some(
+          (item: { runId: string; storage: string }) =>
+            item.runId === run.id && item.storage === "persistent",
+        );
+      } catch {
+        return false;
+      } // the original connector may still be reattaching
+    })
+    .toBe(true);
+  const recovered = await send("simulation", {
+    operation: "catalog",
+    runId: run.id,
+  });
+  expect(recovered.catalog).toEqual(resultCatalog);
+  const recoveredBody = await send("files", {
+    operation: "simulation-input",
+    input: { action: "artifact", artifactId: raw.id },
+  });
+  expect(recoveredBody.result.text).toBe(rawfile);
+  await expect
+    .poll(async () => {
+      const response = await send("files", {
+        operation: "simulation-input",
+        input: { action: "download", artifactId: raw.id },
+      });
+      return response.result.ok;
+    })
+    .toBe(true);
+  expect(executions).toBe(1);
   const exported = await send("files", {
     operation: "download",
     artifact: "project",

@@ -20,7 +20,13 @@ import {
   MAX_SIMULATION_INPUT_BYTES,
   MAX_SIMULATION_INPUT_FILES,
 } from "@icm/model";
-import { problem, type ArtifactRef, type Problem } from "./contract.js";
+import {
+  problem,
+  type ArtifactRef,
+  type Problem,
+  type ResultCatalog,
+  type SimulationHistoryEntry,
+} from "./contract.js";
 
 export { MAX_SIMULATION_INPUT_BYTES };
 export class ArtifactDownloadError extends Error {
@@ -39,6 +45,12 @@ const CACHE_BYTES = 16 * 1024 * 1024;
 export interface SimulationArtifactStore {
   put(ref: ArtifactRef, text: string): Promise<void>;
   get(id: string): Promise<{ ref: ArtifactRef; text: string } | null>;
+  saveCatalog?(record: StoredResultCatalog): Promise<void>;
+  catalogs?(): Promise<StoredResultCatalog[]>;
+}
+export interface StoredResultCatalog {
+  catalog: ResultCatalog;
+  storedAt: number;
 }
 type CachedArtifact = { ref: ArtifactRef; text?: string };
 export { sha256 } from "./content-digest.js";
@@ -70,6 +82,10 @@ export class SimulationFiles {
   private epoch = 0;
   private workspaces = new Map<string, Workspace>();
   private artifacts = new Map<string, CachedArtifact>();
+  private catalogs = new Map<
+    string,
+    StoredResultCatalog & { storage: "persistent" | "memory" }
+  >();
   constructor(
     private now: () => number = Date.now,
     private projectHost?: ProjectSimulationFileHost,
@@ -84,6 +100,7 @@ export class SimulationFiles {
     this.uploading = 0;
     this.workspaces.clear();
     this.artifacts.clear();
+    this.catalogs.clear();
     this.downloads.clear();
     this.uploadQueue = [];
     this.publisher = undefined;
@@ -410,6 +427,75 @@ export class SimulationFiles {
     const restored = await this.artifactStore?.get(item.ref.id);
     if (!restored) throw new Error("ARTIFACT_UNAVAILABLE");
     return restored.text;
+  }
+  /** Persist the canonical Run catalog, without embedding numeric evidence. */
+  async saveCatalog(catalog: ResultCatalog): Promise<boolean> {
+    const epoch = this.epoch;
+    const record = {
+      catalog: structuredClone(catalog),
+      storedAt: this.now(),
+      storage: "memory" as const,
+    };
+    this.catalogs.set(catalog.runId, record);
+    if (!this.artifactStore?.saveCatalog) return true;
+    try {
+      await this.artifactStore.saveCatalog(record);
+      if (epoch === this.epoch)
+        this.catalogs.set(catalog.runId, { ...record, storage: "persistent" });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  private async retainedCatalogs() {
+    const epoch = this.epoch;
+    const saved = (await this.artifactStore?.catalogs?.()) ?? [];
+    if (epoch !== this.epoch) throw new Error("SESSION_CHANGED");
+    const records = new Map(
+      saved.map((record) => [
+        record.catalog.runId,
+        { ...record, storage: "persistent" as "persistent" | "memory" },
+      ]),
+    );
+    for (const [id, record] of this.catalogs) records.set(id, record);
+    return [...records.values()].sort(
+      (a, b) =>
+        b.storedAt - a.storedAt ||
+        a.catalog.runId.localeCompare(b.catalog.runId),
+    );
+  }
+  async catalog(runId: string): Promise<ResultCatalog | undefined> {
+    const current = this.catalogs.get(runId);
+    if (current) return structuredClone(current.catalog);
+    return (await this.retainedCatalogs()).find(
+      (record) => record.catalog.runId === runId,
+    )?.catalog;
+  }
+  async history(
+    limit: number,
+    cursor?: string,
+  ): Promise<{ runs: SimulationHistoryEntry[]; nextCursor: string | null }> {
+    const records = await this.retainedCatalogs();
+    const offset = cursor
+      ? records.findIndex((record) => record.catalog.runId === cursor) + 1
+      : 0;
+    if (cursor && offset === 0) throw new Error("HISTORY_CURSOR_UNAVAILABLE");
+    const selected = records.slice(offset, offset + limit);
+    return {
+      runs: selected.map(({ catalog, storedAt, storage }) => ({
+        runId: catalog.runId,
+        preparedId: catalog.preparedId,
+        inputRevision: catalog.inputRevision,
+        execution: catalog.execution,
+        collection: catalog.collection,
+        storedAt,
+        storage,
+      })),
+      nextCursor:
+        offset + selected.length < records.length
+          ? selected.at(-1)!.catalog.runId
+          : null,
+    };
   }
   /** Host-local whole-file access. Never embed this body in the relay RPC. */
   async readArtifact(

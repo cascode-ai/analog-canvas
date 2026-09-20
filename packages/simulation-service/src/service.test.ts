@@ -241,6 +241,54 @@ async function prepareRaw(f: ReturnType<typeof fixture>, source = deck) {
   return { prepared, workspaceId: created.workspace.id };
 }
 describe("shared simulation lifecycle", () => {
+  it.each([true, false])(
+    "publishes terminal state after the directory save resolves (%s)",
+    async (saved) => {
+      const f = fixture();
+      let finish!: (saved: boolean) => void;
+      const persist = vi.spyOn(f.files, "saveCatalog").mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const { prepared } = await prepareRaw(f);
+      const run = unwrap(
+        await f.service.handle(
+          {
+            operation: "start",
+            preparedId: prepared.id,
+            digest: prepared.digest,
+          },
+          "start",
+        ),
+        "run",
+      );
+      f.release();
+      await vi.waitFor(() => expect(persist).toHaveBeenCalledTimes(1));
+      expect(
+        unwrap(
+          await f.service.handle(
+            { operation: "read", runId: run.id },
+            "before",
+          ),
+          "run",
+        ).state,
+      ).toBe("running");
+      finish(saved);
+      await vi.waitFor(async () => {
+        const reply = unwrap(
+          await f.service.handle({ operation: "read", runId: run.id }, "after"),
+          "run",
+        );
+        expect(reply.state).toBe("finished");
+        expect(reply.error?.code).toBe(
+          saved ? undefined : "RUN_CATALOG_STORAGE_UNAVAILABLE",
+        );
+      });
+      expect(f.executor.execute).toHaveBeenCalledTimes(1);
+    },
+  );
   it("retains completed receipts, catalogs and evidence after preparation expiry without rerunning", async () => {
     let now = 0;
     const f = fixture("ngspice", () => now);
@@ -1349,6 +1397,14 @@ describe("shared simulation lifecycle", () => {
     await f.service.clear();
     expect(
       await f.service.handle({ operation: "read", runId: run.id }, "r2"),
+    ).toMatchObject({
+      ok: true,
+      run: { state: "lost", error: { code: "NETWORK_UNKNOWN" } },
+    });
+    expect(f.executor.execute).toHaveBeenCalledTimes(1);
+    f.files.clear();
+    expect(
+      await f.service.handle({ operation: "read", runId: run.id }, "r3"),
     ).toMatchObject({ ok: false, error: { code: "RUN_STATE_LOST" } });
   });
   it("cancel requests executor cleanup, and a late successful completion is not mislabeled cancelled", async () => {

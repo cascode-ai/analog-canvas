@@ -148,6 +148,26 @@ export class SimulationService {
           : { ok: true, helpers };
       }
       this.prune();
+      if (op.operation === "history") {
+        try {
+          return {
+            ok: true,
+            ...(await this.files.history(op.limit, op.cursor)),
+          };
+        } catch (error) {
+          const invalidCursor =
+            error instanceof Error &&
+            error.message === "HISTORY_CURSOR_UNAVAILABLE";
+          return problem(
+            invalidCursor
+              ? "HISTORY_CURSOR_UNAVAILABLE"
+              : "RUN_HISTORY_UNAVAILABLE",
+            "Retained run directory could not be read; no simulation was started",
+            "read",
+            invalidCursor ? "fix-input" : "retry-after",
+          );
+        }
+      }
       if (op.operation === "capabilities")
         return {
           ok: true,
@@ -175,6 +195,30 @@ export class SimulationService {
         op.operation === "catalog"
       ) {
         const run = this.runs.get(op.runId);
+        if (!run && (op.operation === "catalog" || op.operation === "read")) {
+          const catalog = await this.files.catalog(op.runId);
+          if (catalog) {
+            if (op.operation === "catalog") return { ok: true, catalog };
+            return {
+              ok: true,
+              run: {
+                id: catalog.runId,
+                preparedId: catalog.preparedId,
+                inputRevision: catalog.inputRevision,
+                state:
+                  catalog.execution === "cancelled" ||
+                  catalog.execution === "lost"
+                    ? catalog.execution
+                    : "finished",
+                artifacts: catalog.files,
+                catalog,
+                ...(catalog.error ? { error: catalog.error } : {}),
+                inputStatus: "unavailable",
+                resultPreview: true,
+              },
+            };
+          }
+        }
         if (!run)
           return problem(
             "RUN_STATE_LOST",
@@ -258,6 +302,7 @@ export class SimulationService {
           stage:
             op.operation === "capabilities" ||
             op.operation === "authoring-help" ||
+            op.operation === "history" ||
             op.operation === "catalog"
               ? "read"
               : op.operation === "prepare-batch"
@@ -837,6 +882,7 @@ export class SimulationService {
     epoch: number,
   ) {
     let collectionStatus: "complete" | "partial" = "complete";
+    let terminalState: Run["state"] = "finished";
     try {
       const output = validateExecutionOutput(
         input,
@@ -982,11 +1028,11 @@ export class SimulationService {
         { role: "manifest" },
       );
       if (epoch === this.epoch)
-        run.view.state = output.cancelled ? "cancelled" : "finished";
+        terminalState = output.cancelled ? "cancelled" : "finished";
     } catch (error) {
       if (epoch !== this.epoch) return;
       if (error instanceof ExecutionFailure) {
-        run.view.state =
+        terminalState =
           error.problem.code === "run-cancelled"
             ? "cancelled"
             : error.acceptedUnknown
@@ -994,7 +1040,7 @@ export class SimulationService {
               : "finished";
         run.view.error = error.problem;
       } else {
-        run.view.state = run.view.result ? "finished" : "lost";
+        terminalState = run.view.result ? "finished" : "lost";
         run.view.error = {
           code:
             error instanceof Error && error.message === "ARTIFACT_CAPACITY"
@@ -1012,10 +1058,21 @@ export class SimulationService {
       }
     }
     run.view.catalog = resultCatalog(
-      run.view,
+      { ...run.view, state: terminalState },
       run.view.error ? "partial" : collectionStatus,
       run.prepared.signalTargets,
     );
+    if (!(await this.files.saveCatalog(run.view.catalog))) {
+      run.view.error ??= {
+        code: "RUN_CATALOG_STORAGE_UNAVAILABLE",
+        message:
+          "Files were collected, but the durable run directory could not be saved. Keep this run ID and download its evidence before closing the host.",
+        stage: "export",
+        recovery: "retry-after",
+      };
+    }
+    if (epoch !== this.epoch) return;
+    run.view.state = terminalState;
     // Do not retain full numeric arrays in memory after complete artifact
     // publication. On publication failure, preserve any otherwise unsaved data.
     if (!run.view.error) run.view = runReceipt(run.view);

@@ -131,6 +131,7 @@ export const ResultCatalogSchema = z.strictObject({
     "lost",
   ]),
   collection: z.enum(["pending", "complete", "partial"]),
+  error: ProblemSchema.optional(),
   files: z.array(ArtifactRefSchema),
   datasets: z.array(
     z.strictObject({
@@ -160,6 +161,19 @@ export const ResultCatalogSchema = z.strictObject({
   ),
 });
 export type ResultCatalog = z.infer<typeof ResultCatalogSchema>;
+export const SimulationHistoryEntrySchema = ResultCatalogSchema.pick({
+  runId: true,
+  preparedId: true,
+  inputRevision: true,
+  execution: true,
+  collection: true,
+}).extend({
+  storedAt: z.number(),
+  storage: z.enum(["persistent", "memory"]),
+});
+export type SimulationHistoryEntry = z.infer<
+  typeof SimulationHistoryEntrySchema
+>;
 export const VectorSchema = z.strictObject({
   probeId: Id,
   vector: z.string(),
@@ -490,6 +504,11 @@ export const SimulationOperationSchema = z.discriminatedUnion("operation", [
   }),
   z.strictObject({ operation: z.literal("read"), runId: Id }),
   z.strictObject({ operation: z.literal("catalog"), runId: Id }),
+  z.strictObject({
+    operation: z.literal("history"),
+    limit: z.number().int().min(1).max(100).default(50),
+    cursor: Id.optional(),
+  }),
   z.strictObject({ operation: z.literal("cancel"), runId: Id }),
   z
     .strictObject({
@@ -743,6 +762,11 @@ export const SimulationReplySchema = z.union([
   z.strictObject({ ok: z.literal(true), prepared: PreparedSchema }),
   z.strictObject({ ok: z.literal(true), run: RunSchema }),
   z.strictObject({ ok: z.literal(true), catalog: ResultCatalogSchema }),
+  z.strictObject({
+    ok: z.literal(true),
+    runs: z.array(SimulationHistoryEntrySchema),
+    nextCursor: Id.nullable(),
+  }),
   z.strictObject({ ok: z.literal(true), batch: SimulationBatchSchema }),
   z.strictObject({
     ok: z.literal(true),

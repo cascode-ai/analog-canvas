@@ -352,6 +352,17 @@ describe("MCP / browser Simulation Resource parity", () => {
         expect(finished.run.state).toBe("finished");
       });
       expect(executions).toBe(1);
+      await vi.waitFor(async () =>
+        expect(
+          await invoke("simulation", {
+            request: { operation: "history" },
+          }),
+        ).toMatchObject({
+          ok: true,
+          runs: [{ runId: started.run.id }],
+          nextCursor: null,
+        }),
+      );
       expect(finished.run.state, JSON.stringify(finished)).toBe("finished");
       expect(finished.run.result.data.analyses[0].probes).toEqual(
         expect.arrayContaining([

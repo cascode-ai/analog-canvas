@@ -3,6 +3,7 @@ import {
   MAX_ARTIFACT_FILES,
   MAX_ARTIFACT_STORE_BYTES,
   type SimulationArtifactStore,
+  type StoredResultCatalog,
 } from "@icm/simulation-service/files";
 import type { ArtifactRef } from "@icm/simulation-service/contract";
 
@@ -11,6 +12,7 @@ import type { ArtifactRef } from "@icm/simulation-service/contract";
 const DATABASE = "analog-canvas-simulation-files";
 const BODY = "bodies";
 const DIRECTORY = "files";
+const CATALOGS = "catalogs";
 function value<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
@@ -33,16 +35,49 @@ export function createBrowserSimulationArtifactStore(
   // are surfaced by put/get, never silently treated as durable success.
   if (!factory) return undefined;
   async function open() {
-    const request = factory!.open(DATABASE, 1);
+    const request = factory!.open(DATABASE, 2);
     request.onupgradeneeded = () => {
-      request.result.createObjectStore(BODY);
+      if (!request.result.objectStoreNames.contains(BODY)) {
+        request.result.createObjectStore(BODY);
+        request.result
+          .createObjectStore(DIRECTORY)
+          .createIndex("projectId", "projectId");
+      }
       request.result
-        .createObjectStore(DIRECTORY)
+        .createObjectStore(CATALOGS)
         .createIndex("projectId", "projectId");
     };
     return value(request);
   }
   return {
+    async saveCatalog(record) {
+      const db = await open();
+      try {
+        const tx = db.transaction(CATALOGS, "readwrite");
+        tx.objectStore(CATALOGS).put(
+          { projectId, catalog: record.catalog, storedAt: record.storedAt },
+          [projectId, record.catalog.runId],
+        );
+        await completed(tx);
+      } finally {
+        db.close();
+      }
+    },
+    async catalogs() {
+      const db = await open();
+      try {
+        const tx = db.transaction(CATALOGS, "readonly");
+        const [records] = await Promise.all([
+          value(
+            tx.objectStore(CATALOGS).index("projectId").getAll(projectId),
+          ) as Promise<StoredResultCatalog[]>,
+          completed(tx),
+        ]);
+        return records.map(({ catalog, storedAt }) => ({ catalog, storedAt }));
+      } finally {
+        db.close();
+      }
+    },
     async put(ref, text) {
       const body = new Blob([text], { type: ref.mediaType });
       if (body.size !== ref.byteLength || body.size > MAX_ARTIFACT_BYTES)

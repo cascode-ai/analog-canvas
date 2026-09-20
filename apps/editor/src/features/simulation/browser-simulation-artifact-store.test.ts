@@ -2,8 +2,111 @@ import { IDBFactory } from "fake-indexeddb";
 import { describe, expect, it, vi } from "vitest";
 import { SimulationFiles } from "@icm/simulation-service/files";
 import { createBrowserSimulationArtifactStore } from "./browser-simulation-artifact-store";
+import { SimulationService } from "@icm/simulation-service";
+import { createEmptyProject } from "@icm/model";
 
 describe("persistent simulation evidence", () => {
+  it("discovers retained catalogs after host replacement without reading bodies or starting executions", async () => {
+    const factory = new IDBFactory();
+    let now = 100;
+    const files = new SimulationFiles(
+      () => now,
+      undefined,
+      undefined,
+      createBrowserSimulationArtifactStore("project", factory),
+    );
+    const artifact = await files.put("run.raw", "text/plain", "original", {
+      role: "raw",
+    });
+    const catalog = {
+      schemaVersion: 1 as const,
+      runId: "run-one",
+      preparedId: "prep",
+      inputRevision: "rev",
+      execution: "completed" as const,
+      collection: "complete" as const,
+      files: [artifact],
+      datasets: [],
+    };
+    expect(await files.saveCatalog(catalog)).toBe(true);
+    now++;
+    await files.saveCatalog({ ...catalog, runId: "run-two" });
+    files.clear();
+    const backend = createBrowserSimulationArtifactStore("project", factory)!;
+    const get = vi.spyOn(backend, "get");
+    const reopened = new SimulationFiles(
+      Date.now,
+      undefined,
+      undefined,
+      backend,
+    );
+    const executor = {
+      capabilities: vi.fn(async () => {
+        throw Error("must not execute");
+      }),
+      execute: vi.fn(async () => {
+        throw Error("must not execute");
+      }),
+      cancel: vi.fn(async () => {}),
+    };
+    const service = new SimulationService(reopened, executor, () =>
+      createEmptyProject("project", "Project", "doc"),
+    );
+    const first = await service.handle(
+      { operation: "history", limit: 1 },
+      "history",
+    );
+    expect(first).toMatchObject({
+      ok: true,
+      runs: [{ runId: "run-two", storage: "persistent" }],
+      nextCursor: "run-two",
+    });
+    expect(
+      await service.handle(
+        { operation: "history", limit: 1, cursor: "run-two" },
+        "next",
+      ),
+    ).toMatchObject({
+      ok: true,
+      runs: [{ runId: "run-one" }],
+      nextCursor: null,
+    });
+    expect(
+      await service.handle(
+        { operation: "catalog", runId: "run-one" },
+        "catalog",
+      ),
+    ).toEqual({ ok: true, catalog });
+    expect(
+      await service.handle({ operation: "read", runId: "run-one" }, "read"),
+    ).toMatchObject({
+      ok: true,
+      run: {
+        id: "run-one",
+        state: "finished",
+        resultPreview: true,
+        artifacts: [artifact],
+      },
+    });
+    expect(get).not.toHaveBeenCalled();
+    expect(
+      await service.handle({ operation: "cancel", runId: "run-one" }, "cancel"),
+    ).toMatchObject({ ok: false });
+    expect(executor.execute).not.toHaveBeenCalled();
+    expect(executor.cancel).not.toHaveBeenCalled();
+    expect(await reopened.readArtifact(artifact.id)).toMatchObject({
+      ok: true,
+      text: "original",
+    });
+    const other = new SimulationFiles(
+      Date.now,
+      undefined,
+      undefined,
+      createBrowserSimulationArtifactStore("other", factory),
+    );
+    expect(await other.history(10)).toEqual({ runs: [], nextCursor: null });
+    expect(await other.catalog("run-one")).toBeUndefined();
+  });
   it("spills a file above the old cache limit and reopens it after clear without crossing Projects", async () => {
     const factory = new IDBFactory();
     const store = createBrowserSimulationArtifactStore("project", factory)!;

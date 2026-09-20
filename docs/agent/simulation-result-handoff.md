@@ -15,8 +15,23 @@ Browser artifact bodies are stored separately as Project-scoped IndexedDB
 evidence, with a bounded memory cache. Disconnect clears authorization and
 memory handles, not these bodies. A new authorized host for the same Project
 can read a known artifact ID; another Project cannot. History discovery and
-whole-run restoration use the result history described below. Local Agent
+whole-run restoration do not require running the simulation again. Local Agent
 downloads remain independent of browser lifetime and storage.
+
+After reconnecting to the same Project, `simulation` operation `history` lists
+retained terminal runs, newest stored first. `limit` defaults to 50 (maximum 100);
+pass `nextCursor` as `cursor` to continue. This list contains no file bodies or
+waveform arrays. `storage: persistent` means the directory was saved in browser
+storage; `memory` means it is only retained by the current host. Browser storage
+is origin-local, not Cloud Save or a server execution queue.
+
+Use a returned `runId` with `catalog`, then download/sync its registered files.
+A historical `read` returns a shortened receipt with the saved execution and
+collection status, including a retained execution error when available. It
+cannot establish whether current source inputs match, and does not restore
+execution/cancellation authority. `cancel` never dispatches to an executor for
+a historical-only run. Existing GUI archives remain a separate presentation of
+the same evidence; the Agent directory also covers session-workspace runs.
 
 Large finished run receipts omit numeric arrays only after artifact publication
 succeeds. `resultPreview` describes that receipt, not lost evidence. Download

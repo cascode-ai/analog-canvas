@@ -468,6 +468,7 @@ export function simulationOperationScopes(
     case "prepare-batch":
     case "start-batch":
     case "read-batch":
+    case "history":
     case "cancel-batch":
     case "prepare-sweep":
     case "export":

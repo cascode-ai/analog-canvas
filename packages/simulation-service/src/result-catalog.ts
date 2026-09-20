@@ -6,6 +6,7 @@ export function resultCatalog(
     Run,
     "id" | "preparedId" | "inputRevision" | "state" | "artifacts"
   > & {
+    error?: Run["error"];
     result?: Pick<NonNullable<Run["result"]>, "outcome" | "data"> | undefined;
   },
   collection: ResultCatalog["collection"],
@@ -21,8 +22,10 @@ export function resultCatalog(
     execution:
       run.state === "cancelled" || run.state === "lost"
         ? run.state
-        : (run.result?.outcome.status ?? "pending"),
+        : (run.result?.outcome.status ??
+          (run.state === "finished" ? "failed" : "pending")),
     collection,
+    ...(run.error ? { error: structuredClone(run.error) } : {}),
     files: run.artifacts.map((file) => ({ ...file })),
     datasets: (data?.analyses ?? []).map((analysis, analysisIndex) => {
       const axis =

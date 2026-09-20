@@ -84,6 +84,19 @@ describe("authorized streaming artifact transfer", () => {
       (await f.files.handle(put("a中文z"), "session", "file")).status,
     ).toBe(200);
     const restored = new AgentArtifacts(f.storage, f.bucket);
+    const repeated = put("a中文z");
+    expect((await restored.handle(repeated, "session", "file")).status).toBe(
+      200,
+    );
+    expect(repeated.bodyUsed).toBe(true);
+    const overlong = new Request(repeated.url, {
+      method: "PUT",
+      headers: repeated.headers,
+      body: "unexpected extra bytes",
+    });
+    expect((await restored.handle(overlong, "session", "file")).status).toBe(
+      400,
+    );
     const full = await restored.handle(
       new Request("https://internal/artifacts/file"),
       "session",

@@ -85,10 +85,17 @@ export class AgentArtifacts {
         (existing.digest !== ref.sha256 || existing.bytes !== ref.byteLength)
       )
         return this.error("ARTIFACT_ID_CONFLICT", 409);
-      if (existing?.complete)
+      if (existing?.complete) {
+        if (!(await this.discardBody(request, ref.byteLength)))
+          return this.error("ARTIFACT_LENGTH_MISMATCH", 400);
         return this.receipt(sessionId, fileId, ref.byteLength);
+      }
       const inFlight = this.pending.get(fileId);
-      if (inFlight) return (await inFlight).clone();
+      if (inFlight) {
+        if (!(await this.discardBody(request, ref.byteLength)))
+          return this.error("ARTIFACT_LENGTH_MISMATCH", 400);
+        return (await inFlight).clone();
+      }
       if (
         !existing &&
         (Object.keys(this.index).length >= 1024 ||
@@ -169,6 +176,24 @@ export class AgentArtifacts {
       status: range ? 206 : 200,
       headers,
     });
+  }
+  private async discardBody(request: Request, expectedBytes: number) {
+    // A resumed publication may already exist. Finish the inbound stream before
+    // replying, without buffering or re-hashing immutable existing evidence.
+    let bytes = 0;
+    try {
+      await request.body!.pipeTo(
+        new WritableStream<Uint8Array>({
+          write(chunk) {
+            bytes += chunk.byteLength;
+            if (bytes > expectedBytes) throw new Error("length");
+          },
+        }),
+      );
+      return bytes === expectedBytes;
+    } catch {
+      return false;
+    }
   }
   private async upload(
     request: Request,
