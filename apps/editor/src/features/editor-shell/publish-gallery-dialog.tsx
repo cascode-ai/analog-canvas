@@ -2,6 +2,7 @@ import taxonomy from "../../../../../config/gallery-taxonomy.json";
 import { useEffect, useState } from "react";
 
 import type { SubmissionGateReport } from "@icm/derived";
+import { galleryTagLabel } from "../../gallery-tag-label";
 
 import {
   describePublishOutcome,
@@ -294,7 +295,7 @@ export function PublishGalleryDialog({
                           )
                         }
                       >
-                        {tag} ×
+                        {galleryTagLabel(tag)} ×
                       </button>
                     ))}
                   </div>
@@ -329,7 +330,7 @@ export function PublishGalleryDialog({
                         data-testid={`publish-preset-${preset.replace(/\s/gu, "-")}`}
                         onClick={() => addTag(preset)}
                       >
-                        + {preset}
+                        + {galleryTagLabel(preset)}
                       </button>
                     ))}
                 </div>

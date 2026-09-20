@@ -160,7 +160,6 @@ export function subscribeGalleryRefresh(
  */
 
 export interface GalleryFeedEntry {
-  categories?: string[];
   curationRevision?: number;
   attention?: GalleryAttention;
   assessedPreviewRevision?: string;
@@ -242,12 +241,10 @@ export async function loadGalleryFeed(
     /** Only circuits the signed-in viewer has liked. */
     liked?: boolean;
     limit?: number;
-    category?: string | null;
     attention?: boolean;
   } = {},
 ): Promise<GalleryFeedPage | null> {
   const params = new URLSearchParams();
-  if (options.category) params.set("category", options.category);
   if (options.attention) params.set("attention", "1");
   if (options.author) params.set("author", options.author);
   if (options.ownerUserId) params.set("owner", options.ownerUserId);

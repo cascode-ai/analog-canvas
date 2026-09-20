@@ -31,7 +31,6 @@ export function GalleryAttentionReview({
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          categories: entry.categories ?? [],
           tags: entry.tags ?? [],
           attention: { status, issues },
           expectedPreviewRevision: entry.previewRevision ?? "legacy",

@@ -256,7 +256,6 @@ export type GalleryEnv = {
 };
 
 export interface GalleryEntrySummary {
-  categories: string[];
   curationRevision: number;
   attention?: GalleryAttention;
   assessedPreviewRevision?: string;
@@ -392,7 +391,6 @@ function summaryOf(
 ): GalleryEntrySummary {
   const curation = readGalleryCuration(row.curation_json);
   return {
-    categories: curation?.categories ?? [],
     curationRevision: curation?.revision ?? 0,
     ...(includeAttention && curation?.attention
       ? {
@@ -428,14 +426,11 @@ function summaryOf(
 function advanceCurationRevision(row: EntryRow, at: string): string {
   const previous = readGalleryCuration(row.curation_json);
   return JSON.stringify({
-    ...(previous ?? {
-      categories: [],
-      attention: null,
-      assessedPreviewRevision: "",
-      updatedAt: at,
-      updatedBy: "",
-      source: "manual",
-    }),
+    attention: previous?.attention ?? null,
+    assessedPreviewRevision: previous?.assessedPreviewRevision ?? "",
+    updatedAt: previous?.updatedAt ?? at,
+    updatedBy: previous?.updatedBy ?? "",
+    source: previous?.source ?? "manual",
     revision: (previous?.revision ?? 0) + 1,
   });
 }
@@ -948,12 +943,6 @@ export class GalleryDO {
       conditions.push(`(${tags.map(() => "e.tags LIKE ?").join(" OR ")})`);
       for (const tag of tags) bindings.push(`%,${tag},%`);
     }
-    if (typeof body.category === "string" && body.category) {
-      conditions.push(
-        "EXISTS (SELECT 1 FROM json_each(CASE WHEN e.curation_json = '' THEN '{}' ELSE e.curation_json END, '$.categories') WHERE value = ?)",
-      );
-      bindings.push(body.category);
-    }
     if (body.attention === true) {
       conditions.push(
         "json_extract(CASE WHEN e.curation_json = '' THEN '{}' ELSE e.curation_json END, '$.attention.status') = 'needs-attention'",
@@ -1133,7 +1122,6 @@ export class GalleryDO {
       );
     }
     const curation: GalleryCuration = {
-      categories: body.categories as string[],
       attention: body.attention as GalleryAttention | null,
       revision: (previous?.revision ?? 0) + 1,
       assessedPreviewRevision: String(body.expectedPreviewRevision),
@@ -1363,7 +1351,6 @@ export class GalleryDO {
     const previewDimensions = svgPreviewDimensions(version.svg_text);
     const restoredCuration = readGalleryCuration(version.curation_json);
     const restoredReview: GalleryCuration = {
-      categories: restoredCuration?.categories ?? [],
       attention: restoredCuration?.attention ?? null,
       revision: (readGalleryCuration(entry.curation_json)?.revision ?? 0) + 1,
       assessedPreviewRevision:
@@ -2477,15 +2464,12 @@ export class GalleryDO {
   /** Distinct public tags with counts, most frequent first (G4 menu). */
   private tagCounts(): Response {
     const rows = this.sql
-      .exec<{ tags: string | null; curation_json: string }>(
-        "SELECT tags, curation_json FROM gallery_entries WHERE status = 'public'",
+      .exec<{ tags: string | null }>(
+        "SELECT tags FROM gallery_entries WHERE status = 'public'",
       )
       .toArray();
     const counts = new Map<string, number>();
-    const categoryCounts = new Map<string, number>();
     for (const row of rows) {
-      for (const id of readGalleryCuration(row.curation_json)?.categories ?? [])
-        categoryCounts.set(id, (categoryCounts.get(id) ?? 0) + 1);
       for (const tag of unwrapTags(row.tags)) {
         counts.set(tag, (counts.get(tag) ?? 0) + 1);
       }
@@ -2493,10 +2477,7 @@ export class GalleryDO {
     const tags = [...counts.entries()]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "en"))
       .map(([tag, count]) => ({ tag, count }));
-    return Response.json({
-      tags,
-      categories: [...categoryCounts].map(([id, count]) => ({ id, count })),
-    });
+    return Response.json({ tags });
   }
 
   /** Public contributors ranked by visible circuits and keyed by identity. */

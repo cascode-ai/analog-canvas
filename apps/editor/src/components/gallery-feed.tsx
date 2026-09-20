@@ -27,6 +27,7 @@ import {
   type GalleryFilterState,
 } from "../gallery-filters";
 import type { BundledGalleryTile } from "./gallery-bundled-fallback";
+import { galleryTagLabel } from "../gallery-tag-label";
 
 // The wall and the canvas-side panel share one data layer, so a search that
 // finds a circuit here finds it there too. These re-exports keep every
@@ -477,7 +478,6 @@ export function GalleryFeed({
     search: searchQuery,
     netlistable: netlistableOnly,
     liked: likedOnly,
-    category,
     attention: attentionOnly,
   } = filters;
   function updateFilters(patch: Partial<GalleryFilterState>): void {
@@ -486,9 +486,6 @@ export function GalleryFeed({
   const [duplicateReport, setDuplicateReport] =
     useState<GalleryDuplicateReport | null>(null);
   const [viewerId, setViewerId] = useState<string | null>(null);
-  const [categoryCounts, setCategoryCounts] = useState<
-    { id: string; count: number }[]
-  >([]);
   const [signedIn, setSignedIn] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [ownerBusy, setOwnerBusy] = useState<string | null>(null);
@@ -551,12 +548,8 @@ export function GalleryFeed({
         if (!response.ok) return;
         const payload = (await response.json()) as {
           tags?: { tag: string; count: number }[];
-          categories?: { id: string; count: number }[];
         };
-        if (!cancelled) {
-          setTagOptions(payload.tags ?? []);
-          setCategoryCounts(payload.categories ?? []);
-        }
+        if (!cancelled) setTagOptions(payload.tags ?? []);
       } catch {
         // No menu without the worker; the wall itself still works.
       }
@@ -652,7 +645,6 @@ export function GalleryFeed({
       selectedTags.join(","),
       netlistableOnly ? "netlist" : "",
       likedOnly ? "liked" : "",
-      category ?? "",
       attentionOnly ? "attention" : "",
     ].join("\u0000");
     const changingQuery = loadedQueryRef.current !== queryKey;
@@ -670,7 +662,6 @@ export function GalleryFeed({
       tags: selectedTags,
       netlistable: netlistableOnly,
       liked: likedOnly,
-      category,
       attention: attentionOnly,
     }).then((page) => {
       if (cancelled || generation !== feedGenerationRef.current) return;
@@ -697,7 +688,6 @@ export function GalleryFeed({
     selectedTags,
     netlistableOnly,
     likedOnly,
-    category,
     attentionOnly,
     refreshSignal,
   ]);
@@ -722,7 +712,6 @@ export function GalleryFeed({
         tags: selectedTags,
         netlistable: netlistableOnly,
         liked: likedOnly,
-        category,
         attention: attentionOnly,
         cursor: nextCursor,
       }).then((page) => {
@@ -750,7 +739,6 @@ export function GalleryFeed({
     selectedTags,
     netlistableOnly,
     likedOnly,
-    category,
     attentionOnly,
   ]);
 
@@ -948,9 +936,6 @@ export function GalleryFeed({
       {view === "gallery" ? (
         <div className="gallery-browser">
           <GalleryTagSidebar
-            category={category}
-            categoryCounts={categoryCounts}
-            onCategoryChange={(category) => updateFilters({ category })}
             tags={tagOptions}
             selected={selectedTags}
             onChange={(tags) => updateFilters({ tags })}
@@ -1179,7 +1164,7 @@ export function GalleryFeed({
                                       type="button"
                                       className="gallery-tile-tag"
                                       data-testid={`gallery-tile-tag-${entry.id}-${tag.replace(/\s/gu, "-")}`}
-                                      title={`Filter by ${tag}`}
+                                      title={`Filter by ${galleryTagLabel(tag)}`}
                                       onClick={(event) => {
                                         event.preventDefault();
                                         event.stopPropagation();
@@ -1187,7 +1172,7 @@ export function GalleryFeed({
                                           toggleTag(tag);
                                       }}
                                     >
-                                      {tag}
+                                      {galleryTagLabel(tag)}
                                     </button>
                                   ))}
                                 </span>

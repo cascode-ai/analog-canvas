@@ -25,12 +25,6 @@ for (const item of report.entries) {
     throw new Error(`Invalid/duplicate/unreviewed entry: ${item.id}`);
   ids.add(item.id);
   if (
-    !item.categories?.length ||
-    item.categories.length > 3 ||
-    item.categories.some((id) => !Object.hasOwn(taxonomy.categories, id))
-  )
-    throw new Error(`Invalid categories: ${item.id}`);
-  if (
     !Array.isArray(item.tags) ||
     item.tags.length > 12 ||
     item.tags.some((tag) => !knownTags.has(tag))
@@ -84,8 +78,6 @@ if (args.includes("--apply")) {
       ? { status: "needs-attention", issues: item.issues }
       : null;
     const matching =
-      JSON.stringify(entry.categories ?? []) ===
-        JSON.stringify(item.categories) &&
       JSON.stringify(entry.tags ?? []) === JSON.stringify(item.tags) &&
       JSON.stringify(entry.attention ?? null) === JSON.stringify(attention);
     if (matching && entry.previewRevision === item.previewRevision) continue;
@@ -101,7 +93,6 @@ if (args.includes("--apply")) {
       continue;
     }
     const update = {
-      categories: item.categories,
       tags: item.tags,
       attention,
       expectedPreviewRevision: item.previewRevision,

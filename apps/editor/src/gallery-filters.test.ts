@@ -22,7 +22,6 @@ describe("gallery filter preferences", () => {
       search: "mirror",
       netlistable: true,
       liked: true,
-      category: null,
       attention: false,
     });
     expect(narrowed).toBe(true);
@@ -102,7 +101,6 @@ describe("gallery filter preferences", () => {
     });
     expect(resolveGalleryFilters("", stored)).toEqual({
       view: "gallery",
-      category: null,
       attention: false,
       author: "alice",
       ownerUserId: "account-alice",
@@ -168,10 +166,9 @@ describe("gallery filter preferences", () => {
   });
 });
 
-it("round-trips category and attention independently of tags", () => {
+it("round-trips attention independently of tags and retires category links", () => {
   const filters = {
     ...createDefaultGalleryFilters(),
-    category: "amplifiers",
     attention: true,
     tags: ["cascode"],
   };
@@ -180,7 +177,8 @@ it("round-trips category and attention independently of tags", () => {
   ).toEqual(filters);
   expect(parseStoredGalleryFilters(JSON.stringify(filters))).toEqual(filters);
   expect(galleryFiltersNarrowQuery(filters)).toBe(true);
-  expect(
-    parseGalleryFilterQuery("?category=unknown").filters.category,
-  ).toBeNull();
+  expect(galleryFilterSearch("?category=amplifiers", filters)).not.toContain(
+    "category",
+  );
+  expect(parseGalleryFilterQuery("?category=amplifiers").narrowed).toBe(false);
 });

@@ -18,6 +18,7 @@ import {
   type GalleryFeedEntry,
   type GalleryTagOption,
 } from "../../gallery-client";
+import { galleryTagLabel } from "../../gallery-tag-label";
 import { GalleryTopologyCheck } from "./gallery-topology-check";
 
 export interface GalleryExampleSummary {
@@ -295,7 +296,7 @@ export function ExamplesPanel({
                           data-testid={`examples-panel-tag-${option.tag}`}
                           onChange={() => toggleTag(option.tag)}
                         />
-                        <span>{option.tag}</span>
+                        <span>{galleryTagLabel(option.tag)}</span>
                         <span className="examples-panel-tag-count">
                           {option.count}
                         </span>

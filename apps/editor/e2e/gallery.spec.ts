@@ -1176,9 +1176,23 @@ test("the left tag sidebar groups and searches tags at desktop, half-screen and 
   const sidebar = page.getByTestId("gallery-tag-sidebar");
   const tile = page.getByTestId("gallery-tile-t-one");
   await expect(sidebar).toBeVisible();
-  await expect(
-    sidebar.locator("summary").filter({ hasText: "Amplifiers" }),
-  ).toBeVisible();
+  await expect(page.getByText("Browse", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Categories", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Tagged circuits", { exact: true })).toHaveCount(
+    0,
+  );
+  const amplifierGroup = sidebar
+    .locator("summary")
+    .filter({ hasText: "Amplifiers" });
+  await expect(amplifierGroup).toBeVisible();
+  await expect(amplifierGroup).toHaveCSS("font-weight", "700");
+  await amplifierGroup.click();
+  const amplifier = page.getByTestId("gallery-tag-option-amplifier");
+  await expect(amplifier).toContainText("General Amplifier");
+  expect((await amplifier.boundingBox())!.height).toBeLessThanOrEqual(28);
+  await page.getByTestId("gallery-tag-search").fill("adc");
+  await expect(page.getByTestId("gallery-tag-option-adc")).toContainText("ADC");
+  await page.getByTestId("gallery-tag-search").fill("");
   await sidebar
     .locator("summary")
     .filter({ hasText: /^Power/ })
@@ -1204,9 +1218,19 @@ test("the left tag sidebar groups and searches tags at desktop, half-screen and 
 
   await page.setViewportSize({ width: 800, height: 800 });
   await expect(sidebar).toBeVisible();
-  expect(
-    (await sidebar.boundingBox())!.x + (await sidebar.boundingBox())!.width,
-  ).toBeLessThan((await tile.boundingBox())!.x);
+  // The ResizeObserver adapts the column after the viewport change; wait for
+  // that layout pass before comparing the two columns.
+  await expect
+    .poll(async () => {
+      const sidebarBox = await page
+        .locator(".gallery-sidebar-slot")
+        .boundingBox();
+      const tileBox = await tile.boundingBox();
+      return sidebarBox && tileBox
+        ? sidebarBox.x + sidebarBox.width < tileBox.x
+        : false;
+    })
+    .toBe(true);
   await expect(page.locator(".gallery-main")).toHaveJSProperty(
     "scrollWidth",
     await page
@@ -1217,11 +1241,11 @@ test("the left tag sidebar groups and searches tags at desktop, half-screen and 
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(sidebar).toBeHidden();
-  await page.getByRole("button", { name: "Filters & tags" }).click();
+  await page.getByRole("button", { name: "Tags & filters" }).click();
   await expect(sidebar).toBeVisible();
   await page.getByTestId("gallery-tags-clear").click();
   await expect(page.getByTestId("gallery-tag-option-ldo")).toHaveCount(0);
-  await page.getByRole("button", { name: "Filters & tags" }).click();
+  await page.getByRole("button", { name: "Tags & filters" }).click();
   await expect(sidebar).toBeHidden();
   await expect(tile).toBeVisible();
   await page.getByTestId("gallery-search").fill("zzz");
@@ -1298,7 +1322,7 @@ test("the tag sidebar resizes by dragging and keyboard, remembers width and adap
   );
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(handle).toBeHidden();
-  await page.getByRole("button", { name: "Filters & tags" }).click();
+  await page.getByRole("button", { name: "Tags & filters" }).click();
   await expect(page.getByTestId("gallery-tag-sidebar")).toBeVisible();
   // Mobile filters fill their container instead of keeping the desktop width.
   expect((await slot.boundingBox())!.width).toBe(
@@ -1550,73 +1574,6 @@ test("an API without totals hides the count rather than guessing", async ({
   await expect(page.getByTestId("gallery-count-panel")).toHaveCount(0);
 });
 
-test("Any tag selects every tag as one union and takes it back", async ({
-  page,
-}) => {
-  const listQueries: string[] = [];
-  const tags = ["amplifier", "adc", "pll"];
-  await page.route("**/api/gallery**", (route) => {
-    const url = new URL(route.request().url());
-    if (url.pathname === "/api/gallery/tags") {
-      return route.fulfill({
-        json: { tags: tags.map((tag, i) => ({ tag, count: i + 1 })) },
-      });
-    }
-    if (url.pathname !== "/api/gallery") return route.fallback();
-    const selected = (url.searchParams.get("tags") ?? "")
-      .split(",")
-      .filter(Boolean);
-    listQueries.push(selected.join(","));
-    const all = [
-      { id: "t-amp", tags: ["amplifier"] },
-      { id: "t-pll", tags: ["pll"] },
-      // Untagged work is exactly what "Any tag" leaves out, which is why the
-      // control is not called "select all".
-      { id: "t-bare", tags: [] as string[] },
-    ];
-    const entries = all
-      .filter(
-        (entry) =>
-          selected.length === 0 ||
-          entry.tags.some((tag) => selected.includes(tag)),
-      )
-      .map((entry) => ({
-        id: entry.id,
-        name: `Circuit ${entry.id}`,
-        author: "tz",
-        description: "",
-        createdAt: "2026-08-22T10:00:00.000Z",
-        schemaVersion: 23,
-        tags: entry.tags,
-      }));
-    return route.fulfill({ json: { entries, nextCursor: null } });
-  });
-  await page.route("**/api/gallery/*/preview.svg", (route) =>
-    route.fulfill({
-      contentType: "image/svg+xml",
-      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"><rect width="10" height="6" fill="#fff"/></svg>',
-    }),
-  );
-
-  await page.goto("/");
-  await expect(page.getByTestId("gallery-tile-t-bare")).toBeVisible();
-  const any = page.getByTestId("gallery-tags-any");
-  await expect(any).toHaveAttribute("aria-pressed", "false");
-
-  await any.click();
-  await expect(any).toHaveAttribute("aria-pressed", "true");
-  // Every tag rides in the query as one union, and the untagged circuit goes.
-  await expect(page.getByTestId("gallery-tile-t-amp")).toBeVisible();
-  await expect(page.getByTestId("gallery-tile-t-bare")).toHaveCount(0);
-  expect(listQueries).toContain("amplifier,adc,pll");
-  // With everything on there is nothing partial left to clear.
-  await expect(page.getByTestId("gallery-tags-clear")).toBeVisible();
-
-  await any.click();
-  await expect(any).toHaveAttribute("aria-pressed", "false");
-  await expect(page.getByTestId("gallery-tile-t-bare")).toBeVisible();
-});
-
 test("the tag menu multi-selects and tile tags join the selection", async ({
   page,
 }) => {
@@ -1672,14 +1629,18 @@ test("the tag menu multi-selects and tile tags join the selection", async ({
   await expect(page.getByTestId("gallery-tile-t-pll")).toBeVisible();
 
   // Multi-select two tags: OR union, URL carried.
+  const tagSearch = page.getByTestId("gallery-tag-search");
+  await tagSearch.fill("amplifier");
   await page.getByTestId("gallery-tag-option-amplifier").click();
   await expect(page.getByTestId("gallery-tile-t-pll")).toHaveCount(0);
+  await tagSearch.fill("adc");
   await page.getByTestId("gallery-tag-option-adc").click();
   await expect(page).toHaveURL(/tags=amplifier%2Cadc|tags=amplifier,adc/);
   await expect(page.getByTestId("gallery-tile-t-amp")).toBeVisible();
   expect(listQueries).toContain("amplifier,adc");
 
   // Clearing restores the full wall; a tile tag chip re-enters selection.
+  await tagSearch.fill("");
   await page.getByTestId("gallery-tags-clear").click();
   await expect(page.getByTestId("gallery-tile-t-pll")).toBeVisible();
   await page.getByTestId("gallery-tile-tag-t-pll-pll").click();
@@ -3057,7 +3018,6 @@ test("authors can filter pending visual reviews and resolve their own drawing", 
     ...ENTRY,
     id: "review-me",
     ownerUserId: "maker-1",
-    categories: ["amplifiers"],
     tags: ["amplifier"],
     curationRevision: 1,
     attention: {
@@ -3077,7 +3037,6 @@ test("authors can filter pending visual reviews and resolve their own drawing", 
       return route.fulfill({
         json: {
           tags: [{ tag: "amplifier", count: 1 }],
-          categories: [{ id: "amplifiers", count: 1 }],
         },
       });
     if (url.pathname === "/api/gallery/review-me/curation") {
@@ -3107,13 +3066,10 @@ test("authors can filter pending visual reviews and resolve their own drawing", 
     return route.fallback();
   });
   await page.goto("/");
-  const categories = page.getByRole("navigation", {
-    name: "Circuit categories",
-  });
-  await categories
-    .getByRole("button", { name: "Amplifiers & buffers" })
-    .click();
-  await expect(page).toHaveURL(/category=amplifiers/);
+  await expect(page.getByText("Categories", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByTestId("gallery-tile-tag-review-me-amplifier"),
+  ).toBeVisible();
   await page.getByTestId("gallery-filter-attention").click();
   await expect(page).toHaveURL(/attention=1/);
   const review = page.getByTestId("gallery-attention-review-me");

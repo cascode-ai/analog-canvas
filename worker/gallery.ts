@@ -1,7 +1,4 @@
-import {
-  validGalleryCategories,
-  validGalleryAttention,
-} from "./gallery-curation";
+import { validGalleryAttention } from "./gallery-curation";
 // Public Gallery HTTP policy and rendering. Durable storage lives in
 // gallery-do.ts; this module only authenticates and maps API requests.
 
@@ -617,7 +614,6 @@ export async function routeGalleryRequest(
     const { payload } = await callGallery(env, "list", {
       isAdmin: viewer?.isAdmin === true,
       attention: url.searchParams.get("attention") === "1",
-      category: url.searchParams.get("category"),
       viewerId: viewer?.id ?? "",
       limit: url.searchParams.get("limit"),
       cursor: url.searchParams.get("cursor"),
@@ -1076,7 +1072,6 @@ export async function routeGalleryRequest(
     }
     if (
       !body ||
-      !validGalleryCategories(body.categories) ||
       !validGalleryAttention(body.attention) ||
       !Array.isArray(body.tags) ||
       body.tags.length > 12 ||

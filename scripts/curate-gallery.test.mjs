@@ -12,7 +12,6 @@ it("validates a complete visual audit without an origin, credential or writes", 
       id: "circuit-1",
       previewRevision: "existing-revision",
       imageReviewed: true,
-      categories: ["amplifiers"],
       tags: ["amplifier"],
       issues: [],
     };

@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import type { GalleryTagOption } from "../gallery-client";
+import { galleryTagLabel } from "../gallery-tag-label";
 
 const WIDTH_KEY = "icm.gallery.sidebarWidth";
 const MIN_WIDTH = 180;
@@ -43,6 +44,7 @@ const TAG_ALIASES: Record<string, string> = {
   "linear regulator": "regulator",
   "bootstrapped cts": "charge transfer switch",
 };
+
 function tagGroup(tag: string): string {
   const key = TAG_ALIASES[tag.toLowerCase()] ?? tag.toLowerCase();
   return (
@@ -56,17 +58,11 @@ export function GalleryTagSidebar({
   selected,
   onChange,
   quickFilters,
-  category = null,
-  categoryCounts = [],
-  onCategoryChange,
 }: {
   tags: GalleryTagOption[];
   selected: string[];
   onChange: (tags: string[]) => void;
   quickFilters: ReactNode;
-  category?: string | null;
-  categoryCounts?: { id: string; count: number }[];
-  onCategoryChange?: (id: string | null) => void;
 }) {
   const [query, setQuery] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -127,8 +123,6 @@ export function GalleryTagSidebar({
       tag.toLowerCase().includes(query.trim().toLowerCase()),
   );
   const groups = [...TAG_GROUPS.map(([name]) => name), "Custom & legacy"];
-  const everyTagSelected =
-    tags.length > 0 && tags.every(({ tag }) => selected.includes(tag));
   return (
     <div
       ref={slotRef}
@@ -142,7 +136,7 @@ export function GalleryTagSidebar({
         aria-expanded={mobileOpen}
         aria-controls="gallery-tag-sidebar"
       >
-        Filters & tags{selected.length ? ` · ${selected.length} selected` : ""}
+        Tags & filters{selected.length ? ` · ${selected.length} selected` : ""}
         <span aria-hidden="true">{mobileOpen ? "−" : "+"}</span>
       </button>
       <aside
@@ -152,58 +146,7 @@ export function GalleryTagSidebar({
         data-open={mobileOpen}
         aria-label="Gallery filters"
       >
-        <div className="gallery-sidebar-quick">
-          <h2>Browse</h2>
-          <button
-            type="button"
-            className="gallery-sidebar-option"
-            aria-pressed={selected.length === 0}
-            onClick={() => onChange([])}
-          >
-            All tags
-          </button>
-          {quickFilters}
-          {tags.length ? (
-            <button
-              type="button"
-              className="gallery-sidebar-option"
-              data-testid="gallery-tags-any"
-              aria-pressed={everyTagSelected}
-              onClick={() =>
-                onChange(everyTagSelected ? [] : tags.map(({ tag }) => tag))
-              }
-            >
-              Tagged circuits
-            </button>
-          ) : null}
-        </div>
-        {onCategoryChange ? (
-          <nav className="gallery-categories" aria-label="Circuit categories">
-            <h2>Categories</h2>
-            <button
-              type="button"
-              className="gallery-sidebar-option"
-              aria-pressed={!category}
-              onClick={() => onCategoryChange(null)}
-            >
-              All categories
-            </button>
-            {Object.entries(taxonomy.categories).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                className="gallery-sidebar-option"
-                aria-pressed={category === id}
-                onClick={() => onCategoryChange(category === id ? null : id)}
-              >
-                <span className="gallery-tag-name">{label}</span>
-                <span className="gallery-sidebar-count">
-                  {categoryCounts.find((item) => item.id === id)?.count ?? 0}
-                </span>
-              </button>
-            ))}
-          </nav>
-        ) : null}
+        <div className="gallery-sidebar-quick">{quickFilters}</div>
         <div className="gallery-sidebar-heading">
           <h2>Tags</h2>
           {selected.length ? (
@@ -273,7 +216,9 @@ export function GalleryTagSidebar({
                     <span className="gallery-tag-check" aria-hidden="true">
                       {selected.includes(tag) ? "✓" : ""}
                     </span>
-                    <span className="gallery-tag-name">{tag}</span>
+                    <span className="gallery-tag-name">
+                      {galleryTagLabel(tag)}
+                    </span>
                     <span className="gallery-sidebar-count">{count}</span>
                   </button>
                 ))}

@@ -1,26 +1,10 @@
 {
   "version": 1,
-  "categories": {
-    "amplifiers": "Amplifiers & buffers",
-    "bias-reference": "Bias & references",
-    "filters": "Filters & equalizers",
-    "converters": "Data converters",
-    "clock-timing": "Clock & timing",
-    "logic-memory": "Logic & memory",
-    "power": "Power management",
-    "rf-communications": "RF & communications",
-    "switching-sampling": "Switches & sampling",
-    "sensors-interfaces": "Sensors & interfaces",
-    "devices-models": "Devices & characterization",
-    "computing": "Analog computing",
-    "other": "Other / needs classification"
-  },
   "tagsByGroup": {
     "Amplifiers": [
       "amplifier",
       "operational amplifier",
       "ota",
-      "buffer",
       "lna",
       "power amplifier",
       "transimpedance amplifier",
@@ -42,6 +26,7 @@
       "cmfb",
       "source degeneration"
     ],
+    "Buffers": ["buffer"],
     "Bias & references": [
       "current mirror",
       "current source",

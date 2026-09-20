@@ -1,6 +1,5 @@
 import taxonomy from "../config/gallery-taxonomy.json";
 
-export const GALLERY_CATEGORIES = taxonomy.categories;
 export const GALLERY_ISSUE_KINDS = taxonomy.issueKinds;
 export type GalleryIssue = { kind: string; detail: string };
 export type GalleryAttention = {
@@ -8,7 +7,6 @@ export type GalleryAttention = {
   issues: GalleryIssue[];
 };
 export interface GalleryCuration {
-  categories: string[];
   attention: GalleryAttention | null;
   revision: number;
   assessedPreviewRevision: string;
@@ -26,17 +24,6 @@ export function readGalleryCuration(
   } catch {
     return null;
   }
-}
-
-export function validGalleryCategories(value: unknown): value is string[] {
-  return (
-    Array.isArray(value) &&
-    value.length <= 3 &&
-    value.every(
-      (id) => typeof id === "string" && Object.hasOwn(GALLERY_CATEGORIES, id),
-    ) &&
-    new Set(value).size === value.length
-  );
 }
 
 export function validGalleryAttention(

@@ -2535,8 +2535,10 @@ describe("gallery circuit tags", () => {
     );
     const counts = (await aggregate.json()) as {
       tags: { tag: string; count: number }[];
+      categories?: unknown;
     };
     expect(counts.tags[0]).toEqual({ tag: "amplifier", count: 2 });
+    expect(counts).not.toHaveProperty("categories");
 
     // The bearer update path rewrites tags ("editable any time").
     const target = all.entries.find((entry) => entry.name === "Comp B")!;
@@ -4476,7 +4478,6 @@ describe("Gallery visual curation", () => {
           Origin: ORIGIN,
         },
         body: JSON.stringify({
-          categories: ["amplifiers"],
           tags: [
             "amplifier",
             "differential pair",
@@ -4501,7 +4502,7 @@ describe("Gallery visual curation", () => {
       }),
     );
   }
-  it("preserves drawings while categorizing, scopes attention to the author/admin, and permits resolution", async () => {
+  it("preserves drawings while tagging, scopes attention to the author/admin, and permits resolution", async () => {
     const env = environment();
     const admin = await adminOf(env);
     const maker = await makerOf(env);
@@ -4535,7 +4536,6 @@ describe("Gallery visual curation", () => {
         entries: Array<{
           id: string;
           attention?: unknown;
-          categories: string[];
           tags: string[];
         }>;
         total: number;
@@ -4543,8 +4543,9 @@ describe("Gallery visual curation", () => {
     const manyTags = Array.from({ length: 20 }, (_, i) => `absent${i}`);
     manyTags.push("ota");
     expect((await feed("", `?tags=${manyTags.join(",")}`)).total).toBe(2);
-    const publicFeed = await feed("", "?category=amplifiers");
+    const publicFeed = await feed("");
     expect(publicFeed.total).toBe(2);
+    expect((await feed("", "?category=amplifiers")).total).toBe(2);
     expect(publicFeed.entries.every((e) => e.attention === undefined)).toBe(
       true,
     );
@@ -4576,14 +4577,10 @@ describe("Gallery visual curation", () => {
     expect((await update(env, mine, maker)).status).toBe(200);
     expect((await feed(maker, "?attention=1")).total).toBe(1);
   });
-  it("rejects outdated reviews and invalid categories without changing metadata", async () => {
+  it("rejects outdated reviews and invalid attention without changing metadata", async () => {
     const env = environment();
     const cookie = await adminOf(env);
     const id = await submitOne(env, "Review target", { cookie });
-    expect(
-      (await update(env, id, cookie, { categories: ["made-up-category"] }))
-        .status,
-    ).toBe(400);
     expect(
       (
         await update(env, id, cookie, {

@@ -50,7 +50,7 @@ restrictive content-security-policy.
   multi-selection. Groups are presentation only: no authored tag or URL value
   is rewritten, unknown tags remain available under Custom & legacy, and tags
   restored from old links remain removable. Narrow mobile layouts collapse
-  the sidebar behind a Filters & tags button. Circuit search stays above the
+  the sidebar behind a Tags & filters button. Circuit search stays above the
   wall; an empty tag selection result does not substitute unfiltered examples.
 - `GET /api/gallery/authors` — non-empty public bylines with their currently
   visible circuit counts, ranked by count and then author name. The clickable
@@ -109,14 +109,13 @@ restrictive content-security-policy.
 
 ## Classification and visual attention
 
-[The taxonomy](../../config/gallery-taxonomy.json) separates functional categories
-from topology, implementation and architecture tags. A circuit may belong to
-up to three categories and carry up to twelve tags; catalog suggestions include
-unused tags so the current library does not define the limits of classification.
-Legacy/custom tags remain browsable. Categories, tag search and multi-selection
-live in the resizable left sidebar; its preferred width is local to the browser.
-`category=<id>` composes with the existing feed filters before pagination.
-The tags endpoint additionally returns `{categories: [{id, count}]}`.
+[The taxonomy](../../config/gallery-taxonomy.json) defines one tag vocabulary
+covering circuit function, topology, implementation and architecture. A circuit
+may carry up to twelve tags; catalog suggestions include unused tags so the
+current library does not define the limits of classification. Legacy/custom
+tags remain browsable. Visual group headings organize the tag list but are not
+a second filtering system. Tag search and multi-selection live in the resizable
+left sidebar; its preferred width is local to the browser.
 
 Visual attention is independent of publication status and netlist extraction.
 A suspected gap, unintended diagonal, overlap, clipping, unreadable label or
@@ -131,7 +130,7 @@ allows adding a note, marking the finding resolved and reopening it. None of
 these actions unpublishes the circuit or changes its Project, name, owner,
 likes, preview, or visitor statistics.
 
-`PATCH /api/gallery/<id>/curation` accepts `categories`, `tags`, `attention`
+`PATCH /api/gallery/<id>/curation` accepts `tags`, `attention`
 (`null` or `{status: "needs-attention" | "resolved", issues: [{kind, detail}]}`),
 `expectedPreviewRevision`, and `expectedCurationRevision`. It requires same-origin
 requests and the entry's author or an administrator. An empty pending finding
@@ -142,7 +141,7 @@ and displays a recheck notice. Metadata changes preserve a version snapshot;
 curation fields are included in backups and restores.
 
 A bulk visual audit records the inspected image revision, original tags,
-categories, proposed tags, findings and uncertainty for every entry. The
+proposed tags, findings and uncertainty for every entry. The
 [application script](../../scripts/curate-gallery.mjs) validates this report
 without writing by default. Explicit application requires an origin, a session
 cookie file and a before/after receipt. Changed entries are skipped for review;
@@ -373,7 +372,7 @@ header buys nothing. Without such a session every admin route answers
   it does not embed a second Gallery-specific migration policy.
 - `POST /api/gallery/maintenance/netlist-badges` — re-answer one batch of
   stored netlistable marks (`{ "limit"?: 1..200 }` → `{scanned, changed,
-  unreadable, ruleVersion, remaining}`). Every entry stores the rule version
+unreadable, ruleVersion, remaining}`). Every entry stores the rule version
   its mark came from (`NETLIST_MARK_RULE_VERSION`, bumped whenever a change
   can turn a stored answer stale), so the pass selects exactly the entries
   behind this build and carries no cursor: running it again when none is
