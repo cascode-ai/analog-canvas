@@ -993,13 +993,16 @@ test("formats every Port label in the current Cell without renaming it", async (
     0,
   );
 
-  await runCellCommand(page, "Manage Cells…");
-  const manager = page.getByRole("dialog", { name: "Cell Manager" });
-  await manager.getByRole("button", { name: "Format all Port labels" }).click();
+  await revealPropertiesShelf(page);
+  const shelf = page.getByTestId("selection-shelf");
+  if ((await shelf.getAttribute("aria-expanded")) === "false")
+    await shelf.click();
+  const format = page.getByRole("region", { name: "Port label formatting" });
+  await format.getByLabel("Port label suffix case").selectOption("uppercase");
+  await format.getByRole("button", { name: "Format all Port labels" }).click();
   await expect(page.getByTestId("status")).toContainText(
     "Formatted all Port labels",
   );
-  await manager.getByLabel("Close Cell Manager").click();
 
   await expect(firstLabel).toHaveText("IND");
   await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveText(
@@ -1015,10 +1018,26 @@ test("formats every Port label in the current Cell without renaming it", async (
       '[data-text-run="subscript"] [data-text-run="span"][style*="font-style:normal"][style*="font-weight:700"]',
     ),
   ).toHaveText("ND");
-  await expect(secondLabel).toHaveText("out");
+  await expect(secondLabel).toHaveText("oUT");
   await expect(secondLabel.locator('[data-text-run="subscript"]')).toHaveText(
-    "ut",
+    "UT",
   );
+
+  await format.getByLabel("Port label suffix case").selectOption("lowercase");
+  await format
+    .getByLabel("Port label suffix position")
+    .selectOption("baseline");
+  await format.getByRole("button", { name: "Format all Port labels" }).click();
+  await expect(firstLabel).toHaveText("Ind");
+  await expect(secondLabel).toHaveText("out");
+  await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveCount(
+    0,
+  );
+  await expect(
+    firstLabel.locator(
+      '[data-text-run="span"][style*="font-style:normal"][style*="font-weight:700"]',
+    ),
+  ).toHaveText("nd");
   const project = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
       "utf8",
@@ -1032,11 +1051,12 @@ test("formats every Port label in the current Cell without renaming it", async (
 
   await page.keyboard.press("Control+z");
   await expect(firstLabel).toHaveText("IND");
-  await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveCount(
-    0,
+  await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveText(
+    "ND",
   );
-  await expect(secondLabel).toHaveText("out");
-  await expect(secondLabel.locator('[data-text-run="subscript"]')).toHaveCount(
+  await expect(secondLabel).toHaveText("oUT");
+  await page.keyboard.press("Control+z");
+  await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveCount(
     0,
   );
 });

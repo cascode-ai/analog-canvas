@@ -15,6 +15,7 @@ import {
   routeEnd,
   semanticTextDocument,
 } from "@icm/model";
+import type { PortLabelFormatOptions } from "@icm/model";
 import {
   deviceDescriptor,
   resolveReviewedExternalBinding,
@@ -1438,6 +1439,7 @@ export function planRenameCellTerminal(
 export function planFormatCellTerminalAnnotations(
   project: CircuitProject,
   documentId: string,
+  options?: PortLabelFormatOptions,
 ): ProjectStructureEdit[] {
   const document = requireDocument(project, documentId);
   if (!document.netlist) throw new Error(`Cell does not exist: ${documentId}`);
@@ -1449,7 +1451,7 @@ export function planFormatCellTerminalAnnotations(
     if (binding?.kind !== "cell-terminal-name") return [];
     const terminal = terminalById.get(binding.terminalId);
     if (!terminal) return [];
-    const formatOverride = canonicalPortTextDocument(terminal.name);
+    const formatOverride = canonicalPortTextDocument(terminal.name, options);
     if (
       annotation.formatOverride &&
       JSON.stringify(annotation.formatOverride) ===

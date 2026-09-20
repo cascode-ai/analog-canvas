@@ -5150,7 +5150,6 @@ export function App({
                   }
                 },
                 onJumpToCaller: jumpToCaller,
-                onFormatPortLabels: formatCellTerminalAnnotations,
                 onSetPortDirection: (documentId, portId, direction) =>
                   updateCellPortDirection(portId, direction, documentId),
                 onMovePort: (documentId, portId, delta) =>
@@ -5976,6 +5975,15 @@ export function App({
                     }
                   : null
               }
+              portLabelFormat={{
+                documentId: document.id,
+                labelCount: document.annotations.filter(
+                  (annotation) =>
+                    annotation.binding?.kind === "cell-terminal-name",
+                ).length,
+                onFormat: (options) =>
+                  formatCellTerminalAnnotations(document.id, options),
+              }}
               mosBulk={{
                 connection:
                   selectedInstance && selectedBulkResolution

@@ -30,6 +30,7 @@ import type {
   Annotation,
   CircuitProject,
   ExternalSubcircuitDefinition,
+  PortLabelFormatOptions,
   SchematicDocument,
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
@@ -399,6 +400,7 @@ export function createProjectStructureCommands({
 
   const formatCellTerminalAnnotations = (
     targetDocumentId = activeDocument.id,
+    options?: PortLabelFormatOptions,
   ): void => {
     const targetDocument = project.documents.find(
       (candidate) => candidate.id === targetDocumentId,
@@ -411,9 +413,13 @@ export function createProjectStructureCommands({
       setStatus("This Cell has no Port labels");
       return;
     }
-    const edits = planFormatCellTerminalAnnotations(project, targetDocumentId);
+    const edits = planFormatCellTerminalAnnotations(
+      project,
+      targetDocumentId,
+      options,
+    );
     if (edits.length === 0) {
-      setStatus("All Port labels already use the standard format");
+      setStatus("All Port labels already use the selected format");
       return;
     }
     if (commitStructure("format-cell-port-labels", edits)) {

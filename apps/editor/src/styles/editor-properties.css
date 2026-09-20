@@ -30,6 +30,32 @@
   border-top: 1px solid var(--icm-border);
 }
 
+.port-label-format-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.port-label-format-controls select {
+  width: 100%;
+}
+
+.port-label-format-properties > button {
+  width: 100%;
+}
+
+.port-label-format-properties > small {
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  line-height: var(--icm-line);
+}
+
+@media (max-width: 860px) {
+  .port-label-format-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .property-card,
 .property-details {
   min-width: 0;

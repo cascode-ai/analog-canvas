@@ -66,7 +66,6 @@ export function CellManagerDialog({
   onReorder,
   onDelete,
   onJumpToCaller,
-  onFormatPortLabels,
   onSetPortDirection,
   onMovePort,
   onEditParameter,
@@ -92,7 +91,6 @@ export function CellManagerDialog({
   onReorder(documentIds: string[], topDocumentId: string): void;
   onDelete(documentId: string): void;
   onJumpToCaller(documentId: string, instanceId: string): void;
-  onFormatPortLabels(documentId: string): void;
   onSetPortDirection(
     documentId: string,
     portId: string,
@@ -511,9 +509,6 @@ export function CellManagerDialog({
                   cell={selectedDocument}
                   project={project}
                   callerCount={selectedEntry.callers.length}
-                  onFormatPortLabels={() =>
-                    onFormatPortLabels(selectedEntry.id)
-                  }
                   onSetPortDirection={(portId, direction) =>
                     onSetPortDirection(selectedEntry.id, portId, direction)
                   }

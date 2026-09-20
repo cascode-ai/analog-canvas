@@ -57,7 +57,6 @@ describe("CellInterfaceEditor", () => {
         cell={cell}
         project={createEmptyProject("project", "Project")}
         callerCount={2}
-        onFormatPortLabels={vi.fn()}
         onSetPortDirection={vi.fn()}
         onMovePort={vi.fn()}
         onEditParameter={vi.fn(() => ({ ok: true, message: "" }))}
@@ -68,7 +67,7 @@ describe("CellInterfaceEditor", () => {
     expect(markup).toContain("Vout");
     expect(markup).toContain("2 markers");
     expect(markup).toContain('aria-label="Formal port Vout direction"');
-    expect(markup).toContain("Format all Port labels");
+    expect(markup).not.toContain("Format all Port labels");
     expect(markup).not.toContain("Formal terminal");
   });
 
@@ -96,7 +95,6 @@ describe("CellInterfaceEditor", () => {
         cell={cell}
         project={createEmptyProject("project", "Project")}
         callerCount={0}
-        onFormatPortLabels={vi.fn()}
         onSetPortDirection={vi.fn()}
         onMovePort={vi.fn()}
         onEditParameter={vi.fn(() => ({ ok: true, message: "" }))}

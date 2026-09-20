@@ -119,6 +119,53 @@ describe("hierarchy domain planners", () => {
     expect(planFormatCellTerminalAnnotations(project, document.id)).toEqual([]);
   });
 
+  it("applies an explicit suffix case and placement without renaming Ports", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.netlist!.terminals.push({
+      id: "terminal-out",
+      name: "VoUt",
+      netId: "net-out",
+      direction: "output",
+      interfaceInstanceIds: ["P1"],
+    });
+    document.annotations.push({
+      id: "label-out",
+      kind: "instance-label",
+      binding: { kind: "cell-terminal-name", terminalId: "terminal-out" },
+      anchor: {
+        kind: "object",
+        objectId: "P1",
+        localOffset: { x: 0, y: 0 },
+        fallbackPosition: { x: 0, y: 0 },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
+    const options = {
+      suffixCase: "lowercase",
+      suffixPlacement: "baseline",
+    } as const;
+
+    const edits = planFormatCellTerminalAnnotations(
+      project,
+      document.id,
+      options,
+    );
+
+    expect(edits[0]).toMatchObject({
+      edits: [
+        {
+          annotation: {
+            formatOverride: canonicalPortTextDocument("VoUt", options),
+          },
+        },
+      ],
+    });
+    expect(document.netlist!.terminals[0]!.name).toBe("VoUt");
+  });
+
   it("rejects deleting a referenced Cell before Project commit", () => {
     const project = createEmptyProject("project", "Project", "top");
     const child = createEmptyDocument("child", "Child");

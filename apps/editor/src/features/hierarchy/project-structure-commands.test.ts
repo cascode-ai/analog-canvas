@@ -396,8 +396,12 @@ describe("Project structure commands", () => {
     });
     input.project.documents.push(child);
     const commands = createProjectStructureCommands(input);
+    const options = {
+      suffixCase: "lowercase",
+      suffixPlacement: "baseline",
+    } as const;
 
-    commands.formatCellTerminalAnnotations(child.id);
+    commands.formatCellTerminalAnnotations(child.id, options);
 
     expect(input.commitStructure).toHaveBeenCalledWith(
       "format-cell-port-labels",
@@ -408,7 +412,7 @@ describe("Project structure commands", () => {
           edits: [
             expect.objectContaining({
               annotation: expect.objectContaining({
-                formatOverride: canonicalPortTextDocument("IN"),
+                formatOverride: canonicalPortTextDocument("IN", options),
               }),
             }),
           ],

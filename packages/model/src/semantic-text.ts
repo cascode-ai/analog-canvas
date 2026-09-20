@@ -28,6 +28,16 @@ function uprightMathSubscript(value: string): RichTextRun {
   return span([span([{ kind: "text", value }], "bold")], "subscript");
 }
 
+function uprightMathSuffix(
+  value: string,
+  placement: PortLabelSuffixPlacement,
+  suffixCase: PortLabelSuffixCase,
+): RichTextRun {
+  const bold = span([{ kind: "text", value }], "bold");
+  const cased = suffixCase === "preserve" ? bold : span([bold], suffixCase);
+  return placement === "subscript" ? span([cased], "subscript") : cased;
+}
+
 /**
  * Supply designators keep an italic subscript; every other subscript is
  * upright. The renderer draws scripts upright by default and treats a nested
@@ -112,23 +122,42 @@ export function voltageNodeTextDocument(value: string): RichTextDocument {
   };
 }
 
+export type PortLabelSuffixCase = "preserve" | "uppercase" | "lowercase";
+export type PortLabelSuffixPlacement = "subscript" | "baseline";
+
+export interface PortLabelFormatOptions {
+  suffixCase: PortLabelSuffixCase;
+  suffixPlacement: PortLabelSuffixPlacement;
+}
+
+export const DEFAULT_PORT_LABEL_FORMAT: PortLabelFormatOptions = {
+  suffixCase: "preserve",
+  suffixPlacement: "subscript",
+};
+
 /**
  * Canonical presentation applied by the explicit "format all Ports" action.
  *
  * Unlike the automatic formal-Port default, this applies to every Port name:
  * its first character uses the established bold italic face, while the
- * remaining characters use the same bold face upright and subscripted. Letter
- * case is authored content and stays visible exactly as entered, along with
- * the electrical identity and netlist spelling.
+ * remaining characters use the same bold upright face. The default preserves
+ * authored case and uses a subscript; an explicit batch-format choice may
+ * project the suffix in upper/lower case or at the baseline without changing
+ * the electrical identity or netlist spelling.
  */
-export function canonicalPortTextDocument(value: string): RichTextDocument {
+export function canonicalPortTextDocument(
+  value: string,
+  options: PortLabelFormatOptions = DEFAULT_PORT_LABEL_FORMAT,
+): RichTextDocument {
   if (value.length === 0) return { runs: [{ kind: "line-break" }] };
   const [head, ...tailCharacters] = Array.from(value);
   const tail = tailCharacters.join("");
   return {
     runs: [
       mathBase(head!),
-      ...(tail.length > 0 ? [uprightMathSubscript(tail)] : []),
+      ...(tail.length > 0
+        ? [uprightMathSuffix(tail, options.suffixPlacement, options.suffixCase)]
+        : []),
     ],
   };
 }

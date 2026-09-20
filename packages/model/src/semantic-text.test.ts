@@ -57,6 +57,46 @@ describe("canonical Port text", () => {
       ],
     });
   });
+
+  it.each([
+    ["uppercase", "uppercase"],
+    ["lowercase", "lowercase"],
+    ["preserve", "bold"],
+  ] as const)("can render the suffix in %s", (suffixCase, suffixStyle) => {
+    const content = canonicalPortTextDocument("VoUt", {
+      suffixCase,
+      suffixPlacement: "subscript",
+    });
+
+    expect(flattenRichText(content)).toBe("VoUt");
+    expect(content.runs[1]).toMatchObject({ style: "subscript" });
+    expect(
+      content.runs[1]?.kind === "span"
+        ? content.runs[1].children[0]
+        : undefined,
+    ).toMatchObject({ style: suffixStyle });
+  });
+
+  it("can keep the bold upright suffix on the baseline", () => {
+    const content = canonicalPortTextDocument("VDD", {
+      suffixCase: "lowercase",
+      suffixPlacement: "baseline",
+    });
+
+    expect(flattenRichText(content)).toBe("VDD");
+    expect(content.runs[1]).toEqual({
+      kind: "span",
+      style: "lowercase",
+      children: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [{ kind: "text", value: "DD" }],
+        },
+      ],
+    });
+    expect(JSON.stringify(content)).not.toContain('"subscript"');
+  });
 });
 
 describe("semantic formal-Port text", () => {
