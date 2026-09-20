@@ -8,7 +8,7 @@ import type {
 import type { SimulationService } from "@icm/simulation-service";
 import type { Prepared } from "@icm/simulation-service/contract";
 import type { ProjectRunHistory } from "./project-run-history";
-import { sourcePresentation } from "./source-presentation";
+import type { sourcePresentation } from "./source-presentation";
 import { serializeProject } from "@icm/project-protocol";
 import { simulationFileEngine } from "./file-engine";
 import { createBrowserSimulationArtifactStore } from "./browser-simulation-artifact-store";
@@ -122,7 +122,10 @@ export class BrowserSimulationSession {
           if (generation === this.generation) this.service = undefined;
           throw error;
         });
-      const service = await this.service;
+      const [service, { sourcePresentation }] = await Promise.all([
+        this.service,
+        import("./source-presentation"),
+      ]);
       if (
         generation !== this.generation ||
         this.options.getProjectSessionId() !== this.projectSessionId

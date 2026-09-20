@@ -56,6 +56,21 @@ async function fixture() {
 }
 
 describe("Project result handoff", () => {
+  it("does not open or save archives when disposed during lazy handoff", async () => {
+    const input = await fixture();
+    const store = createBrowserSimulationArchiveStore({
+      idbFactory: new IDBFactory(),
+    });
+    const save = vi.spyOn(store, "save");
+    const history = new ProjectRunHistory("project", store);
+    history.track(input);
+    history.dispose();
+    await import("./simulation-run-archive");
+    await import("./browser-simulation-archive-store");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(save).not.toHaveBeenCalled();
+    expect(history.snapshot()[0]?.archive).toBeUndefined();
+  });
   it("polls independently, archives once and restores after the owner and registry close", async () => {
     const input = await fixture();
     const idbFactory = new IDBFactory();

@@ -4,17 +4,11 @@ import type {
   SimulationReply,
 } from "@icm/simulation-service/contract";
 import type { SimulationFiles } from "@icm/simulation-service/files";
-import {
-  createBrowserSimulationArchiveStore,
-  type BrowserSimulationArchiveStore,
-} from "./browser-simulation-archive-store";
-import {
-  captureSimulationRunArchive,
-  MAX_SIMULATION_ARCHIVE_BYTES,
-  summarizeSimulationRunArchive,
-  type SimulationArchivePresentation,
-  type SimulationRunArchiveSummary,
-  type SimulationRunArchiveV1,
+import type { BrowserSimulationArchiveStore } from "./browser-simulation-archive-store";
+import type {
+  SimulationArchivePresentation,
+  SimulationRunArchiveSummary,
+  SimulationRunArchiveV1,
 } from "./simulation-run-archive";
 
 export interface ProjectRunRecord {
@@ -37,7 +31,7 @@ export class ProjectRunHistory {
   private disposed = false;
   constructor(
     readonly projectId: string,
-    private store: BrowserSimulationArchiveStore = createBrowserSimulationArchiveStore(),
+    private store?: BrowserSimulationArchiveStore,
   ) {}
   snapshot = (): readonly ProjectRunRecord[] => [...this.records.values()];
   /** React StrictMode replays mount effects before any user-owned run starts. */
@@ -95,6 +89,21 @@ export class ProjectRunHistory {
           this.notify();
           return;
         }
+        // The registry is created with the editor, but archive codecs and disk
+        // storage are needed only after a run produces evidence.
+        const [
+          {
+            captureSimulationRunArchive,
+            MAX_SIMULATION_ARCHIVE_BYTES,
+            summarizeSimulationRunArchive,
+          },
+          { createBrowserSimulationArchiveStore },
+        ] = await Promise.all([
+          import("./simulation-run-archive"),
+          import("./browser-simulation-archive-store"),
+        ]);
+        if (this.disposed) return;
+        this.store ??= createBrowserSimulationArchiveStore();
         const captured = await captureSimulationRunArchive(input.files, {
           projectId: this.projectId,
           presentation: { ...input.presentation, origin: input.owner },
@@ -172,6 +181,6 @@ export class ProjectRunHistory {
     for (const timer of this.timers) clearTimeout(timer);
     this.timers.clear();
     this.listeners.clear();
-    this.store.close();
+    this.store?.close();
   }
 }
