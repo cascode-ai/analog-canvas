@@ -4981,11 +4981,17 @@ test("keeps the production command surface compact and publishes PWA metadata", 
     .locator('link[rel="manifest"]')
     .getAttribute("href");
   expect(manifest).toBe("/manifest.webmanifest");
-  expect(
-    await (await page.request.get("/manifest.webmanifest")).json(),
-  ).toMatchObject({
+  const manifestPayload = await (
+    await page.request.get("/manifest.webmanifest")
+  ).json();
+  expect(manifestPayload).toMatchObject({
     name: "Analog Canvas",
     display: "standalone",
+    theme_color: "#2383e2",
+    icons: [
+      { src: "./icon-192.png", sizes: "192x192" },
+      { src: "./icon-512.png", sizes: "512x512" },
+    ],
   });
 });
 

@@ -231,13 +231,7 @@ body {
   height: 22px;
   flex: 0 0 auto;
   border-radius: 6px;
-  background: linear-gradient(
-    145deg,
-    #2f3437 0%,
-    #37352f 55%,
-    #2383e2 55%,
-    #2383e2 100%
-  );
+  background: #2f3437 url("/icon.svg") center / cover no-repeat;
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 8%);
 }
 

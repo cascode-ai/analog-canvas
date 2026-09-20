@@ -547,7 +547,13 @@ test("the site lands on the full-screen gallery feed", async ({ page }) => {
   const brand = page.getByTestId("gallery-editor-link");
   await expect(brand).toHaveCSS("display", "flex");
   await expect(brand).toHaveCSS("text-decoration-line", "none");
-  await expect(brand.locator(".app-brand-mark")).toBeVisible();
+  const brandMark = brand.locator(".app-brand-mark");
+  await expect(brandMark).toBeVisible();
+  await expect(brandMark).toHaveCSS("background-image", /icon\.svg/);
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute(
+    "href",
+    "/icon.svg",
+  );
 
   // With community entries present the wall shows them alone: the bundled
   // starter tiles exist only while the gallery is empty.
