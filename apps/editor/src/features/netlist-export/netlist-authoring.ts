@@ -158,7 +158,7 @@ function defaultBinding(symbolId: string): InstanceNetlistBinding | undefined {
  *
  * `modelTarget` is the model the process in hand names for this device, so a
  * transistor drawn while working in a process is bound to that process from
- * the moment it lands, rather than exporting as a TODO until someone opens the
+ * the moment it lands, rather than blocking export until someone opens the
  * Netlist panel and picks the process again. A device that takes no explicit
  * model ignores it.
  */

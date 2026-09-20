@@ -88,9 +88,8 @@ export function planDesignNetlistExport({
       message: "Resolve the Check Report findings before export",
     };
   }
-  // An unbound model or width is handed out as a TODO placeholder; a node
-  // only one pin reaches is not a value somebody can fill in later, so this
-  // netlist is not something to hand out at all.
+  // A node only one pin reaches is not a complete circuit, so this netlist is
+  // not something to hand out even after strict extraction succeeds.
   const unfinished = unfinishedDrawingDiagnostics(result.diagnostics);
   if (unfinished.length > 0) {
     return {
@@ -102,9 +101,8 @@ export function planDesignNetlistExport({
     };
   }
   const printed = result.file;
-  const note = result.placeholders.length
-    ? `; incomplete netlist: ${result.placeholders.length} TODO field${result.placeholders.length === 1 ? "" : "s"}`
-    : result.diagnostics.length || electricalWarningsPresent
+  const note =
+    result.diagnostics.length || electricalWarningsPresent
       ? "; see Check Report for findings"
       : "";
   return {

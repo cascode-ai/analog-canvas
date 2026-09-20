@@ -1300,9 +1300,8 @@ function extractDeviceInstance(
   }
   // A device whose authoring data was never written binds nothing and sets no
   // parameter — which is what an empty record says. Older Projects, imports
-  // and Agent-authored instances reach here without one, and refusing the
-  // whole netlist over an absent object would report the drawing as broken
-  // when what is missing is a model target the export already writes as TODO.
+  // and Agent-authored instances reach here without one. Reading that state as
+  // empty lets extraction report the specific missing model and parameters.
   const netlist = instance.netlist ?? { parameters: {} };
   if (!isIdentifier(instance.reference!)) {
     diagnostic(

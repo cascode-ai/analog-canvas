@@ -811,7 +811,8 @@ test("refreshes a legacy circuit with missing device defaults in one click", asy
 }) => {
   // A circuit from before the editor bound devices: two MOS with no model and
   // no dimensions, plus one ideal resistor with no value. Refresh fills every
-  // safe process default in the same undoable edit and leaves no TODO fields.
+  // safe process default in the same undoable edit. No partial netlist is
+  // exposed while those fields are missing.
   const project = createEmptyProject("bare-devices", "Bare devices");
   const document = project.documents[0]!;
   for (const [reference, symbolId] of [
@@ -872,25 +873,27 @@ test("refreshes a legacy circuit with missing device defaults in one click", asy
   });
   await expect(page.getByTestId("status")).toContainText("Opened");
   const code = page.getByLabel("Netlist code", { exact: true });
-  await expect(code).toContainText("TODO");
+  await expect(code).toHaveText("");
+  await expect(
+    page.getByRole("region", { name: "Live netlist" }).getByRole("alert"),
+  ).toContainText("requires an explicit model target");
   const fill = page.getByTestId("netlist-fill-defaults");
   await expect(fill).toHaveText("Fill 3 devices");
   await page.getByRole("button", { name: "Refresh netlist" }).click();
   await expect(code).toContainText("sky130_fd_pr__nfet_01v8");
   await expect(code).toContainText(/R1 \S+ \S+ 1k/u);
-  await expect(code).not.toContainText("TODO");
   await expect(fill).toHaveCount(0);
   // One undo step: the circuit is back to what was opened.
   await clickCommand(page, "Edit", "Undo");
-  await expect(code).toContainText("TODO");
+  await expect(code).toHaveText("");
   await expect(page.getByTestId("netlist-fill-defaults")).toHaveText(
     "Fill 3 devices",
   );
   await page.getByTestId("netlist-fill-defaults").click();
-  await expect(code).not.toContainText("TODO");
+  await expect(code).toContainText("sky130_fd_pr__nfet_01v8");
 });
 
-test("retains copyable TODO fields when the user clears a template default", async ({
+test("blocks netlist output when the configured default is missing", async ({
   page,
 }) => {
   const project = createEmptyProject("draft-project", "Draft Circuit");
@@ -923,27 +926,23 @@ test("retains copyable TODO fields when the user clears a template default", asy
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(project)),
   });
-  const text = await copyNetlistText(page);
-  expect(text).not.toMatch(/^(?:\*|\/\/)/mu);
-  expect(text).toContain("R1 NC0001 NC0002 {TODO_dut_R1_value}");
-  await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
-    0,
-  );
-  await expect(page.getByTestId("status")).toContainText("1 TODO field");
+  const code = page.getByLabel("Netlist code", { exact: true });
+  await expect(code).toHaveText("");
+  await expect(
+    page.getByRole("region", { name: "Live netlist" }).getByRole("alert"),
+  ).toContainText("requires parameter value");
   await clickCommand(page, "Netlist", "Check Report…");
   const report = page.getByRole("dialog", { name: "Check Report" });
-  await expect(report).toContainText("Incomplete netlist: 1 TODO field");
-  await expect(report.getByTestId("netlist-preview")).toContainText(
-    "R1 NC0001 NC0002 {TODO_dut_R1_value}",
-  );
+  await expect(report).toContainText("1 blocking issue");
+  await expect(report).toContainText("MISSING_REQUIRED_PARAMETER");
+  await expect(report.getByTestId("netlist-preview")).toHaveCount(0);
   await report.getByTestId("check-report-close").click();
   await page
     .getByRole("combobox", { name: "Netlist format" })
     .selectOption("spectre");
   await clickCommand(page, "Netlist", "Check Report…");
-  await expect(report.getByTestId("netlist-preview")).toContainText(
-    "R1 (NC0001 NC0002) resistor r=TODO_dut_R1_value",
-  );
+  await expect(report).toContainText("1 blocking issue");
+  await expect(report.getByTestId("netlist-preview")).toHaveCount(0);
 });
 
 test("keeps the netlist live and selectable when clipboard access fails", async ({

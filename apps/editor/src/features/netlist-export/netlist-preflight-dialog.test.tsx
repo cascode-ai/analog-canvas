@@ -50,9 +50,8 @@ describe("NetlistPreflightDialog", () => {
   });
 
   it("withholds the netlist while a wire is unfinished", () => {
-    // A TODO placeholder stands in for a value somebody will bind later. A
-    // node only one pin reaches is not that: the drawing is unfinished, so
-    // the report says so and the copy is not offered.
+    // A node only one pin reaches means the drawing is unfinished, so the
+    // report says so and the copy is not offered.
     const project = createEmptyProject("project", "Project", "main");
     const document = project.documents[0]!;
     document.instances.push({

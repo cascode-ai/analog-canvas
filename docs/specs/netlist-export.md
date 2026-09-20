@@ -249,9 +249,8 @@ simulator can run them without an external simulation setup.
 
 Extraction returns structured diagnostics with stable code, severity,
 Document ID, and affected object IDs. The strict extractor returns no IR when
-any error remains. The copy/export projection below permits explicit TODO
-fields for two omission categories; every other error still prevents printer
-invocation and output. Required error coverage includes:
+any error remains. Copy and export use that same answer: no printer runs and no
+partial netlist is exposed while an error remains. Required error coverage includes:
 
 - invalid cell-terminal, Net, or instance identifiers;
 - missing or mismatched formal terminal mappings;
@@ -285,8 +284,8 @@ Netlist configuration stores `format`, `portCase`, the selected process and
 editable device templates for Abstract, SKY130, TSMC 28, TSMC 180 and Custom.
 The editor works in SKY130 until told otherwise, and a native device placed
 while a process is selected is bound to that process's model as part of the
-placement, so a drawn circuit exports as that process rather than as TODO
-model fields nobody asked for.
+placement, so a drawn circuit exports as that process rather than with missing
+model fields.
 Format and case are output preferences. Process/device selection is an
 undoable Project transaction that writes ordinary typed bindings and parameters
 before any consumer extracts the circuit. Creating a bundled example applies
@@ -359,27 +358,22 @@ and unresolved hierarchy retain their original interfaces and validation.
 Design-netlist export adds no model-library include. Libraries, sections and
 corners belong to authored simulation source and its selected execution Profile.
 
-### Incomplete output
+### Missing models and values
 
-`createDesignNetlistExport` permits output when the only errors are
-`MISSING_MODEL_TARGET` and `MISSING_REQUIRED_PARAMETER`. It copies the Project,
-fills absent model bindings and blank/missing required device parameters with
-undefined `TODO_<cell>_<reference>_<field>` identifiers, and requires that copy
-to pass strict extraction before printing. Authored electrical identifiers and
-expressions are reserved case-insensitively to avoid accidental resolution;
-SPICE parameter placeholders use braces and Spectre uses bare identifiers.
-The returned structured placeholder list and diagnostics identify incomplete output.
-The sidebar and Check Report show that state outside the copied text. The
-projection never writes placeholders into the Project or changes simulation readiness.
+`MISSING_MODEL_TARGET` and `MISSING_REQUIRED_PARAMETER` block structural output
+like every other extraction error. The editor's selected process can author
+configured defaults through one undoable Project transaction; Refresh applies
+only missing defaults before trying extraction again. If no configured default
+can resolve a field, the sidebar and Check Report show the located diagnostic
+and expose no partial netlist. Export never invents an identifier for an
+unknown electrical value.
 
 ### Unfinished drawings
 
-A TODO placeholder answers "this value is not bound yet". The opposite
-condition — the drawing itself is not finished — is reported as
-`DEAD_END_NET`, one per node that a single instance pin reaches. Such a node
+An unfinished drawing is reported as `DEAD_END_NET`, one per node that a single
+instance pin reaches. Such a node
 is printed once and nothing else in the file ever reaches it, so a simulator
-meets a floating node rather than a circuit, and no placeholder can stand in
-for a wire nobody drew. Four single-pin nodes are not dead ends and carry no
+meets a floating node rather than a circuit. Four single-pin nodes are not dead ends and carry no
 finding: a Cell port (its node continues outward to every instantiation), a
 global Net (shared with the rest of the design), an explicit `NoConnect` (the
 author saying the pin ends here), and a node with an authored or imported name
@@ -443,7 +437,7 @@ in this panel is disabled until the draft is applied or discarded. The printed
 source and the circuit share undo/redo through those same transactions.
 
 The copy/export projection removes the strict printer's generated title and
-adds no diagnostic, preset, TODO-summary or library comments. It also accepts
+adds no diagnostic, preset or library comments. It also accepts
 an optional `portCase` (`upper` or `lower`), which the editor always supplies
 from its remembered choice, uppercase by default. Every formal Port name and
 the Cell-local node it owns, subcircuit-call pin names, and external-master
@@ -487,8 +481,8 @@ change either output.
 ## Incomplete and rejected examples
 
 A manually authored NMOS with W/L values but no model target produces a
-missing-target error in strict analysis. A structural export may mark its
-model `TODO_Main_M1_model` if all other electrical facts are present. Without a selected preset, export must not guess a model. With a preset, the
+missing-target error and no structural output. Without a selected preset,
+export must not guess a model. With a preset, the
 configured target and parameter defaults apply. The same
 device with an unconnected, unmarked drain still blocks output.
 

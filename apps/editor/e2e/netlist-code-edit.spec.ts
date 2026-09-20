@@ -433,12 +433,15 @@ test("opening and reopening Netlist preserves incomplete imported device data", 
     buffer: Buffer.from(JSON.stringify(project)),
   });
   const code = page.getByLabel("Netlist code", { exact: true });
-  await expect(code).toContainText("TODO");
+  await expect(code).toHaveText("");
+  await expect(
+    page.getByRole("region", { name: "Live netlist" }).getByRole("alert"),
+  ).toContainText("requires parameter value");
   const revision = await page.getByTestId("revision").textContent();
   // The Netlist button closes the panel it opened, and opens it again.
   await page.getByTestId("netlist-panel-toggle").click();
   await page.getByTestId("netlist-panel-toggle").click();
-  await expect(code).toContainText("TODO");
+  await expect(code).toHaveText("");
   await expect(page.getByTestId("revision")).toHaveText(revision!);
   const saved = JSON.parse(
     (await downloadBytes(page, "File", "Export Project File…")).toString(

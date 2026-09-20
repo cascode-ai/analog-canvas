@@ -95,7 +95,7 @@ function cards(text: string) {
 }
 
 describe("copy/export netlist projection", () => {
-  it("keeps hierarchy, formal port order and per-cell placeholders while ignoring presentation names", async () => {
+  it("blocks missing hierarchy values without writing placeholder output", async () => {
     const source = `
 .subckt leaf OUT IN params: scale=2
 R1 OUT IN 10k
@@ -115,21 +115,20 @@ R1 A B 5k
       delete document.instances.find((item) => item.reference === "R1")!
         .netlist!.parameters.value;
     }
+    const before = structuredClone(project);
     const result = createDesignNetlistExport(project);
-    expect(result.status).toBe("ready");
-    if (result.status !== "ready") return;
-    expect(result.file.text).toContain(".subckt leaf OUT IN params: scale=2");
-    expect(result.file.text).toContain("X1 B A leaf scale=3");
-    expect(result.file.text).toContain("R1 OUT IN {TODO_leaf_R1_value}");
-    expect(result.file.text).toContain("R1 A B {TODO_top_R1_value}");
-    expect(result.placeholders).toHaveLength(2);
-    project.name = "TODO_top_R1_value";
-    project.documents[0]!.name = "TODO_leaf_R1_value";
+    expect(result.status).toBe("blocked");
+    expect(
+      result.diagnostics.filter(
+        (item) => item.code === "MISSING_REQUIRED_PARAMETER",
+      ),
+    ).toHaveLength(2);
+    expect(project).toEqual(before);
     expect(createDesignNetlistExport(project)).toEqual(result);
   });
 
   it.each(["spice", "spectre"] as const)(
-    "exports five explicit missing fields in %s without mutating the circuit",
+    "blocks five explicit missing fields in %s without mutating the circuit",
     (format) => {
       const project = fixture();
       const before = structuredClone(project);
@@ -139,44 +138,10 @@ R1 A B 5k
         strict.diagnostics.filter((d) => d.severity === "error"),
       ).toHaveLength(5);
       const result = createDesignNetlistExport(project, { format });
-      expect(result.status).toBe("ready");
-      if (result.status !== "ready") return;
-      expect(result.placeholders).toHaveLength(5);
-      expect(result.file.text).not.toMatch(/^(?:\*|\/\/)/mu);
-      expect(result.file.text).toContain("l=150n m=1 nf=1 w=1u");
-      for (const item of result.placeholders) {
-        expect(result.file.text).toContain(item.token);
-      }
-      expect(result.file.text).toContain(
-        format === "spice" ? "{TODO_Main_R1_value}" : "r=TODO_Main_R1_value",
-      );
-      expect(result.file.text).toContain(
-        format === "spice"
-          ? "DC {TODO_Main_I1_dc}"
-          : "isource dc=TODO_Main_I1_dc",
-      );
-      // Replace just the five placeholders and compare every card to a complete
-      // strict export. This protects device count, pin vectors, names and order.
-      let filled = result.file.text;
-      for (const item of result.placeholders) {
-        const value =
-          item.field === "model"
-            ? "nmos_model"
-            : item.field === "dc"
-              ? "100u"
-              : "10k";
-        filled = filled.replaceAll(
-          format === "spice" && item.field !== "model"
-            ? `{${item.token}}`
-            : item.token,
-          value,
-        );
-      }
-      const complete = analyzeDesignNetlist(completeFixture(), { format });
-      expect(complete.ir).not.toBeNull();
-      expect(cards(filled)).toBe(
-        cards(printDesignNetlist(format, complete.ir!).text),
-      );
+      expect(result.status).toBe("blocked");
+      expect(
+        result.diagnostics.filter((item) => item.severity === "error"),
+      ).toHaveLength(5);
       expect(project).toEqual(before);
       expect(analyzeDesignNetlist(project, { format })).toEqual(strict);
       expect(createDesignNetlistExport(project, { format })).toEqual(result);
@@ -191,7 +156,6 @@ R1 A B 5k
       const result = createDesignNetlistExport(project, { format });
       expect(result.status).toBe("ready");
       if (result.status !== "ready") return;
-      expect(result.placeholders).toEqual([]);
       expect(cards(result.file.text)).toBe(
         cards(printDesignNetlist(format, strict.ir!).text),
       );
@@ -206,23 +170,6 @@ R1 A B 5k
       ).toBe(true);
     },
   );
-
-  it("avoids parameter/model collisions, including folded names inside expressions", () => {
-    const project = fixture();
-    const document = project.documents[0]!;
-    document.netlist!.formalParameters.push({
-      name: "todo_main_r1_value",
-      defaultValue: "123",
-    });
-    document.instances[0]!.netlist!.parameters.w = "{TODO_Main_M1_model}";
-    document.instances[2]!.netlist!.parameters.VALUE = " ";
-    const result = createDesignNetlistExport(project);
-    expect(result.status).toBe("ready");
-    if (result.status !== "ready") return;
-    expect(result.file.text).toContain("{TODO_Main_R1_value_2}");
-    expect(result.file.text).toContain("TODO_Main_M1_model_2");
-    expect(result.file.text).not.toContain("DUPLICATE_PARAMETER_NAME");
-  });
 
   it.each([
     "open-pin",
@@ -548,7 +495,10 @@ describe("netlist extractability", () => {
       id: "M1",
       symbolId: "nmos",
       reference: "M1",
-      netlist: { parameters: {} },
+      netlist: {
+        binding: { kind: "model", deviceClass: "mos", name: "nmos_model" },
+        parameters: { w: "1u", l: "150n" },
+      },
       placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
     });
     document.nets.push(
@@ -572,10 +522,9 @@ describe("netlist extractability", () => {
     return project;
   }
 
-  it("does not hold a missing process library against a drawing", () => {
-    // An unbound model and an unset w/l are a PDK choice made at export,
-    // where they become TODO placeholders. The drawing is complete.
+  it("blocks a drawing whose process fields are missing", () => {
     const project = oneTransistor({ body: true });
+    project.documents[0]!.instances[0]!.netlist = { parameters: {} };
     const errors = analyzeDesignNetlist(project).diagnostics.filter(
       (item) => item.severity === "error",
     );
@@ -584,7 +533,7 @@ describe("netlist extractability", () => {
       "MISSING_REQUIRED_PARAMETER",
       "MISSING_REQUIRED_PARAMETER",
     ]);
-    expect(designExtractsNetlist(project)).toBe(true);
+    expect(designExtractsNetlist(project)).toBe(false);
     expect(
       errors.filter((item) => item.code === "MISSING_REQUIRED_PARAMETER"),
     ).toEqual(
@@ -718,29 +667,31 @@ describe("netlist extractability", () => {
   it("reads an absent netlist record as an empty one", () => {
     // Older Projects, imports and Agent-authored instances reach the exporter
     // with no netlist object at all. It binds nothing and sets no parameter —
-    // exactly what an empty record says — so the export writes the model and
-    // width as TODO instead of reporting the drawing as broken.
+    // exactly what an empty record says — so extraction reports every missing
+    // field without mutating the Project.
     const project = oneTransistor({ body: true });
     const instance = project.documents[0]!.instances[0]!;
     delete (instance as { netlist?: unknown }).netlist;
 
-    expect(designExtractsNetlist(project)).toBe(true);
+    expect(designExtractsNetlist(project)).toBe(false);
     const result = createDesignNetlistExport(project, { format: "spice" });
-    expect(result.status).toBe("ready");
-    if (result.status !== "ready") return;
-    expect(result.placeholders.map((item) => item.field).sort()).toEqual([
-      "l",
-      "model",
-      "w",
+    expect(result.status).toBe("blocked");
+    expect(
+      result.diagnostics
+        .filter((item) => item.severity === "error")
+        .map((item) => item.code)
+        .sort(),
+    ).toEqual([
+      "MISSING_MODEL_TARGET",
+      "MISSING_REQUIRED_PARAMETER",
+      "MISSING_REQUIRED_PARAMETER",
     ]);
-    // The Project itself is untouched; placeholders live in the copy.
     expect(instance.netlist).toBeUndefined();
   });
 
   it("refuses a drawing whose wire was never finished", () => {
     // The printed card would name this node once and nothing else in the file
-    // would ever reach it. That is not a value a TODO placeholder can supply
-    // later; it is a wire nobody drew.
+    // would ever reach it. It is a wire nobody drew.
     const project = withStub({ dangling: true });
     const result = createDesignNetlistExport(project, { format: "spice" });
     // The printer still says what the drawing says — the refusal is the

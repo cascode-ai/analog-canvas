@@ -116,9 +116,9 @@ export function NetlistCodePanel({
     }
   }
   // What the process still owes this circuit: devices drawn before it was
-  // chosen, or before the editor bound them at all, keep their TODO model and
-  // dimensions until somebody says so. Counting is the same plan the button
-  // applies, so the number and the action cannot disagree.
+  // chosen, or before the editor bound them at all, remain blocked until the
+  // defaults are authored. Counting is the same plan the button applies, so
+  // the number and the action cannot disagree.
   const pendingDefaults = useMemo(() => {
     if (configurationError) return 0;
     try {
@@ -181,16 +181,20 @@ export function NetlistCodePanel({
   }, [source]);
   function apply(options: { fillMissingDefaults?: boolean } = {}) {
     if (!dirty && !options.fillMissingDefaults) return true;
-    if (conflict || result?.status !== "ready") return false;
-    const plan = planNetlistCodeEdit(project, result, draftRef.current);
-    if (!plan.ok) {
-      setApplyError(plan.message);
-      return false;
+    if (conflict) return false;
+    let edits: ProjectStructureEdit[] = [];
+    let working = project;
+    if (dirty) {
+      if (result?.status !== "ready") return false;
+      const plan = planNetlistCodeEdit(project, result, draftRef.current);
+      if (!plan.ok) {
+        setApplyError(plan.message);
+        return false;
+      }
+      edits = plan.edits;
     }
-    let edits = plan.edits;
     if (options.fillMissingDefaults) {
       try {
-        let working = project;
         if (edits.length) {
           const staged = executeProjectTransaction(project, {
             transactionId: "plan-netlist-refresh",
@@ -513,14 +517,7 @@ export function NetlistCodePanel({
       <p className="netlist-edit-hint">
         Edit names, models and values · Enter to apply
       </p>
-      {error ? (
-        <p role="alert">{error}</p>
-      ) : result?.status === "ready" && result.placeholders.length ? (
-        <p role="status">
-          {result.placeholders.length} TODO fields remain. See Netlist → Check
-          Report.
-        </p>
-      ) : null}
+      {error ? <p role="alert">{error}</p> : null}
     </section>
   );
 }

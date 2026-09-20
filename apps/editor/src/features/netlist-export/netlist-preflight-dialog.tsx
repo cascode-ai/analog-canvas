@@ -87,11 +87,9 @@ export function NetlistPreflightDialog({
   const blocking = unfinished.length > 0 ? unfinished.length : errors.length;
   const readiness = !exportable
     ? `${blocking} blocking issue${blocking === 1 ? "" : "s"}`
-    : result.status === "ready" && result.placeholders.length > 0
-      ? `Incomplete netlist: ${result.placeholders.length} TODO field${result.placeholders.length === 1 ? "" : "s"}`
-      : electricalDiagnostics.length > 0
-        ? "Structure ready; review electrical findings"
-        : "Ready to export";
+    : electricalDiagnostics.length > 0
+      ? "Structure ready; review electrical findings"
+      : "Ready to export";
   const hasDiagnostics =
     result.diagnostics.length > 0 || electricalDiagnostics.length > 0;
   return (
@@ -126,14 +124,6 @@ export function NetlistPreflightDialog({
             <p>Resolve the structural findings before copying a netlist.</p>
           )}
         </section>
-        {exportable &&
-        result.status === "ready" &&
-        result.placeholders.length > 0 ? (
-          <p>
-            Missing values and models are marked TODO in the netlist. Complete
-            them before simulation.
-          </p>
-        ) : null}
         <div
           className="netlist-preflight-body"
           data-has-preview={exportable ? "true" : "false"}

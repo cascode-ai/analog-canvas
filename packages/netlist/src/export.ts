@@ -1,4 +1,3 @@
-import { deviceDescriptor, requiredParameterNames } from "@icm/devices";
 import { directObjectLocator } from "@icm/derived";
 import type { CircuitProject } from "@icm/model";
 import {
@@ -15,13 +14,6 @@ import type { NetlistPortCase } from "./net-name-codec.js";
 
 import type { DesignNetlistLocations } from "./printed-netlist.js";
 
-export interface NetlistExportPlaceholder {
-  cellName: string;
-  reference: string;
-  field: string;
-  token: string;
-}
-
 export type DesignNetlistExportResult = {
   diagnostics: NetlistDiagnostic[];
 } & (
@@ -30,7 +22,6 @@ export type DesignNetlistExportResult = {
       status: "ready";
       file: NetlistFileDescriptor;
       locations: DesignNetlistLocations;
-      placeholders: NetlistExportPlaceholder[];
       cellCount: number;
       externalMasterCount: number;
     }
@@ -40,7 +31,8 @@ export type DesignNetlistExportResult = {
  * Nodes that a single pin touches. The printed card names such a node once
  * and nothing else in the file ever reaches it, so what a simulator meets is
  * a floating node rather than a circuit: the drawing is unfinished, which is
- * a different thing from a gap the export can fill with a TODO placeholder.
+ * a different thing from a missing model or value, which blocks export with a
+ * located diagnostic.
  * The legitimate single-pin nodes are excluded by construction — a Cell port
  * carries its node outward to whoever instantiates the Cell, a global net is
  * shared with the rest of the design, an explicit NoConnect is the author
@@ -134,12 +126,10 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
 /**
  * Whether this Cell extracts far enough to write a netlist file.
  *
- * Missing model targets and device parameters are a process-library choice,
- * not an incomplete drawing: the export writes them as TODO placeholders, so
- * they never decide this answer. Connectivity, references and interface
- * contracts do. One definition serves the editor, the Gallery badge and any
- * report, so a circuit is never called extractable in one place and not in
- * another.
+ * Missing model targets and required device parameters are blocking errors.
+ * A structural netlist never substitutes an undefined token for an electrical
+ * fact. One definition serves the editor, the Gallery badge and any report, so
+ * a circuit is never called extractable in one place and not in another.
  */
 /**
  * What answer `designExtractsNetlist` is currently giving.
@@ -154,8 +144,10 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
  * bindings read for every circuit, a Cell stating its ground as its own VSS
  * pin, and a stranded MOS body read as residue.
  * 4 also resolves unconnected schematic MOS bodies without supply symbols.
+ * 5 refuses missing model targets and required parameters instead of emitting
+ * placeholder identifiers.
  */
-export const NETLIST_MARK_RULE_VERSION = 4;
+export const NETLIST_MARK_RULE_VERSION = 5;
 
 export function designExtractsNetlist(
   project: CircuitProject,
@@ -173,8 +165,8 @@ export function designExtractsNetlist(
 
 /**
  * Export the circuit exactly as its persisted netlist bindings describe it.
- * Missing device values/models become visible TODO tokens, but this path never
- * substitutes a different process, model target or device invocation kind.
+ * Missing device values or models block output; this path never substitutes a
+ * different process, model target or device invocation kind.
  */
 export function createDesignNetlistExport(
   project: CircuitProject,
@@ -191,93 +183,15 @@ export function createDesignNetlistExport(
   // root keeps node 0 (`SIMULATION_DECK_GROUND`).
   const analysisOptions = { groundPin: "pin" as const, ...options, format };
   const analysis = analyzeDesignNetlist(project, analysisOptions);
-  const errors = analysis.diagnostics.filter(
-    (item) => item.severity === "error",
-  );
   const blocked = {
     status: "blocked",
     diagnostics: analysis.diagnostics,
   } as const;
-  if (
-    errors.some(
-      (item) =>
-        item.code !== "MISSING_MODEL_TARGET" &&
-        item.code !== "MISSING_REQUIRED_PARAMETER",
-    )
-  )
+  if (analysis.diagnostics.some((item) => item.severity === "error"))
     return blocked;
 
-  let ir = analysis.ir;
-  const placeholders: NetlistExportPlaceholder[] = [];
-  if (!ir) {
-    const draft = structuredClone(project);
-    // Reserve authored identifiers, including those inside expressions, so a
-    // TODO can never accidentally resolve to an existing parameter or model.
-    const electricalData = [
-      project.externalSubcircuitDefinitions,
-      ...project.documents.map((document) => [
-        document.netlist,
-        ...document.instances.map((instance) => [
-          instance.reference,
-          instance.netlist,
-        ]),
-      ]),
-    ];
-    const reserved = new Set(
-      (
-        JSON.stringify(electricalData).match(/[A-Za-z_][A-Za-z0-9_]*/gu) ?? []
-      ).map((name) => name.toLowerCase()),
-    );
-    const affected = new Map<string, Set<string>>();
-    for (const error of errors) {
-      const instances = affected.get(error.documentId) ?? new Set<string>();
-      for (const id of error.objectIds) instances.add(id);
-      affected.set(error.documentId, instances);
-    }
-    for (const document of draft.documents) {
-      for (const instance of document.instances) {
-        if (!affected.get(document.id)?.has(instance.id)) continue;
-        const definition = deviceDescriptor(instance.symbolId, project);
-        // Same reading as extraction: an absent record is an empty one, and
-        // the placeholders below are exactly what fills it.
-        const netlist = (instance.netlist ??= { parameters: {} });
-        if (!definition || !document.netlist) return blocked;
-        const placeholder = (field: string) => {
-          const base = `TODO_${document.netlist!.name}_${instance.reference}_${field}`;
-          let token = base;
-          for (let suffix = 2; reserved.has(token.toLowerCase()); suffix++) {
-            token = `${base}_${suffix}`;
-          }
-          reserved.add(token.toLowerCase());
-          placeholders.push({
-            cellName: document.netlist!.name,
-            reference: instance.reference!,
-            field,
-            token,
-          });
-          return token;
-        };
-        if (definition.targetPolicy === "required-model" && !netlist.binding) {
-          netlist.binding = {
-            kind: "model",
-            deviceClass: definition.deviceClass,
-            name: placeholder("model"),
-          };
-        }
-        for (const required of requiredParameterNames(definition)) {
-          const key =
-            Object.keys(netlist.parameters).find(
-              (name) => name.toLowerCase() === required.toLowerCase(),
-            ) ?? required;
-          if (netlist.parameters[key]?.trim()) continue;
-          const token = placeholder(required);
-          netlist.parameters[key] = format === "spice" ? `{${token}}` : token;
-        }
-      }
-    }
-    ir = analyzeDesignNetlist(draft, analysisOptions).ir;
-    if (!ir) return blocked;
-  }
+  const ir = analysis.ir;
+  if (!ir) return blocked;
   // Reported, not refused. This printer's job is to say what the drawing
   // says; whether the drawing is finished enough to hand out is the caller's
   // question, and `unfinishedDrawingDiagnostics` is how a caller asks it.
@@ -293,7 +207,6 @@ export function createDesignNetlistExport(
     status: "ready",
     diagnostics: [...analysis.diagnostics, ...deadEnds],
     file,
-    placeholders,
     locations: options.includeLocations
       ? locateDesignNetlist(format, ir, file.text)
       : { instances: [], fields: [] },
@@ -303,19 +216,17 @@ export function createDesignNetlistExport(
 }
 
 /**
- * The code for a node only one pin reaches. A missing model or an unbound
- * width is a gap the export fills with a TODO placeholder — the drawing is
- * done and the values come later. This one says the opposite: the drawing
- * itself is unfinished, and no placeholder can stand in for a wire nobody
- * drew.
+ * The code for a node only one pin reaches. Missing models and required values
+ * already block export. This separate finding says the drawing itself is
+ * unfinished because a wire reaches no peer.
  */
 export const NETLIST_DEAD_END_NET = "DEAD_END_NET";
 
 /**
- * The findings that say "this drawing is not finished", as distinct from the
- * ones that say "these values are not bound yet". Surfaces that hand a
- * netlist to somebody — the editor's export, the Gallery's mark — refuse on
- * these; a preview of what the drawing currently says need not.
+ * The findings that say "this drawing is not finished" after strict extraction
+ * has otherwise succeeded. Surfaces that hand a netlist to somebody — the
+ * editor's export and the Gallery's mark — refuse on these; a preview of what
+ * the drawing currently says need not.
  */
 export function unfinishedDrawingDiagnostics(
   diagnostics: readonly NetlistDiagnostic[],

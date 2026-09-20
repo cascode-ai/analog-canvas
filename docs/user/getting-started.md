@@ -384,9 +384,10 @@ Built-in Analog Blocks require their library-declared supply Nets to exist;
 export reports missing supplies instead of adding Cell Pins. Use an explicit
 external definition when the block needs a different supply interface.
 
-Fields still missing after these defaults use undefined `TODO_…` placeholders;
-the sidebar and Check Report identify incomplete output. The Project stays
-unchanged. Existing values, connections, and formal pin order are retained.
+Fields still missing after these defaults block netlist output; the sidebar and
+Check Report identify the exact device and field. Refresh applies configured
+defaults in one undoable Project change. Existing values, connections, and
+formal pin order are retained.
 Copied code contains no generated comments; detailed findings remain in Check
 Report. SPICE keeps an empty first title line so a simulator does not consume
 the first directive. An explicitly marked NoConnect becomes a floating node
