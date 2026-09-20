@@ -54,7 +54,7 @@ export function CellInterfaceEditor({
                 type="button"
                 disabled={ports.length === 0}
                 onClick={onFormatPortLabels}
-                title="Uppercase italic first letter; lowercase upright subscript suffix"
+                title="Italic initial; upright lowercase subscript"
               >
                 Format all Port labels
               </button>

@@ -997,7 +997,7 @@ test("formats every Port label in the current Cell without renaming it", async (
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager.getByRole("button", { name: "Format all Port labels" }).click();
   await expect(page.getByTestId("status")).toContainText(
-    "Formatted 2 Port labels",
+    "Formatted all Port labels",
   );
   await manager.getByLabel("Close Cell Manager").click();
 

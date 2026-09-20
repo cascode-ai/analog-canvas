@@ -415,14 +415,14 @@ describe("Project structure commands", () => {
         }),
       ],
     );
-    expect(input.setStatus).toHaveBeenCalledWith("Formatted 1 Port label");
+    expect(input.setStatus).toHaveBeenCalledWith("Formatted all Port labels");
     expect(input.activeDocument.annotations).toEqual([]);
 
     input.commitStructure.mockClear();
     commands.formatCellTerminalAnnotations(input.activeDocument.id);
     expect(input.commitStructure).not.toHaveBeenCalled();
     expect(input.setStatus).toHaveBeenLastCalledWith(
-      "This Cell has no Port labels to format",
+      "This Cell has no Port labels",
     );
   });
 

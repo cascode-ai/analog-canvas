@@ -404,11 +404,11 @@ export function createProjectStructureCommands({
       (candidate) => candidate.id === targetDocumentId,
     );
     if (!targetDocument) return;
-    const labelCount = targetDocument.annotations.filter(
+    const hasPortLabels = targetDocument.annotations.some(
       (annotation) => annotation.binding?.kind === "cell-terminal-name",
-    ).length;
-    if (labelCount === 0) {
-      setStatus("This Cell has no Port labels to format");
+    );
+    if (!hasPortLabels) {
+      setStatus("This Cell has no Port labels");
       return;
     }
     const edits = planFormatCellTerminalAnnotations(project, targetDocumentId);
@@ -416,15 +416,8 @@ export function createProjectStructureCommands({
       setStatus("All Port labels already use the standard format");
       return;
     }
-    const formattedCount = edits.reduce(
-      (count, edit) =>
-        count + (edit.kind === "transact_document" ? edit.edits.length : 0),
-      0,
-    );
     if (commitStructure("format-cell-port-labels", edits)) {
-      setStatus(
-        `Formatted ${formattedCount} Port label${formattedCount === 1 ? "" : "s"}`,
-      );
+      setStatus("Formatted all Port labels");
     }
   };
 

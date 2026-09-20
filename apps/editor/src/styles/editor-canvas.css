@@ -138,22 +138,6 @@
   stroke: rgb(var(--icm-accent-rgb) / 22%);
 }
 
-.text-format-tools {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-}
-
-.text-format-tools button {
-  min-width: auto;
-  padding: 0.2rem 0.45rem;
-}
-
-.text-format-tools small {
-  color: var(--icm-text-muted);
-}
-
 /* Selection traces the component's own lines instead of boxing it: the halo
    layer paints a copy of the symbol artwork beneath the scene, so the hit
    rectangle stays invisible and carries nothing but the cursor. Annotation
