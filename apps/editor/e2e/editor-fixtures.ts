@@ -190,7 +190,7 @@ export async function readComponentPropertyCode(page: Page): Promise<string> {
   return page.evaluate(() => navigator.clipboard.readText());
 }
 
-/** Edit the Document-wide Style JSON and let the editor apply valid code live. */
+/** Edit the Document-wide Properties JSON and apply valid code live. */
 export async function editDocumentStyleCode(
   page: Page,
   update: (value: Record<string, any>) => void,
@@ -204,23 +204,23 @@ export async function editDocumentStyleCode(
   await input.fill(JSON.stringify(value, null, 2));
 }
 
-/** Read the Style JSON through its real copy command. */
+/** Read the Properties JSON through its real copy command. */
 export async function readDocumentStyleCode(page: Page): Promise<string> {
   const input = await documentStyleCodeEditor(page);
   await expect(input).toBeVisible();
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   const settings = page.getByLabel("Document settings", { exact: true });
   await settings
-    .getByRole("button", { name: "Copy Style JSON", exact: true })
+    .getByRole("button", { name: "Copy Properties JSON", exact: true })
     .click();
   await expect(
-    settings.getByText("Style JSON copied", { exact: true }),
+    settings.getByText("Properties JSON copied", { exact: true }),
   ).toBeVisible();
   return page.evaluate(() => navigator.clipboard.readText());
 }
 
 async function documentStyleCodeEditor(page: Page): Promise<Locator> {
-  const input = page.getByLabel("Editable document Style code", {
+  const input = page.getByLabel("Editable Properties code", {
     exact: true,
   });
   if (!(await input.isVisible())) await clickDrawTool(page, "document-style");

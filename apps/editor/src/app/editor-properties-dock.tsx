@@ -5,7 +5,6 @@ import { PlacementTrayPanel } from "../features/component-insert/placement-tray-
 import { CellSymbolLayoutProperties } from "../features/properties/component-structure-properties";
 import { ComponentIdentityProperties } from "../features/properties/component-identity-properties";
 import { NetNameProperties } from "../features/properties/net-name-properties";
-import { PortLabelFormatProperties } from "../features/properties/port-label-format-properties";
 import {
   AnnotationActionsSection,
   EndpointActionsSection,
@@ -61,7 +60,6 @@ export interface EditorPropertiesDockProps {
   hasInspectableSelection: boolean;
   agentIndicator: { status: string; terminal: boolean } | null;
   documentSettings: ComponentProps<typeof DocumentSettingsSection> | null;
-  portLabelFormat: ComponentProps<typeof PortLabelFormatProperties>;
   mosBulk: ComponentProps<typeof MosBulkConnectionSection>;
   routingGuidance: ComponentProps<typeof RoutingGuidanceSection>;
   groupProperties: ComponentProps<typeof GroupPropertiesSection>;
@@ -88,7 +86,6 @@ export function EditorPropertiesDock({
   hasInspectableSelection,
   agentIndicator,
   documentSettings,
-  portLabelFormat,
   mosBulk,
   routingGuidance,
   groupProperties,
@@ -143,10 +140,6 @@ export function EditorPropertiesDock({
         </button>
         <div className="selection-panel" hidden={!open}>
           <>
-            <PortLabelFormatProperties
-              key={portLabelFormat.documentId}
-              {...portLabelFormat}
-            />
             {documentSettings ? (
               <Suspense fallback={<p role="status">Loading properties…</p>}>
                 <DocumentSettingsSection {...documentSettings} />

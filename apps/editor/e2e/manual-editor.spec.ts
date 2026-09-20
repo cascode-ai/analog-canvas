@@ -1233,12 +1233,10 @@ test("P shortcut starts Cell Pin placement", async ({ page }) => {
   await canvas.hover({ position: { x: 320, y: 180 } });
   await expect(page.getByTestId("component-placement-preview")).toBeVisible();
   await canvas.click({ position: { x: 320, y: 180 } });
-  await expect(page.getByTestId("status")).toContainText(
-    "Added Cell Pin Vin_p",
-  );
+  await expect(page.getByTestId("status")).toContainText("Added Cell Pin Vinp");
   await expect(page.getByTestId("hit-P1")).toBeVisible();
   const inputLabel = page.locator('[data-object-id="instance-label-P1"]');
-  await expect(inputLabel).toHaveText("Vin_p");
+  await expect(inputLabel).toHaveText("Vinp");
   await expect(
     inputLabel.locator(
       '[data-text-run="span"][style*="font-style:italic"][style*="font-weight:700"]',
@@ -1248,16 +1246,14 @@ test("P shortcut starts Cell Pin placement", async ({ page }) => {
     inputLabel.locator(
       '[data-text-run="subscript"] [data-text-run="span"][style*="font-style:normal"][style*="font-weight:700"]',
     ),
-  ).toHaveText("in_p");
+  ).toHaveText("inp");
 
   await canvas.click({ position: { x: 520, y: 180 } });
-  await expect(page.getByTestId("status")).toContainText(
-    "Added Cell Pin Vin_n",
-  );
+  await expect(page.getByTestId("status")).toContainText("Added Cell Pin Vinn");
   const outputLabel = page.locator('[data-object-id="instance-label-P2"]');
-  await expect(outputLabel).toHaveText("Vin_n");
+  await expect(outputLabel).toHaveText("Vinn");
   await expect(outputLabel.locator('[data-text-run="subscript"]')).toHaveText(
-    "in_n",
+    "inn",
   );
   await page.keyboard.press("Escape");
 
@@ -5610,7 +5606,7 @@ test("directional marquee: window needs full coverage, crossing selects on touch
   ).toBe("");
 });
 
-test("docked Style JSON offers bounded choices, scales fonts, and resets appearance", async ({
+test("docked Properties JSON is the only global configuration surface", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -5619,7 +5615,7 @@ test("docked Style JSON offers bounded choices, scales fonts, and resets appeara
   await expect(label).toHaveAttribute("font-size", "15.116");
 
   // Properties is the visible, non-modal home for current-Cell Port tools and
-  // the copyable Style JSON surface.
+  // the single copyable Properties JSON surface.
   const propertiesButton = page.getByTestId("draw-tool-document-style");
   await expect(propertiesButton).toHaveText("Properties");
   await expect(propertiesButton).toHaveAttribute(
@@ -5628,29 +5624,18 @@ test("docked Style JSON offers bounded choices, scales fonts, and resets appeara
   );
   await clickDrawTool(page, "document-style");
   const settings = page.getByLabel("Document settings");
-  const portRules = page.getByRole("region", {
-    name: "Port label formatting",
-  });
   await expect(settings).toBeVisible();
-  await expect(portRules).toBeVisible();
-  await expect(portRules).toContainText(
-    "New hollow Ports start with Vin_p, Vin_n, then Vout",
-  );
   await expect(
-    portRules.getByRole("button", {
+    settings.getByRole("button", {
       name: "Format all Port labels in this Cell",
     }),
   ).toBeVisible();
-  const portRulesBox = await portRules.boundingBox();
-  const settingsBox = await settings.boundingBox();
-  expect(portRulesBox).not.toBeNull();
-  expect(settingsBox).not.toBeNull();
-  expect(portRulesBox!.y).toBeLessThan(settingsBox!.y);
-  await expect(page.getByTestId("hit-R1")).toBeVisible();
   await expect(
-    settings.getByLabel("Editable document Style code"),
-  ).toBeVisible();
-  await expect(settings.locator(".cm-netlist-target-select")).toHaveCount(11);
+    page.getByRole("region", { name: "Port label formatting" }),
+  ).toHaveCount(0);
+  await expect(page.getByTestId("hit-R1")).toBeVisible();
+  await expect(settings.getByLabel("Editable Properties code")).toBeVisible();
+  await expect(settings.locator(".cm-netlist-target-select")).toHaveCount(13);
   await expect(settings.getByLabel("Font size options")).toBeVisible();
   await expect(
     settings.getByLabel("NMOS bulk Net (usually VSS) options"),
@@ -5658,14 +5643,26 @@ test("docked Style JSON offers bounded choices, scales fonts, and resets appeara
   await expect(
     settings.getByLabel("PMOS bulk Net (usually VDD) options"),
   ).toBeVisible();
+  await expect(
+    settings.getByLabel("Port label suffix case options"),
+  ).toBeVisible();
+  await expect(
+    settings.getByLabel("Port label suffix placement options"),
+  ).toBeVisible();
 
   await settings.getByLabel("Font size options").selectOption("1.5");
   await expect(label).toHaveAttribute("font-size", "22.674");
-  await expect(page.getByTestId("status")).toContainText("Updated Style code");
+  await expect(page.getByTestId("status")).toContainText(
+    "Updated Properties code",
+  );
 
   const styleSource = await readDocumentStyleCode(page);
   const style = JSON.parse(styleSource);
   expect(style.bulkDefaults).toEqual({ nmosNet: null, pmosNet: null });
+  expect(style.portLabels).toEqual({
+    suffixCase: "preserve",
+    suffixPlacement: "subscript",
+  });
   expect(style.canvas).toEqual({
     showGrid: true,
     annotationGrid: 5,
@@ -5673,7 +5670,7 @@ test("docked Style JSON offers bounded choices, scales fonts, and resets appeara
     scrollBehavior: "auto",
   });
   await settings
-    .getByLabel("Editable document Style code", { exact: true })
+    .getByLabel("Editable Properties code", { exact: true })
     .press("Enter");
   expect(await readDocumentStyleCode(page)).toBe(styleSource);
 

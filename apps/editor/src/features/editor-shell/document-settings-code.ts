@@ -1,4 +1,9 @@
-import type { SchematicDocument, StyleOverrides } from "@icm/model";
+import {
+  DEFAULT_PORT_LABEL_FORMAT,
+  type PortLabelFormatOptions,
+  type SchematicDocument,
+  type StyleOverrides,
+} from "@icm/model";
 
 import {
   logicalNetChoiceForNet,
@@ -19,6 +24,7 @@ export interface DocumentSettingsCodeValue {
     nmosNet: string | null;
     pmosNet: string | null;
   };
+  portLabels: PortLabelFormatOptions;
   canvas: CanvasPreferenceCodeValue;
 }
 
@@ -42,10 +48,11 @@ function exactKeys(
   return missing ? `${path}.${missing} is required` : null;
 }
 
-/** The complete, copyable code surface for Document appearance and canvas UI. */
+/** The sole copyable code surface for Document-wide and editor preferences. */
 export function documentSettingsCodeValue(
   document: SchematicDocument,
   canvas: CanvasPreferenceCodeValue,
+  portLabels: PortLabelFormatOptions = DEFAULT_PORT_LABEL_FORMAT,
 ): DocumentSettingsCodeValue {
   const netChoices = logicalNetChoices(document);
   return {
@@ -58,6 +65,7 @@ export function documentSettingsCodeValue(
         logicalNetChoiceForNet(netChoices, document.mosBulkDefaults?.pmosNetId)
           ?.netId ?? null,
     },
+    portLabels,
     canvas,
   };
 }
@@ -71,22 +79,25 @@ export function serializeDocumentSettingsCode(
 export function formatDocumentSettingsCode(
   document: SchematicDocument,
   canvas: CanvasPreferenceCodeValue,
+  portLabels: PortLabelFormatOptions = DEFAULT_PORT_LABEL_FORMAT,
 ): string {
   return serializeDocumentSettingsCode(
-    documentSettingsCodeValue(document, canvas),
+    documentSettingsCodeValue(document, canvas, portLabels),
   );
 }
 
 export function defaultDocumentSettingsCode(
   document: SchematicDocument,
   canvas: CanvasPreferenceCodeValue,
+  portLabels: PortLabelFormatOptions = DEFAULT_PORT_LABEL_FORMAT,
 ): string {
-  const current = documentSettingsCodeValue(document, canvas);
+  const current = documentSettingsCodeValue(document, canvas, portLabels);
   return serializeDocumentSettingsCode({
     ...current,
     appearance: Object.fromEntries(
       STYLE_KNOBS.map((knob) => [knob.key, 1]),
     ) as DocumentSettingsCodeValue["appearance"],
+    portLabels: DEFAULT_PORT_LABEL_FORMAT,
   });
 }
 
@@ -98,14 +109,14 @@ export function parseDocumentSettingsCode(
   try {
     raw = JSON.parse(source);
   } catch {
-    return { ok: false, message: "Style code must be valid JSON" };
+    return { ok: false, message: "Properties code must be valid JSON" };
   }
   if (!isRecord(raw))
-    return { ok: false, message: "Style code must be an object" };
+    return { ok: false, message: "Properties code must be an object" };
   const rootError = exactKeys(
     raw,
-    ["appearance", "bulkDefaults", "canvas"],
-    "style",
+    ["appearance", "bulkDefaults", "portLabels", "canvas"],
+    "properties",
   );
   if (rootError) return { ok: false, message: rootError };
 
@@ -163,6 +174,35 @@ export function parseDocumentSettingsCode(
     bulkDefaults[field as keyof typeof bulkDefaults] = value as string | null;
   }
 
+  if (!isRecord(raw.portLabels))
+    return { ok: false, message: "portLabels must be an object" };
+  const portLabelsError = exactKeys(
+    raw.portLabels,
+    ["suffixCase", "suffixPlacement"],
+    "portLabels",
+  );
+  if (portLabelsError) return { ok: false, message: portLabelsError };
+  if (
+    !["preserve", "uppercase", "lowercase"].includes(
+      raw.portLabels.suffixCase as string,
+    )
+  )
+    return {
+      ok: false,
+      message:
+        'portLabels.suffixCase must be "preserve", "uppercase", or "lowercase"',
+    };
+  if (
+    !["subscript", "baseline"].includes(
+      raw.portLabels.suffixPlacement as string,
+    )
+  )
+    return {
+      ok: false,
+      message: 'portLabels.suffixPlacement must be "subscript" or "baseline"',
+    };
+  const portLabels = raw.portLabels as unknown as PortLabelFormatOptions;
+
   if (!isRecord(raw.canvas))
     return { ok: false, message: "canvas must be an object" };
   const canvasError = exactKeys(
@@ -191,6 +231,7 @@ export function parseDocumentSettingsCode(
     value: {
       appearance,
       bulkDefaults,
+      portLabels,
       canvas: raw.canvas as unknown as CanvasPreferenceCodeValue,
     },
   };

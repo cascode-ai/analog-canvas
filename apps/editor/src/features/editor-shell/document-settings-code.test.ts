@@ -32,6 +32,7 @@ function editableValue(): DocumentSettingsCodeValue {
       junctionRadiusScale: 1,
     },
     bulkDefaults: { nmosNet: null, pmosNet: null },
+    portLabels: { suffixCase: "preserve", suffixPlacement: "subscript" },
     canvas: { ...canvas },
   };
 }
@@ -84,6 +85,8 @@ describe("document Style code", () => {
     ["canvas.annotationGrid", 2, "must be 1, 5, or 10"],
     ["canvas.drawAngle", "diagonal", 'must be "free", "45", or "orthogonal"'],
     ["canvas.scrollBehavior", "smooth", 'must be "auto", "zoom", or "pan"'],
+    ["portLabels.suffixCase", "titlecase", "preserve"],
+    ["portLabels.suffixPlacement", "superscript", "subscript"],
   ])("rejects an unsupported %s value", (path, invalid, message) => {
     const document = createEmptyDocument("document-main", "Main");
     const value = editableValue() as unknown as Record<string, any>;
@@ -103,7 +106,7 @@ describe("document Style code", () => {
       parseDocumentSettingsCode(JSON.stringify(unknown), document),
     ).toEqual({
       ok: false,
-      message: "style.extra is not supported",
+      message: "properties.extra is not supported",
     });
 
     const missingNet = editableValue();
@@ -144,7 +147,7 @@ describe("document Style code", () => {
     const source = serializeDocumentSettingsCode(editableValue());
     const spans = documentSettingsCodeSpans(source, document);
 
-    expect(spans).toHaveLength(11);
+    expect(spans).toHaveLength(13);
     expect(
       spans.find((span) => span.field.path === "appearance.fontScale")?.field
         .options,
@@ -168,18 +171,28 @@ describe("document Style code", () => {
       label: "PMOS bulk Net (usually VDD)",
       help: expect.stringContaining("highest supply Net"),
     });
+    expect(
+      spans.find((span) => span.field.path === "portLabels.suffixCase")?.field
+        .options,
+    ).toEqual([
+      { value: "preserve", label: "Keep typed case" },
+      { value: "uppercase", label: "UPPERCASE" },
+      { value: "lowercase", label: "lowercase" },
+    ]);
 
     const changed = applyChanges(
       source,
       documentSettingsCodeChanges(source, document, {
         "appearance.fontScale": 1.5,
         "bulkDefaults.nmosNet": "net-ground",
+        "portLabels.suffixPlacement": "baseline",
         "canvas.showGrid": false,
       }),
     );
     expect(JSON.parse(changed)).toMatchObject({
       appearance: { fontScale: 1.5 },
       bulkDefaults: { nmosNet: "net-ground" },
+      portLabels: { suffixPlacement: "baseline" },
       canvas: { showGrid: false },
     });
   });

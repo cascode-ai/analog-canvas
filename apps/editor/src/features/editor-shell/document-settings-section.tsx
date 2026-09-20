@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { SchematicDocument } from "@icm/model";
+import type { PortLabelFormatOptions, SchematicDocument } from "@icm/model";
 import type { PropertyJsonEditorAdapter } from "../properties/component-property-json-editor";
 
 import {
@@ -29,20 +29,26 @@ const PropertyJsonEditor = lazy(
 export interface DocumentSettingsSectionProps {
   document: SchematicDocument;
   canvas: CanvasPreferenceCodeValue;
+  portLabels: PortLabelFormatOptions;
+  portLabelCount: number;
   onApply(
     value: DocumentSettingsCodeValue,
   ): { ok: true } | { ok: false; message: string };
+  onFormatPortLabels(options: PortLabelFormatOptions): void;
 }
 
-/** One plain JSON surface for Document appearance and uncommon canvas preferences. */
+/** One plain JSON surface for every Document-wide and editor preference. */
 export function DocumentSettingsSection({
   document,
   canvas,
+  portLabels,
+  portLabelCount,
   onApply,
+  onFormatPortLabels,
 }: DocumentSettingsSectionProps) {
   const baseline = useMemo(
-    () => formatDocumentSettingsCode(document, canvas),
-    [canvas, document],
+    () => formatDocumentSettingsCode(document, canvas, portLabels),
+    [canvas, document, portLabels],
   );
   const previousBaseline = useRef(baseline);
   const appliedCode = useRef<string | null>(null);
@@ -99,7 +105,7 @@ export function DocumentSettingsSection({
   async function copy(): Promise<void> {
     try {
       await navigator.clipboard.writeText(draft);
-      setMessage("Style JSON copied");
+      setMessage("Properties JSON copied");
     } catch {
       setMessage("Clipboard unavailable; select the code and copy it");
     }
@@ -112,13 +118,13 @@ export function DocumentSettingsSection({
       data-testid="document-settings-code-editor"
     >
       <header>
-        <strong>Style</strong>
+        <strong>Properties code</strong>
         <div className="component-property-header-actions">
           <button
             type="button"
             className="component-property-help"
             onClick={() =>
-              change(defaultDocumentSettingsCode(document, canvas))
+              change(defaultDocumentSettingsCode(document, canvas, portLabels))
             }
           >
             Defaults
@@ -127,8 +133,8 @@ export function DocumentSettingsSection({
             <button
               type="button"
               className="component-property-copy"
-              aria-label="Discard Style draft"
-              title="Discard invalid Style draft"
+              aria-label="Discard Properties draft"
+              title="Discard invalid Properties draft"
               onClick={() => {
                 setDraft(baseline);
                 setMessage(null);
@@ -141,8 +147,8 @@ export function DocumentSettingsSection({
           <button
             type="button"
             className="component-property-copy"
-            aria-label="Copy Style JSON"
-            title="Copy Style JSON"
+            aria-label="Copy Properties JSON"
+            title="Copy Properties JSON"
             onClick={() => void copy()}
           >
             <svg
@@ -161,7 +167,7 @@ export function DocumentSettingsSection({
       <Suspense
         fallback={
           <textarea
-            aria-label="Loading document Style code"
+            aria-label="Loading Properties code"
             value={draft}
             readOnly
             rows={20}
@@ -173,7 +179,7 @@ export function DocumentSettingsSection({
           historyKey={historyKey}
           adapter={adapter}
           defaultForeground="#000000"
-          ariaLabel="Editable document Style code"
+          ariaLabel="Editable Properties code"
           onChange={change}
         />
       </Suspense>
@@ -182,6 +188,20 @@ export function DocumentSettingsSection({
           <span>{status}</span>
         </div>
       ) : null}
+      <div className="document-settings-port-action">
+        <button
+          type="button"
+          disabled={portLabelCount === 0}
+          onClick={() => onFormatPortLabels(portLabels)}
+        >
+          Format all Port labels in this Cell
+        </button>
+        <small>
+          Uses <code>portLabels</code> above for {portLabelCount} existing label
+          {portLabelCount === 1 ? "" : "s"}. Names and electrical connections do
+          not change.
+        </small>
+      </div>
     </section>
   );
 }

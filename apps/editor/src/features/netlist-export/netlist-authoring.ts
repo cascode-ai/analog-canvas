@@ -121,8 +121,8 @@ export function nextCellPinName(
   while (true) {
     const names =
       group === 1
-        ? ["Vin_p", "Vin_n", "Vout"]
-        : [`Vin${group}_p`, `Vin${group}_n`, `Vout${group}`];
+        ? ["Vinp", "Vinn", "Vout"]
+        : [`Vin${group}p`, `Vin${group}n`, `Vout${group}`];
     for (const name of names) {
       if (!unavailable(name)) return name;
     }

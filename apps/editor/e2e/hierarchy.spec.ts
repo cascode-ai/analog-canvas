@@ -15,6 +15,7 @@ import {
   revealPropertiesShelf,
   clickCommand,
   downloadBytes,
+  editDocumentStyleCode,
   setComponentParameter,
   expectComponentCodeField,
 } from "./editor-fixtures.js";
@@ -993,13 +994,17 @@ test("formats every Port label in the current Cell without renaming it", async (
     0,
   );
 
-  await revealPropertiesShelf(page);
-  const shelf = page.getByTestId("selection-shelf");
-  if ((await shelf.getAttribute("aria-expanded")) === "false")
-    await shelf.click();
-  const format = page.getByRole("region", { name: "Port label formatting" });
-  await format.getByLabel("Port label suffix case").selectOption("uppercase");
-  await format.getByRole("button", { name: "Format all Port labels" }).click();
+  await editDocumentStyleCode(page, (code) => {
+    code.portLabels.suffixCase = "uppercase";
+  });
+  const properties = page.getByLabel("Document settings");
+  await expect(
+    page.getByRole("region", { name: "Port label formatting" }),
+  ).toHaveCount(0);
+  const format = properties.getByRole("button", {
+    name: "Format all Port labels in this Cell",
+  });
+  await format.click();
   await expect(page.getByTestId("status")).toContainText(
     "Formatted all Port labels",
   );
@@ -1023,11 +1028,11 @@ test("formats every Port label in the current Cell without renaming it", async (
     "UT",
   );
 
-  await format.getByLabel("Port label suffix case").selectOption("lowercase");
-  await format
-    .getByLabel("Port label suffix position")
-    .selectOption("baseline");
-  await format.getByRole("button", { name: "Format all Port labels" }).click();
+  await editDocumentStyleCode(page, (code) => {
+    code.portLabels.suffixCase = "lowercase";
+    code.portLabels.suffixPlacement = "baseline";
+  });
+  await format.click();
   await expect(firstLabel).toHaveText("Ind");
   await expect(secondLabel).toHaveText("out");
   await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveCount(

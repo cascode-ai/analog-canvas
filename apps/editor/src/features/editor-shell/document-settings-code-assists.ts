@@ -47,6 +47,27 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
       help: "Choose the highest supply Net in this Cell, usually VDD",
     },
     {
+      path: "portLabels.suffixCase",
+      label: "Port label suffix case",
+      kind: "choice",
+      options: [
+        { value: "preserve", label: "Keep typed case" },
+        { value: "uppercase", label: "UPPERCASE" },
+        { value: "lowercase", label: "lowercase" },
+      ],
+      description: "",
+    },
+    {
+      path: "portLabels.suffixPlacement",
+      label: "Port label suffix placement",
+      kind: "choice",
+      options: [
+        { value: "subscript", label: "Subscript" },
+        { value: "baseline", label: "Baseline" },
+      ],
+      description: "",
+    },
+    {
       path: "canvas.showGrid",
       label: "Canvas grid",
       kind: "choice",
