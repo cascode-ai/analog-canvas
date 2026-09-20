@@ -370,7 +370,7 @@ export async function copyNetlistText(
     await toggle.click();
   await expect(panel).toBeVisible();
   if (format) await panel.getByLabel("Netlist format").selectOption(format);
-  await panel.getByTestId("copy-netlist-panel").click();
+  await page.getByTestId("copy-netlist").click();
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .not.toBe("clipboard sentinel");

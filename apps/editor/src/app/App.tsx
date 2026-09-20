@@ -5860,12 +5860,6 @@ export function App({
                     onProcessChange={netlistPreferences.selectProfile}
                     onDeviceTargetChange={netlistPreferences.setDeviceTarget}
                     onReset={netlistPreferences.reset}
-                    onCopy={() =>
-                      exportDesignNetlist(
-                        netlistPreferences.format,
-                        netlistNamingProfile,
-                      )
-                    }
                     configurationError={netlistPreferences.error}
                   />
                 ) : projectPanel === "instances" ? (

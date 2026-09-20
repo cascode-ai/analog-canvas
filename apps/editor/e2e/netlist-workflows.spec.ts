@@ -533,48 +533,39 @@ test("shows and copies a live MOS netlist with explicitly connected bulk termina
     0,
   );
   const refresh = panel.getByRole("button", { name: "Refresh netlist" });
-  const copy = panel.getByRole("button", { name: "Copy netlist", exact: true });
+  await expect(
+    panel.getByRole("button", { name: "Copy netlist", exact: true }),
+  ).toHaveCount(0);
   const formatSelect = panel.getByLabel("Netlist format");
   const processSelect = panel.getByLabel("Netlist process");
-  const assertControls = async (stacked: boolean) => {
-    const [format, process, refreshBox, copyBox] = await Promise.all(
-      [formatSelect, processSelect, refresh, copy].map((item) =>
-        item.boundingBox(),
-      ),
+  const assertControls = async () => {
+    const [format, process, refreshBox] = await Promise.all(
+      [formatSelect, processSelect, refresh].map((item) => item.boundingBox()),
     );
-    for (const box of [process, refreshBox, copyBox])
+    for (const box of [process, refreshBox])
       expect(box!.height).toBeCloseTo(format!.height, 1);
     expect(refreshBox!.y).toBeCloseTo(format!.y, 1);
-    expect(copyBox!.y).toBeCloseTo(process!.y, 1);
-    if (stacked) {
-      expect(copyBox!.x).toBeCloseTo(refreshBox!.x, 1);
-      expect(copyBox!.y).toBeGreaterThan(refreshBox!.y);
-    } else {
-      expect(copyBox!.x).toBeGreaterThan(refreshBox!.x);
-      expect(copyBox!.y).toBeCloseTo(refreshBox!.y, 1);
-    }
   };
-  await assertControls(true);
+  await assertControls();
   const handle = page.getByTestId("properties-resize-handle");
   const handleBox = (await handle.boundingBox())!;
   await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + 80);
   await page.mouse.down();
   await page.mouse.move(handleBox.x - 300, handleBox.y + 80);
   await page.mouse.up();
-  await assertControls(false);
+  await assertControls();
   await page.setViewportSize({ width: 720, height: 900 });
   // Restore the narrow dock through its keyboard resize control.
   await handle.focus();
   for (let index = 0; index < 10; index++)
     await handle.press("Shift+ArrowRight");
-  await assertControls(true);
+  await assertControls();
   await page.setViewportSize({ width: 1280, height: 720 });
   const code = panel.getByLabel("Netlist code", { exact: true });
   const original = await code.innerText();
   await code.fill(original.replace(/\bM1\b/u, "M91"));
   await refresh.click();
   await expect(code).toContainText("M91");
-  await expect(copy).toBeEnabled();
   await expect(formatSelect).toHaveValue("spectre");
   const valid = await code.innerText();
   await code.fill(valid + "\nINVALID");
