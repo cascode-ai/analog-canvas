@@ -1,5 +1,6 @@
 const WHOLE_TAG_LABELS: Record<string, string> = {
   amplifier: "General Amplifier",
+  "auto zero": "Auto-Zero",
   "b icmos": "BiCMOS",
   dcdc: "DC–DC",
   "dc-dc": "DC–DC",

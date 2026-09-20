@@ -8,6 +8,7 @@ import {
 describe("galleryTagLabel", () => {
   it("presents normalized tags as readable labels without changing identity", () => {
     expect(galleryTagLabel("amplifier")).toBe("General Amplifier");
+    expect(galleryTagLabel("auto zero")).toBe("Auto-Zero");
     expect(galleryTagLabel("differential pair")).toBe("Differential Pair");
     expect(galleryTagLabel("rf switch")).toBe("RF Switch");
     expect(galleryTagLabel("cmfb")).toBe("CMFB");
