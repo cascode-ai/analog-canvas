@@ -1,4 +1,4 @@
-import { IDBFactory } from "fake-indexeddb";
+import { IDBFactory, IDBObjectStore } from "fake-indexeddb";
 import { describe, expect, it, vi } from "vitest";
 import { SimulationFiles } from "@icm/simulation-service/files";
 import { createBrowserSimulationArtifactStore } from "./browser-simulation-artifact-store";
@@ -6,6 +6,52 @@ import { SimulationService } from "@icm/simulation-service";
 import { createEmptyProject } from "@icm/model";
 
 describe("persistent simulation evidence", () => {
+  it("rolls back partial reclamation and preserves removal markers for retry", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArtifactStore("project", factory)!;
+    const ref = {
+      id: "file",
+      name: "result.raw",
+      mediaType: "text/plain",
+      byteLength: 4,
+      sha256: "a".repeat(64),
+    };
+    await store.put(ref, "data");
+    await store.saveCatalog!({
+      catalog: {
+        schemaVersion: 1,
+        runId: "run",
+        preparedId: "prepared",
+        inputRevision: "rev",
+        execution: "completed",
+        collection: "complete",
+        files: [ref],
+        datasets: [],
+      },
+      storedAt: 1,
+    });
+    await store.queueRunRemoval("run");
+    const original = IDBObjectStore.prototype.delete;
+    const fault = vi
+      .spyOn(IDBObjectStore.prototype, "delete")
+      .mockImplementation(function (this: IDBObjectStore, key) {
+        if (this.name === "files")
+          throw new Error("injected reclamation failure");
+        return original.call(this, key);
+      });
+    try {
+      await expect(store.reclaim([], [])).rejects.toThrow(
+        "injected reclamation failure",
+      );
+    } finally {
+      fault.mockRestore();
+    }
+    expect((await store.get("file"))?.text).toBe("data");
+    expect(await store.catalogs!()).toHaveLength(1);
+    expect(await store.reclaim([], [])).toEqual({ files: 1, bytes: 4 });
+    expect(await store.catalogs!()).toEqual([]);
+    expect(await store.get("file")).toBeNull();
+  });
   it("upgrades the previous database without rewriting bodies or catalogs", async () => {
     const factory = new IDBFactory();
     const ref = {

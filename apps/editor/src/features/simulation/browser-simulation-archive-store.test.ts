@@ -42,6 +42,81 @@ function archive(id: string, createdAt: string): SimulationRunArchiveV1 {
 }
 
 describe("browser simulation archive store", () => {
+  it("reclaims deleted runs and abandoned files atomically while preserving shared and other-Project evidence", async () => {
+    const factory = new IDBFactory();
+    // Unit harness grants locks; real cross-tab exclusion has browser coverage.
+    const locks = {
+      request: async (
+        _name: string,
+        _options: unknown,
+        callback: (lock: object) => Promise<unknown>,
+      ) => callback({}),
+    } as unknown as LockManager;
+    const store = createBrowserSimulationArchiveStore({
+      idbFactory: factory,
+      locks,
+    });
+    const evidence = createBrowserSimulationArtifactStore("project", factory)!;
+    const other = createBrowserSimulationArtifactStore("other", factory)!;
+    const ref = {
+      id: "shared",
+      fileId: "shared",
+      name: "result.raw",
+      mediaType: "text/plain",
+      byteLength: 4,
+      sha256: "a".repeat(64),
+    };
+    await other.put(ref, "data");
+    await evidence.put(
+      { ...ref, id: "abandoned", fileId: "abandoned" },
+      "data",
+    );
+    const record = (id: string): SimulationRunArchiveV1 => ({
+      ...archive(id, new Date(0).toISOString()),
+      artifacts: [{ ...ref, originalId: ref.id, text: "data" }],
+      byteLength: 4,
+    });
+    for (const id of ["a", "b"]) {
+      expect((await store.save(record(id))).ok).toBe(true);
+      await evidence.saveCatalog!({
+        catalog: {
+          schemaVersion: 1,
+          runId: record(id).run.id,
+          preparedId: "prepared",
+          inputRevision: "rev",
+          execution: "completed",
+          collection: "complete",
+          files: [ref],
+          datasets: [],
+        },
+        storedAt: 1,
+      });
+    }
+    await store.delete("a");
+    expect(await store.cleanup("project")).toEqual({
+      ok: true,
+      value: { deferred: false, files: 1, bytes: 4 },
+    });
+    expect((await evidence.get("shared"))?.text).toBe("data");
+    expect(await evidence.get("abandoned")).toBeNull();
+    expect(
+      (await evidence.catalogs!()).map((record) => record.catalog.runId),
+    ).toEqual(["run-b"]);
+    expect(await store.read("b")).toEqual({ ok: true, value: record("b") });
+    await store.delete("b");
+    expect(await store.cleanup("project")).toEqual({
+      ok: true,
+      value: { deferred: false, files: 1, bytes: 4 },
+    });
+    expect(await evidence.get("shared")).toBeNull();
+    expect(await evidence.catalogs!()).toEqual([]);
+    expect((await other.get("shared"))?.text).toBe("data");
+    expect(await store.cleanup("project")).toEqual({
+      ok: true,
+      value: { deferred: false, files: 0, bytes: 0 },
+    });
+    store.close();
+  });
   it("backfills old shared-body references once under concurrent reconciliation without reading bodies", async () => {
     const factory = new IDBFactory();
     const store = createBrowserSimulationArchiveStore({ idbFactory: factory });

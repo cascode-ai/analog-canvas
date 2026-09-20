@@ -23,6 +23,12 @@ export interface BrowserSimulationArtifactStore extends SimulationArtifactStore 
   ): Promise<void>;
   releaseReferences(owner: string): Promise<void>;
   referencedArtifactIds(): Promise<string[]>;
+  queueRunRemoval(runId: string): Promise<void>;
+  /** Caller must hold the Project exclusive lock and reconcile every archive. */
+  reclaim(
+    archiveKeys: readonly string[],
+    archiveRunIds: readonly string[],
+  ): Promise<{ files: number; bytes: number }>;
 }
 function value<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -49,8 +55,29 @@ export function createBrowserSimulationArtifactStore(
   const lease = options.retainSession
     ? new ProjectEvidenceLease(projectId, options.locks)
     : undefined;
+  let startup: Promise<void> | undefined;
+  let generation = 0;
   async function open() {
+    const current = generation;
+    if (lease) {
+      startup ??= (async () => {
+        const { createBrowserSimulationArchiveStore } =
+          await import("./browser-simulation-archive-store");
+        const archives = createBrowserSimulationArchiveStore({
+          idbFactory: factory,
+          ...(options.locks ? { locks: options.locks } : {}),
+        });
+        try {
+          await archives.cleanup(projectId);
+        } finally {
+          archives.close();
+        }
+      })().catch(() => {}); // Housekeeping never gates ordinary simulation I/O.
+      await startup;
+      if (current !== generation) throw new Error("SESSION_CHANGED");
+    }
     await lease?.acquire();
+    if (current !== generation) throw new Error("SESSION_CHANGED");
     const request = factory!.open(DATABASE, 3);
     request.onupgradeneeded = () => {
       if (!request.result.objectStoreNames.contains(BODY)) {
@@ -68,7 +95,92 @@ export function createBrowserSimulationArtifactStore(
     return value(request);
   }
   return {
+    async queueRunRemoval(runId) {
+      const db = await open();
+      try {
+        const tx = db.transaction(REFERENCES, "readwrite");
+        tx.objectStore(REFERENCES).put(
+          { projectId, kind: "removal", runId, artifactIds: [] },
+          [projectId, `removal:${runId}`],
+        );
+        await completed(tx);
+      } finally {
+        db.close();
+      }
+    },
+    async reclaim(archiveKeys, archiveRunIds) {
+      const db = await open();
+      let transaction: IDBTransaction | undefined;
+      let completion: Promise<void> | undefined;
+      try {
+        const tx = db.transaction(
+          [BODY, DIRECTORY, REFERENCES, CATALOGS],
+          "readwrite",
+        );
+        transaction = tx;
+        const done = completed(tx);
+        completion = done;
+        void done.catch(() => {});
+        const refs = tx.objectStore(REFERENCES);
+        const catalogs = tx.objectStore(CATALOGS);
+        const directory = tx.objectStore(DIRECTORY);
+        const [owners, keys, runs, files] = await Promise.all([
+          value(refs.index("projectId").getAll(projectId)) as Promise<
+            Array<{ kind?: string; runId?: string; artifactIds: string[] }>
+          >,
+          value(refs.index("projectId").getAllKeys(projectId)),
+          value(catalogs.index("projectId").getAll(projectId)) as Promise<
+            StoredResultCatalog[]
+          >,
+          value(directory.index("projectId").getAll(projectId)) as Promise<
+            Array<{ ref: ArtifactRef }>
+          >,
+        ]);
+        const retainedKeys = new Set(archiveKeys);
+        const retainedRuns = new Set(archiveRunIds);
+        const removedRuns = new Set<string>();
+        const protectedIds = new Set<string>();
+        owners.forEach((owner, index) => {
+          const key = keys[index] as [string, string];
+          if (owner.kind === "removal") {
+            if (owner.runId && !retainedRuns.has(owner.runId)) {
+              removedRuns.add(owner.runId);
+              catalogs.delete([projectId, owner.runId]);
+              refs.delete(key);
+            }
+          } else if (key[1].startsWith("archive:") && !retainedKeys.has(key[1]))
+            refs.delete(key);
+          else owner.artifactIds.forEach((id) => protectedIds.add(id));
+        });
+        for (const { catalog } of runs)
+          if (!removedRuns.has(catalog.runId))
+            catalog.files.forEach((file) => protectedIds.add(file.id));
+        let count = 0,
+          bytes = 0;
+        for (const { ref } of files) {
+          if (protectedIds.has(ref.id)) continue;
+          tx.objectStore(BODY).delete([projectId, ref.id]);
+          directory.delete([projectId, ref.id]);
+          count++;
+          bytes += ref.byteLength;
+        }
+        await done;
+        return { files: count, bytes };
+      } catch (error) {
+        try {
+          transaction?.abort();
+        } catch {
+          // A failed or completed transaction is already inactive.
+        }
+        await completion?.catch(() => {});
+        throw error;
+      } finally {
+        db.close();
+      }
+    },
     releaseSession() {
+      generation++;
+      startup = undefined;
       lease?.release();
     },
     async retainReferences(owner, artifactIds) {
