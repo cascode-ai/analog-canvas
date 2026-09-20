@@ -24,6 +24,10 @@ function mathBase(value: string): RichTextRun {
   return span([span([{ kind: "text", value }], "bold")], "italic");
 }
 
+function uprightMathSubscript(value: string): RichTextRun {
+  return span([span([{ kind: "text", value }], "bold")], "subscript");
+}
+
 /**
  * Supply designators keep an italic subscript; every other subscript is
  * upright. The renderer draws scripts upright by default and treats a nested
@@ -88,10 +92,10 @@ export function plainNameDocument(value: string): RichTextDocument {
  * Presentation for generated voltage-node names such as Vin, Vout and VB1.
  *
  * The electrical name stays ordinary identifier text. Only its visual
- * projection follows the conventional math spelling: an italic leading V
- * followed by a smaller upright subscript. Letter case is authored content,
- * not presentation, so both halves preserve it exactly. Unlike the bold Razavi
- * house labels, this is deliberately the same weight as ordinary LaTeX math.
+ * projection follows the conventional math spelling: a bold italic leading V
+ * followed by a smaller bold upright subscript. Both use the same established
+ * Razavi house typeface as other schematic labels. Letter case is authored
+ * content, not presentation, so both halves preserve it exactly.
  */
 export function voltageNodeTextDocument(value: string): RichTextDocument {
   if (value.length === 0) return { runs: [{ kind: "line-break" }] };
@@ -102,10 +106,8 @@ export function voltageNodeTextDocument(value: string): RichTextDocument {
   }
   return {
     runs: [
-      span([{ kind: "text", value: head }], "italic"),
-      ...(tail.length > 0
-        ? [span([{ kind: "text" as const, value: tail }], "subscript")]
-        : []),
+      mathBase(head),
+      ...(tail.length > 0 ? [uprightMathSubscript(tail)] : []),
     ],
   };
 }
@@ -114,9 +116,10 @@ export function voltageNodeTextDocument(value: string): RichTextDocument {
  * Canonical presentation applied by the explicit "format all Ports" action.
  *
  * Unlike the automatic formal-Port default, this applies to every Port name:
- * its first character is italic, while the remaining characters are upright
- * and subscripted. Letter case is authored content and stays visible exactly
- * as entered, along with the electrical identity and netlist spelling.
+ * its first character uses the established bold italic face, while the
+ * remaining characters use the same bold face upright and subscripted. Letter
+ * case is authored content and stays visible exactly as entered, along with
+ * the electrical identity and netlist spelling.
  */
 export function canonicalPortTextDocument(value: string): RichTextDocument {
   if (value.length === 0) return { runs: [{ kind: "line-break" }] };
@@ -124,10 +127,8 @@ export function canonicalPortTextDocument(value: string): RichTextDocument {
   const tail = tailCharacters.join("");
   return {
     runs: [
-      span([{ kind: "text", value: head! }], "italic"),
-      ...(tail.length > 0
-        ? [span([{ kind: "text" as const, value: tail }], "subscript")]
-        : []),
+      mathBase(head!),
+      ...(tail.length > 0 ? [uprightMathSubscript(tail)] : []),
     ],
   };
 }

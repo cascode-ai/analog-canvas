@@ -57,7 +57,7 @@ describe("current rendering contract", () => {
     );
 
     expect(svg).toContain('data-pin-name="VGS1"');
-    expect(svg).toContain("font-style:italic;font-weight:400");
+    expect(svg).toContain("font-style:italic;font-weight:700");
     expect(svg).toContain('data-text-run="subscript"');
     expect(svg).toContain(">GS1</tspan>");
     expect(svg).not.toContain("baseline-shift");

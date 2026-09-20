@@ -64,6 +64,8 @@ describe("Razavi schematic typography", () => {
     );
 
     expect(rendered).toContain('data-text-run="subscript"');
+    expect(rendered).toContain("font-style:italic;font-weight:700");
+    expect(rendered).toContain("font-style:normal;font-weight:700");
     expect(rendered).toContain(">B12</tspan>");
     expect(rendered).not.toContain(">b12</tspan>");
   });
@@ -77,6 +79,12 @@ describe("Razavi schematic typography", () => {
     expect(rendered).toContain(">v</tspan>");
     expect(rendered).toContain(">BIAS</tspan>");
     expect(rendered).not.toContain(">V</tspan>");
+    expect(rendered).toContain(
+      'style="font-style:italic;font-weight:700">v</tspan>',
+    );
+    expect(rendered).toContain(
+      'style="font-style:normal;font-weight:700">BIAS</tspan>',
+    );
   });
 
   it("keeps a default Net Label bold italic without an implicit subscript", () => {

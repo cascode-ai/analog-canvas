@@ -1229,12 +1229,12 @@ test("P shortcut starts Cell Pin placement", async ({ page }) => {
   await expect(inputLabel).toHaveText("Vin");
   await expect(
     inputLabel.locator(
-      '[data-text-run="span"][style*="font-style:italic"][style*="font-weight:400"]',
+      '[data-text-run="span"][style*="font-style:italic"][style*="font-weight:700"]',
     ),
   ).toHaveText("V");
   await expect(
     inputLabel.locator(
-      '[data-text-run="subscript"][style*="font-style:normal"][style*="font-weight:400"]',
+      '[data-text-run="subscript"] [data-text-run="span"][style*="font-style:normal"][style*="font-weight:700"]',
     ),
   ).toHaveText("in");
 
@@ -1259,13 +1259,13 @@ test("P shortcut starts Cell Pin placement", async ({ page }) => {
   await page.keyboard.press("Escape");
   const firstBias = page.locator('[data-object-id="instance-label-P3"]');
   const secondBias = page.locator('[data-object-id="instance-label-P4"]');
-  await expect(firstBias).toHaveText("Vb1");
-  await expect(secondBias).toHaveText("Vb2");
+  await expect(firstBias).toHaveText("VB1");
+  await expect(secondBias).toHaveText("VB2");
   await expect(firstBias.locator('[data-text-run="subscript"]')).toHaveText(
-    "b1",
+    "B1",
   );
   await expect(secondBias.locator('[data-text-run="subscript"]')).toHaveText(
-    "b2",
+    "B2",
   );
   await openSelectionShelf(page);
   await expect(

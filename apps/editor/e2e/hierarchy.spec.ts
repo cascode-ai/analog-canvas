@@ -1005,6 +1005,16 @@ test("formats every Port label in the current Cell without renaming it", async (
   await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveText(
     "ND",
   );
+  await expect(
+    firstLabel.locator(
+      '[data-text-run="span"][style*="font-style:italic"][style*="font-weight:700"]',
+    ),
+  ).toHaveText("I");
+  await expect(
+    firstLabel.locator(
+      '[data-text-run="subscript"] [data-text-run="span"][style*="font-style:normal"][style*="font-weight:700"]',
+    ),
+  ).toHaveText("ND");
   await expect(secondLabel).toHaveText("out");
   await expect(secondLabel.locator('[data-text-run="subscript"]')).toHaveText(
     "ut",

@@ -8,7 +8,7 @@ import {
 } from "./semantic-text.js";
 
 describe("canonical Port text", () => {
-  it.each(["IN", "out", "VND"])(
+  it.each(["IN", "out", "VDD", "VND"])(
     "formats %s without changing its visible or electrical spelling",
     (name) => {
       const content = canonicalPortTextDocument(name);
@@ -17,12 +17,24 @@ describe("canonical Port text", () => {
       expect(content.runs[0]).toEqual({
         kind: "span",
         style: "italic",
-        children: [{ kind: "text", value: name.slice(0, 1) }],
+        children: [
+          {
+            kind: "span",
+            style: "bold",
+            children: [{ kind: "text", value: name.slice(0, 1) }],
+          },
+        ],
       });
       expect(content.runs[1]).toEqual({
         kind: "span",
         style: "subscript",
-        children: [{ kind: "text", value: name.slice(1) }],
+        children: [
+          {
+            kind: "span",
+            style: "bold",
+            children: [{ kind: "text", value: name.slice(1) }],
+          },
+        ],
       });
       expect(JSON.stringify(content)).not.toMatch(/uppercase|lowercase/u);
     },
@@ -36,7 +48,13 @@ describe("canonical Port text", () => {
     expect(content.runs[0]).toEqual({
       kind: "span",
       style: "italic",
-      children: [{ kind: "text", value: "a" }],
+      children: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [{ kind: "text", value: "a" }],
+        },
+      ],
     });
   });
 });
@@ -96,17 +114,29 @@ describe("generated voltage-node text", () => {
           {
             kind: "span",
             style: "italic",
-            children: [{ kind: "text", value: "V" }],
+            children: [
+              {
+                kind: "span",
+                style: "bold",
+                children: [{ kind: "text", value: "V" }],
+              },
+            ],
           },
           {
             kind: "span",
             style: "subscript",
-            children: [{ kind: "text", value: name.slice(1) }],
+            children: [
+              {
+                kind: "span",
+                style: "bold",
+                children: [{ kind: "text", value: name.slice(1) }],
+              },
+            ],
           },
         ],
       });
       expect(JSON.stringify(content)).not.toMatch(/uppercase|lowercase/u);
-      expect(JSON.stringify(content)).not.toContain('"bold"');
+      expect(JSON.stringify(content).match(/"bold"/gu)).toHaveLength(2);
     },
   );
 
@@ -117,12 +147,24 @@ describe("generated voltage-node text", () => {
     expect(content.runs[0]).toEqual({
       kind: "span",
       style: "italic",
-      children: [{ kind: "text", value: "v" }],
+      children: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [{ kind: "text", value: "v" }],
+        },
+      ],
     });
     expect(content.runs[1]).toEqual({
       kind: "span",
       style: "subscript",
-      children: [{ kind: "text", value: "BIAS" }],
+      children: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [{ kind: "text", value: "BIAS" }],
+        },
+      ],
     });
   });
 
