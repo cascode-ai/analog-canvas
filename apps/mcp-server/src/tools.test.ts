@@ -120,6 +120,9 @@ describe("mcp tool surface", () => {
       "disconnect",
       "connection_status",
       "project_cells",
+      "gallery_circuits",
+      "project_code",
+      "netlist_code",
       "simulation",
       "simulation_folder",
       "simulation_output",
@@ -182,6 +185,85 @@ describe("mcp tool surface", () => {
       projects: [],
     });
     expect(http.projectCalls).toHaveLength(1);
+  });
+
+  it("exposes Gallery, Project Code and Netlist as direct Agent tools", async () => {
+    const { session } = await toolSession();
+    await callTool("connect", { claimCode: "session-1.code" }, session);
+    const projectResource = vi
+      .spyOn(session.client, "projectResource")
+      .mockImplementation(async (request) =>
+        request.operation === "list-gallery"
+          ? {
+              apiVersion: "3.0",
+              requestId: request.requestId,
+              operation: request.operation,
+              ok: true,
+              entries: [],
+              nextCursor: null,
+              total: 0,
+            }
+          : request.operation === "read-gallery-entries"
+            ? {
+                apiVersion: "3.0",
+                requestId: request.requestId,
+                operation: request.operation,
+                ok: true,
+                entries: [],
+                remainingEntryIds: [],
+              }
+            : request.operation === "read-project-code"
+              ? {
+                  apiVersion: "3.0",
+                  requestId: request.requestId,
+                  operation: request.operation,
+                  ok: true,
+                  projectCode: "{}",
+                  structureRevision: 5,
+                }
+              : {
+                  apiVersion: "3.0",
+                  requestId: request.requestId,
+                  operation: "read-netlist",
+                  ok: true,
+                  structureRevision: 5,
+                  netlist: {
+                    format: "spice",
+                    status: "ready",
+                    text: ".end\n",
+                    diagnostics: [],
+                  },
+                },
+      );
+
+    expect(
+      parseText(
+        await callTool("gallery_circuits", { action: "list" }, session),
+      ),
+    ).toMatchObject({ ok: true, total: 0 });
+    expect(
+      parseText(
+        await callTool(
+          "gallery_circuits",
+          { action: "read-many", galleryEntryIds: ["g1", "g2"] },
+          session,
+        ),
+      ),
+    ).toMatchObject({ ok: true, remainingEntryIds: [] });
+    expect(
+      parseText(await callTool("project_code", { action: "read" }, session)),
+    ).toMatchObject({ ok: true, projectCode: "{}" });
+    expect(
+      parseText(await callTool("netlist_code", { action: "read" }, session)),
+    ).toMatchObject({ ok: true, netlist: { text: ".end\n" } });
+    expect(
+      projectResource.mock.calls.map(([request]) => request.operation),
+    ).toEqual([
+      "list-gallery",
+      "read-gallery-entries",
+      "read-project-code",
+      "read-netlist",
+    ]);
   });
 
   it("get_context returns the compact context document", async () => {

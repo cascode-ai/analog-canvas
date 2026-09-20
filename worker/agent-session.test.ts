@@ -3,10 +3,12 @@ import mcpDistribution from "../config/agent-mcp-distribution.json";
 import {
   SESSION_STATE_KEY,
   fileOperationScopes,
+  projectOperationScopes,
   simulationOperationScopes,
 } from "./agent-session-runtime";
 import {
   AgentFileResourceRequestSchema,
+  AgentProjectResourceRequestSchema,
   AgentSimulationResourceRequestSchema,
 } from "@icm/agent-adapter";
 
@@ -89,6 +91,43 @@ it("uses existing Project write authorization for Project-owned simulation sourc
       expectedRevision: 0,
     }),
   ).toEqual(["simulation.run", "project.import"]);
+});
+
+it("authorizes Gallery, Project Code and Netlist operations by their real effects", () => {
+  const scopes = (operation: Record<string, unknown>) =>
+    projectOperationScopes(
+      AgentProjectResourceRequestSchema.parse({
+        apiVersion: "3.0",
+        requestId: "projects",
+        ...operation,
+      }),
+    );
+  expect(scopes({ operation: "list-gallery" })).toEqual(["circuit.snapshot"]);
+  expect(
+    scopes({ operation: "read-gallery-entries", galleryEntryIds: ["g1"] }),
+  ).toEqual(["circuit.snapshot"]);
+  expect(scopes({ operation: "read-project-code" })).toEqual([
+    "project.download",
+  ]);
+  expect(
+    scopes({
+      operation: "replace-project-code",
+      projectCode: "{}",
+      expectedStructureRevision: 0,
+    }),
+  ).toEqual([
+    "circuit.edit.geometry",
+    "circuit.edit.connectivity",
+    "circuit.edit.presentation",
+  ]);
+  expect(
+    scopes({
+      operation: "replace-netlist",
+      netlist: ".end\n",
+      expectedStructureRevision: 0,
+    }),
+  ).toEqual(["circuit.edit.connectivity", "circuit.edit.presentation"]);
+  expect(scopes({ operation: "list-projects" })).toEqual(["project.import"]);
 });
 
 function folder() {

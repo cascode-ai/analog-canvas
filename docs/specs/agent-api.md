@@ -158,16 +158,29 @@ Project structure edits; artifacts use File Resource, not Circuit render.
 See [execution and resources](simulation-execution.md).
 
 `POST /api/agent/sessions/{sessionId}/projects` is the Project Resource
-sibling, advertised in `capabilities` as `resources.project` with operations
-`list-projects`, `list-cells`, and `import-cell` and
+sibling, advertised in `capabilities` as `resources.project`. `list-gallery`,
+`read-gallery-entry`, and the response-size-bounded `read-gallery-entries`
+provide cursor-paged access to every public Gallery entry, complete canonical
+Project Code, and an optional generated SPICE or Spectre netlist.
+`read-project-code` / `replace-project-code` and
+`read-netlist` / `replace-netlist` expose the live Editor's existing code
+planners with Project structure-revision guards. Project Code replacement can
+add, update or remove complete authored structure. Netlist replacement is
+deliberately limited to the device names, model targets and parameter values
+accepted by the Editor's Netlist panel; topology and connectivity use Project
+Code or Circuit transactions, not a second text-import implementation.
+
+The same resource retains `list-projects`, `list-cells`, and `import-cell` with
 `importMode: "project-local-copy"`. The live browser lists the signed-in
 account's Cloud Projects and their Cells. `import-cell` requires
 `expectedStructureRevision` and commits the shared cross-Project import plan
 through the ordinary Project transaction controller as an independent
 project-local copy; a repeated import reports `already-imported`. Failures
 carry a `recovery` hint (`sign-in`, `refresh`, `fix-input`, or `retry`). The
-resource requires the `project.import` scope and owns no second Cloud store,
-imported-Cell format, or write path; see [Edit Engine](edit-engine.md).
+Cloud Cell operations require `project.import`; active code reads require
+`project.download`; writes require their corresponding Circuit edit scopes;
+Gallery reads require `circuit.snapshot`. The resource owns no second Cloud
+store, imported-Cell format, or write path; see [Edit Engine](edit-engine.md).
 
 These resources do not expose arbitrary host files or a general-purpose
 code-execution API. Authored raw SPICE is simulator input within the configured

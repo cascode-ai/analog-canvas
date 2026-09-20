@@ -23,13 +23,13 @@ Use `Authorization: Bearer <agentToken>` and `Content-Type: application/json`
 for session requests. Include `apiVersion` and `requestId` where required;
 current examples use API `3.0`.
 
-| Route under `/api/agent/sessions/{sessionId}` | Purpose |
-| --- | --- |
-| `POST /circuit` | Four Circuit operations: capabilities, snapshot, transact, render |
-| `POST /files` | Project exports/import candidates, simulation source and artifacts |
-| `POST /simulation` | Capabilities, authoring help, prepare/start/read/cancel/export and batches |
-| `POST /projects` | Reusable Cloud Cells and import into the open Project |
-| `GET /status` | Session observations; attached is not execution readiness |
+| Route under `/api/agent/sessions/{sessionId}` | Purpose                                                                    |
+| --------------------------------------------- | -------------------------------------------------------------------------- |
+| `POST /circuit`                               | Four Circuit operations: capabilities, snapshot, transact, render          |
+| `POST /files`                                 | Project exports/import candidates, simulation source and artifacts         |
+| `POST /simulation`                            | Capabilities, authoring help, prepare/start/read/cancel/export and batches |
+| `POST /projects`                              | Public Gallery, active Project Code/Netlist, reusable Cloud Cells          |
+| `GET /status`                                 | Session observations; attached is not execution readiness                  |
 
 The four-operation restriction applies to **Circuit**, not sibling resources.
 These routes do not grant arbitrary host files or shell access.

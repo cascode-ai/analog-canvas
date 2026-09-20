@@ -7,6 +7,12 @@ const ProjectRequestBaseSchema = z.strictObject({
   apiVersion: z.literal(AGENT_API_VERSION),
   requestId: StableIdSchema,
 });
+// Matches the Gallery's 2 MiB byte ceiling while allowing its complete UTF-8
+// Project Code to cross this character-counted schema boundary.
+const ProjectTextSchema = z.string().max(2_200_000);
+const NetlistFormatSchema = z.enum(["spice", "spectre"]);
+const NetlistNamingProfileSchema = z.enum(["native", "cadence-bang"]);
+const NetlistPortCaseSchema = z.enum(["lower", "upper"]);
 
 /**
  * Cross-Project Cell reuse stays a sibling resource because its source is the
@@ -30,6 +36,49 @@ export const AgentProjectResourceRequestSchema = z.discriminatedUnion(
       sourceDocumentId: StableIdSchema,
       expectedStructureRevision: z.number().int().nonnegative(),
     }),
+    ProjectRequestBaseSchema.extend({
+      operation: z.literal("list-gallery"),
+      cursor: z.string().min(1).max(2_048).optional(),
+      limit: z.number().int().min(1).max(60).optional(),
+    }),
+    ProjectRequestBaseSchema.extend({
+      operation: z.literal("read-gallery-entry"),
+      galleryEntryId: StableIdSchema,
+      netlistFormat: NetlistFormatSchema.nullable().optional(),
+      namingProfile: NetlistNamingProfileSchema.optional(),
+      portCase: NetlistPortCaseSchema.optional(),
+    }),
+    ProjectRequestBaseSchema.extend({
+      operation: z.literal("read-gallery-entries"),
+      galleryEntryIds: z.array(StableIdSchema).min(1).max(12),
+      netlistFormat: NetlistFormatSchema.nullable().optional(),
+      namingProfile: NetlistNamingProfileSchema.optional(),
+      portCase: NetlistPortCaseSchema.optional(),
+    }),
+    ProjectRequestBaseSchema.extend({
+      operation: z.literal("read-project-code"),
+    }),
+    ProjectRequestBaseSchema.extend({
+      operation: z.literal("replace-project-code"),
+      projectCode: ProjectTextSchema,
+      expectedStructureRevision: z.number().int().nonnegative(),
+    }),
+    ProjectRequestBaseSchema.extend({
+      operation: z.literal("read-netlist"),
+      format: NetlistFormatSchema.optional(),
+      namingProfile: NetlistNamingProfileSchema.optional(),
+      portCase: NetlistPortCaseSchema.optional(),
+      rootDocumentId: StableIdSchema.optional(),
+    }),
+    ProjectRequestBaseSchema.extend({
+      operation: z.literal("replace-netlist"),
+      netlist: ProjectTextSchema,
+      expectedStructureRevision: z.number().int().nonnegative(),
+      format: NetlistFormatSchema.optional(),
+      namingProfile: NetlistNamingProfileSchema.optional(),
+      portCase: NetlistPortCaseSchema.optional(),
+      rootDocumentId: StableIdSchema.optional(),
+    }),
   ],
 );
 
@@ -51,6 +100,38 @@ export const AgentReusableCellSummarySchema = z.strictObject({
       direction: z.enum(["input", "output", "inout", "passive"]),
     }),
   ),
+});
+
+export const AgentGalleryEntrySummarySchema = z.strictObject({
+  id: StableIdSchema,
+  name: z.string().min(1),
+  author: z.string(),
+  description: z.string(),
+  createdAt: z.string(),
+  schemaVersion: z.number().int().positive(),
+  tags: z.array(z.string()),
+  netlistable: z.boolean().optional(),
+  likes: z.number().int().nonnegative().optional(),
+});
+
+export const AgentNetlistDiagnosticSchema = z.strictObject({
+  severity: z.enum(["error", "warning", "info"]),
+  code: z.string().min(1),
+  message: z.string().min(1),
+  objectIds: z.array(StableIdSchema),
+});
+
+export const AgentNetlistReadSchema = z.strictObject({
+  format: NetlistFormatSchema,
+  status: z.enum(["ready", "blocked"]),
+  text: z.string().nullable(),
+  diagnostics: z.array(AgentNetlistDiagnosticSchema),
+});
+
+export const AgentGalleryEntryReadSchema = z.strictObject({
+  entry: AgentGalleryEntrySummarySchema,
+  projectCode: ProjectTextSchema,
+  netlist: AgentNetlistReadSchema.nullable(),
 });
 
 const ProjectResponseBaseSchema = z.strictObject({
@@ -82,7 +163,62 @@ export const AgentProjectResourceResponseSchema = z.union([
     structureRevision: z.number().int().nonnegative(),
   }),
   ProjectResponseBaseSchema.extend({
-    operation: z.enum(["list-projects", "list-cells", "import-cell", "error"]),
+    operation: z.literal("list-gallery"),
+    ok: z.literal(true),
+    entries: z.array(AgentGalleryEntrySummarySchema),
+    nextCursor: z.string().nullable(),
+    total: z.number().int().nonnegative().nullable(),
+  }),
+  ProjectResponseBaseSchema.extend({
+    operation: z.literal("read-gallery-entry"),
+    ok: z.literal(true),
+    ...AgentGalleryEntryReadSchema.shape,
+  }),
+  ProjectResponseBaseSchema.extend({
+    operation: z.literal("read-gallery-entries"),
+    ok: z.literal(true),
+    entries: z.array(AgentGalleryEntryReadSchema),
+    remainingEntryIds: z.array(StableIdSchema),
+  }),
+  ProjectResponseBaseSchema.extend({
+    operation: z.literal("read-project-code"),
+    ok: z.literal(true),
+    projectCode: ProjectTextSchema,
+    structureRevision: z.number().int().nonnegative(),
+  }),
+  ProjectResponseBaseSchema.extend({
+    operation: z.literal("replace-project-code"),
+    ok: z.literal(true),
+    applied: z.boolean(),
+    structureRevision: z.number().int().nonnegative(),
+    activeDocumentId: StableIdSchema,
+  }),
+  ProjectResponseBaseSchema.extend({
+    operation: z.literal("read-netlist"),
+    ok: z.literal(true),
+    structureRevision: z.number().int().nonnegative(),
+    netlist: AgentNetlistReadSchema,
+  }),
+  ProjectResponseBaseSchema.extend({
+    operation: z.literal("replace-netlist"),
+    ok: z.literal(true),
+    applied: z.boolean(),
+    structureRevision: z.number().int().nonnegative(),
+  }),
+  ProjectResponseBaseSchema.extend({
+    operation: z.enum([
+      "list-projects",
+      "list-cells",
+      "import-cell",
+      "list-gallery",
+      "read-gallery-entry",
+      "read-gallery-entries",
+      "read-project-code",
+      "replace-project-code",
+      "read-netlist",
+      "replace-netlist",
+      "error",
+    ]),
     ok: z.literal(false),
     error: z.strictObject({
       code: z.string().min(1),
@@ -122,3 +258,8 @@ export type AgentCloudProjectSummary = z.infer<
 export type AgentReusableCellSummary = z.infer<
   typeof AgentReusableCellSummarySchema
 >;
+export type AgentGalleryEntrySummary = z.infer<
+  typeof AgentGalleryEntrySummarySchema
+>;
+export type AgentGalleryEntryRead = z.infer<typeof AgentGalleryEntryReadSchema>;
+export type AgentNetlistRead = z.infer<typeof AgentNetlistReadSchema>;

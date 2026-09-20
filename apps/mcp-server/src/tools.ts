@@ -71,6 +71,53 @@ const ProjectCellsArgs = z.discriminatedUnion("action", [
     expectedStructureRevision: z.number().int().nonnegative().optional(),
   }),
 ]);
+const GalleryCircuitsArgs = z.discriminatedUnion("action", [
+  z.strictObject({
+    action: z.literal("list"),
+    cursor: z.string().min(1).optional(),
+    limit: z.number().int().min(1).max(60).optional(),
+  }),
+  z.strictObject({
+    action: z.literal("read"),
+    galleryEntryId: z.string().min(1),
+    netlistFormat: z.enum(["spice", "spectre"]).nullable().optional(),
+    namingProfile: z.enum(["native", "cadence-bang"]).optional(),
+    portCase: z.enum(["lower", "upper"]).optional(),
+  }),
+  z.strictObject({
+    action: z.literal("read-many"),
+    galleryEntryIds: z.array(z.string().min(1)).min(1).max(12),
+    netlistFormat: z.enum(["spice", "spectre"]).nullable().optional(),
+    namingProfile: z.enum(["native", "cadence-bang"]).optional(),
+    portCase: z.enum(["lower", "upper"]).optional(),
+  }),
+]);
+const ProjectCodeArgs = z.discriminatedUnion("action", [
+  z.strictObject({ action: z.literal("read") }),
+  z.strictObject({
+    action: z.literal("replace"),
+    projectCode: z.string().max(2_200_000),
+    expectedStructureRevision: z.number().int().nonnegative().optional(),
+  }),
+]);
+const NetlistCodeArgs = z.discriminatedUnion("action", [
+  z.strictObject({
+    action: z.literal("read"),
+    format: z.enum(["spice", "spectre"]).optional(),
+    namingProfile: z.enum(["native", "cadence-bang"]).optional(),
+    portCase: z.enum(["lower", "upper"]).optional(),
+    rootDocumentId: z.string().min(1).optional(),
+  }),
+  z.strictObject({
+    action: z.literal("replace"),
+    netlist: z.string().max(2_200_000),
+    expectedStructureRevision: z.number().int().nonnegative().optional(),
+    format: z.enum(["spice", "spectre"]).optional(),
+    namingProfile: z.enum(["native", "cadence-bang"]).optional(),
+    portCase: z.enum(["lower", "upper"]).optional(),
+    rootDocumentId: z.string().min(1).optional(),
+  }),
+]);
 const SimulationFilesArgs = z.strictObject({
   request: SimulationFileOperationSchema,
   requestId: z.string().min(1).optional(),
@@ -338,6 +385,119 @@ const TOOLS: readonly ToolEntry[] = [
         cloudProjectId: parsed.cloudProjectId,
         sourceDocumentId: parsed.sourceDocumentId,
         expectedStructureRevision,
+      });
+    },
+  },
+  {
+    definition: {
+      name: "gallery_circuits",
+      description: agentToolHelp["gallery_circuits"],
+      inputSchema: { ...jsonSchemaOf(GalleryCircuitsArgs), type: "object" },
+    },
+    handle: async (args, session) => {
+      const parsed = GalleryCircuitsArgs.parse(args);
+      if (parsed.action === "list") {
+        return session.client.projectResource({
+          apiVersion: AGENT_API_VERSION,
+          requestId: crypto.randomUUID(),
+          operation: "list-gallery",
+          ...(parsed.cursor ? { cursor: parsed.cursor } : {}),
+          ...(parsed.limit === undefined ? {} : { limit: parsed.limit }),
+        });
+      }
+      const common = {
+        apiVersion: AGENT_API_VERSION,
+        requestId: crypto.randomUUID(),
+        ...(parsed.netlistFormat === undefined
+          ? {}
+          : { netlistFormat: parsed.netlistFormat }),
+        ...(parsed.namingProfile
+          ? { namingProfile: parsed.namingProfile }
+          : {}),
+        ...(parsed.portCase ? { portCase: parsed.portCase } : {}),
+      } as const;
+      return parsed.action === "read"
+        ? session.client.projectResource({
+            ...common,
+            operation: "read-gallery-entry",
+            galleryEntryId: parsed.galleryEntryId,
+          })
+        : session.client.projectResource({
+            ...common,
+            operation: "read-gallery-entries",
+            galleryEntryIds: parsed.galleryEntryIds,
+          });
+    },
+  },
+  {
+    definition: {
+      name: "project_code",
+      description: agentToolHelp["project_code"],
+      inputSchema: { ...jsonSchemaOf(ProjectCodeArgs), type: "object" },
+    },
+    handle: async (args, session) => {
+      const parsed = ProjectCodeArgs.parse(args);
+      if (parsed.action === "read") {
+        return session.client.projectResource({
+          apiVersion: AGENT_API_VERSION,
+          requestId: crypto.randomUUID(),
+          operation: "read-project-code",
+        });
+      }
+      const expectedStructureRevision =
+        parsed.expectedStructureRevision ??
+        (await session.client.snapshot(undefined, { refresh: true })).snapshot
+          .project.structureRevision;
+      return session.client.projectResource({
+        apiVersion: AGENT_API_VERSION,
+        requestId: crypto.randomUUID(),
+        operation: "replace-project-code",
+        projectCode: parsed.projectCode,
+        expectedStructureRevision,
+      });
+    },
+  },
+  {
+    definition: {
+      name: "netlist_code",
+      description: agentToolHelp["netlist_code"],
+      inputSchema: { ...jsonSchemaOf(NetlistCodeArgs), type: "object" },
+    },
+    handle: async (args, session) => {
+      const parsed = NetlistCodeArgs.parse(args);
+      if (parsed.action === "read") {
+        return session.client.projectResource({
+          apiVersion: AGENT_API_VERSION,
+          requestId: crypto.randomUUID(),
+          operation: "read-netlist",
+          ...(parsed.format ? { format: parsed.format } : {}),
+          ...(parsed.namingProfile
+            ? { namingProfile: parsed.namingProfile }
+            : {}),
+          ...(parsed.portCase ? { portCase: parsed.portCase } : {}),
+          ...(parsed.rootDocumentId
+            ? { rootDocumentId: parsed.rootDocumentId }
+            : {}),
+        });
+      }
+      const expectedStructureRevision =
+        parsed.expectedStructureRevision ??
+        (await session.client.snapshot(undefined, { refresh: true })).snapshot
+          .project.structureRevision;
+      return session.client.projectResource({
+        apiVersion: AGENT_API_VERSION,
+        requestId: crypto.randomUUID(),
+        operation: "replace-netlist",
+        netlist: parsed.netlist,
+        expectedStructureRevision,
+        ...(parsed.format ? { format: parsed.format } : {}),
+        ...(parsed.namingProfile
+          ? { namingProfile: parsed.namingProfile }
+          : {}),
+        ...(parsed.portCase ? { portCase: parsed.portCase } : {}),
+        ...(parsed.rootDocumentId
+          ? { rootDocumentId: parsed.rootDocumentId }
+          : {}),
       });
     },
   },

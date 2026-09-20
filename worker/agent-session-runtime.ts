@@ -464,9 +464,29 @@ export function simulationOperationScopes(
 }
 
 export function projectOperationScopes(
-  _request: AgentProjectResourceRequest,
+  request: AgentProjectResourceRequest,
 ): AgentSessionScope[] {
-  return ["project.import"];
+  switch (request.operation) {
+    case "list-gallery":
+    case "read-gallery-entry":
+    case "read-gallery-entries":
+      return ["circuit.snapshot"];
+    case "read-project-code":
+    case "read-netlist":
+      return ["project.download"];
+    case "replace-project-code":
+      return [
+        "circuit.edit.geometry",
+        "circuit.edit.connectivity",
+        "circuit.edit.presentation",
+      ];
+    case "replace-netlist":
+      return ["circuit.edit.connectivity", "circuit.edit.presentation"];
+    case "list-projects":
+    case "list-cells":
+    case "import-cell":
+      return ["project.import"];
+  }
 }
 
 export async function sha256Text(value: string): Promise<string> {

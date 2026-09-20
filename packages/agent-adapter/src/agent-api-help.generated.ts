@@ -13,5 +13,5 @@ export const agentApiHelp = {
   agentSessionSimulationResource:
     "Discover Profiles and native authoring help; prepare saved Project-folder or session-workspace source, then start/read/cancel/export runs and batches. Exact start request-ID and payload retries do not execute twice. Read full artifacts when a receipt is a preview. Input/execution failures do not revoke the session; this is not a durable job queue.",
   agentSessionProjectResource:
-    "Discover Cells in the signed-in user's Cloud Projects and import one dependency closure as an independent project-local copy through the live editor transaction boundary.",
+    "Page through the public Gallery, read complete Gallery Project Code and generated netlists, read or replace the open Project Code and editable netlist fields, and discover/import Cells from signed-in Cloud Projects through the live editor transaction boundary.",
 };

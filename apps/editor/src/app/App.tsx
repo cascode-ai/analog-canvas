@@ -982,6 +982,15 @@ export function App({
       new BrowserAgentProjectHost({
         getProjectSessionId: () => editorDocumentController.projectSessionId,
         getProject: () => editorDocumentController.project,
+        getActiveDocumentId: () => editorDocumentController.document.id,
+        commitProjectStructure: (nextProject, activeDocumentId) => {
+          editorDocumentController.commitProjectStructure(
+            nextProject,
+            activeDocumentId,
+          );
+          synchronizeExternalCommit();
+          void flushRecovery();
+        },
         dispatchProjectTransaction: (request) =>
           browserAgentHost.dispatchProjectTransaction(request),
       }),

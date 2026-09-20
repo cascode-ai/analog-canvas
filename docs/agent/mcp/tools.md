@@ -56,6 +56,24 @@ it does not create a live cross-Project link. The helper refreshes the Project
 structure revision when the caller omits it. Sign-in, stale-revision, and
 library-compatibility failures are recoverable and do not revoke the session.
 
+Use `gallery_circuits` to traverse the complete public Gallery. `list` is
+cursor-paged; continue with `nextCursor` until it is `null`. `read` returns one
+entry's complete canonical Project Code and, by default, its generated SPICE
+netlist. `read-many` accepts up to 12 listed IDs and reads them concurrently;
+continue any returned `remainingEntryIds` when the response-size guard stops a
+batch early. Select Spectre explicitly or pass `netlistFormat:null` when only
+the Project Code is needed. This reads the same public Gallery records as the
+UI; it does not copy them into the active Project.
+
+Use `project_code` to read or replace the complete open Project. A replacement
+is parsed and committed through the same revision-guarded, undoable Project
+Code path as the Editor panel, so adding, updating or removing Cells and
+objects has one source of truth. Use `netlist_code` to read generated SPICE or
+Spectre and to replace the text-editable device names, model targets and
+parameter values. Topology, ports and connectivity remain Project Code or
+structured-edit operations; the Netlist tool does not maintain a second
+netlist-import interpretation of the circuit.
+
 Colors use existing `set_instance_style_override`, `set_route_style_override`,
 `set_presentation_style` and annotation `textColor` edits. Full inspection
 returns these fields, `signalFlowParameters`, Cell interfaces, and external
