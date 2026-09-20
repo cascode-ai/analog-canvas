@@ -939,6 +939,8 @@ export function GalleryFeed({
             tags={tagOptions}
             selected={selectedTags}
             onChange={(tags) => updateFilters({ tags })}
+            search={searchQuery}
+            onSearchChange={(search) => updateFilters({ search })}
             quickFilters={
               <>
                 {signedIn || attentionOnly ? (
@@ -994,23 +996,8 @@ export function GalleryFeed({
                 ) : null}
               </>
             }
-          />
-          <div className="gallery-main">
-            <div className="gallery-search-toolbar">
-              <input
-                className="gallery-tag-search"
-                data-testid="gallery-search"
-                type="search"
-                value={searchQuery}
-                placeholder="Name, author, tag…"
-                aria-label="Search circuits"
-                onChange={(event) =>
-                  updateFilters({ search: event.currentTarget.value })
-                }
-              />
-            </div>
-            <div className="gallery-scan-toolbar">
-              {isOwner ? (
+            adminTools={
+              isOwner ? (
                 <GalleryDuplicateCheck
                   onReport={setDuplicateReport}
                   onRecycled={(ids) => {
@@ -1020,8 +1007,10 @@ export function GalleryFeed({
                     if (ids[0]) announceGalleryChange({ entryId: ids[0] });
                   }}
                 />
-              ) : null}
-            </div>
+              ) : null
+            }
+          />
+          <div className="gallery-main">
             {author ? (
               <div className="gallery-filter" data-testid="gallery-filter">
                 <span>Circuits by {author}</span>

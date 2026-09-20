@@ -174,7 +174,11 @@ test("admin checks duplicates and cleans selected copies with partial failure re
   });
   await page.goto("/?author=tz");
   await expect(page.getByTestId("gallery-tile-original")).toBeVisible();
-  await expect(page.getByTestId("gallery-check-duplicates")).toBeVisible();
+  const sidebar = page.getByTestId("gallery-tag-sidebar");
+  await expect(sidebar.getByTestId("gallery-check-duplicates")).toBeVisible();
+  await expect(sidebar.locator(".gallery-sidebar-admin")).toContainText(
+    "Check duplicates",
+  );
   await expect(
     page.getByRole("button", {
       name: "Fill missing SKY130 models",
@@ -1119,7 +1123,7 @@ test("the account chip sits on the header line and ellipsizes a long name", asyn
   expect(overflowing.display).not.toContain("flex");
 });
 
-test("the left tag sidebar groups and searches tags at desktop, half-screen and mobile widths", async ({
+test("the left sidebar hosts overall search and grouped tags at desktop, half-screen and mobile widths", async ({
   page,
 }) => {
   // Enough tags that the row would wrap over several lines unfiltered, which
@@ -1190,31 +1194,38 @@ test("the left tag sidebar groups and searches tags at desktop, half-screen and 
   const amplifier = page.getByTestId("gallery-tag-option-amplifier");
   await expect(amplifier).toContainText("General Amplifier");
   expect((await amplifier.boundingBox())!.height).toBeLessThanOrEqual(28);
-  await page.getByTestId("gallery-tag-search").fill("adc");
+  const search = page.getByTestId("gallery-search");
+  await expect(search).toHaveCount(1);
+  await expect(page.getByTestId("gallery-tag-search")).toHaveCount(0);
+  await sidebar.locator("summary").filter({ hasText: "Conversion" }).click();
   await expect(page.getByTestId("gallery-tag-option-adc")).toContainText("ADC");
-  await page.getByTestId("gallery-tag-search").fill("");
   await sidebar
     .locator("summary")
     .filter({ hasText: /^Power/ })
     .click();
-  await expect(page.getByTestId("gallery-tag-option-ldo")).toBeVisible();
+  const ldo = page.getByTestId("gallery-tag-option-ldo");
+  await expect(ldo).toHaveCount(1);
+  await ldo.scrollIntoViewIfNeeded();
+  await expect(ldo).toBeVisible();
   expect(
     (await sidebar.boundingBox())!.x + (await sidebar.boundingBox())!.width,
   ).toBeLessThan((await tile.boundingBox())!.x);
 
-  await page.getByTestId("gallery-tag-search").fill("ld");
+  await search.fill("ld");
   await expect(page.getByTestId("gallery-tag-option-ldo")).toBeVisible();
-  await expect(page.getByTestId("gallery-tag-option-amplifier")).toHaveCount(0);
-  // Finding a tag does not also filter circuit names/descriptions.
-  await expect(page.getByTestId("gallery-search")).toHaveValue("");
+  await expect(page.getByTestId("gallery-tag-option-amplifier")).toBeVisible();
+  // The overall search narrows circuits without mutating tag navigation.
+  await expect(search).toHaveValue("ld");
   await expect(tile).toBeVisible();
   await page.getByTestId("gallery-tag-option-ldo").click();
-  await page.getByTestId("gallery-tag-search").fill("osc");
+  await search.fill("osc");
   await expect(page.getByTestId("gallery-tag-option-ldo")).toBeVisible();
   await expect(page.getByTestId("gallery-tags-clear")).toContainText(
     "Clear 1 selected",
   );
   await expect(page).toHaveURL(/tags=ldo/);
+  await search.fill("");
+  await expect(tile).toBeVisible();
 
   await page.setViewportSize({ width: 800, height: 800 });
   await expect(sidebar).toBeVisible();
@@ -1241,11 +1252,14 @@ test("the left tag sidebar groups and searches tags at desktop, half-screen and 
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(sidebar).toBeHidden();
-  await page.getByRole("button", { name: "Tags & filters" }).click();
+  await page.getByRole("button", { name: "Search & filters" }).click();
   await expect(sidebar).toBeVisible();
   await page.getByTestId("gallery-tags-clear").click();
-  await expect(page.getByTestId("gallery-tag-option-ldo")).toHaveCount(0);
-  await page.getByRole("button", { name: "Tags & filters" }).click();
+  await expect(page.getByTestId("gallery-tag-option-ldo")).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+  await page.getByRole("button", { name: "Search & filters" }).click();
   await expect(sidebar).toBeHidden();
   await expect(tile).toBeVisible();
   await page.getByTestId("gallery-search").fill("zzz");
@@ -1322,7 +1336,7 @@ test("the tag sidebar resizes by dragging and keyboard, remembers width and adap
   );
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(handle).toBeHidden();
-  await page.getByRole("button", { name: "Tags & filters" }).click();
+  await page.getByRole("button", { name: "Search & filters" }).click();
   await expect(page.getByTestId("gallery-tag-sidebar")).toBeVisible();
   // Mobile filters fill their container instead of keeping the desktop width.
   expect((await slot.boundingBox())!.width).toBe(
@@ -1372,6 +1386,13 @@ test("the search box reaches authors, names, and descriptions", async ({
   await page.goto("/");
 
   const box = page.getByTestId("gallery-search");
+  await expect(
+    page.locator(".gallery-sidebar-slot").getByTestId("gallery-search"),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("gallery-tag-sidebar").getByTestId("gallery-search"),
+  ).toHaveCount(0);
+  await expect(page.getByTestId("gallery-tag-search")).toHaveCount(0);
   await expect(box).toHaveAttribute("placeholder", "Name, author, tag…");
   await expect(box).toHaveAttribute("aria-label", "Search circuits");
 
@@ -1629,18 +1650,21 @@ test("the tag menu multi-selects and tile tags join the selection", async ({
   await expect(page.getByTestId("gallery-tile-t-pll")).toBeVisible();
 
   // Multi-select two tags: OR union, URL carried.
-  const tagSearch = page.getByTestId("gallery-tag-search");
-  await tagSearch.fill("amplifier");
+  const sidebar = page.getByTestId("gallery-tag-sidebar");
+  await sidebar.locator("summary").filter({ hasText: "Amplifiers" }).click();
+  await sidebar.locator("summary").filter({ hasText: "Conversion" }).click();
+  const search = page.getByTestId("gallery-search");
+  await search.fill("amplifier");
   await page.getByTestId("gallery-tag-option-amplifier").click();
   await expect(page.getByTestId("gallery-tile-t-pll")).toHaveCount(0);
-  await tagSearch.fill("adc");
+  await search.fill("adc");
   await page.getByTestId("gallery-tag-option-adc").click();
   await expect(page).toHaveURL(/tags=amplifier%2Cadc|tags=amplifier,adc/);
+  await search.fill("");
   await expect(page.getByTestId("gallery-tile-t-amp")).toBeVisible();
   expect(listQueries).toContain("amplifier,adc");
 
   // Clearing restores the full wall; a tile tag chip re-enters selection.
-  await tagSearch.fill("");
   await page.getByTestId("gallery-tags-clear").click();
   await expect(page.getByTestId("gallery-tile-t-pll")).toBeVisible();
   await page.getByTestId("gallery-tile-tag-t-pll-pll").click();

@@ -421,8 +421,9 @@ export support matrix.
 
 ## Finding duplicate circuits
 
-Administrators can click **Check duplicates** on the Community Gallery to scan every public
-circuit, independently of the current search, author or tag filters. The scan
+Administrators can click **Check duplicates** at the bottom of the Community
+Gallery's left column to scan every public circuit, independently of the current
+search, author or tag filters. The control is not shown to other users. The scan
 runs in a cancellable background worker. Results show duplicate groups with
 previews and links, the number of extra copies (a group of three contributes
 two), and badges on matching Gallery cards. The entry point is hidden for

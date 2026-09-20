@@ -57,14 +57,19 @@ export function GalleryTagSidebar({
   tags,
   selected,
   onChange,
+  search,
+  onSearchChange,
   quickFilters,
+  adminTools,
 }: {
   tags: GalleryTagOption[];
   selected: string[];
   onChange: (tags: string[]) => void;
+  search: string;
+  onSearchChange: (search: string) => void;
   quickFilters: ReactNode;
+  adminTools?: ReactNode;
 }) {
-  const [query, setQuery] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const slotRef = useRef<HTMLDivElement>(null);
@@ -117,11 +122,6 @@ export function GalleryTagSidebar({
       .filter((tag) => !tags.some((option) => option.tag === tag))
       .map((tag) => ({ tag, count: 0 })),
   ];
-  const visible = options.filter(
-    ({ tag }) =>
-      selected.includes(tag) ||
-      tag.toLowerCase().includes(query.trim().toLowerCase()),
-  );
   const groups = [...TAG_GROUPS.map(([name]) => name), "Custom & legacy"];
   return (
     <div
@@ -129,6 +129,17 @@ export function GalleryTagSidebar({
       className="gallery-sidebar-slot"
       style={{ "--gallery-sidebar-width": `${width}px` } as CSSProperties}
     >
+      <div className="gallery-sidebar-search">
+        <input
+          className="gallery-search-input"
+          type="search"
+          value={search}
+          placeholder="Name, author, tag…"
+          aria-label="Search circuits"
+          data-testid="gallery-search"
+          onChange={(event) => onSearchChange(event.currentTarget.value)}
+        />
+      </div>
       <button
         type="button"
         className="gallery-sidebar-toggle"
@@ -136,7 +147,8 @@ export function GalleryTagSidebar({
         aria-expanded={mobileOpen}
         aria-controls="gallery-tag-sidebar"
       >
-        Tags & filters{selected.length ? ` · ${selected.length} selected` : ""}
+        Search & filters
+        {selected.length ? ` · ${selected.length} selected` : ""}
         <span aria-hidden="true">{mobileOpen ? "−" : "+"}</span>
       </button>
       <aside
@@ -160,18 +172,9 @@ export function GalleryTagSidebar({
             </button>
           ) : null}
         </div>
-        <input
-          className="gallery-tag-search"
-          type="search"
-          value={query}
-          placeholder="Find a tag…"
-          aria-label="Find a tag"
-          data-testid="gallery-tag-search"
-          onChange={(event) => setQuery(event.currentTarget.value)}
-        />
         <div className="gallery-tag-groups">
           {groups.map((name) => {
-            const group = visible
+            const group = options
               .filter(({ tag }) => tagGroup(tag) === name)
               .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
             if (!group.length) return null;
@@ -180,12 +183,10 @@ export function GalleryTagSidebar({
                 key={name}
                 className="gallery-tag-group"
                 open={
-                  query.trim().length > 0 ||
                   collapsed[name] === false ||
                   group.some(({ tag }) => selected.includes(tag))
                 }
                 onToggle={(event) => {
-                  if (query.trim()) return;
                   const closed = !event.currentTarget.open;
                   setCollapsed((previous) =>
                     previous[name] === closed
@@ -225,12 +226,13 @@ export function GalleryTagSidebar({
               </details>
             );
           })}
-          {!visible.length ? (
-            <p className="gallery-sidebar-empty">
-              {query ? "No matching tags." : "No tags yet."}
-            </p>
+          {!options.length ? (
+            <p className="gallery-sidebar-empty">No tags yet.</p>
           ) : null}
         </div>
+        {adminTools ? (
+          <div className="gallery-sidebar-admin">{adminTools}</div>
+        ) : null}
       </aside>
       <div
         className="gallery-sidebar-resize-handle"

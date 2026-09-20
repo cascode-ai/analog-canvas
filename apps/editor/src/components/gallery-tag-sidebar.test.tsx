@@ -14,6 +14,8 @@ it("keeps every original tag and a removed tag from a saved filter reachable", (
       ],
       selected: ["legacy tag", "bandgap"],
       onChange: () => {},
+      search: "",
+      onSearchChange: () => {},
       quickFilters: null,
     }),
   );
@@ -37,4 +39,6 @@ it("keeps every original tag and a removed tag from a saved filter reachable", (
   expect(markup).toContain("Clear 2 selected");
   expect(markup).not.toContain("Browse");
   expect(markup).not.toContain("Tagged circuits");
+  expect(markup).toContain('data-testid="gallery-search"');
+  expect(markup).not.toContain('data-testid="gallery-tag-search"');
 });

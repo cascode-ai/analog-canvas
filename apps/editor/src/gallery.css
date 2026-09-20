@@ -1295,8 +1295,8 @@ div.gallery-contributor-status {
   cursor: default;
 }
 
-/* Circuit search and tag search are independent filters. */
-.gallery-tag-search {
+/* The Gallery has one search field for circuit names, authors and tags. */
+.gallery-search-input {
   flex: 0 0 auto;
   width: 9rem;
   padding: 5px 12px;
@@ -1308,15 +1308,9 @@ div.gallery-contributor-status {
   font-size: 12px;
 }
 
-.gallery-tag-search:focus-visible {
+.gallery-search-input:focus-visible {
   outline: 2px solid var(--icm-accent);
   outline-offset: 1px;
-}
-
-/* "Any tag" is a filter, not a reset: pressed, it means the wall is showing
-   only circuits that carry at least one tag. */
-.gallery-tag-any {
-  font-weight: 600;
 }
 
 /* Deleting is irreversible, so it reads as the weightier of the two author
@@ -1331,7 +1325,7 @@ div.gallery-contributor-status {
   color: var(--icm-error);
 }
 
-/* Administrator results occupy the main column, independent of tag navigation. */
+/* Administrator-only duplicate scan and cleanup results. */
 .gallery-duplicates {
   display: contents;
   font-size: 13px;
@@ -1537,12 +1531,17 @@ div.gallery-contributor-status {
   cursor: pointer;
 }
 
-.gallery-tag-sidebar > .gallery-tag-search {
+.gallery-sidebar-search {
+  margin: 20px 14px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--icm-border);
+}
+
+.gallery-sidebar-search > .gallery-search-input {
   box-sizing: border-box;
   width: 100%;
   padding: 8px 10px;
   border-radius: 6px;
-  margin-bottom: 12px;
 }
 
 .gallery-tag-group {
@@ -1616,26 +1615,45 @@ div.gallery-contributor-status {
   font-size: 12px;
 }
 
-.gallery-search-toolbar {
-  padding: 18px 22px 0;
+.gallery-sidebar-admin {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--icm-border);
 }
 
-.gallery-search-toolbar .gallery-tag-search {
-  width: min(100%, 360px);
-  box-sizing: border-box;
-  padding: 9px 12px;
-  border-radius: 7px;
-  font-size: 13px;
+.gallery-sidebar-admin .gallery-duplicates {
+  display: block;
 }
 
-.gallery-scan-toolbar:has(.gallery-duplicates) {
-  display: flex;
-  flex-wrap: wrap;
-  padding: 12px 22px 0;
-}
-
-.gallery-scan-toolbar .gallery-duplicates-actions {
+.gallery-sidebar-admin .gallery-duplicates-actions {
+  display: grid;
+  gap: 6px;
   margin-left: 0;
+}
+
+.gallery-sidebar-admin .gallery-duplicates-actions .gallery-tag-option {
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.gallery-sidebar-admin .gallery-duplicates-actions > span,
+.gallery-sidebar-admin .gallery-duplicates > p {
+  line-height: 1.4;
+}
+
+.gallery-sidebar-admin .gallery-duplicates-results {
+  max-height: none;
+  padding: 8px;
+  overflow: visible;
+}
+
+.gallery-sidebar-admin .gallery-duplicate-circuits {
+  grid-template-columns: 1fr;
+}
+
+.gallery-sidebar-admin .gallery-duplicate-circuits img {
+  height: 100px;
 }
 
 .gallery-sidebar-toggle {
@@ -1643,12 +1661,13 @@ div.gallery-contributor-status {
 }
 
 @media (max-width: 900px) {
+  .gallery-sidebar-search {
+    margin: 16px 10px 0;
+  }
   .gallery-tag-sidebar {
     padding: 16px 10px;
   }
-  .gallery-main .gallery-wall,
-  .gallery-search-toolbar,
-  .gallery-scan-toolbar:has(.gallery-duplicates) {
+  .gallery-main .gallery-wall {
     padding-left: 14px;
     padding-right: 14px;
   }
