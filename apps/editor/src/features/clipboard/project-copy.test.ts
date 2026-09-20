@@ -270,7 +270,7 @@ describe("one Project copy path", () => {
     ).toContainEqual({ instanceId: instance.id, pinName: pin.name });
   });
 
-  it("does not preserve invisible connectivity between copied Port markers", () => {
+  it("preserves copied Port names while allocating distinct Base Nets", () => {
     const project = createEmptyProject("ports", "Ports");
     const document = project.documents[0]!;
     document.instances.push(
@@ -307,9 +307,9 @@ describe("one Project copy path", () => {
     const terminals = copied.netlist!.terminals.filter((terminal) =>
       terminal.interfaceInstanceIds.some((id) => id !== "P1" && id !== "P2"),
     );
-    expect(terminals.map((terminal) => terminal.name).sort()).toEqual([
-      "Vin",
-      "Vout",
+    expect(terminals.map((terminal) => terminal.name)).toEqual([
+      "OLD_INPUT",
+      "OLD_INPUT",
     ]);
     expect(new Set(terminals.map((terminal) => terminal.netId)).size).toBe(2);
     expect(terminals.every((terminal) => terminal.netId !== "shared")).toBe(
