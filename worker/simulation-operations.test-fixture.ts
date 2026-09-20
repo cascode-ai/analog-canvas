@@ -54,8 +54,23 @@ class MemoryBucket implements SimulationArtifactBucket {
       ? null
       : { body: new Blob([value]).stream(), text: async () => value };
   }
-  async put(key: string, value: string) {
-    this.objects.set(key, value);
+  async put(
+    key: string,
+    value: string | ReadableStream<Uint8Array>,
+    options?: { sha256?: string },
+  ) {
+    const text =
+      typeof value === "string" ? value : await new Response(value).text();
+    if (options?.sha256) {
+      const digest = Array.from(
+        new Uint8Array(
+          await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)),
+        ),
+        (byte) => byte.toString(16).padStart(2, "0"),
+      ).join("");
+      if (digest !== options.sha256) throw new Error("R2 digest mismatch");
+    }
+    this.objects.set(key, text);
     return {};
   }
   async delete(key: string) {

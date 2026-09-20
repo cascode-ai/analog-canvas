@@ -6,6 +6,8 @@ import {
   type ArtifactRef,
   type ManagedRunRecord,
   type Problem,
+  readExecutionReceipt,
+  EXECUTION_RECEIPT_HEADER,
 } from "@icm/simulation-service";
 
 import { sessionUserOf } from "./auth";
@@ -29,10 +31,11 @@ export interface SimulationArtifactBucket {
   get(key: string): Promise<SimulationArtifactObject | null>;
   put(
     key: string,
-    value: string,
+    value: string | ReadableStream<Uint8Array>,
     options?: {
       httpMetadata?: { contentType?: string };
       customMetadata?: Record<string, string>;
+      sha256?: string;
     },
   ): Promise<unknown>;
   delete(key: string): Promise<void>;
@@ -513,6 +516,7 @@ const retryableInfrastructureCodes = new Set([
 const uncertainInfrastructureCodes = new Set([
   "simulator-unreachable",
   "simulator-protocol-invalid",
+  "executor-receipt-invalid",
 ]);
 
 export async function consumeSimulationJobs(
@@ -608,8 +612,11 @@ export async function consumeSimulationJobs(
         env,
       );
       if (!response) throw new Error("simulation route unavailable");
-      const responseText = await response.text();
-      const responseValue = JSON.parse(responseText) as {
+      const receipt = readExecutionReceipt(
+        response.headers.get(EXECUTION_RECEIPT_HEADER),
+      );
+      const responseText = receipt ? undefined : await response.text();
+      const responseValue = (receipt ?? JSON.parse(responseText!)) as {
         cancelled?: unknown;
         outcome?: { status?: unknown };
         message?: unknown;
@@ -636,16 +643,29 @@ export async function consumeSimulationJobs(
         continue;
       }
       const resultKey = `simulation-runs/${safeSegment(queued.ownerId)}/${queued.id}/response.json`;
-      await env.SIMULATION_ARTIFACTS!.put(resultKey, responseText, {
-        httpMetadata: { contentType: "application/json" },
-        customMetadata: { ownerId: queued.ownerId, runId: queued.id },
-      });
+      if (
+        receipt &&
+        (!response.ok || receipt.runToken !== queued.id || !response.body)
+      )
+        throw new Error("Invalid retained execution receipt");
+      await env.SIMULATION_ARTIFACTS!.put(
+        resultKey,
+        receipt ? response.body! : responseText!,
+        {
+          httpMetadata: { contentType: "application/json" },
+          customMetadata: { ownerId: queued.ownerId, runId: queued.id },
+          // R2 verifies the producer's digest while consuming the stream. A
+          // mismatch fails storage before this run can advertise complete data.
+          ...(receipt ? { sha256: receipt.sha256 } : {}),
+        },
+      );
       const resultArtifact: ArtifactRef = {
         id: resultKey,
         name: "response.json",
         mediaType: "application/json",
-        byteLength: new TextEncoder().encode(responseText).length,
-        sha256: await sha256(responseText),
+        byteLength:
+          receipt?.byteLength ?? new TextEncoder().encode(responseText!).length,
+        sha256: receipt?.sha256 ?? (await sha256(responseText!)),
       };
       const artifacts = [...queued.artifacts, resultArtifact];
       if (responseValue.cancelled === true)

@@ -4,6 +4,11 @@ import {
   SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES,
 } from "@icm/spice-run";
 import { createVacaskHttpServer } from "./http-server.mjs";
+import { createHash } from "node:crypto";
+import {
+  EXECUTION_RECEIPT_HEADER,
+  readExecutionReceipt,
+} from "@icm/simulation-service";
 import { executeVacask } from "./execute.mjs";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -216,6 +221,65 @@ describe("native HTTP transport", () => {
     const busy = await post({});
     expect(busy.status).toBe(429);
     expect(busy.headers.get("retry-after")).toBe("2");
+  });
+  it("binds a bounded receipt to the exact returned JSON bytes and executed inputs", async () => {
+    const { post } = await start();
+    const executedFiles = [{ path: "run.sim", text: "* µ input" }];
+    const metadata = {
+      schemaVersion: 1,
+      input: {
+        inputRevision: "rev-µ",
+        netlistSha256: "a".repeat(64),
+        testbenchSha256: "b".repeat(64),
+        deckSha256: "c".repeat(64),
+      },
+      configuration: { modelLibrary: null },
+      environment: runtime.environment,
+    };
+    const payload = {
+      outcome: { status: "completed" },
+      metadata,
+      log: "µ evidence",
+      diagnostics: [],
+      durationMs: 1,
+      rawfiles: [],
+      executedFiles,
+      cancelled: false,
+      collectionStatus: "complete",
+    };
+    const { rawfiles, cancelled, collectionStatus, ...result } = payload;
+    delete result.executedFiles;
+    vi.mocked(executeVacask).mockResolvedValueOnce({
+      ok: true,
+      output: { result, rawfiles, executedFiles, cancelled, collectionStatus },
+    });
+    const response = await post({
+      runToken: token,
+      language: "vacask",
+      inputRevision: "rev-µ",
+      environment: { profileId: runtime.environment.profileId },
+      entryPath: "run.sim",
+    });
+    expect(response.status).toBe(200);
+    const receipt = readExecutionReceipt(
+      response.headers.get(EXECUTION_RECEIPT_HEADER),
+    );
+    const text = await response.text();
+    expect(JSON.parse(text)).toEqual(payload);
+    expect(receipt).toMatchObject({
+      runToken: token,
+      metadata,
+      outcome: { status: "completed" },
+      collectionStatus: "complete",
+      byteLength: Buffer.byteLength(text),
+      sha256: createHash("sha256").update(text).digest("hex"),
+      executedFilesSha256: createHash("sha256")
+        .update(JSON.stringify(executedFiles))
+        .digest("hex"),
+    });
+    expect(() => readExecutionReceipt("x".repeat(8193))).toThrow();
+    expect(() => readExecutionReceipt("%invalid")).toThrow();
+    expect(readExecutionReceipt(null)).toBeNull();
   });
   it("reports uncertain completion and retired capacity without leaking host errors", async () => {
     const { post } = await start();

@@ -6,6 +6,7 @@ import {
   nativeWorkerEnv,
   nativeInput,
   nativeHealth,
+  nativeStreamingReply,
 } from "./simulation.test-fixture";
 
 import {
@@ -29,6 +30,50 @@ function startRequest() {
 }
 
 describe("managed simulation operations", () => {
+  it.each([false, true])(
+    "stores receipt-bound executor streams and refuses corrupt evidence (%s)",
+    async (corrupt) => {
+      const { env, jobs, runtime, bucket, close } = harness();
+      const execute = vi.fn(async (_url: string, init?: RequestInit) =>
+        nativeStreamingReply(JSON.parse(String(init?.body)), corrupt),
+      );
+      env.VACASK = nativeWorkerEnv(execute).VACASK;
+      try {
+        const accepted = await routeManagedSimulationRequest(
+          startRequest(),
+          env,
+          runtime,
+        );
+        const id = (await accepted!.json()).run.id;
+        const put = vi.spyOn(bucket, "put");
+        const delivery = { body: jobs[0]!, ack: vi.fn(), retry: vi.fn() };
+        await consumeSimulationJobs({ messages: [delivery] }, env, runtime);
+        const responsePut = put.mock.calls.find(([key]) =>
+          key.endsWith("response.json"),
+        );
+        expect(responsePut?.[1]).toBeInstanceOf(ReadableStream);
+        expect(responsePut?.[2]?.sha256).toMatch(/^[a-f0-9]{64}$/u);
+        const read = await routeManagedSimulationRequest(
+          new Request(`https://canvas.test/api/simulation/runs/${id}`),
+          env,
+          runtime,
+        );
+        expect((await read!.json()).run.state).toBe(
+          corrupt ? "infrastructure-failed" : "succeeded",
+        );
+        expect(delivery.ack).toHaveBeenCalledOnce();
+        expect(delivery.retry).not.toHaveBeenCalled();
+        expect(execute).toHaveBeenCalledOnce();
+        expect(
+          [...bucket.objects.keys()].some((key) =>
+            key.endsWith("response.json"),
+          ),
+        ).toBe(!corrupt);
+      } finally {
+        close();
+      }
+    },
+  );
   it("streams retained results without buffering and checks ownership before accessing bytes", async () => {
     const { env, jobs, runtime, bucket, close } = harness();
     try {

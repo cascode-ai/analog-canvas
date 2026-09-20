@@ -86,6 +86,26 @@ executed file bytes and the runtime fingerprint against admission, withholding
 mismatched evidence rather than retrying the process. Cancellation bypasses
 readiness checks; bounded refusal details and Retry-After remain available.
 
+Native executors attach an internal `x-analog-simulation-receipt` HTTP header
+to canonical run responses. It contains bounded, URI-encoded JSON (at most
+8192 ASCII characters): run token, terminal outcome, collection completeness,
+input/environment metadata, executed-file digest, body byte length and digest.
+It contains no waveforms and is not a second Run/Dataset/File catalog. The
+existing JSON response body and authenticated endpoints remain unchanged.
+The producer validates result/file relationships before emitting the receipt;
+the Worker checks its admission identity, input evidence and measured runtime
+before forwarding the length-bounded body stream. The managed queue writes
+that stream directly to R2 with its expected SHA-256, so corruption fails the
+write before the run can advertise retained results. This digest is transfer
+integrity, not an extra deployment-provenance check. The operator gateway
+preserves the receipt and applies backpressure and its configured byte limit.
+
+During rolling upgrades, an executor without this header still uses the
+existing bounded JSON validation path. Malformed or mismatched receipts fail;
+they do not silently fall back. Body interruption is an uncertain response,
+never permission to execute the run again. These streaming changes alone do
+not increase collector or response byte ceilings or qualify large simulations.
+
 The model-library and legacy container sections below describe the retained
 ngspice baseline, not this native route. Their replacement Profile/image remains
 a separate migration obligation; they must not be used to register VACASK.

@@ -4,6 +4,11 @@ import {
   CapabilitiesSchema,
   decodeHostedExecutionPayload,
   validateNativeExecutionInput,
+  readExecutionReceipt,
+  encodeExecutionReceipt,
+  EXECUTION_RECEIPT_HEADER,
+  boundExecutionStream,
+  sha256,
 } from "@icm/simulation-service";
 import {
   SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES,
@@ -357,6 +362,7 @@ export async function routeVacaskSimulationRequest(
       body: JSON.stringify({
         ...input,
         timeoutMs,
+        execution,
         ...(body.runToken ? { runToken: body.runToken } : {}),
       }),
       signal: AbortSignal.timeout(150000),
@@ -395,6 +401,45 @@ export async function routeVacaskSimulationRequest(
         : undefined,
     );
   try {
+    const receipt = readExecutionReceipt(
+      response.headers.get(EXECUTION_RECEIPT_HEADER),
+    );
+    if (receipt) {
+      const actual = await verifySimulationEnvironmentMetadata(
+        receipt.metadata.environment,
+      );
+      const expected = await createSimulationInputMetadata({
+        inputRevision: input.inputRevision,
+        netlist: "",
+        testbench: input.testbench,
+        deck: input.preparedDeck!,
+      });
+      if (
+        !response.body ||
+        receipt.runToken !== body.runToken ||
+        receipt.execution?.target !== target ||
+        !actual ||
+        actual.fingerprint !== environment.fingerprint ||
+        Object.entries(expected).some(
+          ([key, field]) =>
+            receipt.metadata.input[key as keyof typeof expected] !== field,
+        ) ||
+        (receipt.executedFilesSha256 !==
+          (await sha256(JSON.stringify(input.files))) &&
+          receipt.executedFilesSha256 !== (await sha256("[]")))
+      )
+        throw new Error("Changed streaming input/runtime evidence");
+      return new Response(
+        boundExecutionStream(response.body, receipt.byteLength),
+        {
+          headers: {
+            "content-type": "application/json",
+            "cache-control": "no-store",
+            [EXECUTION_RECEIPT_HEADER]: encodeExecutionReceipt(receipt),
+          },
+        },
+      );
+    }
     const output = decodeHostedExecutionPayload(
       input,
       JSON.parse(
@@ -436,6 +481,7 @@ export async function routeVacaskSimulationRequest(
       cancelled: output.cancelled,
     });
   } catch {
+    await response.body?.cancel().catch(() => {});
     return json(
       {
         error: "simulator-protocol-invalid",

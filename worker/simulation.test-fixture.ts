@@ -3,6 +3,11 @@ import {
   createSimulationInputMetadata,
 } from "@icm/spice-run";
 import type { ExecutionInput } from "@icm/simulation-service";
+import {
+  encodeExecutionReceipt,
+  EXECUTION_RECEIPT_HEADER,
+  sha256,
+} from "@icm/simulation-service";
 import type { SimulationEnv, SimulationRunner } from "./simulation";
 
 /** Protocol-only fixture. These fake digests certify no model or deployment. */
@@ -95,4 +100,38 @@ export function nativeWorkerEnv(
       }),
     },
   };
+}
+
+export async function nativeStreamingReply(
+  input: ExecutionInput & {
+    runToken: string;
+    execution: { target: "cloudflare-container" | "operator-host" };
+  },
+  corrupt = false,
+) {
+  const payload = {
+    ...(await nativeReply(input)),
+    collectionStatus: "complete",
+    execution: input.execution,
+  };
+  const text = JSON.stringify(payload);
+  return new Response(corrupt ? text.replace("protocol", "tampered") : text, {
+    headers: {
+      "content-type": "application/json",
+      [EXECUTION_RECEIPT_HEADER]: encodeExecutionReceipt({
+        schemaVersion: 1,
+        runToken: input.runToken,
+        byteLength: new TextEncoder().encode(text).length,
+        sha256: await sha256(text),
+        executedFilesSha256: await sha256(
+          JSON.stringify(payload.executedFiles),
+        ),
+        metadata: payload.metadata,
+        outcome: payload.outcome,
+        execution: input.execution,
+        cancelled: false,
+        collectionStatus: "complete",
+      }),
+    },
+  });
 }

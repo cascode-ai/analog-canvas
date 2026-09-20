@@ -49,6 +49,33 @@ async function startGateway(executorPort, environment = {}) {
 }
 
 describe("operator-host simulation gateway", () => {
+  it("preserves internal receipts while streaming and rejects an overlong chunked body", async () => {
+    let oversized = false;
+    const executor = createServer((request, response) => {
+      request.resume();
+      response.writeHead(200, {
+        "x-analog-simulation-receipt": "receipt",
+        "set-cookie": "private=1",
+      });
+      response.write("first");
+      response.end(oversized ? "x".repeat(2048) : "last");
+    });
+    const port = await startGateway(await listen(executor), {
+      SIMULATION_GATEWAY_MAX_RESPONSE_BYTES: "1024",
+    });
+    const run = () =>
+      fetch(`http://127.0.0.1:${port}/run`, {
+        method: "POST",
+        headers: { authorization: "Bearer gateway-secret" },
+        body: "{}",
+      });
+    const reply = await run();
+    expect(reply.headers.get("x-analog-simulation-receipt")).toBe("receipt");
+    expect(reply.headers.get("set-cookie")).toBeNull();
+    expect(await reply.text()).toBe("firstlast");
+    oversized = true;
+    await expect(run().then((response) => response.text())).rejects.toThrow();
+  });
   it("preserves native replies above 4 MiB while enforcing the shared ceiling", async () => {
     const compose = await readFile(
       "containers/vacask/host/compose.yaml",

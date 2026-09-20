@@ -10,6 +10,7 @@ import {
   nativeInput,
   nativeReply,
   nativeWorkerEnv,
+  nativeStreamingReply,
 } from "./simulation.test-fixture";
 const post = (body: unknown, path = "/api/simulate") =>
   new Request(`https://canvas.test${path}`, {
@@ -20,6 +21,23 @@ const post = (body: unknown, path = "/api/simulate") =>
 afterEach(() => vi.unstubAllGlobals());
 
 describe("native simulation route", () => {
+  it("rejects a streaming receipt bound to another run before exposing bytes", async () => {
+    const input = {
+      ...nativeInput(),
+      runToken: "11111111-1111-1111-1111-111111111111",
+    };
+    const env = nativeWorkerEnv(async (_url, init) =>
+      nativeStreamingReply({
+        ...JSON.parse(String(init?.body)),
+        runToken: "22222222-2222-2222-2222-222222222222",
+      }),
+    );
+    const response = await routeSimulationRequest(post(input), env);
+    expect(response!.status).toBe(502);
+    expect(await response!.json()).toMatchObject({
+      error: "simulator-protocol-invalid",
+    });
+  });
   it("keeps absence unconfigured, ignores other paths and rejects malformed operations", async () => {
     expect(await routeSimulationRequest(post({}, "/elsewhere"), {})).toBeNull();
     expect(

@@ -1,5 +1,11 @@
 import { createServer } from "node:http";
-import { CapabilitiesSchema } from "@icm/simulation-service";
+import { createHash } from "node:crypto";
+import {
+  CapabilitiesSchema,
+  encodeExecutionReceipt,
+  EXECUTION_RECEIPT_HEADER,
+  decodeHostedExecutionPayload,
+} from "@icm/simulation-service";
 import {
   SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES,
   verifySimulationEnvironmentMetadata,
@@ -103,9 +109,9 @@ export function createVacaskHttpServer({
   const server = createServer(
     { requestTimeout: 10000, headersTimeout: 5000, maxHeaderSize: 16384 },
     (request, response) => {
-      const send = (status, payload, headers = {}) => {
+      const send = (status, payload, headers = {}, serialized) => {
         if (response.destroyed || response.writableEnded) return;
-        let body = JSON.stringify(payload);
+        let body = serialized ?? JSON.stringify(payload);
         if (Buffer.byteLength(body) > maxResponseBytes) {
           status = 502;
           body = JSON.stringify({
@@ -260,7 +266,58 @@ export function createVacaskHttpServer({
                   collectionStatus: "partial",
                 };
               }
-              send(200, payload);
+              if (
+                ["cloudflare-container", "operator-host"].includes(
+                  body.execution?.target,
+                )
+              )
+                payload.execution = { target: body.execution.target };
+              const serialized = JSON.stringify(payload);
+              const headers = {};
+              // Only canonical successful executor replies carry a receipt.
+              // The existing body remains unchanged for older clients. Hashing
+              // here lets durable storage verify a streamed body without forcing
+              // the Worker to buffer it merely to calculate its artifact digest.
+              if (
+                tokenValid(body.runToken) &&
+                payload.metadata &&
+                payload.outcome &&
+                payload.collectionStatus &&
+                Buffer.byteLength(serialized) <= maxResponseBytes
+              ) {
+                try {
+                  // The producer validates numeric/file relationships before
+                  // issuing a digest-bound receipt; streaming proxies need not
+                  // repeat that validation by materializing the same arrays.
+                  decodeHostedExecutionPayload(body, payload);
+                  headers[EXECUTION_RECEIPT_HEADER] = encodeExecutionReceipt({
+                    schemaVersion: 1,
+                    runToken: body.runToken,
+                    byteLength: Buffer.byteLength(serialized),
+                    sha256: createHash("sha256")
+                      .update(serialized)
+                      .digest("hex"),
+                    executedFilesSha256: createHash("sha256")
+                      .update(JSON.stringify(payload.executedFiles ?? []))
+                      .digest("hex"),
+                    outcome: payload.outcome,
+                    metadata: payload.metadata,
+                    ...(payload.execution
+                      ? { execution: payload.execution }
+                      : {}),
+                    cancelled: payload.cancelled === true,
+                    collectionStatus: payload.collectionStatus,
+                  });
+                } catch {
+                  send(502, {
+                    error: "executor-receipt-invalid",
+                    message:
+                      "Execution ended but its transfer receipt could not be produced; do not resubmit the run.",
+                  });
+                  return;
+                }
+              }
+              send(200, payload, headers, serialized);
             } else {
               const status =
                 reply.error.code === "simulator-busy"

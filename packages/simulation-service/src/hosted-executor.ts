@@ -120,9 +120,11 @@ export function createHostedExecutor(
           recovery:
             code === "simulator-busy"
               ? "retry-after"
-              : ["simulator-unreachable", "cancel-response-unknown"].includes(
-                    code,
-                  )
+              : [
+                    "simulator-unreachable",
+                    "cancel-response-unknown",
+                    "executor-receipt-invalid",
+                  ].includes(code)
                 ? "retry-same-request"
                 : [
                       "simulation-not-configured",
@@ -145,7 +147,7 @@ export function createHostedExecutor(
               }
             : {}),
         },
-        code === "simulator-unreachable",
+        code === "simulator-unreachable" || code === "executor-receipt-invalid",
       );
     }
     return payload;
