@@ -115,10 +115,9 @@ export function GalleryTagSidebar({
   // catalogue. Keep it visible and removable instead of hiding that filter.
   const options = [
     ...tags,
-    ...[...new Set(Object.values(taxonomy.tagsByGroup).flat())]
-      .filter((tag) => !tags.some((option) => option.tag === tag))
-      .map((tag) => ({ tag, count: 0 })),
-    ...selected
+    ...[
+      ...new Set([...Object.values(taxonomy.tagsByGroup).flat(), ...selected]),
+    ]
       .filter((tag) => !tags.some((option) => option.tag === tag))
       .map((tag) => ({ tag, count: 0 })),
   ];

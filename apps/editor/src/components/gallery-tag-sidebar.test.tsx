@@ -11,17 +11,23 @@ it("keeps every original tag and a removed tag from a saved filter reachable", (
         { tag: "adc", count: 2 },
         { tag: "new custom tag", count: 1 },
       ],
-      selected: ["legacy tag"],
+      selected: ["legacy tag", "bandgap"],
       onChange: () => {},
       quickFilters: null,
     }),
   );
-  for (const tag of ["amplifier", "adc", "new-custom-tag", "legacy-tag"])
+  for (const tag of [
+    "amplifier",
+    "adc",
+    "new-custom-tag",
+    "legacy-tag",
+    "bandgap",
+  ])
     expect(
       markup.split(`data-testid="gallery-tag-option-${tag}"`),
     ).toHaveLength(2);
   expect(markup).toContain("Amplifiers");
   expect(markup).toContain("Conversion");
   expect(markup).toContain("Custom &amp; legacy");
-  expect(markup).toContain("Clear 1 selected");
+  expect(markup).toContain("Clear 2 selected");
 });
