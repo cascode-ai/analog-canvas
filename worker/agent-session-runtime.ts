@@ -452,6 +452,7 @@ export function simulationOperationScopes(
     case "prepare":
     case "start":
     case "read":
+    case "catalog":
     case "cancel":
     case "prepare-batch":
     case "start-batch":

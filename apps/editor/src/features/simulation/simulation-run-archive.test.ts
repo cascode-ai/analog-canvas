@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createEmptyProject, createSimulationFolder } from "@icm/model";
 import type { Prepared, Run } from "@icm/simulation-service/contract";
 import { SimulationFiles } from "@icm/simulation-service/files";
+import { resultCatalog } from "@icm/simulation-service";
 
 import {
   captureSimulationRunArchive,
@@ -45,6 +46,7 @@ describe("simulation run archive", () => {
         artifactName,
         "application/json",
         JSON.stringify(current ? specs : outputData),
+        current ? { role: "specs" } : {},
       );
       const prepared: Prepared = {
         id: "prepared",
@@ -67,6 +69,7 @@ describe("simulation run archive", () => {
         outputData,
         artifacts: [preparedArtifact, resultArtifact],
       };
+      run.catalog = resultCatalog(run, "complete");
       const project = createEmptyProject("project", "Archive", "doc");
       const captured = await captureSimulationRunArchive(source, {
         projectId: project.id,
@@ -101,6 +104,19 @@ describe("simulation run archive", () => {
           },
         },
       });
+      if (!restored.ok) throw new Error("restore failed");
+      expect(restored.value.run.catalog?.files).toEqual(
+        restored.value.run.artifacts,
+      );
+      expect(restored.value.run.artifacts[1]?.role).toBe(
+        current ? "specs" : undefined,
+      );
+      expect(restored.value.run.catalog?.files[1]?.id).not.toBe(
+        resultArtifact.id,
+      );
+      expect(restored.value.run.catalog?.files[1]?.fileId).toBe(
+        resultArtifact.fileId,
+      );
     },
   );
 });

@@ -18,6 +18,7 @@ import { simulationSpecReport, simulationSpecsToCsv } from "./spec-results.js";
 import { vacaskMeasurementResults } from "./vacask-measurements.js";
 import { ngspiceMeasurementResults } from "./ngspice-measurements.js";
 import { executionArtifactEntries } from "./execution-artifacts.js";
+import { resultCatalog } from "./result-catalog.js";
 
 import {
   ExecutionFailure,
@@ -169,7 +170,11 @@ export class SimulationService {
       if (op.operation === "start-batch") return this.startBatch(op, requestId);
       if (op.operation === "read-batch" || op.operation === "cancel-batch")
         return await this.accessBatch(op);
-      if (op.operation === "read" || op.operation === "cancel") {
+      if (
+        op.operation === "read" ||
+        op.operation === "cancel" ||
+        op.operation === "catalog"
+      ) {
         const run = this.runs.get(op.runId);
         if (!run)
           return problem(
@@ -178,6 +183,14 @@ export class SimulationService {
             "read",
             "not-retryable",
           );
+        if (op.operation === "catalog")
+          return {
+            ok: true,
+            catalog: structuredClone(
+              run.view.catalog ??
+                resultCatalog(run.view, "pending", run.prepared.signalTargets),
+            ),
+          };
         if (
           op.operation === "cancel" &&
           ["running", "cancelling", "lost"].includes(run.view.state)
@@ -244,7 +257,9 @@ export class SimulationService {
           message:
             "This operation failed; the session and authored input remain available.",
           stage:
-            op.operation === "capabilities" || op.operation === "authoring-help"
+            op.operation === "capabilities" ||
+            op.operation === "authoring-help" ||
+            op.operation === "catalog"
               ? "read"
               : op.operation === "prepare-batch"
                 ? "prepare"
@@ -667,11 +682,15 @@ export class SimulationService {
         "prepared.cir",
         "text/plain",
         input.preparedDeck,
+        { role: "prepared" },
       ),
     );
     for (const f of input.files)
       artifacts.push(
-        await this.publishArtifact(epoch, f.path, "text/plain", f.text),
+        await this.publishArtifact(epoch, f.path, "text/plain", f.text, {
+          role: "source",
+          sourcePath: f.path,
+        }),
       );
     artifacts.push(
       await this.publishArtifact(
@@ -679,6 +698,7 @@ export class SimulationService {
         "source-map.json",
         "application/json",
         JSON.stringify(preparation.sourceMaps, null, 2),
+        { role: "source-map" },
       ),
     );
     artifacts.push(
@@ -687,6 +707,7 @@ export class SimulationService {
         "prepared.json",
         "application/json",
         JSON.stringify(input, null, 2),
+        { role: "execution-input" },
       ),
     );
     if (epoch !== this.epoch)
@@ -859,17 +880,32 @@ export class SimulationService {
         diagnostics: nativeReports.diagnostics,
         specs,
       };
-      const artifact = async (name: string, type: string, text: string) =>
+      const artifact = async (
+        name: string,
+        type: string,
+        text: string,
+        metadata: Pick<ArtifactRef, "role" | "sourcePath" | "analysisIndex">,
+      ) =>
         run.view.artifacts.push(
-          await this.publishArtifact(epoch, name, type, text),
+          await this.publishArtifact(epoch, name, type, text, metadata),
         );
-      await artifact("log.txt", "text/plain", output.result.log);
-      await artifact("specs.json", "application/json", JSON.stringify(specs));
-      await artifact("specs.csv", "text/csv", simulationSpecsToCsv(specs));
+      await artifact("log.txt", "text/plain", output.result.log, {
+        role: "log",
+      });
+      await artifact("specs.json", "application/json", JSON.stringify(specs), {
+        role: "specs",
+      });
+      await artifact("specs.csv", "text/csv", simulationSpecsToCsv(specs), {
+        role: "specs",
+      });
       if (output.rawfile !== undefined)
-        await artifact("out.raw", "text/plain", output.rawfile);
+        await artifact("out.raw", "text/plain", output.rawfile, {
+          role: "raw",
+        });
       if (output.executedDeck !== undefined)
-        await artifact("executed.cir", "text/plain", output.executedDeck);
+        await artifact("executed.cir", "text/plain", output.executedDeck, {
+          role: "executed",
+        });
       const nativeArtifacts: {
         kind: "raw" | "executed";
         path: string;
@@ -881,6 +917,7 @@ export class SimulationService {
           item.name,
           "text/plain",
           item.text,
+          { role: item.kind, sourcePath: item.path },
         );
         run.view.artifacts.push(ref);
         nativeArtifacts.push({
@@ -893,6 +930,7 @@ export class SimulationService {
         "result.json",
         "application/json",
         JSON.stringify(output.result),
+        { role: "result" },
       );
       for (const [i, analysis] of (
         output.result.data?.analyses ?? []
@@ -901,7 +939,13 @@ export class SimulationService {
           analysis.analysis + "-" + i + ".csv",
           "text/csv",
           simulationAnalysisToCsv(analysis),
+          { role: "table", analysisIndex: i },
         );
+      const catalog = resultCatalog(
+        { ...run.view, state: output.cancelled ? "cancelled" : "finished" },
+        "complete",
+        run.prepared.signalTargets,
+      );
       const evidenceArtifacts = run.view.artifacts.map((item) => ({ ...item }));
       await artifact(
         "evidence-manifest.json",
@@ -928,10 +972,12 @@ export class SimulationService {
             environment: output.result.metadata.environment,
             ...(nativeArtifacts.length ? { nativeArtifacts } : {}),
             artifacts: evidenceArtifacts,
+            catalog,
           },
           null,
           2,
         ),
+        { role: "manifest" },
       );
       if (epoch === this.epoch)
         run.view.state = output.cancelled ? "cancelled" : "finished";
@@ -960,6 +1006,11 @@ export class SimulationService {
         };
       }
     }
+    run.view.catalog = resultCatalog(
+      run.view,
+      run.view.error ? "partial" : "complete",
+      run.prepared.signalTargets,
+    );
     run.expiresAt = this.now() + TTL;
   }
   private async publishArtifact(
@@ -967,6 +1018,7 @@ export class SimulationService {
     name: string,
     mediaType: string,
     text: string,
+    metadata: Pick<ArtifactRef, "role" | "sourcePath" | "analysisIndex"> = {},
   ) {
     if (epoch !== this.epoch)
       throw new ExecutionFailure({
@@ -975,7 +1027,7 @@ export class SimulationService {
         stage: "export",
         recovery: "reauthorize",
       });
-    const ref = await this.files.put(name, mediaType, text);
+    const ref = await this.files.put(name, mediaType, text, metadata);
     if (epoch !== this.epoch)
       throw new ExecutionFailure({
         code: "SESSION_CHANGED",

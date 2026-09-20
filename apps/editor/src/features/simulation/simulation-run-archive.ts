@@ -28,11 +28,15 @@ export interface SimulationArchivePresentation {
 
 interface ArchivedArtifact {
   readonly originalId: string;
+  readonly fileId?: string | undefined;
   readonly name: string;
   readonly mediaType: string;
   readonly byteLength: number;
   readonly sha256: string;
   readonly text: string;
+  readonly role?: ArtifactRef["role"];
+  readonly sourcePath?: string | undefined;
+  readonly analysisIndex?: number | undefined;
 }
 
 type ArchivedPrepared = Omit<Prepared, "artifacts"> & {
@@ -169,7 +173,19 @@ function parseJsonArtifact<T>(
   name: string,
   parse: (value: unknown) => T,
 ): T | undefined {
-  const artifact = artifacts.find((candidate) => candidate.name === name);
+  const role =
+    name === "result.json"
+      ? "result"
+      : name === "specs.json"
+        ? "specs"
+        : undefined;
+  const artifact =
+    artifacts.find(
+      (candidate) => candidate.name === name && candidate.role === role,
+    ) ??
+    artifacts.find(
+      (candidate) => candidate.name === name && candidate.role === undefined,
+    );
   if (!artifact) return undefined;
   try {
     return parse(JSON.parse(artifact.text));
@@ -192,7 +208,16 @@ export async function restoreSimulationRunArchive(
     try {
       refs.set(
         artifact.originalId,
-        await files.put(artifact.name, artifact.mediaType, artifact.text),
+        await files.put(artifact.name, artifact.mediaType, artifact.text, {
+          fileId: artifact.fileId ?? artifact.originalId,
+          ...(artifact.role ? { role: artifact.role } : {}),
+          ...(artifact.sourcePath !== undefined
+            ? { sourcePath: artifact.sourcePath }
+            : {}),
+          ...(artifact.analysisIndex !== undefined
+            ? { analysisIndex: artifact.analysisIndex }
+            : {}),
+        }),
       );
     } catch {
       return archiveProblem(
@@ -239,6 +264,25 @@ export async function restoreSimulationRunArchive(
         }),
         run: RunSchema.parse({
           ...structuredClone(archive.run),
+          ...(archive.run.catalog
+            ? {
+                catalog: {
+                  ...structuredClone(archive.run.catalog),
+                  files: runArtifacts,
+                  datasets: archive.run.catalog.datasets.map((dataset) => ({
+                    ...dataset,
+                    representations: dataset.representations.map(
+                      (representation) => ({
+                        ...representation,
+                        artifactId:
+                          refs.get(representation.artifactId)?.id ??
+                          representation.artifactId,
+                      }),
+                    ),
+                  })),
+                },
+              }
+            : {}),
           artifacts: runArtifacts,
           inputStatus: "unavailable",
           ...(result ? { result } : {}),

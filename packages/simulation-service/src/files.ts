@@ -300,6 +300,10 @@ export class SimulationFiles {
     name: string,
     mediaType: string,
     text: string,
+    metadata: Pick<
+      ArtifactRef,
+      "fileId" | "role" | "sourcePath" | "analysisIndex"
+    > = {},
   ): Promise<ArtifactRef> {
     const epoch = this.epoch;
     const digest = await sha256(text);
@@ -314,12 +318,15 @@ export class SimulationFiles {
         16 * 1024 * 1024
     )
       throw new Error("ARTIFACT_CAPACITY");
+    const id = crypto.randomUUID();
     const ref: ArtifactRef = {
-      id: crypto.randomUUID(),
+      id,
       name,
       mediaType,
       byteLength,
       sha256: digest,
+      ...metadata,
+      fileId: metadata.fileId ?? id,
     };
     this.artifacts.set(ref.id, { ref, text, expiresAt: this.now() + TTL });
     return ref;

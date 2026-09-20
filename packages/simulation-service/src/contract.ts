@@ -75,12 +75,91 @@ export function problem(
 }
 export const ArtifactRefSchema = z.strictObject({
   id: Id,
+  /** Stable evidence identity; id is the current session's read locator. */
+  fileId: Id.optional(),
   name: z.string(),
   mediaType: z.string(),
   byteLength: z.number().int().nonnegative(),
   sha256: Digest,
+  /** Producer-assigned semantics; optional only for historical archives. */
+  role: z
+    .enum([
+      "source",
+      "prepared",
+      "source-map",
+      "execution-input",
+      "executed",
+      "raw",
+      "result",
+      "table",
+      "specs",
+      "log",
+      "manifest",
+    ])
+    .optional(),
+  sourcePath: z.string().optional(),
+  analysisIndex: z.number().int().nonnegative().optional(),
 });
 export type ArtifactRef = z.infer<typeof ArtifactRefSchema>;
+export const SimulationSignalTargetsSchema = z.record(
+  z.string(),
+  z.array(
+    z.strictObject({
+      rootDocumentId: Id,
+      documentId: Id,
+      netId: Id,
+      occurrence: z.array(Id),
+      terminal: z
+        .strictObject({ instanceId: Id, pinName: z.string().min(1).max(128) })
+        .optional(),
+    }),
+  ),
+);
+export const ResultCatalogSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  runId: Id,
+  preparedId: Id,
+  inputRevision: z.string(),
+  signalTargets: SimulationSignalTargetsSchema.optional(),
+  execution: z.enum([
+    "pending",
+    "completed",
+    "completed-with-dropped-input",
+    "failed",
+    "timed-out",
+    "cancelled",
+    "lost",
+  ]),
+  collection: z.enum(["pending", "complete", "partial"]),
+  files: z.array(ArtifactRefSchema),
+  datasets: z.array(
+    z.strictObject({
+      id: Id,
+      analysisIndex: z.number().int().nonnegative(),
+      analysis: z.enum(["op", "dc", "ac", "tran", "noise"]),
+      plotName: z.string(),
+      pointCount: z.number().int().nonnegative(),
+      axis: z
+        .strictObject({ name: z.string(), unit: z.string().nullable() })
+        .optional(),
+      signals: z.array(
+        z.strictObject({
+          name: z.string(),
+          quantity: z.string(),
+          unit: z.string().nullable(),
+        }),
+      ),
+      representations: z.array(
+        z.strictObject({
+          artifactId: Id,
+          fileId: Id,
+          selector: z.string(),
+        }),
+      ),
+    }),
+  ),
+});
+export type ResultCatalog = z.infer<typeof ResultCatalogSchema>;
 export const VectorSchema = z.strictObject({
   probeId: Id,
   vector: z.string(),
@@ -168,25 +247,7 @@ export const PreparedSchema = z.strictObject({
   vectors: z.array(VectorSchema),
   signalNames: z.record(z.string(), z.string()).optional(),
   /** Canvas addresses captured with the prepared input, never resolved by display label. */
-  signalTargets: z
-    .record(
-      z.string(),
-      z.array(
-        z.strictObject({
-          rootDocumentId: Id,
-          documentId: Id,
-          netId: Id,
-          occurrence: z.array(Id),
-          terminal: z
-            .strictObject({
-              instanceId: Id,
-              pinName: z.string().min(1).max(128),
-            })
-            .optional(),
-        }),
-      ),
-    )
-    .optional(),
+  signalTargets: SimulationSignalTargetsSchema.optional(),
   outputs: z.array(CompiledOutputSchema),
   deviceOperatingPoints: z.array(CompiledDeviceOperatingPointSchema),
   measurements: z.array(SimulationMeasurementSpecSchema).optional(),
@@ -428,6 +489,7 @@ export const SimulationOperationSchema = z.discriminatedUnion("operation", [
     timeoutMs: z.number().int().positive().max(120000).optional(),
   }),
   z.strictObject({ operation: z.literal("read"), runId: Id }),
+  z.strictObject({ operation: z.literal("catalog"), runId: Id }),
   z.strictObject({ operation: z.literal("cancel"), runId: Id }),
   z
     .strictObject({
@@ -618,6 +680,7 @@ export const RunSchema = z.strictObject({
   state: z.enum(["running", "cancelling", "finished", "cancelled", "lost"]),
   inputStatus: z.enum(["unchanged", "changed", "unavailable"]).optional(),
   resultPreview: z.boolean().optional(),
+  catalog: ResultCatalogSchema.optional(),
   result: SimulationResultSchema.optional(),
   outputData: SimulationOutputDataSchema.optional(),
   error: ProblemSchema.optional(),
@@ -674,6 +737,7 @@ export const SimulationReplySchema = z.union([
   z.strictObject({ ok: z.literal(true), capabilities: CapabilitiesSchema }),
   z.strictObject({ ok: z.literal(true), prepared: PreparedSchema }),
   z.strictObject({ ok: z.literal(true), run: RunSchema }),
+  z.strictObject({ ok: z.literal(true), catalog: ResultCatalogSchema }),
   z.strictObject({ ok: z.literal(true), batch: SimulationBatchSchema }),
   z.strictObject({
     ok: z.literal(true),

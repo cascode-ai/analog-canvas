@@ -299,6 +299,22 @@ describe("shared simulation lifecycle", () => {
       results: [{ name: "peak", value: 1.8, judgment: "pass" }],
     });
     const artifact = finished.artifacts.find((a) => a.name === "specs.json")!;
+    expect(finished.catalog).toMatchObject({
+      runId: finished.id,
+      execution: "completed",
+      collection: "complete",
+      files: expect.arrayContaining([
+        expect.objectContaining({ id: artifact.id, role: "specs" }),
+        expect.objectContaining({ name: "prepared.cir", role: "prepared" }),
+        expect.objectContaining({ name: "deck.cir", role: "source" }),
+      ]),
+    });
+    expect(
+      await f.service.handle(
+        { operation: "catalog", runId: finished.id },
+        "catalog",
+      ),
+    ).toEqual({ ok: true, catalog: finished.catalog });
     const read = await f.files.handle({
       action: "artifact",
       artifactId: artifact.id,
