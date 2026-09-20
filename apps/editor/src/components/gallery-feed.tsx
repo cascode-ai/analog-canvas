@@ -451,6 +451,30 @@ function savedAtLabel(createdAt: string): string {
       });
 }
 
+type ServerGalleryFilters = Pick<
+  GalleryFilterState,
+  "author" | "ownerUserId" | "tags" | "netlistable" | "liked" | "attention"
+>;
+
+/** The eager landing request is one-use and unfiltered; never replay it after
+ * the reader changes the wall query. */
+export function canReuseGalleryLandingFeed(
+  refreshSignal: number,
+  loadedQuery: string | null,
+  filters: ServerGalleryFilters,
+): boolean {
+  return (
+    refreshSignal === 0 &&
+    loadedQuery === null &&
+    filters.author === null &&
+    filters.ownerUserId === null &&
+    filters.tags.length === 0 &&
+    !filters.netlistable &&
+    !filters.liked &&
+    !filters.attention
+  );
+}
+
 /** One feed page; the plain first request stays exactly `/api/gallery`. */
 /**
  * Full-screen landing feed: every tile is one published circuit that opens
@@ -669,7 +693,15 @@ export function GalleryFeed({
       });
     }
     const request =
-      refreshSignal === 0 && preload?.feed
+      preload?.feed &&
+      canReuseGalleryLandingFeed(refreshSignal, loadedQueryRef.current, {
+        author,
+        ownerUserId,
+        tags: selectedTags,
+        netlistable: netlistableOnly,
+        liked: likedOnly,
+        attention: attentionOnly,
+      })
         ? preload.feed
         : loadGalleryFeed(fetch, {
             author,

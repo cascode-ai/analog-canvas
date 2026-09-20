@@ -3,12 +3,42 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import {
+  canReuseGalleryLandingFeed,
   galleryEntryMatchesQuery,
   GalleryCountPanel,
   GalleryFeed,
   loadGalleryAuthors,
   loadGalleryFeed,
 } from "./gallery-feed";
+
+describe("Gallery landing preload", () => {
+  const defaultFilters = {
+    author: null,
+    ownerUserId: null,
+    tags: [] as string[],
+    netlistable: false,
+    liked: false,
+    attention: false,
+  };
+
+  it("is consumed only for the first unfiltered wall request", () => {
+    expect(canReuseGalleryLandingFeed(0, null, defaultFilters)).toBe(true);
+    expect(canReuseGalleryLandingFeed(0, "default", defaultFilters)).toBe(
+      false,
+    );
+    expect(canReuseGalleryLandingFeed(1, null, defaultFilters)).toBe(false);
+    for (const filters of [
+      { ...defaultFilters, author: "alice" },
+      { ...defaultFilters, ownerUserId: "account-alice" },
+      { ...defaultFilters, tags: ["amplifier"] },
+      { ...defaultFilters, netlistable: true },
+      { ...defaultFilters, liked: true },
+      { ...defaultFilters, attention: true },
+    ]) {
+      expect(canReuseGalleryLandingFeed(0, null, filters)).toBe(false);
+    }
+  });
+});
 
 function fetchReturning(payload: unknown, ok = true): typeof fetch {
   return (async () =>
