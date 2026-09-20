@@ -33,7 +33,7 @@ the second as snapshots of published Gallery documents.
 | `minimal` | An empty Project: the floor case for parse, save and render. |
 | `manual-basics` | Three devices drawn by hand through the editor. |
 | `port-nets` | Five Ports across two Nets — the shared blank scratch input for connectivity and routing suites. It has **no Routes** on purpose: `direct-contact-lifecycle.test.ts` asserts route-free outcomes, and the routing suites read `routes[0]` as the Route they just authored. Do not add Routes here; use `crossing-routes`. |
-| `crossing-routes` | The same-Net-crossing case: two Routes whose conductors intersect without a Junction. Only `scripts/visual-golden.mjs` reads it. Split from `port-nets` because the shared scratch input must stay Route-free. |
+| `crossing-routes` | Four Ports and two Routes on different Nets (`net-h` and `net-v`), crossing without a Junction. Rendered by `scripts/visual-golden.mjs`; the shared `port-nets` scratch input stays Route-free. |
 | `differential-stage` | A small analog stage with Routes and annotations; also the source Project for `fixtures/exports/`. |
 | `hierarchical-gain-stage` | The only Project here with **hierarchy**: a `GainStage` Cell placed twice in a `GainStagePair` top. It is what proves a Cell instance and a child Document render at all; the visual golden covers both halves. |
 | `instance-value-display` | Device values and the annotation set that renders them. |
