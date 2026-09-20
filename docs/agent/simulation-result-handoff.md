@@ -1,5 +1,30 @@
 # Agent simulation result handoff
 
+## Evidence and execution lifetime
+
+An unused prepared input has a short start-validity window. That is not an
+artifact retention deadline or an authorization lease. Once a batch starts,
+its queued prepared inputs remain valid for that batch even if wall time passes
+the original preparation expiry. Completed runs and batches remain readable for
+the owning host lifetime; repeating the original start request ID returns the
+same run rather than executing again. A completed batch reports `expiresAt: null`.
+
+Session-workspace drafts report `expiresAt: null` and remain until explicit
+discard or host teardown. Saved Project source files have their own ownership.
+Browser artifact bodies are stored separately as Project-scoped IndexedDB
+evidence, with a bounded memory cache. Disconnect clears authorization and
+memory handles, not these bodies. A new authorized host for the same Project
+can read a known artifact ID; another Project cannot. History discovery and
+whole-run restoration use the result history described below. Local Agent
+downloads remain independent of browser lifetime and storage.
+
+Large finished run receipts omit numeric arrays only after artifact publication
+succeeds. `resultPreview` describes that receipt, not lost evidence. Download
+the complete registered files to analyze them; keeping a page open does not
+extend access credentials automatically beyond the session's existing rules.
+
+## GUI handoff and archives
+
 Project-folder simulations share a read-only run history with the GUI. Starting
 an Agent run does not open the simulation panel, change its active folder, or
 replace a human run. In the selected folder's results area, **Project runs**

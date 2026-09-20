@@ -38,7 +38,6 @@ type InternalRun = {
   engine: "ngspice" | "vacask";
   prepared: Prepared;
   token: string;
-  expiresAt: number;
   done: Promise<void>;
   source: PrepareSource;
 };
@@ -280,21 +279,22 @@ export class SimulationService {
   }
   private prune() {
     const now = this.now();
+    const pinned = new Set(
+      [...this.batches.values()]
+        .filter((batch) => ["running", "cancelling"].includes(batch.view.state))
+        .flatMap((batch) => batch.view.items.map((item) => item.prepared.id)),
+    );
     for (const [id, p] of this.prepared)
-      if (p.view.expiresAt <= now) this.prepared.delete(id);
-    for (const [id, r] of this.runs)
-      if (
-        r.expiresAt <= now &&
-        !["running", "cancelling"].includes(r.view.state)
-      )
-        this.runs.delete(id);
+      if (p.view.expiresAt <= now && !pinned.has(id)) this.prepared.delete(id);
     for (const [id, batch] of this.batches)
       if (
+        batch.view.expiresAt !== null &&
         batch.view.expiresAt <= now &&
-        !["running", "cancelling"].includes(batch.view.state)
+        batch.view.state === "prepared"
       )
         this.batches.delete(id);
-    // Keep request tombstones for this session: an expired run must not be executed again.
+    // Only unused execution preparations expire. Finished receipts and their
+    // request identities survive for this host lifetime; evidence has its own storage.
   }
   private async prepareBatch(
     op: Extract<SimulationOperation, { operation: "prepare-batch" }>,
@@ -588,7 +588,7 @@ export class SimulationService {
       : batch.view.items.some((item) => ["failed", "lost"].includes(item.state))
         ? "failed"
         : "finished";
-    batch.view.expiresAt = this.now() + TTL;
+    batch.view.expiresAt = null;
   }
   private async accessBatch(
     op: Extract<
@@ -628,6 +628,7 @@ export class SimulationService {
         }
       } else {
         batch.view.state = "cancelled";
+        batch.view.expiresAt = null;
       }
     }
     return { ok: true, batch: structuredClone(batch.view) };
@@ -815,7 +816,6 @@ export class SimulationService {
       engine: prepared.input.language === "vacask" ? "vacask" : "ngspice",
       prepared: structuredClone(prepared.view),
       token: crypto.randomUUID(),
-      expiresAt: this.now() + TTL,
       done: Promise.resolve(),
       source: prepared.source,
     };
@@ -1016,7 +1016,9 @@ export class SimulationService {
       run.view.error ? "partial" : collectionStatus,
       run.prepared.signalTargets,
     );
-    run.expiresAt = this.now() + TTL;
+    // Do not retain full numeric arrays in memory after complete artifact
+    // publication. On publication failure, preserve any otherwise unsaved data.
+    if (!run.view.error) run.view = runReceipt(run.view);
   }
   private async publishArtifact(
     epoch: number,

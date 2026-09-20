@@ -1,6 +1,28 @@
 import { describe, it, expect } from "vitest";
 import { ArtifactDownloadError, SimulationFiles, sha256 } from "./files.js";
 describe("simulation File Resource evidence", () => {
+  it("retains authored workspace drafts until explicit discard rather than elapsed time", async () => {
+    let now = 0;
+    const files = new SimulationFiles(() => now);
+    const created = await files.handle({ action: "create" });
+    if (!created.ok || !("workspace" in created)) throw Error("create");
+    expect(created.workspace.expiresAt).toBeNull();
+    now = 24 * 60 * 60 * 1000;
+    const owner = {
+      kind: "session-workspace",
+      workspaceId: created.workspace.id,
+    };
+    expect(await files.handle({ action: "list", owner })).toMatchObject({
+      ok: true,
+    });
+    expect(await files.handle({ action: "discard", owner })).toMatchObject({
+      ok: true,
+    });
+    expect(await files.handle({ action: "list", owner })).toMatchObject({
+      ok: false,
+      error: { code: "WORKSPACE_UNAVAILABLE" },
+    });
+  });
   it("ignores old upload completions when a new publisher owns the queue", async () => {
     const files = new SimulationFiles();
     const old: Array<(path: string) => void> = [];

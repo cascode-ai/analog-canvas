@@ -715,7 +715,12 @@ export const SimulationBatchSchema = z.strictObject({
     "cancelled",
   ]),
   createdAt: z.number(),
-  expiresAt: z.number(),
+  expiresAt: z
+    .number()
+    .nullable()
+    .describe(
+      "Unused preparation expiry; null after completion. Not an evidence retention deadline.",
+    ),
   items: z.array(SimulationBatchItemSchema).min(1).max(16),
 });
 export type SimulationBatch = z.infer<typeof SimulationBatchSchema>;

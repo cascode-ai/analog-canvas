@@ -32569,10 +32569,10 @@
                             "type": "object",
                             "properties": {
                               "owner": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema9"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
                               },
                               "revision": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
                               },
                               "entry": {
                                 "anyOf": [
@@ -32605,13 +32605,13 @@
                                       "type": "object",
                                       "properties": {
                                         "id": {
-                                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
                                         },
                                         "path": {
                                           "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
                                         },
                                         "documentId": {
-                                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
                                         },
                                         "emission": {
                                           "type": "string",
@@ -32655,7 +32655,7 @@
                                       ]
                                     },
                                     "byteLength": {
-                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
+                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
                                     }
                                   },
                                   "required": [
@@ -32707,10 +32707,10 @@
                             "const": true
                           },
                           "owner": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema9"
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
                           },
                           "revision": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
                           },
                           "path": {
                             "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
@@ -32722,12 +32722,12 @@
                             "type": "string"
                           },
                           "offset": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
                           },
                           "nextOffset": {
                             "anyOf": [
                               {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
                               },
                               {
                                 "type": "null"
@@ -32746,10 +32746,10 @@
                                   "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
                                 },
                                 "startOffset": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
                                 },
                                 "endOffset": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
                                 }
                               },
                               "required": [
@@ -32767,10 +32767,10 @@
                               "type": "object",
                               "properties": {
                                 "from": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
                                 },
                                 "to": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
                                 },
                                 "label": {
                                   "type": "string"
@@ -32823,12 +32823,12 @@
                             "type": "string"
                           },
                           "offset": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
                           },
                           "nextOffset": {
                             "anyOf": [
                               {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
                               },
                               {
                                 "type": "null"
@@ -32920,13 +32920,13 @@
                                   "type": "object",
                                   "properties": {
                                     "documentId": {
-                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
                                     },
                                     "hierarchyPath": {
                                       "maxItems": 32,
                                       "type": "array",
                                       "items": {
-                                        "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
+                                        "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema13"
                                       }
                                     },
                                     "kind": {
@@ -32943,7 +32943,7 @@
                                       ]
                                     },
                                     "objectId": {
-                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
                                     },
                                     "endpoint": {
                                       "oneOf": [
@@ -32955,7 +32955,7 @@
                                               "const": "terminal"
                                             },
                                             "instanceId": {
-                                              "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                                              "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
                                             },
                                             "pinName": {
                                               "type": "string",
@@ -32977,7 +32977,7 @@
                                               "const": "junction"
                                             },
                                             "junctionId": {
-                                              "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                                              "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
                                             }
                                           },
                                           "required": [
@@ -32989,7 +32989,7 @@
                                       ]
                                     },
                                     "sourceRef": {
-                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema13"
+                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
                                     }
                                   },
                                   "required": [
@@ -33007,7 +33007,7 @@
                                   "type": "string"
                                 },
                                 "sourceRef": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema13"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
                                 },
                                 "source": {
                                   "type": "object",
@@ -33184,7 +33184,7 @@
                 "const": true
               },
               "candidate": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema15"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema16"
               }
             },
             "required": [
@@ -33245,7 +33245,7 @@
                 "const": true
               },
               "candidate": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema15"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema16"
               },
               "approval": {
                 "type": "string",
@@ -33411,9 +33411,20 @@
             "type": "string"
           },
           "__schema8": {
-            "type": "number"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema9"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null means retained until explicit discard or host teardown; not an authorization lease."
           },
           "__schema9": {
+            "type": "number"
+          },
+          "__schema10": {
             "oneOf": [
               {
                 "type": "object",
@@ -33451,27 +33462,27 @@
               }
             ]
           },
-          "__schema10": {
+          "__schema11": {
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
           },
-          "__schema11": {
+          "__schema12": {
             "type": "string",
             "minLength": 1,
             "maxLength": 256
           },
-          "__schema12": {
+          "__schema13": {
             "type": "object",
             "properties": {
               "parentDocumentId": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
               },
               "instanceId": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
               },
               "childDocumentId": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
               }
             },
             "required": [
@@ -33481,17 +33492,17 @@
             ],
             "additionalProperties": false
           },
-          "__schema13": {
+          "__schema14": {
             "type": "object",
             "properties": {
               "fileId": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
               },
               "start": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema15"
               },
               "end": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema15"
               }
             },
             "required": [
@@ -33501,7 +33512,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema14": {
+          "__schema15": {
             "type": "object",
             "properties": {
               "offset": {
@@ -33527,7 +33538,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema15": {
+          "__schema16": {
             "type": "object",
             "properties": {
               "candidateId": {
@@ -36373,14 +36384,22 @@
                     "type": "number"
                   },
                   "expiresAt": {
-                    "type": "number"
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema48"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Unused preparation expiry; null after completion. Not an evidence retention deadline."
                   },
                   "items": {
                     "minItems": 1,
                     "maxItems": 16,
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema48"
+                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema49"
                     }
                   }
                 },
@@ -38114,6 +38133,9 @@
             "additionalProperties": false
           },
           "__schema48": {
+            "type": "number"
+          },
+          "__schema49": {
             "type": "object",
             "properties": {
               "id": {

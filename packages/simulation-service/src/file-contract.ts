@@ -18,7 +18,12 @@ export const WorkspaceSchema = z.strictObject({
   entry: z.string().nullable(),
   configPath: SimulationInputPathSchema,
   files: z.array(z.strictObject({ path: z.string(), text: z.string() })),
-  expiresAt: z.number(),
+  expiresAt: z
+    .number()
+    .nullable()
+    .describe(
+      "Null means retained until explicit discard or host teardown; not an authorization lease.",
+    ),
 });
 export type Workspace = z.infer<typeof WorkspaceSchema>;
 

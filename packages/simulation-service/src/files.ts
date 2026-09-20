@@ -32,7 +32,6 @@ export class ArtifactDownloadError extends Error {
     super(message);
   }
 }
-const TTL = 15 * 60_000;
 export const MAX_ARTIFACT_BYTES = 64 * 1024 * 1024;
 export const MAX_ARTIFACT_STORE_BYTES = 1024 * 1024 * 1024;
 export const MAX_ARTIFACT_FILES = 1024;
@@ -92,7 +91,8 @@ export class SimulationFiles {
   private prune() {
     const now = this.now();
     for (const [id, w] of this.workspaces)
-      if (w.expiresAt <= now) this.workspaces.delete(id);
+      if (w.expiresAt !== null && w.expiresAt <= now)
+        this.workspaces.delete(id);
   }
   async handle(
     input: unknown,
@@ -147,7 +147,7 @@ export class SimulationFiles {
         entry: null,
         configPath: "experiment.json",
         files: [],
-        expiresAt: this.now() + TTL,
+        expiresAt: null,
       };
       this.workspaces.set(workspace.id, workspace);
       return { ok: true as const, workspace: structuredClone(workspace) };
@@ -386,7 +386,7 @@ export class SimulationFiles {
       files: [...files]
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([path, text]) => ({ path, text })),
-      expiresAt: this.now() + TTL,
+      expiresAt: null,
     };
     this.workspaces.set(next.id, next);
     return this.listWorkspace(next);
