@@ -6,8 +6,9 @@ import {
 } from "./simulation-run-archive";
 
 const DATABASE_NAME = "analog-canvas-simulation-archives";
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 const STORE_NAME = "runs";
+const DIRECTORY_NAME = "run-directory";
 const MAX_ARCHIVES_PER_PROJECT = 10;
 
 export type SimulationArchiveStoreResult<T> =
@@ -93,6 +94,20 @@ export function createBrowserSimulationArchiveStore(
       request.onupgradeneeded = () => {
         if (!request.result.objectStoreNames.contains(STORE_NAME))
           request.result.createObjectStore(STORE_NAME);
+        const directory = request.result.createObjectStore(DIRECTORY_NAME);
+        directory.createIndex("projectId", "projectId");
+        // One-time migration streams old records individually; never rewrite
+        // their evidence or materialize every project's file bodies together.
+        const cursor = request
+          .transaction!.objectStore(STORE_NAME)
+          .openCursor();
+        cursor.onsuccess = () => {
+          if (!cursor.result) return;
+          const archive = readSimulationRunArchive(cursor.result.value);
+          if (archive)
+            directory.put(summarizeSimulationRunArchive(archive), archive.id);
+          cursor.result.continue();
+        };
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () =>
@@ -109,25 +124,21 @@ export function createBrowserSimulationArchiveStore(
     }
   }
 
-  async function records(): Promise<SimulationRunArchiveV1[]> {
-    const db = await open();
-    const transaction = db.transaction(STORE_NAME, "readonly");
-    const values = await requestValue(
-      transaction.objectStore(STORE_NAME).getAll(),
-    );
-    await transactionDone(transaction);
-    return values
-      .map(readSimulationRunArchive)
-      .filter((value): value is SimulationRunArchiveV1 => value !== null);
-  }
-
   return {
     async list(projectId) {
       try {
-        const summaries = (await records())
-          .filter((archive) => archive.projectId === projectId)
-          .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
-          .map(summarizeSimulationRunArchive);
+        const db = await open();
+        const transaction = db.transaction(DIRECTORY_NAME, "readonly");
+        const summaries: SimulationRunArchiveSummary[] = await requestValue(
+          transaction
+            .objectStore(DIRECTORY_NAME)
+            .index("projectId")
+            .getAll(projectId),
+        );
+        await transactionDone(transaction);
+        summaries.sort((left, right) =>
+          right.createdAt.localeCompare(left.createdAt),
+        );
         return { ok: true, value: summaries };
       } catch (error) {
         return failure(error);
@@ -152,16 +163,29 @@ export function createBrowserSimulationArchiveStore(
     async save(archive) {
       try {
         const db = await open();
-        const existing = (await records())
-          .filter((candidate) => candidate.projectId === archive.projectId)
-          .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-        const transaction = db.transaction(STORE_NAME, "readwrite");
+        const transaction = db.transaction(
+          [STORE_NAME, DIRECTORY_NAME],
+          "readwrite",
+        );
+        const directory = transaction.objectStore(DIRECTORY_NAME);
+        const done = transactionDone(transaction);
+        const existing: SimulationRunArchiveSummary[] = await requestValue(
+          directory.index("projectId").getAll(archive.projectId),
+        );
         const store = transaction.objectStore(STORE_NAME);
-        for (const stale of existing.slice(MAX_ARCHIVES_PER_PROJECT - 1))
-          store.delete(stale.id);
+        const summary = summarizeSimulationRunArchive(archive);
         store.put(archive, archive.id);
-        await transactionDone(transaction);
-        return { ok: true, value: summarizeSimulationRunArchive(archive) };
+        directory.put(summary, archive.id);
+        const ordered = [
+          ...existing.filter((item) => item.id !== archive.id),
+          summary,
+        ].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+        for (const stale of ordered.slice(MAX_ARCHIVES_PER_PROJECT)) {
+          store.delete(stale.id);
+          directory.delete(stale.id);
+        }
+        await done;
+        return { ok: true, value: summary };
       } catch (error) {
         return failure(error);
       }
@@ -169,8 +193,12 @@ export function createBrowserSimulationArchiveStore(
     async delete(id) {
       try {
         const db = await open();
-        const transaction = db.transaction(STORE_NAME, "readwrite");
+        const transaction = db.transaction(
+          [STORE_NAME, DIRECTORY_NAME],
+          "readwrite",
+        );
         transaction.objectStore(STORE_NAME).delete(id);
+        transaction.objectStore(DIRECTORY_NAME).delete(id);
         await transactionDone(transaction);
         return { ok: true, value: true };
       } catch (error) {

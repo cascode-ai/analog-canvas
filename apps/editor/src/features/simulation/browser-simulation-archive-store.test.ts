@@ -1,5 +1,5 @@
-import { IDBFactory } from "fake-indexeddb";
-import { describe, expect, it } from "vitest";
+import { IDBFactory, IDBObjectStore } from "fake-indexeddb";
+import { describe, expect, it, vi } from "vitest";
 
 import { createBrowserSimulationArchiveStore } from "./browser-simulation-archive-store";
 import type { SimulationRunArchiveV1 } from "./simulation-run-archive";
@@ -41,6 +41,49 @@ function archive(id: string, createdAt: string): SimulationRunArchiveV1 {
 }
 
 describe("browser simulation archive store", () => {
+  it("lists metadata without scanning file bodies and atomically retains concurrent saves", async () => {
+    const store = createBrowserSimulationArchiveStore({
+      idbFactory: new IDBFactory(),
+    });
+    const scan = vi.spyOn(IDBObjectStore.prototype, "getAll");
+    const cursor = vi.spyOn(IDBObjectStore.prototype, "openCursor");
+    try {
+      await store.list("project"); // initializes/migrates once
+      scan.mockClear();
+      cursor.mockClear();
+      const other = {
+        ...archive("other", new Date(0).toISOString()),
+        projectId: "other",
+      };
+      expect((await store.save(other)).ok).toBe(true);
+      const saved = await Promise.all(
+        Array.from({ length: 12 }, (_, i) =>
+          store.save(archive(`run-${i}`, new Date(i * 1000).toISOString())),
+        ),
+      );
+      expect(saved.every((result) => result.ok)).toBe(true);
+      const latest = archive("run-11", new Date(11000).toISOString());
+      await store.save(latest); // replacing an existing entry must not evict another
+      const listed = await store.list("project");
+      expect(listed).toMatchObject({ ok: true, value: expect.any(Array) });
+      if (!listed.ok) throw Error(listed.message);
+      expect(listed.value.map((item) => item.id)).toEqual(
+        Array.from({ length: 10 }, (_, i) => `run-${11 - i}`),
+      );
+      expect(await store.list("other")).toMatchObject({
+        ok: true,
+        value: [{ id: "other" }],
+      });
+      expect(scan).not.toHaveBeenCalled();
+      expect(cursor).not.toHaveBeenCalled();
+      expect(await store.read("run-0")).toEqual({ ok: true, value: null });
+      expect(await store.read("run-11")).toEqual({ ok: true, value: latest });
+    } finally {
+      scan.mockRestore();
+      cursor.mockRestore();
+      store.close();
+    }
+  });
   it("lists and opens pre-folder archives without rewriting their execution evidence", async () => {
     const factory = new IDBFactory();
     const record = archive("legacy", new Date(0).toISOString());
