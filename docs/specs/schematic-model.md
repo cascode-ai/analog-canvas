@@ -56,7 +56,9 @@ migration. Invalid coordinates are rejected with their data path.
   declaration's Port Name may differ from a visible internal Net Label; the
   Port name supplies interface identity without overwriting that Label.
 
-Canvas `port` and `port-filled` artwork has exactly one meaning: a Cell Pin.
+Canvas `port` and `port-filled` share one formal-terminal storage protocol but
+not one visible meaning: `port` is the hollow Cell Pin, while `port-filled` is
+the solid Bias Voltage Port.
 VDD Power also owns a Cell-Pin declaration by default and can be switched
 explicitly to a Global marker in Properties. A local Power Rail owns a formal
 terminal directly through its `power-label` annotation; it does not require a

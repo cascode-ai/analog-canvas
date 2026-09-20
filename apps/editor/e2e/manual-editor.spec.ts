@@ -1260,12 +1260,16 @@ test("P shortcut starts Cell Pin placement", async ({ page }) => {
   await chooseComponent(page, "port-filled");
   await expect(page.getByTestId("component-placement-preview")).toBeVisible();
   await canvas.click({ position: { x: 320, y: 260 } });
-  await expect(page.getByTestId("status")).toContainText("Added Cell Pin VB1");
+  await expect(page.getByTestId("status")).toContainText(
+    "Added Bias Voltage Port VB1",
+  );
   await page.keyboard.press("Escape");
   await chooseComponent(page, "port-filled");
   await expect(page.getByTestId("component-placement-preview")).toBeVisible();
   await canvas.click({ position: { x: 520, y: 260 } });
-  await expect(page.getByTestId("status")).toContainText("Added Cell Pin VB2");
+  await expect(page.getByTestId("status")).toContainText(
+    "Added Bias Voltage Port VB2",
+  );
   await page.keyboard.press("Escape");
   const firstBias = page.locator('[data-object-id="instance-label-P3"]');
   const secondBias = page.locator('[data-object-id="instance-label-P4"]');
@@ -1382,7 +1386,7 @@ test("Ctrl+R mirrors a selected component instead of refreshing", async ({
   });
 });
 
-test("treats hollow and filled Cell Pins as equivalent interface variants", async ({
+test("authors Cell Pins and Bias Voltage Ports as independent interfaces", async ({
   page,
 }) => {
   await page.goto("/editor");

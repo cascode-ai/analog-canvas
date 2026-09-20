@@ -80,7 +80,8 @@ export function planBrowserAgentCommand(
           // The compact action's reference names a Cell terminal, not a
           // device. Use the GUI's interface planner and bound name display.
           const { reference, netlist: _netlist, ...port } = instance;
-          if (!reference?.trim()) throw new Error("A Cell Pin requires a name");
+          if (!reference?.trim())
+            throw new Error("A Cell interface marker requires a name");
           const terminalId = deriveStableId("terminal", instance.id);
           const netId = deriveStableId("net-cell-pin", instance.id);
           const endpoint = {
@@ -120,7 +121,7 @@ export function planBrowserAgentCommand(
               entry.documentId !== documentId
             )
               throw new Error(
-                "Cell Pin placement must target its owning Document",
+                "Cell interface marker placement must target its owning Document",
               );
             edits.push(...entry.edits);
           }

@@ -93,14 +93,15 @@ the source and destination to use the same exact Symbol Library lock and
 reports incompatible external interfaces without changing either Project.
 
 The default top Cell is still a reusable structural subcircuit; it can be placed
-in another Cell when this does not create a recursive hierarchy. **Port** and
-**Filled Port** are hollow and filled artwork for the same **Cell Pin** concept.
-A Cell Pin defines one independently authored interface declaration. Use Net
-Label instead when you only need to name an internal Net.
+in another Cell when this does not create a recursive hierarchy. The hollow
+**Cell Pin** is the ordinary interface Pin. The solid **Bias Voltage Port** is
+the marker for a bias-voltage entry, typically named `VB1`, `VB2`, and so on.
+Both define independently authored interface declarations. Use Net Label
+instead when you only need to name an internal Net.
 
 To define a real Cell port:
 
-1. Press `P`, or place **Cell Pin** / **Cell Pin (filled)** from the Library.
+1. Press `P`, or place **Cell Pin** / **Bias Voltage Port** from the Library.
 2. Click an exact existing electrical contact to attach to its Net, or click
    empty grid space to create a new local Net.
 3. Double-click its default annotation to edit the interface name; use normal

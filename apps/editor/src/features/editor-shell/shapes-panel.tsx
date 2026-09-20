@@ -18,8 +18,8 @@ import {
 
 /**
  * A tile is 40px wide, so its label is an abbreviation — "Cap", "Res", "NPN".
- * Cell Pins shorten to "Pin"; the full name remains in the tooltip and Insert
- * dialog, where there is room to read it.
+ * A Cell Pin shortens to "Pin" and a Bias Voltage Port to "Bias"; full names
+ * remain in the tooltip and Insert dialog, where there is room to read them.
  */
 const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   capacitor: "Cap",
@@ -58,7 +58,7 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   pnp: "PNP",
   pdmos: "PDMOS",
   port: "Pin",
-  "port-filled": "Pin \u2022",
+  "port-filled": "Bias",
   "pulse-voltage-source": "Clock",
   resistor: "Res",
   "variable-capacitor": "Var Cap",

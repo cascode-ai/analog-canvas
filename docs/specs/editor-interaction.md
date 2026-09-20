@@ -17,8 +17,10 @@ state as a Symbol; its commit factory alone differs, creating one typed
 subcircuit Instance through a Project structural transaction. `Xn` remains its
 sole Netlist Reference and is emitted, but an internal Cell shows only its
 Cell/master name in the normal Reference slot by default. That attached text
-has no identity or hierarchy authority. Both `port` and
-`port-filled` remain manually reachable artwork for one concept: **Cell Pin**.
+has no identity or hierarchy authority. The hollow `port` is the visible
+**Cell Pin**; the filled `port-filled` is the **Bias Voltage Port** used for
+VB-style bias entries. Both remain manually reachable, independently authored
+formal-interface objects in the current model.
 Terminal `P` participates in ordinary snap, wire, move/stretch, and selection
 behavior. Placement atomically creates the Instance, Base Net membership, and
 one stable ordered Cell terminal through a Project structural transaction. It
@@ -35,10 +37,13 @@ existing component, Cell, Cell-Pin, external-master, or VDD-rail planner. This i
 an editor interaction boundary only: it does not add a persisted project type,
 an Edit Engine operation, or an Agent API endpoint.
 
-**Port** and **Filled Port** are hollow and filled visual variants of Cell Pin.
-`P`, the Library, and full Insert all enter the same placement planner. An
-isolated Pin receives the first unused `Vin`, `Vin2`, … interface name and the
-`passive` direction; a named contact or explicit text takes precedence.
+**Cell Pin** and **Bias Voltage Port** have distinct visible meanings: the
+hollow marker is the ordinary Pin, while the solid marker denotes a bias
+voltage entry. Both use the same formal-terminal storage and placement planner.
+`P`, the Library, and full Insert all enter the same placement planner. New
+hollow Pins allocate `Vinp`, `Vinn`, `Vout`, then numbered groups; solid Bias
+Voltage Ports allocate `VB1`, `VB2`, and so on. A named contact or explicit
+text takes precedence, and the initial direction is `passive`.
 Duplicate Port Names are valid. Placement and rename always create or update
 only the selected Cell Pin; a matching name never attaches markers, merges
 Nets, or synchronizes directions. The bound name is edited in place and its

@@ -955,7 +955,7 @@ export const agentRazaviAuthoringCatalog = {
     },
     {
       symbolId: "port-filled",
-      name: "Filled Port",
+      name: "Bias Voltage Port",
       category: "interface",
       defaultVariantId: null,
       labelVisibility: "shown",

@@ -3,7 +3,7 @@
   "symbol": {
     "schemaVersion": 1,
     "id": "port-filled",
-    "name": "Filled Port",
+    "name": "Bias Voltage Port",
     "viewBox": {
       "x": -14,
       "y": -7,
@@ -64,7 +64,7 @@
   "catalog": {
     "library": "razavi",
     "symbolId": "port-filled",
-    "name": "Filled Port",
+    "name": "Bias Voltage Port",
     "category": "interface",
     "reviewStatus": "reviewed",
     "pinOrder": ["P"],

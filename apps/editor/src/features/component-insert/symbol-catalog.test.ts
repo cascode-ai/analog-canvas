@@ -246,7 +246,7 @@ describe("component insertion catalog", () => {
     expect(extended).not.toHaveProperty("subcategory");
   });
 
-  it("describes the filled Cell Pin as an independent authoring object", () => {
+  it("describes the filled marker as a bias-voltage port", () => {
     expect(libraryDisplayName("depletion-nmos", "Depletion NMOS")).toBe(
       "D-NMOS",
     );
@@ -254,6 +254,9 @@ describe("component insertion catalog", () => {
       "D-PMOS",
     );
     expect(libraryDisplayName("zener-diode", "Zener Diode")).toBe("Zener");
+    expect(libraryDisplayName("port-filled", "Bias Voltage Port")).toBe(
+      "Bias Voltage Port",
+    );
     expect(
       libraryDisplayName(
         "externally-controlled-switch",
@@ -261,7 +264,7 @@ describe("component insertion catalog", () => {
       ),
     ).toBe("Ctrl SW");
     expect(libraryDescription("port-filled")).toBe(
-      "An independent Cell Pin with a solid appearance",
+      "A solid bias-voltage port, typically used for VB-style bias nodes",
     );
   });
 

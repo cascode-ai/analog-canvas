@@ -145,15 +145,14 @@ export function symbolCategory(symbolId: string): string {
  * Library display names, where the catalog's own name does not say what the
  * entry is *for*.
  *
- * Port artwork has one meaning: an independently authored Cell Pin. Hollow
- * and filled entries are appearance variants, never shared interface objects.
+ * The hollow Port is a Cell Pin. The filled marker is a Bias Voltage Port.
+ * Both remain independently authored interface objects in the current model.
  */
 const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   "depletion-nmos": "D-NMOS",
   "depletion-pmos": "D-PMOS",
   "externally-controlled-switch": "Ctrl SW",
   port: "Cell Pin",
-  "port-filled": "Cell Pin (filled)",
   "zener-diode": "Zener",
 };
 
@@ -166,7 +165,8 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   "externally-controlled-switch":
     "Three-terminal switch: P/N carry the path; CTRL is one external logic-control pin",
   port: "A terminal on this Cell interface — the parent circuit connects to it",
-  "port-filled": "An independent Cell Pin with a solid appearance",
+  "port-filled":
+    "A solid bias-voltage port, typically used for VB-style bias nodes",
 };
 
 export function libraryDisplayName(symbolId: string, fallback: string): string {

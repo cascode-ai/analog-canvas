@@ -80,8 +80,9 @@ bounded source identifiers outside the shared subset so an imported Project can
 still open; explicit invalid names block export and printers do not silently
 rename them.
 
-`terminals` stores independently authored Cell-Pin declarations. Canvas `port`
-and `port-filled` symbols are Cell Pins: each owns exactly one singleton
+`terminals` stores independently authored interface declarations. Canvas
+`port` is the hollow Cell Pin and `port-filled` is the solid Bias Voltage Port;
+each owns exactly one singleton
 declaration through `terminals[].interfaceInstanceIds` and neither emits an
 instance line. Cell Pins are available in top and child Documents. A hierarchy
 instance uses its bound child Document and the read-only formal projection of

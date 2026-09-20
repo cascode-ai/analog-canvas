@@ -49,7 +49,7 @@ describe("netlist authoring", () => {
     expect(instanceIdPrefix("inductor")).toBe("L");
   });
 
-  it("allocates hollow and filled Cell Pin names from separate sequences", () => {
+  it("allocates Cell Pin and Bias Voltage Port names from separate sequences", () => {
     const document = createEmptyDocument("main", "Main");
     document.netlist = {
       name: "Main",
