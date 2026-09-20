@@ -45,7 +45,13 @@ restrictive content-security-policy.
   lights its mark immediately, and the scheduled maintenance pass below
   re-answers stored marks after the rule itself changes.
 - `GET /api/gallery/tags` — distinct public tags with counts, most
-  frequent first (feeds the multi-select menu).
+  frequent first. The landing Gallery places these in a left sidebar grouped
+  by circuit family, with independent tag search, per-tag counts and clearable
+  multi-selection. Groups are presentation only: no authored tag or URL value
+  is rewritten, unknown tags remain available under Devices & other, and tags
+  restored from old links remain removable. Narrow mobile layouts collapse
+  the sidebar behind a Filters & tags button. Circuit search stays above the
+  wall; an empty tag selection result does not substitute unfiltered examples.
 - `GET /api/gallery/authors` — non-empty public bylines with their currently
   visible circuit counts, ranked by count and then author name. The clickable
   wall count uses this roll-up for its contributor leaderboard; expanding one

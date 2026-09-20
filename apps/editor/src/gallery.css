@@ -401,13 +401,6 @@
   background: var(--icm-surface-hover);
 }
 
-.gallery-tag-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 12px 22px 0;
-}
-
 .gallery-tag-option {
   padding: 5px 12px;
   border: 1px solid var(--icm-border);
@@ -1302,8 +1295,7 @@ div.gallery-contributor-status {
   cursor: default;
 }
 
-/* The tag row is a header, not the page: a filter narrows it, and the tail
-   stays one click away instead of wrapping over three rows. */
+/* Circuit search and tag search are independent filters. */
 .gallery-tag-search {
   flex: 0 0 auto;
   width: 9rem;
@@ -1319,17 +1311,6 @@ div.gallery-contributor-status {
 .gallery-tag-search:focus-visible {
   outline: 2px solid var(--icm-accent);
   outline-offset: 1px;
-}
-
-.gallery-tag-more {
-  font-weight: 600;
-  color: var(--icm-accent);
-}
-
-.gallery-tag-empty {
-  align-self: center;
-  color: var(--icm-text-muted);
-  font-size: 12px;
 }
 
 /* "Any tag" is a filter, not a reset: pressed, it means the wall is showing
@@ -1350,10 +1331,7 @@ div.gallery-contributor-status {
   color: var(--icm-error);
 }
 
-/* The scan lives in the filter row: its own box would only indent what it
-   holds, so it passes its children straight to that row. The controls take the
-   free end beside the filter pills; everything the scan reports claims a full
-   line under them. */
+/* Administrator results occupy the main column, independent of tag navigation. */
 .gallery-duplicates {
   display: contents;
   font-size: 13px;
@@ -1434,4 +1412,253 @@ div.gallery-contributor-status {
   border-radius: 4px;
   padding: 2px 5px;
   margin-left: 6px;
+}
+
+/* Gallery taxonomy: quiet navigation beside the circuit wall. */
+.gallery-browser {
+  display: grid;
+  grid-template-columns: 238px minmax(0, 1fr);
+  flex: 1;
+}
+
+.gallery-main {
+  min-width: 0;
+}
+
+.gallery-sidebar-slot {
+  border-right: 1px solid var(--icm-border);
+  background: var(--icm-surface);
+}
+
+.gallery-tag-sidebar {
+  position: sticky;
+  top: var(--icm-menubar-h);
+  max-height: calc(100dvh - var(--icm-menubar-h));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  box-sizing: border-box;
+  padding: 20px 14px;
+}
+
+.gallery-tag-sidebar h2 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--icm-text-muted);
+}
+
+.gallery-sidebar-quick {
+  display: grid;
+  gap: 3px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--icm-border);
+}
+
+.gallery-sidebar-quick h2 {
+  margin: 0 8px 8px;
+}
+
+.gallery-sidebar-option,
+.gallery-sidebar-quick .gallery-tag-option {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 7px 8px;
+  background: transparent;
+  color: var(--icm-text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gallery-sidebar-option:hover,
+.gallery-sidebar-quick .gallery-tag-option:hover {
+  background: var(--icm-surface-hover);
+}
+
+.gallery-sidebar-option[aria-pressed="true"],
+.gallery-sidebar-quick .gallery-tag-option[aria-pressed="true"] {
+  background: var(--icm-accent-soft);
+  color: var(--icm-accent);
+  font-weight: 600;
+}
+
+.gallery-sidebar-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 0 8px;
+  margin-bottom: 10px;
+}
+
+.gallery-sidebar-clear {
+  border: 0;
+  padding: 2px 0;
+  background: transparent;
+  color: var(--icm-accent);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.gallery-tag-sidebar > .gallery-tag-search {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.gallery-tag-group {
+  margin-bottom: 12px;
+}
+
+.gallery-tag-group > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 4px;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+
+.gallery-tag-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.gallery-tag-group > summary::before {
+  content: "›";
+  width: 10px;
+  text-align: center;
+  transition: transform 120ms;
+}
+
+.gallery-tag-group[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.gallery-tag-group > summary > span {
+  margin-left: auto;
+  font-weight: 400;
+}
+
+.gallery-tag-check {
+  flex: 0 0 12px;
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--icm-border);
+  border-radius: 3px;
+  font-size: 10px;
+  line-height: 12px;
+  text-align: center;
+}
+
+.gallery-sidebar-tag[aria-pressed="true"] .gallery-tag-check {
+  border-color: var(--icm-accent);
+  color: var(--icm-surface);
+  background: var(--icm-accent);
+}
+
+.gallery-tag-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.gallery-sidebar-count {
+  margin-left: auto;
+  color: var(--icm-text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.gallery-sidebar-empty {
+  padding: 4px 8px;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+}
+
+.gallery-search-toolbar {
+  padding: 18px 22px 0;
+}
+
+.gallery-search-toolbar .gallery-tag-search {
+  width: min(100%, 360px);
+  box-sizing: border-box;
+  padding: 9px 12px;
+  border-radius: 7px;
+  font-size: 13px;
+}
+
+.gallery-scan-toolbar:has(.gallery-duplicates) {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 12px 22px 0;
+}
+
+.gallery-scan-toolbar .gallery-duplicates-actions {
+  margin-left: 0;
+}
+
+.gallery-sidebar-toggle {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .gallery-browser {
+    grid-template-columns: 204px minmax(0, 1fr);
+  }
+  .gallery-tag-sidebar {
+    padding: 16px 10px;
+  }
+  .gallery-main .gallery-wall,
+  .gallery-search-toolbar,
+  .gallery-scan-toolbar:has(.gallery-duplicates) {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}
+
+@media (max-width: 620px) {
+  .gallery-browser {
+    display: block;
+  }
+  .gallery-sidebar-slot {
+    border-right: 0;
+    border-bottom: 1px solid var(--icm-border);
+  }
+  .gallery-sidebar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 12px 18px;
+    border: 0;
+    background: var(--icm-surface);
+    color: var(--icm-text);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .gallery-tag-sidebar {
+    display: none;
+    position: static;
+    max-height: 55dvh;
+  }
+  .gallery-tag-sidebar[data-open="true"] {
+    display: block;
+  }
 }

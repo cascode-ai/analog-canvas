@@ -1114,7 +1114,7 @@ test("the account chip sits on the header line and ellipsizes a long name", asyn
   expect(overflowing.display).not.toContain("flex");
 });
 
-test("the tag row filters, collapses, and keeps a selection visible", async ({
+test("the left tag sidebar groups and searches tags at desktop, half-screen and mobile widths", async ({
   page,
 }) => {
   // Enough tags that the row would wrap over several lines unfiltered, which
@@ -1168,34 +1168,53 @@ test("the tag row filters, collapses, and keeps a selection visible", async ({
   );
 
   await page.goto("/");
-  const bar = page.getByTestId("gallery-tag-bar");
-  await expect(page.getByTestId("gallery-tag-option-amplifier")).toBeVisible();
-
-  // Collapsed: the tail is offered rather than shown.
-  const collapsed = await bar.getByRole("button").count();
-  await expect(page.getByTestId("gallery-tags-show-all")).toBeVisible();
-  await expect(page.getByTestId("gallery-tag-option-ldo")).toHaveCount(0);
-
-  await page.getByTestId("gallery-tags-show-all").click();
+  const sidebar = page.getByTestId("gallery-tag-sidebar");
+  const tile = page.getByTestId("gallery-tile-t-one");
+  await expect(sidebar).toBeVisible();
+  await expect(
+    sidebar.locator("summary").filter({ hasText: "Amplifiers & filters" }),
+  ).toBeVisible();
   await expect(page.getByTestId("gallery-tag-option-ldo")).toBeVisible();
-  expect(await bar.getByRole("button").count()).toBeGreaterThan(collapsed);
-  await page.getByTestId("gallery-tags-show-fewer").click();
-  await expect(page.getByTestId("gallery-tag-option-ldo")).toHaveCount(0);
+  expect(
+    (await sidebar.boundingBox())!.x + (await sidebar.boundingBox())!.width,
+  ).toBeLessThan((await tile.boundingBox())!.x);
 
-  // Filtering reaches a tag the collapsed row does not show.
-  await page.getByTestId("gallery-search").fill("ld");
+  await page.getByTestId("gallery-tag-search").fill("ld");
   await expect(page.getByTestId("gallery-tag-option-ldo")).toBeVisible();
   await expect(page.getByTestId("gallery-tag-option-amplifier")).toHaveCount(0);
-
-  // A selected tag survives clearing the filter and re-collapsing: the row
-  // may never hide the reason the wall is filtered.
+  // Finding a tag does not also filter circuit names/descriptions.
+  await expect(page.getByTestId("gallery-search")).toHaveValue("");
+  await expect(tile).toBeVisible();
   await page.getByTestId("gallery-tag-option-ldo").click();
-  await page.getByTestId("gallery-search").fill("");
+  await page.getByTestId("gallery-tag-search").fill("osc");
   await expect(page.getByTestId("gallery-tag-option-ldo")).toBeVisible();
   await expect(page.getByTestId("gallery-tags-clear")).toContainText(
     "Clear 1 selected",
   );
+  await expect(page).toHaveURL(/tags=ldo/);
 
+  await page.setViewportSize({ width: 800, height: 800 });
+  await expect(sidebar).toBeVisible();
+  expect(
+    (await sidebar.boundingBox())!.x + (await sidebar.boundingBox())!.width,
+  ).toBeLessThan((await tile.boundingBox())!.x);
+  await expect(page.locator(".gallery-main")).toHaveJSProperty(
+    "scrollWidth",
+    await page
+      .locator(".gallery-main")
+      .evaluate((element) => element.clientWidth),
+  );
+  await page.screenshot({ path: "plan/gallery-sidebar-half.png" });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(sidebar).toBeHidden();
+  await page.getByRole("button", { name: "Filters & tags" }).click();
+  await expect(sidebar).toBeVisible();
+  await page.getByTestId("gallery-tags-clear").click();
+  await expect(page.getByTestId("gallery-tag-option-ldo")).toHaveCount(0);
+  await page.getByRole("button", { name: "Filters & tags" }).click();
+  await expect(sidebar).toBeHidden();
+  await expect(tile).toBeVisible();
   await page.getByTestId("gallery-search").fill("zzz");
   await expect(page.getByTestId("gallery-search-empty")).toBeVisible();
 });
@@ -1500,7 +1519,7 @@ test("Any tag selects every tag as one union and takes it back", async ({
   await expect(page.getByTestId("gallery-tile-t-bare")).toHaveCount(0);
   expect(listQueries).toContain("amplifier,adc,pll");
   // With everything on there is nothing partial left to clear.
-  await expect(page.getByTestId("gallery-tags-clear")).toHaveCount(0);
+  await expect(page.getByTestId("gallery-tags-clear")).toBeVisible();
 
   await any.click();
   await expect(any).toHaveAttribute("aria-pressed", "false");
