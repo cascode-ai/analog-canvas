@@ -3,6 +3,7 @@ import {
   projectRoutingTransformGeometry,
   gateRoutingOperationPlan,
   planRoutingTransform,
+  transformMaySeparateDirectContact,
   type RoutingOperationPlan,
   type ExpectedElectricalEffect,
   type RoutingOperationIntent,
@@ -11,7 +12,6 @@ import {
 } from "@icm/edit-engine";
 import {
   deriveNetConnectivity,
-  deriveDocumentContactEvidence,
   endpointKey,
   isMosBulkTerminal,
   isVisibleEndpoint,
@@ -582,20 +582,14 @@ export function createSelectionMoveController({
     ) {
       const movingInstances = new Set(plan.affected.instances);
       const movingJunctions = new Set(plan.affected.internalJunctions);
-      const inside = (endpoint: RouteEndpoint) =>
-        endpoint.kind === "terminal"
-          ? movingInstances.has(endpoint.instanceId)
-          : movingJunctions.has(endpoint.junctionId);
       contactBoundaryCache = {
         source: sourceDocument,
         key: boundaryKey,
-        separates: deriveDocumentContactEvidence(
+        separates: transformMaySeparateDirectContact(
           sourceDocument,
           resolver,
-        ).contacts.some(
-          (contact) =>
-            contact.endpoints.some(inside) &&
-            contact.endpoints.some((endpoint) => !inside(endpoint)),
+          movingInstances,
+          movingJunctions,
         ),
       };
     }
