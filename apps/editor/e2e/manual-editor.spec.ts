@@ -828,12 +828,16 @@ test("constructs VDD as a drawn dotless power rail", async ({ page }) => {
   ).toHaveCount(0);
   await expect(page.getByTestId("hit-VDD1")).toHaveCount(0);
   await expect(canvas.locator('[data-symbol-id="vdd"]')).toHaveCount(0);
-  await expect(canvas.getByText("VDD", { exact: true })).toHaveCount(1);
+  const powerLabel = canvas.locator('[data-kind="power-label"]');
+  await expect(powerLabel).toHaveText("Vdd");
+  await expect(powerLabel.locator('[data-text-run="subscript"]')).toHaveText(
+    "dd",
+  );
   await expect(page.getByTestId("component-input-plane")).toHaveCount(0);
 
   await page.keyboard.press("Delete");
   await expect(page.getByTestId("route-hit-route-vdd1-rail")).toHaveCount(0);
-  await expect(canvas.getByText("VDD", { exact: true })).toHaveCount(0);
+  await expect(powerLabel).toHaveCount(0);
 });
 
 test("a switch changes contact style in place, keeping its wires", async ({

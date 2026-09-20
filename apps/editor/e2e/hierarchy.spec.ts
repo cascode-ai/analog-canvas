@@ -1442,8 +1442,13 @@ test("copies and independently deletes Formal Cell Pins", async ({ page }) => {
 
   await expect(page.getByTestId("hit-P1-copy-1")).toBeVisible();
   await expect(page.locator('[data-object-id="instance-label-P1"]')).toHaveText(
-    "VIN",
+    "Vin",
   );
+  await expect(
+    page
+      .locator('[data-object-id="instance-label-P1"]')
+      .locator('[data-text-run="subscript"]'),
+  ).toHaveText("in");
   await expect(
     page.locator('[data-object-id="instance-label-P1-copy-1"]'),
   ).toHaveText("Vout");
@@ -1852,8 +1857,13 @@ test("same-name Cell Pins stay independent while the final interface groups them
   );
   await page.keyboard.press("Control+Shift+z");
   await expect(page.locator('[data-object-id="instance-label-P2"]')).toHaveText(
-    "vin",
+    "Vin",
   );
+  await expect(
+    page
+      .locator('[data-object-id="instance-label-P2"]')
+      .locator('[data-text-run="subscript"]'),
+  ).toHaveText("in");
   await runCellCommand(page, "Manage Cells…");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await expect(
@@ -1881,10 +1891,7 @@ test("same-name Cell Pins stay independent while the final interface groups them
   };
   const terminals = saved.documents[0]!.netlist.terminals;
   expect(terminals).toHaveLength(2);
-  expect(terminals.map((terminal) => terminal.name.toLowerCase())).toEqual([
-    "vin",
-    "vin",
-  ]);
+  expect(terminals.map((terminal) => terminal.name)).toEqual(["VIN", "vin"]);
   expect(new Set(terminals.map((terminal) => terminal.id)).size).toBe(2);
   expect(new Set(terminals.map((terminal) => terminal.netId)).size).toBe(2);
   expect(terminals.map((terminal) => terminal.direction)).toEqual([
