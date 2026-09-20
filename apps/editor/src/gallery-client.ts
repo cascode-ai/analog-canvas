@@ -296,6 +296,11 @@ export interface GalleryTagOption {
   count: number;
 }
 
+export interface GalleryTagGroupOption {
+  group: string;
+  count: number;
+}
+
 /** One public byline and its contribution to the whole Gallery wall. */
 export interface GalleryAuthorOption {
   author: string;

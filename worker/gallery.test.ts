@@ -2535,9 +2535,11 @@ describe("gallery circuit tags", () => {
     );
     const counts = (await aggregate.json()) as {
       tags: { tag: string; count: number }[];
+      groups: { group: string; count: number }[];
       categories?: unknown;
     };
     expect(counts.tags[0]).toEqual({ tag: "amplifier", count: 2 });
+    expect(counts.groups).toContainEqual({ group: "Amplifiers", count: 2 });
     expect(counts).not.toHaveProperty("categories");
 
     // The bearer update path rewrites tags ("editable any time").

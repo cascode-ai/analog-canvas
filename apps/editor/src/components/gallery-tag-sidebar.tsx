@@ -59,6 +59,7 @@ function tagGroup(tag: string): string {
 
 export function GalleryTagSidebar({
   tags,
+  groupCounts,
   selected,
   onChange,
   search,
@@ -67,6 +68,7 @@ export function GalleryTagSidebar({
   adminTools,
 }: {
   tags: GalleryTagOption[];
+  groupCounts?: Readonly<Record<string, number>>;
   selected: string[];
   onChange: (tags: string[]) => void;
   search: string;
@@ -184,6 +186,9 @@ export function GalleryTagSidebar({
               .filter(({ tag }) => tagGroup(tag) === name)
               .sort((a, b) => compareGalleryTagLabels(a.tag, b.tag));
             if (!group.length) return null;
+            const circuitCount =
+              groupCounts?.[name] ??
+              group.reduce((total, option) => total + option.count, 0);
             return (
               <details
                 key={name}
@@ -203,7 +208,7 @@ export function GalleryTagSidebar({
               >
                 <summary>
                   {name}
-                  <span>{group.length}</span>
+                  <span>{circuitCount}</span>
                 </summary>
                 {group.map(({ tag, count }) => (
                   <button

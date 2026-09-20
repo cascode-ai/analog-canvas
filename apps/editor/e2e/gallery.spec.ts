@@ -1155,7 +1155,10 @@ test("the left sidebar hosts overall search and grouped tags at desktop, half-sc
     const url = new URL(route.request().url());
     if (url.pathname === "/api/gallery/tags") {
       return route.fulfill({
-        json: { tags: tags.map((tag, index) => ({ tag, count: index + 1 })) },
+        json: {
+          tags: tags.map((tag, index) => ({ tag, count: index + 1 })),
+          groups: [{ group: "Buffers", count: 23 }],
+        },
       });
     }
     if (url.pathname !== "/api/gallery") return route.fallback();
@@ -1218,6 +1221,9 @@ test("the left sidebar hosts overall search and grouped tags at desktop, half-sc
   const amplifierGroup = sidebar
     .locator("summary")
     .filter({ hasText: "Amplifiers" });
+  await expect(
+    sidebar.locator("summary").filter({ hasText: "Buffers" }).locator("span"),
+  ).toHaveText("23");
   await expect(amplifierGroup).toBeVisible();
   await expect(amplifierGroup).toHaveCSS("font-weight", "600");
   await amplifierGroup.click();

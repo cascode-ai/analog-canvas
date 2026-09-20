@@ -3,6 +3,7 @@ import {
   type GalleryAttention,
   type GalleryCuration,
 } from "./gallery-curation";
+import taxonomy from "../config/gallery-taxonomy.json";
 // Community example gallery: publish-first with an admin recycle bin.
 //
 // Trust boundary: the only accepted input is Project JSON that passes the
@@ -57,6 +58,36 @@ import {
 import { type CircuitProject } from "@icm/model";
 
 import type { AuthNamespaceLike } from "./auth";
+
+const GALLERY_TAG_GROUPS = Object.entries(taxonomy.tagsByGroup);
+const GALLERY_TAG_ALIASES: Record<string, string> = {
+  op: "operational amplifier",
+  osc: "oscillator",
+  bgr: "bandgap",
+  dcdc: "dc-dc",
+  "d-latch": "d latch",
+  levelshifter: "level shifter",
+  sha: "sample and hold",
+  "switch capacitor": "switched capacitor",
+  cts: "charge transfer switch",
+  "v-i": "voltage to current",
+  vtc: "voltage to time",
+  tdc: "time to digital",
+  "gain-boost": "gain boosting",
+  "low-dropout": "ldo",
+  dropout: "ldo",
+  "linear regulator": "regulator",
+  "bootstrapped cts": "charge transfer switch",
+};
+
+function galleryTagGroup(tag: string): string {
+  const normalized = tag.toLowerCase();
+  const key = GALLERY_TAG_ALIASES[normalized] ?? normalized;
+  return (
+    GALLERY_TAG_GROUPS.find(([, values]) => values.includes(key))?.[0] ??
+    "Custom & legacy"
+  );
+}
 
 /**
  * A circuit's id is its address, so it is short enough to read out loud and
@@ -2461,7 +2492,7 @@ export class GalleryDO {
     });
   }
 
-  /** Distinct public tags with counts, most frequent first (G4 menu). */
+  /** Public tag counts plus deduplicated circuit totals for each visual group. */
   private tagCounts(): Response {
     const rows = this.sql
       .exec<{ tags: string | null }>(
@@ -2469,15 +2500,24 @@ export class GalleryDO {
       )
       .toArray();
     const counts = new Map<string, number>();
+    const groupCounts = new Map<string, number>();
     for (const row of rows) {
-      for (const tag of unwrapTags(row.tags)) {
+      const rowTags = unwrapTags(row.tags);
+      for (const tag of rowTags) {
         counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      }
+      for (const group of new Set(rowTags.map(galleryTagGroup))) {
+        groupCounts.set(group, (groupCounts.get(group) ?? 0) + 1);
       }
     }
     const tags = [...counts.entries()]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "en"))
       .map(([tag, count]) => ({ tag, count }));
-    return Response.json({ tags });
+    const groups = [...groupCounts.entries()].map(([group, count]) => ({
+      group,
+      count,
+    }));
+    return Response.json({ tags, groups });
   }
 
   /** Public contributors ranked by visible circuits and keyed by identity. */

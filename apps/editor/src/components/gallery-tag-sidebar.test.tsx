@@ -12,6 +12,7 @@ it("keeps every original tag and a removed tag from a saved filter reachable", (
         { tag: "adc", count: 2 },
         { tag: "new custom tag", count: 1 },
       ],
+      groupCounts: { Amplifiers: 5, Buffers: 23 },
       selected: ["legacy tag", "bandgap"],
       onChange: () => {},
       search: "",
@@ -32,6 +33,8 @@ it("keeps every original tag and a removed tag from a saved filter reachable", (
     ).toHaveLength(2);
   expect(markup).toContain("Amplifiers");
   expect(markup).toContain("Buffers");
+  expect(markup).toContain("<summary>Buffers<span>23</span></summary>");
+  expect(markup).toContain("<summary>Amplifiers<span>5</span></summary>");
   expect(markup).toContain("Conversion");
   expect(markup).toContain("Custom &amp; legacy");
   expect(markup).toContain("General Amplifier");

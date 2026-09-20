@@ -17,6 +17,7 @@ import {
   type GalleryFeedPage,
   type GalleryFeedState,
   type GalleryTagOption,
+  type GalleryTagGroupOption,
 } from "../gallery-client";
 import {
   GALLERY_FILTERS_KEY,
@@ -494,6 +495,9 @@ export function GalleryFeed({
   const [tagOptions, setTagOptions] = useState<
     { tag: string; count: number }[]
   >([]);
+  const [tagGroupCounts, setTagGroupCounts] = useState<Record<string, number>>(
+    {},
+  );
   const [refreshSignal, setRefreshSignal] = useState(0);
   const [bundledFallback, setBundledFallback] = useState<{
     status: "idle" | "loading" | "ready" | "failed";
@@ -548,8 +552,16 @@ export function GalleryFeed({
         if (!response.ok) return;
         const payload = (await response.json()) as {
           tags?: { tag: string; count: number }[];
+          groups?: GalleryTagGroupOption[];
         };
-        if (!cancelled) setTagOptions(payload.tags ?? []);
+        if (!cancelled) {
+          setTagOptions(payload.tags ?? []);
+          setTagGroupCounts(
+            Object.fromEntries(
+              (payload.groups ?? []).map(({ group, count }) => [group, count]),
+            ),
+          );
+        }
       } catch {
         // No menu without the worker; the wall itself still works.
       }
@@ -937,6 +949,7 @@ export function GalleryFeed({
         <div className="gallery-browser">
           <GalleryTagSidebar
             tags={tagOptions}
+            groupCounts={tagGroupCounts}
             selected={selectedTags}
             onChange={(tags) => updateFilters({ tags })}
             search={searchQuery}
