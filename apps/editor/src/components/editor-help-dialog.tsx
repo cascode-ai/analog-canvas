@@ -60,7 +60,7 @@ export function EditorHelpDialog({
             <p>
               <strong>Save</strong> updates your private Cloud Project.
               Exporting creates a portable local copy. Browser recovery is only
-              a safety copy; use <strong>File / Recover Local Work…</strong>{" "}
+              a safety copy; use <strong>File / Recover Unsaved Work…</strong>{" "}
               after an interruption.
             </p>
           </section>

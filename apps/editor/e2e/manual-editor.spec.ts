@@ -2832,7 +2832,7 @@ test("connects copied multi-pin groups through a manually bent wire", async ({
     .toContain(`"revision": ${revision}`);
   await page.reload();
   const fileMenu = await openMenu(page, "File");
-  await fileMenu.getByRole("button", { name: "Recover Local Work…" }).click();
+  await fileMenu.getByRole("button", { name: "Recover Unsaved Work…" }).click();
   await page
     .getByRole("dialog", { name: "Recover recent work" })
     .getByRole("button", { name: "Restore" })
@@ -4804,7 +4804,7 @@ test("uses automatic recovery and guards shortcuts while typing", async ({
 
   await page.reload();
   const fileMenu = await openMenu(page, "File");
-  await fileMenu.getByRole("button", { name: "Recover Local Work…" }).click();
+  await fileMenu.getByRole("button", { name: "Recover Unsaved Work…" }).click();
   await page
     .getByRole("dialog", { name: "Recover recent work" })
     .getByRole("button", { name: "Restore" })
@@ -4916,7 +4916,7 @@ test("discard recovery clears the recovery slot", async ({ page }) => {
     .toContain('"revision": 1');
 
   await page.reload();
-  await clickCommand(page, "File", "Recover Local Work…");
+  await clickCommand(page, "File", "Recover Unsaved Work…");
   await page
     .getByRole("dialog", { name: "Recover recent work" })
     .getByRole("button", { name: "Delete" })
@@ -5130,12 +5130,12 @@ test("selecting an object does not change canvas width", async ({ page }) => {
   expect(widthAfter).toBe(widthBefore);
 });
 
-test("opens project search with Ctrl+Shift+F and selects a matching component", async ({
+test("opens circuit Find with Ctrl+F and selects a matching component", async ({
   page,
 }) => {
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 420, y: 260 });
-  await page.keyboard.press("Control+Shift+f");
+  await page.keyboard.press("Control+f");
   const input = page.getByTestId("project-search-input");
   await expect(input).toBeFocused();
   await input.fill("R1");
@@ -5146,7 +5146,7 @@ test("opens project search with Ctrl+Shift+F and selects a matching component", 
   await expect(page.getByTestId("project-search-input")).toHaveCount(0);
 });
 
-test("opens Selection Filter with Ctrl+F and filters Select All", async ({
+test("opens selectable-object choices with Ctrl+Shift+F and filters Select All", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -5157,7 +5157,7 @@ test("opens Selection Filter with Ctrl+F and filters Select All", async ({
   await page.getByTestId("terminal-R2-1").click();
   await page.keyboard.press("Escape");
 
-  await page.keyboard.press("Control+f");
+  await page.keyboard.press("Control+Shift+f");
   const filter = page.getByTestId("selection-filter-popover");
   await expect(filter).toBeVisible();
   await filter.getByRole("button", { name: "None" }).click();

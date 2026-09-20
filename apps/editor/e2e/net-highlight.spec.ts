@@ -35,7 +35,7 @@ test("a Net highlight set from the Check Report can always be cleared", async ({
   await page.getByTestId(`terminal-${ids[1]}-1`).click();
   await page.keyboard.press("Escape");
 
-  await clickCommand(page, "Netlist", "Check Report…");
+  await clickCommand(page, "Netlist", "Review Netlist Issues…");
   const preflight = page.getByRole("dialog", { name: "Check Report" });
   await preflight
     .getByRole("button", { name: /GENERATED_NET_NAME/ })

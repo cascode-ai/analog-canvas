@@ -42,13 +42,13 @@ export interface EditorAppChromeProps {
   fileCommands: ComponentProps<typeof FileCommandMenu>;
   searchOpen: boolean;
   onInsertComponent: () => void;
+  userComponentsOpen: boolean;
+  onOpenUserComponents: () => void;
   onManageCells: () => void;
   placeProjectCell: CommandAction;
   selectionFilterOpen: boolean;
   onOpenSelectionFilter: () => void;
   onOpenSearch: () => void;
-  undo: CommandAction;
-  redo: CommandAction;
   deleteSelection: CommandAction;
   copySelectionImages: readonly LabeledCommandAction[];
   rotate: CommandAction;
@@ -57,7 +57,6 @@ export interface EditorAppChromeProps {
   alignmentActions: readonly AlignmentAction[];
   instanceCodeOpen: boolean;
   netlistPreflightOpen: boolean;
-  checkAndSave: CommandAction;
   onOpenInstanceCode: () => void;
   onOpenNetlistPreflight: () => void;
   onOpenNetlistConfiguration: () => void;
@@ -105,13 +104,13 @@ export function EditorAppChrome({
   fileCommands,
   searchOpen,
   onInsertComponent,
+  userComponentsOpen,
+  onOpenUserComponents,
   onManageCells,
   placeProjectCell,
   selectionFilterOpen,
   onOpenSelectionFilter,
   onOpenSearch,
-  undo,
-  redo,
   deleteSelection,
   copySelectionImages,
   rotate,
@@ -120,7 +119,6 @@ export function EditorAppChrome({
   alignmentActions,
   instanceCodeOpen,
   netlistPreflightOpen,
-  checkAndSave,
   onOpenInstanceCode,
   onOpenNetlistPreflight,
   netlistFormat,
@@ -147,6 +145,13 @@ export function EditorAppChrome({
     dismissOpenCommandMenus();
     onExportNetlist(format);
   };
+  const hasSelectionActions =
+    deleteSelection.enabled ||
+    copySelectionImages.some((action) => action.enabled) ||
+    rotate.enabled ||
+    mirrorLeftRight.enabled ||
+    mirrorTopBottom.enabled ||
+    alignmentActions.length > 0;
   return (
     <header className="app-chrome">
       <div className="app-chrome-main">
@@ -270,27 +275,24 @@ export function EditorAppChrome({
                 </button>
                 <button
                   type="button"
+                  aria-haspopup="dialog"
+                  aria-expanded={userComponentsOpen}
+                  onClick={onOpenUserComponents}
+                >
+                  User Components…
+                </button>
+                <button
+                  type="button"
                   data-testid="edit-manage-cells"
                   onClick={onManageCells}
                 >
                   Manage Cells…
                 </button>
-                <button
-                  type="button"
-                  onClick={placeProjectCell.execute}
-                  disabled={!placeProjectCell.enabled}
-                >
-                  Place Cell from this Project…
-                </button>
-                <button
-                  type="button"
-                  data-testid="selection-filter-button"
-                  aria-haspopup="dialog"
-                  aria-expanded={selectionFilterOpen}
-                  onClick={onOpenSelectionFilter}
-                >
-                  Selection Filter… (Ctrl+F)
-                </button>
+                {placeProjectCell.enabled ? (
+                  <button type="button" onClick={placeProjectCell.execute}>
+                    Place Cell from this Project…
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   data-testid="project-search-button"
@@ -298,65 +300,43 @@ export function EditorAppChrome({
                   aria-expanded={searchOpen}
                   onClick={onOpenSearch}
                 >
-                  Search schematic… (Ctrl+Shift+F)
+                  Find in Circuit… (Ctrl+F)
                 </button>
-                <button
-                  type="button"
-                  onClick={undo.execute}
-                  disabled={!undo.enabled}
-                >
-                  Undo
-                </button>
-                <button
-                  type="button"
-                  onClick={redo.execute}
-                  disabled={!redo.enabled}
-                >
-                  Redo
-                </button>
-                <button
-                  type="button"
-                  onClick={deleteSelection.execute}
-                  disabled={!deleteSelection.enabled}
-                >
-                  Delete
-                </button>
-                <span className="command-group-label">Selection image</span>
-                {copySelectionImages.map((action) => (
-                  <button
-                    key={action.label}
-                    type="button"
-                    onClick={action.execute}
-                    disabled={!action.enabled}
-                  >
-                    {action.label}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={rotate.execute}
-                  disabled={!rotate.enabled}
-                >
-                  <ToolIcon name="rotate" />
-                  Rotate
-                </button>
-                <button
-                  type="button"
-                  onClick={mirrorLeftRight.execute}
-                  disabled={!mirrorLeftRight.enabled}
-                >
-                  Mirror left/right (Shift+R)
-                </button>
-                <button
-                  type="button"
-                  onClick={mirrorTopBottom.execute}
-                  disabled={!mirrorTopBottom.enabled}
-                >
-                  Mirror top/bottom (Ctrl+R)
-                </button>
-                {alignmentActions.length > 0 ? (
+                {hasSelectionActions ? (
                   <>
-                    <span className="command-group-label">Align</span>
+                    <span className="command-group-label">Selection</span>
+                    {deleteSelection.enabled ? (
+                      <button type="button" onClick={deleteSelection.execute}>
+                        Delete
+                      </button>
+                    ) : null}
+                    {copySelectionImages.map((action) =>
+                      action.enabled ? (
+                        <button
+                          key={action.label}
+                          type="button"
+                          onClick={action.execute}
+                        >
+                          {action.label}
+                        </button>
+                      ) : null,
+                    )}
+                    {rotate.enabled ? (
+                      <button type="button" onClick={rotate.execute}>
+                        <ToolIcon name="rotate" />
+                        Rotate
+                      </button>
+                    ) : null}
+                    {mirrorLeftRight.enabled ? (
+                      <button type="button" onClick={mirrorLeftRight.execute}>
+                        Mirror left/right (Shift+R)
+                      </button>
+                    ) : null}
+                    {mirrorTopBottom.enabled ? (
+                      <button type="button" onClick={mirrorTopBottom.execute}>
+                        Mirror top/bottom (Ctrl+R)
+                      </button>
+                    ) : null}
                     {alignmentActions.map((action) => (
                       <button
                         key={action.mode}
@@ -369,6 +349,16 @@ export function EditorAppChrome({
                     ))}
                   </>
                 ) : null}
+                <span className="command-group-label">Advanced</span>
+                <button
+                  type="button"
+                  data-testid="selection-filter-button"
+                  aria-haspopup="dialog"
+                  aria-expanded={selectionFilterOpen}
+                  onClick={onOpenSelectionFilter}
+                >
+                  Choose Selectable Objects… (Ctrl+Shift+F)
+                </button>
               </div>
             </details>
             <div className="netlist-copy-group">
@@ -403,34 +393,22 @@ export function EditorAppChrome({
                 />
                 <div className="command-popover">
                   <button type="button" onClick={onOpenNetlistConfiguration}>
-                    Configuration…
+                    Netlist Settings…
                   </button>
-                  <span className="command-group-label">Authoring</span>
                   <button
                     type="button"
                     aria-expanded={instanceCodeOpen}
                     onClick={onOpenInstanceCode}
                   >
-                    Instances…
+                    Edit Device Data…
                   </button>
-                  <span className="command-group-label">Check</span>
                   <button
                     type="button"
                     aria-haspopup="dialog"
                     aria-expanded={netlistPreflightOpen}
                     onClick={() => onOpenNetlistPreflight()}
                   >
-                    Check Report…
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="check-and-save"
-                    disabled={!checkAndSave.enabled}
-                    onClick={checkAndSave.execute}
-                    title={`Check ERC and visual issues, and save this ${fileCommands.projectStoreItemLabel}`}
-                  >
-                    <span className="toolbar-check-glyph" aria-hidden="true" />
-                    Check and Save
+                    Review Netlist Issues…
                   </button>
                 </div>
               </details>

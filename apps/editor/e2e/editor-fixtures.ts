@@ -80,9 +80,12 @@ export async function clickCommand(
   button: string,
 ): Promise<void> {
   const details = await openMenu(page, menu);
-  if (menu === "File" && /^Export (?:SVG|PNG|PDF)$/u.test(button)) {
+  if (
+    menu === "File" &&
+    /^Export (?:Project File…|SVG|PNG|PDF)$/u.test(button)
+  ) {
     const group = details.getByRole("button", {
-      name: "Export drawing",
+      name: "Export",
       exact: true,
     });
     if ((await group.getAttribute("aria-expanded")) !== "true")
@@ -100,7 +103,7 @@ export async function clickNetlistWorkflowCommand(
     await page.getByTestId(command).click();
     return;
   }
-  const details = await openMenu(page, "Netlist");
+  const details = await openMenu(page, "File");
   await details.getByTestId(command).click();
 }
 

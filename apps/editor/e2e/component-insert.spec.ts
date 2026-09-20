@@ -353,73 +353,6 @@ test("keeps the Placement Tray out of the manual component workflow", async ({
   await expect(page.getByTestId("revision")).toHaveText("1");
 });
 
-test("refreshes explicitly only after flushing and automatically restoring recovery", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await chooseComponent(page, "resistor");
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 360, y: 230 } });
-  await page.keyboard.press("Escape");
-  await expect(page.getByTestId("hit-R1")).toBeVisible();
-  await expect(page.getByTestId("revision")).toHaveText("1");
-
-  const navigated = page.waitForEvent("framenavigated");
-  await clickCommand(page, "File", "Refresh app");
-  await navigated;
-
-  await awaitEditorReady(page);
-  await expect(page.getByTestId("hit-R1")).toBeVisible();
-  await expect(page.getByTestId("revision")).toHaveText("1");
-  await expect(page.getByTestId("status")).toHaveText(
-    "Restored recovery revision 1",
-  );
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        sessionStorage.getItem("icm.restore-after-refresh.v1"),
-      ),
-    )
-    .toBeNull();
-});
-
-test("refresh restores the circuit when the session started from a boot-target URL", async ({
-  page,
-}) => {
-  // location.reload() keeps the entry URL, so the ?new=1 boot target re-runs
-  // on the refreshed page. It must yield to the pending restore instead of
-  // forking a fresh working copy that orphans the flushed snapshot.
-  await page.goto("/editor?new=1");
-  await awaitEditorReady(page);
-  await expect(page.getByTestId("status")).toHaveText("Created a new Project");
-  await chooseComponent(page, "resistor");
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 360, y: 230 } });
-  await page.keyboard.press("Escape");
-  await expect(page.getByTestId("hit-R1")).toBeVisible();
-  await expect(page.getByTestId("revision")).toHaveText("1");
-
-  const navigated = page.waitForEvent("framenavigated");
-  await clickCommand(page, "File", "Refresh app");
-  await navigated;
-
-  await awaitEditorReady(page);
-  await expect(page.getByTestId("hit-R1")).toBeVisible();
-  await expect(page.getByTestId("revision")).toHaveText("1");
-  await expect(page.getByTestId("status")).toHaveText(
-    "Restored recovery revision 1",
-  );
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        sessionStorage.getItem("icm.restore-after-refresh.v1"),
-      ),
-    )
-    .toBeNull();
-});
-
 test("new circuits open the Library and Netlist without replacing the saved Library preference", async ({
   page,
 }) => {
@@ -480,11 +413,14 @@ test("keeps shortcuts hidden until the status-bar Hints control requests them", 
   );
   await expect(shortcutHints).toContainText("Keyboard shortcuts");
   await expect(shortcutHints.locator("li")).toHaveText([
-    "Ctrl/CmdFSelection filter",
-    "Ctrl/CmdShiftFSearch circuit",
+    "Ctrl/CmdFFind in circuit",
+    "Ctrl/CmdShiftFChoose selectable objects",
     "FFit view",
     "HomeFit view",
     "Arrow keysPan view",
+    "GToggle Gallery",
+    "BToggle Component Library",
+    "NToggle Netlist",
     "IInsert component",
     "PPlace Cell Pin",
     "WDraw wire",

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 
 import type { ComponentInsertRequest } from "../component-insert/component-insert-request";
 import type { InsertLaunch } from "../component-insert/insert-launch";
@@ -168,7 +168,6 @@ export function quickPlaceRequest(
 }
 
 export interface ShapesPanelProps {
-  userComponents?: ReactNode;
   styleProfileId: string;
   open: boolean;
   onStartInsert(launch: InsertLaunch): void;
@@ -178,7 +177,6 @@ export function ShapesPanel({
   styleProfileId,
   open,
   onStartInsert,
-  userComponents,
 }: ShapesPanelProps) {
   const libraryGroups = componentCatalog(styleProfileId, "");
   const librarySymbolCount = libraryGroups.reduce(
@@ -272,7 +270,6 @@ export function ShapesPanel({
                   </div>
                 </details>
               ))}
-              {userComponents}
             </div>
           </div>
         </details>

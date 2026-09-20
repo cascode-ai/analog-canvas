@@ -80,7 +80,7 @@ test("opens netlist preflight and navigates its canonical finding", async ({
 }) => {
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 360, y: 240 });
-  await clickCommand(page, "Netlist", "Check Report…");
+  await clickCommand(page, "Netlist", "Review Netlist Issues…");
   const dialog = page.getByRole("dialog", { name: "Check Report" });
   await expect(dialog).toContainText("blocking issue");
   await dialog
@@ -114,13 +114,13 @@ test("previews a validated structural netlist in both export dialects", async ({
     name: "Live netlist",
     exact: true,
   });
-  await clickCommand(page, "Netlist", "Check Report…");
+  await clickCommand(page, "Netlist", "Review Netlist Issues…");
   const dialog = page.getByRole("dialog", { name: "Check Report" });
   const preview = dialog.getByTestId("netlist-preview");
   await expect(preview).toContainText(".subckt dut");
   await dialog.getByTestId("check-report-close").click();
   await netlistPanel.getByLabel("Netlist format").selectOption("spectre");
-  await clickCommand(page, "Netlist", "Check Report…");
+  await clickCommand(page, "Netlist", "Review Netlist Issues…");
   await expect(preview).toContainText("simulator lang=spectre");
 });
 
@@ -286,7 +286,7 @@ test("copies generated NoConnect nodes immediately and retains the optional Chec
   await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
     0,
   );
-  await clickCommand(page, "Netlist", "Check Report…");
+  await clickCommand(page, "Netlist", "Review Netlist Issues…");
   const dialog = page.getByRole("dialog", { name: "Check Report" });
   await expect(dialog).toContainText("GENERATED_NO_CONNECT_NODE");
   await expect(dialog.getByTestId("netlist-preview")).toContainText(
@@ -756,7 +756,7 @@ test("edits output configuration without creating another electrical authority",
   page,
 }) => {
   await page.goto("/editor");
-  await clickCommand(page, "Netlist", "Configuration…");
+  await clickCommand(page, "Netlist", "Netlist Settings…");
   const panel = page.getByRole("region", {
     name: "Netlist configuration",
     exact: true,
@@ -785,7 +785,7 @@ test("edits output configuration without creating another electrical authority",
   await expect(
     page.getByRole("combobox", { name: "Netlist format" }),
   ).toHaveValue("spectre");
-  await clickCommand(page, "Netlist", "Configuration…");
+  await clickCommand(page, "Netlist", "Netlist Settings…");
   await expect
     .poll(async () => JSON.parse(await code.inputValue()))
     .toEqual(config);
@@ -795,7 +795,7 @@ test("edits output configuration without creating another electrical authority",
   await expect(page.getByTestId("status")).toContainText(
     "Fix Netlist configuration",
   );
-  await clickCommand(page, "Netlist", "Configuration…");
+  await clickCommand(page, "Netlist", "Netlist Settings…");
   await code.fill(JSON.stringify(config, null, 2));
   const netlist = await copyNetlistText(page, "spectre");
   expect(netlist).toContain("simulator lang=spectre");
@@ -910,7 +910,7 @@ test("blocks netlist output when the configured default is missing", async ({
     })),
   );
   await page.goto("/editor");
-  await clickCommand(page, "Netlist", "Configuration…");
+  await clickCommand(page, "Netlist", "Netlist Settings…");
   const configuration = page.getByLabel("Netlist configuration JSON");
   const preferences = JSON.parse(await configuration.inputValue());
   preferences.profiles.abstract.devices.resistor.parameters = {};
@@ -926,7 +926,7 @@ test("blocks netlist output when the configured default is missing", async ({
   await expect(
     page.getByRole("region", { name: "Live netlist" }).getByRole("alert"),
   ).toContainText("requires parameter value");
-  await clickCommand(page, "Netlist", "Check Report…");
+  await clickCommand(page, "Netlist", "Review Netlist Issues…");
   const report = page.getByRole("dialog", { name: "Check Report" });
   await expect(report).toContainText("1 blocking issue");
   await expect(report).toContainText("MISSING_REQUIRED_PARAMETER");
@@ -935,7 +935,7 @@ test("blocks netlist output when the configured default is missing", async ({
   await page
     .getByRole("combobox", { name: "Netlist format" })
     .selectOption("spectre");
-  await clickCommand(page, "Netlist", "Check Report…");
+  await clickCommand(page, "Netlist", "Review Netlist Issues…");
   await expect(report).toContainText("1 blocking issue");
   await expect(report.getByTestId("netlist-preview")).toHaveCount(0);
 });

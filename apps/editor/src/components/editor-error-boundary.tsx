@@ -136,8 +136,8 @@ export function EditorCrashScreen({
           />
         </div>
         <p className="editor-crash-note">
-          After reloading, use File / Recover Local Work… if your latest changes
-          are missing.
+          After reloading, use File / Recover Unsaved Work… if your latest
+          changes are missing.
         </p>
       </div>
     </div>

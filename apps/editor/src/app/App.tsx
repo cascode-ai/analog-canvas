@@ -460,6 +460,7 @@ export function App({
   const [componentEditor, setComponentEditor] =
     useState<ComponentEditorSession | null>(null);
   const [componentLibraryRefresh, setComponentLibraryRefresh] = useState(0);
+  const [userComponentsOpen, setUserComponentsOpen] = useState(false);
   const helpButtonRef = useRef<HTMLButtonElement>(null);
   const helpCloseRef = useRef<HTMLButtonElement>(null);
   const libraryResizeOriginRef = useRef<{
@@ -1103,7 +1104,6 @@ export function App({
     restoreRecoverySession,
     downloadRecoveryBackup,
     deleteRecoverySessionFromDialog,
-    refreshApp,
     openProjectFile,
     openCloudProjectById,
   } = useProjectFileLifecycle({
@@ -3481,7 +3481,7 @@ export function App({
   useEffect(() => {
     if (bootTargetHandled.current) return;
     bootTargetHandled.current = true;
-    // "Refresh app" reloads the same URL on purpose: the pending restore owns
+    // A safe recovery refresh reloads the same URL: the pending restore owns
     // this boot. Re-running the URL's boot target here would fork the
     // working-copy identity and orphan the snapshot the restore is about to
     // read.
@@ -4161,6 +4161,10 @@ export function App({
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       if (componentEditor) return;
+      if (userComponentsOpen) {
+        if (event.key === "Escape") setUserComponentsOpen(false);
+        return;
+      }
       // The source workbench owns its keyboard scope, including portalled menus.
       if (
         event.target instanceof Element &&
@@ -4813,6 +4817,10 @@ export function App({
               session.latest?.unsavedAtSnapshot === true ||
               (session.latest !== null && session.latest.review !== "valid"),
           ),
+          checkAndSave: {
+            enabled: !saveBusy && !projectCheck.busy,
+            execute: () => void projectCheck.checkAndSave(),
+          },
           projectInputRef,
           onNewProject: createNewProject,
           onSave: () => void saveProjectToCloud(),
@@ -4839,10 +4847,6 @@ export function App({
               );
             });
           },
-          onRefresh: () => {
-            allowNextBrowserUnload();
-            refreshApp();
-          },
           onImportProject: (file) => void openProjectFile(file),
           onImportSpice: (files, namingProfile) =>
             void importSpiceFiles(files, namingProfile),
@@ -4855,6 +4859,11 @@ export function App({
         searchOpen={searchOpen}
         selectionFilterOpen={selectionFilterOpen}
         onManageCells={() => setCellManagerOpen(true)}
+        userComponentsOpen={userComponentsOpen}
+        onOpenUserComponents={() => {
+          cancelAllTransientInteraction();
+          setUserComponentsOpen(true);
+        }}
         onInsertComponent={() =>
           editorCommands.execute({
             id: "insert.start",
@@ -4869,14 +4878,6 @@ export function App({
           editorCommands.execute({ id: "selection.filter.open" })
         }
         onOpenSearch={() => editorCommands.execute({ id: "search.open" })}
-        undo={{
-          enabled: editorCommands.state({ id: "history.undo" }).enabled,
-          execute: () => editorCommands.execute({ id: "history.undo" }),
-        }}
-        redo={{
-          enabled: editorCommands.state({ id: "history.redo" }).enabled,
-          execute: () => editorCommands.execute({ id: "history.redo" }),
-        }}
         deleteSelection={{
           enabled:
             hasVisualSelection(visualSelection) || selectedEndpoint !== null,
@@ -4939,10 +4940,6 @@ export function App({
         }
         instanceCodeOpen={projectPanel === "instances"}
         netlistPreflightOpen={netlistPreflightOpen}
-        checkAndSave={{
-          enabled: !saveBusy && !projectCheck.busy,
-          execute: () => void projectCheck.checkAndSave(),
-        }}
         onOpenInstanceCode={() => {
           toggleProjectPanel("instances");
         }}
@@ -5565,31 +5562,6 @@ export function App({
           <ShapesPanel
             styleProfileId={document.presentation.styleProfileId}
             open={visibleLibraryPanelOpen}
-            userComponents={
-              <Suspense fallback={null}>
-                <UserComponentsLibrary
-                  refresh={componentLibraryRefresh}
-                  onCreate={() => {
-                    cancelAllTransientInteraction();
-                    setComponentEditor({
-                      key: crypto.randomUUID(),
-                      mode: "new",
-                      definition: newComponentDefinition(),
-                    });
-                  }}
-                  onEdit={(entry) => {
-                    cancelAllTransientInteraction();
-                    setComponentEditor({
-                      key: crypto.randomUUID(),
-                      mode: "library",
-                      definition: entry.definition,
-                      entry,
-                    });
-                  }}
-                  onInsert={insertSharedComponent}
-                />
-              </Suspense>
-            }
             onStartInsert={(launch) =>
               editorCommands.execute({ id: "insert.start", launch })
             }
@@ -7383,6 +7355,31 @@ export function App({
           />
         </Suspense>
       ) : null}
+      <Suspense fallback={null}>
+        <UserComponentsLibrary
+          open={userComponentsOpen}
+          refresh={componentLibraryRefresh}
+          onClose={() => setUserComponentsOpen(false)}
+          onCreate={() => {
+            cancelAllTransientInteraction();
+            setComponentEditor({
+              key: crypto.randomUUID(),
+              mode: "new",
+              definition: newComponentDefinition(),
+            });
+          }}
+          onEdit={(entry) => {
+            cancelAllTransientInteraction();
+            setComponentEditor({
+              key: crypto.randomUUID(),
+              mode: "library",
+              definition: entry.definition,
+              entry,
+            });
+          }}
+          onInsert={insertSharedComponent}
+        />
+      </Suspense>
       <SelectionFilterPopover
         open={selectionFilterOpen}
         filter={selectionFilter}

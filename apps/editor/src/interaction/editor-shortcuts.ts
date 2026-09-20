@@ -106,7 +106,7 @@ export function resolveEditorShortcut(
     return {
       kind: "run-command",
       command: {
-        id: event.shiftKey ? "search.open" : "selection.filter.open",
+        id: event.shiftKey ? "selection.filter.open" : "search.open",
       },
     };
   }

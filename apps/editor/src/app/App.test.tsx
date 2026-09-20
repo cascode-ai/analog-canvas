@@ -113,7 +113,7 @@ describe("editor shell", () => {
     expect(markup).not.toContain("New Testbench Cell…");
     expect(markup).not.toContain("Reset Cell Placement");
     expect(markup).not.toContain("Reset Cell Body");
-    expect(markup).toContain("Instances…");
+    expect(markup).toContain("Edit Device Data…");
     const netlistStart = markup.indexOf('aria-label="Netlist"');
     const netlistEnd = markup.indexOf("</details>", netlistStart);
     const netlistMenu = markup.slice(netlistStart, netlistEnd);
@@ -122,10 +122,11 @@ describe("editor shell", () => {
     expect(netlistMenu).not.toContain("Copy Spectre netlist");
     expect(markup).toContain('data-testid="netlist-panel-toggle"');
     expect(markup).toContain('data-testid="project-code-toggle"');
-    expect(markup).toContain("Check Report…");
+    expect(markup).toContain("Review Netlist Issues…");
     expect(netlistMenu).not.toContain('data-testid="open-analog-simulation"');
     expect(markup).toContain('data-testid="open-analog-simulation"');
-    expect(netlistMenu).toContain('data-testid="check-and-save"');
+    expect(netlistMenu).not.toContain('data-testid="check-and-save"');
+    expect(markup).toContain('data-testid="check-and-save"');
     expect(markup).not.toContain("<summary>Run</summary>");
     const agentEnd =
       markup.indexOf("</button>", markup.indexOf('data-testid="open-agent"')) +
@@ -312,7 +313,11 @@ describe("editor shell", () => {
     expect(markup).not.toContain('data-testid="draw-tool-rectangle"');
     expect(markup).not.toContain('data-testid="draw-tool-circle"');
     expect(markup).toContain('data-testid="selection-filter-button"');
-    expect(markup).toContain("Selection Filter… (Ctrl+F)");
+    expect(markup).toContain("Choose Selectable Objects… (Ctrl+Shift+F)");
+    expect(markup).toContain("Find in Circuit… (Ctrl+F)");
+    expect(markup).toContain("User Components…");
+    expect(markup).not.toContain("&gt;Undo&lt;");
+    expect(markup).not.toContain("&gt;Redo&lt;");
     expect(markup).not.toContain("Symbols &amp; Tools");
     expect(markup).not.toContain("Search components");
     expect(markup).not.toContain("Browse all");

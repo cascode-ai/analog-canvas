@@ -137,7 +137,7 @@ export function EditorStatusbar({
             className="statusbar-tool"
             data-testid="selection-filter-status"
             onClick={onOpenSelectionFilter}
-            title="Open Selection Filter (Ctrl+F)"
+            title="Choose Selectable Objects (Ctrl+Shift+F)"
           >
             {selectionFilterSummary}
           </button>

@@ -94,13 +94,13 @@ describe("editor shortcut contract", () => {
     }
   });
 
-  it("gives Ctrl/Cmd+F to Selection Filter and shifts schematic Search", () => {
+  it("gives Ctrl/Cmd+F to Find and shifts the selectable-object filter", () => {
     for (const modifiers of [{ ctrlKey: true }, { metaKey: true }]) {
       expect(resolve("f", {}, modifiers)).toEqual(
-        command({ id: "selection.filter.open" }),
+        command({ id: "search.open" }),
       );
       expect(resolve("f", {}, { ...modifiers, shiftKey: true })).toEqual(
-        command({ id: "search.open" }),
+        command({ id: "selection.filter.open" }),
       );
     }
     expect(resolve("f", { isTyping: true }, { ctrlKey: true })).toBeNull();

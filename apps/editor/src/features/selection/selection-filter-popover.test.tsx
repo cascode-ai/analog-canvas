@@ -15,7 +15,7 @@ describe("SelectionFilterPopover", () => {
       />,
     );
     expect(markup).toContain('data-testid="selection-filter-popover"');
-    expect(markup).toContain("Selection Filter");
+    expect(markup).toContain("Choose Selectable Objects");
     expect(markup).toContain("Instances");
     expect(markup).toContain("Wires");
     expect(markup).toContain("Net / power names");

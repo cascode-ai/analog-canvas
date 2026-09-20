@@ -916,7 +916,7 @@ test("creates and places an external interface with connected netlist semantics"
   expect(analyzed.ir?.cells.map((cell) => cell.name)).not.toContain(
     "external_load",
   );
-  await clickCommand(page, "Netlist", "Check Report…");
+  await clickCommand(page, "Netlist", "Review Netlist Issues…");
   await expect(page.getByTestId("netlist-preview")).toContainText(
     new RegExp(`${instance.reference}\\s+\\S+\\s+\\S+\\s+external_load`, "u"),
   );
@@ -1433,7 +1433,7 @@ test("declares a top Formal Cell Pin and exports the top interface", async ({
   }
   await expect(page.getByLabel("Cell Pin properties")).toHaveCount(0);
 
-  await clickCommand(page, "Netlist", "Check Report…");
+  await clickCommand(page, "Netlist", "Review Netlist Issues…");
   const preflight = page.getByRole("dialog", { name: "Check Report" });
   await expect(preflight.getByTestId("netlist-preview")).toContainText(
     ".subckt dut VIN",
@@ -1499,7 +1499,7 @@ test("copies and independently deletes Formal Cell Pins", async ({ page }) => {
   await expect(
     page.locator('[data-object-id="instance-label-P1-copy-1"]'),
   ).toHaveText("Vout");
-  await clickCommand(page, "Netlist", "Check Report…");
+  await clickCommand(page, "Netlist", "Review Netlist Issues…");
   await expect(
     page
       .getByRole("dialog", { name: "Check Report" })
@@ -1561,7 +1561,7 @@ test("edits a Cell Pin name and RichText presentation in place", async ({
     page.locator('[data-object-id="instance-label-P1"]'),
   ).toContainText("VINP");
 
-  await clickCommand(page, "Netlist", "Check Report…");
+  await clickCommand(page, "Netlist", "Review Netlist Issues…");
   const preflight = page.getByRole("dialog", { name: "Check Report" });
   await expect(preflight).not.toContainText("MISSING_DEVICE_DEFINITION");
   await expect(preflight.getByTestId("netlist-preview")).toContainText(
@@ -1941,7 +1941,7 @@ test("same-name Cell Pins stay independent while the final interface groups them
   // Conflicting interface directions remain editable, but must be resolved
   // before a strict export can produce an executable subcircuit.
   await setCellTerminalDirection(page, "VIN", "input");
-  await clickCommand(page, "Netlist", "Check Report…");
+  await clickCommand(page, "Netlist", "Review Netlist Issues…");
   const preview = await page
     .getByRole("dialog", { name: "Check Report" })
     .getByTestId("netlist-preview")

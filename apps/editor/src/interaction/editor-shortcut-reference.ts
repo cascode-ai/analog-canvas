@@ -9,8 +9,8 @@
  * separately curated subset.
  */
 export const EDITOR_SHORTCUT_REFERENCE = [
-  { keys: ["Ctrl/Cmd", "F"], action: "Selection filter" },
-  { keys: ["Ctrl/Cmd", "Shift", "F"], action: "Search circuit" },
+  { keys: ["Ctrl/Cmd", "F"], action: "Find in circuit" },
+  { keys: ["Ctrl/Cmd", "Shift", "F"], action: "Choose selectable objects" },
   { keys: ["F"], action: "Fit view" },
   { keys: ["Home"], action: "Fit view" },
   { keys: ["Arrow keys"], action: "Pan view" },

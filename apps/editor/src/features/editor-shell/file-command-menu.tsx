@@ -1,4 +1,10 @@
-import { useRef, useState, type ReactNode, type RefObject } from "react";
+import {
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import {
   CLOUD_PROJECT_LIMIT,
@@ -12,13 +18,13 @@ export interface FileCommandMenuProps {
   activeCloudProjectId: string | null;
   canRevert: boolean;
   hasRecoverySessions: boolean;
+  checkAndSave: { enabled: boolean; execute: () => void };
   projectInputRef: RefObject<HTMLInputElement | null>;
   onNewProject: () => void;
   onSave: () => void;
   onRefreshCloudProjects: () => void;
   onOpenCloudProject: (project: CloudProjectSummary) => void;
   onDeleteCloudProject: (project: CloudProjectSummary) => void;
-  onRefresh: () => void;
   onImportProject: (file: File | null) => void;
   onImportSpice: (
     files: FileList | null,
@@ -31,13 +37,15 @@ export interface FileCommandMenuProps {
   onOpenRecovery: () => void;
 }
 
-function ExportSubmenu({
+function CommandSubmenu({
+  id,
   title,
   open,
   onToggle,
   onClose,
   children,
 }: {
+  id: string;
   title: string;
   open: boolean;
   onToggle: () => void;
@@ -61,7 +69,7 @@ function ExportSubmenu({
         ref={trigger}
         type="button"
         aria-expanded={open}
-        aria-controls="export-drawing-options"
+        aria-controls={id}
         onClick={(event) => {
           event.stopPropagation();
           onToggle();
@@ -72,8 +80,8 @@ function ExportSubmenu({
             if (!open) onToggle();
             requestAnimationFrame(() =>
               trigger.current?.parentElement
-                ?.querySelector<HTMLButtonElement>(
-                  ".export-submenu-options button",
+                ?.querySelector<HTMLElement>(
+                  ".export-submenu-options button, .export-submenu-options .file-import",
                 )
                 ?.focus(),
             );
@@ -85,7 +93,7 @@ function ExportSubmenu({
       </button>
       <div
         className="export-submenu-options"
-        id="export-drawing-options"
+        id={id}
         role="group"
         aria-label={title}
         hidden={!open}
@@ -105,11 +113,11 @@ export function FileCommandMenu({
   onDeleteCloudProject,
   canRevert,
   hasRecoverySessions,
+  checkAndSave,
   projectInputRef,
   onNewProject,
   onSave,
   onRefreshCloudProjects,
-  onRefresh,
   onImportProject,
   onImportSpice,
   onExportProject,
@@ -118,14 +126,23 @@ export function FileCommandMenu({
   onRevert,
   onOpenRecovery,
 }: FileCommandMenuProps) {
-  const [drawingExportOpen, setDrawingExportOpen] = useState(false);
+  const [openSubmenu, setOpenSubmenu] = useState<"import" | "export" | null>(
+    null,
+  );
+  const activateFileLabel = (
+    event: ReactKeyboardEvent<HTMLLabelElement>,
+  ): void => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    event.currentTarget.querySelector("input")?.click();
+  };
   return (
     <details
       className="command-menu"
       name="editor-command-menu"
       onToggle={(event) => {
         if (event.currentTarget.open) onRefreshCloudProjects();
-        else setDrawingExportOpen(false);
+        else setOpenSubmenu(null);
       }}
     >
       <summary>File</summary>
@@ -135,6 +152,15 @@ export function FileCommandMenu({
         </button>
         <button type="button" data-testid="save-cloud-project" onClick={onSave}>
           Save
+        </button>
+        <button
+          type="button"
+          data-testid="check-and-save"
+          disabled={!checkAndSave.enabled}
+          onClick={checkAndSave.execute}
+          title={`Check ERC and visual issues, and save this ${projectStoreItemLabel}`}
+        >
+          Check and Save
         </button>
         <span className="command-group-label">
           {projectStoreLabel} ({cloudProjects.length}/{CLOUD_PROJECT_LIMIT})
@@ -168,78 +194,112 @@ export function FileCommandMenu({
             </button>
           </div>
         ))}
-        <label className="file-import">
-          Import Project File…
-          <input
-            ref={projectInputRef}
-            data-testid="project-file"
-            type="file"
-            accept=".json,.icproj.json,application/json"
-            onChange={(event) =>
-              onImportProject(event.currentTarget.files?.[0] ?? null)
-            }
-          />
-        </label>
-        <label className="file-import">
-          Import SPICE / SCS…
-          <input
-            data-testid="spice-files"
-            type="file"
-            accept=".spi,.cir,.sp,.scs,.inc,.lib"
-            multiple
-            onChange={(event) => onImportSpice(event.currentTarget.files)}
-          />
-        </label>
-        <label className="file-import">
-          Import Cadence SPICE (`!` globals)…
-          <input
-            data-testid="cadence-spice-files"
-            type="file"
-            accept=".spi,.cir,.sp,.scs,.inc,.lib"
-            multiple
-            onChange={(event) =>
-              onImportSpice(event.currentTarget.files, "cadence-bang")
-            }
-          />
-        </label>
-        <button type="button" onClick={onExportProject}>
-          Export Project File…
-        </button>
         <div>
-          <ExportSubmenu
-            title="Export drawing"
-            open={drawingExportOpen}
-            onToggle={() => setDrawingExportOpen(!drawingExportOpen)}
-            onClose={() => setDrawingExportOpen(false)}
+          <CommandSubmenu
+            id="file-import-options"
+            title="Import"
+            open={openSubmenu === "import"}
+            onToggle={() =>
+              setOpenSubmenu((current) =>
+                current === "import" ? null : "import",
+              )
+            }
+            onClose={() => setOpenSubmenu(null)}
           >
+            <label
+              className="file-import"
+              tabIndex={0}
+              onKeyDown={activateFileLabel}
+            >
+              Project File…
+              <input
+                ref={projectInputRef}
+                data-testid="project-file"
+                type="file"
+                accept=".json,.icproj.json,application/json"
+                onChange={(event) =>
+                  onImportProject(event.currentTarget.files?.[0] ?? null)
+                }
+              />
+            </label>
+            <label
+              className="file-import"
+              tabIndex={0}
+              onKeyDown={activateFileLabel}
+            >
+              SPICE / SCS…
+              <input
+                data-testid="spice-files"
+                type="file"
+                accept=".spi,.cir,.sp,.scs,.inc,.lib"
+                multiple
+                onChange={(event) => onImportSpice(event.currentTarget.files)}
+              />
+            </label>
+            <label
+              className="file-import"
+              tabIndex={0}
+              onKeyDown={activateFileLabel}
+            >
+              Cadence SPICE (`!` globals)…
+              <input
+                data-testid="cadence-spice-files"
+                type="file"
+                accept=".spi,.cir,.sp,.scs,.inc,.lib"
+                multiple
+                onChange={(event) =>
+                  onImportSpice(event.currentTarget.files, "cadence-bang")
+                }
+              />
+            </label>
+          </CommandSubmenu>
+        </div>
+        <div>
+          <CommandSubmenu
+            id="file-export-options"
+            title="Export"
+            open={openSubmenu === "export"}
+            onToggle={() =>
+              setOpenSubmenu((current) =>
+                current === "export" ? null : "export",
+              )
+            }
+            onClose={() => setOpenSubmenu(null)}
+          >
+            <button
+              type="button"
+              aria-label="Export Project File…"
+              onClick={onExportProject}
+            >
+              Project File…
+            </button>
             <button type="button" aria-label="Export SVG" onClick={onExportSvg}>
-              SVG
+              Drawing as SVG
             </button>
             <button
               type="button"
               aria-label="Export PNG"
               onClick={() => onExportRaster("png")}
             >
-              PNG
+              Drawing as PNG
             </button>
             <button
               type="button"
               aria-label="Export PDF"
               onClick={() => onExportRaster("pdf")}
             >
-              PDF
+              Drawing as PDF
             </button>
-          </ExportSubmenu>
+          </CommandSubmenu>
         </div>
-        <button type="button" onClick={onRefresh}>
-          Refresh app
-        </button>
-        <button type="button" onClick={onRevert} disabled={!canRevert}>
-          Revert to Last Saved
-        </button>
+        {canRevert ? (
+          <button type="button" onClick={onRevert}>
+            Revert to Last Saved
+          </button>
+        ) : null}
         {hasRecoverySessions ? (
           <button type="button" onClick={onOpenRecovery}>
-            Recover Local Work…
+            Recover Unsaved Work…
           </button>
         ) : null}
       </div>
