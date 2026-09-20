@@ -41,7 +41,6 @@ import {
   rewriteRichTextPlainText,
   routeBends,
   routeEnd,
-  voltageNodeTextDocument,
 } from "@icm/model";
 
 import {
@@ -1664,11 +1663,11 @@ export function proposePaste(
         clone.binding?.kind === "cell-terminal-name"
       ) {
         const name = terminalNames.get(clone.binding.terminalId);
-        if (name) {
-          clone.formatOverride = clone.formatOverride
-            ? rewriteRichTextPlainText(clone.formatOverride, name)
-            : voltageNodeTextDocument(name);
-        }
+        if (name && clone.formatOverride)
+          clone.formatOverride = rewriteRichTextPlainText(
+            clone.formatOverride,
+            name,
+          );
       }
       if (
         clone.binding?.kind === "instance-reference" &&

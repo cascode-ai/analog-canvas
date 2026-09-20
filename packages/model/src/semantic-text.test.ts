@@ -7,8 +7,8 @@ import {
 } from "./semantic-text.js";
 
 describe("semantic formal-Port text", () => {
-  it.each(["Vout", "IN", "OUT", "CLK", "vout", "V_{in,cm}"])(
-    "keeps %s whole without guessing scripts or parsing markup",
+  it.each(["IN", "OUT", "CLK"])(
+    "keeps non-voltage name %s whole without guessing scripts",
     (name) => {
       const content = semanticTextDocument(name, "formal-port");
       expect(flattenRichText(content)).toBe(name);
@@ -18,12 +18,22 @@ describe("semantic formal-Port text", () => {
     },
   );
 
+  it.each(["Vout", "vOUT", "V_{in,cm}"])(
+    "uses the voltage-node default for %s without changing its identity",
+    (name) => {
+      const content = semanticTextDocument(name, "formal-port");
+      expect(flattenRichText(content)).toBe(name);
+      expect(content).toEqual(voltageNodeTextDocument(name));
+      expect(JSON.stringify(content)).toContain('"subscript"');
+    },
+  );
+
   it("keeps a polarity sign outside the complete name", () => {
     const content = semanticTextDocument("Vout+", "formal-port");
     expect(flattenRichText(content)).toBe("Vout+");
-    expect(content.runs).toHaveLength(2);
-    expect(content.runs[1]).toEqual({ kind: "text", value: "+" });
-    expect(JSON.stringify(content)).not.toContain('"subscript"');
+    expect(content.runs).toHaveLength(3);
+    expect(content.runs[2]).toEqual({ kind: "text", value: "+" });
+    expect(JSON.stringify(content)).toContain('"subscript"');
   });
 });
 
@@ -76,6 +86,24 @@ describe("generated voltage-node text", () => {
     });
     expect(suffix).toBe(name.slice(1).toLowerCase());
     expect(JSON.stringify(content)).not.toContain('"bold"');
+  });
+
+  it("uppercases a lowercase leading v visually without changing the name", () => {
+    const content = voltageNodeTextDocument("vBIAS");
+
+    expect(flattenRichText(content)).toBe("vBIAS");
+    expect(content.runs[0]).toMatchObject({
+      style: "italic",
+      children: [{ style: "uppercase" }],
+    });
+  });
+
+  it("keeps a lone V italic without inventing an empty subscript", () => {
+    const content = voltageNodeTextDocument("V");
+
+    expect(flattenRichText(content)).toBe("V");
+    expect(content.runs).toHaveLength(1);
+    expect(content.runs[0]).toMatchObject({ style: "italic" });
   });
 });
 

@@ -930,11 +930,15 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
                 options.document,
                 annotationWithoutOverride,
               );
+      const editedPresentation =
+        boundAnnotation.binding.kind === "cell-terminal-name" &&
+        !textEditing.formatEdited
+          ? semanticContent
+          : textEditing.content;
       const nextFormatOverride = formatOverrideAllowed
-        ? JSON.stringify(semanticContent) ===
-          JSON.stringify(textEditing.content)
+        ? JSON.stringify(semanticContent) === JSON.stringify(editedPresentation)
           ? undefined
-          : textEditing.content
+          : editedPresentation
         : boundAnnotation.formatOverride;
       const presentationEdit: SchematicEdit = {
         kind: "upsert_schematic_annotation",

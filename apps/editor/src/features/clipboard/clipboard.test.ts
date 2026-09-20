@@ -9,7 +9,6 @@ import {
   createEmptyDocument,
   flattenRichText,
   semanticTextDocument,
-  voltageNodeTextDocument,
 } from "@icm/model";
 import { buildSvgScene } from "@icm/render-svg";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
@@ -474,9 +473,7 @@ describe("schematic clipboard", () => {
       kind: "cell-terminal-name",
       terminalId: copiedTerminal?.id,
     });
-    expect(copiedAnnotation?.formatOverride).toEqual(
-      voltageNodeTextDocument("Vout"),
-    );
+    expect(copiedAnnotation?.formatOverride).toBeUndefined();
 
     const rename = executeTransaction(
       result.document,

@@ -10,7 +10,9 @@ import {
   deriveStableId,
   foldNetName,
   projectCellInterface,
+  rewriteRichTextPlainText,
   routeEnd,
+  semanticTextDocument,
 } from "@icm/model";
 import {
   deviceDescriptor,
@@ -1315,10 +1317,23 @@ export function planRenameCellTerminal(
       if (annotation.binding?.kind === "cell-terminal-name") {
         if (!terminalRename || !annotation.formatOverride) return [];
         const { formatOverride: _formatOverride, ...rest } = annotation;
+        const automaticFormat =
+          JSON.stringify(annotation.formatOverride) ===
+          JSON.stringify(semanticTextDocument(terminal.name, "formal-port"));
         return [
           {
             kind: "upsert_schematic_annotation" as const,
-            annotation: rest,
+            annotation: {
+              ...rest,
+              ...(!automaticFormat
+                ? {
+                    formatOverride: rewriteRichTextPlainText(
+                      annotation.formatOverride,
+                      newName,
+                    ),
+                  }
+                : {}),
+            },
           },
         ];
       }

@@ -27,7 +27,7 @@ import type {
   Point,
   SchematicDocument,
 } from "@icm/model";
-import { defaultDraftTextDocument, voltageNodeTextDocument } from "@icm/model";
+import { defaultDraftTextDocument } from "@icm/model";
 import { hierarchicalSymbolId, type SymbolResolver } from "@icm/symbols";
 
 import type { ComponentInsertRequest } from "./component-insert-request";
@@ -469,8 +469,6 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       placementRequest.kind === "cell-pin"
         ? placementRequest.portName?.trim()
         : undefined;
-    const usesGeneratedVoltageName =
-      !supply && !requestedName && !connectedName;
     const formalName =
       requestedName ||
       connectedName ||
@@ -542,14 +540,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
             options.styleProfile,
             { formalTerminalId: terminalId },
           );
-    const annotation = annotations[0]
-      ? {
-          ...annotations[0],
-          ...(usesGeneratedVoltageName
-            ? { formatOverride: voltageNodeTextDocument(formalName) }
-            : {}),
-        }
-      : undefined;
+    const annotation = annotations[0];
     const committed = options.transactProject(
       "place-cell-pin",
       planCreateCellPin(options.project, options.document.id, {

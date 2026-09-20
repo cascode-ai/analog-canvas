@@ -707,6 +707,10 @@
   text-transform: lowercase;
 }
 
+.rich-text-editor [data-rich-text-style="uppercase"] {
+  text-transform: uppercase;
+}
+
 .rich-text-floating-toolbar button[aria-label="Decrease text size"] {
   margin-left: auto;
 }

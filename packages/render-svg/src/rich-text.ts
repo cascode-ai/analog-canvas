@@ -8,6 +8,7 @@ interface RenderContext {
   italic: boolean;
   bold: boolean;
   lowercase: boolean;
+  uppercase: boolean;
   lineOriginX: number;
   fontSize: number;
   baselineOffset: number;
@@ -48,6 +49,7 @@ export function renderRichTextDocument(
     italic: options.defaultItalic ?? false,
     bold: options.defaultBold ?? false,
     lowercase: false,
+    uppercase: false,
     lineOriginX: options.lineOriginX ?? 0,
     fontSize: options.fontSize ?? profile.typography.annotationFontSize,
     baselineOffset: 0,
@@ -88,7 +90,11 @@ function renderRun(
   switch (node.kind) {
     case "text": {
       const text = escapeXml(
-        ctx.lowercase ? node.value.toLowerCase() : node.value,
+        ctx.uppercase
+          ? node.value.toUpperCase()
+          : ctx.lowercase
+            ? node.value.toLowerCase()
+            : node.value,
       );
       const dy = ctx.baselineOffset - state.currentBaselineOffset;
       if (Math.abs(dy) < 1e-9) return text;
@@ -165,13 +171,15 @@ function renderSpan(
     node.style === "italic" ||
     node.style === "bold" ||
     node.style === "overbar" ||
-    node.style === "lowercase"
+    node.style === "lowercase" ||
+    node.style === "uppercase"
   ) {
     const childCtx: RenderContext = {
       ...ctx,
       italic: ctx.italic || node.style === "italic",
       bold: ctx.bold || node.style === "bold",
       lowercase: ctx.lowercase || node.style === "lowercase",
+      uppercase: ctx.uppercase || node.style === "uppercase",
     };
     const decoration =
       node.style === "overbar" ? ";text-decoration:overline" : "";

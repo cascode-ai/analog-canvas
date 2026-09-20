@@ -96,13 +96,24 @@ export function voltageNodeTextDocument(value: string): RichTextDocument {
   if (value.length === 0) return { runs: [{ kind: "line-break" }] };
   const head = value.slice(0, 1);
   const tail = value.slice(1);
-  if (head.toLowerCase() !== "v" || tail.length === 0 || /\s/u.test(value)) {
+  if (head.toLowerCase() !== "v" || /\s/u.test(value)) {
     return { runs: [{ kind: "text", value }] };
   }
+  const visualHead =
+    head === "V"
+      ? { kind: "text" as const, value: head }
+      : span([{ kind: "text", value: head }], "uppercase");
   return {
     runs: [
-      span([{ kind: "text", value: head }], "italic"),
-      span([span([{ kind: "text", value: tail }], "lowercase")], "subscript"),
+      span([visualHead], "italic"),
+      ...(tail.length > 0
+        ? [
+            span(
+              [span([{ kind: "text" as const, value: tail }], "lowercase")],
+              "subscript",
+            ),
+          ]
+        : []),
     ],
   };
 }
@@ -118,6 +129,15 @@ export function semanticTextDocument(
   // face, but require an explicit RichText edit for subscript semantics.
   // A trailing polarity sign still qualifies the whole name.
   const signed = /^(.+?)([+-])$/u.exec(value);
+  if (kind === "formal-port" && value.slice(0, 1).toLowerCase() === "v") {
+    if (!signed) return voltageNodeTextDocument(value);
+    return {
+      runs: [
+        ...voltageNodeTextDocument(signed[1]!).runs,
+        { kind: "text", value: signed[2]! },
+      ],
+    };
+  }
   if (kind === "net-label" || kind === "formal-port") {
     return {
       runs: signed

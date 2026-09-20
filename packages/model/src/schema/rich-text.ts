@@ -5,7 +5,13 @@ import {
 } from "@icm/math-typesetting/profile";
 
 export type RichTextStyle =
-  "italic" | "bold" | "subscript" | "superscript" | "overbar" | "lowercase";
+  | "italic"
+  | "bold"
+  | "subscript"
+  | "superscript"
+  | "overbar"
+  | "lowercase"
+  | "uppercase";
 
 export type RichTextRun =
   | { kind: "text"; value: string }
@@ -64,6 +70,7 @@ function richTextRunSchema(depth: number, allowMath: boolean): z.ZodTypeAny {
         "superscript",
         "overbar",
         "lowercase",
+        "uppercase",
       ]),
       children: z
         .array(richTextRunSchema(depth + 1, false))

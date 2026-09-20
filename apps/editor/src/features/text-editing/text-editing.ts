@@ -40,6 +40,8 @@ export interface TextEditingSession {
   defaultBold?: boolean;
   defaultItalic?: boolean;
   contentEdited?: boolean;
+  /** True once the user explicitly changes presentation rather than text. */
+  formatEdited?: boolean;
   /** Net/terminal/value displays edit their source; Instance labels edit presentation. */
   bound: boolean;
   bindingKind?: AnnotationTextBinding["kind"];
@@ -71,6 +73,16 @@ export function createTextEditingSession(
   if (target.owner === "annotation") {
     const annotation = target.object;
     const anchor = annotation.anchor;
+    const content = document
+      ? resolveAnnotationText(document, annotation)
+      : (annotation.content ?? { runs: [] });
+    const automaticTerminalOverride =
+      annotation.binding?.kind === "cell-terminal-name" &&
+      annotation.formatOverride !== undefined &&
+      richTextEqual(
+        annotation.formatOverride,
+        semanticTextDocument(flattenRichText(content), "formal-port"),
+      );
     const instanceId =
       annotation.binding?.kind === "instance-reference"
         ? annotation.binding.instanceId
@@ -80,15 +92,16 @@ export function createTextEditingSession(
     return {
       owner: "annotation",
       id: annotation.id,
-      content: document
-        ? resolveAnnotationText(document, annotation)
-        : (annotation.content ?? { runs: [] }),
+      content,
       sizeScale: annotation.sizeScale ?? 1,
       alignment: annotation.alignment,
       bound:
         annotation.binding !== undefined &&
         annotation.binding.kind !== "instance-reference",
       ...(annotation.binding ? { bindingKind: annotation.binding.kind } : {}),
+      ...(annotation.formatOverride && !automaticTerminalOverride
+        ? { formatEdited: true }
+        : {}),
       ...(annotation.kind === "route-marker"
         ? { plainTextKind: "route-marker" as const }
         : {}),
@@ -134,10 +147,16 @@ export function updateTextEditingSession(
     Pick<TextEditingSession, "content" | "sizeScale" | "alignment">
   >,
 ): TextEditingSession {
+  const formatEdited =
+    session.formatEdited ||
+    (change.content !== undefined &&
+      flattenRichText(change.content) === flattenRichText(session.content) &&
+      !richTextEqual(change.content, session.content));
   return {
     ...session,
     ...change,
     ...(change.content ? { contentEdited: true } : {}),
+    ...(formatEdited ? { formatEdited: true } : {}),
   };
 }
 

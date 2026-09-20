@@ -928,20 +928,19 @@ test("inherits explicit Port subscripts without guessing from pin names", async 
   await createCell(page, "FormattedStage");
   await placeCellPin(page, { name: "Vout", position: { x: 300, y: 180 } });
   const internalLabel = page.locator('[data-object-id="instance-label-P1"]');
-  await expect(
-    internalLabel.locator('[data-text-run="subscript"]'),
-  ).toHaveCount(0);
+  await expect(internalLabel.locator('[data-text-run="subscript"]')).toHaveText(
+    "out",
+  );
   await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
   const editor = page.getByRole("textbox", { name: "Canvas text editor" });
-  await editor.fill("Vout");
   await editor.press("Home");
   await editor.press("ArrowRight");
   await editor.press("Shift+End");
   await page.getByRole("button", { name: "Subscript", exact: true }).click();
   await page.getByRole("button", { name: "Apply text changes" }).click();
-  await expect(internalLabel.locator('[data-text-run="subscript"]')).toHaveText(
-    "out",
-  );
+  await expect(
+    internalLabel.locator('[data-text-run="subscript"]'),
+  ).toHaveCount(0);
   await page
     .getByTestId("cell-navigation")
     .getByRole("button", { name: "Top", exact: true })
@@ -956,9 +955,7 @@ test("inherits explicit Port subscripts without guessing from pin names", async 
     .click({ position: { x: 420, y: 180 } });
   await page.keyboard.press("Escape");
   const parentPin = page.locator('[data-pin-name="Vout"]');
-  await expect(parentPin.locator('[data-text-run="subscript"]')).toHaveText(
-    "out",
-  );
+  await expect(parentPin.locator('[data-text-run="subscript"]')).toHaveCount(0);
   await page.getByTestId("hit-X1").dblclick();
   await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
   await editor.focus();
@@ -966,17 +963,19 @@ test("inherits explicit Port subscripts without guessing from pin names", async 
   await editor.press("ArrowRight");
   await editor.press("Shift+End");
   await page.getByRole("button", { name: "Subscript", exact: true }).click();
-  await expect(editor.locator("sub")).toHaveCount(0);
+  await expect(editor.locator("sub")).toHaveText("out");
   await page.getByRole("button", { name: "Apply text changes" }).click();
-  await expect(
-    internalLabel.locator('[data-text-run="subscript"]'),
-  ).toHaveCount(0);
+  await expect(internalLabel.locator('[data-text-run="subscript"]')).toHaveText(
+    "out",
+  );
   await page
     .getByTestId("cell-navigation")
     .getByRole("button", { name: "Top", exact: true })
     .click();
   await expect(parentPin).toHaveText("Vout");
-  await expect(parentPin.locator('[data-text-run="subscript"]')).toHaveCount(0);
+  await expect(parentPin.locator('[data-text-run="subscript"]')).toHaveText(
+    "out",
+  );
 });
 
 test("places an unreferenced top Cell in an ordinary new Cell", async ({
@@ -1435,7 +1434,23 @@ test("edits a Cell Pin name and RichText presentation in place", async ({
   await expect(page.getByLabel("Cell Pin properties")).toHaveCount(0);
   await expect(
     page.locator('[data-object-id="instance-label-P1"]'),
-  ).toContainText("VBIAS");
+  ).toContainText("Vbias");
+  await expect(
+    page
+      .locator('[data-object-id="instance-label-P1"]')
+      .locator('[data-text-run="subscript"]'),
+  ).toHaveText("bias");
+
+  await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
+  await page
+    .getByRole("textbox", { name: "Canvas text editor" })
+    .fill("vINPUT");
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  const renamedLabel = page.locator('[data-object-id="instance-label-P1"]');
+  await expect(renamedLabel).toHaveText("Vinput");
+  await expect(renamedLabel.locator('[data-text-run="subscript"]')).toHaveText(
+    "input",
+  );
 
   await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
   await page.getByRole("button", { name: "Bold" }).click();
@@ -1443,7 +1458,7 @@ test("edits a Cell Pin name and RichText presentation in place", async ({
   await page.getByTestId("hit-P1").click();
   await expect(
     page.locator('[data-object-id="instance-label-P1"]'),
-  ).toContainText("VBIAS");
+  ).toContainText("Vinput");
 
   await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
   await page.getByRole("textbox", { name: "Canvas text editor" }).fill("VINP");

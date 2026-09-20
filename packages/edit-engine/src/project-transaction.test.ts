@@ -3,6 +3,7 @@ import {
   createSimulationFolder,
   flattenRichText,
   plainNameDocument,
+  semanticTextDocument,
 } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
@@ -1538,6 +1539,21 @@ describe("Project structural transaction", () => {
       direction: "input",
       interfaceInstanceIds: ["port-in"],
     });
+    child.annotations.push({
+      id: "instance-label-port-in",
+      kind: "instance-label",
+      binding: { kind: "cell-terminal-name", terminalId: "terminal-in" },
+      formatOverride: semanticTextDocument("IN", "formal-port"),
+      anchor: {
+        kind: "object",
+        objectId: "port-in",
+        localOffset: { x: 0, y: 0 },
+        fallbackPosition: { x: 0, y: 0 },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
     project.documents.push(child);
     const caller = {
       ...hierarchyInstance("X1", "Child", child.id),
@@ -1582,6 +1598,11 @@ describe("Project structural transaction", () => {
           {
             id: "document-child",
             netlist: { terminals: [{ id: "terminal-in", name: "VIN" }] },
+            annotations: [
+              expect.not.objectContaining({
+                formatOverride: expect.anything(),
+              }),
+            ],
           },
         ],
       },
@@ -1669,6 +1690,25 @@ describe("Project structural transaction", () => {
     expect(result.project.documents[1]!.annotations[0]!.binding).toEqual({
       kind: "cell-terminal-name",
       terminalId: "terminal-vout",
+    });
+
+    const renamed = executeProjectTransaction(result.project, {
+      transactionId: "rename-manually-formatted-port",
+      projectId: result.project.id,
+      expectedStructureRevision: result.project.structureRevision,
+      actor: { kind: "human", id: "human-local" },
+      edits: planRenameCellTerminal(
+        result.project,
+        child.id,
+        "terminal-vout",
+        "VBIAS",
+      ),
+    });
+    if (!renamed.ok) throw new Error("Expected formatted Port rename");
+    const renamedAnnotation = renamed.project.documents[1]!.annotations[0]!;
+    expect(flattenRichText(renamedAnnotation.formatOverride!)).toBe("VBIAS");
+    expect(renamedAnnotation.formatOverride?.runs[0]).toMatchObject({
+      style: "bold",
     });
   });
 

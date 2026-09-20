@@ -68,6 +68,17 @@ describe("Razavi schematic typography", () => {
     expect(rendered).not.toContain(">B12</tspan>");
   });
 
+  it("uppercases only the visual head of a lowercase voltage name", () => {
+    const rendered = renderRichTextDocument(
+      voltageNodeTextDocument("vBIAS"),
+      razaviTextbookProfile,
+    );
+
+    expect(rendered).toContain(">V</tspan>");
+    expect(rendered).toContain(">bias</tspan>");
+    expect(rendered).not.toContain(">v</tspan>");
+  });
+
   it("keeps a default Net Label bold italic without an implicit subscript", () => {
     const rendered = renderRichTextDocument(
       semanticTextDocument("Vin", "net-label"),
