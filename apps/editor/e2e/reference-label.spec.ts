@@ -50,31 +50,41 @@ test("canvas edits one visual annotation without changing the Netlist Reference"
   await expect(
     page.getByRole("button", { name: "Subscript", exact: true }),
   ).toBeVisible();
-  const [sizeControl, ...actionControls] = await Promise.all(
-    [
-      page.getByRole("button", { name: "Increase text size" }),
-      page.getByRole("button", { name: "Apply text changes" }),
-      page.getByRole("button", { name: "Cancel text changes" }),
-      page.getByRole("button", { name: "Delete text" }),
-    ].map(async (control) => {
-      const bounds = await control.boundingBox();
-      if (!bounds) throw new Error("Text editor control is not measurable");
-      return bounds;
-    }),
-  );
+  const controlBounds = async (name: string) => {
+    const bounds = await page.getByRole("button", { name }).boundingBox();
+    if (!bounds) throw new Error("Text editor control is not measurable");
+    return bounds;
+  };
+  const [
+    decreaseControl,
+    increaseControl,
+    applyControl,
+    cancelControl,
+    deleteControl,
+  ] = await Promise.all([
+    controlBounds("Decrease text size"),
+    controlBounds("Increase text size"),
+    controlBounds("Apply text changes"),
+    controlBounds("Cancel text changes"),
+    controlBounds("Delete text"),
+  ]);
+  const actionControls = [applyControl, cancelControl, deleteControl];
   expect(
     actionControls.every(({ y }) => Math.abs(y - actionControls[0]!.y) < 1),
   ).toBe(true);
-  expect(actionControls[0]!.y).toBeGreaterThan(sizeControl!.y);
+  expect(Math.abs(increaseControl.y - decreaseControl.y)).toBeLessThan(1);
+  expect(increaseControl.x).toBeGreaterThan(decreaseControl.x);
+  expect(actionControls[0]!.y).toBeGreaterThan(increaseControl.y);
   const toolbarBounds = await page
     .getByRole("toolbar", { name: "Text formatting" })
     .boundingBox();
   if (!toolbarBounds) throw new Error("Text toolbar is not measurable");
-  expect(
-    toolbarBounds.x +
-      toolbarBounds.width -
-      (sizeControl!.x + sizeControl!.width),
-  ).toBeLessThanOrEqual(12);
+  for (const control of [decreaseControl, increaseControl, ...actionControls]) {
+    expect(control.x).toBeGreaterThanOrEqual(toolbarBounds.x);
+    expect(control.x + control.width).toBeLessThanOrEqual(
+      toolbarBounds.x + toolbarBounds.width + 1,
+    );
+  }
   await editor.fill("R2");
   await editor.press("End");
   await editor.press("Shift+Enter");

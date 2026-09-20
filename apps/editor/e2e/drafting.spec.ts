@@ -283,18 +283,20 @@ test("adds formatted drafting text and undo/redo restores it", async ({
     canvasBounds.x + canvasBounds.width + 1,
   );
   expect(editorBounds.width).toBeCloseTo(332, 0);
-  const [boldTop, increaseTop, applyTop, cancelTop, deleteTop] =
+  const [boldTop, decreaseTop, increaseTop, applyTop, cancelTop, deleteTop] =
     await Promise.all([
       controlTop(page.getByRole("button", { name: "Bold" })),
+      controlTop(page.getByRole("button", { name: "Decrease text size" })),
       controlTop(page.getByRole("button", { name: "Increase text size" })),
       controlTop(page.getByRole("button", { name: "Apply text changes" })),
       controlTop(page.getByRole("button", { name: "Cancel text changes" })),
       controlTop(page.getByRole("button", { name: "Delete text" })),
     ]);
-  expect(Math.abs(increaseTop - boldTop)).toBeLessThan(1);
+  expect(Math.abs(increaseTop - decreaseTop)).toBeLessThan(1);
+  expect(increaseTop).toBeGreaterThan(boldTop);
   expect(Math.abs(cancelTop - applyTop)).toBeLessThan(1);
   expect(Math.abs(deleteTop - applyTop)).toBeLessThan(1);
-  expect(applyTop).toBeGreaterThan(boldTop);
+  expect(applyTop).toBeGreaterThan(increaseTop);
 
   const fullViewport = page.viewportSize();
   await page.setViewportSize({ width: 720, height: 720 });
@@ -311,15 +313,15 @@ test("adds formatted drafting text and undo/redo restores it", async ({
   // settles rather than sampling a transient frame.
   await expect
     .poll(async () => {
-      const [boldTop, increaseTop] = await Promise.all([
-        controlTop(page.getByRole("button", { name: "Bold" })),
+      const [decreaseTop, increaseTop] = await Promise.all([
+        controlTop(page.getByRole("button", { name: "Decrease text size" })),
         controlTop(page.getByRole("button", { name: "Increase text size" })),
       ]);
-      return Math.abs(increaseTop - boldTop);
+      return Math.abs(increaseTop - decreaseTop);
     })
     .toBeLessThan(1);
-  const narrowBoldTop = await controlTop(
-    page.getByRole("button", { name: "Bold" }),
+  const narrowSizeTop = await controlTop(
+    page.getByRole("button", { name: "Increase text size" }),
   );
   await expect
     .poll(async () => {
@@ -333,7 +335,7 @@ test("adds formatted drafting text and undo/redo restores it", async ({
   const narrowApplyTop = await controlTop(
     page.getByRole("button", { name: "Apply text changes" }),
   );
-  expect(narrowApplyTop).toBeGreaterThan(narrowBoldTop);
+  expect(narrowApplyTop).toBeGreaterThan(narrowSizeTop);
   await page.getByLabel("Insert circuit symbol").click();
   const [symbolMenuBounds, narrowEditorBounds] = await Promise.all([
     page.getByRole("menu", { name: "Circuit symbols" }).boundingBox(),

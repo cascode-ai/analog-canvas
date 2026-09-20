@@ -1127,7 +1127,7 @@ export function RichTextEditor({
           </>
         ) : null}
         {!compact ? (
-          <>
+          <span className="rich-text-toolbar-size-controls">
             <button
               type="button"
               aria-label="Decrease text size"
@@ -1154,7 +1154,7 @@ export function RichTextEditor({
             >
               A+
             </button>
-          </>
+          </span>
         ) : null}
         {!compact ? (
           <span className="rich-text-toolbar-action-break" aria-hidden="true" />

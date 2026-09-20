@@ -3,6 +3,7 @@ import type { SchematicDocument } from "@icm/model";
 import { razaviProductSymbols } from "@icm/symbols";
 import { expect, test } from "@playwright/test";
 import { createEmptyProject } from "@icm/model";
+import { serializeProject } from "@icm/project-protocol";
 import {
   revealPropertiesShelf,
   awaitEditorReady,
@@ -1522,7 +1523,7 @@ test("selects a reviewed SKY130 MOS through the inline Target netlist field", as
   expect(saved.documents[0].instances[0]).toMatchObject({
     id: "M1",
     symbolId: "nmos",
-    reference: "M1",
+    reference: "XM1",
     netlist: {
       parameters: { w: "1u", l: "150n", nf: "1", m: "1" },
       binding: { kind: "external-subcircuit" },
@@ -1762,7 +1763,7 @@ test("batch Code edits common resistor values and colors atomically and reopens 
   await page.getByTestId("project-file").setInputFiles({
     name: "batch-values.icproj.json",
     mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
+    buffer: Buffer.from(serializeProject(project)),
   });
   await expect(page.getByTestId("status")).toContainText(
     "Opened batch-values.icproj.json",

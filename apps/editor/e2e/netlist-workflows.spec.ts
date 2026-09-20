@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import { resolve } from "node:path";
 import { inflateSync } from "node:zlib";
 import { createEmptyProject } from "@icm/model";
+import { serializeProject } from "@icm/project-protocol";
 import {
   awaitEditorReady,
   clickCommand,
@@ -155,7 +156,7 @@ test("keeps rejected SPICE import diagnostics in a historical report", async ({
   await page.getByTestId("project-file").setInputFiles({
     name: "replacement.icproj.json",
     mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(replacement)),
+    buffer: Buffer.from(serializeProject(replacement)),
   });
   await expect(page.getByTestId("import-report-lifecycle")).toHaveCount(0);
 });
@@ -279,7 +280,7 @@ test("copies generated NoConnect nodes immediately and retains the optional Chec
   await page.getByTestId("project-file").setInputFiles({
     name: "warning.icproj.json",
     mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
+    buffer: Buffer.from(serializeProject(project)),
   });
   expect(await copyNetlistText(page)).toContain("R1 IN NC0001 10k");
   await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
@@ -487,7 +488,7 @@ test("shows and copies a live MOS netlist with explicitly connected bulk termina
   await page.getByTestId("project-file").setInputFiles({
     name: "explicit-bulk.icproj.json",
     mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
+    buffer: Buffer.from(serializeProject(project)),
   });
 
   const spice = await copyNetlistText(page, "spice");
@@ -690,7 +691,7 @@ test("grows and shrinks the live netlist with content, scrolling only at the vie
     await page.getByTestId("project-file").setInputFiles({
       name: "growing-netlist.icproj.json",
       mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(project)),
+      buffer: Buffer.from(serializeProject(project)),
     });
     await expect(viewport).toHaveAttribute(
       "data-line-count",
@@ -872,7 +873,7 @@ test("refreshes a legacy circuit with missing device defaults in one click", asy
   await page.getByTestId("project-file").setInputFiles({
     name: "bare-devices.icproj.json",
     mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
+    buffer: Buffer.from(serializeProject(project)),
   });
   await expect(page.getByTestId("status")).toContainText("Opened");
   const code = page.getByLabel("Netlist code", { exact: true });
@@ -927,7 +928,7 @@ test("blocks netlist output when the configured default is missing", async ({
   await page.getByTestId("project-file").setInputFiles({
     name: "draft.icproj.json",
     mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
+    buffer: Buffer.from(serializeProject(project)),
   });
   const code = page.getByLabel("Netlist code", { exact: true });
   await expect(code).toHaveText("");
@@ -1049,7 +1050,7 @@ test("exports a MOS pair without bulk wiring or supply symbols", async ({
   await page.getByTestId("project-file").setInputFiles({
     name: "implicit-bulk.icproj.json",
     mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
+    buffer: Buffer.from(serializeProject(project)),
   });
   await expect(page.getByLabel("Netlist code", { exact: true })).toContainText(
     "M1",

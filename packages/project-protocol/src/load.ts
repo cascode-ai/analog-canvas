@@ -221,10 +221,13 @@ export function tryParseProjectWithMetadata(
   // overrides already written and published — restore the text instead of
   // refusing the Project, because a file that will not open is, to its
   // author, a file that is gone.
-  current = repairBoundFormatOverrides(current);
   const reviewedReferenceRepair =
     repairLegacyReviewedExternalReferences(current);
   current = reviewedReferenceRepair.project;
+  // The reviewed-reference repair can rename a legacy external instance
+  // (M1 -> XM1). Reconcile bound presentation only after that semantic rename
+  // so its format override is rewritten to the final reference as well.
+  current = repairBoundFormatOverrides(current);
   const diagnostics = invalidProjectDiagnostics(current);
   if (diagnostics.length > 0) return { ok: false, diagnostics };
   const project = CircuitProjectSchema.parse(current);

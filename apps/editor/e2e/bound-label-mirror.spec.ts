@@ -1,6 +1,7 @@
 import { parseSavedProject } from "./editor-fixtures";
 import { expect, test, type Page } from "@playwright/test";
 import { createEmptyProject, type Annotation } from "@icm/model";
+import { serializeProject } from "@icm/project-protocol";
 import {
   defaultInstanceLabelPlacement,
   defaultInstanceParameterLabelPlacement,
@@ -80,7 +81,7 @@ async function openFixture(page: Page) {
   await page.getByTestId("project-file").setInputFiles({
     name: "mirror-labels.icproj.json",
     mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
+    buffer: Buffer.from(serializeProject(project)),
   });
   await expect(page.getByTestId("status")).toContainText(
     "Opened mirror-labels.icproj.json",

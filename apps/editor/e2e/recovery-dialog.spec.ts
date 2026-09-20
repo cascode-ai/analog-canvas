@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { createEmptyProject } from "@icm/model";
+import { serializeProject } from "@icm/project-protocol";
 
 import {
   awaitEditorReady,
@@ -255,7 +256,7 @@ test("explicit discard removes outgoing recovery and hides a clean replacement",
   await page.getByTestId("project-file").setInputFiles({
     name: "clean-replacement.icproj.json",
     mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(replacement)),
+    buffer: Buffer.from(serializeProject(replacement)),
   });
   await page
     .getByRole("dialog", { name: "Unsaved changes" })

@@ -1,4 +1,8 @@
-import { createEmptyProject } from "@icm/model";
+import {
+  createEmptyProject,
+  flattenRichText,
+  semanticTextDocument,
+} from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import { parseProjectWithMetadata } from "./load.js";
@@ -34,6 +38,30 @@ describe("legacy reviewed external reference repair", () => {
     const opened = parseProjectWithMetadata(JSON.stringify(legacyProject()));
     expect(opened.migrated).toBe(true);
     expect(opened.project.documents[0]!.instances[0]!.reference).toBe("XM1");
+  });
+
+  it("keeps a bound display format valid when the reference is repaired", () => {
+    const project = legacyProject();
+    project.documents[0]!.annotations.push({
+      id: "legacy-mos-label",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "legacy-mos" },
+      formatOverride: semanticTextDocument("M1", "instance-label"),
+      anchor: {
+        kind: "object",
+        objectId: "legacy-mos",
+        localOffset: { x: 0, y: 0 },
+        fallbackPosition: { x: 0, y: 0 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+
+    const opened = parseProjectWithMetadata(JSON.stringify(project));
+    const label = opened.project.documents[0]!.annotations[0]!;
+    expect(opened.project.documents[0]!.instances[0]!.reference).toBe("XM1");
+    expect(flattenRichText(label.formatOverride!)).toBe("XM1");
   });
 
   it("does not rewrite when the repaired reference would collide", () => {

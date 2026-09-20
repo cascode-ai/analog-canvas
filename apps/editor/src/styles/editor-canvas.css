@@ -711,7 +711,9 @@
   text-transform: uppercase;
 }
 
-.rich-text-floating-toolbar button[aria-label="Decrease text size"] {
+.rich-text-toolbar-size-controls {
+  display: inline-flex;
+  flex: 0 0 auto;
   margin-left: auto;
 }
 
