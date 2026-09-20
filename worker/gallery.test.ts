@@ -877,10 +877,9 @@ describe("netlist marks and thumbs", () => {
     expect((await list("", cookie)).entries).toHaveLength(2);
   });
 
-  it("does not hold a missing process library against a circuit", async () => {
-    // Which PDK a MOS is bound to is chosen at export, and the export writes
-    // an unbound model or width as a TODO placeholder. A drawing whose only
-    // gaps are those is extractable, so the mark must not wait for a PDK.
+  it("marks a circuit with missing process fields as not netlistable", async () => {
+    // Gallery marks use the same strict contract as editor export. Missing
+    // models or required values cannot be represented by a usable netlist.
     const env = environment();
     const cookie = await adminOf(env);
     const unbound = createEmptyProject("unbound", "Unbound");
@@ -913,7 +912,7 @@ describe("netlist marks and thumbs", () => {
       text: serializeProject(unbound),
     });
     const entry = (await feed(env)).entries.find((item) => item.id === id);
-    expect(entry?.netlistable).toBe(true);
+    expect(entry?.netlistable).toBe(false);
   });
 
   it("re-answers only the marks an older rule produced", async () => {

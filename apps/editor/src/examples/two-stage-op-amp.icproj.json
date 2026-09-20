@@ -326,7 +326,9 @@
               "deviceClass": "capacitor",
               "kind": "primitive"
             },
-            "parameters": {}
+            "parameters": {
+              "value": "1p"
+            }
           },
           "placement": {
             "mirror": "none",
@@ -346,7 +348,9 @@
               "deviceClass": "capacitor",
               "kind": "primitive"
             },
-            "parameters": {}
+            "parameters": {
+              "value": "1p"
+            }
           },
           "placement": {
             "mirror": "none",
