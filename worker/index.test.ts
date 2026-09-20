@@ -20,15 +20,14 @@ describe("assets binding wiring", () => {
     return JSON.parse(stripped) as ReturnType<typeof wranglerConfig>;
   }
 
-  it.each(["wrangler.jsonc", "wrangler.preview.jsonc"])(
-    "schedules the netlist mark pass on %s",
-    (file) => {
-      // Stored Gallery marks answer the rule that produced them. Without a
-      // tick, a deployed rule change would leave every one of them stale
-      // until somebody remembered to press a button.
-      expect(wranglerConfig(file).triggers?.crons ?? []).not.toHaveLength(0);
-    },
-  );
+  it("schedules the netlist mark pass on Production", () => {
+    // Stored Gallery marks answer the rule that produced them. Without a
+    // tick, a deployed rule change would leave every one of them stale
+    // until somebody remembered to press a button. The retired Preview Worker
+    // deliberately has no cron; its no-trigger contract lives beside its
+    // dormant Wrangler configuration.
+    expect(wranglerConfig().triggers?.crons ?? []).not.toHaveLength(0);
+  });
 
   it("routes asset requests through the Worker, with a binding to fetch", () => {
     // This test previously pinned the opposite, on the belief that listing
