@@ -119,8 +119,6 @@ describe("loadGalleryAuthors", () => {
 });
 
 describe("galleryEntryMatchesQuery", () => {
-  // The caller normalizes the query (trim + lowercase); fields match
-  // case-insensitively on their side.
   const entry = {
     name: "Ring Oscillator",
     author: "Mei Chen",
@@ -128,11 +126,26 @@ describe("galleryEntryMatchesQuery", () => {
     tags: ["clocking"],
   };
   it("reaches name, author, description, and tags, case-insensitively", () => {
-    expect(galleryEntryMatchesQuery(entry, "ring")).toBe(true);
+    expect(galleryEntryMatchesQuery(entry, "RING")).toBe(true);
     expect(galleryEntryMatchesQuery(entry, "mei")).toBe(true);
     expect(galleryEntryMatchesQuery(entry, "three-stage")).toBe(true);
     expect(galleryEntryMatchesQuery(entry, "clock")).toBe(true);
     expect(galleryEntryMatchesQuery(entry, "zzz")).toBe(false);
+  });
+  it("tolerates one ordinary typo per word without fuzzing short acronyms", () => {
+    for (const query of [
+      "rign",
+      "oscilltor",
+      "stgae",
+      "clockign",
+      "rign chne",
+    ]) {
+      expect(galleryEntryMatchesQuery(entry, query)).toBe(true);
+    }
+    expect(galleryEntryMatchesQuery({ ...entry, tags: ["ota"] }, "otb")).toBe(
+      false,
+    );
+    expect(galleryEntryMatchesQuery(entry, "unrelated")).toBe(false);
   });
   it("treats an empty query as no filter and missing fields as absent", () => {
     expect(galleryEntryMatchesQuery(entry, "")).toBe(true);

@@ -1436,7 +1436,7 @@ test("the tag sidebar resizes by dragging and keyboard, remembers width and adap
   await expectWidth(420);
 });
 
-test("the search box reaches authors, names, and descriptions", async ({
+test("the search box reaches metadata and tolerates small typos", async ({
   page,
 }) => {
   const walled = [
@@ -1496,6 +1496,9 @@ test("the search box reaches authors, names, and descriptions", async ({
   await expect(page.getByTestId("gallery-tile-s1")).toHaveCount(0);
 
   await box.fill("three-stage");
+  await expect(page.getByTestId("gallery-tile-s1")).toBeVisible();
+
+  await box.fill("stgae");
   await expect(page.getByTestId("gallery-tile-s1")).toBeVisible();
 
   await box.fill("zzz");

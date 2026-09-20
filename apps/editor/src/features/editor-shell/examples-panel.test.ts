@@ -118,7 +118,7 @@ describe("gallery panel view", () => {
   it("searches the same fields the wall searches", () => {
     // name / author / description / tag — one case each, through the shared
     // matcher, so the panel cannot quietly narrow the search.
-    for (const query of ["ring", "mei", "three-stage", "clock"]) {
+    for (const query of ["ring", "mei", "three-stage", "stgae", "clock"]) {
       const view = deriveGalleryPanelView(feed, {
         searchQuery: query,
       });
