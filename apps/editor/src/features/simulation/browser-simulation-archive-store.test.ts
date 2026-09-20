@@ -2,6 +2,7 @@ import { IDBFactory, IDBObjectStore } from "fake-indexeddb";
 import { describe, expect, it, vi } from "vitest";
 
 import { createBrowserSimulationArchiveStore } from "./browser-simulation-archive-store";
+import { createBrowserSimulationArtifactStore } from "./browser-simulation-artifact-store";
 import type { SimulationRunArchiveV1 } from "./simulation-run-archive";
 
 function archive(id: string, createdAt: string): SimulationRunArchiveV1 {
@@ -41,6 +42,124 @@ function archive(id: string, createdAt: string): SimulationRunArchiveV1 {
 }
 
 describe("browser simulation archive store", () => {
+  it("persists imported evidence before publishing its archive directory entry", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArchiveStore({ idbFactory: factory });
+    const record: SimulationRunArchiveV1 = {
+      ...archive("imported", new Date(0).toISOString()),
+      artifacts: [
+        {
+          originalId: "imported-body",
+          name: "input.cir",
+          mediaType: "text/plain",
+          byteLength: 4,
+          sha256: "c".repeat(64),
+          text: "deck",
+        },
+      ],
+      byteLength: 4,
+    };
+    expect((await store.save(record)).ok).toBe(true);
+    const evidence = createBrowserSimulationArtifactStore("project", factory)!;
+    expect(await evidence.get("imported-body")).toMatchObject({ text: "deck" });
+    expect(await store.read("imported")).toEqual({ ok: true, value: record });
+    expect(
+      (
+        await store.save({
+          ...record,
+          id: "invalid",
+          artifacts: [
+            {
+              ...record.artifacts[0]!,
+              originalId: "invalid-body",
+              byteLength: 100,
+            },
+          ],
+        })
+      ).ok,
+    ).toBe(false);
+    expect(await store.list("project")).toMatchObject({
+      ok: true,
+      value: [{ id: "imported" }],
+    });
+    store.close();
+  });
+  it("stores only references, reuses Project evidence, and hydrates portable archives after reopen", async () => {
+    const factory = new IDBFactory();
+    const evidence = createBrowserSimulationArtifactStore("project", factory)!;
+    const ref = {
+      id: "current-locator",
+      fileId: "stable-file",
+      name: "result.raw",
+      mediaType: "text/plain",
+      byteLength: 4,
+      sha256: "a".repeat(64),
+      role: "raw" as const,
+    };
+    await evidence.put(ref, "data");
+    const record = {
+      ...archive("shared", new Date(0).toISOString()),
+      artifacts: [{ ...ref, originalId: "old-locator", text: "data" }],
+      byteLength: 4,
+    };
+    const store = createBrowserSimulationArchiveStore({ idbFactory: factory });
+    expect((await store.save(record)).ok).toBe(true);
+    expect((await store.save({ ...record, id: "second" })).ok).toBe(true);
+    const db = await new Promise<IDBDatabase>((resolve) => {
+      const request = factory.open("analog-canvas-simulation-archives");
+      request.onsuccess = () => resolve(request.result);
+    });
+    const persisted = await new Promise<{ artifacts: { storageId: string }[] }>(
+      (resolve) => {
+        const request = db
+          .transaction("runs")
+          .objectStore("runs")
+          .get("shared");
+        request.onsuccess = () => resolve(request.result);
+      },
+    );
+    db.close();
+    expect(persisted.artifacts[0]).not.toHaveProperty("text");
+    expect(persisted.artifacts[0]?.storageId).toBe("current-locator");
+    expect(await evidence.get("old-locator")).toBeNull();
+    store.close();
+    const reopened = createBrowserSimulationArchiveStore({
+      idbFactory: factory,
+    });
+    expect(await reopened.read("shared")).toEqual({ ok: true, value: record });
+    await reopened.delete("shared");
+    expect(await reopened.read("second")).toEqual({
+      ok: true,
+      value: { ...record, id: "second" },
+    });
+    // Conflicting evidence cannot replace an already usable archive.
+    expect(
+      await reopened.save({
+        ...record,
+        id: "second",
+        artifacts: [{ ...record.artifacts[0]!, sha256: "b".repeat(64) }],
+      }),
+    ).toMatchObject({
+      ok: false,
+      message: expect.stringContaining("ARTIFACT_ID_CONFLICT"),
+    });
+    expect((await reopened.read("second")).ok).toBe(true);
+    const filesDb = await new Promise<IDBDatabase>((resolve) => {
+      const request = factory.open("analog-canvas-simulation-files");
+      request.onsuccess = () => resolve(request.result);
+    });
+    await new Promise<void>((resolve) => {
+      const tx = filesDb.transaction("bodies", "readwrite");
+      tx.objectStore("bodies").delete(["project", "current-locator"]);
+      tx.oncomplete = () => resolve();
+    });
+    filesDb.close();
+    expect(await reopened.read("second")).toMatchObject({
+      ok: false,
+      message: expect.stringContaining("ARTIFACT_UNAVAILABLE"),
+    });
+    reopened.close();
+  });
   it("lists metadata without scanning file bodies and atomically retains concurrent saves", async () => {
     const store = createBrowserSimulationArchiveStore({
       idbFactory: new IDBFactory(),

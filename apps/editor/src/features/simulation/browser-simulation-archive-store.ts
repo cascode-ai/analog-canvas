@@ -4,12 +4,35 @@ import {
   type SimulationRunArchiveSummary,
   type SimulationRunArchiveV1,
 } from "./simulation-run-archive";
+import { createBrowserSimulationArtifactStore } from "./browser-simulation-artifact-store";
+import type { ArtifactRef } from "@icm/simulation-service/contract";
 
 const DATABASE_NAME = "analog-canvas-simulation-archives";
 const DATABASE_VERSION = 2;
 const STORE_NAME = "runs";
 const DIRECTORY_NAME = "run-directory";
 const MAX_ARCHIVES_PER_PROJECT = 10;
+
+// Internal storage only. Portable archives still contain their full evidence.
+type StoredArchive = Omit<SimulationRunArchiveV1, "artifacts"> & {
+  readonly storageFormat: "artifact-references-v1";
+  readonly artifacts: readonly (Omit<
+    SimulationRunArchiveV1["artifacts"][number],
+    "text"
+  > & { readonly storageId: string })[];
+};
+
+function sameEvidence(left: ArtifactRef, right: ArtifactRef): boolean {
+  return (
+    left.sha256 === right.sha256 &&
+    left.byteLength === right.byteLength &&
+    left.name === right.name &&
+    left.mediaType === right.mediaType &&
+    left.role === right.role &&
+    left.sourcePath === right.sourcePath &&
+    left.analysisIndex === right.analysisIndex
+  );
+}
 
 export type SimulationArchiveStoreResult<T> =
   | { readonly ok: true; readonly value: T }
@@ -79,6 +102,72 @@ export function createBrowserSimulationArchiveStore(
 ): BrowserSimulationArchiveStore {
   let database: IDBDatabase | null = null;
   let opening: Promise<IDBDatabase> | null = null;
+
+  function evidenceStore(projectId: string) {
+    const store = createBrowserSimulationArtifactStore(
+      projectId,
+      options.idbFactory ?? globalThis.indexedDB,
+    );
+    if (!store)
+      throw new DOMException("IndexedDB is unavailable", "SecurityError");
+    return store;
+  }
+
+  async function retain(
+    archive: SimulationRunArchiveV1,
+  ): Promise<StoredArchive> {
+    const store = evidenceStore(archive.projectId);
+    const artifacts: StoredArchive["artifacts"][number][] = [];
+    for (const { text, originalId, ...metadata } of archive.artifacts) {
+      const ref = { ...metadata, id: originalId };
+      const existing = await store.find!(ref.fileId ?? originalId);
+      if (existing && !sameEvidence(existing, ref))
+        throw new Error(`ARTIFACT_ID_CONFLICT: ${metadata.name}`);
+      if (!existing) await store.put(ref, text);
+      artifacts.push({
+        ...metadata,
+        originalId,
+        storageId: existing?.id ?? originalId,
+      });
+    }
+    return { ...archive, storageFormat: "artifact-references-v1", artifacts };
+  }
+
+  async function hydrate(
+    value: unknown,
+  ): Promise<SimulationRunArchiveV1 | null> {
+    if (
+      !value ||
+      typeof value !== "object" ||
+      !("storageFormat" in value) ||
+      value.storageFormat !== "artifact-references-v1"
+    )
+      return readSimulationRunArchive(value);
+    const stored = value as StoredArchive;
+    if (!Array.isArray(stored.artifacts))
+      throw new Error("Invalid archive references");
+    const { storageFormat: _format, ...metadata } = stored;
+    const archive = readSimulationRunArchive({
+      ...metadata,
+      artifacts: stored.artifacts.map(({ storageId: _id, ...ref }) => ({
+        ...ref,
+        text: "",
+      })),
+    });
+    if (!archive) throw new Error("Invalid archive metadata");
+    const store = evidenceStore(archive.projectId);
+    const artifacts: SimulationRunArchiveV1["artifacts"][number][] = [];
+    for (const { storageId, ...ref } of stored.artifacts) {
+      if (typeof storageId !== "string")
+        throw new Error("Invalid archive file locator");
+      const body = await store.get(storageId);
+      if (!body) throw new Error(`ARTIFACT_UNAVAILABLE: ${ref.name}`);
+      if (!sameEvidence(body.ref, { ...ref, id: ref.originalId }))
+        throw new Error(`ARTIFACT_ID_CONFLICT: ${ref.name}`);
+      artifacts.push({ ...ref, text: body.text });
+    }
+    return { ...archive, artifacts };
+  }
 
   async function open(): Promise<IDBDatabase> {
     if (database) return database;
@@ -154,7 +243,7 @@ export function createBrowserSimulationArchiveStore(
         await transactionDone(transaction);
         return {
           ok: true,
-          value: readSimulationRunArchive(value),
+          value: await hydrate(value),
         };
       } catch (error) {
         return failure(error);
@@ -162,6 +251,9 @@ export function createBrowserSimulationArchiveStore(
     },
     async save(archive) {
       try {
+        // Commit the directory only after every referenced body is durable.
+        // Existing records remain usable if any evidence write fails.
+        const stored = await retain(archive);
         const db = await open();
         const transaction = db.transaction(
           [STORE_NAME, DIRECTORY_NAME],
@@ -174,7 +266,7 @@ export function createBrowserSimulationArchiveStore(
         );
         const store = transaction.objectStore(STORE_NAME);
         const summary = summarizeSimulationRunArchive(archive);
-        store.put(archive, archive.id);
+        store.put(stored, archive.id);
         directory.put(summary, archive.id);
         const ordered = [
           ...existing.filter((item) => item.id !== archive.id),
