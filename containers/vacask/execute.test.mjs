@@ -5,6 +5,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { initializeVacaskRuntime } from "./runtime.mjs";
 import { executeVacask } from "./execute.mjs";
 import { SimulationRunSupervisor } from "../ngspice/run-supervisor.mjs";
+import { createVacaskHttpServer } from "./http-server.mjs";
+import {
+  EXECUTION_RECEIPT_HEADER,
+  readExecutionReceipt,
+} from "@icm/simulation-service";
 
 describe.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
   "real native executor responses",
@@ -103,6 +108,75 @@ describe.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
       expect(reply.output.result.outcome.status).toBe("completed");
       expect(reply.output.result.data).toBeUndefined();
     });
+    it("returns a complete real transient over HTTP beyond the legacy response budget", async () => {
+      const value = input(
+        "save default\nanalysis signal tran stop=0.15 step=1u maxstep=1u",
+      );
+      const largeLimits = { ...limits, maxOutputBytes: 64 * 1024 * 1024 };
+      const server = createVacaskHttpServer({
+        runtimeReady: Promise.resolve(runtime),
+        limits: largeLimits,
+        supervisor,
+        capabilities: {
+          configured: true,
+          rawfileCollection: "native-multi-ascii",
+          inputs: ["source"],
+          analyses: ["tran"],
+          parsedAnalyses: ["tran"],
+          profiles: [{ id: runtime.environment.profileId, corners: [] }],
+          maxTimeoutMs: 15000,
+          maxInputFiles: largeLimits.maxInputFiles,
+          maxInputBytes: largeLimits.maxInputBytes,
+          maxOutputBytes: largeLimits.maxOutputBytes,
+          cancel: true,
+        },
+      });
+      let output;
+      try {
+        await server.initialized;
+        await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+        const response = await fetch(
+          `http://127.0.0.1:${server.address().port}/run`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-analog-execution-transfer": "receipt-v1",
+            },
+            body: JSON.stringify({
+              ...value,
+              runToken: "22222222-2222-2222-2222-222222222222",
+            }),
+          },
+        );
+        expect(response.status).toBe(200);
+        const receipt = readExecutionReceipt(
+          response.headers.get(EXECUTION_RECEIPT_HEADER),
+        );
+        const text = await response.text();
+        expect(receipt.byteLength).toBe(Buffer.byteLength(text));
+        expect(receipt.byteLength).toBeGreaterThan(8 * 1024 * 1024);
+        output = JSON.parse(text);
+      } finally {
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
+      }
+      expect(output.outcome.status, output.log).toBe("completed");
+      expect(output.collectionStatus).toBe("complete");
+      const rawBytes = output.rawfiles.reduce(
+        (sum, file) => sum + Buffer.byteLength(file.text),
+        0,
+      );
+      expect(rawBytes).toBeGreaterThan(8 * 1024 * 1024);
+      const plot = output.data.analyses.find(
+        (item) => item.analysis === "tran",
+      );
+      const voltage = plot.probes.find((probe) => probe.name === "out").value;
+      expect(voltage.length).toBeGreaterThanOrEqual(150000);
+      expect(voltage.every((sample) => Math.abs(sample - 1) < 1e-9)).toBe(true);
+      expect(await readdir(root)).toEqual(["startup.toml"]);
+      expect(supervisor.snapshot().state).toBe("idle");
+    }, 60000);
     it("cancels before launch without inventing execution evidence", async () => {
       const value = {
         ...input(),
