@@ -150,12 +150,24 @@ describe("document Style code", () => {
         .options,
     ).toContainEqual({ value: 1, label: "Default · 1×" });
     expect(
+      spans.find((span) => span.field.path === "bulkDefaults.nmosNet")?.field,
+    ).toMatchObject({
+      label: "NMOS bulk Net (usually VSS)",
+      help: expect.stringContaining("GND is correct only when it is also VSS"),
+    });
+    expect(
       spans.find((span) => span.field.path === "bulkDefaults.nmosNet")?.field
         .options,
     ).toEqual([
-      { value: null, label: "None" },
+      { value: null, label: "Not set · choose after VSS exists" },
       { value: "net-ground", label: "net-ground" },
     ]);
+    expect(
+      spans.find((span) => span.field.path === "bulkDefaults.pmosNet")?.field,
+    ).toMatchObject({
+      label: "PMOS bulk Net (usually VDD)",
+      help: expect.stringContaining("highest supply Net"),
+    });
 
     const changed = applyChanges(
       source,

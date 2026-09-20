@@ -143,15 +143,15 @@ export function EditorPropertiesDock({
         </button>
         <div className="selection-panel" hidden={!open}>
           <>
+            <PortLabelFormatProperties
+              key={portLabelFormat.documentId}
+              {...portLabelFormat}
+            />
             {documentSettings ? (
               <Suspense fallback={<p role="status">Loading properties…</p>}>
                 <DocumentSettingsSection {...documentSettings} />
               </Suspense>
             ) : null}
-            <PortLabelFormatProperties
-              key={portLabelFormat.documentId}
-              {...portLabelFormat}
-            />
             <MosBulkConnectionSection {...mosBulk} />
             <RoutingGuidanceSection {...routingGuidance} />
             {!hasInspectableSelection ? (

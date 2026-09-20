@@ -25,10 +25,14 @@ export function PortLabelFormatProperties({
       className="property-section port-label-format-properties"
       aria-label="Port label formatting"
     >
-      <div className="property-section-heading">Port labels</div>
+      <div className="property-section-heading">Port label rules</div>
+      <small>
+        New V… Ports use a bold italic V with the typed suffix upright and
+        subscripted. Other new names keep their authored styling.
+      </small>
       <div className="port-label-format-controls">
         <label>
-          Suffix case
+          Existing suffix case
           <select
             aria-label="Port label suffix case"
             value={suffixCase}
@@ -42,7 +46,7 @@ export function PortLabelFormatProperties({
           </select>
         </label>
         <label>
-          Suffix position
+          Existing suffix position
           <select
             aria-label="Port label suffix position"
             value={suffixPlacement}
@@ -65,8 +69,8 @@ export function PortLabelFormatProperties({
         Format all Port labels
       </button>
       <small>
-        Applies to {labelCount} label{labelCount === 1 ? "" : "s"} in this Cell.
-        The first character stays bold italic; Port names and electrical
+        Formats {labelCount} existing label{labelCount === 1 ? "" : "s"} in this
+        Cell. The first character becomes bold italic; Port names and electrical
         connections do not change.
       </small>
     </section>

@@ -5617,7 +5617,19 @@ test("docked Style JSON offers bounded choices, scales fonts, and resets appeara
   // Style stays one copyable JSON surface; bounded values gain inline menus.
   await clickDrawTool(page, "document-style");
   const settings = page.getByLabel("Document settings");
+  const portRules = page.getByRole("region", {
+    name: "Port label formatting",
+  });
   await expect(settings).toBeVisible();
+  await expect(portRules).toBeVisible();
+  await expect(portRules).toContainText(
+    "New V… Ports use a bold italic V with the typed suffix upright and subscripted",
+  );
+  const portRulesBox = await portRules.boundingBox();
+  const settingsBox = await settings.boundingBox();
+  expect(portRulesBox).not.toBeNull();
+  expect(settingsBox).not.toBeNull();
+  expect(portRulesBox!.y).toBeLessThan(settingsBox!.y);
   await expect(page.getByTestId("hit-R1")).toBeVisible();
   await expect(
     settings.getByLabel("Editable document Style code"),
@@ -5625,7 +5637,10 @@ test("docked Style JSON offers bounded choices, scales fonts, and resets appeara
   await expect(settings.locator(".cm-netlist-target-select")).toHaveCount(11);
   await expect(settings.getByLabel("Font size options")).toBeVisible();
   await expect(
-    settings.getByLabel("Default NMOS bulk Net options"),
+    settings.getByLabel("NMOS bulk Net (usually VSS) options"),
+  ).toBeVisible();
+  await expect(
+    settings.getByLabel("PMOS bulk Net (usually VDD) options"),
   ).toBeVisible();
 
   await settings.getByLabel("Font size options").selectOption("1.5");
