@@ -72,7 +72,9 @@ export class BrowserAgentFileHost {
           })
         : undefined,
       simulationFileEngine(options),
-      createBrowserSimulationArtifactStore(options.getProject().id),
+      createBrowserSimulationArtifactStore(options.getProject().id, undefined, {
+        retainSession: true,
+      }),
     );
   }
 

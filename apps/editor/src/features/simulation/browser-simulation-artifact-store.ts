@@ -6,6 +6,7 @@ import {
   type StoredResultCatalog,
 } from "@icm/simulation-service/files";
 import type { ArtifactRef } from "@icm/simulation-service/contract";
+import { ProjectEvidenceLease } from "./browser-simulation-storage-lock";
 
 // Immutable Project evidence bodies, not another Run or Dataset registry.
 // Disconnect releases authorization/cache; it never deletes these records.
@@ -40,11 +41,16 @@ function completed(transaction: IDBTransaction): Promise<void> {
 export function createBrowserSimulationArtifactStore(
   projectId: string,
   factory: IDBFactory | undefined = globalThis.indexedDB,
+  options: { retainSession?: boolean; locks?: LockManager } = {},
 ): BrowserSimulationArtifactStore | undefined {
   // Non-browser hosts retain bounded in-memory evidence. Real storage failures
   // are surfaced by put/get, never silently treated as durable success.
   if (!factory) return undefined;
+  const lease = options.retainSession
+    ? new ProjectEvidenceLease(projectId, options.locks)
+    : undefined;
   async function open() {
+    await lease?.acquire();
     const request = factory!.open(DATABASE, 3);
     request.onupgradeneeded = () => {
       if (!request.result.objectStoreNames.contains(BODY)) {
@@ -62,6 +68,9 @@ export function createBrowserSimulationArtifactStore(
     return value(request);
   }
   return {
+    releaseSession() {
+      lease?.release();
+    },
     async retainReferences(owner, artifactIds) {
       const db = await open();
       try {

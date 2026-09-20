@@ -58,7 +58,11 @@ export class BrowserSimulationSession {
         Date.now,
         options.projectFiles,
         simulationFileEngine(options),
-        createBrowserSimulationArtifactStore(options.getProject().id),
+        createBrowserSimulationArtifactStore(
+          options.getProject().id,
+          undefined,
+          { retainSession: true },
+        ),
       );
   }
   async clear() {

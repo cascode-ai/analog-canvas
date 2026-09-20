@@ -43,6 +43,8 @@ export const MAX_ARTIFACT_STORE_BYTES = 1024 * 1024 * 1024;
 export const MAX_ARTIFACT_FILES = 1024;
 const CACHE_BYTES = 16 * 1024 * 1024;
 export interface SimulationArtifactStore {
+  /** Release this consumer's lifetime protection; persisted evidence remains. */
+  releaseSession?(): void;
   put(ref: ArtifactRef, text: string): Promise<void>;
   get(id: string): Promise<{ ref: ArtifactRef; text: string } | null>;
   find?(fileId: string): Promise<ArtifactRef | null>;
@@ -97,6 +99,7 @@ export class SimulationFiles {
   ) {}
   clear() {
     this.epoch++;
+    this.artifactStore?.releaseSession?.();
     this.publicationEpoch++;
     this.uploading = 0;
     this.workspaces.clear();

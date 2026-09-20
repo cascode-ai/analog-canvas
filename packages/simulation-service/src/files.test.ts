@@ -1,6 +1,29 @@
 import { describe, it, expect } from "vitest";
 import { ArtifactDownloadError, SimulationFiles, sha256 } from "./files.js";
 describe("simulation File Resource evidence", () => {
+  it("releases only the consumer lifetime on clear, preserving durable evidence", async () => {
+    let releases = 0;
+    let saved: {
+      ref: import("./contract.js").ArtifactRef;
+      text: string;
+    } | null = null;
+    const files = new SimulationFiles(Date.now, undefined, undefined, {
+      put: async (ref, text) => {
+        saved = { ref, text };
+      },
+      get: async () => saved,
+      releaseSession: () => {
+        releases++;
+      },
+    });
+    const ref = await files.put("result.raw", "text/plain", "evidence");
+    files.clear();
+    expect(releases).toBe(1);
+    expect(await files.readArtifact(ref.id)).toMatchObject({
+      ok: true,
+      text: "evidence",
+    });
+  });
   it("retains authored workspace drafts until explicit discard rather than elapsed time", async () => {
     let now = 0;
     const files = new SimulationFiles(() => now);
