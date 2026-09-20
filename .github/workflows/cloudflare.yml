@@ -213,7 +213,7 @@ jobs:
       # GITHUB_, hence GH_OAUTH_*.
       - name: Sync worker secrets
         run: |
-          for name in GH_OAUTH_CLIENT_ID GH_OAUTH_CLIENT_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET RESEND_API_KEY AUTH_EMAIL_FROM ADMIN_EMAILS ADMIN_EMAILS_EXTRA SIMULATION_UPSTREAM_TOKEN; do
+          for name in GH_OAUTH_CLIENT_ID GH_OAUTH_CLIENT_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET RESEND_API_KEY AUTH_EMAIL_FROM ADMIN_EMAILS ADMIN_EMAILS_EXTRA SIMULATION_UPSTREAM_TOKEN GALLERY_BACKUP_TOKEN; do
             value="${!name}"
             if [ -z "$value" ]; then
               echo "$name is not configured; skipping"
@@ -232,6 +232,7 @@ jobs:
           AUTH_EMAIL_FROM: ${{ secrets.AUTH_EMAIL_FROM }}
           ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
           ADMIN_EMAILS_EXTRA: ${{ secrets.ADMIN_EMAILS_EXTRA }}
+          GALLERY_BACKUP_TOKEN: ${{ secrets.GALLERY_BACKUP_TOKEN }}
           SIMULATION_UPSTREAM_TOKEN: ${{ secrets.SIMULATION_UPSTREAM_TOKEN }}
       - name: Verify production deployment
         id: verify

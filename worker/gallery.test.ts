@@ -105,6 +105,131 @@ function environment(): Harness {
 
 const ORIGIN = "https://gallery.test";
 
+describe("off-site Gallery backup credential", () => {
+  const endpoint = `${ORIGIN}/api/gallery/maintenance/automated-backup`;
+  it("reads only bounded Gallery pages and records a stable restore schema", async () => {
+    const env = environment();
+    env.GALLERY_BACKUP_TOKEN = "backup-only-secret";
+    const cookie = await adminOf(env);
+    const id = await submitOne(env, "Backup target", { cookie });
+    const get = (table: string) =>
+      route(
+        env,
+        new Request(`${endpoint}?table=${table}`, {
+          headers: { Authorization: "Bearer backup-only-secret" },
+        }),
+      );
+    const first = (await (await get("inventory")).json()) as any;
+    expect(first.tables).toEqual({
+      galleryEntries: 1,
+      galleryEntryVersions: 0,
+      galleryLikes: 0,
+    });
+    expect(
+      first.schema
+        .filter((s: any) => s.type === "table")
+        .map((s: any) => s.name)
+        .sort(),
+    ).toEqual(["gallery_entries", "gallery_entry_versions", "gallery_likes"]);
+    expect(JSON.stringify(first)).not.toContain("cloud_projects");
+    expect(
+      ((await (await get("inventory")).json()) as any).snapshotRevision,
+    ).toBe(first.snapshotRevision);
+    const page = (await (await get("galleryEntries")).json()) as any;
+    expect(page.rows).toEqual(
+      env.gallerySql
+        .exec("SELECT * FROM gallery_entries WHERE id = ?", id)
+        .toArray(),
+    );
+    expect(page.rows).toHaveLength(1);
+    // A same-count update must invalidate the capture, including a raw SQL maintenance edit.
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET description = ? WHERE id = ?",
+      "Changed",
+      id,
+    );
+    const after = (await (await get("inventory")).json()) as any;
+    expect(after.tables).toEqual(first.tables);
+    expect(after.snapshotRevision).not.toBe(first.snapshotRevision);
+    expect((await get("cloudProjects")).status).toBe(400);
+    expect((await get("")).status).toBe(400);
+    const replay = new DatabaseSync(":memory:");
+    for (const item of first.schema) replay.exec(item.sql);
+    const columns = Object.keys(page.rows[0]);
+    replay
+      .prepare(
+        `INSERT INTO gallery_entries (${columns.join(",")}) VALUES (${columns.map(() => "?").join(",")})`,
+      )
+      .run(...(Object.values(page.rows[0]) as any[]));
+    expect(replay.prepare("SELECT * FROM gallery_entries").all()).toEqual(
+      page.rows,
+    );
+    replay.close();
+  });
+
+  it("fails closed without the secret and cannot authorize writes or private exports", async () => {
+    const env = environment();
+    const headers = {
+      Authorization: "Bearer backup-only-secret",
+      "content-type": "application/json",
+    };
+    expect(
+      (
+        await route(
+          env,
+          new Request(`${endpoint}?table=inventory`, { headers }),
+        )
+      ).status,
+    ).toBe(401);
+    env.GALLERY_BACKUP_TOKEN = "backup-only-secret";
+    expect(
+      (await route(env, new Request(`${endpoint}?table=inventory`))).status,
+    ).toBe(401);
+    expect(
+      (
+        await route(
+          env,
+          new Request(`${endpoint}?table=inventory`, {
+            headers: { Authorization: "Bearer wrong" },
+          }),
+        )
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await route(
+          env,
+          new Request(endpoint, { method: "POST", headers, body: "{}" }),
+        )
+      ).status,
+    ).toBe(405);
+    for (const action of ["schema-restore", "project-format", "schema-current"])
+      expect(
+        (
+          await route(
+            env,
+            new Request(`${ORIGIN}/api/gallery/maintenance/${action}`, {
+              method: "POST",
+              headers,
+              body: "{}",
+            }),
+          )
+        ).status,
+      ).toBe(401);
+    expect(
+      (
+        await route(
+          env,
+          new Request(
+            `${ORIGIN}/api/gallery/maintenance/schema-backup?table=cloudProjects`,
+            { headers },
+          ),
+        )
+      ).status,
+    ).toBe(401);
+  });
+});
+
 function submissionRequest(
   body: unknown,
   overrides: {

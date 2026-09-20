@@ -241,6 +241,8 @@ export type GalleryNamespaceLike = {
 };
 
 export type GalleryEnv = {
+  /** Read-only, Gallery-only credential for the private off-site backup job. */
+  GALLERY_BACKUP_TOKEN?: string;
   GALLERY: GalleryNamespaceLike;
   /** Sessions are the only identity: publishing requires one. */
   AUTH?: AuthNamespaceLike;
@@ -401,6 +403,7 @@ function summaryOf(
 /** Storage-only Durable Object; policy lives in `routeGalleryRequest`. */
 export class GalleryDO {
   private readonly sql: SqlStorage;
+  private readonly backupEpoch = crypto.randomUUID();
 
   constructor(private readonly state: DurableObjectStateLike) {
     this.sql = state.storage.sql;
@@ -1495,12 +1498,18 @@ export class GalleryDO {
       cloudProjects: { name: "cloud_projects", keys: ["id"] },
       galleryLikes: { name: "gallery_likes", keys: ["entry_id", "user_id"] },
     };
+    if (body.scope === "gallery" && body.table === "cloudProjects") {
+      return Response.json({ error: "invalid-table" }, { status: 400 });
+    }
     if (body.table === "inventory") {
+      const selected = Object.entries(tables).filter(
+        ([key]) => body.scope !== "gallery" || key !== "cloudProjects",
+      );
       return Response.json({
         format: "analog-canvas-gallery-backup-inventory-v1",
         exportedAt: new Date().toISOString(),
         tables: Object.fromEntries(
-          Object.entries(tables).map(([key, table]) => [
+          selected.map(([key, table]) => [
             key,
             this.sql
               .exec<{ count: number }>(
@@ -1509,6 +1518,21 @@ export class GalleryDO {
               .toArray()[0]!.count,
           ]),
         ),
+        ...(body.scope === "gallery"
+          ? {
+              // Any SQL mutation or DO restart invalidates a paginated capture.
+              // Counts alone cannot detect a same-count edit or delete/reinsert.
+              snapshotRevision: `${this.backupEpoch}:${this.sql.exec<{ n: number }>("SELECT total_changes() AS n").one().n}`,
+              schema: selected.flatMap(([, table]) =>
+                this.sql
+                  .exec<{ type: string; name: string; sql: string }>(
+                    "SELECT type, name, sql FROM sqlite_master WHERE tbl_name = ? AND type IN ('table', 'index') AND sql IS NOT NULL ORDER BY type DESC, name",
+                    table.name,
+                  )
+                  .toArray(),
+              ),
+            }
+          : {}),
       });
     }
     if (body.table != null) {

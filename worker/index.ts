@@ -50,6 +50,7 @@ type Env = ComponentLibraryEnv &
     AGENT_SESSION: AgentSessionNamespaceLike;
     AGENT_ALLOWED_ORIGIN?: string;
     GALLERY: GalleryNamespaceLike;
+    GALLERY_BACKUP_TOKEN?: string;
     AUTH: AuthNamespaceLike;
     GH_OAUTH_CLIENT_ID?: string;
     GH_OAUTH_CLIENT_SECRET?: string;

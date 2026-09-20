@@ -305,6 +305,9 @@ header buys nothing. Without such a session every admin route answers
 - `GET /api/gallery/rejected` — rejected entries and their reasons.
 - `GET /api/gallery/maintenance/schema-backup` — download a full-fidelity
   administrator backup of entries, saved versions, and private Cloud Projects.
+- `GET /api/gallery/maintenance/automated-backup` — bounded Gallery-only pages
+  for the dedicated read-only backup credential; no Cloud Projects or writes.
+  See [off-site backups and recovery](../gallery-backup.md).
 - `POST /api/gallery/maintenance/schema-current` — validate or transactionally
   converge every stored Project to `CURRENT_PROJECT_FILE_VERSION`. The
   request body is `{ "apply": false }` for a dry run and `{ "apply": true }`
