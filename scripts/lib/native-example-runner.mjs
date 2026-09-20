@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { isSimulationInputPath } from "../../packages/model/dist/index.js";
 import { verifySimulationEnvironmentMetadata } from "../../packages/spice-run/dist/index.js";
@@ -247,30 +247,22 @@ export async function collectNativeRunEvidence({
       `Executed input mismatch: ${file.path}`,
     );
   }
-  const plots = [];
-  for (let index = 0; index < analyses.length; index++) {
-    if (analyses[index].analysis === "op") continue;
-    let name = `plot-${index}.svg`;
-    await tool("export_file", {
-      artifact: "simulation-plot",
-      simulation: { runId: run.id, analysisIndex: index, format: "svg" },
-      outputPath: join(directory, name),
-    });
-    const bytes = await readFile(join(directory, name));
-    if (bytes.subarray(0, 4).toString("hex") === "504b0304") {
-      const zip = `plot-${index}.zip`;
-      await rename(join(directory, name), join(directory, zip));
-      name = zip;
-    } else
-      assert(bytes.toString("utf8").includes("<svg"), "Invalid plot export");
-    plots.push({ name, sha256: digest(bytes) });
-  }
+  // Plotting belongs to the caller's local tools. Validate the downloaded
+  // numerical evidence above, not the retired built-in plot export endpoint.
+  const datasets = analyses.map((analysis, analysisIndex) => ({
+    analysisIndex,
+    analysis: analysis.analysis,
+    points:
+      (analysis.frequencyHz ?? analysis.timeSeconds ?? analysis.sweep?.values)
+        ?.length ?? 1,
+    signals: analysis.probes.map((probe) => probe.name),
+  }));
   return {
     runId: run.id,
     state: run.state,
     outcome: result.outcome,
     environment: actual,
     artifacts,
-    plots,
+    datasets,
   };
 }

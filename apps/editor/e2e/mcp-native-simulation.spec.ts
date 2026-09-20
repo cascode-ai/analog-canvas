@@ -217,7 +217,9 @@ test("public MCP connects to the real local relay and executes native source", a
       compiled: { files: [{ path: "main.sim", text: agentNativeSource }] },
       expectedEnvironment,
     });
-    expect(evidence.plots).toHaveLength(1);
+    expect(evidence.datasets.map((dataset) => dataset.analysis).sort()).toEqual(
+      ["ac", "op"],
+    );
     expect(evidence.artifacts.map((a: { name: string }) => a.name)).toEqual(
       expect.arrayContaining([
         "result.json",
@@ -261,6 +263,186 @@ test("public MCP connects to the real local relay and executes native source", a
         await rm(root, { recursive: true, force: true });
       }
     }
+  }
+});
+
+test("large native results persist, download to MCP workspace and remain readable offline", async ({
+  page,
+  baseURL,
+}) => {
+  test.skip(
+    process.env.ICM_E2E_VACASK_REAL !== "1",
+    "Requires an explicit real native runtime",
+  );
+  test.setTimeout(180000);
+  const root = await mkdtemp(join(tmpdir(), "icm-large-mcp-"));
+  const executor = await createAgentNativeExecutor({ largeTransient: true });
+  let child: ReturnType<typeof startMcp> | undefined;
+  let executions = 0;
+  try {
+    await page.route("**/api/simulate", async (route) => {
+      const input = route.request().postDataJSON();
+      if (input.operation === "capabilities")
+        return route.fulfill({ json: executor.capabilities });
+      executions++;
+      return route.fulfill({ json: await executor.execute(input) });
+    });
+    await page.goto("/editor");
+    await page.getByRole("button", { name: "Agent", exact: true }).click();
+    const message = page.getByTestId("agent-copy-text");
+    await expect(message).toHaveValue(/Claim: /, { timeout: 45000 });
+    const claim = JSON.parse(
+      /^Claim: (.+)$/mu.exec(await message.inputValue())![1]!,
+    );
+    const connect = async (args: unknown) => {
+      child = startMcp(baseURL!, join(root, "connector.json"));
+      await child.request("initialize", { protocolVersion: "2025-03-26" });
+      child.notify("notifications/initialized");
+      expect((await child.tool("connect", args)).ok).toBe(true);
+    };
+    await connect(claim);
+    const created = await child!.tool("simulation_files", {
+      request: { action: "create" },
+    });
+    expect(created.ok).toBe(true);
+    const folder = createSimulationFolder({
+      id: "large",
+      name: "Large native",
+      profileId: agentNativeProfile,
+    });
+    const source = agentNativeSource.replace(
+      "endc",
+      "analysis large tran stop=0.15 step=1u maxstep=1u\nendc",
+    );
+    const updated = await child!.tool("simulation_files", {
+      request: {
+        action: "update",
+        owner: { kind: "session-workspace", workspaceId: created.workspace.id },
+        expectedRevision: 0,
+        entry: "main.sim",
+        writes: [
+          { path: "main.sim", text: source },
+          ...folder.input.files.filter(
+            (file) => file.path === folder.input.configPath,
+          ),
+        ],
+      },
+    });
+    expect(updated.ok, JSON.stringify(updated)).toBe(true);
+    const prepared = await child!.tool("simulation", {
+      request: {
+        operation: "prepare",
+        source: {
+          kind: "workspace",
+          workspaceId: created.workspace.id,
+          expectedRevision: 1,
+        },
+      },
+    });
+    expect(prepared.ok, JSON.stringify(prepared)).toBe(true);
+    const started = await child!.tool("simulation", {
+      request: {
+        operation: "start",
+        preparedId: prepared.prepared.id,
+        digest: prepared.prepared.digest,
+      },
+    });
+    expect(started.ok, JSON.stringify(started)).toBe(true);
+    let catalog: any;
+    await expect
+      .poll(
+        async () => {
+          const result = await child!.tool("simulation", {
+            request: { operation: "catalog", runId: started.run.id },
+          });
+          catalog = result.catalog;
+          return {
+            execution: catalog?.execution,
+            collection: catalog?.collection,
+          };
+        },
+        { timeout: 60000 },
+      )
+      .toEqual({ execution: "completed", collection: "complete" });
+    expect(catalog.collection).toBe("complete");
+    const raw = catalog.files.find(
+      (file: any) => file.name === "raw/large.raw",
+    );
+    expect(raw.byteLength).toBeGreaterThan(8 * 1024 * 1024);
+    const resultFile = catalog.files.find(
+      (file: any) => file.role === "result",
+    );
+    const syncRequest = {
+      request: {
+        action: "sync",
+        runId: started.run.id,
+        fileIds: [raw.fileId, resultFile.fileId],
+      },
+    };
+    const downloaded = await child!.tool("simulation_files", syncRequest);
+    expect(downloaded.ok, JSON.stringify(downloaded)).toBe(true);
+    const path = downloaded.files[0].outputPath;
+    const bytes = await readFile(path);
+    expect(bytes.byteLength).toBe(raw.byteLength);
+    // Download integrity is a transport requirement, not a build provenance hash.
+    expect(createHash("sha256").update(bytes).digest("hex")).toBe(raw.sha256);
+    const localResult = JSON.parse(
+      await readFile(downloaded.files[1].outputPath, "utf8"),
+    );
+    const transient = localResult.data.analyses.find(
+      (analysis: any) => analysis.analysis === "tran",
+    );
+    const voltage = transient.probes.find(
+      (probe: any) => probe.name === "mid",
+    ).value;
+    expect(voltage.length).toBeGreaterThanOrEqual(150000);
+    expect(
+      voltage.every((sample: number) => Math.abs(sample - 0.5) < 1e-9),
+    ).toBe(true);
+    await page.reload();
+    await expect
+      .poll(
+        async () => {
+          const result = await child!.tool("simulation", {
+            request: { operation: "history" },
+          });
+          return result.runs?.some(
+            (run: any) =>
+              run.runId === started.run.id && run.storage === "persistent",
+          );
+        },
+        { timeout: 45000 },
+      )
+      .toBe(true);
+    await child!.close();
+    await connect({});
+    const reused = await child!.tool("simulation_files", syncRequest);
+    expect(reused.ok, JSON.stringify(reused)).toBe(true);
+    expect(reused.basePath).toBe(downloaded.basePath);
+    expect(reused.files[0]).toMatchObject({ outputPath: path, reused: true });
+    expect(reused.files.every((file: any) => file.reused)).toBe(true);
+    await page.close();
+    const offline = await child!.tool("simulation_files", {
+      request: { action: "workspace" },
+    });
+    expect(offline.basePath).toBe(downloaded.basePath);
+    expect(await readFile(path)).toEqual(bytes);
+    expect(executions).toBe(1);
+    await test.info().attach("large-native-local-receipt", {
+      body: Buffer.from(
+        JSON.stringify({
+          rawBytes: bytes.byteLength,
+          runId: started.run.id,
+          reused: true,
+          executions,
+        }),
+      ),
+      contentType: "application/json",
+    });
+  } finally {
+    await child?.close();
+    await executor.close();
+    await rm(root, { recursive: true, force: true });
   }
 });
 

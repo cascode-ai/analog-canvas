@@ -16,5 +16,10 @@ export function collectNativeRunEvidence(options: {
   outcome: SimulationResult["outcome"];
   environment: SimulationEnvironmentMetadata;
   artifacts: Array<Pick<ArtifactRef, "name" | "sha256">>;
-  plots: Array<{ name: string; sha256: string }>;
+  datasets: Array<{
+    analysisIndex: number;
+    analysis: string;
+    points: number;
+    signals: string[];
+  }>;
 }>;
