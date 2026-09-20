@@ -17,6 +17,7 @@ export function clampLibraryWidth(width: number): number {
 export interface UseEditorPanelsOptions {
   initialCompact: boolean;
   compactMediaQuery: string;
+  forceInitialLibraryOpen?: boolean;
   libraryStorageKey: string;
   libraryWidthStorageKey: string;
   helpButtonRef: MutableRefObject<HTMLButtonElement | null>;
@@ -26,6 +27,7 @@ export interface UseEditorPanelsOptions {
 /** Flat owner of responsive shell-panel state and Library persistence. */
 export function useEditorPanels(options: UseEditorPanelsOptions) {
   const [libraryPanelOpen, setLibraryPanelOpen] = useState(() => {
+    if (options.forceInitialLibraryOpen) return true;
     if (typeof window === "undefined") return true;
     try {
       return window.localStorage.getItem(options.libraryStorageKey) !== "false";

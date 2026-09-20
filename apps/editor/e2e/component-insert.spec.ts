@@ -420,6 +420,36 @@ test("refresh restores the circuit when the session started from a boot-target U
     .toBeNull();
 });
 
+test("new circuits open the Library and Netlist without replacing the saved Library preference", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("icm.library-panel-open.v1", "false");
+  });
+
+  await page.goto("/editor?new=1");
+  await awaitEditorReady(page);
+
+  await expect(page.getByTestId("shapes-library-panel")).toHaveAttribute(
+    "data-open",
+    "true",
+  );
+  await expect(page.getByTestId("refresh-netlist-panel")).toBeVisible();
+  await expect(page.getByTestId("library-toggle")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.getByTestId("netlist-panel-toggle")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem("icm.library-panel-open.v1")),
+    )
+    .toBe("false");
+});
+
 test("keeps shortcuts hidden until the status-bar Hints control requests them", async ({
   page,
 }) => {
