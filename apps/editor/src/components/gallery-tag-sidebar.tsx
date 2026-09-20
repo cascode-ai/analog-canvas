@@ -7,7 +7,11 @@ import {
   type ReactNode,
 } from "react";
 import type { GalleryTagOption } from "../gallery-client";
-import { compareGalleryTagLabels, galleryTagLabel } from "../gallery-tag-label";
+import {
+  compareGalleryLabels,
+  compareGalleryTagLabels,
+  galleryTagLabel,
+} from "../gallery-tag-label";
 
 const WIDTH_KEY = "icm.gallery.sidebarWidth";
 const MIN_WIDTH = 180;
@@ -122,7 +126,9 @@ export function GalleryTagSidebar({
       .filter((tag) => !tags.some((option) => option.tag === tag))
       .map((tag) => ({ tag, count: 0 })),
   ];
-  const groups = [...TAG_GROUPS.map(([name]) => name), "Custom & legacy"];
+  const groups = [...TAG_GROUPS.map(([name]) => name), "Custom & legacy"].sort(
+    compareGalleryLabels,
+  );
   return (
     <div
       ref={slotRef}

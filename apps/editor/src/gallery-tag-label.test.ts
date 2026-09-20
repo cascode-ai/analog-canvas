@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { compareGalleryTagLabels, galleryTagLabel } from "./gallery-tag-label";
+import {
+  compareGalleryLabels,
+  compareGalleryTagLabels,
+  galleryTagLabel,
+} from "./gallery-tag-label";
 
 describe("galleryTagLabel", () => {
   it("presents normalized tags as readable labels without changing identity", () => {
@@ -21,5 +25,10 @@ describe("galleryTagLabel", () => {
         compareGalleryTagLabels,
       ),
     ).toEqual(["cml", "inverter", "latch", "logic", "nand"]);
+    expect(
+      ["Conversion", "Bias & references", "Amplifiers"].sort(
+        compareGalleryLabels,
+      ),
+    ).toEqual(["Amplifiers", "Bias & references", "Conversion"]);
   });
 });

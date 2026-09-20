@@ -48,10 +48,14 @@ const TAG_WORD_LABELS: Record<string, string> = {
   xor: "XOR",
 };
 
-const TAG_LABEL_COLLATOR = new Intl.Collator("en", {
+const GALLERY_LABEL_COLLATOR = new Intl.Collator("en", {
   numeric: true,
   sensitivity: "base",
 });
+
+export function compareGalleryLabels(left: string, right: string): number {
+  return GALLERY_LABEL_COLLATOR.compare(left, right);
+}
 
 /** Stored tags stay normalized lowercase; this is presentation only. */
 export function galleryTagLabel(tag: string): string {
@@ -74,8 +78,5 @@ export function galleryTagLabel(tag: string): string {
 
 /** Tag menus are alphabetical by what readers see, never by live popularity. */
 export function compareGalleryTagLabels(left: string, right: string): number {
-  return TAG_LABEL_COLLATOR.compare(
-    galleryTagLabel(left),
-    galleryTagLabel(right),
-  );
+  return compareGalleryLabels(galleryTagLabel(left), galleryTagLabel(right));
 }

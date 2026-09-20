@@ -1558,7 +1558,7 @@ div.gallery-contributor-status {
   align-items: center;
   gap: 6px;
   padding: 6px 4px;
-  color: var(--icm-text-muted);
+  color: var(--icm-text);
   font-size: 12px;
   font-family: var(--gallery-ui-font);
   font-weight: 600;

@@ -1185,6 +1185,29 @@ test("the left sidebar hosts overall search and grouped tags at desktop, half-sc
   await expect(page.getByText("Tagged circuits", { exact: true })).toHaveCount(
     0,
   );
+  expect(
+    await sidebar
+      .locator(".gallery-tag-group > summary")
+      .evaluateAll((items) =>
+        items.map((item) => item.firstChild?.textContent?.trim()),
+      ),
+  ).toEqual([
+    "Amplifiers",
+    "Architecture & technology",
+    "Bias & references",
+    "Buffers",
+    "Clock & timing",
+    "Computing",
+    "Conversion",
+    "Custom & legacy",
+    "Devices & models",
+    "Filters",
+    "Logic & memory",
+    "Power",
+    "RF & communications",
+    "Sampling",
+    "Sensors",
+  ]);
   const amplifierGroup = sidebar
     .locator("summary")
     .filter({ hasText: "Amplifiers" });
@@ -1205,6 +1228,7 @@ test("the left sidebar hosts overall search and grouped tags at desktop, half-sc
     const second = items[1]!.getBoundingClientRect();
     return {
       fontMatches: summaryStyle.fontFamily === itemStyle.fontFamily,
+      colorMatches: summaryStyle.color === itemStyle.color,
       summaryFontSize: summaryStyle.fontSize,
       summaryFontWeight: summaryStyle.fontWeight,
       summaryPaddingBlock: [
@@ -1217,6 +1241,7 @@ test("the left sidebar hosts overall search and grouped tags at desktop, half-sc
   });
   expect(sidebarRhythm).toEqual({
     fontMatches: true,
+    colorMatches: true,
     summaryFontSize: "12px",
     summaryFontWeight: "600",
     summaryPaddingBlock: ["6px", "6px"],
