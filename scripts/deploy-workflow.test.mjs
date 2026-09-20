@@ -107,6 +107,26 @@ describe("retired Preview data boundary", () => {
     expect(retirementWorkflow).not.toContain("r2 bucket delete");
     expect(retirementWorkflow).not.toContain("queues delete");
   });
+
+  it("prepares the Worker bundle and resolves the account before mutating Cloudflare", () => {
+    const build = retirementWorkflow.indexOf("name: Build Worker dependencies");
+    const account = retirementWorkflow.indexOf(
+      "name: Resolve the Cloudflare account",
+    );
+    const deploy = retirementWorkflow.indexOf(
+      "name: Deploy the route-free storage authority",
+    );
+    expect(build).toBeGreaterThan(-1);
+    expect(retirementWorkflow.slice(build, account)).toContain("pnpm build");
+    expect(account).toBeGreaterThan(build);
+    expect(deploy).toBeGreaterThan(account);
+    expect(retirementWorkflow.slice(account, deploy)).toContain(
+      "CLOUDFLARE_ACCOUNT_ID=$account_id",
+    );
+    expect(retirementWorkflow).toContain(
+      "if (.result | length) == 1 then .result[0].id",
+    );
+  });
 });
 
 describe("Cloudflare deploy workflow", () => {
