@@ -829,10 +829,20 @@ test("constructs VDD as a drawn dotless power rail", async ({ page }) => {
   await expect(page.getByTestId("hit-VDD1")).toHaveCount(0);
   await expect(canvas.locator('[data-symbol-id="vdd"]')).toHaveCount(0);
   const powerLabel = canvas.locator('[data-kind="power-label"]');
-  await expect(powerLabel).toHaveText("Vdd");
+  await expect(powerLabel).toHaveText("VDD");
   await expect(powerLabel.locator('[data-text-run="subscript"]')).toHaveText(
-    "dd",
+    "DD",
   );
+  await expect(
+    powerLabel.locator(
+      '[data-text-run="span"][style*="font-style:italic"][style*="font-weight:700"]',
+    ),
+  ).toHaveText("V");
+  await expect(
+    powerLabel.locator(
+      '[data-text-run="subscript"] [data-text-run="span"][style*="font-style:normal"][style*="font-weight:700"]',
+    ),
+  ).toHaveText("DD");
   await expect(page.getByTestId("component-input-plane")).toHaveCount(0);
 
   await page.keyboard.press("Delete");
