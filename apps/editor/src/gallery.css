@@ -1417,7 +1417,7 @@ div.gallery-contributor-status {
 /* Gallery taxonomy: quiet navigation beside the circuit wall. */
 .gallery-browser {
   display: grid;
-  grid-template-columns: 238px minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   flex: 1;
 }
 
@@ -1426,8 +1426,37 @@ div.gallery-contributor-status {
 }
 
 .gallery-sidebar-slot {
+  position: relative;
+  box-sizing: border-box;
+  width: var(--gallery-sidebar-width, 238px);
+  min-width: 0;
   border-right: 1px solid var(--icm-border);
   background: var(--icm-surface);
+}
+
+.gallery-sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -5px;
+  z-index: 1;
+  width: 9px;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.gallery-sidebar-resize-handle:hover,
+.gallery-sidebar-resize-handle:focus-visible,
+.gallery-sidebar-resize-handle[data-dragging="true"] {
+  background: linear-gradient(
+    to right,
+    transparent 3px,
+    var(--icm-accent) 3px,
+    var(--icm-accent) 5px,
+    transparent 5px
+  );
+  outline: none;
 }
 
 .gallery-tag-sidebar {
@@ -1618,9 +1647,6 @@ div.gallery-contributor-status {
 }
 
 @media (max-width: 900px) {
-  .gallery-browser {
-    grid-template-columns: 204px minmax(0, 1fr);
-  }
   .gallery-tag-sidebar {
     padding: 16px 10px;
   }
@@ -1637,8 +1663,12 @@ div.gallery-contributor-status {
     display: block;
   }
   .gallery-sidebar-slot {
+    width: auto;
     border-right: 0;
     border-bottom: 1px solid var(--icm-border);
+  }
+  .gallery-sidebar-resize-handle {
+    display: none;
   }
   .gallery-sidebar-toggle {
     display: flex;

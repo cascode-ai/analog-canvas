@@ -1224,6 +1224,88 @@ test("the left tag sidebar groups and searches tags at desktop, half-screen and 
   await expect(page.getByTestId("gallery-search-empty")).toBeVisible();
 });
 
+test("the tag sidebar resizes by dragging and keyboard, remembers width and adapts to narrow windows", async ({
+  page,
+}) => {
+  await page.route(galleryListUrl, (route) =>
+    route.fulfill({ json: { entries: [ENTRY], nextCursor: null, total: 1 } }),
+  );
+  await page.route("**/api/gallery/tags", (route) =>
+    route.fulfill({ json: { tags: [{ tag: "amplifier", count: 1 }] } }),
+  );
+  await page.route("**/api/gallery/*/preview.svg*", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"/>',
+    }),
+  );
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  // Invalid saved settings must not break the layout or disable resizing.
+  await page.evaluate(() =>
+    localStorage.setItem("icm.gallery.sidebarWidth", "invalid"),
+  );
+  await page.reload();
+  const handle = page.getByRole("separator", {
+    name: "Resize Gallery filters",
+  });
+  const slot = page.locator(".gallery-sidebar-slot");
+  const expectWidth = async (width: number) => {
+    await expect(handle).toHaveAttribute("aria-valuenow", String(width));
+    await expect
+      .poll(async () => (await slot.boundingBox())?.width)
+      .toBe(width);
+  };
+  const drag = async (delta: number) => {
+    const bounds = (await handle.boundingBox())!;
+    const x = bounds.x + bounds.width / 2;
+    await page.mouse.move(x, bounds.y + 30);
+    await page.mouse.down();
+    await page.mouse.move(x + delta, bounds.y + 100, { steps: 5 });
+    await page.mouse.up();
+  };
+  await expectWidth(238);
+  await expect(handle).toHaveCSS("cursor", "col-resize");
+  await drag(110);
+  await expectWidth(348);
+  await page.reload();
+  await expectWidth(348);
+  await drag(-80);
+  await expectWidth(268);
+  // Releasing away from the edge must terminate the captured drag.
+  await page.mouse.move(700, 500);
+  await expectWidth(268);
+  await handle.focus();
+  await page.keyboard.press("ArrowRight");
+  await expectWidth(276);
+  await page.keyboard.press("Home");
+  await expectWidth(180);
+  await drag(-100);
+  await expectWidth(180);
+  await drag(700);
+  await expectWidth(420);
+  await page.setViewportSize({ width: 800, height: 800 });
+  await expectWidth(360);
+  await expect(page.locator(".gallery-main")).toHaveJSProperty(
+    "scrollWidth",
+    await page
+      .locator(".gallery-main")
+      .evaluate((element) => element.clientWidth),
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(handle).toBeHidden();
+  await page.getByRole("button", { name: "Filters & tags" }).click();
+  await expect(page.getByTestId("gallery-tag-sidebar")).toBeVisible();
+  // Mobile filters fill their container instead of keeping the desktop width.
+  expect((await slot.boundingBox())!.width).toBe(
+    (await page.locator(".gallery-browser").boundingBox())!.width,
+  );
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expectWidth(420);
+  await page.reload();
+  await expectWidth(420);
+});
+
 test("the search box reaches authors, names, and descriptions", async ({
   page,
 }) => {
