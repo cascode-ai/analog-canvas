@@ -373,6 +373,7 @@ export async function copyNetlistText(
     await toggle.click();
   await expect(panel).toBeVisible();
   if (format) await panel.getByLabel("Netlist format").selectOption(format);
+  await openMenu(page, "Netlist");
   await page.getByTestId("copy-netlist").click();
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))

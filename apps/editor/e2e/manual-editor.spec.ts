@@ -4937,13 +4937,15 @@ test("keeps the production command surface compact and publishes PWA metadata", 
   await expect(
     toolbar.locator("summary").filter({ hasText: /^Run$/u }),
   ).toHaveCount(0);
-  await expect(toolbar.getByTestId("copy-netlist")).toBeVisible();
   const netlistSummary = toolbar.locator('summary[aria-label="Netlist"]');
+  await expect(netlistSummary).toContainText("Netlist");
+  await expect(toolbar.getByTestId("copy-netlist")).toBeHidden();
   await expect(toolbar.getByTestId("open-analog-simulation")).toBeVisible();
   await expect(page.getByTestId("check-and-save")).toBeHidden();
   await netlistSummary.click();
+  await expect(toolbar.getByTestId("copy-netlist")).toBeVisible();
   await expect(page.getByTestId("open-analog-simulation")).toBeVisible();
-  await expect(page.getByTestId("check-and-save")).toBeVisible();
+  await expect(page.getByTestId("check-and-save")).toBeHidden();
   await netlistSummary.click();
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(

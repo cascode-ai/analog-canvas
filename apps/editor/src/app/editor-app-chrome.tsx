@@ -361,58 +361,40 @@ export function EditorAppChrome({
                 </button>
               </div>
             </details>
-            <div className="netlist-copy-group">
-              <button
-                type="button"
-                className="toolbar-button netlist-copy"
-                data-testid="copy-netlist"
-                aria-label="Copy netlist"
-                title={`Copy as-authored ${netlistFormat === "spice" ? "SPICE (.spi)" : "Spectre (.scs)"} netlist`}
-                onClick={() => copyNetlist(netlistFormat)}
-              >
-                <svg
-                  viewBox="0 0 20 20"
-                  className="tool-icon"
-                  aria-hidden="true"
+            <details className="command-menu" name="editor-command-menu">
+              <summary aria-label="Netlist" title="Netlist commands">
+                <ToolIcon name="netlist" />
+                <span>Netlist</span>
+              </summary>
+              <div className="command-popover">
+                <button
+                  type="button"
+                  data-testid="copy-netlist"
+                  title={`Copy as-authored ${netlistFormat === "spice" ? "SPICE (.spi)" : "Spectre (.scs)"} netlist`}
+                  onClick={() => copyNetlist(netlistFormat)}
                 >
-                  <path
-                    d="M7 7h10v10H7z M13 7V3H3v10h4"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                Netlist
-              </button>
-              <details className="command-menu" name="editor-command-menu">
-                <summary
-                  aria-label="Netlist"
-                  title="Netlist formats and checks"
-                />
-                <div className="command-popover">
-                  <button type="button" onClick={onOpenNetlistConfiguration}>
-                    Netlist Settings…
-                  </button>
-                  <button
-                    type="button"
-                    aria-expanded={instanceCodeOpen}
-                    onClick={onOpenInstanceCode}
-                  >
-                    Edit Device Data…
-                  </button>
-                  <button
-                    type="button"
-                    aria-haspopup="dialog"
-                    aria-expanded={netlistPreflightOpen}
-                    onClick={() => onOpenNetlistPreflight()}
-                  >
-                    Review Netlist Issues…
-                  </button>
-                </div>
-              </details>
-            </div>
+                  Copy Netlist
+                </button>
+                <button type="button" onClick={onOpenNetlistConfiguration}>
+                  Netlist Settings…
+                </button>
+                <button
+                  type="button"
+                  aria-expanded={instanceCodeOpen}
+                  onClick={onOpenInstanceCode}
+                >
+                  Edit Device Data…
+                </button>
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  aria-expanded={netlistPreflightOpen}
+                  onClick={() => onOpenNetlistPreflight()}
+                >
+                  Review Netlist Issues…
+                </button>
+              </div>
+            </details>
             {simulationAction ? (
               <button
                 type="button"

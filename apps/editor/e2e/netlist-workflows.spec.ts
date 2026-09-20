@@ -397,9 +397,10 @@ test("copies structural SPICE and Spectre netlists while exposing instance autho
   expect(spice).not.toMatch(/^(?:\*|\/\/)/mu);
   const spectre = await copyNetlistText(page, "spectre");
   expect(spectre).toContain("simulator lang=spectre");
+  await openMenu(page, "Netlist");
   const primary = page.getByTestId("copy-netlist");
-  await expect(primary).toHaveAccessibleName("Copy netlist");
-  await expect(primary).not.toContainText("Copy");
+  await expect(primary).toHaveAccessibleName("Copy Netlist");
+  await expect(primary).toContainText("Copy Netlist");
   await expect(primary).toHaveAttribute("title", /Spectre \(\.scs\)/u);
   expect(await copyNetlistText(page)).toBe(spectre);
   await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
@@ -419,7 +420,7 @@ test("copies structural SPICE and Spectre netlists while exposing instance autho
     page.getByRole("region", { name: "Live netlist" }).getByRole("alert"),
   ).toContainText("M1");
   await page.evaluate(() => navigator.clipboard.writeText("unchanged"));
-  await primary.click();
+  await clickCommand(page, "Netlist", "Copy Netlist");
   await expect(page.getByTestId("status")).toContainText(
     "Resolve the Check Report",
   );
@@ -791,7 +792,7 @@ test("edits output configuration without creating another electrical authority",
     .toEqual(config);
   await code.fill("{");
   await expect(panel.getByRole("alert")).toContainText("Copying is paused");
-  await page.getByTestId("copy-netlist").click();
+  await clickCommand(page, "Netlist", "Copy Netlist");
   await expect(page.getByTestId("status")).toContainText(
     "Fix Netlist configuration",
   );
@@ -954,7 +955,7 @@ test("keeps the netlist live and selectable when clipboard access fails", async 
   page.on("download", (download) =>
     downloads.push(download.suggestedFilename()),
   );
-  await page.getByTestId("copy-netlist").click();
+  await clickCommand(page, "Netlist", "Copy Netlist");
   const code = page.getByRole("textbox", { name: "Netlist code", exact: true });
   await expect(code).toContainText(".subckt dut");
   const netlistEditor = page.locator(
