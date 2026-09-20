@@ -285,6 +285,34 @@
                         {
                           "type": "string",
                           "const": "import-cell"
+                        },
+                        {
+                          "type": "string",
+                          "const": "list-gallery"
+                        },
+                        {
+                          "type": "string",
+                          "const": "read-gallery-entry"
+                        },
+                        {
+                          "type": "string",
+                          "const": "read-gallery-entries"
+                        },
+                        {
+                          "type": "string",
+                          "const": "read-project-code"
+                        },
+                        {
+                          "type": "string",
+                          "const": "replace-project-code"
+                        },
+                        {
+                          "type": "string",
+                          "const": "read-netlist"
+                        },
+                        {
+                          "type": "string",
+                          "const": "replace-netlist"
                         }
                       ]
                     },

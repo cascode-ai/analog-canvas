@@ -955,7 +955,7 @@
     "/api/agent/sessions/{sessionId}/projects": {
       "post": {
         "operationId": "agentSessionProjectResource",
-        "description": "Discover Cells in the signed-in user's Cloud Projects and import one dependency closure as an independent project-local copy through the live editor transaction boundary.",
+        "description": "Page through the public Gallery, read complete Gallery Project Code and generated netlists, read or replace the open Project Code and editable netlist fields, and discover/import Cells from signed-in Cloud Projects through the live editor transaction boundary.",
         "security": [
           {
             "bearerAuth": []
@@ -17421,6 +17421,34 @@
                               {
                                 "type": "string",
                                 "const": "import-cell"
+                              },
+                              {
+                                "type": "string",
+                                "const": "list-gallery"
+                              },
+                              {
+                                "type": "string",
+                                "const": "read-gallery-entry"
+                              },
+                              {
+                                "type": "string",
+                                "const": "read-gallery-entries"
+                              },
+                              {
+                                "type": "string",
+                                "const": "read-project-code"
+                              },
+                              {
+                                "type": "string",
+                                "const": "replace-project-code"
+                              },
+                              {
+                                "type": "string",
+                                "const": "read-netlist"
+                              },
+                              {
+                                "type": "string",
+                                "const": "replace-netlist"
                               }
                             ]
                           },
@@ -37795,6 +37823,252 @@
               "expectedStructureRevision"
             ],
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
+                "const": "list-gallery"
+              },
+              "cursor": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2048
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 60
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
+                "const": "read-gallery-entry"
+              },
+              "galleryEntryId": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+              },
+              "netlistFormat": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema2"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "namingProfile": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema3"
+              },
+              "portCase": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema4"
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation",
+              "galleryEntryId"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
+                "const": "read-gallery-entries"
+              },
+              "galleryEntryIds": {
+                "minItems": 1,
+                "maxItems": 12,
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+                }
+              },
+              "netlistFormat": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema2"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "namingProfile": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema3"
+              },
+              "portCase": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema4"
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation",
+              "galleryEntryIds"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
+                "const": "read-project-code"
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
+                "const": "replace-project-code"
+              },
+              "projectCode": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema5"
+              },
+              "expectedStructureRevision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation",
+              "projectCode",
+              "expectedStructureRevision"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
+                "const": "read-netlist"
+              },
+              "format": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema2"
+              },
+              "namingProfile": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema3"
+              },
+              "portCase": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema4"
+              },
+              "rootDocumentId": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
+                "const": "replace-netlist"
+              },
+              "netlist": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema5"
+              },
+              "expectedStructureRevision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "format": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema2"
+              },
+              "namingProfile": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema3"
+              },
+              "portCase": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema4"
+              },
+              "rootDocumentId": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation",
+              "netlist",
+              "expectedStructureRevision"
+            ],
+            "additionalProperties": false
           }
         ],
         "$defs": {
@@ -37806,6 +38080,31 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256
+          },
+          "__schema2": {
+            "type": "string",
+            "enum": [
+              "spice",
+              "spectre"
+            ]
+          },
+          "__schema3": {
+            "type": "string",
+            "enum": [
+              "native",
+              "cadence-bang"
+            ]
+          },
+          "__schema4": {
+            "type": "string",
+            "enum": [
+              "lower",
+              "upper"
+            ]
+          },
+          "__schema5": {
+            "type": "string",
+            "maxLength": 2200000
           }
         }
       },
@@ -38042,10 +38341,317 @@
               },
               "operation": {
                 "type": "string",
+                "const": "list-gallery"
+              },
+              "ok": {
+                "type": "boolean",
+                "const": true
+              },
+              "entries": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema3"
+                }
+              },
+              "nextCursor": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "total": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation",
+              "ok",
+              "entries",
+              "nextCursor",
+              "total"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
+                "const": "read-gallery-entry"
+              },
+              "ok": {
+                "type": "boolean",
+                "const": true
+              },
+              "entry": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema3"
+              },
+              "projectCode": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema4"
+              },
+              "netlist": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema5"
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation",
+              "ok",
+              "entry",
+              "projectCode",
+              "netlist"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
+                "const": "read-gallery-entries"
+              },
+              "ok": {
+                "type": "boolean",
+                "const": true
+              },
+              "entries": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "entry": {
+                      "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema3"
+                    },
+                    "projectCode": {
+                      "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema4"
+                    },
+                    "netlist": {
+                      "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema5"
+                    }
+                  },
+                  "required": [
+                    "entry",
+                    "projectCode",
+                    "netlist"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "remainingEntryIds": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+                }
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation",
+              "ok",
+              "entries",
+              "remainingEntryIds"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
+                "const": "read-project-code"
+              },
+              "ok": {
+                "type": "boolean",
+                "const": true
+              },
+              "projectCode": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema4"
+              },
+              "structureRevision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation",
+              "ok",
+              "projectCode",
+              "structureRevision"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
+                "const": "replace-project-code"
+              },
+              "ok": {
+                "type": "boolean",
+                "const": true
+              },
+              "applied": {
+                "type": "boolean"
+              },
+              "structureRevision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "activeDocumentId": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation",
+              "ok",
+              "applied",
+              "structureRevision",
+              "activeDocumentId"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
+                "const": "read-netlist"
+              },
+              "ok": {
+                "type": "boolean",
+                "const": true
+              },
+              "structureRevision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "netlist": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema6"
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation",
+              "ok",
+              "structureRevision",
+              "netlist"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
+                "const": "replace-netlist"
+              },
+              "ok": {
+                "type": "boolean",
+                "const": true
+              },
+              "applied": {
+                "type": "boolean"
+              },
+              "structureRevision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation",
+              "ok",
+              "applied",
+              "structureRevision"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
                 "enum": [
                   "list-projects",
                   "list-cells",
                   "import-cell",
+                  "list-gallery",
+                  "read-gallery-entry",
+                  "read-gallery-entries",
+                  "read-project-code",
+                  "replace-project-code",
+                  "read-netlist",
+                  "replace-netlist",
                   "error"
                 ]
               },
@@ -38106,6 +38712,143 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 256
+          },
+          "__schema3": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "author": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "schemaVersion": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "netlistable": {
+                "type": "boolean"
+              },
+              "likes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "author",
+              "description",
+              "createdAt",
+              "schemaVersion",
+              "tags"
+            ],
+            "additionalProperties": false
+          },
+          "__schema4": {
+            "type": "string",
+            "maxLength": 2200000
+          },
+          "__schema5": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema6"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "__schema6": {
+            "type": "object",
+            "properties": {
+              "format": {
+                "type": "string",
+                "enum": [
+                  "spice",
+                  "spectre"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ready",
+                  "blocked"
+                ]
+              },
+              "text": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "diagnostics": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info"
+                      ]
+                    },
+                    "code": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "message": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "objectIds": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+                      }
+                    }
+                  },
+                  "required": [
+                    "severity",
+                    "code",
+                    "message",
+                    "objectIds"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "format",
+              "status",
+              "text",
+              "diagnostics"
+            ],
+            "additionalProperties": false
           }
         }
       },
