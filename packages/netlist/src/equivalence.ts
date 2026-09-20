@@ -354,3 +354,99 @@ export function compareElectricalGraphs(
   const result = search();
   return result === null ? "unknown" : result ? "equal" : "different";
 }
+
+function topologyLabel(label: string): string {
+  if (!label.startsWith('["device"')) return label;
+  try {
+    const value = JSON.parse(label) as unknown[];
+    const deviceClass = String(value[1] ?? "");
+    const target = String(value[3] ?? "").toLowerCase();
+    const polarity =
+      deviceClass === "mos"
+        ? /(?:^|[^a-z])(?:pmos|pfet|p-fet)|unset:pmos/u.test(target)
+          ? "p"
+          : /(?:^|[^a-z])(?:nmos|nfet|n-fet)|unset:nmos/u.test(target)
+            ? "n"
+            : "unknown"
+        : deviceClass === "bjt"
+          ? target.includes("pnp")
+            ? "pnp"
+            : target.includes("npn")
+              ? "npn"
+              : "unknown"
+          : null;
+    // Models and values are exact-duplicate evidence, but not topology. Keep
+    // the emitted device class, invocation kind and recognizable transistor
+    // polarity so differently sized/modelled NMOS stages remain close without
+    // making a complementary PMOS stage identical.
+    return JSON.stringify(["device", deviceClass, value[2], polarity]);
+  } catch {
+    return label;
+  }
+}
+
+function multisetDice(
+  left: readonly number[],
+  right: readonly number[],
+): number {
+  if (left.length + right.length === 0) return 1;
+  const counts = new Map<number, number>();
+  for (const item of left) counts.set(item, (counts.get(item) ?? 0) + 1);
+  let shared = 0;
+  for (const item of right) {
+    const remaining = counts.get(item) ?? 0;
+    if (remaining === 0) continue;
+    shared++;
+    counts.set(item, remaining - 1);
+  }
+  return (2 * shared) / (left.length + right.length);
+}
+
+/**
+ * Layout/name-independent topology closeness in [0, 1].
+ *
+ * This is ranking evidence, never equivalence evidence. Exact duplicate
+ * decisions still belong to compareElectricalGraphs. The score compares
+ * device/pin/port populations and two rounds of their electrical
+ * neighborhoods, while deliberately ignoring model and parameter values.
+ */
+export function electricalGraphTopologySimilarity(
+  a: ElectricalGraph,
+  b: ElectricalGraph,
+): number {
+  const leftSize = a.labels.length;
+  const labels = [...a.labels, ...b.labels].map(topologyLabel);
+  const edges = [
+    ...a.edges,
+    ...b.edges.map((neighbors) =>
+      neighbors.map((neighbor) => neighbor + leftSize),
+    ),
+  ];
+  const palette = (values: readonly string[]) => {
+    const sorted = [...new Set(values)].sort();
+    const ids = new Map(sorted.map((value, index) => [value, index]));
+    return values.map((value) => ids.get(value)!);
+  };
+  let colors = palette(
+    labels.map((label, index) => JSON.stringify([label, edges[index]!.length])),
+  );
+  const scores = [
+    multisetDice(colors.slice(0, leftSize), colors.slice(leftSize)),
+  ];
+  for (let round = 0; round < 2; round++) {
+    colors = palette(
+      colors.map((color, index) =>
+        JSON.stringify([
+          color,
+          edges[index]!.map((neighbor) => colors[neighbor]!).sort(
+            (x, y) => x - y,
+          ),
+        ]),
+      ),
+    );
+    scores.push(
+      multisetDice(colors.slice(0, leftSize), colors.slice(leftSize)),
+    );
+  }
+  return scores[0]! * 0.2 + scores[1]! * 0.3 + scores[2]! * 0.5;
+}

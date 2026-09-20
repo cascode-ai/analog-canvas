@@ -3,6 +3,7 @@ import { createEmptyProject } from "@icm/model";
 import type { DesignNetlistIR, DesignNetlistInstance } from "./ir.js";
 import {
   compareElectricalGraphs,
+  electricalGraphTopologySimilarity,
   electricalGraphFromIR,
   projectElectricalGraph,
   type ElectricalGraphResult,
@@ -257,5 +258,93 @@ describe("electrical duplicate comparison", () => {
     expect(compare(a, b)).toBe("different");
     a.cells[0]!.instances[0]!.parameters[0]!.rawValue = "v(local)";
     expect(electricalGraphFromIR(a).status).toBe("uncheckable");
+  });
+});
+
+describe("electrical topology similarity", () => {
+  it("ranks the same topology above a partial or unrelated circuit without treating values as structure", () => {
+    const reference = ready(
+      electricalGraphFromIR(
+        circuit(
+          [resistor("R1", "in", "n"), resistor("R2", "n", "out")],
+          ["in", "out"],
+        ),
+      ),
+    );
+    const differentValues = ready(
+      electricalGraphFromIR(
+        circuit(
+          [
+            resistor("A", "start", "middle", "2k"),
+            resistor("B", "middle", "end", "3k"),
+          ],
+          ["start", "end"],
+        ),
+      ),
+    );
+    const partial = ready(
+      electricalGraphFromIR(
+        circuit([resistor("R1", "in", "out")], ["in", "out"]),
+      ),
+    );
+    const unrelated = ready(
+      electricalGraphFromIR(
+        circuit(
+          [
+            {
+              id: "M1",
+              reference: "M1",
+              deviceClass: "mos",
+              invocationKind: "primitive",
+              target: "NMOS",
+              nodes: ["D", "G", "S", "B"].map((pinName) => ({
+                pinName,
+                netName: pinName,
+              })),
+              parameters: [],
+            },
+          ],
+          ["D", "G", "S", "B"],
+        ),
+      ),
+    );
+
+    expect(electricalGraphTopologySimilarity(reference, differentValues)).toBe(
+      1,
+    );
+    expect(
+      electricalGraphTopologySimilarity(reference, partial),
+    ).toBeGreaterThan(electricalGraphTopologySimilarity(reference, unrelated));
+    expect(electricalGraphTopologySimilarity(reference, partial)).toBeLessThan(
+      1,
+    );
+  });
+
+  it("retains recognizable transistor polarity while ignoring model spelling", () => {
+    const mos = (target: string) =>
+      ready(
+        electricalGraphFromIR(
+          circuit([
+            {
+              id: "M1",
+              reference: "M1",
+              deviceClass: "mos",
+              invocationKind: "primitive",
+              target,
+              nodes: ["D", "G", "S", "B"].map((pinName) => ({
+                pinName,
+                netName: pinName,
+              })),
+              parameters: [{ name: "w", rawValue: "1u" }],
+            },
+          ]),
+        ),
+      );
+    expect(
+      electricalGraphTopologySimilarity(mos("NMOS"), mos("nfet_01v8")),
+    ).toBe(1);
+    expect(
+      electricalGraphTopologySimilarity(mos("NMOS"), mos("PMOS")),
+    ).toBeLessThan(1);
   });
 });

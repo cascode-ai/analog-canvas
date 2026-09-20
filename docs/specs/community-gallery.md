@@ -77,6 +77,18 @@ restrictive content-security-policy.
   its renderer, symbol catalogue, and bundled Projects only after the remote
   feed has settled empty or unavailable; a populated Gallery never pays for
   those fallback-only dependencies.
+- The editor Gallery panel offers an on-demand **Check current topology**
+  action above its filters. It compares the currently visible Cell (not
+  unconditionally the Project's root Cell) against every public Gallery
+  entry in a Web Worker. Exact results use the same layout/name-independent
+  electrical graph contract as the administrator duplicate scan, including
+  values, models, pin roles and ordered ports. After exact matches, the panel
+  shows at most five nearest structural results ranked by device/pin/port
+  populations and their electrical neighborhoods; this similarity score
+  deliberately ignores model and parameter values and is ranking evidence,
+  never a declaration of equivalence. The action is public and read-only:
+  results open the existing Gallery entry, and no cleanup authority is
+  exposed in the editor.
 
 ## Publishing
 

@@ -32,6 +32,29 @@ const ENTRY = {
 /** Match the list path with or without filters and a paging cursor. */
 const galleryListUrl = (url: URL): boolean => url.pathname === "/api/gallery";
 
+function galleryResistorProject(value = "1k", count = 2) {
+  const project = createEmptyProject(`gallery-${value}-${count}`, "Resistors");
+  const document = project.documents[0]!;
+  document.instances = Array.from({ length: count }, (_, index) => ({
+    id: `R${index + 1}`,
+    reference: `R${index + 1}`,
+    symbolId: "resistor",
+    placement: null,
+    netlist: {
+      binding: { kind: "primitive" as const, deviceClass: "resistor" as const },
+      parameters: { value },
+    },
+  }));
+  document.nets = ["1", "2"].map((pinName) => ({
+    id: pinName,
+    terminals: document.instances.map(({ id }) => ({
+      instanceId: id,
+      pinName,
+    })),
+  }));
+  return project;
+}
+
 test("admin checks duplicates and cleans selected copies with partial failure recovery", async ({
   page,
   context,
@@ -387,6 +410,86 @@ test("Gallery copies SKY130 dependencies with preview, repeat placement and atom
   await expect(page.getByTestId("instance-count")).toHaveText("0");
   await page.keyboard.press("Control+Shift+z");
   await expect(page.getByTestId("instance-count")).toHaveText(String(count));
+});
+
+test("the editor Gallery finds exact and nearest matches for the current topology", async ({
+  page,
+  context,
+}) => {
+  const entries = [
+    { ...ENTRY, id: "nearest", name: "Same topology, other value" },
+    { ...ENTRY, id: "exact", name: "Exact resistor pair" },
+    { ...ENTRY, id: "partial", name: "Single resistor" },
+  ];
+  const projects = new Map([
+    ["nearest", galleryResistorProject("2k")],
+    ["exact", galleryResistorProject()],
+    ["partial", galleryResistorProject("1k", 1)],
+  ]);
+  await context.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/gallery")
+      return route.fulfill({
+        json: { entries, nextCursor: null, total: entries.length },
+      });
+    if (url.pathname === "/api/gallery/tags")
+      return route.fulfill({ json: { tags: [] } });
+    if (url.pathname.endsWith("preview.svg"))
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"/>',
+      });
+    const id = url.pathname.split("/").pop()!;
+    const project = projects.get(id);
+    if (project)
+      return route.fulfill({
+        json: {
+          status: "public",
+          entry: entries.find((entry) => entry.id === id),
+          projectText: serializeProject(project),
+        },
+      });
+    return route.fulfill({ status: 404, json: {} });
+  });
+
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "current.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(galleryResistorProject())),
+  });
+  await expect(page.getByTestId("status")).toContainText("current.icproj.json");
+  await page.getByTestId("examples-toggle").click();
+  const panel = page.getByTestId("examples-panel");
+  const check = panel.getByTestId("gallery-find-similar");
+  await expect(check).toBeVisible();
+  const buttonBox = await check.boundingBox();
+  const searchBox = await panel
+    .getByTestId("examples-panel-search")
+    .boundingBox();
+  expect(buttonBox).not.toBeNull();
+  expect(searchBox).not.toBeNull();
+  expect(buttonBox!.y).toBeLessThan(searchBox!.y);
+
+  await check.click();
+  const results = panel.getByTestId("gallery-topology-results");
+  await expect(results.getByRole("link")).toHaveCount(3);
+  await expect(results.getByRole("link").nth(0)).toContainText(
+    "Exact resistor pair",
+  );
+  await expect(results.getByRole("link").nth(0)).toContainText(
+    "Exact electrical match",
+  );
+  await expect(results.getByRole("link").nth(1)).toContainText(
+    "Same topology, other value",
+  );
+  await expect(results.getByRole("link").nth(1)).toContainText(
+    "100% topology match",
+  );
+  await expect(results.getByRole("link").nth(0)).toHaveAttribute(
+    "href",
+    "/g/exact",
+  );
 });
 
 test("the site lands on the full-screen gallery feed", async ({ page }) => {
