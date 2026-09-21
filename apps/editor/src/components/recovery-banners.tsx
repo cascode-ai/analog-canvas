@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from "react";
 import type { RecoveryState } from "../document/recovery-coordinator";
 
 export interface RecoveryFailureBannerProps {
@@ -12,6 +13,28 @@ export interface RecoveryAvailableBannerProps {
   onRestore(): void;
   onDownload(): void;
   onDismiss(): void;
+}
+
+/** Follow the actual toolbar, including wrapped controls and project tabs. */
+function useRecoveryBannerPosition() {
+  const ref = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const chrome = document.querySelector(".app-chrome");
+    if (!chrome) return;
+    const update = () => {
+      if (ref.current)
+        ref.current.style.top = `${chrome.getBoundingClientRect().bottom + 8}px`;
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(chrome);
+    window.addEventListener("resize", update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+  return ref;
 }
 
 function failureMessage(state: RecoveryState): string {
@@ -34,8 +57,10 @@ export function RecoveryFailureBanner({
   onDownload,
   onDismiss,
 }: RecoveryFailureBannerProps) {
+  const ref = useRecoveryBannerPosition();
   return (
     <aside
+      ref={ref}
       className="recovery-banner recovery-banner-warning"
       data-testid="recovery-failure-banner"
       role="alert"
@@ -64,8 +89,10 @@ export function RecoveryAvailableBanner({
   onDownload,
   onDismiss,
 }: RecoveryAvailableBannerProps) {
+  const ref = useRecoveryBannerPosition();
   return (
     <aside
+      ref={ref}
       className="recovery-banner"
       data-testid="startup-recovery-banner"
       aria-label="Unsaved recovery available"

@@ -3451,6 +3451,9 @@ test("authors can filter pending visual reviews and resolve their own drawing", 
 test("Shelf publication survives reopening, preserves private edits and explicitly changes source", async ({
   page,
 }) => {
+  // This lifecycle includes multiple full reloads, updates, private saves and
+  // source replacements; a shared CI runner can exceed the default 30 seconds.
+  test.setTimeout(60_000);
   const user = {
     id: "shelf-owner",
     displayName: "Author",

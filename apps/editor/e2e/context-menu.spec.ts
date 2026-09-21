@@ -60,7 +60,7 @@ test("right-click on a device only offers direct selection actions", async ({
   await expect(menu.getByRole("menuitem")).toHaveText([
     "Edit Component Definition (E)",
     "Properties (Q)",
-    "Duplicate (C)",
+    "Copy (C)",
     "Rotate 90° (R)",
     "Mirror left/right (Shift+R)",
     "Mirror top/bottom (Ctrl+R)",
@@ -78,8 +78,9 @@ test("right-click on a device only offers direct selection actions", async ({
   ).toHaveAttribute("transform", /rotate\(90\)/u);
 
   await instance.click({ button: "right" });
-  await menu.getByRole("menuitem", { name: "Duplicate (C)" }).click();
+  await menu.getByRole("menuitem", { name: "Copy (C)" }).click();
   await expect(menu).toHaveCount(0);
+  await page.keyboard.press("v");
   await page
     .getByTestId("schematic-canvas")
     .click({ position: { x: 520, y: 300 } });
@@ -711,13 +712,13 @@ test("visual clipboard reports denied access and empty selection without downloa
       name: "Copy selection as PNG",
       exact: true,
     }),
-  ).toBeDisabled();
+  ).toHaveCount(0);
   await expect(
     emptyEditMenu.getByRole("button", {
       name: "Copy selection as SVG",
       exact: true,
     }),
-  ).toBeDisabled();
+  ).toHaveCount(0);
   await emptyEditMenu.locator("summary").click();
   await placeComponent(page, "resistor", { x: 300, y: 220 });
   const downloads: string[] = [];

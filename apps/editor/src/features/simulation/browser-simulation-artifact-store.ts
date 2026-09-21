@@ -46,18 +46,27 @@ function completed(transaction: IDBTransaction): Promise<void> {
 }
 export function createBrowserSimulationArtifactStore(
   projectId: string,
-  factory: IDBFactory | undefined = globalThis.indexedDB,
+  factory?: IDBFactory,
   options: { retainSession?: boolean; locks?: LockManager } = {},
 ): BrowserSimulationArtifactStore | undefined {
   // Non-browser hosts retain bounded in-memory evidence. Real storage failures
   // are surfaced by put/get, never silently treated as durable success.
-  if (!factory) return undefined;
+  let storageError: unknown;
+  try {
+    factory ??= globalThis.indexedDB;
+  } catch (error) {
+    // A denied IndexedDB getter must not crash the schematic during render.
+    // Keep a failing store so simulation I/O reports the real storage error.
+    storageError = error;
+  }
+  if (!factory && !storageError) return undefined;
   const lease = options.retainSession
     ? new ProjectEvidenceLease(projectId, options.locks)
     : undefined;
   let startup: Promise<void> | undefined;
   let generation = 0;
   async function open() {
+    if (storageError) throw storageError;
     const current = generation;
     if (lease) {
       startup ??= (async () => {

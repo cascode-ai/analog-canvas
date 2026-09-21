@@ -2196,14 +2196,31 @@ test("changes wire line style while preserving color, arrow, export and undo", a
   const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
     "utf8",
   );
-  // The exported conductor is one shape per paint: the Route's identity is on
-  // its own element, the dash on the ink that carries its run.
-  expect(svg).toMatch(
-    /<polyline[^>]*data-object-id="route-ui-1"[^>]*points="310,250 480,250 480,210 650,210"/u,
+  // Export must reproduce the authored world geometry regardless of the
+  // toolbar/sidebar dimensions used to place it on screen.
+  const liveRoute = page.locator(
+    '[data-layer="routes"] polyline[data-object-id="route-ui-1"]',
   );
-  expect(svg).toMatch(
-    /<path data-role="conductor-ink"[^>]*M 310 250 L 480 250 L 480 210 L 650 210[^>]*stroke-dasharray="2 3"/u,
-  );
+  const points = await liveRoute.getAttribute("points");
+  const ink = await page
+    .locator('[data-layer="routes"] [data-role="conductor-ink"]')
+    .first()
+    .getAttribute("d");
+  expect(points).toBeTruthy();
+  expect(ink).toBeTruthy();
+  const exported = await page.evaluate((source) => {
+    const svg = new DOMParser().parseFromString(source, "image/svg+xml");
+    return {
+      points: svg
+        .querySelector('polyline[data-object-id="route-ui-1"]')
+        ?.getAttribute("points"),
+      ink: svg.querySelector('[data-role="conductor-ink"]')?.getAttribute("d"),
+      dash: svg
+        .querySelector('[data-role="conductor-ink"]')
+        ?.getAttribute("stroke-dasharray"),
+    };
+  }, svg);
+  expect(exported).toEqual({ points, ink, dash: "2 3" });
   expect(svg).toContain('data-role="route-direction-arrow"');
   const pdf = await downloadBytes(page, "File", "Export PDF");
   expect(pdf.subarray(0, 5).toString("ascii")).toBe("%PDF-");

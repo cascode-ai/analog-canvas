@@ -7626,7 +7626,7 @@ export function App({
                   editorCommands.execute({ id: "properties.open" }),
               },
               {
-                label: "Duplicate (C)",
+                label: "Copy (C)",
                 enabled:
                   hasVisualSelection(visualSelection) &&
                   editorCommands.state({ id: "selection.copy" }).enabled,

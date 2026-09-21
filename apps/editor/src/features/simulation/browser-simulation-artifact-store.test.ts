@@ -6,6 +6,25 @@ import { SimulationService } from "@icm/simulation-service";
 import { createEmptyProject } from "@icm/model";
 
 describe("persistent simulation evidence", () => {
+  it("survives a denied storage getter and reports failure on I/O", async () => {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, "indexedDB");
+    const denied = new DOMException("storage blocked", "InvalidStateError");
+    Object.defineProperty(globalThis, "indexedDB", {
+      configurable: true,
+      get() {
+        throw denied;
+      },
+    });
+    try {
+      const store = createBrowserSimulationArtifactStore("project");
+      expect(store).toBeDefined();
+      await expect(store!.get("missing")).rejects.toBe(denied);
+      await expect(store!.referencedArtifactIds()).rejects.toBe(denied);
+    } finally {
+      if (previous) Object.defineProperty(globalThis, "indexedDB", previous);
+      else Reflect.deleteProperty(globalThis, "indexedDB");
+    }
+  });
   it("rolls back partial reclamation and preserves removal markers for retry", async () => {
     const factory = new IDBFactory();
     const store = createBrowserSimulationArtifactStore("project", factory)!;
