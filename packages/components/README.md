@@ -152,7 +152,10 @@ The product set is exactly the reviewed, Reference-calibrated entries:
   and the op-amp
   generator also projects the comparator bodies;
 - `opamp-wide` and `opamp-differential-wide` sit beside their compact versions
-  in Analog Blocks. Wide uses 40-unit input/output pairs in the same 60-unit
+  in Analog Blocks. The 40-unit entries display **Op Amp** and **FD Amp**;
+  the existing 20-unit entries display **Op Amp S** and **FD Amp S**. Tooltips
+  explain the spacing; stored IDs and circuit instance names remain unchanged.
+  Wide uses 40-unit input/output pairs in the same 60-unit
   equilateral body, keeping six-unit polarity marks inward of the pin rows; the existing 20-unit versions keep all original geometry.
   Input/output polarity swaps and internal body text have matching Wide states.
   `scripts/lib/wide-amplifier.mjs` derives each complete definition from its

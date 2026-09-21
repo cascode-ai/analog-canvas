@@ -357,10 +357,10 @@ describe("reach order inside a category", () => {
     // And the pair sits after the parts an analog schematic reaches for more
     // often, rather than leading the group as the letter A did.
     expect(blocks).toEqual([
-      "opamp",
       "opamp-wide",
-      "opamp-differential",
+      "opamp",
       "opamp-differential-wide",
+      "opamp-differential",
       "voltage-amplifier",
       "transconductance",
       "differential-transconductance",
@@ -368,6 +368,25 @@ describe("reach order inside a category", () => {
       "adc",
       "dac",
     ]);
+    expect(blocks.slice(0, 4).map((id) => libraryDisplayName(id, id))).toEqual([
+      "Op Amp",
+      "Op Amp S",
+      "FD Amp",
+      "FD Amp S",
+    ]);
+    for (const [name, id] of [
+      ["Op Amp S", "opamp"],
+      ["FD Amp S", "opamp-differential"],
+    ] as const) {
+      expect(
+        flattenComponentCatalog(
+          componentCatalog("razavi-textbook-v1", name),
+        ).map((symbol) => symbol.id),
+      ).toEqual([id]);
+      expect(libraryDescription(id)).toContain("20");
+    }
+    expect(libraryDescription("opamp-wide")).toContain("40");
+    expect(libraryDescription("opamp-differential-wide")).toContain("40");
   });
 
   it("orders logic gates by family rather than by name", () => {

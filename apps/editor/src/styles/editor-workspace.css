@@ -563,18 +563,6 @@
   white-space: nowrap;
 }
 
-.shapes-chip[data-wide-amplifier="true"] {
-  grid-template-rows: 28px 2.3em;
-}
-
-.shapes-chip[data-wide-amplifier="true"] .shapes-chip-art {
-  height: 28px;
-}
-
-.shapes-chip[data-wide-amplifier="true"] span {
-  white-space: normal;
-}
-
 .shapes-hint {
   margin: 0;
   color: var(--icm-text-muted);
