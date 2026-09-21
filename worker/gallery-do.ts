@@ -1125,6 +1125,7 @@ export class GalleryDO {
         ...bindings,
       )
       .toArray()[0]!;
+    const authors = this.contributorCounts(conditions, bindings);
     if (cursor) {
       conditions.push("(e.created_at || '|' || e.id) < ?");
       bindings.push(cursor);
@@ -1160,6 +1161,7 @@ export class GalleryDO {
       ),
       nextCursor,
       total: Number(counts.total),
+      authors,
       filterCounts: {
         attention: Number(counts.attention),
         netlistable: Number(counts.netlistable),
@@ -2833,26 +2835,34 @@ export class GalleryDO {
 
   /** Public contributors ranked by visible circuits and keyed by identity. */
   private authorCounts(): Response {
+    return Response.json({
+      authors: this.contributorCounts(["e.status = 'public'"], []),
+    });
+  }
+
+  private contributorCounts(
+    conditions: readonly string[],
+    bindings: readonly (string | number)[],
+  ) {
     const rows = this.sql
       .exec<{
         author: string;
         owner_user_id: string | null;
         count: number;
       }>(
-        `SELECT MAX(author) AS author, owner_user_id, COUNT(*) AS count
-         FROM gallery_entries
-         WHERE status = 'public' AND TRIM(author) <> ''
-         GROUP BY COALESCE(NULLIF(owner_user_id, ''), 'legacy:' || author)
+        `SELECT MAX(e.author) AS author, e.owner_user_id, COUNT(*) AS count
+         FROM gallery_entries e
+         WHERE ${conditions.join(" AND ")} AND TRIM(e.author) <> ''
+         GROUP BY COALESCE(NULLIF(e.owner_user_id, ''), 'legacy:' || e.author)
          ORDER BY count DESC, author COLLATE NOCASE ASC, author ASC`,
+        ...bindings,
       )
       .toArray();
-    return Response.json({
-      authors: rows.map((row) => ({
-        author: row.author,
-        ownerUserId: row.owner_user_id,
-        count: Number(row.count),
-      })),
-    });
+    return rows.map((row) => ({
+      author: row.author,
+      ownerUserId: row.owner_user_id,
+      count: Number(row.count),
+    }));
   }
 
   /**

@@ -11,6 +11,12 @@ import {
   loadGalleryFeed,
 } from "./gallery-feed";
 
+import {
+  galleryAuthorsOf,
+  removeGalleryAuthorEntry,
+  type GalleryFeedEntry,
+} from "../gallery-client";
+
 describe("Gallery landing preload", () => {
   const defaultFilters = {
     author: null,
@@ -135,6 +141,36 @@ describe("loadGalleryFeed", () => {
     }
   });
 
+  it("reads filtered contributor aggregates while tolerating older or invalid payloads", async () => {
+    const authors = [{ author: "Alice", ownerUserId: "owner-a", count: 7 }];
+    expect(
+      (
+        await loadGalleryFeed(
+          fetchReturning({ entries: [], authors, nextCursor: "next" }),
+        )
+      )?.authors,
+    ).toEqual(authors);
+    expect(
+      (await loadGalleryFeed(fetchReturning({ entries: [], authors: [] })))
+        ?.authors,
+    ).toEqual([]);
+    for (const invalid of [
+      undefined,
+      {},
+      [null],
+      [{ author: "Alice", count: -1 }],
+      [{ author: "Alice", count: "1" }],
+    ]) {
+      expect(
+        (
+          await loadGalleryFeed(
+            fetchReturning({ entries: [], authors: invalid }),
+          )
+        )?.authors,
+      ).toBeUndefined();
+    }
+  });
+
   it("degrades to null on errors and non-OK responses", async () => {
     expect(await loadGalleryFeed(fetchReturning({}, false))).toBeNull();
     const throwing = (async () => {
@@ -172,6 +208,52 @@ describe("loadGalleryAuthors", () => {
       [],
     );
     expect(await loadGalleryAuthors(fetchReturning({}, false))).toBeNull();
+  });
+});
+
+describe("contributors in matching entries", () => {
+  const entry = (
+    author: string,
+    ownerUserId: string | null,
+  ): GalleryFeedEntry => ({
+    id: "entry",
+    author,
+    ownerUserId,
+    name: "Circuit",
+    description: "",
+    createdAt: "",
+    schemaVersion: 23,
+  });
+  it("groups stable accounts without merging same-name authors or blank bylines", () => {
+    expect(
+      galleryAuthorsOf([
+        entry("Alice", "a"),
+        entry("Alice", "b"),
+        entry("Former name", "a"),
+        entry("Alice", null),
+        entry("Alice", null),
+        entry("  ", "blank"),
+      ]),
+    ).toEqual([
+      { author: "Alice", ownerUserId: null, count: 2 },
+      { author: "Former name", ownerUserId: "a", count: 2 },
+      { author: "Alice", ownerUserId: "b", count: 1 },
+    ]);
+  });
+  it("drops empty contributors and re-ranks after a local removal without changing the prior snapshot", () => {
+    const original = [
+      { author: "Bob", ownerUserId: "b", count: 2 },
+      { author: "Alice", ownerUserId: "a", count: 1 },
+    ];
+    const updated = removeGalleryAuthorEntry(original, entry("Bob", "b"));
+    expect(updated.map((author) => author.author)).toEqual(["Alice", "Bob"]);
+    expect(original[0]!.count).toBe(2);
+    expect(removeGalleryAuthorEntry(original, entry(" ", "b"))).toEqual(
+      original,
+    );
+    expect(removeGalleryAuthorEntry(updated, entry("Alice", "a"))).toEqual([
+      { author: "Bob", ownerUserId: "b", count: 1 },
+    ]);
   });
 });
 

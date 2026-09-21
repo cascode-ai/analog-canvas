@@ -730,6 +730,7 @@ describe("newest-first gallery feed", () => {
       nextCursor: null,
       total: 0,
       filterCounts: { attention: 0, netlistable: 0, liked: 0 },
+      authors: [],
     });
 
     await wallOf(env, 2);
@@ -840,6 +841,58 @@ describe("newest-first gallery feed", () => {
         { author: "Chen", ownerUserId: "owner-chen", count: 1 },
       ],
     });
+  });
+
+  it("counts contributors within all feed filters before pagination", async () => {
+    const env = environment();
+    const ids = await wallOf(env, 6);
+    const fixtures = [
+      ["Alice", "owner-a", ",amplifier,", 1, "public"],
+      ["Alice", "owner-a", ",amplifier,", 0, "public"],
+      ["Alice", "owner-b", ",oscillator,", 1, "public"],
+      ["Bob", "owner-c", ",amplifier,", 1, "public"],
+      ["", "owner-blank", ",amplifier,", 1, "public"],
+      ["Hidden", "owner-hidden", ",amplifier,", 1, "rejected"],
+    ] as const;
+    fixtures.forEach((fixture, index) =>
+      env.gallerySql.exec(
+        "UPDATE gallery_entries SET author=?, owner_user_id=?, tags=?, netlistable=?, status=? WHERE id=?",
+        ...fixture,
+        ids[index]!,
+      ),
+    );
+    const list = async (query = "") =>
+      (await (
+        await route(env, new Request(`${ORIGIN}/api/gallery?${query}`))
+      ).json()) as {
+        entries: { id: string }[];
+        nextCursor: string;
+        authors: { author: string; ownerUserId: string; count: number }[];
+      };
+    const first = await list("limit=1&tags=amplifier");
+    expect(first.entries).toHaveLength(1);
+    expect(first.authors).toEqual([
+      { author: "Alice", ownerUserId: "owner-a", count: 2 },
+      { author: "Bob", ownerUserId: "owner-c", count: 1 },
+    ]);
+    expect(
+      (
+        await list(
+          `limit=1&tags=amplifier&cursor=${encodeURIComponent(first.nextCursor)}`,
+        )
+      ).authors,
+    ).toEqual(first.authors);
+    expect((await list("tags=amplifier&netlistable=1")).authors).toEqual([
+      { author: "Alice", ownerUserId: "owner-a", count: 1 },
+      { author: "Bob", ownerUserId: "owner-c", count: 1 },
+    ]);
+    expect((await list("author=Alice&tags=amplifier")).authors).toEqual([
+      first.authors[0],
+    ]);
+    expect((await list("owner=owner-b")).authors).toEqual([
+      { author: "Alice", ownerUserId: "owner-b", count: 1 },
+    ]);
+    expect((await list("owner=owner-b&tags=amplifier")).authors).toEqual([]);
   });
 
   it("filters same-name contributors by stable owner identity", async () => {
@@ -998,6 +1051,7 @@ describe("netlist marks and thumbs", () => {
         total: number;
         nextCursor: string | null;
         filterCounts: { attention: number; netlistable: number; liked: number };
+        authors: { author: string; ownerUserId: string; count: number }[];
       };
     };
 
@@ -1013,6 +1067,9 @@ describe("netlist marks and thumbs", () => {
       cookie,
     );
     expect(secondPage.filterCounts).toEqual(firstPage.filterCounts);
+    expect(firstPage.authors).toHaveLength(1);
+    expect(firstPage.authors[0]!.count).toBe(2);
+    expect(secondPage.authors).toEqual(firstPage.authors);
     expect((await list("")).filterCounts).toEqual({
       attention: 0,
       netlistable: 1,
@@ -1023,6 +1080,7 @@ describe("netlist marks and thumbs", () => {
     expect(marked.entries.map((entry) => entry.id)).toEqual([extractableId]);
     // The total describes the narrowed wall, so paging stays honest.
     expect(marked.total).toBe(1);
+    expect(marked.authors).toEqual([{ ...firstPage.authors[0], count: 1 }]);
     expect(marked.filterCounts).toEqual({
       attention: 0,
       netlistable: 1,
@@ -1032,6 +1090,7 @@ describe("netlist marks and thumbs", () => {
     const liked = await list("liked=1", cookie);
     expect(liked.entries.map((entry) => entry.id)).toEqual([sketchId]);
     expect(liked.total).toBe(1);
+    expect(liked.authors).toEqual(marked.authors);
     expect(liked.filterCounts).toEqual({
       attention: 0,
       netlistable: 0,
@@ -1042,6 +1101,7 @@ describe("netlist marks and thumbs", () => {
     const both = await list("netlistable=1&liked=1", cookie);
     expect(both.entries).toHaveLength(0);
     expect(both.total).toBe(0);
+    expect(both.authors).toEqual([]);
     expect(both.filterCounts).toEqual({
       attention: 0,
       netlistable: 0,
@@ -1053,6 +1113,7 @@ describe("netlist marks and thumbs", () => {
     const anonymous = await list("liked=1");
     expect(anonymous.entries).toHaveLength(0);
     expect(anonymous.total).toBe(0);
+    expect(anonymous.authors).toEqual([]);
     expect((await list("", cookie)).entries).toHaveLength(2);
   });
 
@@ -4791,6 +4852,7 @@ describe("Gallery visual curation", () => {
         }>;
         total: number;
         filterCounts: { attention: number; netlistable: number; liked: number };
+        authors: { author: string; ownerUserId: string; count: number }[];
       }>;
     const manyTags = Array.from({ length: 20 }, (_, i) => `absent${i}`);
     manyTags.push("ota");
@@ -4811,6 +4873,16 @@ describe("Gallery visual curation", () => {
       (await feed(maker, "?attention=1")).entries.map((e) => e.id),
     ).toEqual([mine]);
     expect((await feed(admin, "?attention=1")).total).toBe(2);
+    const mineAuthors = (await feed(maker, "?attention=1")).authors;
+    const otherAuthors = (await feed(other, "?attention=1")).authors;
+    expect(mineAuthors).toHaveLength(1);
+    expect(otherAuthors).toHaveLength(1);
+    expect(mineAuthors[0]!.count).toBe(1);
+    expect(mineAuthors[0]!.ownerUserId).not.toBe(otherAuthors[0]!.ownerUserId);
+    expect((await feed(admin, "?attention=1&limit=1")).authors).toEqual(
+      expect.arrayContaining([...mineAuthors, ...otherAuthors]),
+    );
+    expect((await feed(maker, "?attention=1&tags=absent")).authors).toEqual([]);
     expect(
       (await feed(other)).entries.find((e) => e.id === mine)?.attention,
     ).toBeUndefined();
@@ -4831,6 +4903,7 @@ describe("Gallery visual curation", () => {
       ).status,
     ).toBe(200);
     expect((await feed(maker, "?attention=1")).total).toBe(0);
+    expect((await feed(maker, "?attention=1")).authors).toEqual([]);
     expect((await feed(maker)).filterCounts.attention).toBe(0);
     expect((await feed(admin)).filterCounts.attention).toBe(1);
     expect((await update(env, mine, maker)).status).toBe(200);

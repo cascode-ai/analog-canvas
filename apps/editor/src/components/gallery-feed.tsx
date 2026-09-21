@@ -6,6 +6,8 @@ import "../styles/gallery-entry.css";
 import {
   announceGalleryChange,
   galleryCountLabel,
+  galleryAuthorsOf,
+  removeGalleryAuthorEntry,
   galleryEntryMatchesQuery,
   galleryPreviewUrl,
   loadGalleryAuthors,
@@ -308,10 +310,12 @@ function contributionLabel(count: number): string {
 function GalleryContributorRow({
   option,
   rank,
+  partial,
   onSelectAuthor,
 }: {
   option: GalleryAuthorOption;
   rank: number;
+  partial: boolean;
   onSelectAuthor: (option: GalleryAuthorOption) => void;
 }) {
   return (
@@ -331,6 +335,7 @@ function GalleryContributorRow({
       </button>
       <span className="gallery-contributor-count">
         {contributionLabel(option.count)}
+        {partial ? " so far" : ""}
       </span>
     </li>
   );
@@ -340,54 +345,25 @@ export function GalleryCountPanel({
   total,
   filtered = false,
   search = null,
-  refreshSignal = 0,
+  authors = [],
+  partial = false,
   onSelectAuthor = () => undefined,
 }: {
   total: number | null;
   filtered?: boolean;
   search?: { visible: number; settled: boolean } | null;
-  refreshSignal?: number;
+  authors?: GalleryAuthorOption[];
+  partial?: boolean;
   onSelectAuthor?: (option: GalleryAuthorOption) => void;
 }) {
   const label = galleryCountLabel(total, { filtered, search });
   const rootRef = useRef<HTMLDetailsElement | null>(null);
-  const requestGenerationRef = useRef(0);
-  const revision = `${refreshSignal}:${total ?? "unknown"}`;
-  const [contributors, setContributors] = useState<{
-    status: "idle" | "loading" | "ready" | "unavailable";
-    authors: GalleryAuthorOption[];
-    revision: string;
-  }>({ status: "idle", authors: [], revision });
-  const contributorStatus =
-    contributors.revision === revision ? contributors.status : "idle";
-  const contributorAuthors =
-    contributors.revision === revision ? contributors.authors : [];
-
-  function loadContributors(): void {
-    if (contributorStatus === "loading" || contributorStatus === "ready") {
-      return;
-    }
-    const generation = ++requestGenerationRef.current;
-    setContributors({ status: "loading", authors: [], revision });
-    void loadGalleryAuthors(fetch).then((authors) => {
-      if (generation !== requestGenerationRef.current) return;
-      setContributors(
-        authors === null
-          ? { status: "unavailable", authors: [], revision }
-          : { status: "ready", authors, revision },
-      );
-    });
-  }
-
   if (label === null) return null;
   return (
     <details
       ref={rootRef}
       className="gallery-contributor-menu"
       data-testid="gallery-contributor-menu"
-      onToggle={(event) => {
-        if (event.currentTarget.open) loadContributors();
-      }}
     >
       <summary
         className="gallery-count-panel"
@@ -402,31 +378,26 @@ export function GalleryCountPanel({
       >
         <div className="gallery-contributor-heading">
           <strong>Contributors</strong>
-          {contributorStatus === "ready" ? (
-            <span>
-              {contributorAuthors.length.toLocaleString()}{" "}
-              {contributorAuthors.length === 1 ? "author" : "authors"}
-            </span>
-          ) : null}
+          <span>
+            {authors.length.toLocaleString()}{" "}
+            {authors.length === 1 ? "author" : "authors"}
+            {partial ? " so far" : ""}
+          </span>
         </div>
-        {contributorStatus === "loading" || contributorStatus === "idle" ? (
-          <p className="gallery-contributor-status">Loading contributors…</p>
-        ) : contributorStatus === "unavailable" ? (
-          <div className="gallery-contributor-status">
-            <p>Could not load contributors.</p>
-            <button type="button" onClick={loadContributors}>
-              Try again
-            </button>
-          </div>
-        ) : contributorAuthors.length === 0 ? (
-          <p className="gallery-contributor-status">No contributors yet.</p>
+        {authors.length === 0 ? (
+          <p className="gallery-contributor-status">
+            {partial
+              ? "No matching contributors in circuits loaded so far."
+              : "No contributors match the current filters."}
+          </p>
         ) : (
           <ol className="gallery-contributor-list">
-            {contributorAuthors.map((option, index) => (
+            {authors.map((option, index) => (
               <GalleryContributorRow
-                key={`${refreshSignal}:${total}:${option.ownerUserId ?? "legacy"}:${option.author}`}
+                key={`${option.ownerUserId ?? "legacy"}:${option.author}`}
                 option={option}
                 rank={index + 1}
+                partial={partial}
                 onSelectAuthor={(option) => {
                   rootRef.current?.removeAttribute("open");
                   onSelectAuthor(option);
@@ -697,6 +668,9 @@ export function GalleryFeed({
           removed && previous.total !== null
             ? previous.total - 1
             : previous.total,
+        ...(removed && previous.authors
+          ? { authors: removeGalleryAuthorEntry(previous.authors, entry) }
+          : {}),
         ...(previous.filterCounts
           ? {
               filterCounts: {
@@ -826,6 +800,7 @@ export function GalleryFeed({
                 entries: [...previous.entries, ...page.entries],
                 nextCursor: page.nextCursor,
                 total: page.total ?? previous.total,
+                ...(page.authors ? { authors: page.authors } : {}),
                 ...(page.filterCounts
                   ? { filterCounts: page.filterCounts }
                   : {}),
@@ -857,8 +832,6 @@ export function GalleryFeed({
     updateFilters({
       author: option.author,
       ownerUserId: option.ownerUserId ?? null,
-      tags: [],
-      search: "",
     });
   }
 
@@ -878,6 +851,9 @@ export function GalleryFeed({
         (candidate) => candidate.id !== entry.id,
       ),
       total: previous.total === null ? null : previous.total - 1,
+      ...(previous.authors
+        ? { authors: removeGalleryAuthorEntry(previous.authors, entry) }
+        : {}),
       ...(previous.filterCounts
         ? {
             filterCounts: {
@@ -982,6 +958,10 @@ export function GalleryFeed({
         galleryEntryMatchesQuery(entry, normalizedSearchQuery),
       )
     : entries;
+  const localAuthors = Boolean(normalizedSearchQuery) || !state.authors;
+  const authors = localAuthors
+    ? galleryAuthorsOf(visibleEntries)
+    : state.authors!;
   const localQuickCounts = normalizedSearchQuery || !state.filterCounts;
   const quickCounts = localQuickCounts
     ? {
@@ -1061,7 +1041,8 @@ export function GalleryFeed({
           <GalleryCountPanel
             total={state.total}
             filtered={galleryFiltersNarrowQuery(filters)}
-            refreshSignal={refreshSignal}
+            authors={authors}
+            partial={localAuthors && state.nextCursor !== null}
             onSelectAuthor={selectContributor}
             search={
               normalizedSearchQuery

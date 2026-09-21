@@ -1395,6 +1395,8 @@ test("quick filters show right-aligned counts and follow filters, search and lik
     {
       ...ENTRY,
       id: "count-amp",
+      author: "Alice",
+      ownerUserId: "owner-a",
       name: "Amplifier",
       tags: ["amplifier"],
       netlistable: true,
@@ -1404,6 +1406,8 @@ test("quick filters show right-aligned counts and follow filters, search and lik
     {
       ...ENTRY,
       id: "count-osc",
+      author: "Bob",
+      ownerUserId: "owner-b",
       name: "Oscillator",
       tags: ["oscillator"],
       netlistable: true,
@@ -1413,6 +1417,8 @@ test("quick filters show right-aligned counts and follow filters, search and lik
     {
       ...ENTRY,
       id: "count-comp",
+      author: "Carol",
+      ownerUserId: "owner-c",
       name: "Comparator",
       tags: ["comparator"],
       netlistable: false,
@@ -1457,6 +1463,11 @@ test("quick filters show right-aligned counts and follow filters, search and lik
         entries: filtered,
         nextCursor: null,
         total: filtered.length,
+        authors: filtered.map((entry) => ({
+          author: entry.author,
+          ownerUserId: entry.ownerUserId,
+          count: 1,
+        })),
         filterCounts: {
           attention: filtered.filter((entry) => entry.attention).length,
           netlistable: filtered.filter((entry) => entry.netlistable).length,
@@ -1474,17 +1485,35 @@ test("quick filters show right-aligned counts and follow filters, search and lik
     await expect(netlist.locator(".gallery-sidebar-count")).toHaveText(n);
     await expect(liked.locator(".gallery-sidebar-count")).toHaveText(l);
   };
+  const contributors = async (names: string[]) => {
+    const menu = page.getByTestId("gallery-contributor-menu");
+    if (!(await menu.evaluate((node) => node.hasAttribute("open"))))
+      await page.getByTestId("gallery-count-panel").click();
+    await expect(menu.locator(".gallery-contributor-author")).toHaveText(names);
+    await expect(menu.locator(".gallery-contributor-heading")).toContainText(
+      `${names.length} ${names.length === 1 ? "author" : "authors"}`,
+    );
+  };
   await counts("2", "2", "2");
+  await contributors(["Alice", "Bob", "Carol"]);
   await netlist.click();
   await counts("1", "2", "1");
+  await contributors(["Alice", "Bob"]);
   await attention.click();
   await counts("1", "1", "1");
+  await contributors(["Alice"]);
   await netlist.click();
   await counts("2", "1", "2");
+  await contributors(["Alice", "Carol"]);
   await attention.click();
   const search = page.getByTestId("gallery-search");
   await search.fill("Oscillator");
   await counts("0", "1", "0");
+  await contributors(["Bob"]);
+  await search.fill("nothing-matches");
+  await contributors([]);
+  await search.fill("Amplifier");
+  await contributors(["Alice"]);
   await search.fill("");
   await counts("2", "2", "2");
   await page
@@ -1492,13 +1521,21 @@ test("quick filters show right-aligned counts and follow filters, search and lik
     .click();
   await page.getByTestId("gallery-tag-option-amplifier").click();
   await counts("1", "1", "1");
+  await contributors(["Alice"]);
   await page.getByTestId("gallery-tags-clear").click();
   await counts("2", "2", "2");
   await liked.click();
   await counts("2", "1", "2");
   await page.getByTestId("gallery-like-count-amp").click();
   await counts("1", "0", "1");
+  await contributors(["Carol"]);
   await expect(page.getByTestId("gallery-tile-count-amp")).toHaveCount(0);
+  await netlist.click();
+  await counts("0", "0", "0");
+  await contributors([]);
+  await expect(page.getByTestId("gallery-contributor-popover")).toContainText(
+    "No contributors match the current filters.",
+  );
 
   const sidebar = page.getByRole("separator", {
     name: "Resize Gallery filters",
@@ -2355,6 +2392,7 @@ test("the wall count opens a contributor ranking whose names open each gallery",
       id: "alice-2",
       name: "Alice OTA",
       author: "Alice",
+      tags: ["amplifier"],
       createdAt: "2026-08-22T10:00:00.000Z",
     },
     {
@@ -2362,6 +2400,7 @@ test("the wall count opens a contributor ranking whose names open each gallery",
       id: "alice-1",
       name: "Alice Bandgap",
       author: "Alice",
+      tags: ["amplifier"],
     },
   ];
   const bobEntry = {
@@ -2369,6 +2408,7 @@ test("the wall count opens a contributor ranking whose names open each gallery",
     id: "bob-1",
     name: "Bob Comparator",
     author: "Bob",
+    tags: ["amplifier"],
   };
   await page.route(galleryListUrl, (route) => {
     const url = new URL(route.request().url());
@@ -2400,7 +2440,7 @@ test("the wall count opens a contributor ranking whose names open each gallery",
     }),
   );
 
-  await page.goto("/");
+  await page.goto("/?tags=amplifier&q=amplifier");
   await page.getByTestId("gallery-count-panel").click();
   await expect(page.getByTestId("gallery-contributor-popover")).toContainText(
     "2 authors",
@@ -2421,12 +2461,98 @@ test("the wall count opens a contributor ranking whose names open each gallery",
   await expect(page.getByTestId("gallery-contributor-view-1")).toHaveCount(0);
   await page.getByTestId("gallery-contributor-author-1").click();
 
-  await expect(page).toHaveURL(/\?author=Alice$/u);
+  await expect(page).toHaveURL(
+    (url) =>
+      url.searchParams.get("author") === "Alice" &&
+      url.searchParams.get("tags") === "amplifier" &&
+      url.searchParams.get("q") === "amplifier",
+  );
   await expect(page.getByTestId("gallery-filter")).toContainText(
     "Circuits by Alice",
   );
   await expect(page.getByTestId("gallery-tile-alice-2")).toBeVisible();
   await expect(page.getByTestId("gallery-tile-bob-1")).toHaveCount(0);
+  await page.getByTestId("gallery-count-panel").click();
+  await expect(page.getByTestId("gallery-contributor-popover")).toContainText(
+    "1 author",
+  );
+  await expect(page.locator(".gallery-contributor-author")).toHaveText([
+    "Alice",
+  ]);
+});
+
+test("contributors cover filtered pages while text search follows only matching cards", async ({
+  page,
+}) => {
+  let pending: Route | undefined;
+  let globalRequests = 0;
+  const authors = [
+    { author: "Alice", count: 2 },
+    { author: "Bob", count: 1 },
+  ];
+  await page.route(galleryListUrl, (route) => {
+    if (new URL(route.request().url()).searchParams.has("cursor")) {
+      pending = route;
+      return;
+    }
+    return route.fulfill({
+      json: {
+        entries: [{ ...ENTRY, id: "alice-1", author: "Alice" }],
+        total: 3,
+        nextCursor: "next",
+        authors,
+      },
+    });
+  });
+  await page.route("**/api/gallery/authors", (route) => {
+    globalRequests++;
+    return route.fulfill({
+      json: { authors: [{ author: "Unrelated", count: 97 }] },
+    });
+  });
+  await page.route("**/api/gallery/tags*", (route) =>
+    route.fulfill({ json: { tags: [] } }),
+  );
+  await page.route("**/api/gallery/*/preview.svg*", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"/>',
+    }),
+  );
+  await page.goto("/?netlist=1");
+  await page.getByTestId("gallery-count-panel").click();
+  const popover = page.getByTestId("gallery-contributor-popover");
+  await expect(popover.locator(".gallery-contributor-author")).toHaveText([
+    "Alice",
+    "Bob",
+  ]);
+  await expect(popover.locator(".gallery-contributor-count")).toHaveText([
+    "2 circuits",
+    "1 circuit",
+  ]);
+  await page.getByTestId("gallery-search").fill("Bob");
+  await expect(popover).toContainText("0 authors so far");
+  await expect(popover.locator(".gallery-contributor-row")).toHaveCount(0);
+  await expect.poll(() => Boolean(pending)).toBe(true);
+  await pending!.fulfill({
+    json: {
+      entries: [
+        { ...ENTRY, id: "bob-1", author: "Bob" },
+        { ...ENTRY, id: "alice-2", author: "Alice" },
+      ],
+      total: 3,
+      nextCursor: null,
+      authors,
+    },
+  });
+  await expect(popover.locator(".gallery-contributor-author")).toHaveText([
+    "Bob",
+  ]);
+  await expect(popover.locator(".gallery-contributor-count")).toHaveText([
+    "1 circuit",
+  ]);
+  await expect(popover).not.toContainText("so far");
+  expect(globalRequests).toBe(0);
 });
 
 test("an API without totals hides the count rather than guessing", async ({
