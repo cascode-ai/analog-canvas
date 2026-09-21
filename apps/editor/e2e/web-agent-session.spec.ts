@@ -1095,6 +1095,8 @@ test("keeps browser recovery on the renewed idle deadline and expires after inac
   const idleMs = 30 * 60_000;
   let deadline = start + idleMs;
   let creates = 0;
+  let attachments = 0;
+  let expired = false;
   let socket: WebSocketRoute | null = null;
   const sendEvent = (type: string) =>
     socket!.send(
@@ -1132,6 +1134,7 @@ test("keeps browser recovery on the renewed idle deadline and expires after inac
   await page.routeWebSocket(
     "**/api/agent/sessions/idle-browser/editor",
     (route) => {
+      attachments += 1;
       socket = route;
       route.onMessage((message) => {
         const control = JSON.parse(String(message));
@@ -1147,6 +1150,15 @@ test("keeps browser recovery on the renewed idle deadline and expires after inac
       });
     },
   );
+  await page.route("**/api/agent/sessions/idle-browser/status", (route) => {
+    expect(route.request().headers()["x-editor-secret"]).toBe("editor-secret");
+    return route.fulfill({
+      status: expired ? 410 : 200,
+      json: expired
+        ? { ok: false, error: { code: "SESSION_EXPIRED" } }
+        : { ok: true, authorization: "active", expiresAt: deadline },
+    });
+  });
   const recovery = () =>
     page.evaluate(() =>
       JSON.parse(
@@ -1159,6 +1171,12 @@ test("keeps browser recovery on the renewed idle deadline and expires after inac
   await expect(page.getByTestId("agent-idle-policy")).toContainText(
     "30 minutes",
   );
+  // A background scheduling gap must probe, not replace a healthy socket.
+  await page.clock.setFixedTime(start + 120_000);
+  await page.evaluate(() => document.dispatchEvent(new Event("resume")));
+  await page.clock.runFor(6_000);
+  await expect(page.getByTestId("agent-status")).toHaveText("Connected");
+  expect(attachments).toBe(1);
   await page.clock.setFixedTime(start + 29 * 60_000);
   deadline = start + 59 * 60_000;
   sendEvent("session.renewed");
@@ -1167,14 +1185,22 @@ test("keeps browser recovery on the renewed idle deadline and expires after inac
   await page.clock.setFixedTime(start + 31 * 60_000);
   await page.clock.runFor(1_100);
   await expect(page.getByTestId("agent-status")).toHaveText("Connected");
+  // A saved local deadline can lag a lease renewed by the Agent.
+  await page.evaluate(() => {
+    const key = "icm.agent-session-recovery.v1";
+    const saved = JSON.parse(sessionStorage.getItem(key)!);
+    saved.expiresAt = Date.now() - 1;
+    sessionStorage.setItem(key, JSON.stringify(saved));
+  });
   await page.reload();
   await page.getByTestId("open-agent").click();
   await expect(page.getByTestId("agent-status")).toHaveText("Connected");
   expect(creates).toBe(1);
   await expect.poll(async () => (await recovery())?.expiresAt).toBe(deadline);
   // Passive heartbeats must not extend the deadline on the browser.
+  expired = true;
   await page.clock.setFixedTime(deadline);
-  await page.clock.runFor(1_100);
+  await page.clock.runFor(15_100);
   await expect(page.getByTestId("agent-status")).toHaveText("Session expired");
   expect(await recovery()).toBeNull();
 });

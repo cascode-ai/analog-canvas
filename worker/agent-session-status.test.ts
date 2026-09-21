@@ -80,6 +80,15 @@ describe("Session observation", () => {
         ),
     ).toBe(true);
     expect(put).not.toHaveBeenCalled();
+    const editorRequest = () =>
+      new Request("https://internal/status", {
+        headers: { "x-editor-secret": session.editorSecret },
+      });
+    expect(await (await object.fetch(editorRequest())).json()).toMatchObject({
+      authorization: "paused",
+      expiresAt: machine.expiresAt,
+    });
+    expect(put).not.toHaveBeenCalled();
     expect((await object.fetch(request("wrong"))).status).toBe(401);
     sockets = [];
     expect(
@@ -88,6 +97,10 @@ describe("Session observation", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {
       vi.setSystemTime(machine.expiresAt);
+      expect(await (await object.fetch(editorRequest())).json()).toMatchObject({
+        ok: false,
+        error: { code: "SESSION_EXPIRED" },
+      });
       expect(
         await (await object.fetch(request(claimed.claim.agentToken))).json(),
       ).toMatchObject({ ok: false, error: { code: "SESSION_EXPIRED" } });

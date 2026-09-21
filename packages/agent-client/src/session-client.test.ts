@@ -23,12 +23,148 @@ async function freshClient(
   const http = options.http ?? new FakeAgentHttp();
   const client = new AgentSessionClient({
     http,
+    sleep: async () => {},
     ...(options.now ? { now: options.now } : {}),
   });
   return { client, http };
 }
 
 describe("agent session client", () => {
+  it("does not carry an offline request into a newly paired Project", async () => {
+    const http = new FakeAgentHttp();
+    const client = new AgentSessionClient({
+      http,
+      sleep: async () => {
+        vi.spyOn(http, "claim").mockResolvedValueOnce({
+          sessionId: "other-session",
+          projectId: "other-project",
+          documentIds: ["other"],
+          agentToken: "new-token",
+          tokenExpiresAt: Number.MAX_SAFE_INTEGER,
+          connectorToken: "new-connector",
+          connectorExpiresAt: Number.MAX_SAFE_INTEGER,
+          scopes: [],
+        });
+        await client.connect("other.claim");
+      },
+    });
+    await client.connect("session-1.code");
+    const method = vi
+      .spyOn(http, "projects")
+      .mockRejectedValue(
+        new AgentSessionError(
+          "EDITOR_OFFLINE",
+          "offline",
+          "editor-offline",
+          503,
+        ),
+      );
+    await expect(
+      client.projectResource({
+        apiVersion: "3.0",
+        requestId: "old-request",
+        operation: "list-projects",
+      }),
+    ).rejects.toMatchObject({ code: "SESSION_CHANGED" });
+    expect(method).toHaveBeenCalledTimes(1);
+  });
+  it.each(["files", "simulation", "projects"] as const)(
+    "%s retries only pre-dispatch offline rejection with the original request identity",
+    async (resource) => {
+      const http = new FakeAgentHttp();
+      const sleep = vi.fn(async (_ms: number) => {});
+      const client = new AgentSessionClient({ http, sleep });
+      await client.connect("session-1.code");
+      const method = vi.spyOn(http, resource);
+      method.mockRejectedValueOnce(
+        new AgentSessionError(
+          "EDITOR_OFFLINE",
+          "offline",
+          "editor-offline",
+          503,
+        ),
+      );
+      method.mockResolvedValueOnce({ ok: true } as never);
+      const envelope = { apiVersion: "3.0" as const, requestId: "stable-id" };
+      const call = () =>
+        resource === "files"
+          ? client.fileResource({
+              ...envelope,
+              operation: "simulation-input",
+              input: { action: "list" },
+            })
+          : resource === "simulation"
+            ? client.simulationResource({
+                ...envelope,
+                operation: "start",
+                preparedId: "prepared",
+                digest: "a".repeat(64),
+              })
+            : client.projectResource({
+                ...envelope,
+                operation: "list-projects",
+              });
+      await expect(call()).resolves.toEqual({ ok: true });
+      expect(sleep).toHaveBeenCalledWith(500);
+      expect(method.mock.calls[0]![2]).toEqual(method.mock.calls[1]![2]);
+      method.mockReset();
+      method.mockRejectedValue(
+        new AgentSessionError(
+          "EDITOR_DISCONNECTED",
+          "uncertain",
+          "editor-offline",
+          503,
+        ),
+      );
+      await expect(call()).rejects.toMatchObject({
+        code: "EDITOR_DISCONNECTED",
+      });
+      expect(method).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("bounds offline recovery and never retries explicit revocation", async () => {
+    const http = new FakeAgentHttp();
+    const sleep = vi.fn(async (_ms: number) => {});
+    const client = new AgentSessionClient({ http, sleep });
+    await client.connect("session-1.code");
+    const method = vi
+      .spyOn(http, "simulation")
+      .mockRejectedValue(
+        new AgentSessionError(
+          "EDITOR_OFFLINE",
+          "offline",
+          "editor-offline",
+          503,
+        ),
+      );
+    const request = {
+      apiVersion: "3.0" as const,
+      requestId: "start-id",
+      operation: "start" as const,
+      preparedId: "prepared",
+      digest: "a".repeat(64),
+    };
+    await expect(client.simulationResource(request)).rejects.toMatchObject({
+      code: "EDITOR_OFFLINE",
+    });
+    expect(method).toHaveBeenCalledTimes(4);
+    expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([500, 1000, 2000]);
+    method.mockReset();
+    method.mockRejectedValue(
+      new AgentSessionError(
+        "SESSION_REVOKED",
+        "revoked",
+        "unrecoverable-credential",
+        410,
+      ),
+    );
+    await expect(client.simulationResource(request)).rejects.toMatchObject({
+      code: "SESSION_REVOKED",
+    });
+    expect(method).toHaveBeenCalledTimes(1);
+    expect((await client.status({ refresh: false })).sessionId).toBeNull();
+  });
   it.each(["dirty", "other-project"])(
     "does not submit a %s operation snapshot",
     async (reason) => {
