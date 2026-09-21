@@ -43,6 +43,81 @@ const caps: Capabilities = {
   maxOutputBytes: 1048576,
   cancel: true,
 };
+
+it("offers compact Profile discovery and an explicit complete query without losing model access", async () => {
+  const f = fixture("ngspice");
+  const summary = await f.service.handle(
+    { operation: "capabilities", detail: "summary" },
+    "summary",
+  );
+  if (!summary.ok || !("capabilities" in summary))
+    throw Error("Missing capabilities");
+  expect(summary.capabilities.profiles[0]?.dependencies).toBeUndefined();
+  expect(summary.capabilities.profiles[0]?.corners).toEqual(["tt"]);
+  const full = await f.service.handle(
+    summary.capabilities.discovery!.fullRequest,
+    "full",
+  );
+  if (!full.ok || !("capabilities" in full))
+    throw Error("Missing capabilities");
+  expect(full.capabilities.profiles[0]?.dependencies).toEqual(
+    caps.profiles[0]!.dependencies,
+  );
+});
+
+it("retries failed evidence storage through export without executing or duplicating files", async () => {
+  const f = fixture("ngspice");
+  vi.mocked(f.executor.execute).mockImplementation(async (input) => ({
+    result: await ngspiceResult(input),
+    rawfile: "retained raw",
+  }));
+  const { prepared } = await prepareRaw(f);
+  const originalPut = f.files.put.bind(f.files);
+  let unavailable = true;
+  vi.spyOn(f.files, "put").mockImplementation(async (...args) => {
+    if (args[0] === "result.json" && unavailable)
+      throw Error("ARTIFACT_STORAGE_UNAVAILABLE");
+    return originalPut(...args);
+  });
+  const run = unwrap(
+    await f.service.handle(
+      { operation: "start", preparedId: prepared.id, digest: prepared.digest },
+      "start",
+    ),
+    "run",
+  );
+  await vi.waitFor(async () => {
+    const receipt = unwrap(
+      await f.service.handle({ operation: "read", runId: run.id }, "read"),
+      "run",
+    );
+    expect(receipt.state).toBe("finished");
+    expect(receipt.error?.code).toBe("ARTIFACT_STORAGE_UNAVAILABLE");
+    expect(receipt.result?.data).toBeUndefined();
+  });
+  unavailable = false;
+  const exported = await f.service.handle(
+    { operation: "export", runId: run.id },
+    "retry-files",
+  );
+  if (!exported.ok || !("artifacts" in exported))
+    throw Error("Missing recovered files");
+  expect(new Set(exported.artifacts.map((a) => a.name)).size).toBe(
+    exported.artifacts.length,
+  );
+  const saved = await f.files.readArtifact(
+    exported.artifacts.find((a) => a.name === "result.json")!.id,
+  );
+  if (!saved.ok) throw Error("Missing recovered result");
+  expect(JSON.parse(saved.text).data.analyses).toHaveLength(1);
+  expect(f.executor.execute).toHaveBeenCalledTimes(1);
+  expect(
+    unwrap(
+      await f.service.handle({ operation: "read", runId: run.id }, "after"),
+      "run",
+    ).error,
+  ).toBeUndefined();
+});
 const deck = readFileSync(
   new URL("../../../netlists/vacask-divider/divider.sim", import.meta.url),
   "utf8",
@@ -399,14 +474,24 @@ describe("shared simulation lifecycle", () => {
         ),
         "run",
       );
-      expect(finished.outputData?.specs).toMatchObject({
+      const specFile = finished.artifacts.find((a) => a.name === "specs.json")!;
+      const specRead = await f.files.readArtifact(specFile.id);
+      if (!specRead.ok) throw Error("Missing Spec artifact");
+      const fullSpecs = JSON.parse(specRead.text);
+      expect(fullSpecs).toMatchObject({
         runId: started.id,
         preparedId: prepared.id,
         inputDigest: prepared.digest,
         results: [{ name: "peak", value: 1.8, judgment: "pass" }],
       });
       const artifact = finished.artifacts.find((a) => a.name === "specs.json")!;
-      expect(finished.catalog).toMatchObject({
+      const catalogReply = await f.service.handle(
+        { operation: "catalog", runId: finished.id },
+        "catalog",
+      );
+      if (!catalogReply.ok || !("catalog" in catalogReply))
+        throw Error("Missing catalog");
+      expect(catalogReply.catalog).toMatchObject({
         runId: finished.id,
         execution: "completed",
         collection: collectionStatus,
@@ -421,7 +506,44 @@ describe("shared simulation lifecycle", () => {
           { operation: "catalog", runId: finished.id },
           "catalog",
         ),
-      ).toEqual({ ok: true, catalog: finished.catalog });
+      ).toEqual(catalogReply);
+      const firstPage = await f.service.handle(
+        {
+          operation: "catalog",
+          runId: finished.id,
+          section: "files",
+          limit: 1,
+        },
+        "catalog-page",
+      );
+      expect(firstPage).toMatchObject({
+        ok: true,
+        catalog: { files: [catalogReply.catalog.files[0]], datasets: [] },
+        page: {
+          section: "files",
+          total: catalogReply.catalog.files.length,
+          nextOffset: 1,
+        },
+      });
+      const lastPage = await f.service.handle(
+        {
+          operation: "catalog",
+          runId: finished.id,
+          section: "files",
+          offset: catalogReply.catalog.files.length,
+        },
+        "catalog-last",
+      );
+      expect(lastPage).toMatchObject({
+        ok: true,
+        catalog: { files: [] },
+        page: { nextOffset: null },
+      });
+      expect(finished.catalog).toBeUndefined();
+      expect(finished.details).toMatchObject({
+        collection: collectionStatus,
+        datasetCount: 1,
+      });
       const manifest = await f.files.handle({
         action: "artifact",
         artifactId: finished.artifacts.find((a) => a.role === "manifest")!.id,
@@ -436,15 +558,16 @@ describe("shared simulation lifecycle", () => {
         artifactId: artifact.id,
       });
       if (!read.ok || !("text" in read)) throw Error("Missing Spec artifact");
-      expect(JSON.parse(read.text)).toEqual(finished.outputData?.specs);
+      expect(JSON.parse(read.text)).toEqual(fullSpecs);
       expect(finished.artifacts.map((a) => a.name)).toEqual(
         expect.arrayContaining(["out.raw", "specs.csv", "log.txt"]),
       );
-      expect(finished.outputData).toEqual({
-        schemaVersion: 1,
-        analyses: [],
-        diagnostics: [],
-        specs: finished.outputData!.specs,
+      expect(finished.outputData).toBeUndefined();
+      expect(finished.details?.specs).toMatchObject({
+        available: true,
+        total: 1,
+        passed: 1,
+        failed: 0,
       });
       expect(
         finished.artifacts
@@ -517,12 +640,19 @@ describe("shared simulation lifecycle", () => {
       ),
       "run",
     );
-    expect(finished.result?.data?.analyses).toEqual([analysis]);
-    expect(finished.outputData).toEqual({
-      schemaVersion: 1,
-      analyses: [],
-      diagnostics: [],
-      specs: expect.objectContaining({
+    expect(finished.result?.data).toBeUndefined();
+    expect(finished.outputData).toBeUndefined();
+    const full = await f.files.readArtifact(
+      finished.artifacts.find((a) => a.name === "result.json")!.id,
+    );
+    if (!full.ok) throw Error("Missing full result");
+    expect(JSON.parse(full.text).data.analyses).toEqual([analysis]);
+    const spec = await f.files.readArtifact(
+      finished.artifacts.find((a) => a.name === "specs.json")!.id,
+    );
+    if (!spec.ok) throw Error("Missing full Specs");
+    expect(JSON.parse(spec.text)).toEqual(
+      expect.objectContaining({
         results: [
           expect.objectContaining({
             name: "gain_at_fc",
@@ -531,7 +661,7 @@ describe("shared simulation lifecycle", () => {
           }),
         ],
       }),
-    });
+    );
     expect(
       finished.artifacts
         .filter((a) => a.name.endsWith(".csv"))

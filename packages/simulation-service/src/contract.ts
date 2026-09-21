@@ -104,6 +104,7 @@ export const ArtifactRefSchema = z.strictObject({
       "table",
       "specs",
       "log",
+      "diagnostics",
       "manifest",
     ])
     .optional(),
@@ -517,7 +518,11 @@ export const SimulationOperationSchema = z.discriminatedUnion("operation", [
     name: z.string().min(1).max(128).optional(),
     context: z.enum(["circuit", "control"]).optional(),
   }),
-  z.strictObject({ operation: z.literal("capabilities") }),
+  z.strictObject({
+    operation: z.literal("capabilities"),
+    detail: z.enum(["summary", "full"]).optional(),
+    profileId: Id.optional(),
+  }),
   z.strictObject({
     operation: z.literal("prepare"),
     source: InputSourceSchema,
@@ -529,7 +534,13 @@ export const SimulationOperationSchema = z.discriminatedUnion("operation", [
     timeoutMs: z.number().int().positive().max(120000).optional(),
   }),
   z.strictObject({ operation: z.literal("read"), runId: Id }),
-  z.strictObject({ operation: z.literal("catalog"), runId: Id }),
+  z.strictObject({
+    operation: z.literal("catalog"),
+    runId: Id,
+    section: z.enum(["files", "datasets"]).optional(),
+    offset: z.number().int().nonnegative().optional(),
+    limit: z.number().int().min(1).max(1000).optional(),
+  }),
   z.strictObject({
     operation: z.literal("history"),
     limit: z.number().int().min(1).max(100).default(50),
@@ -626,6 +637,16 @@ export const NativeModelLibrarySymbolsSchema: z.ZodType<NativeModelLibrarySymbol
       .max(256),
   });
 export const CapabilitiesSchema = z.strictObject({
+  discovery: z
+    .strictObject({
+      detail: z.enum(["summary", "full"]),
+      fullRequest: z.strictObject({
+        operation: z.literal("capabilities"),
+        detail: z.literal("full"),
+        profileId: Id.optional(),
+      }),
+    })
+    .optional(),
   configured: z.boolean(),
   /** Explicit collection protocol; absent on pre-source deployments. */
   rawfileCollection: z
@@ -725,6 +746,34 @@ export const RunSchema = z.strictObject({
   state: z.enum(["running", "cancelling", "finished", "cancelled", "lost"]),
   inputStatus: z.enum(["unchanged", "changed", "unavailable"]).optional(),
   resultPreview: z.boolean().optional(),
+  details: z
+    .strictObject({
+      operation: z.literal("catalog"),
+      runId: Id,
+      execution: ResultCatalogSchema.shape.execution.optional(),
+      collection: ResultCatalogSchema.shape.collection.optional(),
+      datasetCount: z.number().int().nonnegative().optional(),
+      fileCount: z.number().int().nonnegative().optional(),
+      diagnostics: z
+        .strictObject({
+          total: z.number().int().nonnegative(),
+          shown: z.number().int().nonnegative(),
+          textMayBeShortened: z.boolean(),
+        })
+        .optional(),
+      outputDiagnostics: z.number().int().nonnegative().optional(),
+      specs: z
+        .strictObject({
+          available: z.boolean(),
+          total: z.number().int().nonnegative(),
+          passed: z.number().int().nonnegative(),
+          failed: z.number().int().nonnegative(),
+          notEvaluated: z.number().int().nonnegative(),
+          unconstrained: z.number().int().nonnegative(),
+        })
+        .optional(),
+    })
+    .optional(),
   catalog: ResultCatalogSchema.optional(),
   result: SimulationResultSchema.optional(),
   outputData: SimulationOutputDataSchema.optional(),
@@ -787,7 +836,17 @@ export const SimulationReplySchema = z.union([
   z.strictObject({ ok: z.literal(true), capabilities: CapabilitiesSchema }),
   z.strictObject({ ok: z.literal(true), prepared: PreparedSchema }),
   z.strictObject({ ok: z.literal(true), run: RunSchema }),
-  z.strictObject({ ok: z.literal(true), catalog: ResultCatalogSchema }),
+  z.strictObject({
+    ok: z.literal(true),
+    catalog: ResultCatalogSchema,
+    page: z
+      .strictObject({
+        section: z.enum(["files", "datasets"]),
+        total: z.number().int().nonnegative(),
+        nextOffset: z.number().int().nonnegative().nullable(),
+      })
+      .optional(),
+  }),
   z.strictObject({
     ok: z.literal(true),
     runs: z.array(SimulationHistoryEntrySchema),

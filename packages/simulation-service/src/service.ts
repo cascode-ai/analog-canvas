@@ -26,7 +26,7 @@ import {
   type ExecutionInput,
   type Executor,
 } from "./executor.js";
-import { runReceipt } from "./run-receipt.js";
+import { runReceipt, releaseRunData } from "./run-receipt.js";
 import { ProjectInputIdentity } from "./input-identity.js";
 import { type Run, type SimulationReply } from "./contract.js";
 type PrepareSource = Extract<
@@ -40,6 +40,8 @@ type InternalRun = {
   token: string;
   done: Promise<void>;
   source: PrepareSource;
+  retryEvidence?: (() => Promise<void>) | undefined;
+  savingEvidence?: Promise<void> | undefined;
 };
 type StoredPrepared = {
   view: Prepared;
@@ -168,11 +170,42 @@ export class SimulationService {
           );
         }
       }
-      if (op.operation === "capabilities")
+      if (op.operation === "capabilities") {
+        const capabilities = await this.executor.capabilities(op.profileId);
+        const profiles = capabilities.profiles.filter(
+          (profile) => !op.profileId || profile.id === op.profileId,
+        );
+        if (op.profileId && !profiles.length)
+          return problem(
+            "SIMULATION_PROFILE_UNKNOWN",
+            "Select an advertised Profile",
+            "read",
+            "fix-input",
+          );
         return {
           ok: true,
           capabilities: {
-            ...(await this.executor.capabilities()),
+            ...capabilities,
+            profiles:
+              op.detail === "summary"
+                ? profiles.map(
+                    ({
+                      devices: _devices,
+                      dependencies: _dependencies,
+                      modelSymbols: _symbols,
+                      modelLibrary: _library,
+                      ...profile
+                    }) => profile,
+                  )
+                : profiles,
+            discovery: {
+              detail: op.detail ?? "full",
+              fullRequest: {
+                operation: "capabilities",
+                detail: "full",
+                ...(op.profileId ? { profileId: op.profileId } : {}),
+              },
+            },
             inputs: ["source"],
             maxActiveRuns: 1,
             batch: {
@@ -182,6 +215,7 @@ export class SimulationService {
             },
           },
         };
+      }
       if (op.operation === "prepare") return await this.prepare(op);
       if (op.operation === "start") return this.start(op, requestId);
       if (op.operation === "prepare-batch") return await this.prepareBatch(op);
@@ -198,7 +232,8 @@ export class SimulationService {
         if (!run && (op.operation === "catalog" || op.operation === "read")) {
           const catalog = await this.files.catalog(op.runId);
           if (catalog) {
-            if (op.operation === "catalog") return { ok: true, catalog };
+            if (op.operation === "catalog")
+              return this.catalogReply(catalog, op);
             return {
               ok: true,
               run: {
@@ -211,7 +246,14 @@ export class SimulationService {
                     ? catalog.execution
                     : "finished",
                 artifacts: catalog.files,
-                catalog,
+                details: {
+                  operation: "catalog",
+                  runId: catalog.runId,
+                  execution: catalog.execution,
+                  collection: catalog.collection,
+                  fileCount: catalog.files.length,
+                  datasetCount: catalog.datasets.length,
+                },
                 ...(catalog.error ? { error: catalog.error } : {}),
                 inputStatus: "unavailable",
                 resultPreview: true,
@@ -227,13 +269,11 @@ export class SimulationService {
             "not-retryable",
           );
         if (op.operation === "catalog")
-          return {
-            ok: true,
-            catalog: structuredClone(
-              run.view.catalog ??
-                resultCatalog(run.view, "pending", run.prepared.signalTargets),
-            ),
-          };
+          return this.catalogReply(
+            run.view.catalog ??
+              resultCatalog(run.view, "pending", run.prepared.signalTargets),
+            op,
+          );
         if (
           op.operation === "cancel" &&
           ["running", "cancelling", "lost"].includes(run.view.state)
@@ -279,6 +319,20 @@ export class SimulationService {
           "Select one prepared input or one run",
           "export",
         );
+      if (op.runId) {
+        const run = this.runs.get(op.runId);
+        if (
+          run?.retryEvidence &&
+          !["running", "cancelling"].includes(run.view.state)
+        ) {
+          run.savingEvidence ??= run.retryEvidence().finally(() => {
+            run.savingEvidence = undefined;
+          });
+          await run.savingEvidence;
+        }
+        if (run?.view.error && run.retryEvidence)
+          return { ok: false, error: run.view.error };
+      }
       const artifacts = op.runId
         ? this.runs.get(op.runId)?.view.artifacts
         : this.prepared.get(op.preparedId!)?.view.artifacts;
@@ -321,6 +375,46 @@ export class SimulationService {
         },
       };
     }
+  }
+  private catalogReply(
+    catalog: import("./contract.js").ResultCatalog,
+    op: Extract<SimulationOperation, { operation: "catalog" }>,
+  ): SimulationReply {
+    if (!op.section) {
+      if (op.offset !== undefined || op.limit !== undefined)
+        return problem(
+          "CATALOG_SECTION_REQUIRED",
+          "Select files or datasets when paging the catalog",
+          "read",
+          "fix-input",
+        );
+      return { ok: true, catalog: structuredClone(catalog) };
+    }
+    const offset = op.offset ?? 0;
+    const total = catalog[op.section].length;
+    if (offset > total)
+      return problem(
+        "CATALOG_OFFSET_INVALID",
+        "Offset exceeds catalog section length",
+        "read",
+        "fix-input",
+      );
+    const end = Math.min(total, offset + (op.limit ?? 50));
+    const { signalTargets: _targets, ...metadata } = catalog;
+    return {
+      ok: true,
+      catalog: structuredClone({
+        ...metadata,
+        files: [],
+        datasets: [],
+        [op.section]: catalog[op.section].slice(offset, end),
+      }),
+      page: {
+        section: op.section,
+        total,
+        nextOffset: end < total ? end : null,
+      },
+    };
   }
   private prune() {
     const now = this.now();
@@ -779,6 +873,15 @@ export class SimulationService {
       artifacts,
       warnings,
     };
+    artifacts.push(
+      await this.publishArtifact(
+        epoch,
+        "preparation.json",
+        "application/json",
+        JSON.stringify(view),
+        { role: "prepared" },
+      ),
+    );
     this.prepared.set(view.id, {
       input: structuredClone(input),
       view,
@@ -880,18 +983,23 @@ export class SimulationService {
     input: ExecutionInput,
     timeoutMs: number | undefined,
     epoch: number,
+    acceptedOutput?: Awaited<ReturnType<Executor["execute"]>>,
   ) {
     let collectionStatus: "complete" | "partial" = "complete";
     let terminalState: Run["state"] = "finished";
     try {
       const output = validateExecutionOutput(
         input,
-        await this.executor.execute(input, run.token, timeoutMs, {
-          preparedId: run.prepared.id,
-          preparedDigest: run.prepared.digest,
-        }),
+        acceptedOutput ??
+          (await this.executor.execute(input, run.token, timeoutMs, {
+            preparedId: run.prepared.id,
+            preparedDigest: run.prepared.digest,
+          })),
       );
       if (epoch !== this.epoch) return;
+      if (acceptedOutput) delete run.view.error;
+      run.retryEvidence = () =>
+        this.execute(run, input, timeoutMs, epoch, output);
       run.view.result = output.result;
       collectionStatus = output.collectionStatus ?? "complete";
       const nativeReports =
@@ -934,9 +1042,13 @@ export class SimulationService {
         text: string,
         metadata: Pick<ArtifactRef, "role" | "sourcePath" | "analysisIndex">,
       ) =>
-        run.view.artifacts.push(
-          await this.publishArtifact(epoch, name, type, text, metadata),
-        );
+        run.view.artifacts.some(
+          (a) => a.name === name && a.role === metadata.role,
+        )
+          ? undefined
+          : run.view.artifacts.push(
+              await this.publishArtifact(epoch, name, type, text, metadata),
+            );
       await artifact("log.txt", "text/plain", output.result.log, {
         role: "log",
       });
@@ -946,6 +1058,13 @@ export class SimulationService {
       await artifact("specs.csv", "text/csv", simulationSpecsToCsv(specs), {
         role: "specs",
       });
+      if (nativeReports.diagnostics.length)
+        await artifact(
+          "outputs.json",
+          "application/json",
+          JSON.stringify(run.view.outputData),
+          { role: "diagnostics" },
+        );
       if (output.rawfile !== undefined)
         await artifact("out.raw", "text/plain", output.rawfile, {
           role: "raw",
@@ -960,14 +1079,19 @@ export class SimulationService {
         artifact: ArtifactRef;
       }[] = [];
       for (const item of executionArtifactEntries(output)) {
-        const ref = await this.publishArtifact(
-          epoch,
-          item.name,
-          "text/plain",
-          item.text,
-          { role: item.kind, sourcePath: item.path },
-        );
-        run.view.artifacts.push(ref);
+        const ref =
+          run.view.artifacts.find(
+            (a) => a.name === item.name && a.role === item.kind,
+          ) ??
+          (await this.publishArtifact(
+            epoch,
+            item.name,
+            "text/plain",
+            item.text,
+            { role: item.kind, sourcePath: item.path },
+          ));
+        if (!run.view.artifacts.some((a) => a.id === ref.id))
+          run.view.artifacts.push(ref);
         nativeArtifacts.push({
           kind: item.kind,
           path: item.path,
@@ -1050,9 +1174,9 @@ export class SimulationService {
                 ? "ARTIFACT_STORAGE_UNAVAILABLE"
                 : "INTERNAL_ERROR",
           message:
-            "Run evidence could not be fully collected. Existing artifacts remain available; inspect the collection error before starting another run.",
+            "Run evidence could not be fully saved. Existing files remain available; export this run to retry saving retained results without executing again.",
           stage: "read",
-          recovery: "not-retryable",
+          recovery: "retry-after",
           correlationId: crypto.randomUUID(),
         };
       }
@@ -1075,7 +1199,10 @@ export class SimulationService {
     run.view.state = terminalState;
     // Do not retain full numeric arrays in memory after complete artifact
     // publication. On publication failure, preserve any otherwise unsaved data.
-    if (!run.view.error) run.view = runReceipt(run.view);
+    if (!run.view.error) {
+      run.view = releaseRunData(run.view);
+      run.retryEvidence = undefined;
+    }
   }
   private async publishArtifact(
     epoch: number,

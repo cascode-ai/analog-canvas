@@ -188,9 +188,13 @@ export class LocalWorkspace {
     catalog: ResultCatalog,
     fetchArtifact: FetchArtifact,
     fileIds?: string[],
+    selection?: {
+      analysisIndex?: number | undefined;
+      roles?: NonNullable<ArtifactRef["role"]>[] | undefined;
+    },
   ) {
     const parsed = ResultCatalogSchema.parse(catalog);
-    const selected =
+    const byId =
       fileIds === undefined
         ? parsed.files
         : parsed.files.filter(
@@ -200,10 +204,29 @@ export class LocalWorkspace {
           );
     if (
       fileIds?.some(
-        (id) => !selected.some((file) => file.id === id || file.fileId === id),
+        (id) => !byId.some((file) => file.id === id || file.fileId === id),
       )
     )
       throw new Error("WORKSPACE_FILE_NOT_IN_RUN");
+    const dataset =
+      selection?.analysisIndex === undefined
+        ? undefined
+        : parsed.datasets.find(
+            (item) => item.analysisIndex === selection.analysisIndex,
+          );
+    if (selection?.analysisIndex !== undefined && !dataset)
+      throw new Error("WORKSPACE_ANALYSIS_NOT_IN_RUN");
+    const selected = byId.filter(
+      (file) =>
+        (!selection?.roles ||
+          (file.role !== undefined && selection.roles.includes(file.role))) &&
+        (!dataset ||
+          file.analysisIndex === dataset.analysisIndex ||
+          dataset.representations.some(
+            (r) =>
+              r.artifactId === file.id || r.fileId === (file.fileId ?? file.id),
+          )),
+    );
     {
       const old = this.index.runs.findIndex(
         (run) => run.runId === parsed.runId,

@@ -389,6 +389,9 @@ describe("MCP / browser Simulation Resource parity", () => {
         },
         requestId: "start-once",
       };
+      expect(prepared.prepared.projection).toBe("summary");
+      expect(prepared.prepared.vectors).toBeUndefined();
+      expect(prepared.prepared.detailsArtifact.name).toBe("preparation.json");
       const started = await invoke("simulation", args);
       expect(started.run.id).toBeDefined();
       expect((await invoke("simulation", args)).run.id).toBe(started.run.id);
@@ -412,11 +415,8 @@ describe("MCP / browser Simulation Resource parity", () => {
         }),
       );
       expect(finished.run.state, JSON.stringify(finished)).toBe("finished");
-      expect(finished.run.result.data.analyses[0].probes).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ name: "output", value: 2 }),
-        ]),
-      );
+      expect(finished.run.result.data).toBeUndefined();
+      expect(finished.run.outputData).toBeUndefined();
       const csv = finished.run.artifacts.find(
         (a: { name: string }) => a.name === "op-0.csv",
       );

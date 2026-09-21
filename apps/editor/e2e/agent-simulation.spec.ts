@@ -798,7 +798,19 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         return finished.state;
       })
       .toBe("finished");
-    expect(finished.result.data.analyses[0].probes).toEqual(
+    expect(finished.result.data).toBeUndefined();
+    const resultFile = finished.artifacts.find(
+      (a: { name: string }) => a.name === "result.json",
+    );
+    const fullResult = JSON.parse(
+      (
+        await send("file", {
+          operation: "simulation-input",
+          input: { action: "artifact", artifactId: resultFile.id },
+        })
+      ).result.text,
+    );
+    expect(fullResult.data.analyses[0].probes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ name: "v(mid)", value: 0.5 }),
       ]),
