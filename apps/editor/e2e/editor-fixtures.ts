@@ -80,9 +80,12 @@ export async function clickCommand(
   button: string,
 ): Promise<void> {
   const details = await openMenu(page, menu);
-  if (menu === "File" && /^Export (?:SVG|PNG|PDF)$/u.test(button)) {
+  if (
+    menu === "File" &&
+    /^Export (?:Project File…|SVG|PNG|PDF)$/u.test(button)
+  ) {
     const group = details.getByRole("button", {
-      name: "Export drawing",
+      name: "Export",
       exact: true,
     });
     if ((await group.getAttribute("aria-expanded")) !== "true")
@@ -100,7 +103,7 @@ export async function clickNetlistWorkflowCommand(
     await page.getByTestId(command).click();
     return;
   }
-  const details = await openMenu(page, "Netlist");
+  const details = await openMenu(page, "File");
   await details.getByTestId(command).click();
 }
 
@@ -190,7 +193,7 @@ export async function readComponentPropertyCode(page: Page): Promise<string> {
   return page.evaluate(() => navigator.clipboard.readText());
 }
 
-/** Edit the Document-wide Style JSON and let the editor apply valid code live. */
+/** Edit the Document-wide Properties JSON and apply valid code live. */
 export async function editDocumentStyleCode(
   page: Page,
   update: (value: Record<string, any>) => void,
@@ -204,23 +207,23 @@ export async function editDocumentStyleCode(
   await input.fill(JSON.stringify(value, null, 2));
 }
 
-/** Read the Style JSON through its real copy command. */
+/** Read the Properties JSON through its real copy command. */
 export async function readDocumentStyleCode(page: Page): Promise<string> {
   const input = await documentStyleCodeEditor(page);
   await expect(input).toBeVisible();
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   const settings = page.getByLabel("Document settings", { exact: true });
   await settings
-    .getByRole("button", { name: "Copy Style JSON", exact: true })
+    .getByRole("button", { name: "Copy Properties JSON", exact: true })
     .click();
   await expect(
-    settings.getByText("Style JSON copied", { exact: true }),
+    settings.getByText("Properties JSON copied", { exact: true }),
   ).toBeVisible();
   return page.evaluate(() => navigator.clipboard.readText());
 }
 
 async function documentStyleCodeEditor(page: Page): Promise<Locator> {
-  const input = page.getByLabel("Editable document Style code", {
+  const input = page.getByLabel("Editable Properties code", {
     exact: true,
   });
   if (!(await input.isVisible())) await clickDrawTool(page, "document-style");
@@ -370,7 +373,8 @@ export async function copyNetlistText(
     await toggle.click();
   await expect(panel).toBeVisible();
   if (format) await panel.getByLabel("Netlist format").selectOption(format);
-  await panel.getByTestId("copy-netlist-panel").click();
+  await openMenu(page, "Netlist");
+  await page.getByTestId("copy-netlist").click();
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .not.toBe("clipboard sentinel");

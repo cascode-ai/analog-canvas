@@ -1,4 +1,4 @@
-import { type ComponentProps, type RefObject } from "react";
+import { type ComponentProps } from "react";
 
 import { AccountMenu } from "../components/account";
 import { BugReportLink } from "../components/bug-report-link";
@@ -6,6 +6,7 @@ import { DrawingToolbar } from "../features/editor-shell/drawing-toolbar";
 import { EditorTestTelemetry } from "../features/editor-shell/editor-test-telemetry";
 import type { ReleaseChannel } from "../document/release-channel";
 import { FileCommandMenu } from "../features/editor-shell/file-command-menu";
+import { EDITOR_REPOSITORY_URL } from "../features/editor-shell/editor-resource-links";
 import { ToolIcon } from "../features/editor-shell/tool-icon";
 import { HierarchyToolbar } from "../features/hierarchy/hierarchy-toolbar";
 import type { EdgeAlignmentMode } from "../features/selection/align-selection";
@@ -42,13 +43,13 @@ export interface EditorAppChromeProps {
   fileCommands: ComponentProps<typeof FileCommandMenu>;
   searchOpen: boolean;
   onInsertComponent: () => void;
+  userComponentsOpen: boolean;
+  onOpenUserComponents: () => void;
   onManageCells: () => void;
   placeProjectCell: CommandAction;
   selectionFilterOpen: boolean;
   onOpenSelectionFilter: () => void;
   onOpenSearch: () => void;
-  undo: CommandAction;
-  redo: CommandAction;
   deleteSelection: CommandAction;
   copySelectionImages: readonly LabeledCommandAction[];
   rotate: CommandAction;
@@ -57,7 +58,6 @@ export interface EditorAppChromeProps {
   alignmentActions: readonly AlignmentAction[];
   instanceCodeOpen: boolean;
   netlistPreflightOpen: boolean;
-  checkAndSave: CommandAction;
   onOpenInstanceCode: () => void;
   onOpenNetlistPreflight: () => void;
   onOpenNetlistConfiguration: () => void;
@@ -68,9 +68,6 @@ export interface EditorAppChromeProps {
   simulationState?: "closed" | "open" | "maximized" | "minimized";
   publishGalleryOpen: boolean;
   onPublishGallery: () => void;
-  helpButtonRef: RefObject<HTMLButtonElement | null>;
-  helpOpen: boolean;
-  onOpenHelp: () => void;
   drawingToolbar: ComponentProps<typeof DrawingToolbar>;
   hierarchyToolbar: ComponentProps<typeof HierarchyToolbar>;
   telemetry: ComponentProps<typeof EditorTestTelemetry>;
@@ -105,13 +102,13 @@ export function EditorAppChrome({
   fileCommands,
   searchOpen,
   onInsertComponent,
+  userComponentsOpen,
+  onOpenUserComponents,
   onManageCells,
   placeProjectCell,
   selectionFilterOpen,
   onOpenSelectionFilter,
   onOpenSearch,
-  undo,
-  redo,
   deleteSelection,
   copySelectionImages,
   rotate,
@@ -120,7 +117,6 @@ export function EditorAppChrome({
   alignmentActions,
   instanceCodeOpen,
   netlistPreflightOpen,
-  checkAndSave,
   onOpenInstanceCode,
   onOpenNetlistPreflight,
   netlistFormat,
@@ -131,9 +127,6 @@ export function EditorAppChrome({
   simulationState = "closed",
   publishGalleryOpen,
   onPublishGallery,
-  helpButtonRef,
-  helpOpen,
-  onOpenHelp,
   drawingToolbar,
   hierarchyToolbar,
   telemetry,
@@ -147,6 +140,13 @@ export function EditorAppChrome({
     dismissOpenCommandMenus();
     onExportNetlist(format);
   };
+  const hasSelectionActions =
+    deleteSelection.enabled ||
+    copySelectionImages.some((action) => action.enabled) ||
+    rotate.enabled ||
+    mirrorLeftRight.enabled ||
+    mirrorTopBottom.enabled ||
+    alignmentActions.length > 0;
   return (
     <header className="app-chrome">
       <div className="app-chrome-main">
@@ -270,27 +270,24 @@ export function EditorAppChrome({
                 </button>
                 <button
                   type="button"
+                  aria-haspopup="dialog"
+                  aria-expanded={userComponentsOpen}
+                  onClick={onOpenUserComponents}
+                >
+                  User Components…
+                </button>
+                <button
+                  type="button"
                   data-testid="edit-manage-cells"
                   onClick={onManageCells}
                 >
                   Manage Cells…
                 </button>
-                <button
-                  type="button"
-                  onClick={placeProjectCell.execute}
-                  disabled={!placeProjectCell.enabled}
-                >
-                  Place Cell from this Project…
-                </button>
-                <button
-                  type="button"
-                  data-testid="selection-filter-button"
-                  aria-haspopup="dialog"
-                  aria-expanded={selectionFilterOpen}
-                  onClick={onOpenSelectionFilter}
-                >
-                  Selection Filter… (Ctrl+F)
-                </button>
+                {placeProjectCell.enabled ? (
+                  <button type="button" onClick={placeProjectCell.execute}>
+                    Place Cell from this Project…
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   data-testid="project-search-button"
@@ -298,65 +295,43 @@ export function EditorAppChrome({
                   aria-expanded={searchOpen}
                   onClick={onOpenSearch}
                 >
-                  Search schematic… (Ctrl+Shift+F)
+                  Find in Circuit… (Ctrl+F)
                 </button>
-                <button
-                  type="button"
-                  onClick={undo.execute}
-                  disabled={!undo.enabled}
-                >
-                  Undo
-                </button>
-                <button
-                  type="button"
-                  onClick={redo.execute}
-                  disabled={!redo.enabled}
-                >
-                  Redo
-                </button>
-                <button
-                  type="button"
-                  onClick={deleteSelection.execute}
-                  disabled={!deleteSelection.enabled}
-                >
-                  Delete
-                </button>
-                <span className="command-group-label">Selection image</span>
-                {copySelectionImages.map((action) => (
-                  <button
-                    key={action.label}
-                    type="button"
-                    onClick={action.execute}
-                    disabled={!action.enabled}
-                  >
-                    {action.label}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={rotate.execute}
-                  disabled={!rotate.enabled}
-                >
-                  <ToolIcon name="rotate" />
-                  Rotate
-                </button>
-                <button
-                  type="button"
-                  onClick={mirrorLeftRight.execute}
-                  disabled={!mirrorLeftRight.enabled}
-                >
-                  Mirror left/right (Shift+R)
-                </button>
-                <button
-                  type="button"
-                  onClick={mirrorTopBottom.execute}
-                  disabled={!mirrorTopBottom.enabled}
-                >
-                  Mirror top/bottom (Ctrl+R)
-                </button>
-                {alignmentActions.length > 0 ? (
+                {hasSelectionActions ? (
                   <>
-                    <span className="command-group-label">Align</span>
+                    <span className="command-group-label">Selection</span>
+                    {deleteSelection.enabled ? (
+                      <button type="button" onClick={deleteSelection.execute}>
+                        Delete
+                      </button>
+                    ) : null}
+                    {copySelectionImages.map((action) =>
+                      action.enabled ? (
+                        <button
+                          key={action.label}
+                          type="button"
+                          onClick={action.execute}
+                        >
+                          {action.label}
+                        </button>
+                      ) : null,
+                    )}
+                    {rotate.enabled ? (
+                      <button type="button" onClick={rotate.execute}>
+                        <ToolIcon name="rotate" />
+                        Rotate
+                      </button>
+                    ) : null}
+                    {mirrorLeftRight.enabled ? (
+                      <button type="button" onClick={mirrorLeftRight.execute}>
+                        Mirror left/right (Shift+R)
+                      </button>
+                    ) : null}
+                    {mirrorTopBottom.enabled ? (
+                      <button type="button" onClick={mirrorTopBottom.execute}>
+                        Mirror top/bottom (Ctrl+R)
+                      </button>
+                    ) : null}
                     {alignmentActions.map((action) => (
                       <button
                         key={action.mode}
@@ -369,72 +344,52 @@ export function EditorAppChrome({
                     ))}
                   </>
                 ) : null}
+                <span className="command-group-label">Advanced</span>
+                <button
+                  type="button"
+                  data-testid="selection-filter-button"
+                  aria-haspopup="dialog"
+                  aria-expanded={selectionFilterOpen}
+                  onClick={onOpenSelectionFilter}
+                >
+                  Choose Selectable Objects… (Ctrl+Shift+F)
+                </button>
               </div>
             </details>
-            <div className="netlist-copy-group">
-              <button
-                type="button"
-                className="toolbar-button netlist-copy"
-                data-testid="copy-netlist"
-                aria-label="Copy netlist"
-                title={`Copy as-authored ${netlistFormat === "spice" ? "SPICE (.spi)" : "Spectre (.scs)"} netlist`}
-                onClick={() => copyNetlist(netlistFormat)}
-              >
-                <svg
-                  viewBox="0 0 20 20"
-                  className="tool-icon"
-                  aria-hidden="true"
+            <details className="command-menu" name="editor-command-menu">
+              <summary aria-label="Netlist" title="Netlist commands">
+                <ToolIcon name="netlist" />
+                <span>Netlist</span>
+              </summary>
+              <div className="command-popover">
+                <button
+                  type="button"
+                  data-testid="copy-netlist"
+                  title={`Copy as-authored ${netlistFormat === "spice" ? "SPICE (.spi)" : "Spectre (.scs)"} netlist`}
+                  onClick={() => copyNetlist(netlistFormat)}
                 >
-                  <path
-                    d="M7 7h10v10H7z M13 7V3H3v10h4"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                Netlist
-              </button>
-              <details className="command-menu" name="editor-command-menu">
-                <summary
-                  aria-label="Netlist"
-                  title="Netlist formats and checks"
-                />
-                <div className="command-popover">
-                  <button type="button" onClick={onOpenNetlistConfiguration}>
-                    Configuration…
-                  </button>
-                  <span className="command-group-label">Authoring</span>
-                  <button
-                    type="button"
-                    aria-expanded={instanceCodeOpen}
-                    onClick={onOpenInstanceCode}
-                  >
-                    Instances…
-                  </button>
-                  <span className="command-group-label">Check</span>
-                  <button
-                    type="button"
-                    aria-haspopup="dialog"
-                    aria-expanded={netlistPreflightOpen}
-                    onClick={() => onOpenNetlistPreflight()}
-                  >
-                    Check Report…
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="check-and-save"
-                    disabled={!checkAndSave.enabled}
-                    onClick={checkAndSave.execute}
-                    title={`Check ERC and visual issues, and save this ${fileCommands.projectStoreItemLabel}`}
-                  >
-                    <span className="toolbar-check-glyph" aria-hidden="true" />
-                    Check and Save
-                  </button>
-                </div>
-              </details>
-            </div>
+                  Copy Netlist
+                </button>
+                <button type="button" onClick={onOpenNetlistConfiguration}>
+                  Netlist Settings…
+                </button>
+                <button
+                  type="button"
+                  aria-expanded={instanceCodeOpen}
+                  onClick={onOpenInstanceCode}
+                >
+                  Edit Device Data…
+                </button>
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  aria-expanded={netlistPreflightOpen}
+                  onClick={() => onOpenNetlistPreflight()}
+                >
+                  Review Netlist Issues…
+                </button>
+              </div>
+            </details>
             {simulationAction ? (
               <button
                 type="button"
@@ -488,17 +443,22 @@ export function EditorAppChrome({
             surface="Editor"
             projectSchemaVersion={projectSchemaVersion}
           />
-          <button
-            type="button"
-            className="menubar-help"
-            ref={helpButtonRef}
-            aria-haspopup="dialog"
-            aria-expanded={helpOpen}
-            aria-controls="editor-help-dialog"
-            onClick={onOpenHelp}
+          <a
+            className="app-repository-link"
+            data-testid="editor-repository-link"
+            href={EDITOR_REPOSITORY_URL}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="GitHub repository"
+            title="GitHub repository"
           >
-            Help
-          </button>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.87c-2.78.6-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.35 1.09 2.92.83.09-.65.35-1.09.64-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.6 9.6 0 0 1 12 6.82a9.6 9.6 0 0 1 2.5.34c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.56 4.93.36.31.68.92.68 1.85v2.77c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"
+              />
+            </svg>
+          </a>
           <div className="tokenzhang-credit">
             <span className="tokenzhang-credit-kicker">Presented by</span>
             <a

@@ -1,3 +1,4 @@
+import type { GalleryAttention } from "../../../worker/gallery-curation";
 const GALLERY_CHANGE_CHANNEL = "analog-canvas-gallery-change-v1";
 
 export interface GalleryChange {
@@ -159,6 +160,9 @@ export function subscribeGalleryRefresh(
  */
 
 export interface GalleryFeedEntry {
+  curationRevision?: number;
+  attention?: GalleryAttention;
+  assessedPreviewRevision?: string;
   id: string;
   name: string;
   author: string;
@@ -197,25 +201,114 @@ export interface GalleryFeedState {
   total: number | null;
 }
 
+function normalizeGallerySearchText(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/\p{M}+/gu, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+/** One insertion, deletion, replacement, or adjacent transposition. */
+function galleryTokensWithinOneEdit(left: string, right: string): boolean {
+  const lengthDifference = left.length - right.length;
+  if (Math.abs(lengthDifference) > 1) return false;
+  if (left === right) return true;
+  if (lengthDifference === 0) {
+    const mismatches: number[] = [];
+    for (let index = 0; index < left.length; index++) {
+      if (left[index] === right[index]) continue;
+      mismatches.push(index);
+      if (mismatches.length > 2) return false;
+    }
+    if (mismatches.length === 1) return true;
+    const [first, second] = mismatches;
+    return (
+      second === first! + 1 &&
+      left[first!] === right[second!] &&
+      left[second!] === right[first!]
+    );
+  }
+  const shorter = lengthDifference < 0 ? left : right;
+  const longer = lengthDifference < 0 ? right : left;
+  let shorterIndex = 0;
+  let longerIndex = 0;
+  let skipped = false;
+  while (shorterIndex < shorter.length && longerIndex < longer.length) {
+    if (shorter[shorterIndex] === longer[longerIndex]) {
+      shorterIndex++;
+      longerIndex++;
+      continue;
+    }
+    if (skipped) return false;
+    skipped = true;
+    longerIndex++;
+  }
+  return true;
+}
+
+function gallerySearchTokenMatches(query: string, candidate: string): boolean {
+  if (candidate.includes(query)) return true;
+  // Keep short circuit acronyms precise: fuzzy matching OTA against every
+  // three-letter neighbour creates more noise than it removes.
+  if (query.length < 4 || candidate.length < 4) return false;
+  if (!/^[a-z0-9]+$/u.test(query) || !/^[a-z0-9]+$/u.test(candidate)) {
+    return false;
+  }
+  return galleryTokensWithinOneEdit(query, candidate);
+}
+
 /**
- * Whether one entry answers a search. Case-insensitive substring over the
- * fields a person would search by: what it is called, who drew it, what it
- * says about itself, and how it is tagged.
+ * Whether one entry answers a search over its name, author, description and
+ * tags. Exact case-insensitive containment wins first; otherwise every query
+ * word may tolerate one small Latin-letter typo.
  */
 export function galleryEntryMatchesQuery(
   entry: Pick<GalleryFeedEntry, "name" | "author" | "description" | "tags">,
-  normalizedQuery: string,
+  query: string,
 ): boolean {
+  const normalizedQuery = normalizeGallerySearchText(query);
   if (!normalizedQuery) return true;
-  return [entry.name, entry.author, entry.description, ...(entry.tags ?? [])]
+  const fields = [
+    entry.name,
+    entry.author,
+    entry.description,
+    ...(entry.tags ?? []),
+  ]
     .filter((field): field is string => Boolean(field))
-    .some((field) => field.toLowerCase().includes(normalizedQuery));
+    .map(normalizeGallerySearchText)
+    .filter(Boolean);
+  if (fields.some((field) => field.includes(normalizedQuery))) return true;
+  const candidates = fields.flatMap((field) => field.split(" "));
+  return normalizedQuery
+    .split(" ")
+    .every((token) =>
+      candidates.some((candidate) =>
+        gallerySearchTokenMatches(token, candidate),
+      ),
+    );
 }
 
 /** Tag menu entries, newest count first, as the wall's tag bar shows them. */
 export interface GalleryTagOption {
   tag: string;
   count: number;
+}
+
+export interface GalleryTagGroupOption {
+  group: string;
+  count: number;
+}
+
+export interface GalleryTagSummary {
+  tags: GalleryTagOption[];
+  groups: GalleryTagGroupOption[];
+}
+
+export interface GalleryLandingPreload {
+  feed?: Promise<GalleryFeedPage | null>;
+  tags: Promise<GalleryTagSummary>;
 }
 
 /** One public byline and its contribution to the whole Gallery wall. */
@@ -237,9 +330,11 @@ export async function loadGalleryFeed(
     /** Only circuits the signed-in viewer has liked. */
     liked?: boolean;
     limit?: number;
+    attention?: boolean;
   } = {},
 ): Promise<GalleryFeedPage | null> {
   const params = new URLSearchParams();
+  if (options.attention) params.set("attention", "1");
   if (options.author) params.set("author", options.author);
   if (options.ownerUserId) params.set("owner", options.ownerUserId);
   if (options.tags && options.tags.length > 0) {
@@ -290,22 +385,27 @@ export async function loadGalleryAuthors(
   }
 }
 
-/** The tag menu's options. An unreachable worker leaves the menu empty. */
-export async function loadGalleryTags(
+/** The grouped tag menu. An unreachable worker leaves the menu empty. */
+export async function loadGalleryTagSummary(
   fetchLike: typeof fetch = fetch,
-): Promise<GalleryTagOption[]> {
+): Promise<GalleryTagSummary> {
   try {
     const response = await fetchLike("/api/gallery/tags", {
       credentials: "same-origin",
     });
-    if (!response.ok) return [];
-    const payload = (await response.json()) as {
-      tags?: GalleryTagOption[];
-    };
-    return payload.tags ?? [];
+    if (!response.ok) return { tags: [], groups: [] };
+    const payload = (await response.json()) as Partial<GalleryTagSummary>;
+    return { tags: payload.tags ?? [], groups: payload.groups ?? [] };
   } catch {
-    return [];
+    return { tags: [], groups: [] };
   }
+}
+
+/** Backward-compatible tag-only reader for the Editor's narrow Gallery dock. */
+export async function loadGalleryTags(
+  fetchLike: typeof fetch = fetch,
+): Promise<GalleryTagOption[]> {
+  return (await loadGalleryTagSummary(fetchLike)).tags;
 }
 
 /**

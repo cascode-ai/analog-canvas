@@ -1,6 +1,9 @@
+import taxonomy from "../../../../../config/gallery-taxonomy.json";
 import { useEffect, useState } from "react";
 
 import type { SubmissionGateReport } from "@icm/derived";
+import type { CircuitProject } from "@icm/model";
+import { galleryTagLabel } from "../../gallery-tag-label";
 
 import {
   describePublishOutcome,
@@ -8,6 +11,7 @@ import {
   type GalleryPublishOutcome,
   type PublishSessionUser,
 } from "./gallery-publish";
+import { GalleryTopologyCheck } from "./gallery-topology-check";
 
 export interface PublishGalleryDialogProps {
   defaultName: string;
@@ -15,6 +19,8 @@ export interface PublishGalleryDialogProps {
   session?: PublishSessionUser | null;
   /** Quality-gate evaluation of the live Project. */
   gateReport?: SubmissionGateReport | null;
+  /** Current Cell projected as the duplicate-comparison root. */
+  topologyProject?: CircuitProject | null;
   /** Present when the current Project is associated with a gallery entry the
    * signed-in user may update (owner, admin, or moderator). */
   updateTarget?: { id: string; name: string } | null;
@@ -67,6 +73,7 @@ export function PublishGalleryDialog({
   defaultName,
   session = null,
   gateReport = null,
+  topologyProject = null,
   updateTarget = null,
   updateDefaults = null,
   publish,
@@ -125,7 +132,7 @@ export function PublishGalleryDialog({
     const tag = raw.replace(/\s+/gu, " ").trim().toLowerCase();
     if (!tag) return;
     setTags((previous) =>
-      previous.includes(tag) || previous.length >= 5
+      previous.includes(tag) || previous.length >= 12
         ? previous
         : [...previous, tag],
     );
@@ -275,7 +282,8 @@ export function PublishGalleryDialog({
               </label>
               <div className="publish-gallery-tags" data-testid="publish-tags">
                 <span className="publish-gallery-tags-label">
-                  Tags <span className="publish-gallery-optional">up to 5</span>
+                  Tags{" "}
+                  <span className="publish-gallery-optional">up to 12</span>
                 </span>
                 {tags.length > 0 ? (
                   <div className="publish-gallery-tag-chips">
@@ -292,7 +300,7 @@ export function PublishGalleryDialog({
                           )
                         }
                       >
-                        {tag} ×
+                        {galleryTagLabel(tag)} ×
                       </button>
                     ))}
                   </div>
@@ -302,7 +310,7 @@ export function PublishGalleryDialog({
                   aria-label="Add tag"
                   placeholder="Type a tag and press Enter"
                   value={tagDraft}
-                  maxLength={24}
+                  maxLength={32}
                   onChange={(event) => setTagDraft(event.currentTarget.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === ",") {
@@ -313,17 +321,13 @@ export function PublishGalleryDialog({
                   onBlur={() => addTag(tagDraft)}
                 />
                 <div className="publish-gallery-tag-presets">
-                  {[
-                    "amplifier",
-                    "comparator",
-                    "adc",
-                    "dac",
-                    "pll",
-                    "oscillator",
-                    "filter",
-                    "current mirror",
-                  ]
-                    .filter((preset) => !tags.includes(preset))
+                  {[...new Set(Object.values(taxonomy.tagsByGroup).flat())]
+                    .filter(
+                      (preset) =>
+                        !tags.includes(preset) &&
+                        preset.includes(tagDraft.trim().toLowerCase()),
+                    )
+                    .slice(0, 12)
                     .map((preset) => (
                       <button
                         key={preset}
@@ -331,7 +335,7 @@ export function PublishGalleryDialog({
                         data-testid={`publish-preset-${preset.replace(/\s/gu, "-")}`}
                         onClick={() => addTag(preset)}
                       >
-                        + {preset}
+                        + {galleryTagLabel(preset)}
                       </button>
                     ))}
                 </div>
@@ -372,6 +376,9 @@ export function PublishGalleryDialog({
           <button type="button" disabled={busy} onClick={onClose}>
             {signedOut ? "Close" : "Cancel"}
           </button>
+          {!signedOut && topologyProject ? (
+            <GalleryTopologyCheck project={topologyProject} />
+          ) : null}
           {signedOut ? null : (
             <button
               type="button"

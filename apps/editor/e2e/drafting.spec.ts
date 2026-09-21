@@ -834,7 +834,6 @@ test("T previews text at the pointer without creating it and Escape cancels", as
   expect(expected.x % 10 !== 0 || expected.y % 10 !== 0).toBe(true);
 
   await page.keyboard.press("t");
-  await expect(page.getByTestId("canvas-empty-state")).toHaveCount(0);
   const preview = page.getByTestId("text-placement-preview");
   await expect(preview).toBeVisible();
   await expect(preview).toHaveText("Design note");
@@ -864,7 +863,6 @@ test("T previews text at the pointer without creating it and Escape cancels", as
   await expect(page.locator('[data-kind="draft-text"]')).toHaveCount(0);
   await expect(page.getByTestId("revision")).toHaveText("0");
   await expect(page.getByTestId("draw-tool-undo")).toBeDisabled();
-  await expect(page.getByTestId("canvas-empty-state")).toBeVisible();
 
   // The toolbar uses the same cancellable placement, then lets a new tool take over.
   await clickDrawTool(page, "text");
@@ -994,12 +992,12 @@ test("places Text at its preview after zoom and pan, then edits and undoes it", 
   expect(svg).toContain("Custom text");
   expect(svg).not.toContain(`rotate(90 ${expected.x} ${expected.y})`);
   expect(svg).not.toContain("text-placement-preview");
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(texts).toHaveText("Design note");
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(texts).toHaveCount(0);
-  await clickCommand(page, "Edit", "Redo");
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
+  await page.getByTestId("draw-tool-redo").click();
   await expect(texts).toHaveText("Custom text");
 });
 
@@ -2374,9 +2372,9 @@ test("converts a selected slash fraction and mixes multiple fractions in one not
   await expect(
     note.locator('[data-role="fraction-numerator"] text').first(),
   ).toHaveCSS("font-weight", "400");
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(note).toHaveText("Design note");
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   await expect(note.locator('[data-role="fraction-bar"]')).toHaveCount(2);
 });
 

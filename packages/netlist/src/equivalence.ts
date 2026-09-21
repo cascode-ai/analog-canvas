@@ -1,14 +1,20 @@
-import { deviceDescriptor } from "@icm/devices";
+import { deviceDescriptor, resolveReviewedExternalBinding } from "@icm/devices";
 import type { CircuitProject } from "@icm/model";
 import { parseSpiceNumber } from "@icm/spice";
 import { analyzeDesignNetlistForAuthoring } from "./extract.js";
-import type { DesignNetlistIR, DesignNetlistParameter } from "./ir.js";
+import type {
+  DesignNetlistIR,
+  DesignNetlistInstance,
+  DesignNetlistParameter,
+} from "./ir.js";
 
 export interface ElectricalGraph {
   labels: string[];
   edges: number[][];
   /** Candidate index only. Equality is NEVER evidence of equivalence. */
   bucket: string;
+  /** Semantic identities for topology search only; exact duplicate labels stay intact. */
+  topologyLabels?: string[];
 }
 
 export type ElectricalGraphResult =
@@ -69,16 +75,19 @@ function parameters(values: DesignNetlistParameter[]): string {
 /** Layout-free graph of the emitted devices, with paramless hierarchy expanded. */
 export function electricalGraphFromIR(
   ir: DesignNetlistIR,
+  sourceSymbols: ReadonlyMap<DesignNetlistInstance, string> = new Map(),
 ): ElectricalGraphResult {
   try {
     const labels: string[] = [];
+    const topologyLabels: string[] = [];
     const adjacency: Set<number>[] = [];
     const parent: number[] = [];
-    const vertex = (label: string) => {
+    const vertex = (label: string, topology = topologyLabel(label)) => {
       if (labels.length >= 3000)
         throw new Error("Circuit exceeds the comparison size limit");
       const id = labels.length;
       labels.push(label);
+      topologyLabels.push(topology);
       adjacency.push(new Set());
       parent.push(id);
       return id;
@@ -160,6 +169,22 @@ export function electricalGraphFromIR(
           );
           continue;
         }
+        const reviewed =
+          instance.invocationKind === "subcircuit" && instance.target
+            ? resolveReviewedExternalBinding(
+                instance.target,
+                instance.nodes.map((node) => node.pinName),
+              )
+            : undefined;
+        const symbol = reviewed?.symbolId ?? sourceSymbols.get(instance);
+        const descriptor = symbol ? deviceDescriptor(symbol) : undefined;
+        const topologyClass = reviewed?.deviceClass ?? instance.deviceClass;
+        const topologyTarget =
+          topologyClass === "mos" && descriptor?.mosBulkClass
+            ? descriptor.mosBulkClass
+            : topologyClass === "bjt" && (symbol === "npn" || symbol === "pnp")
+              ? symbol
+              : instance.target;
         const device = vertex(
           JSON.stringify([
             "device",
@@ -184,6 +209,14 @@ export function electricalGraphFromIR(
                   .sort() ?? [])
               : [],
           ]),
+          topologyLabel(
+            JSON.stringify([
+              "device",
+              topologyClass,
+              reviewed ? "primitive" : instance.invocationKind,
+              topologyTarget,
+            ]),
+          ),
         );
         const symmetric =
           instance.invocationKind === "primitive" &&
@@ -192,6 +225,11 @@ export function electricalGraphFromIR(
           // External black boxes bind by position; MOS D/G/S/B are distinct.
           const pin = vertex(
             `pin:${symmetric ? "passive" : instance.invocationKind === "subcircuit" ? index : node.pinName}`,
+            reviewed
+              ? topologyLabel(`pin:${reviewed.terminals[index]!.pinName}`)
+              : topologyLabel(
+                  `pin:${symmetric ? "passive" : instance.invocationKind === "subcircuit" ? index : node.pinName}`,
+                ),
           );
           edge(device, pin);
           edge(pin, net(node.netName));
@@ -215,6 +253,7 @@ export function electricalGraphFromIR(
       status: "ready",
       graph: {
         labels: compactLabels,
+        topologyLabels: roots.map((id) => topologyLabels[id]!),
         edges: edges.map((neighbors) => [...neighbors].sort((a, b) => a - b)),
         bucket: JSON.stringify(
           compactLabels
@@ -255,12 +294,14 @@ export function projectElectricalGraph(
       status: "uncheckable",
       reason: errors[0]?.message ?? "No usable netlist",
     };
+  const sourceSymbols = new Map<DesignNetlistInstance, string>();
   for (const cell of result.ir.cells) {
     const document = project.documents.find((item) => item.id === cell.id);
     for (const instance of cell.instances) {
       const source = document?.instances.find(
         (item) => item.id === instance.id,
       );
+      if (source) sourceSymbols.set(instance, source.symbolId);
       if (!instance.target && source) {
         const descriptor = deviceDescriptor(source.symbolId);
         if (descriptor?.targetPolicy === "required-model") {
@@ -270,7 +311,7 @@ export function projectElectricalGraph(
       }
     }
   }
-  return electricalGraphFromIR(result.ir);
+  return electricalGraphFromIR(result.ir, sourceSymbols);
 }
 
 /** Exact colored-graph bijection. A budget exhaustion is explicitly unknown. */
@@ -387,14 +428,16 @@ function topologyLabel(label: string): string {
           ? "p"
           : /(?:^|[^a-z])(?:nmos|nfet|n-fet)|unset:nmos/u.test(target)
             ? "n"
-            : "unknown"
+            : `model:${target}`
         : deviceClass === "bjt"
           ? target.includes("pnp")
             ? "pnp"
             : target.includes("npn")
               ? "npn"
-              : "unknown"
-          : null;
+              : `model:${target}`
+          : deviceClass === "hierarchical"
+            ? value[3]
+            : null;
     // Models and values are exact-duplicate evidence, but not topology. Keep
     // the emitted device class, invocation kind and recognizable transistor
     // polarity so differently sized/modelled NMOS stages remain close without
@@ -406,7 +449,7 @@ function topologyLabel(label: string): string {
 }
 
 function topologyGraph(graph: ElectricalGraph): ElectricalGraph {
-  const labels = graph.labels.map(topologyLabel);
+  const labels = graph.topologyLabels ?? graph.labels.map(topologyLabel);
   return {
     labels,
     edges: graph.edges,
@@ -460,7 +503,7 @@ export function electricalGraphTopologySimilarity(
   b: ElectricalGraph,
 ): number {
   const leftSize = a.labels.length;
-  const labels = [...a.labels, ...b.labels].map(topologyLabel);
+  const labels = [...topologyGraph(a).labels, ...topologyGraph(b).labels];
   const edges = [
     ...a.edges,
     ...b.edges.map((neighbors) =>

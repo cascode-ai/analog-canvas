@@ -87,6 +87,10 @@ describe("shapes quick-place", () => {
     );
     expect(markup).toContain('aria-label="Place N-channel DMOS"');
     expect(markup).toContain('aria-label="Place P-channel DMOS"');
+    expect(markup).toContain('aria-label="Place Bias Voltage Port"');
+    expect(markup).toContain(
+      'title="A solid bias-voltage port, typically used for VB-style bias nodes"',
+    );
     expect(markup).toContain(
       'aria-label="Place Discrete-Time Integrator (z⁻¹/(1−z⁻¹))"',
     );
@@ -99,6 +103,8 @@ describe("shapes quick-place", () => {
     expect(markup).not.toContain(">Comp U</span>");
     expect(markup).toContain(">NOR</span>");
     expect(markup).toContain(">DT Int</span>");
+    expect(markup).toContain(">Bias</span>");
+    expect(markup).not.toContain(">Pin •</span>");
     expect(markup).not.toContain('data-testid="shapes-example-');
   });
 
@@ -205,7 +211,7 @@ describe("shapes quick-place", () => {
     });
   });
 
-  it("places both Cell Pin artworks without a setup dialog", () => {
+  it("places the Cell Pin and Bias Voltage Port without a setup dialog", () => {
     expect(quickPlaceRequest("razavi", "port")).toMatchObject({
       kind: "symbol",
       symbolId: "port",
@@ -214,6 +220,7 @@ describe("shapes quick-place", () => {
     });
     expect(quickPlaceRequest("razavi", "port-filled")).toMatchObject({
       symbolId: "port-filled",
+      symbolName: "Bias Voltage Port",
       portDirection: "passive",
     });
     expect(quickPlaceRequest("razavi", "cell-pin")).toBeNull();

@@ -14,8 +14,8 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
     value,
     label: value === 1 ? "Default · 1×" : `${value}×`,
   }));
-  const netOptions = [
-    { value: null, label: "None" },
+  const netOptions = (emptyLabel: string) => [
+    { value: null, label: emptyLabel },
     ...logicalNetChoices(document).map((choice) => ({
       value: choice.netId,
       label: choice.label,
@@ -32,19 +32,40 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
     })),
     {
       path: "bulkDefaults.nmosNet",
-      label: "Default NMOS bulk Net",
+      label: "NMOS bulk Net (usually VSS)",
       kind: "choice",
-      options: netOptions,
+      options: netOptions("Not set · choose after VSS exists"),
       description: "",
-      help: "Choose a Logical Net from the current Cell",
+      help: "Choose the lowest supply Net in this Cell; GND is correct only when it is also VSS",
     },
     {
       path: "bulkDefaults.pmosNet",
-      label: "Default PMOS bulk Net",
+      label: "PMOS bulk Net (usually VDD)",
       kind: "choice",
-      options: netOptions,
+      options: netOptions("Not set · choose after VDD exists"),
       description: "",
-      help: "Choose a Logical Net from the current Cell",
+      help: "Choose the highest supply Net in this Cell, usually VDD",
+    },
+    {
+      path: "portLabels.suffixCase",
+      label: "Port label suffix case",
+      kind: "choice",
+      options: [
+        { value: "preserve", label: "Keep typed case" },
+        { value: "uppercase", label: "UPPERCASE" },
+        { value: "lowercase", label: "lowercase" },
+      ],
+      description: "",
+    },
+    {
+      path: "portLabels.suffixPlacement",
+      label: "Port label suffix placement",
+      kind: "choice",
+      options: [
+        { value: "subscript", label: "Subscript" },
+        { value: "baseline", label: "Baseline" },
+      ],
+      description: "",
     },
     {
       path: "canvas.showGrid",

@@ -5,15 +5,18 @@
  * but they are not commands a user can invoke.
  *
  * Keep this beside the resolver so adding a keyboard command and documenting
- * it are one change. Quick Start renders the complete list rather than a
+ * it are one change. Canvas Hints renders the complete list rather than a
  * separately curated subset.
  */
 export const EDITOR_SHORTCUT_REFERENCE = [
-  { keys: ["Ctrl/Cmd", "F"], action: "Selection filter" },
-  { keys: ["Ctrl/Cmd", "Shift", "F"], action: "Search circuit" },
+  { keys: ["Ctrl/Cmd", "F"], action: "Find in circuit" },
+  { keys: ["Ctrl/Cmd", "Shift", "F"], action: "Choose selectable objects" },
   { keys: ["F"], action: "Fit view" },
   { keys: ["Home"], action: "Fit view" },
   { keys: ["Arrow keys"], action: "Pan view" },
+  { keys: ["G"], action: "Toggle Gallery" },
+  { keys: ["B"], action: "Toggle Component Library" },
+  { keys: ["N"], action: "Toggle Netlist" },
   { keys: ["I"], action: "Insert component" },
   { keys: ["P"], action: "Place Cell Pin" },
   { keys: ["W"], action: "Draw wire" },

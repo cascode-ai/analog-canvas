@@ -12,8 +12,9 @@ Instance requires it, displays it through a live `instance-reference`
 Annotation, and emits the same token. Descriptive attached RichText is an
 ordinary literal Annotation with no identity or emission authority. A
 Cell Pin is identified by its own stable terminal identity and displays its
-Port Name, such as `Vout`; `port` and `port-filled` are only hollow and filled
-artwork variants for that independent interface declaration.
+Port Name, such as `Vout`. The hollow `port` presents the ordinary Cell Pin;
+the solid `port-filled` presents a Bias Voltage Port. Both persist the same
+kind of independent interface declaration for compatibility.
 Its bound annotation may persist same-text RichText formatting but cannot store
 a divergent alias. Equal Port Names remain separate physical Base Nets in the
 saved drawing but resolve into the same Logical Net. Drafting

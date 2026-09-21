@@ -49,7 +49,7 @@ describe("netlist authoring", () => {
     expect(instanceIdPrefix("inductor")).toBe("L");
   });
 
-  it("allocates hollow and filled Cell Pin names from separate sequences", () => {
+  it("allocates Cell Pin and Bias Voltage Port names from separate sequences", () => {
     const document = createEmptyDocument("main", "Main");
     document.netlist = {
       name: "Main",
@@ -57,13 +57,21 @@ describe("netlist authoring", () => {
       terminals: [],
     };
 
-    expect(nextCellPinName(document)).toBe("Vin");
+    expect(nextCellPinName(document)).toBe("Vinp");
     document.netlist.terminals.push({
       id: "terminal-in",
-      name: "Vin",
+      name: "Vinp",
       netId: "net-in",
       direction: "input",
       interfaceInstanceIds: ["P1"],
+    });
+    expect(nextCellPinName(document)).toBe("Vinn");
+    document.netlist.terminals.push({
+      id: "terminal-in-n",
+      name: "Vinn",
+      netId: "net-in-n",
+      direction: "input",
+      interfaceInstanceIds: ["P2"],
     });
     expect(nextCellPinName(document)).toBe("Vout");
     document.netlist.terminals.push({
@@ -71,9 +79,9 @@ describe("netlist authoring", () => {
       name: "Vout",
       netId: "net-out",
       direction: "output",
-      interfaceInstanceIds: ["P2"],
+      interfaceInstanceIds: ["P3"],
     });
-    expect(nextCellPinName(document)).toBe("Vin2");
+    expect(nextCellPinName(document)).toBe("Vin2p");
     expect(nextCellPinName(document, new Set(), "filled")).toBe("VB1");
     expect(nextCellPinName(document, new Set(["vb1"]), "filled")).toBe("VB2");
   });

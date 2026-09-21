@@ -52,9 +52,7 @@ const label = (page: import("@playwright/test").Page) =>
 
 test("selects an export entry independently of saved Top and edits only that Cell", async ({
   page,
-  context,
 }) => {
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const project = fixture();
   const child = structuredClone(project.documents[0]!);
   child.id = "child";
@@ -79,14 +77,7 @@ test("selects an export entry independently of saved Top and edits only that Cel
   await expect(page.getByTestId("document-selector")).toHaveValue(
     project.topDocumentId,
   );
-  await page.getByTestId("copy-netlist-panel").click();
-  await expect
-    .poll(async () =>
-      (await page.evaluate(() => navigator.clipboard.readText()))
-        .replace(/\r\n/g, "\n")
-        .trim(),
-    )
-    .toBe((await code.innerText()).replace(/\r\n/g, "\n").trim());
+  await expect(page.getByTestId("copy-netlist-panel")).toHaveCount(0);
   await code.fill((await code.innerText()).replace("20k", "30k"));
   await code.press("Enter");
   await expect(entry).toBeEnabled();
@@ -101,11 +92,9 @@ test("selects an export entry independently of saved Top and edits only that Cel
   await expect(code).not.toContainText("30k");
 });
 
-test("restores process and device choices, applies defaults and keeps copy/edit/undo consistent", async ({
+test("restores process and device choices, applies defaults and keeps edit/undo consistent", async ({
   page,
-  context,
 }) => {
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/editor?example=current-mirror-loaded-differential-pair");
   await awaitEditorReady(page);
   const code = page.getByLabel("Netlist code", { exact: true });
@@ -123,10 +112,10 @@ test("restores process and device choices, applies defaults and keeps copy/edit/
   await expect(code).toContainText("sky130_fd_pr__nfet_01v8");
   await expect(code).toContainText("XM1");
   await expect(mosLabel).toHaveText("M1");
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(code).toContainText("NMOS");
   await expect(code).not.toContainText("XM1");
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   await expect(code).toContainText("XM1");
   await expect(mosLabel).toHaveText("M1");
   await page
@@ -140,12 +129,7 @@ test("restores process and device choices, applies defaults and keeps copy/edit/
   await expect(code).toContainText("sky130_fd_pr__nfet_01v8_lvt");
   await expect(code).not.toContainText("XM1");
   await expect(mosLabel).toHaveText("M1");
-  await page.getByTestId("copy-netlist-panel").click();
-  const nonemptyLines = (text: string) =>
-    text.split(/\r?\n/u).filter((line) => line.trim());
-  expect(
-    nonemptyLines(await page.evaluate(() => navigator.clipboard.readText())),
-  ).toEqual(nonemptyLines(await code.innerText()));
+  await expect(page.getByTestId("copy-netlist-panel")).toHaveCount(0);
   const saved = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
       "utf8",
@@ -157,7 +141,7 @@ test("restores process and device choices, applies defaults and keeps copy/edit/
         definition.name === "sky130_fd_pr__nfet_01v8_lvt",
     ),
   ).toBe(true);
-  await clickCommand(page, "Netlist", "Configuration…");
+  await clickCommand(page, "Netlist", "Netlist Settings…");
   const configuration = page.getByLabel("Netlist configuration JSON");
   const preferences = JSON.parse(await configuration.inputValue());
   preferences.format = "spice";
@@ -174,7 +158,7 @@ test("restores process and device choices, applies defaults and keeps copy/edit/
   await code.press("Enter");
   await expect(mosLabel).toHaveText("M_load");
   await expect(code).toContainText("XM_load");
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(mosLabel).toHaveText("M1");
   await expect(code).toContainText("XM1");
   await page
@@ -336,10 +320,10 @@ test("opens editable netlist by default, highlights a card, and synchronizes nam
   expect(instance.placement).toEqual(
     fixture().documents[0]!.instances[0]!.placement,
   );
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(label(page)).toContainText("R1");
   await expect(code).toContainText("10k");
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   await expect(label(page)).toContainText("R_load");
   await page.getByLabel("Netlist format").selectOption("spectre");
   await expect(code).toContainText("simulator lang=spectre");

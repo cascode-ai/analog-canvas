@@ -55,12 +55,6 @@ export const LazyVersionHistoryDialog = lazyChunk("dialog", () =>
   })),
 );
 
-export const LazyEditorHelpDialog = lazyChunk("dialog", () =>
-  import("../components/editor-help-dialog").then((module) => ({
-    default: module.EditorHelpDialog,
-  })),
-);
-
 export const LazyReplaceGuardDialog = lazyChunk("dialog", () =>
   import("../components/replace-guard-dialog").then((module) => ({
     default: module.ReplaceGuardDialog,

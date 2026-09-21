@@ -25,49 +25,38 @@ test("keeps editor chrome typography from suppressing SVG italics", async ({
   ).not.toBe("none");
 });
 
-test("dismisses Help with Escape or a backdrop pointer", async ({ page }) => {
-  await page.goto("/editor");
-  const help = page.getByRole("dialog", { name: "Help" });
-
-  await page.getByRole("button", { name: "Help" }).click();
-  await expect(help).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(help).toHaveCount(0);
-
-  await page.getByRole("button", { name: "Help" }).click();
-  await expect(help).toBeVisible();
-  await page.locator(".help-backdrop").click({ position: { x: 4, y: 4 } });
-  await expect(help).toHaveCount(0);
-});
-
-test("carries the version and project resource links inside Help", async ({
+test("links GitHub from the upper chrome and Change Log from the statusbar", async ({
   page,
 }) => {
   await page.goto("/editor");
-  // About and Help said the same thing from two entries; About now lives as a
-  // section of Help.
+  await expect(page.getByRole("button", { name: "Help" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "About" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Help" }).click();
+  await expect(page.getByRole("dialog", { name: "Help" })).toHaveCount(0);
 
-  const about = page.getByRole("dialog");
-  await expect(about).toContainText("About Analog Canvas");
-  await expect(about).toContainText("Version 0.9.2");
-  const repositoryLink = about.getByRole("link", { name: "Repository" });
+  const repositoryLink = page.getByTestId("editor-repository-link");
+  await expect(repositoryLink).toBeVisible();
   await expect(repositoryLink).toHaveAttribute(
     "href",
     "https://github.com/cascode-ai/analog-canvas",
   );
   await expect(repositoryLink).toHaveAttribute("target", "_blank");
-  await expect(about.getByRole("link", { name: "Change Log" })).toHaveAttribute(
+  await expect(
+    page.locator(".app-chrome-actions").getByTestId("editor-repository-link"),
+  ).toBeVisible();
+
+  const changeLog = page.getByTestId("statusbar-change-log");
+  await expect(changeLog).toBeVisible();
+  await expect(changeLog).toHaveAttribute(
     "href",
     "https://github.com/cascode-ai/analog-canvas/commits/main",
   );
-  await expect(about.getByRole("link", { name: "Owner" })).toHaveAttribute(
+  await expect(
+    page.locator(".app-statusbar").getByTestId("statusbar-change-log"),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "TokenZhang" })).toHaveAttribute(
     "href",
-    "https://www.tokenzhang.com",
+    "https://tokenzhang.com",
   );
-  await page.keyboard.press("Escape");
-  await expect(about).toHaveCount(0);
 });
 
 test("keeps Gallery Library Netlist and Project Code together on the left at full and half width", async ({

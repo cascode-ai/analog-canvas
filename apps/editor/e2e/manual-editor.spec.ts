@@ -423,7 +423,7 @@ test("property code keeps a drawn wired instance visible and moves it with grid 
   await setComponentCodeField(page, "coordinate", [421, 281]);
   await expect(page.getByTestId("hit-R1")).toHaveCount(1);
   await expectComponentCodeField(page, "coordinate", [420, 280]);
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(page.getByTestId("hit-R1")).toHaveCount(1);
   await expectComponentCodeField(page, "coordinate", [
     before.documents[0].instances[0].placement.position.x,
@@ -1233,10 +1233,10 @@ test("P shortcut starts Cell Pin placement", async ({ page }) => {
   await canvas.hover({ position: { x: 320, y: 180 } });
   await expect(page.getByTestId("component-placement-preview")).toBeVisible();
   await canvas.click({ position: { x: 320, y: 180 } });
-  await expect(page.getByTestId("status")).toContainText("Added Cell Pin Vin");
+  await expect(page.getByTestId("status")).toContainText("Added Cell Pin Vinp");
   await expect(page.getByTestId("hit-P1")).toBeVisible();
   const inputLabel = page.locator('[data-object-id="instance-label-P1"]');
-  await expect(inputLabel).toHaveText("Vin");
+  await expect(inputLabel).toHaveText("Vinp");
   await expect(
     inputLabel.locator(
       '[data-text-run="span"][style*="font-style:italic"][style*="font-weight:700"]',
@@ -1246,26 +1246,30 @@ test("P shortcut starts Cell Pin placement", async ({ page }) => {
     inputLabel.locator(
       '[data-text-run="subscript"] [data-text-run="span"][style*="font-style:normal"][style*="font-weight:700"]',
     ),
-  ).toHaveText("in");
+  ).toHaveText("inp");
 
   await canvas.click({ position: { x: 520, y: 180 } });
-  await expect(page.getByTestId("status")).toContainText("Added Cell Pin Vout");
+  await expect(page.getByTestId("status")).toContainText("Added Cell Pin Vinn");
   const outputLabel = page.locator('[data-object-id="instance-label-P2"]');
-  await expect(outputLabel).toHaveText("Vout");
+  await expect(outputLabel).toHaveText("Vinn");
   await expect(outputLabel.locator('[data-text-run="subscript"]')).toHaveText(
-    "out",
+    "inn",
   );
   await page.keyboard.press("Escape");
 
   await chooseComponent(page, "port-filled");
   await expect(page.getByTestId("component-placement-preview")).toBeVisible();
   await canvas.click({ position: { x: 320, y: 260 } });
-  await expect(page.getByTestId("status")).toContainText("Added Cell Pin VB1");
+  await expect(page.getByTestId("status")).toContainText(
+    "Added Bias Voltage Port VB1",
+  );
   await page.keyboard.press("Escape");
   await chooseComponent(page, "port-filled");
   await expect(page.getByTestId("component-placement-preview")).toBeVisible();
   await canvas.click({ position: { x: 520, y: 260 } });
-  await expect(page.getByTestId("status")).toContainText("Added Cell Pin VB2");
+  await expect(page.getByTestId("status")).toContainText(
+    "Added Bias Voltage Port VB2",
+  );
   await page.keyboard.press("Escape");
   const firstBias = page.locator('[data-object-id="instance-label-P3"]');
   const secondBias = page.locator('[data-object-id="instance-label-P4"]');
@@ -1382,7 +1386,7 @@ test("Ctrl+R mirrors a selected component instead of refreshing", async ({
   });
 });
 
-test("treats hollow and filled Cell Pins as equivalent interface variants", async ({
+test("authors Cell Pins and Bias Voltage Ports as independent interfaces", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -2168,14 +2172,14 @@ test("changes wire line style while preserving color, arrow, export and undo", a
   await expect
     .poll(() => routeInk(page, "route-ui-1", "stroke-dasharray"))
     .toBe("2 3");
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   expect(
     JSON.parse(await readComponentPropertyCode(page)).appearance.lineStyle,
   ).toBe("dashed");
   await expect
     .poll(() => routeInk(page, "route-ui-1", "stroke-dasharray"))
     .toBe("6 4");
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   expect(
     JSON.parse(await readComponentPropertyCode(page)).appearance.lineStyle,
   ).toBe("dotted");
@@ -2474,12 +2478,6 @@ test("keeps Bulk status and its prominent draw action on one compact row", async
   expect(layout.height).toBeLessThan(58);
   expect(Math.abs(layout.headingY - layout.actionY)).toBeLessThan(2);
 
-  // Bulk is the first section in the panel, not buried under the tray.
-  const firstSection = await page
-    .locator(".selection-panel section")
-    .first()
-    .getAttribute("aria-label");
-  expect(firstSection).toBe("MOS bulk connection");
   await draw.click();
   await expect(page.getByTestId("status")).toContainText(
     "Drawing M1.B bulk connection",
@@ -2834,7 +2832,7 @@ test("connects copied multi-pin groups through a manually bent wire", async ({
     .toContain(`"revision": ${revision}`);
   await page.reload();
   const fileMenu = await openMenu(page, "File");
-  await fileMenu.getByRole("button", { name: "Recover Local Work…" }).click();
+  await fileMenu.getByRole("button", { name: "Recover Unsaved Work…" }).click();
   await page
     .getByRole("dialog", { name: "Recover recent work" })
     .getByRole("button", { name: "Restore" })
@@ -3231,7 +3229,7 @@ test("applies Route name, scope, and appearance from one JSON edit", async ({
       },
     }),
   );
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(page.getByTestId("revision")).toHaveText(String(revision + 2));
   expect(JSON.parse(await readComponentPropertyCode(page))).toMatchObject({
     type: "wire",
@@ -3803,7 +3801,7 @@ test("L labels a selected wire or snaps near an unselectable wire", async ({
   await expect(page.getByTestId("flightline")).toHaveCount(0);
 
   // Selection Filter must not disable an electrical creation target.
-  await page.keyboard.press("Control+f");
+  await page.keyboard.press("Control+Shift+f");
   const filter = page.getByTestId("selection-filter-popover");
   await filter.getByRole("button", { name: "None" }).click();
   await filter.getByRole("button", { name: "Close" }).click();
@@ -4758,17 +4756,40 @@ test("edits the complete Project Code with one undo boundary and protects a stal
   await expect(projectCode).toContainText('"name": "Canvas changed"');
 });
 
-test("shows the component-library tooltip without a native hover delay", async ({
+test("keeps panel tooltips visible and exposes panel keyboard shortcuts", async ({
   page,
 }) => {
   await page.goto("/editor");
-  const library = page.getByTestId("library-toggle");
-  if ((await library.getAttribute("aria-pressed")) === "true") {
-    await library.click();
+  const gallery = page.getByTestId("examples-toggle");
+  await expect(gallery).not.toHaveAttribute("title");
+  await expect(gallery).toHaveAttribute("aria-keyshortcuts", "G");
+  await gallery.hover();
+  const tooltip = page.getByRole("tooltip");
+  await expect(tooltip).toContainText("circuit gallery");
+  await expect(tooltip).toContainText("(G)");
+  const tooltipBounds = await tooltip.boundingBox();
+  expect(tooltipBounds).not.toBeNull();
+  expect(tooltipBounds!.x).toBeGreaterThanOrEqual(8);
+  expect(tooltipBounds!.x + tooltipBounds!.width).toBeLessThanOrEqual(
+    await page.evaluate(() => window.innerWidth - 8),
+  );
+
+  const shortcuts = [
+    ["g", "examples-toggle"],
+    ["b", "library-toggle"],
+    ["n", "netlist-panel-toggle"],
+  ] as const;
+  for (const [key, testId] of shortcuts) {
+    const toggle = page.getByTestId(testId);
+    const initialPressed = await toggle.getAttribute("aria-pressed");
+    await page.keyboard.press(key);
+    await expect(toggle).toHaveAttribute(
+      "aria-pressed",
+      initialPressed === "true" ? "false" : "true",
+    );
+    await page.keyboard.press(key);
+    await expect(toggle).toHaveAttribute("aria-pressed", initialPressed!);
   }
-  await expect(library).not.toHaveAttribute("title");
-  await library.hover();
-  await expect(page.getByRole("tooltip")).toHaveText("Show component library");
 });
 
 test("uses automatic recovery and guards shortcuts while typing", async ({
@@ -4783,7 +4804,7 @@ test("uses automatic recovery and guards shortcuts while typing", async ({
 
   await page.reload();
   const fileMenu = await openMenu(page, "File");
-  await fileMenu.getByRole("button", { name: "Recover Local Work…" }).click();
+  await fileMenu.getByRole("button", { name: "Recover Unsaved Work…" }).click();
   await page
     .getByRole("dialog", { name: "Recover recent work" })
     .getByRole("button", { name: "Restore" })
@@ -4895,7 +4916,7 @@ test("discard recovery clears the recovery slot", async ({ page }) => {
     .toContain('"revision": 1');
 
   await page.reload();
-  await clickCommand(page, "File", "Recover Local Work…");
+  await clickCommand(page, "File", "Recover Unsaved Work…");
   await page
     .getByRole("dialog", { name: "Recover recent work" })
     .getByRole("button", { name: "Delete" })
@@ -4916,13 +4937,15 @@ test("keeps the production command surface compact and publishes PWA metadata", 
   await expect(
     toolbar.locator("summary").filter({ hasText: /^Run$/u }),
   ).toHaveCount(0);
-  await expect(toolbar.getByTestId("copy-netlist")).toBeVisible();
   const netlistSummary = toolbar.locator('summary[aria-label="Netlist"]');
+  await expect(netlistSummary).toContainText("Netlist");
+  await expect(toolbar.getByTestId("copy-netlist")).toBeHidden();
   await expect(toolbar.getByTestId("open-analog-simulation")).toBeVisible();
   await expect(page.getByTestId("check-and-save")).toBeHidden();
   await netlistSummary.click();
+  await expect(toolbar.getByTestId("copy-netlist")).toBeVisible();
   await expect(page.getByTestId("open-analog-simulation")).toBeVisible();
-  await expect(page.getByTestId("check-and-save")).toBeVisible();
+  await expect(page.getByTestId("check-and-save")).toBeHidden();
   await netlistSummary.click();
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(
@@ -4964,11 +4987,17 @@ test("keeps the production command surface compact and publishes PWA metadata", 
     .locator('link[rel="manifest"]')
     .getAttribute("href");
   expect(manifest).toBe("/manifest.webmanifest");
-  expect(
-    await (await page.request.get("/manifest.webmanifest")).json(),
-  ).toMatchObject({
+  const manifestPayload = await (
+    await page.request.get("/manifest.webmanifest")
+  ).json();
+  expect(manifestPayload).toMatchObject({
     name: "Analog Canvas",
     display: "standalone",
+    theme_color: "#2383e2",
+    icons: [
+      { src: "./icon-192.png", sizes: "192x192" },
+      { src: "./icon-512.png", sizes: "512x512" },
+    ],
   });
 });
 
@@ -5103,12 +5132,12 @@ test("selecting an object does not change canvas width", async ({ page }) => {
   expect(widthAfter).toBe(widthBefore);
 });
 
-test("opens project search with Ctrl+Shift+F and selects a matching component", async ({
+test("opens circuit Find with Ctrl+F and selects a matching component", async ({
   page,
 }) => {
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 420, y: 260 });
-  await page.keyboard.press("Control+Shift+f");
+  await page.keyboard.press("Control+f");
   const input = page.getByTestId("project-search-input");
   await expect(input).toBeFocused();
   await input.fill("R1");
@@ -5119,7 +5148,7 @@ test("opens project search with Ctrl+Shift+F and selects a matching component", 
   await expect(page.getByTestId("project-search-input")).toHaveCount(0);
 });
 
-test("opens Selection Filter with Ctrl+F and filters Select All", async ({
+test("opens selectable-object choices with Ctrl+Shift+F and filters Select All", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -5130,7 +5159,7 @@ test("opens Selection Filter with Ctrl+F and filters Select All", async ({
   await page.getByTestId("terminal-R2-1").click();
   await page.keyboard.press("Escape");
 
-  await page.keyboard.press("Control+f");
+  await page.keyboard.press("Control+Shift+f");
   const filter = page.getByTestId("selection-filter-popover");
   await expect(filter).toBeVisible();
   await filter.getByRole("button", { name: "None" }).click();
@@ -5214,7 +5243,7 @@ test("Selection Filter blocks direct wire, junction, and shape operations", asyn
     buffer: Buffer.from(JSON.stringify(project)),
   });
 
-  await page.keyboard.press("Control+f");
+  await page.keyboard.press("Control+Shift+f");
   const filter = page.getByTestId("selection-filter-popover");
   await filter.getByRole("button", { name: "None" }).click();
   await filter.getByRole("button", { name: "Close" }).click();
@@ -5583,7 +5612,7 @@ test("directional marquee: window needs full coverage, crossing selects on touch
   ).toBe("");
 });
 
-test("docked Style JSON offers bounded choices, scales fonts, and resets appearance", async ({
+test("docked Properties JSON is the only global configuration surface", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -5591,28 +5620,55 @@ test("docked Style JSON offers bounded choices, scales fonts, and resets appeara
   const label = page.locator('[data-kind="instance-label"]').first();
   await expect(label).toHaveAttribute("font-size", "15.116");
 
-  // Style stays one copyable JSON surface; bounded values gain inline menus.
+  // Properties is the visible, non-modal home for current-Cell Port tools and
+  // the single copyable Properties JSON surface.
+  const propertiesButton = page.getByTestId("draw-tool-document-style");
+  await expect(propertiesButton).toHaveText("Properties");
+  await expect(propertiesButton).toHaveAttribute(
+    "title",
+    "Properties: Ports, canvas, and selected objects",
+  );
   await clickDrawTool(page, "document-style");
   const settings = page.getByLabel("Document settings");
   await expect(settings).toBeVisible();
-  await expect(page.getByTestId("canvas-empty-state")).toHaveCount(0);
-  await expect(page.getByTestId("hit-R1")).toBeVisible();
   await expect(
-    settings.getByLabel("Editable document Style code"),
+    settings.getByRole("button", {
+      name: "Format all Port labels in this Cell",
+    }),
   ).toBeVisible();
-  await expect(settings.locator(".cm-netlist-target-select")).toHaveCount(11);
+  await expect(
+    page.getByRole("region", { name: "Port label formatting" }),
+  ).toHaveCount(0);
+  await expect(page.getByTestId("hit-R1")).toBeVisible();
+  await expect(settings.getByLabel("Editable Properties code")).toBeVisible();
+  await expect(settings.locator(".cm-netlist-target-select")).toHaveCount(13);
   await expect(settings.getByLabel("Font size options")).toBeVisible();
   await expect(
-    settings.getByLabel("Default NMOS bulk Net options"),
+    settings.getByLabel("NMOS bulk Net (usually VSS) options"),
+  ).toBeVisible();
+  await expect(
+    settings.getByLabel("PMOS bulk Net (usually VDD) options"),
+  ).toBeVisible();
+  await expect(
+    settings.getByLabel("Port label suffix case options"),
+  ).toBeVisible();
+  await expect(
+    settings.getByLabel("Port label suffix placement options"),
   ).toBeVisible();
 
   await settings.getByLabel("Font size options").selectOption("1.5");
   await expect(label).toHaveAttribute("font-size", "22.674");
-  await expect(page.getByTestId("status")).toContainText("Updated Style code");
+  await expect(page.getByTestId("status")).toContainText(
+    "Updated Properties code",
+  );
 
   const styleSource = await readDocumentStyleCode(page);
   const style = JSON.parse(styleSource);
   expect(style.bulkDefaults).toEqual({ nmosNet: null, pmosNet: null });
+  expect(style.portLabels).toEqual({
+    suffixCase: "preserve",
+    suffixPlacement: "subscript",
+  });
   expect(style.canvas).toEqual({
     showGrid: true,
     annotationGrid: 5,
@@ -5620,7 +5676,7 @@ test("docked Style JSON offers bounded choices, scales fonts, and resets appeara
     scrollBehavior: "auto",
   });
   await settings
-    .getByLabel("Editable document Style code", { exact: true })
+    .getByLabel("Editable Properties code", { exact: true })
     .press("Enter");
   expect(await readDocumentStyleCode(page)).toBe(styleSource);
 
@@ -5654,7 +5710,7 @@ test("middle-click steers which way the wire corner turns", async ({
   expect(horizontal).toHaveLength(3);
   expect(horizontal[1]!.y).toBe(horizontal[0]!.y);
 
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(page.locator('[data-testid^="route-hit-"]')).toHaveCount(0);
 
   // One middle-click flips the corner onto the other axis.
@@ -5994,7 +6050,7 @@ test("normalizes overlapping branches without freezing the dragged wire", async 
     ),
   ).toBe(true);
 
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(dots).toHaveCount(1);
 
   // Moving beyond the old tip is legal too. Coverage is unioned instead of
@@ -6006,7 +6062,7 @@ test("normalizes overlapping branches without freezing the dragged wire", async 
     Math.min(...raised.flatMap((points) => points.map((p) => p.y))),
   ).toBeLessThan(fixedTapEnd.y);
   await expect(page.getByTestId("status")).not.toContainText("would overlap");
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(dots).toHaveCount(1);
   expect(Number(await dots.first().getAttribute("cy"))).toBe(dotBefore);
 });

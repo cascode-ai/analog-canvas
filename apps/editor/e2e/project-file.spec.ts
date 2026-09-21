@@ -160,7 +160,7 @@ for (const duringSave of ["edit", "replace"] as const) {
     } else {
       const fileMenu = await openMenu(page, "File");
       await fileMenu.getByRole("button", { name: "New Project" }).click();
-      await expect(page.getByTestId("canvas-empty-state")).toBeVisible();
+      await expect(page.getByTestId("hit-R1")).toHaveCount(0);
       await expect(page.getByTestId("statusbar-issues")).toHaveText(
         "Not checked",
       );
@@ -262,7 +262,6 @@ test("Cloud Save updates one binding while local export stays interchange", asyn
   await page.getByRole("link", { name: "Back to the gallery" }).click();
   await page.getByTestId("gallery-new-circuit").click();
   await expect(page).toHaveURL(/\/editor\?new=1$/u);
-  await expect(page.getByTestId("canvas-empty-state")).toBeVisible();
   await expect(page.getByTestId("hit-R1")).toHaveCount(0);
 });
 
@@ -389,7 +388,7 @@ test("Gallery navigation uses the replacement decision without a second browser 
   await expect(page).toHaveURL(/\/$/u);
   await page.goto("/editor");
   await expect(page.getByTestId("startup-recovery-banner")).toHaveCount(0);
-  await expect(page.getByTestId("canvas-empty-state")).toBeVisible();
+  await expect(page.getByTestId("hit-R1")).toHaveCount(0);
 });
 
 test("imports and upgrades a portable Project before explicit export", async ({
@@ -650,7 +649,7 @@ test("discarding a dirty replacement does not leave a second project stack", asy
     name: "Unsaved changes",
   });
   await dialog.getByRole("button", { name: "Continue without saving" }).click();
-  await expect(page.getByTestId("canvas-empty-state")).toBeVisible();
+  await expect(page.getByTestId("hit-R1")).toHaveCount(0);
   fileMenu = await openMenu(page, "File");
   await expect(
     fileMenu.getByRole("button", { name: "Previous Project" }),

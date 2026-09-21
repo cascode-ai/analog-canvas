@@ -10,7 +10,7 @@ test("bulk edits instance JSON in the sidebar with atomic undo and live netlist 
     mimeType: "text/plain",
     buffer: Buffer.from("\n.subckt top a b\nR1 a b 1k\nR2 b a 2k\n.ends top\n"),
   });
-  await clickCommand(page, "Netlist", "Instances…");
+  await clickCommand(page, "Netlist", "Edit Device Data…");
   const panel = page.getByRole("region", {
     name: "Instance code",
     exact: true,
@@ -27,9 +27,9 @@ test("bulk edits instance JSON in the sidebar with atomic undo and live netlist 
   await code.fill(pasted);
   // Live acknowledgement must preserve bulk-paste formatting/caret ownership.
   await expect(code).toHaveValue(pasted);
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(code).toHaveValue(original);
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   await expect
     .poll(async () =>
       Object.values(
@@ -44,15 +44,15 @@ test("bulk edits instance JSON in the sidebar with atomic undo and live netlist 
   await code.fill("{");
   await expect(panel.getByRole("alert")).toContainText("valid JSON");
   expect(await copyNetlistText(page)).toMatch(/R1 a b 10k\nR2 b a 10k/iu);
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   const live = page.getByRole("textbox", { name: "Netlist code", exact: true });
   await expect(live).toContainText(/R1 a b 1k/iu);
   await expect(live).toContainText(/R2 b a 2k/iu);
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   await expect(live).toContainText(/R1 a b 10k/iu);
   await expect(live).toContainText(/R2 b a 10k/iu);
 
-  await clickCommand(page, "Netlist", "Instances…");
+  await clickCommand(page, "Netlist", "Edit Device Data…");
   const rejected = JSON.parse(await code.inputValue());
   const invalidRows = Object.values(rejected)[0] as Record<string, any>;
   Object.values(invalidRows)[0]!.parameters.value = "99k";
@@ -60,7 +60,7 @@ test("bulk edits instance JSON in the sidebar with atomic undo and live netlist 
   await code.fill(JSON.stringify(rejected));
   await expect(panel.getByRole("alert")).toContainText("Edit rejected");
   expect(await copyNetlistText(page)).toMatch(/R1 a b 10k\nR2 b a 10k/iu);
-  await clickCommand(page, "Netlist", "Instances…");
+  await clickCommand(page, "Netlist", "Edit Device Data…");
   await page.setViewportSize({ width: 760, height: 800 });
   await expect(code).toBeVisible();
   await code.selectText();

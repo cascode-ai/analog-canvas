@@ -80,13 +80,13 @@ export function SelectionFilterPopover({
     >
       <header>
         <div>
-          <p className="selection-filter-kicker">Selection</p>
-          <h2 id="selection-filter-title">Selection Filter</h2>
+          <p className="selection-filter-kicker">Advanced selection</p>
+          <h2 id="selection-filter-title">Choose Selectable Objects</h2>
         </div>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close selection filter"
+          aria-label="Close selectable-object choices"
         >
           Close
         </button>

@@ -175,7 +175,7 @@ test("a damaged latest copy restores the previous generation", async ({
   }, target!.workingCopyId);
 
   await page.reload();
-  await clickCommand(page, "File", "Recover Local Work…");
+  await clickCommand(page, "File", "Recover Unsaved Work…");
   const dialog = page.getByRole("dialog", { name: "Recover recent work" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByTestId("recovery-session-card")).toContainText(
@@ -207,7 +207,7 @@ test("a newer-schema copy is downloadable but not restorable", async ({
     },
   ]);
   await page.reload();
-  await clickCommand(page, "File", "Recover Local Work…");
+  await clickCommand(page, "File", "Recover Unsaved Work…");
   const dialog = page.getByRole("dialog", { name: "Recover recent work" });
   await expect(dialog).toBeVisible();
   const card = dialog.getByTestId("recovery-session-card").filter({
@@ -278,7 +278,7 @@ test("explicit discard removes outgoing recovery and hides a clean replacement",
 
   const fileMenu = await openMenu(page, "File");
   await expect(
-    fileMenu.getByRole("button", { name: "Recover Local Work…" }),
+    fileMenu.getByRole("button", { name: "Recover Unsaved Work…" }),
   ).toHaveCount(0);
 });
 
@@ -294,7 +294,7 @@ test("dialog closes with Escape and keeps focus labels", async ({ page }) => {
     .toContain('"revision": 1');
   await page.reload();
 
-  await clickCommand(page, "File", "Recover Local Work…");
+  await clickCommand(page, "File", "Recover Unsaved Work…");
   const dialog = page.getByRole("dialog", { name: "Recover recent work" });
   await expect(dialog).toBeVisible();
   await expect(

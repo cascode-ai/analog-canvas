@@ -62,7 +62,6 @@ export interface EditorCommandContext {
   propertiesOpen: boolean;
   canUndo: boolean;
   canRedo: boolean;
-  helpOpen: boolean;
   canvasDragActive: boolean;
   hasClearableDraftingSelection: boolean;
   hasActiveNetHighlight: boolean;
@@ -71,7 +70,6 @@ export interface EditorCommandContext {
 }
 
 export interface EditorCommandOperations {
-  closeHelp(): void;
   cancelCanvasDrag(): void;
   cancelInteraction(interactionMode: InteractionMode): void;
   clearDraftingSelection(): void;
@@ -189,8 +187,7 @@ export function createEditorCommandRouter(
     switch (request.id) {
       case "editor.cancel":
         return enabled(
-          context.helpOpen ||
-            context.canvasDragActive ||
+          context.canvasDragActive ||
             context.interactionMode !== "idle" ||
             context.hasArmedVerb ||
             context.hasClearableDraftingSelection ||
@@ -307,9 +304,7 @@ export function createEditorCommandRouter(
     const context = options.getContext();
     switch (request.id) {
       case "editor.cancel":
-        if (context.helpOpen) {
-          options.operations.closeHelp();
-        } else if (context.canvasDragActive) {
+        if (context.canvasDragActive) {
           options.operations.cancelCanvasDrag();
         } else if (context.interactionMode !== "idle") {
           options.operations.cancelInteraction(context.interactionMode);

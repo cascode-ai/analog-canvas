@@ -457,7 +457,7 @@ describe("schematic clipboard", () => {
       interfaceInstanceIds: ["P1"],
     });
     expect(copiedTerminal).toMatchObject({
-      name: "Vout",
+      name: "VIN",
       direction: "input",
       interfaceInstanceIds: ["P1-copy-1"],
     });
@@ -2407,7 +2407,7 @@ describe("a copy stands on its own", () => {
     expect(copy.reference).not.toMatch(/copy/u);
   });
 
-  it("keeps a copied Cell Pin separate from its source", () => {
+  it("preserves a renamed Cell Pin while keeping the copy separate", () => {
     const document = createEmptyDocument("document-main", "Copy");
     document.instances.push({
       id: "P1",
@@ -2415,7 +2415,7 @@ describe("a copy stands on its own", () => {
       placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
     });
     document.nets.push({
-      id: "net-p12",
+      id: "net-ck",
 
       terminals: [{ instanceId: "P1", pinName: "P" }],
     });
@@ -2424,9 +2424,9 @@ describe("a copy stands on its own", () => {
       formalParameters: [],
       terminals: [
         {
-          id: "terminal-p12",
-          name: "P12",
-          netId: "net-p12",
+          id: "terminal-ck",
+          name: "CK",
+          netId: "net-ck",
           direction: "passive",
           interfaceInstanceIds: ["P1"],
         },
@@ -2435,7 +2435,11 @@ describe("a copy stands on its own", () => {
 
     const clipboard = copySelection(document, ["P1"]);
     expect(clipboard).not.toBeNull();
+    expect(clipboard?.cellTerminals[0]?.name).toBe("CK");
     const proposal = proposePaste(document, clipboard!, { x: 120, y: 0 }, 1);
+    expect(
+      proposal.edits.find((edit) => edit.kind === "add_cell_terminal"),
+    ).toMatchObject({ terminal: { name: "CK" } });
     const result = executeTransaction(
       document,
       {
@@ -2459,7 +2463,7 @@ describe("a copy stands on its own", () => {
       result.document.netlist?.terminals.find((terminal) =>
         terminal.interfaceInstanceIds.includes(copyId),
       )?.name,
-    ).toBe("Vin");
+    ).toBe("CK");
 
     const secondProposal = proposePaste(
       result.document,
@@ -2485,7 +2489,7 @@ describe("a copy stands on its own", () => {
       secondResult.document.netlist?.terminals.find((terminal) =>
         terminal.interfaceInstanceIds.includes(secondCopyId),
       )?.name,
-    ).toBe("Vout");
+    ).toBe("CK");
   });
 
   it("keeps a copied drafting snapshot as one layout group", () => {

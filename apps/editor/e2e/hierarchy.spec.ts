@@ -15,6 +15,7 @@ import {
   revealPropertiesShelf,
   clickCommand,
   downloadBytes,
+  editDocumentStyleCode,
   setComponentParameter,
   expectComponentCodeField,
 } from "./editor-fixtures.js";
@@ -359,9 +360,9 @@ test("edits independent parent parameter overrides and follows definition rename
   await setComponentParameter(page, "Resistance", "");
   await expectComponentCodeField(page, "parameters.Resistance", "");
   await expect(page.getByText("// Default: 3k", { exact: true })).toBeVisible();
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expectComponentCodeField(page, "parameters.Resistance", "4k");
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   await expectComponentCodeField(page, "parameters.Resistance", "");
   const saved = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -915,7 +916,7 @@ test("creates and places an external interface with connected netlist semantics"
   expect(analyzed.ir?.cells.map((cell) => cell.name)).not.toContain(
     "external_load",
   );
-  await clickCommand(page, "Netlist", "Check Report…");
+  await clickCommand(page, "Netlist", "Review Netlist Issues…");
   await expect(page.getByTestId("netlist-preview")).toContainText(
     new RegExp(`${instance.reference}\\s+\\S+\\s+\\S+\\s+external_load`, "u"),
   );
@@ -993,13 +994,17 @@ test("formats every Port label in the current Cell without renaming it", async (
     0,
   );
 
-  await revealPropertiesShelf(page);
-  const shelf = page.getByTestId("selection-shelf");
-  if ((await shelf.getAttribute("aria-expanded")) === "false")
-    await shelf.click();
-  const format = page.getByRole("region", { name: "Port label formatting" });
-  await format.getByLabel("Port label suffix case").selectOption("uppercase");
-  await format.getByRole("button", { name: "Format all Port labels" }).click();
+  await editDocumentStyleCode(page, (code) => {
+    code.portLabels.suffixCase = "uppercase";
+  });
+  const properties = page.getByLabel("Document settings");
+  await expect(
+    page.getByRole("region", { name: "Port label formatting" }),
+  ).toHaveCount(0);
+  const format = properties.getByRole("button", {
+    name: "Format all Port labels in this Cell",
+  });
+  await format.click();
   await expect(page.getByTestId("status")).toContainText(
     "Formatted all Port labels",
   );
@@ -1023,11 +1028,11 @@ test("formats every Port label in the current Cell without renaming it", async (
     "UT",
   );
 
-  await format.getByLabel("Port label suffix case").selectOption("lowercase");
-  await format
-    .getByLabel("Port label suffix position")
-    .selectOption("baseline");
-  await format.getByRole("button", { name: "Format all Port labels" }).click();
+  await editDocumentStyleCode(page, (code) => {
+    code.portLabels.suffixCase = "lowercase";
+    code.portLabels.suffixPlacement = "baseline";
+  });
+  await format.click();
   await expect(firstLabel).toHaveText("Ind");
   await expect(secondLabel).toHaveText("out");
   await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveCount(
@@ -1428,7 +1433,7 @@ test("declares a top Formal Cell Pin and exports the top interface", async ({
   }
   await expect(page.getByLabel("Cell Pin properties")).toHaveCount(0);
 
-  await clickCommand(page, "Netlist", "Check Report…");
+  await clickCommand(page, "Netlist", "Review Netlist Issues…");
   const preflight = page.getByRole("dialog", { name: "Check Report" });
   await expect(preflight.getByTestId("netlist-preview")).toContainText(
     ".subckt dut VIN",
@@ -1494,7 +1499,7 @@ test("copies and independently deletes Formal Cell Pins", async ({ page }) => {
   await expect(
     page.locator('[data-object-id="instance-label-P1-copy-1"]'),
   ).toHaveText("Vout");
-  await clickCommand(page, "Netlist", "Check Report…");
+  await clickCommand(page, "Netlist", "Review Netlist Issues…");
   await expect(
     page
       .getByRole("dialog", { name: "Check Report" })
@@ -1556,7 +1561,7 @@ test("edits a Cell Pin name and RichText presentation in place", async ({
     page.locator('[data-object-id="instance-label-P1"]'),
   ).toContainText("VINP");
 
-  await clickCommand(page, "Netlist", "Check Report…");
+  await clickCommand(page, "Netlist", "Review Netlist Issues…");
   const preflight = page.getByRole("dialog", { name: "Check Report" });
   await expect(preflight).not.toContainText("MISSING_DEVICE_DEFINITION");
   await expect(preflight.getByTestId("netlist-preview")).toContainText(
@@ -1936,7 +1941,7 @@ test("same-name Cell Pins stay independent while the final interface groups them
   // Conflicting interface directions remain editable, but must be resolved
   // before a strict export can produce an executable subcircuit.
   await setCellTerminalDirection(page, "VIN", "input");
-  await clickCommand(page, "Netlist", "Check Report…");
+  await clickCommand(page, "Netlist", "Review Netlist Issues…");
   const preview = await page
     .getByRole("dialog", { name: "Check Report" })
     .getByTestId("netlist-preview")

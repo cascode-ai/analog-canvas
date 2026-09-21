@@ -16,6 +16,8 @@ describe("editor statusbar", () => {
         wireCornerOrder="horizontal-first"
         recoveryLabel="Saved locally"
         zoomPercent={100}
+        shortcutHintsVisible={false}
+        onToggleShortcutHints={vi.fn()}
         gridVisible
         onToggleGrid={vi.fn()}
         selectionFilterSummary={null}
@@ -32,6 +34,10 @@ describe("editor statusbar", () => {
     expect(markup).toContain('data-testid="wire-options"');
     expect(markup).toContain("Saved locally");
     expect(markup).toContain('aria-label="Current zoom"');
+    expect(markup).toContain('data-testid="statusbar-change-log"');
+    expect(markup).toContain(
+      'href="https://github.com/cascode-ai/analog-canvas/commits/main"',
+    );
     expect(markup).not.toContain('aria-label="Annotation grid"');
     expect(markup).not.toContain('aria-label="Draw angle"');
     expect(markup).not.toContain('aria-label="Scroll wheel"');
@@ -54,6 +60,8 @@ describe("editor statusbar", () => {
           wireCornerOrder="auto"
           recoveryLabel={null}
           zoomPercent={100}
+          shortcutHintsVisible={false}
+          onToggleShortcutHints={vi.fn()}
           gridVisible={gridVisible}
           onToggleGrid={vi.fn()}
           selectionFilterSummary={null}
@@ -79,6 +87,42 @@ describe("editor statusbar", () => {
     },
   );
 
+  it("places an explicit shortcut-hints toggle beside the grid control", () => {
+    const markup = renderToStaticMarkup(
+      <EditorStatusbar
+        status="Ready"
+        tool="pointer"
+        vddRailMode={false}
+        pendingSymbolId={null}
+        wireOptionsOpen={false}
+        wireRoutingMode="orthogonal"
+        wireCornerOrder="auto"
+        recoveryLabel={null}
+        zoomPercent={100}
+        shortcutHintsVisible
+        onToggleShortcutHints={vi.fn()}
+        gridVisible
+        onToggleGrid={vi.fn()}
+        selectionFilterSummary={null}
+        onOpenSelectionFilter={vi.fn()}
+        onToggleWireOptions={vi.fn()}
+        onWireRoutingModeChange={vi.fn()}
+        onWireCornerOrderChange={vi.fn()}
+        onOpenAnalytics={vi.fn()}
+        onZoomOut={vi.fn()}
+        onZoomIn={vi.fn()}
+        onFitView={vi.fn()}
+      />,
+    );
+
+    const hints = markup.indexOf('data-testid="statusbar-shortcut-hints"');
+    const grid = markup.indexOf('data-testid="statusbar-grid-toggle"');
+    expect(hints).toBeGreaterThan(-1);
+    expect(hints).toBeLessThan(grid);
+    expect(markup.slice(hints, grid)).toContain('aria-pressed="true"');
+    expect(markup.slice(hints, grid)).toContain("Hints");
+  });
+
   function statusbarWithIssues(issues: {
     checkStatus?: import("../../app/project-check").ProjectCheckStatus;
     errorCount: number;
@@ -96,6 +140,8 @@ describe("editor statusbar", () => {
         wireCornerOrder="auto"
         recoveryLabel={null}
         zoomPercent={100}
+        shortcutHintsVisible={false}
+        onToggleShortcutHints={vi.fn()}
         gridVisible
         onToggleGrid={vi.fn()}
         selectionFilterSummary={null}
@@ -136,6 +182,8 @@ describe("editor statusbar", () => {
         wireCornerOrder="auto"
         recoveryLabel={null}
         zoomPercent={100}
+        shortcutHintsVisible={false}
+        onToggleShortcutHints={vi.fn()}
         gridVisible
         onToggleGrid={vi.fn()}
         selectionFilterSummary="Filter: Wires"

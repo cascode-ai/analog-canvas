@@ -30,30 +30,22 @@
   border-top: 1px solid var(--icm-border);
 }
 
-.port-label-format-controls {
+.document-settings-port-action {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.45rem;
+  margin-top: 0.2rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--icm-border);
 }
 
-.port-label-format-controls select {
+.document-settings-port-action > button {
   width: 100%;
 }
 
-.port-label-format-properties > button {
-  width: 100%;
-}
-
-.port-label-format-properties > small {
+.document-settings-port-action > small {
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
   line-height: var(--icm-line);
-}
-
-@media (max-width: 860px) {
-  .port-label-format-controls {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 .property-card,

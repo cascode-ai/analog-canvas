@@ -1,16 +1,34 @@
 {
-  "version": "0.1.0",
-  "note": "Ceilings for the /editor first-paint payload. Raising one requires a recorded reason; a faster or slower machine is not one.",
-  "budget": {
-    "files": 37,
-    "rawKib": 2646,
-    "gzipKib": 671,
-    "brotliKib": 566
-  },
-  "measured": {
-    "files": 37,
-    "rawKib": 2634.2,
-    "gzipKib": 669.2,
-    "brotliKib": 564.2
+  "version": "0.2.0",
+  "note": "Ceilings for the /editor and / Gallery first-paint payloads. Raising one requires a recorded reason; a faster or slower machine is not one.",
+  "routes": {
+    "editor": {
+      "budget": {
+        "files": 36,
+        "rawKib": 2691,
+        "gzipKib": 683,
+        "brotliKib": 574
+      },
+      "measured": {
+        "files": 35,
+        "rawKib": 2637.7,
+        "gzipKib": 669,
+        "brotliKib": 561.8
+      }
+    },
+    "gallery": {
+      "budget": {
+        "files": 13,
+        "rawKib": 315,
+        "gzipKib": 103,
+        "brotliKib": 90
+      },
+      "measured": {
+        "files": 12,
+        "rawKib": 308.4,
+        "gzipKib": 100.8,
+        "brotliKib": 88.2
+      }
+    }
   }
 }

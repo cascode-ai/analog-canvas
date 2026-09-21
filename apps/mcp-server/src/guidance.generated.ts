@@ -8,6 +8,12 @@ export const agentToolHelp = {
     "Report runtime version, API origin and session observations. refresh:false is local-only. Attached means a browser socket exists, not verified execution readiness; unknown means the relay was not checked successfully.",
   project_cells:
     "List Cloud Projects, inspect reusable Cell interfaces, or atomically copy a Cell and its dependency closure into the open Project. No live cross-Project link. Requires account access; see analog-canvas://reference/mcp-tools.",
+  gallery_circuits:
+    "Page through every public Gallery circuit, then read one or up to 12 entries' complete Project Code and generated SPICE/Spectre netlist. Follow nextCursor until null and any remainingEntryIds until empty; pass netlistFormat:null when only Project Code is needed.",
+  project_code:
+    "Read or atomically replace the open Project's complete canonical Project Code. Replacement uses the live Project structure revision and the same validated, undoable commit path as the Editor's Project Code panel.",
+  netlist_code:
+    "Read the open Project's generated SPICE/Spectre netlist or replace its editable device names, models and values through the same planner as the Netlist panel. Use Project Code or structured circuit edits for topology and connectivity changes.",
   simulation:
     "Prepare/start runs, read status, and inspect catalog metadata. history lists retained completed run identities after reconnect; catalog and sync reuse their files without restarting. Retain the SAME requestId and payload for an uncertain start retry. Native source editing remains available; authoring help is optional. outputData.specs reports verdicts; completion alone does not promise waveform capture. Prefer simulation_files sync to download complete results for local analysis. Device/vector mapping: analog-canvas://reference/mcp-simulation.",
   simulation_files:

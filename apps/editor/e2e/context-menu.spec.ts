@@ -750,6 +750,20 @@ test("Netlist keeps format selection in the project panel while File keeps drawi
   await expect(
     menu.getByRole("button", { name: "Export SVG", exact: true }),
   ).toBeHidden();
+  const importMenu = menu.getByRole("button", { name: "Import", exact: true });
+  await expect(importMenu).toHaveAttribute("aria-expanded", "false");
+  await importMenu.click();
+  await expect(
+    menu.locator("label.file-import", { hasText: "Project File…" }),
+  ).toBeVisible();
+  await expect(
+    menu.locator("label.file-import", { hasText: "SPICE / SCS…" }),
+  ).toBeVisible();
+  await expect(
+    menu.locator("label.file-import", {
+      hasText: "Cadence SPICE (`!` globals)…",
+    }),
+  ).toBeVisible();
   await expect(
     menu.getByRole("button", { name: "Copy SPICE netlist", exact: true }),
   ).toHaveCount(0);
@@ -802,9 +816,7 @@ test("Netlist keeps format selection in the project panel while File keeps drawi
       .getByRole("tab"),
   ).toHaveCount(0);
   await openMenu(page, "File");
-  await menu
-    .getByRole("button", { name: "Export drawing", exact: true })
-    .click();
+  await menu.getByRole("button", { name: "Export", exact: true }).click();
   await expect(
     menu.getByRole("button", { name: "Export SVG", exact: true }),
   ).toBeVisible();
@@ -812,19 +824,19 @@ test("Netlist keeps format selection in the project panel while File keeps drawi
     .getByTestId("schematic-canvas")
     .getAttribute("viewBox");
   await menu
-    .getByRole("button", { name: "Export drawing", exact: true })
+    .getByRole("button", { name: "Export", exact: true })
     .press("ArrowRight");
   await expect(
-    menu.getByRole("button", { name: "Export SVG", exact: true }),
+    menu.getByRole("button", { name: "Export Project File…", exact: true }),
   ).toBeFocused();
   expect(
     await page.getByTestId("schematic-canvas").getAttribute("viewBox"),
   ).toBe(viewBox);
   await menu
-    .getByRole("button", { name: "Export SVG", exact: true })
+    .getByRole("button", { name: "Export Project File…", exact: true })
     .press("ArrowLeft");
   await expect(
-    menu.getByRole("button", { name: "Export drawing", exact: true }),
+    menu.getByRole("button", { name: "Export", exact: true }),
   ).toBeFocused();
   await expect(
     menu.getByRole("button", { name: "Export SVG", exact: true }),

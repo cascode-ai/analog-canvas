@@ -302,6 +302,44 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
       .at(-1)!;
   };
 
+  const sendProjectRequest = async (
+    requestId: string,
+    payload: Record<string, unknown>,
+  ): Promise<SessionMessage> => {
+    const responseCount = responses.filter(
+      (message) =>
+        message.requestId === requestId && message.kind === "project-response",
+    ).length;
+    socket.send(
+      JSON.stringify({
+        protocolVersion: "1.0",
+        sessionId,
+        messageId: `project-${requestId}`,
+        requestId,
+        sentAt: new Date().toISOString(),
+        kind: "project-request",
+        payload,
+      }),
+    );
+    await expect
+      .poll(
+        () =>
+          responses.filter(
+            (message) =>
+              message.requestId === requestId &&
+              message.kind === "project-response",
+          ).length,
+      )
+      .toBe(responseCount + 1);
+    return responses
+      .filter(
+        (message) =>
+          message.requestId === requestId &&
+          message.kind === "project-response",
+      )
+      .at(-1)!;
+  };
+
   const capabilities = await sendCircuitRequest("capabilities", {
     apiVersion: "3.0",
     requestId: "capabilities",
@@ -316,8 +354,82 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
           path: "/api/agent/sessions/{sessionId}/files",
           humanApprovalOperations: ["request-approval"],
         },
+        project: {
+          path: "/api/agent/sessions/{sessionId}/projects",
+          operations: expect.arrayContaining([
+            "list-gallery",
+            "read-gallery-entry",
+            "read-gallery-entries",
+            "read-project-code",
+            "replace-project-code",
+            "read-netlist",
+            "replace-netlist",
+          ]),
+        },
       },
     },
+  });
+
+  const projectCode = await sendProjectRequest("read-project-code", {
+    apiVersion: "3.0",
+    requestId: "read-project-code",
+    operation: "read-project-code",
+  });
+  expect(projectCode.payload).toMatchObject({
+    ok: true,
+    operation: "read-project-code",
+    structureRevision: 0,
+  });
+  const projectCodePayload = projectCode.payload as {
+    projectCode: string;
+    structureRevision: number;
+  };
+  expect(JSON.parse(projectCodePayload.projectCode)).toMatchObject({
+    id: "project-main",
+  });
+  const projectCodeNoop = await sendProjectRequest("replace-project-code", {
+    apiVersion: "3.0",
+    requestId: "replace-project-code",
+    operation: "replace-project-code",
+    projectCode: projectCodePayload.projectCode,
+    expectedStructureRevision: projectCodePayload.structureRevision,
+  });
+  expect(projectCodeNoop.payload).toMatchObject({
+    ok: true,
+    operation: "replace-project-code",
+    applied: false,
+    structureRevision: 0,
+  });
+
+  const netlist = await sendProjectRequest("read-netlist", {
+    apiVersion: "3.0",
+    requestId: "read-netlist",
+    operation: "read-netlist",
+    format: "spice",
+  });
+  expect(netlist.payload).toMatchObject({
+    ok: true,
+    operation: "read-netlist",
+    structureRevision: 0,
+    netlist: { format: "spice", status: "ready" },
+  });
+  const netlistPayload = netlist.payload as {
+    structureRevision: number;
+    netlist: { text: string };
+  };
+  const netlistNoop = await sendProjectRequest("replace-netlist", {
+    apiVersion: "3.0",
+    requestId: "replace-netlist",
+    operation: "replace-netlist",
+    netlist: netlistPayload.netlist.text,
+    expectedStructureRevision: netlistPayload.structureRevision,
+    format: "spice",
+  });
+  expect(netlistNoop.payload).toMatchObject({
+    ok: true,
+    operation: "replace-netlist",
+    applied: false,
+    structureRevision: 0,
   });
 
   const snapshot = await sendCircuitRequest("snapshot-before", {
@@ -454,7 +566,7 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
     .getByTestId("connect-agent-panel")
     .getByRole("button", { name: "Close Agent dialog" })
     .click();
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(page.getByTestId("active-instance-count")).toHaveText("0");
   await expect
     .poll(() =>
@@ -911,11 +1023,11 @@ test("copies a working handoff through the normal local dev relay", async ({
   ).toBe("3.3k");
 
   // Both writers share history without disconnecting or freezing the canvas.
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   expect(
     JSON.parse(await readComponentPropertyCode(page)).parameters.value,
   ).toBe("2.2k");
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   const second = await client.circuit(session.sessionId, session.agentToken, {
     apiVersion: "3.0",
     requestId: "agent-second-resistor",
@@ -955,7 +1067,7 @@ test("copies a working handoff through the normal local dev relay", async ({
     ]),
   );
   expect(wired.snapshot.document.routes).toHaveLength(1);
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   expect(
     (await readSnapshot("after-wire-undo")).snapshot.document.routes,
   ).toHaveLength(0);
@@ -972,7 +1084,7 @@ test("copies a working handoff through the normal local dev relay", async ({
     }),
   ).rejects.toThrow();
   await panel.getByRole("button", { name: "Close Agent dialog" }).click();
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
 });
 

@@ -79,7 +79,11 @@ import {
   resolveAnnotationText,
 } from "@icm/derived";
 import type { HierarchyFrame } from "@icm/derived";
-import { createEmptyProject, flattenRichText } from "@icm/model";
+import {
+  createEmptyProject,
+  DEFAULT_PORT_LABEL_FORMAT,
+  flattenRichText,
+} from "@icm/model";
 import {
   resolveReviewedExternalBinding,
   reviewedExternalModelSuggestions,
@@ -91,6 +95,7 @@ import type {
   GridRect,
   LayoutGroup,
   Point,
+  PortLabelFormatOptions,
   Rect,
   Rotation,
   SchematicDocument,
@@ -414,6 +419,7 @@ function defaultPropertiesWidth(viewportWidth: number): number {
   );
 }
 const COMPACT_LAYOUT_MEDIA_QUERY = "(max-width: 860px)";
+const PORT_LABEL_FORMAT_STORAGE_KEY = "icm.port-label-format.v1";
 const DRAG_START_DISTANCE_PX = 4;
 const SNAP_CAPTURE_RADIUS_PX = 4;
 const NET_LABEL_SNAP_CAPTURE_RADIUS_PX = 12;
@@ -454,8 +460,7 @@ export function App({
   const [componentEditor, setComponentEditor] =
     useState<ComponentEditorSession | null>(null);
   const [componentLibraryRefresh, setComponentLibraryRefresh] = useState(0);
-  const helpButtonRef = useRef<HTMLButtonElement>(null);
-  const helpCloseRef = useRef<HTMLButtonElement>(null);
+  const [userComponentsOpen, setUserComponentsOpen] = useState(false);
   const libraryResizeOriginRef = useRef<{
     pointerX: number;
     width: number;
@@ -526,8 +531,6 @@ export function App({
     leftPanelMode,
     selectionOpen,
     setSelectionOpen,
-    helpOpen,
-    setHelpOpen,
     searchOpen,
     setSearchOpen,
     searchQuery,
@@ -538,17 +541,17 @@ export function App({
     setAgentDetailsOpen,
     agentStatusDismissed,
     setAgentStatusDismissed,
-    closeHelp,
     closeSearch,
     toggleExamplesPanel: toggleExamplesPanelFromShell,
     toggleLibraryPanel,
   } = useEditorPanels({
     initialCompact: compactLayoutMatches(COMPACT_LAYOUT_MEDIA_QUERY),
     compactMediaQuery: COMPACT_LAYOUT_MEDIA_QUERY,
+    forceInitialLibraryOpen:
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("new") === "1",
     libraryStorageKey: LIBRARY_PANEL_STORAGE_KEY,
     libraryWidthStorageKey: LIBRARY_WIDTH_STORAGE_KEY,
-    helpButtonRef,
-    helpCloseRef,
   });
   const visibleLibraryPanelOpen = compactLayout
     ? compactLibraryPanelOpen
@@ -685,6 +688,7 @@ export function App({
   }
   const cameraRuntime = cameraRuntimeRef.current;
   useEffect(() => () => cameraRuntime.dispose(), [cameraRuntime]);
+  const [shortcutHintsVisible, setShortcutHintsVisible] = useState(false);
   const [gridDotsVisible, setGridDotsVisible] = useState(true);
   // Which channel serves this build (Deployment rationale). Asked once; anything but a
   // clear "preview" is production, so the public site never wears its badge.
@@ -719,6 +723,37 @@ export function App({
       window.localStorage.setItem("icm.annotation-grid.v1", String(pitch));
     } catch {
       // Storage may be unavailable; the choice still applies to this session.
+    }
+  };
+  const [portLabelFormat, setPortLabelFormatState] =
+    useState<PortLabelFormatOptions>(() => {
+      if (typeof window === "undefined") return DEFAULT_PORT_LABEL_FORMAT;
+      try {
+        const stored = JSON.parse(
+          window.localStorage.getItem(PORT_LABEL_FORMAT_STORAGE_KEY) ?? "null",
+        ) as Partial<PortLabelFormatOptions> | null;
+        if (
+          stored &&
+          ["preserve", "uppercase", "lowercase"].includes(
+            stored.suffixCase ?? "",
+          ) &&
+          ["subscript", "baseline"].includes(stored.suffixPlacement ?? "")
+        )
+          return stored as PortLabelFormatOptions;
+      } catch {
+        // Invalid or unavailable storage falls back to the canonical defaults.
+      }
+      return DEFAULT_PORT_LABEL_FORMAT;
+    });
+  const setPortLabelFormat = (format: PortLabelFormatOptions): void => {
+    setPortLabelFormatState(format);
+    try {
+      window.localStorage.setItem(
+        PORT_LABEL_FORMAT_STORAGE_KEY,
+        JSON.stringify(format),
+      );
+    } catch {
+      // The Properties code remains authoritative for this session.
     }
   };
   const arrowPreset: ArrowPreset = DEFAULT_ARROW_PRESET;
@@ -941,6 +976,15 @@ export function App({
       new BrowserAgentProjectHost({
         getProjectSessionId: () => editorDocumentController.projectSessionId,
         getProject: () => editorDocumentController.project,
+        getActiveDocumentId: () => editorDocumentController.document.id,
+        commitProjectStructure: (nextProject, activeDocumentId) => {
+          editorDocumentController.commitProjectStructure(
+            nextProject,
+            activeDocumentId,
+          );
+          synchronizeExternalCommit();
+          void flushRecovery();
+        },
         dispatchProjectTransaction: (request) =>
           browserAgentHost.dispatchProjectTransaction(request),
       }),
@@ -1053,7 +1097,6 @@ export function App({
     restoreRecoverySession,
     downloadRecoveryBackup,
     deleteRecoverySessionFromDialog,
-    refreshApp,
     openProjectFile,
     openCloudProjectById,
   } = useProjectFileLifecycle({
@@ -2857,11 +2900,6 @@ export function App({
     ? null
     : committedSceneState.scene.viewBox;
   const zoomPercent = Math.round((DEFAULT_VIEWBOX.width / viewBox.width) * 100);
-  const canvasIsEmpty =
-    document.instances.every((instance) => instance.placement === null) &&
-    document.routes.length === 0 &&
-    document.annotations.length === 0 &&
-    (document.drafting?.objects.length ?? 0) === 0;
   const {
     insertConstructionVertex,
     insertArrowWaypoint,
@@ -3436,7 +3474,7 @@ export function App({
   useEffect(() => {
     if (bootTargetHandled.current) return;
     bootTargetHandled.current = true;
-    // "Refresh app" reloads the same URL on purpose: the pending restore owns
+    // A safe recovery refresh reloads the same URL: the pending restore owns
     // this boot. Re-running the URL's boot target here would fork the
     // working-copy identity and orphan the snapshot the restore is about to
     // read.
@@ -3916,7 +3954,6 @@ export function App({
       propertiesOpen: selectionOpen,
       canUndo,
       canRedo,
-      helpOpen,
       canvasDragActive: canvasDragSessionRef.current !== null,
       hasClearableDraftingSelection:
         selectedDrafting?.kind === "arrow" ||
@@ -3927,7 +3964,6 @@ export function App({
       hasArmedVerb: armedVerb !== null,
     }),
     operations: {
-      closeHelp,
       cancelCanvasDrag: () => {
         canvasDragSessionRef.current?.cancel();
         setStatus("Cancelled canvas drag");
@@ -4116,6 +4152,10 @@ export function App({
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       if (componentEditor) return;
+      if (userComponentsOpen) {
+        if (event.key === "Escape") setUserComponentsOpen(false);
+        return;
+      }
       // The source workbench owns its keyboard scope, including portalled menus.
       if (
         event.target instanceof Element &&
@@ -4295,6 +4335,15 @@ export function App({
           return;
         case "toggle-net-highlight":
           toggleHighlightedNet();
+          return;
+        case "toggle-panel":
+          if (shortcut.panel === "gallery") {
+            toggleExamplesPanel();
+          } else if (shortcut.panel === "library") {
+            toggleLibraryPanel();
+          } else if (shortcut.panel === "netlist") {
+            toggleProjectPanel("netlist");
+          }
           return;
         case "enter-hierarchy":
           enterSelectedHierarchy();
@@ -4759,6 +4808,10 @@ export function App({
               session.latest?.unsavedAtSnapshot === true ||
               (session.latest !== null && session.latest.review !== "valid"),
           ),
+          checkAndSave: {
+            enabled: !saveBusy && !projectCheck.busy,
+            execute: () => void projectCheck.checkAndSave(),
+          },
           projectInputRef,
           onNewProject: createNewProject,
           onSave: () => void saveProjectToCloud(),
@@ -4785,10 +4838,6 @@ export function App({
               );
             });
           },
-          onRefresh: () => {
-            allowNextBrowserUnload();
-            refreshApp();
-          },
           onImportProject: (file) => void openProjectFile(file),
           onImportSpice: (files, namingProfile) =>
             void importSpiceFiles(files, namingProfile),
@@ -4801,6 +4850,11 @@ export function App({
         searchOpen={searchOpen}
         selectionFilterOpen={selectionFilterOpen}
         onManageCells={() => setCellManagerOpen(true)}
+        userComponentsOpen={userComponentsOpen}
+        onOpenUserComponents={() => {
+          cancelAllTransientInteraction();
+          setUserComponentsOpen(true);
+        }}
         onInsertComponent={() =>
           editorCommands.execute({
             id: "insert.start",
@@ -4815,14 +4869,6 @@ export function App({
           editorCommands.execute({ id: "selection.filter.open" })
         }
         onOpenSearch={() => editorCommands.execute({ id: "search.open" })}
-        undo={{
-          enabled: editorCommands.state({ id: "history.undo" }).enabled,
-          execute: () => editorCommands.execute({ id: "history.undo" }),
-        }}
-        redo={{
-          enabled: editorCommands.state({ id: "history.redo" }).enabled,
-          execute: () => editorCommands.execute({ id: "history.redo" }),
-        }}
         deleteSelection={{
           enabled:
             hasVisualSelection(visualSelection) || selectedEndpoint !== null,
@@ -4885,10 +4931,6 @@ export function App({
         }
         instanceCodeOpen={projectPanel === "instances"}
         netlistPreflightOpen={netlistPreflightOpen}
-        checkAndSave={{
-          enabled: !saveBusy && !projectCheck.busy,
-          execute: () => void projectCheck.checkAndSave(),
-        }}
         onOpenInstanceCode={() => {
           toggleProjectPanel("instances");
         }}
@@ -4921,9 +4963,6 @@ export function App({
           }
           setPublishGalleryOpen(true);
         }}
-        helpButtonRef={helpButtonRef}
-        helpOpen={helpOpen}
-        onOpenHelp={() => setHelpOpen(true)}
         drawingToolbar={{
           leftPanelMode,
           libraryPanelOpen: visibleLibraryPanelOpen,
@@ -5012,9 +5051,6 @@ export function App({
         }}
       />
       <EditorDialogLayer
-        help={
-          helpOpen ? { closeButtonRef: helpCloseRef, onClose: closeHelp } : null
-        }
         chunkLoadFailure={
           chunkLoadFailure === null
             ? null
@@ -5267,6 +5303,7 @@ export function App({
                 defaultName: galleryEntryContext?.name ?? project.name,
                 session: publishSession,
                 gateReport: publishGates,
+                topologyProject: galleryTopologyProject,
                 updateTarget:
                   galleryEntryContext &&
                   publishSession &&
@@ -5511,31 +5548,6 @@ export function App({
           <ShapesPanel
             styleProfileId={document.presentation.styleProfileId}
             open={visibleLibraryPanelOpen}
-            userComponents={
-              <Suspense fallback={null}>
-                <UserComponentsLibrary
-                  refresh={componentLibraryRefresh}
-                  onCreate={() => {
-                    cancelAllTransientInteraction();
-                    setComponentEditor({
-                      key: crypto.randomUUID(),
-                      mode: "new",
-                      definition: newComponentDefinition(),
-                    });
-                  }}
-                  onEdit={(entry) => {
-                    cancelAllTransientInteraction();
-                    setComponentEditor({
-                      key: crypto.randomUUID(),
-                      mode: "library",
-                      definition: entry.definition,
-                      entry,
-                    });
-                  }}
-                  onInsert={insertSharedComponent}
-                />
-              </Suspense>
-            }
             onStartInsert={(launch) =>
               editorCommands.execute({ id: "insert.start", launch })
             }
@@ -5543,7 +5555,6 @@ export function App({
         ) : (
           <ExamplesPanel
             open={visibleLibraryPanelOpen}
-            topologyProject={galleryTopologyProject}
             onOpenGalleryExample={(id) => void insertGalleryEntryById(id)}
             onOpenExample={openLibraryExample}
           />
@@ -5806,12 +5817,6 @@ export function App({
                     onProcessChange={netlistPreferences.selectProfile}
                     onDeviceTargetChange={netlistPreferences.setDeviceTarget}
                     onReset={netlistPreferences.reset}
-                    onCopy={() =>
-                      exportDesignNetlist(
-                        netlistPreferences.format,
-                        netlistNamingProfile,
-                      )
-                    }
                     configurationError={netlistPreferences.error}
                   />
                 ) : projectPanel === "instances" ? (
@@ -5918,13 +5923,24 @@ export function App({
                         drawAngle: drawAngleMode,
                         scrollBehavior: wheelBehavior,
                       },
+                      portLabels: portLabelFormat,
+                      portLabelCount: document.annotations.filter(
+                        (annotation) =>
+                          annotation.binding?.kind === "cell-terminal-name",
+                      ).length,
+                      onFormatPortLabels: (options) =>
+                        formatCellTerminalAnnotations(document.id, options),
                       onApply: (value) => {
-                        const current = documentSettingsCodeValue(document, {
-                          showGrid: gridDotsVisible,
-                          annotationGrid,
-                          drawAngle: drawAngleMode,
-                          scrollBehavior: wheelBehavior,
-                        });
+                        const current = documentSettingsCodeValue(
+                          document,
+                          {
+                            showGrid: gridDotsVisible,
+                            annotationGrid,
+                            drawAngle: drawAngleMode,
+                            scrollBehavior: wheelBehavior,
+                          },
+                          portLabelFormat,
+                        );
                         const edits: SchematicEdit[] = [];
                         if (
                           JSON.stringify(value.appearance) !==
@@ -5964,7 +5980,7 @@ export function App({
                         if (edits.length > 0 && !transact(edits).ok) {
                           return {
                             ok: false as const,
-                            message: "Style code was rejected",
+                            message: "Properties code was rejected",
                           };
                         }
                         if (value.canvas.showGrid !== gridDotsVisible)
@@ -5975,21 +5991,19 @@ export function App({
                           setDrawAngleMode(value.canvas.drawAngle);
                         if (value.canvas.scrollBehavior !== wheelBehavior)
                           setWheelBehavior(value.canvas.scrollBehavior);
-                        setStatus("Updated Style code");
+                        if (
+                          value.portLabels.suffixCase !==
+                            current.portLabels.suffixCase ||
+                          value.portLabels.suffixPlacement !==
+                            current.portLabels.suffixPlacement
+                        )
+                          setPortLabelFormat(value.portLabels);
+                        setStatus("Updated Properties code");
                         return { ok: true as const };
                       },
                     }
                   : null
               }
-              portLabelFormat={{
-                documentId: document.id,
-                labelCount: document.annotations.filter(
-                  (annotation) =>
-                    annotation.binding?.kind === "cell-terminal-name",
-                ).length,
-                onFormat: (options) =>
-                  formatCellTerminalAnnotations(document.id, options),
-              }}
               mosBulk={{
                 connection:
                   selectedInstance && selectedBulkResolution
@@ -6722,11 +6736,7 @@ export function App({
           }
         />
         <EditorCanvasSurface
-          empty={canvasIsEmpty}
-          showQuickStart={
-            !analogSimulationOpen &&
-            !pendingComponentPlacement?.editAfterPlacement
-          }
+          shortcutHintsVisible={shortcutHintsVisible}
           cameraRuntime={cameraRuntime}
           onWheel={handleWheel}
           onPinch={zoomAtClientPoint}
@@ -7330,6 +7340,31 @@ export function App({
           />
         </Suspense>
       ) : null}
+      <Suspense fallback={null}>
+        <UserComponentsLibrary
+          open={userComponentsOpen}
+          refresh={componentLibraryRefresh}
+          onClose={() => setUserComponentsOpen(false)}
+          onCreate={() => {
+            cancelAllTransientInteraction();
+            setComponentEditor({
+              key: crypto.randomUUID(),
+              mode: "new",
+              definition: newComponentDefinition(),
+            });
+          }}
+          onEdit={(entry) => {
+            cancelAllTransientInteraction();
+            setComponentEditor({
+              key: crypto.randomUUID(),
+              mode: "library",
+              definition: entry.definition,
+              entry,
+            });
+          }}
+          onInsert={insertSharedComponent}
+        />
+      </Suspense>
       <SelectionFilterPopover
         open={selectionFilterOpen}
         filter={selectionFilter}
@@ -7347,6 +7382,10 @@ export function App({
         wireCornerOrder={wireCornerOrder}
         recoveryLabel={isDirtyWork() ? recoveryStateLabel(recoveryState) : null}
         zoomPercent={zoomPercent}
+        shortcutHintsVisible={shortcutHintsVisible}
+        onToggleShortcutHints={() =>
+          setShortcutHintsVisible((visible) => !visible)
+        }
         gridVisible={gridDotsVisible}
         onToggleGrid={() => {
           setGridDotsVisible(!gridDotsVisible);

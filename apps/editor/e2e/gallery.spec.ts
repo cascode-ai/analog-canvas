@@ -7,7 +7,11 @@ import {
   createEmptyProject,
   CURRENT_PROJECT_SCHEMA_VERSION,
 } from "@icm/model";
-import { serializeProject, parseProject } from "@icm/project-protocol";
+import {
+  serializeProject,
+  parseProject,
+  CURRENT_PROJECT_FILE_VERSION,
+} from "@icm/project-protocol";
 import { hierarchicalSymbolId } from "@icm/symbols";
 
 import {
@@ -170,7 +174,11 @@ test("admin checks duplicates and cleans selected copies with partial failure re
   });
   await page.goto("/?author=tz");
   await expect(page.getByTestId("gallery-tile-original")).toBeVisible();
-  await expect(page.getByTestId("gallery-check-duplicates")).toBeVisible();
+  const sidebar = page.getByTestId("gallery-tag-sidebar");
+  await expect(sidebar.getByTestId("gallery-check-duplicates")).toBeVisible();
+  await expect(sidebar.locator(".gallery-sidebar-admin")).toContainText(
+    "Check duplicates",
+  );
   await expect(
     page.getByRole("button", {
       name: "Fill missing SKY130 models",
@@ -376,7 +384,7 @@ test("Gallery copies SKY130 dependencies with preview, repeat placement and atom
   );
   const count = source.documents.find((d) => d.id === source.topDocumentId)!
     .instances.length;
-  await mockGallery(page, [ENTRY]);
+  await mockGallery(page, [{ ...ENTRY, tags: ["clock"] }]);
   await page.route(`**/api/gallery/${ENTRY.id}`, (route) =>
     route.fulfill({
       json: { entry: ENTRY, projectText: serializeProject(source) },
@@ -385,6 +393,13 @@ test("Gallery copies SKY130 dependencies with preview, repeat placement and atom
   await page.goto("/editor");
   await awaitEditorReady(page);
   await page.getByTestId("examples-toggle").click();
+  const panel = page.getByTestId("examples-panel");
+  await expect(panel.getByTestId("examples-panel-tag-toggle")).toHaveCount(0);
+  const search = panel.getByTestId("examples-panel-search");
+  await expect(search).toHaveAttribute("placeholder", "Search Gallery…");
+  await search.fill("clock");
+  await expect(page.getByTestId(`gallery-example-${ENTRY.id}`)).toBeVisible();
+  await search.fill("");
   await page.getByTestId(`gallery-example-${ENTRY.id}`).click();
   const canvas = page.getByTestId("schematic-canvas");
   const box = await canvas.boundingBox();
@@ -412,7 +427,7 @@ test("Gallery copies SKY130 dependencies with preview, repeat placement and atom
   await expect(page.getByTestId("instance-count")).toHaveText(String(count));
 });
 
-test("the editor Gallery finds exact and nearest matches for the current topology", async ({
+test("Publish checks exact and nearest duplicates without adding a Gallery control", async ({
   page,
   context,
 }) => {
@@ -426,7 +441,26 @@ test("the editor Gallery finds exact and nearest matches for the current topolog
     ["exact", galleryResistorProject()],
     ["partial", galleryResistorProject("1k", 1)],
   ]);
-  await context.route("**/api/gallery**", (route) => {
+  let releaseScan!: () => void;
+  const scanPaused = new Promise<void>((resolve) => {
+    releaseScan = resolve;
+  });
+  let detailRequests = 0;
+  await context.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "publisher-1",
+          displayName: "Publisher",
+          email: "publisher@example.com",
+          provider: "github",
+          role: "user",
+          isAdmin: false,
+        },
+      },
+    }),
+  );
+  await context.route("**/api/gallery**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/gallery")
       return route.fulfill({
@@ -441,7 +475,9 @@ test("the editor Gallery finds exact and nearest matches for the current topolog
       });
     const id = url.pathname.split("/").pop()!;
     const project = projects.get(id);
-    if (project)
+    if (project) {
+      detailRequests++;
+      await scanPaused;
       return route.fulfill({
         json: {
           status: "public",
@@ -449,6 +485,7 @@ test("the editor Gallery finds exact and nearest matches for the current topolog
           projectText: serializeProject(project),
         },
       });
+    }
     return route.fulfill({ status: 404, json: {} });
   });
 
@@ -461,18 +498,31 @@ test("the editor Gallery finds exact and nearest matches for the current topolog
   await expect(page.getByTestId("status")).toContainText("current.icproj.json");
   await page.getByTestId("examples-toggle").click();
   const panel = page.getByTestId("examples-panel");
-  const check = panel.getByTestId("gallery-find-similar");
+  await expect(panel.getByTestId("gallery-find-similar")).toHaveCount(0);
+  await expect(panel.getByText("Check current topology")).toHaveCount(0);
+  await page.getByTestId("examples-toggle").click();
+
+  await page.getByTestId("publish-gallery-button").click();
+  const dialog = page.getByTestId("publish-gallery-dialog");
+  const check = dialog.getByTestId("gallery-find-similar");
+  const publish = dialog.getByRole("button", { name: "Publish", exact: true });
   await expect(check).toBeVisible();
   const buttonBox = await check.boundingBox();
-  const searchBox = await panel
-    .getByTestId("examples-panel-search")
-    .boundingBox();
+  const publishBox = await publish.boundingBox();
   expect(buttonBox).not.toBeNull();
-  expect(searchBox).not.toBeNull();
-  expect(buttonBox!.y).toBeLessThan(searchBox!.y);
+  expect(publishBox).not.toBeNull();
+  expect(buttonBox!.height).toBeLessThan(44);
+  expect(Math.abs(buttonBox!.y - publishBox!.y)).toBeLessThan(4);
 
   await check.click();
-  const results = panel.getByTestId("gallery-topology-results");
+  await expect.poll(() => detailRequests).toBe(3);
+  await expect(check).toBeDisabled();
+  await expect(dialog.getByTestId("gallery-topology-snapshot")).toContainText(
+    "still publish",
+  );
+  await expect(publish).toBeEnabled();
+  releaseScan();
+  const results = dialog.getByTestId("gallery-topology-results");
   await expect(results.getByRole("link")).toHaveCount(3);
   await expect(results.getByRole("link").nth(0)).toContainText(
     "Exact resistor pair",
@@ -490,6 +540,8 @@ test("the editor Gallery finds exact and nearest matches for the current topolog
     "href",
     "/g/exact",
   );
+  await expect(check).toBeEnabled();
+  await expect(check).toHaveText("Check Again");
 });
 
 test("the site lands on the full-screen gallery feed", async ({ page }) => {
@@ -500,7 +552,13 @@ test("the site lands on the full-screen gallery feed", async ({ page }) => {
   const brand = page.getByTestId("gallery-editor-link");
   await expect(brand).toHaveCSS("display", "flex");
   await expect(brand).toHaveCSS("text-decoration-line", "none");
-  await expect(brand.locator(".app-brand-mark")).toBeVisible();
+  const brandMark = brand.locator(".app-brand-mark");
+  await expect(brandMark).toBeVisible();
+  await expect(brandMark).toHaveCSS("background-image", /icon\.svg/);
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute(
+    "href",
+    "/icon.svg",
+  );
 
   // With community entries present the wall shows them alone: the bundled
   // starter tiles exist only while the gallery is empty.
@@ -1083,7 +1141,7 @@ test("the account chip sits on the header line and ellipsizes a long name", asyn
   expect(overflowing.display).not.toContain("flex");
 });
 
-test("the tag row filters, collapses, and keeps a selection visible", async ({
+test("the left sidebar hosts overall search and grouped tags at desktop, half-screen and mobile widths", async ({
   page,
 }) => {
   // Enough tags that the row would wrap over several lines unfiltered, which
@@ -1104,14 +1162,21 @@ test("the tag row filters, collapses, and keeps a selection visible", async ({
     "current mirror",
     "ldo",
   ];
+  let tagRequestCount = 0;
+  let galleryRequestCount = 0;
   await page.route("**/api/gallery**", (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/gallery/tags") {
+      tagRequestCount += 1;
       return route.fulfill({
-        json: { tags: tags.map((tag, index) => ({ tag, count: index + 1 })) },
+        json: {
+          tags: tags.map((tag, index) => ({ tag, count: index + 1 })),
+          groups: [{ group: "Buffers", count: 23 }],
+        },
       });
     }
     if (url.pathname !== "/api/gallery") return route.fallback();
+    galleryRequestCount += 1;
     return route.fulfill({
       json: {
         entries: [
@@ -1137,39 +1202,264 @@ test("the tag row filters, collapses, and keeps a selection visible", async ({
   );
 
   await page.goto("/");
-  const bar = page.getByTestId("gallery-tag-bar");
+  const sidebar = page.getByTestId("gallery-tag-sidebar");
+  const tile = page.getByTestId("gallery-tile-t-one");
+  await expect(sidebar).toBeVisible();
+  await expect.poll(() => tagRequestCount).toBe(1);
+  await expect.poll(() => galleryRequestCount).toBe(1);
+  await expect(page.getByText("Browse", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Categories", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Tagged circuits", { exact: true })).toHaveCount(
+    0,
+  );
+  expect(
+    await sidebar
+      .locator(".gallery-tag-group > summary")
+      .evaluateAll((items) =>
+        items.map((item) => item.firstChild?.textContent?.trim()),
+      ),
+  ).toEqual([
+    "Amplifiers",
+    "Bias & references",
+    "Buffers",
+    "Clock & timing",
+    "Computing",
+    "Conversion",
+    "Custom & legacy",
+    "Design Attributes",
+    "Devices & models",
+    "Filters",
+    "Logic & memory",
+    "Power",
+    "RF & communications",
+    "Sampling",
+    "Sensors",
+  ]);
+  const amplifierGroup = sidebar
+    .locator("summary")
+    .filter({ hasText: "Amplifiers" });
+  await expect(
+    sidebar.locator("summary").filter({ hasText: "Buffers" }).locator("span"),
+  ).toHaveText("23");
+  await expect(amplifierGroup).toBeVisible();
+  await expect(amplifierGroup).toHaveCSS("font-weight", "600");
+  await amplifierGroup.click();
+  const amplifier = page.getByTestId("gallery-tag-option-amplifier");
+  await expect(amplifier).toContainText("General Amplifier");
+  expect((await amplifier.boundingBox())!.height).toBeLessThanOrEqual(28);
+  const sidebarRhythm = await amplifierGroup.evaluate((summary) => {
+    const group = summary.parentElement!;
+    const items = [
+      ...group.querySelectorAll<HTMLElement>(".gallery-sidebar-tag"),
+    ];
+    const summaryStyle = getComputedStyle(summary);
+    const itemStyle = getComputedStyle(items[0]!);
+    const first = items[0]!.getBoundingClientRect();
+    const second = items[1]!.getBoundingClientRect();
+    return {
+      fontMatches: summaryStyle.fontFamily === itemStyle.fontFamily,
+      colorMatches: summaryStyle.color === itemStyle.color,
+      summaryFontSize: summaryStyle.fontSize,
+      summaryFontWeight: summaryStyle.fontWeight,
+      summaryPaddingBlock: [
+        summaryStyle.paddingTop,
+        summaryStyle.paddingBottom,
+      ],
+      groupMarginBottom: getComputedStyle(group).marginBottom,
+      itemGap: second.top - first.bottom,
+    };
+  });
+  expect(sidebarRhythm).toEqual({
+    fontMatches: true,
+    colorMatches: true,
+    summaryFontSize: "12px",
+    summaryFontWeight: "600",
+    summaryPaddingBlock: ["6px", "6px"],
+    groupMarginBottom: "4px",
+    itemGap: 2,
+  });
+  const search = page.getByTestId("gallery-search");
+  await expect(search).toHaveCount(1);
+  await expect(page.getByTestId("gallery-tag-search")).toHaveCount(0);
+  await sidebar.locator("summary").filter({ hasText: "Conversion" }).click();
+  await expect(page.getByTestId("gallery-tag-option-adc")).toContainText("ADC");
+  const logicGroup = page.getByTestId("gallery-tag-option-and").locator("..");
+  await logicGroup.locator("summary").click();
+  await expect(
+    logicGroup
+      .locator(".gallery-tag-name")
+      .evaluateAll((items) => items.map((item) => item.textContent)),
+  ).resolves.toEqual([
+    "AND",
+    "CML",
+    "D Flip Flop",
+    "D Latch",
+    "DRAM",
+    "Flip Flop",
+    "Inverter",
+    "Latch",
+    "Level Shifter",
+    "Logic",
+    "Memory Cell",
+    "Multiplexer",
+    "NAND",
+    "NOR",
+    "OR",
+    "Sense Amplifier",
+    "SRAM",
+    "TSPC",
+    "XOR",
+  ]);
+  await sidebar
+    .locator("summary")
+    .filter({ hasText: /^Power/ })
+    .click();
+  const ldo = page.getByTestId("gallery-tag-option-ldo");
+  await expect(ldo).toHaveCount(1);
+  await ldo.scrollIntoViewIfNeeded();
+  await expect(ldo).toBeVisible();
+  expect(
+    (await sidebar.boundingBox())!.x + (await sidebar.boundingBox())!.width,
+  ).toBeLessThan((await tile.boundingBox())!.x);
+
+  await search.fill("ld");
+  await expect(page.getByTestId("gallery-tag-option-ldo")).toBeVisible();
   await expect(page.getByTestId("gallery-tag-option-amplifier")).toBeVisible();
-
-  // Collapsed: the tail is offered rather than shown.
-  const collapsed = await bar.getByRole("button").count();
-  await expect(page.getByTestId("gallery-tags-show-all")).toBeVisible();
-  await expect(page.getByTestId("gallery-tag-option-ldo")).toHaveCount(0);
-
-  await page.getByTestId("gallery-tags-show-all").click();
-  await expect(page.getByTestId("gallery-tag-option-ldo")).toBeVisible();
-  expect(await bar.getByRole("button").count()).toBeGreaterThan(collapsed);
-  await page.getByTestId("gallery-tags-show-fewer").click();
-  await expect(page.getByTestId("gallery-tag-option-ldo")).toHaveCount(0);
-
-  // Filtering reaches a tag the collapsed row does not show.
-  await page.getByTestId("gallery-search").fill("ld");
-  await expect(page.getByTestId("gallery-tag-option-ldo")).toBeVisible();
-  await expect(page.getByTestId("gallery-tag-option-amplifier")).toHaveCount(0);
-
-  // A selected tag survives clearing the filter and re-collapsing: the row
-  // may never hide the reason the wall is filtered.
+  // The overall search narrows circuits without mutating tag navigation.
+  await expect(search).toHaveValue("ld");
+  await expect(tile).toBeVisible();
   await page.getByTestId("gallery-tag-option-ldo").click();
-  await page.getByTestId("gallery-search").fill("");
+  await search.fill("osc");
   await expect(page.getByTestId("gallery-tag-option-ldo")).toBeVisible();
   await expect(page.getByTestId("gallery-tags-clear")).toContainText(
     "Clear 1 selected",
   );
+  await expect(page).toHaveURL(/tags=ldo/);
+  await search.fill("");
+  await expect(tile).toBeVisible();
 
+  await page.setViewportSize({ width: 800, height: 800 });
+  await expect(sidebar).toBeVisible();
+  // The ResizeObserver adapts the column after the viewport change; wait for
+  // that layout pass before comparing the two columns.
+  await expect
+    .poll(async () => {
+      const sidebarBox = await page
+        .locator(".gallery-sidebar-slot")
+        .boundingBox();
+      const tileBox = await tile.boundingBox();
+      return sidebarBox && tileBox
+        ? sidebarBox.x + sidebarBox.width < tileBox.x
+        : false;
+    })
+    .toBe(true);
+  await expect(page.locator(".gallery-main")).toHaveJSProperty(
+    "scrollWidth",
+    await page
+      .locator(".gallery-main")
+      .evaluate((element) => element.clientWidth),
+  );
+  await page.screenshot({ path: "plan/gallery-sidebar-half.png" });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(sidebar).toBeHidden();
+  await page.getByRole("button", { name: "Search & filters" }).click();
+  await expect(sidebar).toBeVisible();
+  await page.getByTestId("gallery-tags-clear").click();
+  await expect(page.getByTestId("gallery-tag-option-ldo")).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+  await page.getByRole("button", { name: "Search & filters" }).click();
+  await expect(sidebar).toBeHidden();
+  await expect(tile).toBeVisible();
   await page.getByTestId("gallery-search").fill("zzz");
   await expect(page.getByTestId("gallery-search-empty")).toBeVisible();
 });
 
-test("the search box reaches authors, names, and descriptions", async ({
+test("the tag sidebar resizes by dragging and keyboard, remembers width and adapts to narrow windows", async ({
+  page,
+}) => {
+  await page.route(galleryListUrl, (route) =>
+    route.fulfill({ json: { entries: [ENTRY], nextCursor: null, total: 1 } }),
+  );
+  await page.route("**/api/gallery/tags", (route) =>
+    route.fulfill({ json: { tags: [{ tag: "amplifier", count: 1 }] } }),
+  );
+  await page.route("**/api/gallery/*/preview.svg*", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"/>',
+    }),
+  );
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  // Invalid saved settings must not break the layout or disable resizing.
+  await page.evaluate(() =>
+    localStorage.setItem("icm.gallery.sidebarWidth", "invalid"),
+  );
+  await page.reload();
+  const handle = page.getByRole("separator", {
+    name: "Resize Gallery filters",
+  });
+  const slot = page.locator(".gallery-sidebar-slot");
+  const expectWidth = async (width: number) => {
+    await expect(handle).toHaveAttribute("aria-valuenow", String(width));
+    await expect
+      .poll(async () => (await slot.boundingBox())?.width)
+      .toBe(width);
+  };
+  const drag = async (delta: number) => {
+    const bounds = (await handle.boundingBox())!;
+    const x = bounds.x + bounds.width / 2;
+    await page.mouse.move(x, bounds.y + 30);
+    await page.mouse.down();
+    await page.mouse.move(x + delta, bounds.y + 100, { steps: 5 });
+    await page.mouse.up();
+  };
+  await expectWidth(238);
+  await expect(handle).toHaveCSS("cursor", "col-resize");
+  await drag(110);
+  await expectWidth(348);
+  await page.reload();
+  await expectWidth(348);
+  await drag(-80);
+  await expectWidth(268);
+  // Releasing away from the edge must terminate the captured drag.
+  await page.mouse.move(700, 500);
+  await expectWidth(268);
+  await handle.focus();
+  await page.keyboard.press("ArrowRight");
+  await expectWidth(276);
+  await page.keyboard.press("Home");
+  await expectWidth(180);
+  await drag(-100);
+  await expectWidth(180);
+  await drag(700);
+  await expectWidth(420);
+  await page.setViewportSize({ width: 800, height: 800 });
+  await expectWidth(360);
+  await expect(page.locator(".gallery-main")).toHaveJSProperty(
+    "scrollWidth",
+    await page
+      .locator(".gallery-main")
+      .evaluate((element) => element.clientWidth),
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(handle).toBeHidden();
+  await page.getByRole("button", { name: "Search & filters" }).click();
+  await expect(page.getByTestId("gallery-tag-sidebar")).toBeVisible();
+  // Mobile filters fill their container instead of keeping the desktop width.
+  expect((await slot.boundingBox())!.width).toBe(
+    (await page.locator(".gallery-browser").boundingBox())!.width,
+  );
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expectWidth(420);
+  await page.reload();
+  await expectWidth(420);
+});
+
+test("the search box reaches metadata and tolerates small typos", async ({
   page,
 }) => {
   const walled = [
@@ -1207,6 +1497,13 @@ test("the search box reaches authors, names, and descriptions", async ({
   await page.goto("/");
 
   const box = page.getByTestId("gallery-search");
+  await expect(
+    page.locator(".gallery-sidebar-slot").getByTestId("gallery-search"),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("gallery-tag-sidebar").getByTestId("gallery-search"),
+  ).toHaveCount(0);
+  await expect(page.getByTestId("gallery-tag-search")).toHaveCount(0);
   await expect(box).toHaveAttribute("placeholder", "Name, author, tag…");
   await expect(box).toHaveAttribute("aria-label", "Search circuits");
 
@@ -1222,6 +1519,9 @@ test("the search box reaches authors, names, and descriptions", async ({
   await expect(page.getByTestId("gallery-tile-s1")).toHaveCount(0);
 
   await box.fill("three-stage");
+  await expect(page.getByTestId("gallery-tile-s1")).toBeVisible();
+
+  await box.fill("stgae");
   await expect(page.getByTestId("gallery-tile-s1")).toBeVisible();
 
   await box.fill("zzz");
@@ -1305,6 +1605,9 @@ test("the wall states how many circuits the gallery holds", async ({
   await page.route("**/api/gallery/tags", (route) =>
     route.fulfill({ json: { tags: [] } }),
   );
+  await page.route("**/api/projects", (route) =>
+    route.fulfill({ status: 401, json: { error: "authentication-required" } }),
+  );
   await page.goto("/");
   await expect(page.getByTestId("gallery-count-panel")).toHaveText(
     "128 circuits",
@@ -1312,6 +1615,7 @@ test("the wall states how many circuits the gallery holds", async ({
   // The shelf states its own count; the community total stays off it.
   await page.getByTestId("gallery-view-shelf").click();
   await expect(page.getByTestId("gallery-count-panel")).toHaveCount(0);
+  await expect(page.getByTestId("shelf-signed-out")).toBeVisible();
 });
 
 test("the wall count opens a contributor ranking whose names open each gallery", async ({
@@ -1409,73 +1713,6 @@ test("an API without totals hides the count rather than guessing", async ({
   await expect(page.getByTestId("gallery-count-panel")).toHaveCount(0);
 });
 
-test("Any tag selects every tag as one union and takes it back", async ({
-  page,
-}) => {
-  const listQueries: string[] = [];
-  const tags = ["amplifier", "adc", "pll"];
-  await page.route("**/api/gallery**", (route) => {
-    const url = new URL(route.request().url());
-    if (url.pathname === "/api/gallery/tags") {
-      return route.fulfill({
-        json: { tags: tags.map((tag, i) => ({ tag, count: i + 1 })) },
-      });
-    }
-    if (url.pathname !== "/api/gallery") return route.fallback();
-    const selected = (url.searchParams.get("tags") ?? "")
-      .split(",")
-      .filter(Boolean);
-    listQueries.push(selected.join(","));
-    const all = [
-      { id: "t-amp", tags: ["amplifier"] },
-      { id: "t-pll", tags: ["pll"] },
-      // Untagged work is exactly what "Any tag" leaves out, which is why the
-      // control is not called "select all".
-      { id: "t-bare", tags: [] as string[] },
-    ];
-    const entries = all
-      .filter(
-        (entry) =>
-          selected.length === 0 ||
-          entry.tags.some((tag) => selected.includes(tag)),
-      )
-      .map((entry) => ({
-        id: entry.id,
-        name: `Circuit ${entry.id}`,
-        author: "tz",
-        description: "",
-        createdAt: "2026-08-22T10:00:00.000Z",
-        schemaVersion: 23,
-        tags: entry.tags,
-      }));
-    return route.fulfill({ json: { entries, nextCursor: null } });
-  });
-  await page.route("**/api/gallery/*/preview.svg", (route) =>
-    route.fulfill({
-      contentType: "image/svg+xml",
-      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"><rect width="10" height="6" fill="#fff"/></svg>',
-    }),
-  );
-
-  await page.goto("/");
-  await expect(page.getByTestId("gallery-tile-t-bare")).toBeVisible();
-  const any = page.getByTestId("gallery-tags-any");
-  await expect(any).toHaveAttribute("aria-pressed", "false");
-
-  await any.click();
-  await expect(any).toHaveAttribute("aria-pressed", "true");
-  // Every tag rides in the query as one union, and the untagged circuit goes.
-  await expect(page.getByTestId("gallery-tile-t-amp")).toBeVisible();
-  await expect(page.getByTestId("gallery-tile-t-bare")).toHaveCount(0);
-  expect(listQueries).toContain("amplifier,adc,pll");
-  // With everything on there is nothing partial left to clear.
-  await expect(page.getByTestId("gallery-tags-clear")).toHaveCount(0);
-
-  await any.click();
-  await expect(any).toHaveAttribute("aria-pressed", "false");
-  await expect(page.getByTestId("gallery-tile-t-bare")).toBeVisible();
-});
-
 test("the tag menu multi-selects and tile tags join the selection", async ({
   page,
 }) => {
@@ -1531,10 +1768,17 @@ test("the tag menu multi-selects and tile tags join the selection", async ({
   await expect(page.getByTestId("gallery-tile-t-pll")).toBeVisible();
 
   // Multi-select two tags: OR union, URL carried.
+  const sidebar = page.getByTestId("gallery-tag-sidebar");
+  await sidebar.locator("summary").filter({ hasText: "Amplifiers" }).click();
+  await sidebar.locator("summary").filter({ hasText: "Conversion" }).click();
+  const search = page.getByTestId("gallery-search");
+  await search.fill("amplifier");
   await page.getByTestId("gallery-tag-option-amplifier").click();
   await expect(page.getByTestId("gallery-tile-t-pll")).toHaveCount(0);
+  await search.fill("adc");
   await page.getByTestId("gallery-tag-option-adc").click();
   await expect(page).toHaveURL(/tags=amplifier%2Cadc|tags=amplifier,adc/);
+  await search.fill("");
   await expect(page.getByTestId("gallery-tile-t-amp")).toBeVisible();
   expect(listQueries).toContain("amplifier,adc");
 
@@ -1919,7 +2163,7 @@ test("a signed-in member publishes directly, bylined by the account", async ({
       hasAuthor: false,
       name: "Session Publish",
       tags: ["amplifier", "latch"],
-      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+      schemaVersion: CURRENT_PROJECT_FILE_VERSION,
     },
   ]);
 
@@ -2893,4 +3137,90 @@ test("bundled VDD rails keep their current presentation in the Gallery and edito
       '[data-testid="schematic-canvas"] [data-layer="junctions"] circle[cx="380"][cy="160"], [data-testid="schematic-canvas"] [data-layer="junctions"] circle[cx="500"][cy="160"]',
     ),
   ).toHaveCount(0);
+});
+
+test("authors can filter pending visual reviews and resolve their own drawing", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "maker-1",
+          displayName: "Maker",
+          email: "maker@example.com",
+          provider: "github",
+          isAdmin: false,
+          role: "user",
+        },
+      },
+    }),
+  );
+  let entry = {
+    ...ENTRY,
+    id: "review-me",
+    ownerUserId: "maker-1",
+    tags: ["amplifier"],
+    curationRevision: 1,
+    attention: {
+      status: "needs-attention",
+      issues: [
+        {
+          kind: "suspected-disconnection",
+          detail: "Output wire has a visible gap near OUT.",
+        },
+      ],
+    },
+    assessedPreviewRevision: ENTRY.previewRevision,
+  };
+  await page.route("**/api/gallery**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/gallery/tags")
+      return route.fulfill({
+        json: {
+          tags: [{ tag: "amplifier", count: 1 }],
+        },
+      });
+    if (url.pathname === "/api/gallery/review-me/curation") {
+      const body = route.request().postDataJSON();
+      expect(body.expectedCurationRevision).toBe(1);
+      expect(body.expectedPreviewRevision).toBe(ENTRY.previewRevision);
+      entry = { ...entry, attention: body.attention, curationRevision: 2 };
+      return route.fulfill({ json: { entry } });
+    }
+    if (url.pathname === "/api/gallery") {
+      const included =
+        url.searchParams.get("attention") !== "1" ||
+        entry.attention.status === "needs-attention";
+      return route.fulfill({
+        json: {
+          entries: included ? [entry] : [],
+          nextCursor: null,
+          total: included ? 1 : 0,
+        },
+      });
+    }
+    if (url.pathname.endsWith("/preview.svg"))
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"/>',
+      });
+    return route.fallback();
+  });
+  await page.goto("/");
+  await expect(page.getByText("Categories", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByTestId("gallery-tile-tag-review-me-amplifier"),
+  ).toBeVisible();
+  await page.getByTestId("gallery-filter-attention").click();
+  await expect(page).toHaveURL(/attention=1/);
+  const review = page.getByTestId("gallery-attention-review-me");
+  await review.locator("summary").click();
+  await expect(review).toContainText("Output wire has a visible gap");
+  await review.getByRole("button", { name: "Mark resolved" }).click();
+  await expect(page.getByTestId("gallery-tile-review-me")).toHaveCount(0);
+  await page.getByTestId("gallery-filter-attention").click();
+  await expect(page.getByTestId("gallery-attention-review-me")).toContainText(
+    "Reviewed · resolved",
+  );
 });

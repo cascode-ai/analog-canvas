@@ -5,11 +5,15 @@ import type { SharedComponent } from "./component-library-contract";
 import { loadSharedComponents } from "./component-library-client";
 
 export default function UserComponentsLibrary({
+  open,
+  onClose,
   onCreate,
   onEdit,
   onInsert,
   refresh,
 }: {
+  open: boolean;
+  onClose(): void;
   onCreate(): void;
   onEdit(entry: SharedComponent): void;
   onInsert(entry: SharedComponent): void;
@@ -24,7 +28,14 @@ export default function UserComponentsLibrary({
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
   const generation = useRef(0);
+  const searchRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
+    if (!open) return;
+    const frame = requestAnimationFrame(() => searchRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
+  useEffect(() => {
+    if (!open) return;
     let active = true;
     void fetchSessionUser().then((next) => {
       if (active) setUser(next);
@@ -32,8 +43,9 @@ export default function UserComponentsLibrary({
     return () => {
       active = false;
     };
-  }, [refresh]);
+  }, [open, refresh]);
   useEffect(() => {
+    if (!open) return;
     generation.current += 1;
     const controller = new AbortController();
     setLoading(true);
@@ -59,7 +71,7 @@ export default function UserComponentsLibrary({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [query, deleted, refresh, retry]);
+  }, [deleted, open, query, refresh, retry]);
   async function more() {
     const currentGeneration = generation.current;
     setLoading(true);
@@ -81,85 +93,138 @@ export default function UserComponentsLibrary({
       if (currentGeneration === generation.current) setLoading(false);
     }
   }
+  if (!open) return null;
   return (
-    <details
-      className="shapes-category user-components-library"
-      open
-      data-testid="shapes-category-user-defined"
+    <div
+      className="insert-dialog-backdrop"
+      data-testid="user-components-backdrop"
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
     >
-      <summary className="shapes-category-header">
-        <span>User Defined</span>
-      </summary>
-      <div className="user-components-tools">
-        <button type="button" onClick={onCreate}>
-          + Create component
-        </button>
+      <section
+        className="user-components-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="user-components-title"
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            onClose();
+          }
+        }}
+      >
+        <header className="user-components-header">
+          <div>
+            <p>Component Library</p>
+            <h2 id="user-components-title">User Components</h2>
+          </div>
+          <div className="user-components-actions">
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onCreate();
+              }}
+            >
+              Create Component…
+            </button>
+            <button type="button" onClick={onClose}>
+              Close
+            </button>
+          </div>
+        </header>
         <input
+          ref={searchRef}
           aria-label="Search User Defined components"
-          placeholder="Search components"
+          className="user-components-search"
+          placeholder="Find a component…"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
         {user?.isAdmin ? (
-          <label>
-            <input
-              type="checkbox"
-              checked={deleted}
-              onChange={(event) => setDeleted(event.target.checked)}
-            />{" "}
-            Deleted
-          </label>
-        ) : null}
-      </div>
-      {error ? (
-        <p role="status">
-          {error}{" "}
-          <button type="button" onClick={() => setRetry((value) => value + 1)}>
-            Retry
+          <button
+            type="button"
+            className="user-components-deleted-toggle"
+            aria-pressed={deleted}
+            onClick={() => setDeleted((current) => !current)}
+          >
+            {deleted
+              ? "Show available components"
+              : "Review deleted components"}
           </button>
-        </p>
-      ) : null}
-      <div className="shapes-grid">
-        {entries.map((entry) => (
-          <div className="user-component-tile" key={entry.id}>
+        ) : null}
+        {error ? (
+          <div className="user-components-message" role="status">
+            <span>Couldn’t load user components.</span>
             <button
               type="button"
-              className="shapes-chip"
-              disabled={deleted}
-              aria-label={`Place ${entry.definition.symbol.name}`}
-              title={`${entry.definition.symbol.name} · ${entry.author}${entry.status === "official" ? " · Official" : ""}`}
-              onClick={() => onInsert(entry)}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                onEdit(entry);
-              }}
+              onClick={() => setRetry((value) => value + 1)}
             >
-              <SymbolArtwork
-                symbol={entry.definition.symbol}
-                className="shapes-chip-art"
-              />
-              <span>{entry.definition.symbol.name}</span>
-            </button>
-            <button
-              type="button"
-              className="user-component-edit"
-              aria-label={`Edit ${entry.definition.symbol.name} definition`}
-              onClick={() => onEdit(entry)}
-            >
-              {entry.status === "official" ? "Official · Edit" : "Edit"}
+              Try Again
             </button>
           </div>
-        ))}
-      </div>
-      {loading ? (
-        <small role="status">Loading components…</small>
-      ) : cursor ? (
-        <button type="button" onClick={() => void more()}>
-          Load more
-        </button>
-      ) : !entries.length && !error ? (
-        <small>No shared components yet.</small>
-      ) : null}
-    </details>
+        ) : null}
+        <div className="user-components-grid">
+          {entries.map((entry) => (
+            <article className="user-component-tile" key={entry.id}>
+              <button
+                type="button"
+                className="user-component-place"
+                disabled={deleted}
+                aria-label={`Place ${entry.definition.symbol.name}`}
+                title={`${entry.definition.symbol.name} · ${entry.author}${entry.status === "official" ? " · Official" : ""}`}
+                onClick={() => {
+                  onClose();
+                  onInsert(entry);
+                }}
+              >
+                <SymbolArtwork
+                  symbol={entry.definition.symbol}
+                  className="user-component-art"
+                />
+                <strong>{entry.definition.symbol.name}</strong>
+                <small>
+                  {entry.status === "official" ? "Official · " : ""}
+                  {entry.author}
+                </small>
+              </button>
+              <button
+                type="button"
+                className="user-component-edit"
+                aria-label={`Edit ${entry.definition.symbol.name} definition`}
+                onClick={() => {
+                  onClose();
+                  onEdit(entry);
+                }}
+              >
+                {deleted ? "Review" : "Edit"}
+              </button>
+            </article>
+          ))}
+          {!loading && !entries.length && !error ? (
+            <p className="user-components-empty">
+              {query
+                ? "No user components match this search."
+                : deleted
+                  ? "No deleted components."
+                  : "No user components yet."}
+            </p>
+          ) : null}
+        </div>
+        <footer className="user-components-footer">
+          {loading ? (
+            <small role="status">Loading components…</small>
+          ) : (
+            <span />
+          )}
+          {cursor && !loading ? (
+            <button type="button" onClick={() => void more()}>
+              Load More
+            </button>
+          ) : null}
+        </footer>
+      </section>
+    </div>
   );
 }

@@ -220,8 +220,9 @@ sources of truth.
   independent from emitted netlist parameters.
 - Hierarchy is an acyclic graph of ordinary Instances whose typed subcircuit
   bindings resolve to child Documents; orphan Cell definitions are allowed.
-- Canvas `port` and `port-filled` objects are Cell Pin marker Instances with
-  terminal `P`. A `vdd-port` Instance may use the same formal-terminal protocol
+- Canvas `port` and `port-filled` objects are respectively the hollow Cell Pin
+  and solid Bias Voltage Port Instances, both with terminal `P`. A `vdd-port`
+  Instance may use the same formal-terminal protocol
   or, mutually exclusively, own a Global VDD name claim. Their connectivity is
   stored in `Net.terminals` and ordinary terminal Route endpoints.
 - Base `Net.terminals` is a derived physical membership index. Connection facts

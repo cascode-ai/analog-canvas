@@ -562,8 +562,13 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     if (!committed) return;
     options.selectOnly("instance", [id]);
     options.setComponentPreviewPoint(position);
+    const placedKind = supply
+      ? "VDD Power Cell Pin"
+      : symbolId === "port-filled"
+        ? "Bias Voltage Port"
+        : "Cell Pin";
     options.setStatus(
-      `Added ${supply ? "VDD Power Cell Pin" : "Cell Pin"} ${formalName} · click to place another · Esc exits`,
+      `Added ${placedKind} ${formalName} · click to place another · Esc exits`,
     );
   };
 

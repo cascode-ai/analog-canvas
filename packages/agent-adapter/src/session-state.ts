@@ -39,7 +39,10 @@ export const DEFAULT_AGENT_SESSION_LIMITS: AgentSessionLimits = {
   claimTtlMs: 30 * 60 * 1000,
   tokenTtlMs: 8 * 60 * 60 * 1000,
   sessionTtlMs: 30 * 60 * 1000,
-  maxRequestBytes: 2_000_000,
+  // Project Code may occupy the full 2 MB product limit; leave room for the
+  // typed request envelope instead of making the largest valid Project
+  // impossible to replace through the Project Resource.
+  maxRequestBytes: 3_000_000,
   maxMessageBytes: 6_000_000,
   rateLimit: { windowMs: 60_000, maxRequests: 60 },
   resultCacheTtlMs: 5 * 60 * 1000,

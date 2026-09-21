@@ -41,7 +41,7 @@ export function ProjectSearchDialog({
         <header>
           <div>
             <p className="help-kicker">Project navigation</p>
-            <h2 id="project-search-title">Search schematic</h2>
+            <h2 id="project-search-title">Find in Circuit</h2>
           </div>
           <button type="button" onClick={onClose} aria-label="Close search">
             Close
@@ -51,7 +51,7 @@ export function ProjectSearchDialog({
           dir="auto"
           ref={inputRef}
           data-testid="project-search-input"
-          aria-label="Search project"
+          aria-label="Find in circuit"
           value={query}
           placeholder="Instance, Net, port, property…"
           onChange={(event) => onQueryChange(event.currentTarget.value)}

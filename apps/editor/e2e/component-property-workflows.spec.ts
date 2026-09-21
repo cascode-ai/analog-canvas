@@ -7,7 +7,6 @@ import { serializeProject } from "@icm/project-protocol";
 import {
   revealPropertiesShelf,
   awaitEditorReady,
-  clickCommand,
   clickDrawTool,
   downloadBytes,
   editComponentPropertyCode,
@@ -134,9 +133,9 @@ test("live JSON properties update controls immediately and round-trip raw parame
     styleOverride: { foreground: "#dc2626" },
     placement: { rotation: 90 },
   });
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expectComponentCodeField(page, "parameters.w", "1u");
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   await expectComponentCodeField(page, "parameters.w", "EV");
   await page.getByTestId("project-file").setInputFiles({
     name: "raw.icproj.json",
@@ -161,7 +160,7 @@ test("live Defaults are undoable and invalid drafts never change the canvas", as
   await expect(page.getByTestId("revision")).toHaveText(
     String(Number(revision) + 1),
   );
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expectComponentCodeField(page, "parameters.w", "7u");
   const code = page.getByLabel("Editable Canvas property code");
   const invalid = JSON.parse(await readComponentPropertyCode(page));
@@ -213,11 +212,11 @@ test("one live JSON edit combines model, dimensions and appearance in one undo b
   await expectComponentCodeField(page, "netlistName", "M1");
   await expectComponentCodeField(page, "parameters.w", "5u");
   await expectComponentCodeField(page, "color", [20, 30, 40]);
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expectComponentCodeField(page, "netlistName", "M1");
   await expectComponentCodeField(page, "parameters.w", "1u");
   await expectComponentCodeField(page, "color", "auto");
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   await expectComponentCodeField(page, "netlistName", "M1");
   await expectComponentCodeField(page, "parameters.w", "5u");
 });
@@ -577,7 +576,7 @@ test("Q opens a text-first Properties editor with one-click exact draft copy", a
     });
   expect(positions.copyBottom).toBeGreaterThan(0);
   expect(positions.editorHeight).toBeGreaterThan(240);
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expectComponentCodeField(page, "parameters.w", "1u");
 });
 
@@ -1386,9 +1385,9 @@ test("edits the transconductance trapezoid from gm to -gmL", async ({
     formalScene.locator('[data-role="formula-subscript"]'),
   ).toHaveText("mL");
 
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expectComponentCodeField(page, "signalFlow", {});
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   await expectComponentCodeField(page, "signalFlow.formula", "−gₘL");
 });
 
@@ -1449,9 +1448,9 @@ test("edits a formula-capable Signal Flow block with undo, redo, and Reset defau
   await expect(frame).toHaveAttribute("width", "160");
   await expect(frame).toHaveAttribute("height", "80");
 
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(frame).toHaveAttribute("height", "50");
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   await expect(frame).toHaveAttribute("height", "80");
 
   await properties
@@ -1684,9 +1683,9 @@ for (const symbol of ["xfmr", "tcoil"] as const) {
     });
     await expect(formalLabels).toHaveCount(1);
     await expect(formalLabels).toContainText(`${windingLabel} = 2.5n`);
-    await clickCommand(page, "Edit", "Undo");
+    await page.getByTestId("draw-tool-undo").click();
     await expect(formalLabels).toContainText("K = 1");
-    await clickCommand(page, "Edit", "Redo");
+    await page.getByTestId("draw-tool-redo").click();
     await expect(formalLabels).toContainText(`${windingLabel} = 2.5n`);
     await editComponentPropertyCode(page, (code) => {
       code.display.parameters.k = true;

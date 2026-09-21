@@ -140,7 +140,7 @@ test("C copy shows alignment guides, commits the preview and clears guides on Es
   await page.keyboard.press("Escape");
   await expect(ghost).toHaveCount(0);
   await expect(page.locator(".smart-snap-guide")).toHaveCount(0);
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(page.getByTestId("instance-count")).toHaveText("1");
 });
 
@@ -353,93 +353,74 @@ test("keeps the Placement Tray out of the manual component workflow", async ({
   await expect(page.getByTestId("revision")).toHaveText("1");
 });
 
-test("refreshes explicitly only after flushing and automatically restoring recovery", async ({
+test("new circuits open the Library and Netlist without replacing the saved Library preference", async ({
   page,
 }) => {
-  await page.goto("/editor");
-  await chooseComponent(page, "resistor");
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 360, y: 230 } });
-  await page.keyboard.press("Escape");
-  await expect(page.getByTestId("hit-R1")).toBeVisible();
-  await expect(page.getByTestId("revision")).toHaveText("1");
+  await page.addInitScript(() => {
+    localStorage.setItem("icm.library-panel-open.v1", "false");
+  });
 
-  const navigated = page.waitForEvent("framenavigated");
-  await clickCommand(page, "File", "Refresh app");
-  await navigated;
-
-  await awaitEditorReady(page);
-  await expect(page.getByTestId("hit-R1")).toBeVisible();
-  await expect(page.getByTestId("revision")).toHaveText("1");
-  await expect(page.getByTestId("status")).toHaveText(
-    "Restored recovery revision 1",
-  );
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        sessionStorage.getItem("icm.restore-after-refresh.v1"),
-      ),
-    )
-    .toBeNull();
-});
-
-test("refresh restores the circuit when the session started from a boot-target URL", async ({
-  page,
-}) => {
-  // location.reload() keeps the entry URL, so the ?new=1 boot target re-runs
-  // on the refreshed page. It must yield to the pending restore instead of
-  // forking a fresh working copy that orphans the flushed snapshot.
   await page.goto("/editor?new=1");
   await awaitEditorReady(page);
-  await expect(page.getByTestId("status")).toHaveText("Created a new Project");
-  await chooseComponent(page, "resistor");
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 360, y: 230 } });
-  await page.keyboard.press("Escape");
-  await expect(page.getByTestId("hit-R1")).toBeVisible();
-  await expect(page.getByTestId("revision")).toHaveText("1");
 
-  const navigated = page.waitForEvent("framenavigated");
-  await clickCommand(page, "File", "Refresh app");
-  await navigated;
-
-  await awaitEditorReady(page);
-  await expect(page.getByTestId("hit-R1")).toBeVisible();
-  await expect(page.getByTestId("revision")).toHaveText("1");
-  await expect(page.getByTestId("status")).toHaveText(
-    "Restored recovery revision 1",
+  await expect(page.getByTestId("shapes-library-panel")).toHaveAttribute(
+    "data-open",
+    "true",
+  );
+  await expect(page.getByTestId("refresh-netlist-panel")).toBeVisible();
+  await expect(page.getByTestId("library-toggle")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.getByTestId("netlist-panel-toggle")).toHaveAttribute(
+    "aria-pressed",
+    "true",
   );
   await expect
     .poll(() =>
-      page.evaluate(() =>
-        sessionStorage.getItem("icm.restore-after-refresh.v1"),
-      ),
+      page.evaluate(() => localStorage.getItem("icm.library-panel-open.v1")),
     )
-    .toBeNull();
+    .toBe("false");
 });
 
-test("keeps quick-start shortcuts in the upper-right corner until the first component is inserted", async ({
+test("keeps shortcuts hidden until the status-bar Hints control requests them", async ({
   page,
 }) => {
   await page.goto("/editor");
   await revealPropertiesShelf(page);
   await awaitEditorReady(page);
-  const quickStart = page.getByTestId("canvas-empty-state");
-  await expect(quickStart).toBeVisible();
-  await expect(quickStart).toHaveAttribute(
+  const hintsButton = page.getByTestId("statusbar-shortcut-hints");
+  const shortcutHints = page.getByTestId("canvas-shortcut-hints");
+  await expect(shortcutHints).toHaveCount(0);
+  await expect(hintsButton).toHaveText("Hints");
+  await expect(hintsButton).toHaveAttribute("aria-pressed", "false");
+  const gridButton = page.getByTestId("statusbar-grid-toggle");
+  const [hintsBounds, gridBounds] = await Promise.all([
+    hintsButton.boundingBox(),
+    gridButton.boundingBox(),
+  ]);
+  if (!hintsBounds || !gridBounds) {
+    throw new Error("Status-bar controls are not measurable");
+  }
+  expect(hintsBounds.x + hintsBounds.width).toBeLessThan(gridBounds.x);
+
+  await hintsButton.click();
+  await expect(hintsButton).toHaveAttribute("aria-pressed", "true");
+  await expect(shortcutHints).toBeVisible();
+  await expect(shortcutHints).toHaveAttribute(
     "aria-label",
-    "Quick start shortcuts",
+    "Keyboard shortcuts",
   );
-  await expect(quickStart).toContainText("Quick start");
-  await expect(quickStart).toContainText("All shortcuts");
-  await expect(quickStart.locator("li")).toHaveText([
-    "Ctrl/CmdFSelection filter",
-    "Ctrl/CmdShiftFSearch circuit",
+  await expect(shortcutHints).toContainText("Keyboard shortcuts");
+  await expect(shortcutHints.locator("li")).toHaveText([
+    "Ctrl/CmdFFind in circuit",
+    "Ctrl/CmdShiftFChoose selectable objects",
     "FFit view",
     "HomeFit view",
     "Arrow keysPan view",
+    "GToggle Gallery",
+    "BToggle Component Library",
+    "NToggle Netlist",
     "IInsert component",
     "PPlace Cell Pin",
     "WDraw wire",
@@ -475,13 +456,13 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
   ]);
   expect(
     (
-      await quickStart
+      await shortcutHints
         .locator(".canvas-shortcut-list")
         .evaluate((element) => getComputedStyle(element).gridTemplateColumns)
     ).split(" ").length,
   ).toBeGreaterThan(1);
   expect(
-    await quickStart.evaluate((element) => {
+    await shortcutHints.evaluate((element) => {
       const style = getComputedStyle(element);
       const bounds = element.getBoundingClientRect();
       const canvasBounds = element.parentElement?.getBoundingClientRect();
@@ -503,22 +484,22 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
   const initialViewport = page.viewportSize();
   if (!initialViewport) throw new Error("Viewport is not measurable");
   await page.setViewportSize({ width: 720, height: 720 });
-  const quickStartBox = await quickStart.boundingBox();
+  const shortcutHintsBox = await shortcutHints.boundingBox();
   const canvasPanelBox = await page.locator(".canvas-panel").boundingBox();
   const propertiesBox = await page
     .getByRole("complementary", { name: "Properties" })
     .boundingBox();
-  if (!quickStartBox || !canvasPanelBox || !propertiesBox) {
+  if (!shortcutHintsBox || !canvasPanelBox || !propertiesBox) {
     throw new Error("Narrow editor chrome is not measurable");
   }
   expect(
-    Math.round(propertiesBox.x - (quickStartBox.x + quickStartBox.width)),
+    Math.round(propertiesBox.x - (shortcutHintsBox.x + shortcutHintsBox.width)),
   ).toBe(12);
-  expect(quickStartBox.x).toBeGreaterThanOrEqual(canvasPanelBox.x + 11.5);
+  expect(shortcutHintsBox.x).toBeGreaterThanOrEqual(canvasPanelBox.x + 11.5);
   await expect
     .poll(async () => {
       const [menu, panel] = await Promise.all([
-        quickStart.boundingBox(),
+        shortcutHints.boundingBox(),
         page.locator(".canvas-panel").boundingBox(),
       ]);
       if (!menu || !panel) return Number.POSITIVE_INFINITY;
@@ -560,7 +541,10 @@ test("keeps quick-start shortcuts in the upper-right corner until the first comp
   await canvas.click({ position: { x: 360, y: 230 } });
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("hit-R1")).toBeVisible();
-  await expect(quickStart).toHaveCount(0);
+  await expect(shortcutHints).toBeVisible();
+  await hintsButton.click();
+  await expect(shortcutHints).toHaveCount(0);
+  await expect(hintsButton).toHaveAttribute("aria-pressed", "false");
   await revealPropertiesShelf(page);
   await page.getByTestId("selection-shelf").click();
   await expect(page.getByTestId("selection-shelf")).toContainText(
@@ -1406,7 +1390,7 @@ test("carries a default and manual Value through placement and Q property editin
   await expect(
     page.getByRole("button", { name: "Apply component properties" }),
   ).toHaveCount(0);
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expectComponentCodeField(page, "parameters.value", "1k");
   // Electrical renaming and the shared visual editor are distinct actions;
   // there is no second, plain-text Label field or heavyweight Identity card.
@@ -1650,10 +1634,10 @@ test("edits independent input and output swaps with undo, named connections and 
   expect(await terminalY("OUT+")).toBeLessThan(initialOutputY);
   await expect(amplifier.locator("text", { hasText: "G" })).toBeVisible();
 
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   await expect(outputs).toHaveAttribute("aria-checked", "false");
   await expect(inputs).toHaveAttribute("aria-checked", "true");
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
   await expect(outputs).toHaveAttribute("aria-checked", "true");
   await setComponentCodeField(page, "appearance.inputsSwapped", false);
   await expect(amplifier).toHaveAttribute(
@@ -1969,8 +1953,8 @@ test("shows the complete foldable categorized Library, quick-places a device, an
   await expect(panel).toHaveAttribute("data-open", "true");
   const libraryChipCount = await libraryChips.count();
   expect(libraryChipCount).toBeGreaterThanOrEqual(35);
-  await expect(categories).toHaveCount(11);
-  await expect(page.getByTestId("shapes-category-user-defined")).toBeVisible();
+  await expect(categories).toHaveCount(10);
+  await expect(page.getByTestId("shapes-category-user-defined")).toHaveCount(0);
   const transistorCategory = page.getByTestId("shapes-category-transistors");
   const transistorChips = transistorCategory.locator(
     '[data-testid^="shapes-chip-"]',
@@ -2293,16 +2277,16 @@ test("keeps a usable canvas while toggling Library at the narrow breakpoint", as
   await awaitEditorReady(page);
 
   const chrome = page.locator(".app-chrome-main");
-  // The analytics readout lives in the statusbar now; the top bar ends
-  // with Help inside the chrome bounds.
-  const help = page.getByRole("button", { name: "Help" });
-  await expect(help).toBeVisible();
+  // The analytics and Change Log live in the statusbar; the compact GitHub
+  // link remains inside the top chrome at the narrow breakpoint.
+  const repository = page.getByTestId("editor-repository-link");
+  await expect(repository).toBeVisible();
   const chromeBox = await chrome.boundingBox();
-  const helpBox = await help.boundingBox();
-  if (!chromeBox || !helpBox) {
+  const repositoryBox = await repository.boundingBox();
+  if (!chromeBox || !repositoryBox) {
     throw new Error("Top navigation is not measurable");
   }
-  expect(helpBox.x + helpBox.width).toBeLessThanOrEqual(
+  expect(repositoryBox.x + repositoryBox.width).toBeLessThanOrEqual(
     chromeBox.x + chromeBox.width,
   );
 

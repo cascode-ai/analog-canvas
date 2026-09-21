@@ -1,3 +1,4 @@
+import { validGalleryAttention } from "./gallery-curation";
 // Public Gallery HTTP policy and rendering. Durable storage lives in
 // gallery-do.ts; this module only authenticates and maps API requests.
 
@@ -608,7 +609,11 @@ export async function routeGalleryRequest(
     // Signed in, the feed says which circuits this account has already
     // thumbed; signed out it simply carries the counts.
     const viewer = await sessionUserOf(request, env);
+    if (url.searchParams.get("attention") === "1" && !viewer)
+      return Response.json({ error: "unauthorized" }, { status: 401 });
     const { payload } = await callGallery(env, "list", {
+      isAdmin: viewer?.isAdmin === true,
+      attention: url.searchParams.get("attention") === "1",
       viewerId: viewer?.id ?? "",
       limit: url.searchParams.get("limit"),
       cursor: url.searchParams.get("cursor"),
@@ -1015,6 +1020,15 @@ export async function routeGalleryRequest(
         return Response.json({ error: "not-found" }, { status: 404 });
       }
     }
+    const viewer = await sessionUserOf(request, env);
+    if (
+      payload.entry &&
+      !viewer?.isAdmin &&
+      (!viewer || viewer.id !== payload.ownerUserId)
+    ) {
+      delete payload.entry.attention;
+      delete payload.entry.assessedPreviewRevision;
+    }
     return Response.json(
       {
         entry: payload.entry,
@@ -1032,6 +1046,52 @@ export async function routeGalleryRequest(
       },
       { headers: { "cache-control": "no-store" } },
     );
+  }
+  if (
+    segments.length === 2 &&
+    segments[1] === "curation" &&
+    request.method === "PATCH"
+  ) {
+    if (!sameOrigin(request))
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    const user = await sessionUserOf(request, env);
+    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+    const access = await entryManager(request, env, segments[0]!);
+    if (!access.found)
+      return Response.json({ error: "not-found" }, { status: 404 });
+    if (!user.isAdmin && !access.owner)
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    const text = await request.text();
+    if (text.length > 16000)
+      return Response.json({ error: "too-large" }, { status: 413 });
+    let body: Record<string, unknown> | null;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = null;
+    }
+    if (
+      !body ||
+      !validGalleryAttention(body.attention) ||
+      !Array.isArray(body.tags) ||
+      body.tags.length > 12 ||
+      body.tags.some((tag) => typeof tag !== "string" || tag.length > 32) ||
+      typeof body.expectedPreviewRevision !== "string" ||
+      !Number.isSafeInteger(body.expectedCurationRevision) ||
+      Number(body.expectedCurationRevision) < 0
+    ) {
+      return Response.json({ error: "invalid-curation" }, { status: 400 });
+    }
+    const { status, payload } = await callGallery(env, "curate", {
+      ...body,
+      id: segments[0],
+      userId: user.id,
+      at: new Date().toISOString(),
+    });
+    return Response.json(payload, {
+      status,
+      headers: { "cache-control": "no-store" },
+    });
   }
   if (segments.length === 1 && request.method === "PUT") {
     return handleEntryUpdate(request, env, segments[0]!);

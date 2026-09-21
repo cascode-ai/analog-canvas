@@ -106,7 +106,6 @@
 }
 
 .toolbar-button,
-.menubar-help,
 .command-menu summary {
   min-height: var(--icm-control-h);
   border: 1px solid transparent;
@@ -128,7 +127,6 @@
 }
 
 .toolbar-button:hover:not(:disabled),
-.menubar-help:hover:not(:disabled),
 .command-menu summary:hover {
   border-color: transparent;
   background: var(--icm-surface-hover);
@@ -140,12 +138,6 @@
   color: var(--icm-accent);
   background: var(--icm-accent-tint);
   box-shadow: none;
-}
-
-.menubar-help {
-  height: var(--icm-control-h);
-  padding: 0 10px;
-  white-space: nowrap;
 }
 
 /* The check report had no styles at all, so each finding rendered its code
@@ -640,28 +632,6 @@
   position: relative;
 }
 
-.netlist-copy-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
-}
-
-.netlist-copy-group > .netlist-copy {
-  gap: 5px;
-  border-radius: var(--icm-radius-sm) 0 0 var(--icm-radius-sm);
-}
-
-.netlist-copy-group .command-menu > summary {
-  padding: 0 7px;
-  border-radius: 0 var(--icm-radius-sm) var(--icm-radius-sm) 0;
-  border-left-color: var(--icm-border);
-}
-
-.netlist-copy-group .command-popover {
-  left: auto;
-  right: 0;
-}
-
 .netlist-format,
 .netlist-extension {
   color: var(--icm-text-muted);
@@ -992,7 +962,7 @@
   background: var(--icm-surface);
 }
 
-/* The grid toggle sits with the zoom controls at the right end. */
+/* On-demand canvas hints and the grid toggle sit with the view controls. */
 .statusbar-view-controls {
   display: flex;
   flex: 0 0 auto;
@@ -1000,8 +970,9 @@
   gap: var(--icm-space-2);
 }
 
-/* Background grid on/off, one click from the canvas. Same chip language as
-   the status items; pressed while the grid is shown. */
+/* On-canvas references and background-grid visibility are one-click chips;
+   the pressed treatment means their corresponding layer is currently shown. */
+.statusbar-hints-toggle,
 .statusbar-grid-toggle {
   display: inline-flex;
   flex: 0 0 auto;
@@ -1021,10 +992,12 @@
   cursor: pointer;
 }
 
+.statusbar-hints-toggle:hover,
 .statusbar-grid-toggle:hover {
   background: var(--icm-surface-hover);
 }
 
+.statusbar-hints-toggle[aria-pressed="true"],
 .statusbar-grid-toggle[aria-pressed="true"] {
   border-color: transparent;
   color: var(--icm-accent);
@@ -1042,6 +1015,20 @@
 }
 
 .statusbar-analytics:hover {
+  color: var(--icm-accent);
+  text-decoration: underline;
+  text-underline-offset: 0.15rem;
+}
+
+.statusbar-change-log {
+  flex: 0 0 auto;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.statusbar-change-log:hover {
   color: var(--icm-accent);
   text-decoration: underline;
   text-underline-offset: 0.15rem;
@@ -1291,8 +1278,7 @@
     padding-inline: 0.25rem;
   }
   .command-menu summary,
-  .toolbar-button,
-  .menubar-help {
+  .toolbar-button {
     padding-inline: 0.35rem;
   }
 }

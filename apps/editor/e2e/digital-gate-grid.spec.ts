@@ -5,7 +5,6 @@ import { createEmptyProject } from "@icm/model";
 import {
   revealPropertiesShelf,
   awaitEditorReady,
-  clickCommand,
   clickDrawTool,
   downloadBytes,
   editComponentPropertyCode,
@@ -209,9 +208,9 @@ test("digital gates align from their left outline and keep wired terminals throu
       });
     });
   expect(movedStarts.slice(7)).toEqual(terminalPoints);
-  await clickCommand(page, "Edit", "Undo");
+  await page.getByTestId("draw-tool-undo").click();
   expect(await exportStarts()).toEqual(initialStarts);
-  await clickCommand(page, "Edit", "Redo");
+  await page.getByTestId("draw-tool-redo").click();
 
   const saved = await downloadBytes(page, "File", "Export Project File…");
   const document = parseSavedProject(saved.toString("utf8")).documents[0];

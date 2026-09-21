@@ -57,7 +57,6 @@ export function NetlistCodePanel({
   portCase,
   onFormatChange,
   onPortCaseChange,
-  onCopy,
   onReset,
   configurationError,
   onApply,
@@ -75,7 +74,6 @@ export function NetlistCodePanel({
   portCase: NetlistPortCase;
   onFormatChange(format: NetlistFormat): void;
   onPortCaseChange(portCase: NetlistPortCase): void;
-  onCopy(): void;
   onReset(): void;
   configurationError: string | null;
   onApply(edits: ProjectStructureEdit[]): boolean;
@@ -332,26 +330,6 @@ export function NetlistCodePanel({
             <svg viewBox="0 0 20 20" aria-hidden="true">
               <path
                 d="M16 7a6.5 6.5 0 1 0 .3 5 M16 2v5h-5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            className="netlist-code-copy"
-            data-testid="copy-netlist-panel"
-            aria-label="Copy netlist"
-            title="Copy netlist"
-            disabled={dirty}
-            onClick={onCopy}
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path
-                d="M7 7h10v10H7z M13 7V3H3v10h4"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.5"

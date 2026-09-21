@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createEmptyDocument } from "@icm/model";
 
@@ -48,18 +48,30 @@ describe("DocumentSettingsSection", () => {
           drawAngle: "free",
           scrollBehavior: "auto",
         }}
+        portLabels={{
+          suffixCase: "preserve",
+          suffixPlacement: "subscript",
+        }}
+        portLabelCount={3}
         onApply={() => ({ ok: true })}
+        onFormatPortLabels={vi.fn()}
       />,
     );
 
     expect(markup).not.toContain('role="dialog"');
     expect(markup).toContain('aria-label="Document settings"');
     expect(markup).toContain('data-testid="document-settings-code-editor"');
-    expect(markup).toContain('aria-label="Loading document Style code"');
+    expect(markup).toContain('aria-label="Loading Properties code"');
+    expect(markup).toContain("Properties code");
     expect(markup).toContain("&quot;appearance&quot;");
     expect(markup).toContain("&quot;bulkDefaults&quot;");
+    expect(markup).toContain("&quot;portLabels&quot;");
     expect(markup).toContain("&quot;canvas&quot;");
-    expect(markup).toContain("Copy Style JSON");
+    expect(markup).toContain("Copy Properties JSON");
     expect(markup).toContain("Defaults");
+    expect(markup).toContain("Format all Port labels in this Cell");
+    expect(markup).toContain("Uses <code>portLabels</code> above");
+    expect(markup).not.toContain("Existing suffix case");
+    expect(markup).not.toContain("Existing suffix position");
   });
 });

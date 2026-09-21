@@ -15,11 +15,11 @@ own artwork, electrical facts and catalog eligibility. Runtime `@icm/symbols`
 and `@icm/devices` are generated projections. The ordered catalog, rather than
 a duplicated list here, declares reviewed Razavi and Extended Devices entries.
 
-`port`, `port-filled` and `vdd-port` are single-pin assets with pin `P`.
-Port and Filled Port author formal Cell Pins. VDD Power does so by default,
-with an explicit Global mode using an owned naming claim instead. A drawn
-Power Rail remains ordinary Net/Route geometry and is a separate authoring
-gesture. Naming and interface behavior follow
+`port`, `port-filled` and `vdd-port` are single-terminal assets with pin `P`.
+Cell Pin and Bias Voltage Port author formal interface terminals. VDD Power
+does so by default, with an explicit Global mode using an owned naming claim
+instead. A drawn Power Rail remains ordinary Net/Route geometry and is a
+separate authoring gesture. Naming and interface behavior follow
 [the schematic model](schematic-model.md); geometry supplies no Net authority.
 
 Canonical `nmos` and `pmos` retain D/G/S/B electrical pins. Their

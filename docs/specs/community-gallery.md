@@ -45,7 +45,15 @@ restrictive content-security-policy.
   lights its mark immediately, and the scheduled maintenance pass below
   re-answers stored marks after the rule itself changes.
 - `GET /api/gallery/tags` — distinct public tags with counts, most
-  frequent first (feeds the multi-select menu).
+  frequent first. The landing Gallery places these in a left sidebar grouped
+  by circuit family, with per-tag counts and clearable multi-selection. Groups
+  are presentation only: no authored tag or URL value is rewritten, unknown
+  tags remain available under Custom & legacy, and tags restored from old links
+  remain removable. One overall search at the top of the left column matches
+  circuit names, authors, descriptions and tags without changing the tag list.
+  Narrow mobile layouts keep that search visible while collapsing the filters
+  and tag groups behind a Search & filters button. An empty tag selection result
+  does not substitute unfiltered examples.
 - `GET /api/gallery/authors` — non-empty public bylines with their currently
   visible circuit counts, ranked by count and then author name. The clickable
   wall count uses this roll-up for its contributor leaderboard; expanding one
@@ -91,13 +99,63 @@ restrictive content-security-policy.
   their electrical neighborhoods. The action is public and read-only: results
   open the existing Gallery entry, and no cleanup authority is exposed in the
   editor.
+  The click captures the comparison Cell: subsequent edits, hiding the panel,
+  or refreshing its feed do not cancel the running scan or erase its results.
+  A notice identifies results from an earlier canvas state; checking again
+  captures the latest state. Only explicit Cancel or leaving the editor stops
+  the job. Transient read failures retry within a bounded budget. Unverified
+  comparisons are counted separately, and approximate results never display
+  100%. Topology projection uses authored transistor polarity and reviewed
+  external device pin mappings; unknown black-box targets remain distinct.
+  The administrator's stricter netlist duplicate contract is unchanged.
+
+## Classification and visual attention
+
+[The taxonomy](../../config/gallery-taxonomy.json) defines one tag vocabulary
+covering circuit function, topology, implementation and architecture. A circuit
+may carry up to twelve tags; catalog suggestions include unused tags so the
+current library does not define the limits of classification. Legacy/custom
+tags remain browsable. Visual group headings organize the tag list but are not
+a second filtering system. Tag search and multi-selection live in the resizable
+left sidebar; its preferred width is local to the browser.
+
+Visual attention is independent of publication status and netlist extraction.
+A suspected gap, unintended diagonal, overlap, clipping, unreadable label or
+incomplete drawing may be flagged with a location-specific explanation. A
+textbook abstraction, intentional open port or missing simulation model alone
+is not a drawing defect. Visual review does not certify electrical correctness.
+
+`attention=1` requires a session. Authors receive only their own pending entries;
+administrators receive all pending entries. Attention details on both the feed
+and individual entries are omitted for everyone else. The author/admin card
+allows adding a note, marking the finding resolved and reopening it. None of
+these actions unpublishes the circuit or changes its Project, name, owner,
+likes, preview, or visitor statistics.
+
+`PATCH /api/gallery/<id>/curation` accepts `tags`, `attention`
+(`null` or `{status: "needs-attention" | "resolved", issues: [{kind, detail}]}`),
+`expectedPreviewRevision`, and `expectedCurationRevision`. It requires same-origin
+requests and the entry's author or an administrator. An empty pending finding
+is invalid. A changed image or review returns 409; an old review never silently
+overwrites newer work. Revisions are existing identifiers/counters, with no
+new payload hashing. A drawing changed after assessment retains its findings
+and displays a recheck notice. Metadata changes preserve a version snapshot;
+curation fields are included in backups and restores.
+
+A bulk visual audit records the inspected image revision, original tags,
+proposed tags, findings and uncertainty for every entry. The
+[application script](../../scripts/curate-gallery.mjs) validates this report
+without writing by default. Explicit application requires an origin, a session
+cookie file and a before/after receipt. Changed entries are skipped for review;
+interruption can resume without repeating already-applied metadata. Local
+inspection does not authorize publication or a production data rewrite.
 
 ## Publishing
 
 `POST /api/gallery/submissions` (same-origin) publishes immediately with:
 trimmed `name` (required, ≤120), `description`
-(≤300), and `tags` (array; normalized lowercase `[a-z0-9 +/-]`, ≤24
-chars each, at most 5, deduplicated — `sanitizeGalleryTags` is the one
+(≤300), and `tags` (array; normalized lowercase `[a-z0-9 +/-]`, ≤32
+chars each, at most 12, deduplicated — `sanitizeGalleryTags` is the one
 normalization for writes and filters), `projectText` ≤2 MiB. The Worker validates, stamps the canonical
 serialization, renders the preview, and stores the entry as `public`.
 Ordinary submissions count against a per-account limit of 100 per UTC day,
@@ -316,7 +374,7 @@ header buys nothing. Without such a session every admin route answers
   it does not embed a second Gallery-specific migration policy.
 - `POST /api/gallery/maintenance/netlist-badges` — re-answer one batch of
   stored netlistable marks (`{ "limit"?: 1..200 }` → `{scanned, changed,
-  unreadable, ruleVersion, remaining}`). Every entry stores the rule version
+unreadable, ruleVersion, remaining}`). Every entry stores the rule version
   its mark came from (`NETLIST_MARK_RULE_VERSION`, bumped whenever a change
   can turn a stored answer stale), so the pass selects exactly the entries
   behind this build and carries no cursor: running it again when none is

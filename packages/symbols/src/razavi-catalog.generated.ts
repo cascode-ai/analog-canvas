@@ -1565,7 +1565,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
   },
   {
     symbolId: "port-filled",
-    name: "Filled Port",
+    name: "Bias Voltage Port",
     category: "interface",
     reviewStatus: "reviewed",
     pinOrder: ["P"],
@@ -1575,7 +1575,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Explicit solid endpoint style; no automatic SPICE mapping.",
     assetPath: "port-filled.json",
     assetHash:
-      "d3845584c0772d04399efa5e363aea96b7852f8ad1abe43fa714da6371d639ca",
+      "4ef4fd95eec824b1cade61785af18d925343a77288137d04b8ca62f4ed28fa4b",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -10462,7 +10462,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   {
     schemaVersion: 1,
     id: "port-filled",
-    name: "Filled Port",
+    name: "Bias Voltage Port",
     viewBox: {
       x: -14,
       y: -7,

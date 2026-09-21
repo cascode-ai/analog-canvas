@@ -231,13 +231,7 @@ body {
   height: 22px;
   flex: 0 0 auto;
   border-radius: 6px;
-  background: linear-gradient(
-    145deg,
-    #2f3437 0%,
-    #37352f 55%,
-    #2383e2 55%,
-    #2383e2 100%
-  );
+  background: #2f3437 url("/icon.svg") center / cover no-repeat;
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 8%);
 }
 
@@ -284,7 +278,7 @@ body {
 }
 
 /* The menubar yields before the right-hand chrome does: at narrow widths it
-   scrolls its own row rather than pushing Analytics/About/Help off-screen. */
+   scrolls its own row rather than pushing compact support links off-screen. */
 .app-command-surface {
   display: flex;
   flex: 0 1 auto;
@@ -321,6 +315,26 @@ body {
   align-items: center;
   gap: var(--icm-space-2);
   margin-left: auto;
+}
+
+.app-repository-link {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: var(--icm-control-h);
+  height: var(--icm-control-h);
+  place-items: center;
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text-muted);
+}
+
+.app-repository-link:hover {
+  color: var(--icm-text);
+  background: var(--icm-surface-hover);
+}
+
+.app-repository-link svg {
+  width: 18px;
+  height: 18px;
 }
 
 /* One public support path across Gallery, Editor, Analytics, and crash UI. */
@@ -363,7 +377,7 @@ body {
   line-height: 1;
 }
 
-/* Owner credit: paired with analytics at gallery center; after Help in editor. */
+/* Owner credit: paired with analytics at gallery center and kept in editor chrome. */
 .tokenzhang-credit {
   display: inline-flex;
   align-items: center;

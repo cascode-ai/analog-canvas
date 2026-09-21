@@ -19,6 +19,16 @@ function preload(path: string) {
     },
     "assets/shared-12345678.js": { type: "chunk", imports: [] },
     "assets/math-12345678.js": { type: "chunk", imports: [] },
+    "assets/gallery-feed-12345678.js": {
+      type: "chunk",
+      fileName: "assets/gallery-feed-12345678.js",
+      facadeModuleId: "E:\\repo\\src\\components\\gallery-feed.tsx",
+      imports: ["assets/gallery-shared-12345678.js"],
+      viteMetadata: {
+        importedCss: new Set(["assets/gallery-feed-12345678.css"]),
+      },
+    },
+    "assets/gallery-shared-12345678.js": { type: "chunk", imports: [] },
   };
   const tags = handler("", { bundle });
   const links: { rel: string; href: string; as?: string }[] = [];
@@ -32,9 +42,29 @@ function preload(path: string) {
   return links;
 }
 
-describe("editor route resource preload", () => {
-  it.each(["/", "/analytics", "/mine", "/moderation", "/g/"])(
-    "does not download editor dependencies on %s",
+describe("route resource preload", () => {
+  it("downloads only eager Gallery resources on the landing route", () => {
+    expect(preload("/")).toEqual([
+      {
+        rel: "modulepreload",
+        href: "/assets/gallery-feed-12345678.js",
+        crossOrigin: "anonymous",
+      },
+      {
+        rel: "modulepreload",
+        href: "/assets/gallery-shared-12345678.js",
+        crossOrigin: "anonymous",
+      },
+      {
+        rel: "preload",
+        href: "/assets/gallery-feed-12345678.css",
+        crossOrigin: "anonymous",
+        as: "style",
+      },
+    ]);
+  });
+  it.each(["/analytics", "/mine", "/moderation", "/g/"])(
+    "does not download route dependencies on %s",
     (path) => expect(preload(path)).toEqual([]),
   );
   it.each(["/editor", "/editor/", "/g/circuit-123"])(

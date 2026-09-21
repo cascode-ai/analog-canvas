@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from "react";
+import { useCallback, useId, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { EditorTool } from "../../interaction/interaction-state";
 import { ToolIcon } from "./tool-icon";
@@ -35,6 +35,7 @@ function ImmediatePanelButton({
   testId,
   label,
   tooltip,
+  shortcut,
   pressed,
   controls,
   disabled,
@@ -44,6 +45,7 @@ function ImmediatePanelButton({
   testId: string;
   label: string;
   tooltip: string;
+  shortcut?: string;
   pressed: boolean;
   controls?: string;
   disabled?: boolean;
@@ -55,6 +57,24 @@ function ImmediatePanelButton({
     left: number;
     top: number;
   } | null>(null);
+  const keepTooltipInViewport = useCallback(
+    (tooltipElement: HTMLSpanElement | null): void => {
+      if (!tooltipElement || typeof window === "undefined") return;
+      const margin = 8;
+      const halfWidth = tooltipElement.getBoundingClientRect().width / 2;
+      const minimumLeft = margin + halfWidth;
+      const maximumLeft = Math.max(
+        minimumLeft,
+        window.innerWidth - margin - halfWidth,
+      );
+      setPosition((current) => {
+        if (!current) return current;
+        const left = Math.min(maximumLeft, Math.max(minimumLeft, current.left));
+        return left === current.left ? current : { ...current, left };
+      });
+    },
+    [],
+  );
   const show = (target: HTMLElement): void => {
     const bounds = target.getBoundingClientRect();
     setPosition({
@@ -72,6 +92,7 @@ function ImmediatePanelButton({
         aria-pressed={pressed}
         aria-expanded={pressed}
         aria-controls={controls}
+        aria-keyshortcuts={shortcut}
         data-testid={testId}
         disabled={disabled}
         onClick={onClick}
@@ -85,12 +106,14 @@ function ImmediatePanelButton({
       {position && typeof document !== "undefined"
         ? createPortal(
             <span
+              ref={keepTooltipInViewport}
               id={tooltipId}
               role="tooltip"
               className="instant-toolbar-tooltip"
               style={position}
             >
               {tooltip}
+              {shortcut ? ` (${shortcut})` : ""}
             </span>,
             document.body,
           )
@@ -132,6 +155,7 @@ export function DrawingToolbar({
         <ImmediatePanelButton
           testId="examples-toggle"
           label="Circuit gallery"
+          shortcut="G"
           tooltip={
             examplesOpen
               ? "Hide the circuit gallery"
@@ -148,6 +172,7 @@ export function DrawingToolbar({
         <ImmediatePanelButton
           testId="library-toggle"
           label="Component library"
+          shortcut="B"
           tooltip={
             libraryPanelOpen
               ? "Hide component library"
@@ -164,6 +189,7 @@ export function DrawingToolbar({
         <ImmediatePanelButton
           testId="netlist-panel-toggle"
           label="Netlist"
+          shortcut="N"
           tooltip={projectPanel === "netlist" ? "Hide Netlist" : "Show Netlist"}
           pressed={projectPanel === "netlist"}
           onClick={onToggleNetlist}
@@ -242,11 +268,11 @@ export function DrawingToolbar({
         className="draw-tool"
         data-testid="draw-tool-document-style"
         aria-pressed={documentSettingsOpen}
-        title="Document settings"
+        title="Properties: Ports, canvas, and selected objects"
         onClick={onOpenDocumentSettings}
       >
         <ToolIcon name="style" />
-        <span>Style</span>
+        <span>Properties</span>
       </button>
       {simulation ? (
         <button

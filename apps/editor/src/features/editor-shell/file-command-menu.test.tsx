@@ -23,13 +23,13 @@ describe("FileCommandMenu", () => {
         activeCloudProjectId={null}
         canRevert
         hasRecoverySessions
+        checkAndSave={{ enabled: true, execute: vi.fn() }}
         projectInputRef={createRef<HTMLInputElement>()}
         onNewProject={vi.fn()}
         onSave={vi.fn()}
         onRefreshCloudProjects={vi.fn()}
         onOpenCloudProject={vi.fn()}
         onDeleteCloudProject={vi.fn()}
-        onRefresh={vi.fn()}
         onImportProject={vi.fn()}
         onImportSpice={vi.fn()}
         onExportProject={vi.fn()}
@@ -45,11 +45,15 @@ describe("FileCommandMenu", () => {
     expect(markup).toContain("Saved Circuit");
     expect(markup).toContain('class="cloud-project-time"');
     expect(markup).toContain("cloud-project-cloud-1");
-    expect(markup).toContain("Import Project File…");
-    expect(markup).toContain("Import SPICE / SCS…");
-    expect(markup).toContain("Import Cadence SPICE (`!` globals)…");
+    expect(markup).toContain(">Import<");
+    expect(markup).toContain("Project File…");
+    expect(markup).toContain("SPICE / SCS…");
+    expect(markup).toContain("Cadence SPICE (`!` globals)…");
     expect(markup).toContain('data-testid="cadence-spice-files"');
-    expect(markup).toContain("Export Project File…");
+    expect(markup).toContain(">Export<");
+    expect(markup).toContain("Drawing as SVG");
+    expect(markup).toContain("Recover Unsaved Work…");
+    expect(markup).not.toContain("Refresh app");
     expect(markup).not.toContain("Copy SPICE netlist");
     expect(markup).not.toContain("Copy Spectre netlist");
     expect(markup).not.toContain("Download Backup");
@@ -66,13 +70,13 @@ describe("FileCommandMenu", () => {
         activeCloudProjectId={null}
         canRevert={false}
         hasRecoverySessions={false}
+        checkAndSave={{ enabled: true, execute: vi.fn() }}
         projectInputRef={createRef<HTMLInputElement>()}
         onNewProject={vi.fn()}
         onSave={vi.fn()}
         onRefreshCloudProjects={vi.fn()}
         onOpenCloudProject={vi.fn()}
         onDeleteCloudProject={vi.fn()}
-        onRefresh={vi.fn()}
         onImportProject={vi.fn()}
         onImportSpice={vi.fn()}
         onExportProject={vi.fn()}

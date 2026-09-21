@@ -4,6 +4,12 @@ import { createRoot } from "react-dom/client";
 import { useVisitStats } from "../analytics/client";
 import { EditorErrorBoundary } from "./components/editor-error-boundary";
 import { guardedRouteChunk } from "./components/route-chunk-loader";
+import {
+  loadGalleryFeed,
+  loadGalleryTagSummary,
+  type GalleryLandingPreload,
+} from "./gallery-client";
+import { GALLERY_FILTERS_KEY } from "./gallery-filters";
 import "../analytics/analytics.css";
 import "./styles.css";
 
@@ -12,6 +18,24 @@ const container = document.getElementById("root");
 if (!container) {
   throw new Error("Editor root element is missing");
 }
+
+function galleryLandingPreload(): GalleryLandingPreload | undefined {
+  if (!/^\/?$/.test(window.location.pathname)) return undefined;
+  const tags = loadGalleryTagSummary();
+  try {
+    if (window.location.search || localStorage.getItem(GALLERY_FILTERS_KEY)) {
+      return { tags };
+    }
+  } catch {
+    return { tags };
+  }
+  return { tags, feed: loadGalleryFeed() };
+}
+
+// Start public Gallery data beside the route chunk, before React mounts. A
+// remembered or linked filter still waits for GalleryFeed to request its exact
+// query; only the default wall reuses the unfiltered request.
+const initialGalleryPreload = galleryLandingPreload();
 
 const EditorApp = lazy(
   guardedRouteChunk(() =>
@@ -77,7 +101,10 @@ function Root() {
       <Suspense
         fallback={<div className="analytics-loading">Loading gallery…</div>}
       >
-        <GalleryFeed visitStats={stats} />
+        <GalleryFeed
+          visitStats={stats}
+          {...(initialGalleryPreload ? { preload: initialGalleryPreload } : {})}
+        />
       </Suspense>
     );
   }

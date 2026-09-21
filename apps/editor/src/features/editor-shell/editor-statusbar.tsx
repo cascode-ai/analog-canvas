@@ -1,6 +1,7 @@
 import type { WireCornerOrder, WireRoutingMode } from "@icm/edit-engine";
 
 import type { EditorTool } from "../../interaction/interaction-state";
+import { EDITOR_CHANGE_LOG_URL } from "./editor-resource-links";
 import { ToolIcon } from "./tool-icon";
 
 function toolLabel(
@@ -75,6 +76,7 @@ export function EditorStatusbar({
   wireCornerOrder,
   recoveryLabel,
   zoomPercent,
+  shortcutHintsVisible,
   gridVisible,
   issues,
   selectionFilterSummary,
@@ -83,6 +85,7 @@ export function EditorStatusbar({
   onWireRoutingModeChange,
   onWireCornerOrderChange,
   onOpenAnalytics,
+  onToggleShortcutHints,
   onToggleGrid,
   onZoomOut,
   onZoomIn,
@@ -98,6 +101,8 @@ export function EditorStatusbar({
   wireCornerOrder: WireCornerOrder;
   recoveryLabel: string | null;
   zoomPercent: number;
+  /** Whether the on-canvas keyboard reference is visible. */
+  shortcutHintsVisible: boolean;
   /** Whether the canvas paints its background grid dots. */
   gridVisible: boolean;
   selectionFilterSummary: string | null;
@@ -111,6 +116,7 @@ export function EditorStatusbar({
   onWireRoutingModeChange: (mode: WireRoutingMode) => void;
   onWireCornerOrderChange: (order: WireCornerOrder) => void;
   onOpenAnalytics: () => void;
+  onToggleShortcutHints: () => void;
   onToggleGrid: () => void;
   onZoomOut: () => void;
   onZoomIn: () => void;
@@ -132,7 +138,7 @@ export function EditorStatusbar({
             className="statusbar-tool"
             data-testid="selection-filter-status"
             onClick={onOpenSelectionFilter}
-            title="Open Selection Filter (Ctrl+F)"
+            title="Choose Selectable Objects (Ctrl+Shift+F)"
           >
             {selectionFilterSummary}
           </button>
@@ -237,6 +243,29 @@ export function EditorStatusbar({
         </a>
       ) : null}
       <div className="statusbar-view-controls">
+        <a
+          className="statusbar-change-log"
+          data-testid="statusbar-change-log"
+          href={EDITOR_CHANGE_LOG_URL}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Change Log
+        </a>
+        <button
+          type="button"
+          className="statusbar-hints-toggle"
+          data-testid="statusbar-shortcut-hints"
+          aria-pressed={shortcutHintsVisible}
+          title={
+            shortcutHintsVisible
+              ? "Hide keyboard shortcut hints"
+              : "Show keyboard shortcut hints"
+          }
+          onClick={onToggleShortcutHints}
+        >
+          Hints
+        </button>
         {/* One click away, unlike the canvas.showGrid setting. The label
             collapses to the icon in half-width windows. */}
         <button

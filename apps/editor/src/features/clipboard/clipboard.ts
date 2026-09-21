@@ -48,10 +48,7 @@ import {
   type PlacementOrientationOperation,
 } from "../../interaction/shortcut-orientation";
 
-import {
-  createNewInstance,
-  nextCellPinName,
-} from "../netlist-export/netlist-authoring";
+import { createNewInstance } from "../netlist-export/netlist-authoring";
 
 export interface SchematicClipboard {
   context?: import("./project-copy").CopyContext;
@@ -1408,7 +1405,6 @@ export function proposePaste(
     })),
   );
 
-  const reservedPortNames = new Set<string>();
   const terminalNames = new Map<string, string>();
   for (const terminal of clipboard.cellTerminals) {
     const copiedMarkerIds = terminal.interfaceInstanceIds.flatMap(
@@ -1421,20 +1417,7 @@ export function proposePaste(
       ? annotationIds.get(terminal.interfaceAnnotationId)
       : undefined;
     if (copiedMarkerIds.length === 0 && !copiedAnnotationId) continue;
-    const copiedPort = clipboard.instances.find((instance) =>
-      terminal.interfaceInstanceIds.includes(instance.id),
-    );
-    const name =
-      clipboard.intent === "clone-selection" && copiedPort
-        ? copiedPort.symbolId === "vdd-port"
-          ? "VDD"
-          : nextCellPinName(
-              document,
-              reservedPortNames,
-              copiedPort.symbolId === "port-filled" ? "filled" : "hollow",
-            )
-        : terminal.name;
-    reservedPortNames.add(name.toLowerCase());
+    const name = terminal.name;
     terminalNames.set(terminal.id, name);
     edits.push({
       kind: "add_cell_terminal",

@@ -47,7 +47,7 @@ async function restoreThroughDialog(
   if ((await fileMenu.getAttribute("open")) === null) {
     await fileMenu.locator("summary").click();
   }
-  await fileMenu.getByRole("button", { name: "Recover Local Work…" }).click();
+  await fileMenu.getByRole("button", { name: "Recover Unsaved Work…" }).click();
   const dialog = page.getByRole("dialog", { name: "Recover recent work" });
   await expect(dialog).toBeVisible();
   const card = dialog

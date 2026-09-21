@@ -107,13 +107,20 @@ export const AgentSimulationResourceCapabilitySchema = z.strictObject({
   maxTimeoutMs: z.number().int().positive(),
   synchronous: z.literal(false),
 });
-/** Signed-in Cloud Project Cell discovery and project-local import. */
+/** Gallery discovery plus active and Cloud Project code operations. */
 export const AgentProjectResourceCapabilitySchema = z.strictObject({
   path: z.literal("/api/agent/sessions/{sessionId}/projects"),
   operations: z.tuple([
     z.literal("list-projects"),
     z.literal("list-cells"),
     z.literal("import-cell"),
+    z.literal("list-gallery"),
+    z.literal("read-gallery-entry"),
+    z.literal("read-gallery-entries"),
+    z.literal("read-project-code"),
+    z.literal("replace-project-code"),
+    z.literal("read-netlist"),
+    z.literal("replace-netlist"),
   ]),
   importMode: z.literal("project-local-copy"),
 });

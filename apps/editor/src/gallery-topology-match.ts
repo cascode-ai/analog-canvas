@@ -1,3 +1,4 @@
+import { requestGalleryScan } from "./gallery-scan-request";
 import type { CircuitProject } from "@icm/model";
 import {
   compareElectricalTopologies,
@@ -53,17 +54,7 @@ export async function scanGalleryTopologyMatches(
   const seen = new Set<string>();
   const cursors = new Set<string>();
   let cursor: string | null = null;
-  const request = async (url: string) => {
-    const timeout = AbortSignal.timeout(15_000);
-    const response = await fetchLike(url, {
-      credentials: "omit",
-      cache: "no-store",
-      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-    });
-    if (!response.ok)
-      throw new Error(`Could not read Gallery (${response.status})`);
-    return response.json();
-  };
+  const request = (url: string) => requestGalleryScan(url, fetchLike, signal);
   const publish = () => {
     const ordered = [...candidates].sort(
       (left, right) =>
@@ -120,12 +111,6 @@ export async function scanGalleryTopologyMatches(
             ) {
               throw new Error("Circuit is no longer publicly available");
             }
-            if (
-              entry.previewRevision &&
-              detail.entry?.previewRevision !== entry.previewRevision
-            ) {
-              throw new Error("Circuit changed during scanning; scan again");
-            }
             const candidate = projectElectricalGraph(
               parseProject(detail.projectText),
             );
@@ -134,8 +119,10 @@ export async function scanGalleryTopologyMatches(
               source.graph,
               candidate.graph,
             );
+            if (exact === "unknown")
+              throw new Error("Comparison limit reached");
             candidates.push({
-              entry,
+              entry: detail.entry ?? entry,
               exact: exact === "equal",
               similarity:
                 exact === "equal"

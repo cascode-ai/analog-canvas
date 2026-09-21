@@ -113,19 +113,21 @@ describe("editor shell", () => {
     expect(markup).not.toContain("New Testbench Cell…");
     expect(markup).not.toContain("Reset Cell Placement");
     expect(markup).not.toContain("Reset Cell Body");
-    expect(markup).toContain("Instances…");
+    expect(markup).toContain("Edit Device Data…");
     const netlistStart = markup.indexOf('aria-label="Netlist"');
     const netlistEnd = markup.indexOf("</details>", netlistStart);
     const netlistMenu = markup.slice(netlistStart, netlistEnd);
     expect(netlistStart).toBeGreaterThan(-1);
+    expect(netlistMenu).toContain("Copy Netlist");
     expect(netlistMenu).not.toContain("Copy SPICE netlist");
     expect(netlistMenu).not.toContain("Copy Spectre netlist");
     expect(markup).toContain('data-testid="netlist-panel-toggle"');
     expect(markup).toContain('data-testid="project-code-toggle"');
-    expect(markup).toContain("Check Report…");
+    expect(markup).toContain("Review Netlist Issues…");
     expect(netlistMenu).not.toContain('data-testid="open-analog-simulation"');
     expect(markup).toContain('data-testid="open-analog-simulation"');
-    expect(netlistMenu).toContain('data-testid="check-and-save"');
+    expect(netlistMenu).not.toContain('data-testid="check-and-save"');
+    expect(markup).toContain('data-testid="check-and-save"');
     expect(markup).not.toContain("<summary>Run</summary>");
     const agentEnd =
       markup.indexOf("</button>", markup.indexOf('data-testid="open-agent"')) +
@@ -183,25 +185,38 @@ describe("editor shell", () => {
     expect(markup).toContain("dut (top)");
   });
 
-  it("provides one Help entry without rendering its dialog by default", () => {
-    const project = createEmptyProject("help-tutorial", "Help Tutorial");
+  it("links GitHub and the change log directly without a Help surface", () => {
+    const project = createEmptyProject("resource-links", "Resource Links");
     const markup = renderToStaticMarkup(<App project={project} />);
 
-    expect(markup).toContain('aria-haspopup="dialog"');
-    // About folded into Help: one entry, not two saying the same thing.
     expect(markup).not.toContain(">About</button>");
+    expect(markup).not.toContain(">Help</button>");
+    expect(markup).not.toContain('id="editor-help-dialog"');
     expect(markup).toContain('data-testid="editor-report-bug"');
     expect(markup).toContain("Report bug");
-    expect(markup).toContain(">Help</button>");
+    expect(markup).toContain('data-testid="editor-repository-link"');
+    expect(markup).toContain('aria-label="GitHub repository"');
+    expect(markup).toContain(
+      'href="https://github.com/cascode-ai/analog-canvas"',
+    );
+    expect(markup).toContain('data-testid="statusbar-change-log"');
+    expect(markup).toContain(
+      'href="https://github.com/cascode-ai/analog-canvas/commits/main"',
+    );
+    expect(markup).toContain('data-testid="statusbar-shortcut-hints"');
+    expect(markup).toContain("Hints</button>");
+    expect(markup).not.toContain('data-testid="canvas-shortcut-hints"');
     expect(markup).toContain('class="app-chrome-actions"');
     expect(markup).toContain("Presented by");
     expect(markup).toContain('href="https://tokenzhang.com"');
     expect(markup).toContain('src="/tokenzhang-favicon.png"');
     const navigationEnd = markup.indexOf("</nav>");
-    const helpButton = markup.indexOf(">Help</button>");
+    const repositoryLink = markup.indexOf(
+      'data-testid="editor-repository-link"',
+    );
     const ownerLink = markup.indexOf('href="https://tokenzhang.com"');
-    expect(helpButton).toBeGreaterThan(navigationEnd);
-    expect(ownerLink).toBeGreaterThan(helpButton);
+    expect(repositoryLink).toBeGreaterThan(navigationEnd);
+    expect(ownerLink).toBeGreaterThan(repositoryLink);
     expect(markup).not.toContain('role="dialog"');
     // Agent connects directly from the command row; no one-item menu or
     // connection panel appears before the user clicks it.
@@ -308,7 +323,12 @@ describe("editor shell", () => {
     expect(markup).not.toContain('data-testid="draw-tool-line"');
     expect(markup).not.toContain('data-testid="draw-tool-rectangle"');
     expect(markup).not.toContain('data-testid="draw-tool-circle"');
-    expect(markup).toContain("Selection filter");
+    expect(markup).toContain('data-testid="selection-filter-button"');
+    expect(markup).toContain("Choose Selectable Objects… (Ctrl+Shift+F)");
+    expect(markup).toContain("Find in Circuit… (Ctrl+F)");
+    expect(markup).toContain("User Components…");
+    expect(markup).not.toContain("&gt;Undo&lt;");
+    expect(markup).not.toContain("&gt;Redo&lt;");
     expect(markup).not.toContain("Symbols &amp; Tools");
     expect(markup).not.toContain("Search components");
     expect(markup).not.toContain("Browse all");
