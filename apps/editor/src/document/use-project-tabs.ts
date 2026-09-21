@@ -1,9 +1,17 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createId } from "@icm/model";
 
 /** Only the active editor renders. Inactive tabs retain their actual controller
  * and history; changing tabs is never a Project replace or an undo operation. */
 export function useProjectTabs<Session>(options: {
+  initial?: {
+    activeId: string;
+    tabs: { id: string; session: Session }[];
+  } | null;
+  persist?(
+    workspace: { activeId: string; tabs: { id: string; session: Session }[] },
+    final: boolean,
+  ): void;
   capture(): Session;
   restore(session: Session): void;
   describe(session: Session): {
@@ -17,13 +25,72 @@ export function useProjectTabs<Session>(options: {
 }) {
   const current = useRef(options);
   current.current = options;
-  const [activeId, setActiveId] = useState(() => createId("tab"));
+  const [activeId, setActiveId] = useState(
+    () => options.initial?.activeId ?? createId("tab"),
+  );
   const active = useRef(activeId);
-  const sessions = useRef(new Map<string, Session>());
-  const [ids, setIds] = useState([activeId]);
+  const sessions = useRef(
+    new Map<string, Session>(
+      options.initial?.tabs.map((tab) => [tab.id, tab.session]),
+    ),
+  );
+  const [ids, setIds] = useState(
+    options.initial?.tabs.map((tab) => tab.id) ?? [activeId],
+  );
   const [busy, setBusy] = useState(false);
   const transitioning = useRef(false);
   const live = options.capture();
+  const liveIds = useRef(ids);
+  liveIds.current = ids;
+  useEffect(() => {
+    if (options.initial)
+      current.current.restore(sessions.current.get(active.current)!);
+  }, []);
+  const persist = (final: boolean) => {
+    if (!current.current.persist) return;
+    current.current.persist(
+      {
+        activeId: active.current,
+        tabs: liveIds.current.map((id) => ({
+          id,
+          session:
+            id === active.current
+              ? current.current.capture()
+              : sessions.current.get(id)!,
+        })),
+      },
+      final,
+    );
+  };
+  const persistenceRef = useRef(persist);
+  persistenceRef.current = persist;
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // First-change scheduling cannot be starved by continuous edits or dragging.
+  useEffect(() => {
+    if (timer.current === null && options.persist)
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        persistenceRef.current(false);
+      }, 150);
+  });
+  useEffect(() => {
+    const final = () => persistenceRef.current(true);
+    const hidden = () => {
+      if (document.visibilityState === "hidden") final();
+    };
+    window.addEventListener("pagehide", final);
+    window.addEventListener("beforeunload", final);
+    document.addEventListener("visibilitychange", hidden);
+    return () => {
+      if (timer.current !== null) {
+        clearTimeout(timer.current);
+        timer.current = null;
+      }
+      window.removeEventListener("pagehide", final);
+      window.removeEventListener("beforeunload", final);
+      document.removeEventListener("visibilitychange", hidden);
+    };
+  }, []);
   const describe = (id: string) =>
     options.describe(id === activeId ? live : sessions.current.get(id)!);
   const transition = async (operation: () => void) => {

@@ -93,6 +93,7 @@ type RecoveryLifecycle = Pick<
 
 export interface UseProjectFileLifecycleOptions {
   restoreWorkingSession?: boolean;
+  externalWorkspaceRestored?: boolean;
   openProjectInTab?(
     project: CircuitProject,
     viewBox: GridRect,
@@ -121,6 +122,7 @@ export interface UseProjectFileLifecycleOptions {
 
 export function useProjectFileLifecycle({
   restoreWorkingSession = false,
+  externalWorkspaceRestored = false,
   openProjectInTab,
   galleryEntryId,
   project,
@@ -141,6 +143,7 @@ export function useProjectFileLifecycle({
   // retry) would eat the flag before the committed render sees it.
   const [restoreAfterRefresh] = useState(
     () =>
+      !externalWorkspaceRestored &&
       typeof window !== "undefined" &&
       (restoreWorkingSession ||
         window.sessionStorage.getItem(REFRESH_RESTORE_STORAGE_KEY) === "true"),
@@ -806,7 +809,7 @@ export function useProjectFileLifecycle({
   }, [currentProjectChangeToken, projectSessionId, savedProjectBaseline]);
 
   const startupRecovery =
-    !restoreAfterRefresh && !isDirtyWork()
+    !externalWorkspaceRestored && !restoreAfterRefresh && !isDirtyWork()
       ? (recovery.sessions.find(
           (session) =>
             session.workingCopyId === recovery.workingCopyId &&
@@ -820,6 +823,7 @@ export function useProjectFileLifecycle({
       : null;
   const canRestoreStartupCloudProject =
     recovery.ready &&
+    !externalWorkspaceRestored &&
     !restoreAfterRefresh &&
     !isDirtyWork() &&
     startupRecovery === null;

@@ -281,3 +281,56 @@ test("plain C/V works between internal tabs when system clipboard permission is 
   await page.getByRole("tab").first().click();
   await expect(page.getByTestId("active-instance-count")).toHaveText("3");
 });
+
+test("refresh restores every unsaved tab and active view without crossing browser windows", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/editor?new=1");
+  const expected: CircuitProject[] = [];
+  const views: (string | null)[] = [];
+  for (const symbol of ["nmos", "pmos", "resistor", "capacitor"]) {
+    if (expected.length)
+      await page
+        .getByRole("button", { name: "New project tab", exact: true })
+        .click();
+    await insert(page, symbol, 240 + expected.length * 30, 250);
+    expected.push(await saved(page));
+    views.push(
+      await page.getByTestId("schematic-canvas").getAttribute("viewBox"),
+    );
+  }
+  await page.getByRole("tab").nth(1).click();
+  // A different browser window starts independent, even on the same URL.
+  const other = await context.newPage();
+  await other.goto("/editor?new=1");
+  await expect(other.getByRole("tab")).toHaveCount(1);
+  await insert(other, "inductor", 260, 230);
+  other.on("dialog", (dialog) => dialog.accept());
+  await other.reload();
+  await expect(other.getByTestId("active-instance-count")).toHaveText("1");
+  page.on("dialog", (dialog) => dialog.accept());
+  await page.reload();
+  await expect(page.getByRole("tab")).toHaveCount(4);
+  await expect(page.getByRole("tab").nth(1)).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  for (let index = 0; index < expected.length; index++) {
+    await page.getByRole("tab").nth(index).click();
+    await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+    await expect(page.getByTestId("schematic-canvas")).toHaveAttribute(
+      "viewBox",
+      views[index]!,
+    );
+    expect((await saved(page)).documents).toEqual(expected[index]!.documents);
+  }
+  // A closed tab stays closed across the next refresh.
+  await page
+    .getByRole("button", { name: /Close tab / })
+    .last()
+    .click();
+  await page.reload();
+  await expect(page.getByRole("tab")).toHaveCount(3);
+  await other.close();
+});

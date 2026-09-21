@@ -43,6 +43,10 @@ Cloud Save, and Community Gallery entries remain separate public publications.
 Shelf cards offer **Version history** for the latest three earlier saves: compare
 component changes, restore with conflict protection, or create an independent
 private branch. Restoring a draft never updates its Gallery publication.
+Refreshing the editor restores that browser window’s open project tabs,
+including unsaved circuit content, the active tab, and view positions. This
+browser-local workspace does not replace Cloud Save or portable file backups;
+undo stacks and unfinished text-field edits are not restored.
 The hosted service keeps its visitor reporting first-party and honors browser
 Do Not Track instead of embedding a third-party analytics tracker.
 

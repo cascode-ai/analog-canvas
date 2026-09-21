@@ -1,3 +1,10 @@
+import { parseProject, serializeProject } from "@icm/project-protocol";
+import {
+  createProjectWorkspaceStore,
+  journalProjectWorkspace,
+  workspaceWindowId,
+  type ProjectWorkspace,
+} from "../document/project-workspace";
 import { applyLabelSubscriptCase } from "../features/text-editing/label-subscript-case";
 import { resolveAnnotationName } from "@icm/derived";
 import {
@@ -458,21 +465,73 @@ export interface AppProps {
   initialGalleryEntryId?: string | null;
 }
 
-export function App({
+let workspaceStore: ReturnType<typeof createProjectWorkspaceStore> | undefined;
+function browserWorkspaceStore() {
+  return (workspaceStore ??= createProjectWorkspaceStore());
+}
+
+export function App(props: AppProps) {
+  const [boot, setBoot] = useState<{
+    workspace: ProjectWorkspace | null;
+    error?: string;
+  } | null>(() =>
+    typeof window === "undefined" || props.project ? { workspace: null } : null,
+  );
+  useEffect(() => {
+    if (boot) return;
+    let mounted = true;
+    void Promise.resolve()
+      .then(() =>
+        browserWorkspaceStore().read(
+          workspaceWindowId(),
+          window.location.pathname + window.location.search,
+        ),
+      )
+      .then((workspace) => {
+        if (mounted) setBoot({ workspace });
+      })
+      .catch(() => {
+        if (mounted)
+          setBoot({
+            workspace: null,
+            error:
+              "Project tab storage is unavailable. Existing copies are retained; export your work before leaving.",
+          });
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+  if (!boot) return <div role="status">Restoring project tabs…</div>;
+  return (
+    <WorkspaceEditor
+      {...props}
+      restoredWorkspace={boot.workspace}
+      workspaceError={boot.error ?? null}
+    />
+  );
+}
+
+function WorkspaceEditor({
   project: initialProject,
   visitStats,
   publicAgentUiEnabled = PUBLIC_AGENT_UI_ENABLED,
   publicSimulationUiEnabled = PUBLIC_SIMULATION_UI_ENABLED,
   timingUiEnabled = TIMING_UI_ENABLED,
   initialGalleryEntryId = null,
-}: AppProps) {
+  restoredWorkspace,
+  workspaceError,
+}: AppProps & {
+  restoredWorkspace: ProjectWorkspace | null;
+  workspaceError: string | null;
+}) {
   const [preparedInitialProject] = useState(
     () =>
       materializeRazaviProjectBulkConnections(
         initialProject ?? createEmptyProject("project-main", "New Circuit"),
       ).project,
   );
-  const [status, setStatus] = useState("Ready");
+  const [status, setStatus] = useState(workspaceError ?? "Ready");
   const [componentEditor, setComponentEditor] =
     useState<ComponentEditorSession | null>(null);
   const [componentLibraryRefresh, setComponentLibraryRefresh] = useState(0);
@@ -604,7 +663,7 @@ export function App({
     deleteSession: deleteRecoverySession,
   } = useRecoveryCoordinator(setStatus);
   const [agentStartupRecovery] = useState(() => {
-    if (typeof window === "undefined") return null;
+    if (typeof window === "undefined" || restoredWorkspace) return null;
     const search = new URLSearchParams(window.location.search);
     if (
       initialGalleryEntryId !== null ||
@@ -1105,6 +1164,7 @@ export function App({
     openProjectInTab: (project, view, options) =>
       openProjectInTabRef.current(project, view, options),
     restoreWorkingSession: agentStartupRecovery !== null,
+    externalWorkspaceRestored: restoredWorkspace !== null,
     galleryEntryId: canUpdateGalleryPublication(
       galleryEntryContext,
       publishSession,
@@ -1238,6 +1298,7 @@ export function App({
 
   const startupCloudRestoreAttemptedRef = useRef(false);
   const hasExplicitBootTarget =
+    restoredWorkspace !== null ||
     initialGalleryEntryId !== null ||
     (typeof window !== "undefined" &&
       (() => {
@@ -3574,7 +3635,7 @@ export function App({
     // this boot. Re-running the URL's boot target here would fork the
     // working-copy identity and orphan the snapshot the restore is about to
     // read.
-    if (restoreAfterRefresh) return;
+    if (restoreAfterRefresh || restoredWorkspace) return;
     const exampleId = new URLSearchParams(window.location.search).get(
       "example",
     );
@@ -4907,7 +4968,133 @@ export function App({
       fit: true,
     };
   }
+  type PortableTab = Omit<TabSession, "controller" | "cellViews"> & {
+    projectText: string;
+    activeDocumentId: string;
+    cellViews: [string, GridRect][];
+  };
+  const [restoredTabs] = useState(() => {
+    if (!restoredWorkspace) return { value: null, error: null };
+    try {
+      const tabs = restoredWorkspace.tabs.map((tab) => {
+        const saved = tab.session as PortableTab;
+        const controller = new EditorDocumentController(
+          parseProject(saved.projectText),
+        );
+        if (!controller.openDocument(saved.activeDocumentId))
+          throw new Error("Missing active Cell");
+        if (
+          !saved.file ||
+          !saved.recovery ||
+          !saved.view ||
+          !Array.isArray(saved.stack) ||
+          !saved.selection
+        )
+          throw new Error("Incomplete tab session");
+        if (saved.file.savedBaseline)
+          saved.file.savedBaseline.project = parseProject(
+            serializeProject(saved.file.savedBaseline.project),
+          );
+        const session: TabSession = {
+          ...saved,
+          controller,
+          cellViews: new Map(saved.cellViews),
+          fit: false,
+          netlistEntry: saved.netlistEntry
+            ? { ...saved.netlistEntry, sessionId: controller.projectSessionId }
+            : null,
+          file: {
+            ...saved.file,
+            persistenceState:
+              saved.file.persistenceState === "saving"
+                ? "dirty"
+                : saved.file.persistenceState,
+          },
+        };
+        return { id: tab.id, session };
+      });
+      return {
+        value: { activeId: restoredWorkspace.activeId, tabs },
+        error: null,
+      };
+    } catch {
+      return {
+        value: null,
+        error:
+          "Saved tabs could not be restored. Their original snapshots are retained; export new work before leaving.",
+      };
+    }
+  });
+  const workspaceLastText = useRef("");
+  const workspaceLastRecord = useRef<ProjectWorkspace | null>(null);
+  const workspaceSaveQueue = useRef(Promise.resolve());
+  const workspaceFailure = useRef(false);
+  function persistTabs(
+    workspace: {
+      activeId: string;
+      tabs: { id: string; session: TabSession }[];
+    },
+    final: boolean,
+  ) {
+    if (
+      workspaceError ||
+      restoredTabs.error ||
+      typeof window === "undefined" ||
+      initialProject
+    )
+      return;
+    try {
+      const tabs = workspace.tabs.map(({ id, session }) => {
+        const { controller, cellViews, ...rest } = session;
+        const portable: PortableTab = {
+          ...rest,
+          cellViews: [...cellViews],
+          projectText: serializeProject(controller.project),
+          activeDocumentId: controller.document.id,
+        };
+        return { id, session: portable };
+      });
+      const text = JSON.stringify({ activeId: workspace.activeId, tabs });
+      if (text !== workspaceLastText.current) {
+        const record: ProjectWorkspace = {
+          version: 1,
+          windowId: workspaceWindowId(),
+          url: window.location.pathname + window.location.search,
+          savedAt: Date.now(),
+          activeId: workspace.activeId,
+          tabs,
+        };
+        workspaceLastText.current = text;
+        workspaceLastRecord.current = record;
+        workspaceSaveQueue.current = workspaceSaveQueue.current
+          .then(() => browserWorkspaceStore().write(record))
+          .catch(() => {
+            workspaceLastText.current = "";
+            if (!workspaceFailure.current) {
+              workspaceFailure.current = true;
+              setStatus(
+                "Project tabs could not be saved in this browser. Export your work before leaving; earlier copies are retained.",
+              );
+            }
+          });
+      }
+      if (final && workspaceLastRecord.current)
+        journalProjectWorkspace(workspaceLastRecord.current);
+    } catch {
+      if (!workspaceFailure.current) {
+        workspaceFailure.current = true;
+        setStatus(
+          "The latest tab snapshot could not be saved. Export your work before leaving.",
+        );
+      }
+    }
+  }
+  useEffect(() => {
+    if (restoredTabs.error) setStatus(restoredTabs.error);
+  }, [restoredTabs.error]);
   const projectTabs = useProjectTabs<TabSession>({
+    initial: restoredTabs.value,
+    persist: persistTabs,
     capture: captureTabSession,
     restore: restoreTabSession,
     describe: (session) => ({
