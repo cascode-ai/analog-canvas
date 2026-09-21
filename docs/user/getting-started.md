@@ -42,6 +42,14 @@ is defined.
 - Internal wires and Junctions move with a selected component group; only
   wires leaving the group stretch. Press `C` to pick up a copy of the selected
   group and its internal wiring, then click to place it.
+- To reuse an editable circuit in another tab or window, select it (or use
+  `Ctrl/Cmd+A`), press `Ctrl/Cmd+C`, then switch to the destination canvas and
+  press `Ctrl/Cmd+V`. Move the preview and click to place; `Esc` cancels. Devices,
+  parameters, selected wires, node labels, custom definitions and referenced
+  child Cells travel together. Name conflicts receive fresh names; explicit
+  global supplies retain their normal shared meaning. Each placement is one
+  undoable operation. In text/code fields, these shortcuts still copy and paste
+  text. Plain `C` keeps its existing fresh-device placement behavior.
 - Use **Wire** or press `W`, then choose two pins, Junctions, or route segments.
   Passing across a conductor remains a Crossing; ending on one creates a
   Junction automatically. An exact multi-route intersection is rejected as

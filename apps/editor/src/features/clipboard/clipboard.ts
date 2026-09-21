@@ -53,6 +53,8 @@ import { createNewInstance } from "../netlist-export/netlist-authoring";
 export interface SchematicClipboard {
   context?: import("./project-copy").CopyContext;
   intent: "clone-selection" | "compose-document";
+  /** System paste keeps local names independent from an existing target circuit. */
+  isolateLocalNames?: boolean;
   sourceDocumentId: string;
   sourceGrid: number;
   instances: Instance[];
@@ -787,6 +789,7 @@ export function copySelection(
   instanceIds: readonly string[],
   draftingIds: readonly string[] = [],
   routingSelection?: ExplicitCopyRoutingSelection,
+  preserveElectrical = false,
 ): SchematicClipboard | null {
   document = withPowerMarkerOwnership(document);
   const selectedIds = new Set(instanceIds);
@@ -827,6 +830,13 @@ export function copySelection(
     },
   );
   const netIds = new Set(capture.clonedNetIds);
+  if (preserveElectrical) {
+    for (const net of document.nets)
+      if (
+        net.terminals.some((terminal) => selectedIds.has(terminal.instanceId))
+      )
+        netIds.add(net.id);
+  }
   const routeIds = new Set(capture.affected.internalRoutes);
   const junctionIds = new Set(capture.affected.internalJunctions);
   const attachedIds = new Set<string>([
@@ -878,7 +888,7 @@ export function copySelection(
     ),
   );
   const clipboard: SchematicClipboard = structuredClone({
-    intent: "clone-selection",
+    intent: preserveElectrical ? "compose-document" : "clone-selection",
     sourceDocumentId: document.id,
     sourceGrid: document.presentation.grid,
     instances,
@@ -912,7 +922,8 @@ export function copySelection(
         terminals: net.terminals.filter(
           (terminal) =>
             selectedIds.has(terminal.instanceId) &&
-            (ownedMarkerIds.has(terminal.instanceId) ||
+            (preserveElectrical ||
+              ownedMarkerIds.has(terminal.instanceId) ||
               copiedTerminalKeys.has(
                 `${terminal.instanceId}\0${terminal.pinName}`,
               )),
@@ -923,13 +934,17 @@ export function copySelection(
       junctionIds.has(junction.id),
     ),
     annotations,
-    noConnects: [],
+    noConnects: preserveElectrical
+      ? document.noConnects.filter((item) =>
+          selectedIds.has(item.endpoint.instanceId),
+        )
+      : [],
     connectivityEvidence: document.connectivityEvidence.filter((evidence) => {
       if (!netIds.has(evidence.netId)) return false;
-      if (evidence.kind !== "name-claim") return false;
+      if (evidence.kind !== "name-claim") return preserveElectrical;
       switch (evidence.owner.kind) {
         case "global-declaration":
-          return false;
+          return preserveElectrical;
         case "net-label":
           return annotationIds.has(evidence.owner.annotationId);
         case "power-marker":
@@ -943,6 +958,7 @@ export function copySelection(
     layoutGroups,
     constraints,
   });
+  if (preserveElectrical) return clipboard;
   // A copied supply marker starts with the same VDD/ground name as Insert.
   // Explicitly copied rails and standalone net labels remain authored objects.
   for (const evidence of clipboard.connectivityEvidence) {
@@ -1290,6 +1306,22 @@ export function proposePaste(
     ]),
   );
   const errors: string[] = [];
+  if (
+    clipboard.isolateLocalNames &&
+    clipboard.instances.some(
+      (instance) =>
+        instance.reference &&
+        instanceReferences.get(instance.id) !== instance.reference,
+    ) &&
+    clipboard.instances.some((instance) =>
+      Object.values(instance.netlist?.parameters ?? {}).some((value) =>
+        /(?:\b[vi]\s*\(|@)/iu.test(value),
+      ),
+    )
+  )
+    errors.push(
+      "Copied behavioral expressions refer to device names that conflict with this Cell; paste into an empty Cell first",
+    );
   const terminalIds = new Map(
     clipboard.cellTerminals.map((terminal) => [
       terminal.id,
@@ -1537,6 +1569,7 @@ export function proposePaste(
       return {
         kind: "add_no_connect",
         noConnect: {
+          ...structuredClone(noConnect),
           id: noConnectIds.get(noConnect.id)!,
           endpoint: {
             kind: "terminal",

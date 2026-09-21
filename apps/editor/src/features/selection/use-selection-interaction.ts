@@ -23,7 +23,6 @@ import {
   planRoutingTransform,
   type RoutingOperationIntent,
   type SchematicEdit,
-  type ProjectStructureEdit,
   type WireSource,
 } from "@icm/edit-engine";
 import {
@@ -141,7 +140,9 @@ export interface UseSelectionInteractionOptions {
     edits: SchematicEdit[],
     options?: { preserveInteraction?: boolean },
   ) => TransactionResult;
-  transactCopy: (edits: readonly ProjectStructureEdit[]) => TransactionResult;
+  transactCopy: (
+    plan: ReturnType<typeof planProjectCopyPlacement>,
+  ) => TransactionResult;
   commitCellTerminalSelection: (
     terminalIds: readonly string[],
     documentEdits: readonly SchematicEdit[],
@@ -1596,7 +1597,7 @@ export function useSelectionInteraction(
         },
         copyPlacement.sequence,
       );
-      result = options.transactCopy(proposal.edits);
+      result = options.transactCopy(proposal);
     } catch (error) {
       options.setStatus(error instanceof Error ? error.message : String(error));
       return;

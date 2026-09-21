@@ -5,7 +5,6 @@ import {
   createRoutePath,
   type CircuitProject,
 } from "@icm/model";
-import { executeProjectTransaction } from "@icm/edit-engine";
 import { parseProject } from "@icm/project-protocol";
 import {
   externalSubcircuitSymbolId,
@@ -18,6 +17,7 @@ import { EditorDocumentController } from "../../document/document-controller";
 import { resolveDocumentLogicalNets } from "@icm/derived";
 import {
   captureProjectCopy,
+  applyProjectCopyPlacement,
   planProjectCopyPlacement,
   prepareProjectCopy,
 } from "./project-copy";
@@ -46,15 +46,7 @@ function place(
     { x: 4000 * sequence, y: 0 },
     sequence,
   );
-  const result = executeProjectTransaction(project, {
-    transactionId: `copy-${sequence}`,
-    projectId: project.id,
-    expectedStructureRevision: project.structureRevision,
-    actor: { kind: "human", id: "test" },
-    edits: plan.edits,
-  });
-  if (!result.ok) throw new Error(JSON.stringify(result.diagnostics));
-  return result.project;
+  return applyProjectCopyPlacement(plan);
 }
 function externalFixture() {
   const source = createEmptyProject("source", "Source");

@@ -1,6 +1,6 @@
 /**
  * User-facing index of every editor command chord owned by
- * `resolveEditorShortcut`. Browser-safety interceptions such as blocking F5
+ * `resolveEditorShortcut` or the native circuit clipboard handler. Browser-safety interceptions such as blocking F5
  * while work is unsaved are deliberately absent: they protect the document,
  * but they are not commands a user can invoke.
  *
@@ -24,6 +24,8 @@ export const EDITOR_SHORTCUT_REFERENCE = [
   { keys: ["T"], action: "Add text" },
   { keys: ["O"], action: "Display settings" },
   { keys: ["C"], action: "Copy and place selection" },
+  { keys: ["Ctrl/Cmd", "C"], action: "Copy circuit selection across tabs" },
+  { keys: ["Ctrl/Cmd", "V"], action: "Paste circuit selection" },
   { keys: ["M"], action: "Move selection" },
   { keys: ["Shift", "M"], action: "Move without wires" },
   { keys: ["R"], action: "Rotate selection / next object" },

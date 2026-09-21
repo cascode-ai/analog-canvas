@@ -105,7 +105,12 @@ import { renderCrashRequested, sceneCrashRequested } from "./crash-test-hooks";
 import { buildSceneSafely } from "./scene-safety";
 import { externalSubcircuitSymbolId, hierarchicalSymbolId } from "@icm/symbols";
 import { clipboardPreviewDocument } from "../features/clipboard/clipboard";
-import { prepareProjectCopy } from "../features/clipboard/project-copy";
+import {
+  prepareProjectCopy,
+  applyProjectCopyPlacement,
+} from "../features/clipboard/project-copy";
+import { clipboardPlacementAnchor } from "../features/clipboard/clipboard";
+import { useCircuitClipboard } from "../features/clipboard/use-circuit-clipboard";
 import {
   copyPlacementAnchors,
   snapPendingCopyPlacement,
@@ -2847,12 +2852,9 @@ export function App({
     selectedEndpointNetId,
     getInteractionState: getCurrentInteractionState,
     transact,
-    transactCopy: (edits) => {
-      const committed = commitStructure("copy-placement", [...edits]);
-      return {
-        ok: committed,
-        revision: committed ? document.revision + 1 : document.revision,
-      };
+    transactCopy: (plan) => {
+      const committed = commitProjectStructure(applyProjectCopyPlacement(plan));
+      return { ok: true, revision: committed.revision };
     },
     commitCellTerminalSelection: removeCellTerminalSelection,
     setStatus,
@@ -3517,6 +3519,28 @@ export function App({
     }
     showProjectPanel(mode);
   }
+
+  useCircuitClipboard({
+    project,
+    document,
+    selection: visualSelection,
+    enabled: !componentEditor && !userComponentsOpen && !interfaceConfirmation,
+    setStatus,
+    beginPaste: (clipboard) => {
+      if (getCurrentInteractionState().kind !== "idle") {
+        setStatus("Finish or cancel the active tool before pasting");
+        return;
+      }
+      prepareProjectCopy(project, document, clipboard);
+      const anchor = clipboardPlacementAnchor(clipboard);
+      if (!anchor) throw new Error("Copied objects have no placeable origin");
+      cancelAllTransientInteraction();
+      beginCopyPlacementInteraction(clipboard, anchor);
+      setStatus(
+        `Paste ${clipboard.instances.length} components · click to place · Esc cancels`,
+      );
+    },
+  });
 
   function selectAllObjects(): void {
     replaceSelection(selectionPolicy.selectAll());

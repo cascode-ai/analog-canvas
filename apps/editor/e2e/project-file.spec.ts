@@ -7,6 +7,7 @@ import {
   createEmptyProject,
   createRoutePath,
   CURRENT_PROJECT_SCHEMA_VERSION,
+  type CircuitProject,
 } from "@icm/model";
 
 import { AGENT_SESSION_RECOVERY_STORAGE_KEY } from "../src/agent/session-recovery";
@@ -708,4 +709,154 @@ test("the circuit name drives Cloud Save and portable export", async ({
     ),
   ) as { name?: string };
   expect(exported.name).toBe("Bandgap Reference");
+});
+
+test("native cross-page clipboard preserves an editable circuit and text-field shortcuts", async ({
+  page,
+  context,
+  browser,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const source = parseSavedProject(
+    readFileSync(
+      "apps/editor/src/examples/simulation-common-source.icproj.json",
+      "utf8",
+    ),
+  );
+  const typedSource = source as CircuitProject;
+  const active = typedSource.documents.find(
+    (document) => document.id === typedSource.topDocumentId,
+  )!;
+  await page.goto("/editor?new=1");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "clipboard-source.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(source)),
+  });
+  await expect(page.getByTestId("active-instance-count")).toHaveText(
+    String(active.instances.length),
+  );
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 80, y: 80 } });
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("ControlOrMeta+c");
+  await expect(page.getByTestId("status")).toContainText("Circuit copied");
+  const clipboard = await page.evaluate(() => navigator.clipboard.readText());
+  expect(JSON.parse(clipboard).format).toBe("analog-canvas/clipboard");
+
+  // A different page reads the real browser clipboard, not a shared React store.
+  const target = await context.newPage();
+  await target.goto("/editor?new=1");
+  await target.bringToFront();
+  const canvas = target.getByTestId("schematic-canvas");
+  await canvas.click({ position: { x: 90, y: 90 } });
+  await target.keyboard.press("ControlOrMeta+v");
+  await expect(target.getByTestId("status")).toContainText("click to place");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Missing canvas");
+  await target.mouse.move(box.x + 280, box.y + 240);
+  await expect(target.getByTestId("copy-placement-preview")).toBeVisible();
+  // Cancelling a paste installs neither devices nor dependencies.
+  await target.keyboard.press("Escape");
+  await expect(target.getByTestId("active-instance-count")).toHaveText("0");
+  await target.keyboard.press("ControlOrMeta+v");
+  await canvas.click({ position: { x: 280, y: 240 } });
+  await target.keyboard.press("Escape");
+  await expect(target.getByTestId("active-instance-count")).toHaveText(
+    String(active.instances.length),
+  );
+  const copied = parseSavedProject(
+    (await downloadBytes(target, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  const typedCopied = copied as CircuitProject;
+  const pasted = typedCopied.documents.find(
+    (document) => document.id === typedCopied.topDocumentId,
+  )!;
+  expect(
+    pasted.instances.map((item) => [item.reference, item.netlist?.parameters]),
+  ).toEqual(
+    active.instances.map((item) => [item.reference, item.netlist?.parameters]),
+  );
+  expect(copied.externalSubcircuitDefinitions.length).toBeGreaterThan(0);
+  expect(
+    typedCopied.simulationFolders.map((folder) => folder.input.files),
+  ).toEqual(typedSource.simulationFolders.map((folder) => folder.input.files));
+  const { projectElectricalGraph, compareElectricalGraphs } =
+    await import("@icm/netlist");
+  const left = projectElectricalGraph(source),
+    right = projectElectricalGraph(copied);
+  expect(left.status).toBe("ready");
+  expect(right.status).toBe("ready");
+  if (left.status === "ready" && right.status === "ready")
+    expect(compareElectricalGraphs(left.graph, right.graph)).toBe("equal");
+  await target.keyboard.press("ControlOrMeta+z");
+  await expect(target.getByTestId("active-instance-count")).toHaveText("0");
+  await target.keyboard.press("ControlOrMeta+Shift+z");
+  await expect(target.getByTestId("active-instance-count")).toHaveText(
+    String(active.instances.length),
+  );
+
+  // A real code editor keeps native text copy/paste, despite a canvas selection.
+  await target.getByTestId("project-code-toggle").click();
+  const editor = target.getByRole("textbox", {
+    name: "Project code",
+    exact: true,
+  });
+  await editor.click();
+  await target.keyboard.press("ControlOrMeta+a");
+  await target.keyboard.press("ControlOrMeta+c");
+  const code = await target.evaluate(() => navigator.clipboard.readText());
+  expect(code).not.toContain('"analog-canvas/clipboard"');
+  expect(code).toContain("schemaVersion");
+  await target.keyboard.press("ControlOrMeta+v");
+  await expect(target.getByTestId("copy-placement-preview")).toHaveCount(0);
+  await target.screenshot({ path: "plan/cross-page-clipboard.png" });
+  await target.close();
+
+  // A separate browser context/window has no shared app storage or clipboard state.
+  await page.bringToFront();
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 80, y: 80 } });
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("ControlOrMeta+c");
+  const otherWindow = await browser.newContext({
+    baseURL: new URL(page.url()).origin,
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
+  try {
+    const other = await otherWindow.newPage();
+    await other.goto("/editor?new=1");
+    await other.bringToFront();
+    await other
+      .getByTestId("schematic-canvas")
+      .click({ position: { x: 90, y: 90 } });
+    await other.keyboard.press("ControlOrMeta+v");
+    await expect(other.getByTestId("status")).toContainText("click to place");
+    await other
+      .getByTestId("schematic-canvas")
+      .click({ position: { x: 280, y: 240 } });
+    await other.keyboard.press("Escape");
+    await expect(other.getByTestId("active-instance-count")).toHaveText(
+      String(active.instances.length),
+    );
+    await other.evaluate(() =>
+      navigator.clipboard.writeText(
+        '{"format":"analog-canvas/clipboard","version":999}',
+      ),
+    );
+    await other.keyboard.press("ControlOrMeta+v");
+    await expect(other.getByTestId("status")).toContainText(
+      "unsupported version",
+    );
+    await expect(other.getByTestId("active-instance-count")).toHaveText(
+      String(active.instances.length),
+    );
+    await expect(other.getByTestId("copy-placement-preview")).toHaveCount(0);
+  } finally {
+    await otherWindow.close();
+  }
 });
