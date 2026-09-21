@@ -404,6 +404,51 @@ export function retargetOwnerEvidenceAfterSplit(
     draft.annotations.find((annotation) => annotation.id === objectId)?.netId ??
     instanceNetId(objectId);
 
+  const retargetAnnotation = (
+    annotation: SchematicDocument["annotations"][number],
+  ): string | undefined => {
+    const targetNetId =
+      annotation.anchor.kind === "route"
+        ? objectNetId(annotation.anchor.routeId)
+        : annotation.anchor.kind === "object"
+          ? objectNetId(annotation.anchor.objectId)
+          : undefined;
+    if (!targetNetId) return undefined;
+    if (annotation.netId !== targetNetId) {
+      annotation.netId = targetNetId;
+      changedObjectIds.add(annotation.id);
+    }
+    if (
+      annotation.binding?.kind === "net-name" &&
+      annotation.binding.netId !== targetNetId
+    ) {
+      annotation.binding = { kind: "net-name", netId: targetNetId };
+      changedObjectIds.add(annotation.id);
+    }
+    for (const terminal of draft.netlist?.terminals ?? []) {
+      if (
+        terminal.interfaceAnnotationId === annotation.id &&
+        terminal.netId !== targetNetId
+      ) {
+        terminal.netId = targetNetId;
+        changedObjectIds.add(terminal.id);
+      }
+    }
+    return targetNetId;
+  };
+
+  // A power symbol can own the name claim while a separate annotation displays
+  // it. Move every bound label with its physical anchor, including labels that
+  // do not own evidence themselves. Preserve their text and presentation.
+  for (const annotation of draft.annotations) {
+    if (
+      annotation.netId === originalNetId ||
+      (annotation.binding?.kind === "net-name" &&
+        annotation.binding.netId === originalNetId)
+    ) {
+      retargetAnnotation(annotation);
+    }
+  }
   for (const evidence of draft.connectivityEvidence) {
     if (evidence.kind !== "name-claim" || evidence.netId !== originalNetId) {
       continue;
@@ -418,35 +463,8 @@ export function retargetOwnerEvidenceAfterSplit(
     const ownedAnnotation = draft.annotations.find(
       (candidate) => candidate.id === annotationId,
     );
-    // Both net labels and annotation-owned power markers follow their physical
-    // anchor, never their own pre-split netId. The formal terminal is owned by
-    // this same annotation and must migrate with it.
     if (ownedAnnotation) {
-      const annotation = ownedAnnotation;
-      if (annotation?.anchor.kind === "route") {
-        const routeId = annotation.anchor.routeId;
-        targetNetId = draft.routes.find((route) => route.id === routeId)?.netId;
-      } else if (annotation?.anchor.kind === "object") {
-        targetNetId = objectNetId(annotation.anchor.objectId);
-      }
-      if (annotation && targetNetId && targetNetId !== annotation.netId) {
-        annotation.netId = targetNetId;
-        if (annotation.binding?.kind === "net-name") {
-          annotation.binding = { kind: "net-name", netId: targetNetId };
-        }
-        changedObjectIds.add(annotation.id);
-      }
-      if (targetNetId) {
-        for (const terminal of draft.netlist?.terminals ?? []) {
-          if (
-            terminal.interfaceAnnotationId === annotation.id &&
-            terminal.netId !== targetNetId
-          ) {
-            terminal.netId = targetNetId;
-            changedObjectIds.add(terminal.id);
-          }
-        }
-      }
+      targetNetId = retargetAnnotation(ownedAnnotation);
     } else if (evidence.owner.kind === "power-marker") {
       targetNetId = objectNetId(evidence.owner.objectId);
     }
