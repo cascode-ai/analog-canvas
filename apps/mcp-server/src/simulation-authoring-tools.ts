@@ -277,10 +277,30 @@ export const simulationAuthoringTools: readonly Entry[] = [
             "SIMULATION_DUT_CELL_REQUIRED",
             "A DUT template needs rootDocumentId; omit dut for text-only input.",
           );
+        const discovery = await session.client.simulationResource({
+          apiVersion: "3.0",
+          requestId: crypto.randomUUID(),
+          operation: "capabilities",
+        });
+        if (!discovery.ok) return discovery;
+        if (!("capabilities" in discovery))
+          return failure(
+            "SIMULATION_PROFILE_UNAVAILABLE",
+            "Expected simulation Profile discovery",
+          );
+        const profile = discovery.capabilities.profiles.find(
+          (item) => item.id === parsed.profileId,
+        );
+        if (!profile?.engine)
+          return failure(
+            "SIMULATION_PROFILE_UNAVAILABLE",
+            "The selected Profile must advertise its engine before creating a template. Existing source remains editable.",
+          );
         next = createSimulationFolder({
           id: parsed.folderId ?? crypto.randomUUID(),
           name: parsed.name,
           profileId: parsed.profileId,
+          engine: profile.engine,
           ...(parsed.dut ? { dut: parsed.dut } : {}),
           ...(parsed.template ? { template: parsed.template } : {}),
           ...(parsed.rootDocumentId

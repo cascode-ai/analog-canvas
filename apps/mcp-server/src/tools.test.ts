@@ -33,6 +33,100 @@ function parseText(result: {
 }
 
 describe("mcp tool surface", () => {
+  it.each(["ngspice", "vacask"] as const)(
+    "creates a %s template from the selected Profile",
+    async (engine) => {
+      const http = new FakeAgentHttp();
+      const { session } = await toolSession(http);
+      await callTool("connect", { claimCode: "session-1.code" }, session);
+      vi.spyOn(session.client, "simulationResource").mockResolvedValue({
+        apiVersion: "3.0",
+        requestId: "caps",
+        operation: "capabilities",
+        ok: true,
+        capabilities: {
+          configured: true,
+          inputs: ["source"],
+          analyses: ["op"],
+          parsedAnalyses: ["op"],
+          profiles: [{ id: "selected", engine, corners: [] }],
+          maxTimeoutMs: 1000,
+          maxInputBytes: 10000,
+          maxOutputBytes: 10000,
+          cancel: false,
+        },
+      });
+      const writes: unknown[] = [];
+      http.circuitHandler = async ({ request }) => {
+        if (request.operation === "snapshot")
+          return snapshotResponse(request.requestId);
+        if (request.operation === "transact") {
+          writes.push(request);
+          return transactSuccessResponse(
+            request.requestId,
+            request.expectedRevision,
+          );
+        }
+        return capabilitiesResponse(request.requestId);
+      };
+      expect(
+        parseText(
+          await callTool(
+            "simulation_folder",
+            {
+              action: "create",
+              name: "Bias",
+              profileId: "selected",
+              rootDocumentId: "main",
+              dut: { name: "amp", ports: ["VDD", "VSS", "IN", "OUT"] },
+            },
+            session,
+          ),
+        ),
+      ).toMatchObject({ ok: true });
+      expect(writes).toEqual([
+        expect.objectContaining({
+          structureEdits: [
+            expect.objectContaining({
+              folder: expect.objectContaining({
+                input: expect.objectContaining({
+                  files: expect.arrayContaining([
+                    expect.objectContaining({
+                      path: "run.cir",
+                      text: expect.stringContaining(
+                        engine === "ngspice" ? ".control\n" : "\ncontrol\n",
+                      ),
+                    }),
+                    expect.objectContaining({
+                      path: "testbench.spice",
+                      text: expect.stringContaining(
+                        engine === "ngspice"
+                          ? "XDUT VDD VSS IN OUT amp"
+                          : "XDUT ('VDD' 'VSS' 'IN' 'OUT') 'amp'",
+                      ),
+                    }),
+                  ]),
+                }),
+              }),
+            }),
+          ],
+        }),
+      ]);
+      expect(
+        parseText(
+          await callTool(
+            "simulation_folder",
+            { action: "create", name: "Unknown", profileId: "unknown" },
+            session,
+          ),
+        ),
+      ).toMatchObject({
+        ok: false,
+        error: { code: "SIMULATION_PROFILE_UNAVAILABLE" },
+      });
+      expect(writes).toHaveLength(1);
+    },
+  );
   it.each([500, 502, 429, 408, 400])(
     "classifies HTTP %s without changing the retry identity",
     async (httpStatus) => {
@@ -289,6 +383,23 @@ describe("mcp tool surface", () => {
     const http = new FakeAgentHttp(),
       { session } = await toolSession(http);
     await callTool("connect", { claimCode: "session-1.code" }, session);
+    vi.spyOn(session.client, "simulationResource").mockResolvedValue({
+      apiVersion: "3.0",
+      requestId: "caps",
+      operation: "capabilities",
+      ok: true,
+      capabilities: {
+        configured: true,
+        inputs: ["source"],
+        analyses: ["op"],
+        parsedAnalyses: ["op"],
+        profiles: [{ id: "test", engine: "vacask", corners: [] }],
+        maxTimeoutMs: 1000,
+        maxInputBytes: 10000,
+        maxOutputBytes: 10000,
+        cancel: false,
+      },
+    });
     const snapshot = testSnapshot();
     const folder = createSimulationFolder({
       id: "s",
