@@ -230,6 +230,8 @@ export type CompiledSimulation =
   | { readonly ok: false; readonly diagnostics: readonly NetlistDiagnostic[] };
 
 export interface CompileStructuredSimulationOptions {
+  /** Source bindings may emit their root as a subcircuit, not a flat deck. */
+  readonly rootAsTopLevel?: boolean;
   /** Wall-clock ceiling for the simulator process; the runner clamps it. */
   readonly timeoutMs?: number;
   /** Native commands remain author-owned; do not reject measurements from an incomplete static analysis list. */
@@ -818,6 +820,7 @@ export function buildSimulationPlan(
     format: "spice",
     rootDocumentId: input.rootDocumentId,
     ...SIMULATION_DECK_GROUND,
+    rootAsTopLevel: options.rootAsTopLevel ?? true,
   });
   // A null IR already carries at least one error, `MISSING_ROOT_CELL` among
   // them when the root Document is not in the Project.

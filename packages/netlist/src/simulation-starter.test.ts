@@ -6,6 +6,8 @@ import { compileSourceSimulation } from "./simulation-source-compile.js";
 import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
 import { inspectVacaskSourceGraph } from "./vacask-source.js";
 import { analyzeDesignNetlist } from "./extract.js";
+import { generateCircuitSource } from "./simulation-circuit-source.js";
+import { createDesignNetlistExport } from "./export.js";
 import { vacaskCircuitScopes } from "./vacask-source-scopes.js";
 
 const project = parseProject(JSON.stringify(ota));
@@ -16,6 +18,51 @@ const options = {
   documentId: "document-ota-5t",
 };
 describe("simulation starting points", () => {
+  it("keeps ngspice DUT interfaces identical to the existing supply-first Netlist and starter", () => {
+    const p = structuredClone(project);
+    const root = p.documents.find((d) => d.id === options.documentId)!;
+    // Reproduce a drawing where signal ports were created before supplies.
+    root.netlist!.terminals.sort(
+      (a, b) =>
+        Number(/^(VDD|VSS)$/i.test(a.name)) -
+        Number(/^(VDD|VSS)$/i.test(b.name)),
+    );
+    const before = JSON.stringify(p);
+    const starter = createSimulationStarter(p, {
+      ...options,
+      engine: "ngspice",
+      mode: "dut",
+    });
+    if (!starter.ok) throw new Error(starter.message);
+    const binding = starter.folder.input.circuitBindings[0]!;
+    const preview = generateCircuitSource(
+      p,
+      binding,
+      starter.folder.input,
+      "ngspice",
+    );
+    const compiled = compileNgspiceSourceSimulation(p, starter.folder);
+    const exported = createDesignNetlistExport(p, {
+      rootDocumentId: root.id,
+      format: "spice",
+    });
+    expect(preview.ok && compiled.ok && exported.status === "ready").toBe(true);
+    if (!preview.ok || !compiled.ok || exported.status !== "ready") return;
+    const header = (text: string) =>
+      text
+        .split("\n")
+        .find((line) => line.startsWith(`.subckt ${root.netlist!.name} `));
+    const expected = header(exported.file.text)!;
+    expect(expected).toMatch(/ VDD VSS /i);
+    expect(header(preview.source.text)).toBe(expected);
+    expect(header(compiled.generated[0]!.text)).toBe(expected);
+    const [, name, ...ports] = expected.split(/\s+/);
+    expect(
+      starter.folder.input.files.find((f) => f.path === "testbench.spice")!
+        .text,
+    ).toContain(`XDUT ${ports.join(" ")} ${name}`);
+    expect(JSON.stringify(p)).toBe(before);
+  });
   it.each(["circuit", "dut", "text"] as const)(
     "creates a genuine ngspice %s starter without VACASK syntax",
     (mode) => {

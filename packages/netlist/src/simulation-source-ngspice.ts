@@ -209,9 +209,10 @@ export function compileNgspiceSourceSimulation(
   // Two passes share one ephemeral instrumentation set across reused Cell definitions.
   // No additional sources or pins are written back into the Project.
   let instrumentations: readonly TerminalCurrentInstrumentation[] = [];
-  for (const intent of intents.values()) {
+  for (const [id, intent] of intents) {
     const plan = buildSimulationPlan(effective, intent, {
       nativeControl: true,
+      rootAsTopLevel: byBinding.get(id)!.emission === "top-level",
       terminalInstrumentations: instrumentations,
     });
     if (plan.ok) instrumentations = plan.terminalInstrumentations;
@@ -223,6 +224,7 @@ export function compileNgspiceSourceSimulation(
   for (const [id, intent] of intents) {
     const plan = buildSimulationPlan(effective, intent, {
       nativeControl: true,
+      rootAsTopLevel: byBinding.get(id)!.emission === "top-level",
       terminalInstrumentations: instrumentations,
     });
     if (!plan.ok)
