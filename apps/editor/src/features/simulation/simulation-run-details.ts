@@ -8,7 +8,7 @@ import {
 import type { SimulationFiles } from "@icm/simulation-service/files";
 import { readSimulationArtifact } from "./simulation-artifact-files";
 
-/** UI materialization only: MCP retains bounded receipts and paged File access. */
+/** UI materialization from complete files; Agent receipts never inline samples. */
 export class SimulationRunDetails {
   private cached = new Map<string, Pick<Run, "result" | "outputData">>();
   async read(
@@ -16,6 +16,10 @@ export class SimulationRunDetails {
     run: Run,
   ): Promise<{ ok: true; run: Run } | { ok: false; error: Problem }> {
     if (!run.resultPreview) return { ok: true, run };
+    if (!run.catalog) {
+      const catalog = await files.catalog(run.id);
+      if (catalog) run = { ...run, catalog };
+    }
     const key = run.artifacts.map((a) => a.id).join(":");
     const cached = this.cached.get(key);
     if (cached)
@@ -37,10 +41,18 @@ export class SimulationRunDetails {
             schemaVersion: 1,
             analyses: [],
             diagnostics: [],
+            ...details.outputData,
             specs: SimulationSpecReportSchema.parse(value),
           };
-        else if (!run.artifacts.some((item) => item.name === "specs.json"))
-          details.outputData = SimulationOutputDataSchema.parse(value);
+        else {
+          const output = SimulationOutputDataSchema.parse(value);
+          details.outputData = {
+            ...output,
+            ...(details.outputData?.specs
+              ? { specs: details.outputData.specs }
+              : {}),
+          };
+        }
       }
       if (!details.result && !details.outputData)
         throw new Error("Missing result artifacts");

@@ -33,6 +33,49 @@ const catalog = (files: ArtifactRef[]): ResultCatalog => ({
   datasets: [],
 });
 describe("local simulation workspace", () => {
+  it("selects an analysis table without downloading other representations or losing the directory", async () => {
+    const root = await mkdtemp(join(tmpdir(), "icm-select-base-"));
+    try {
+      const base = await LocalWorkspace.open(scope, root);
+      const files: ArtifactRef[] = [
+        { ...file("csv0", "a"), role: "table", analysisIndex: 0 },
+        { ...file("csv1", "b"), role: "table", analysisIndex: 1 },
+        { ...file("raw", "c"), role: "raw" },
+      ];
+      const directory = catalog(files);
+      directory.datasets = [0, 1].map((analysisIndex) => ({
+        id: `analysis-${analysisIndex}`,
+        analysisIndex,
+        analysis: "dc",
+        plotName: "DC",
+        pointCount: 1,
+        signals: [],
+        representations: [
+          {
+            artifactId: `csv${analysisIndex}`,
+            fileId: `csv${analysisIndex}`,
+            selector: "",
+          },
+        ],
+      }));
+      const fetch = vi.fn(async () => new Response("b"));
+      const reply = await base.sync(directory, fetch, undefined, {
+        analysisIndex: 1,
+        roles: ["table"],
+      });
+      expect(reply.files).toHaveLength(1);
+      expect(fetch.mock.calls).toHaveLength(1);
+      expect(await readFile(reply.files[0]!.outputPath, "utf8")).toBe("b");
+      expect(
+        JSON.parse(await readFile(base.indexPath, "utf8")).runs[0].files,
+      ).toHaveLength(3);
+      await expect(
+        base.sync(directory, fetch, undefined, { analysisIndex: 9 }),
+      ).rejects.toThrow("WORKSPACE_ANALYSIS_NOT_IN_RUN");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it("downloads two files concurrently and settles partial evidence before returning", async () => {
     const root = await mkdtemp(join(tmpdir(), "icm-concurrent-base-"));
     let release!: () => void;

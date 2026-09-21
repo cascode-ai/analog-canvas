@@ -47,9 +47,20 @@ merely because a run started or source Project was exported.
 
 Helpers are optional authoring assistance, never an execution prerequisite or a
 restriction on authorized native source edits. A successful prepare can go straight
-to start. Use complete returned data or existing artifact references; export is
-an optional inventory lookup. `resultPreview` shortens the receipt only; actual
-file truncation is reported separately in diagnostics.
+to start. Run reads always return sample-free receipts; `resultPreview` means
+file-backed details regardless of result size. `run.details` gives execution,
+collection, Spec counts and diagnostic counts when known; missing counts on a
+restored historical run mean unknown, not zero. Complete diagnostics and samples
+are in the registered files. Actual file truncation is reported separately.
+`catalog` lists datasets, units and representations. Use `section:"files"` or
+`section:"datasets"` with `offset`/`limit` for a large directory; follow
+`page.nextOffset` to null. A section page omits other sections and signalTargets;
+the unfiltered catalog remains complete. Download chosen files for local analysis.
+`capabilities` accepts `detail:"summary"` and optional `profileId`; its
+`discovery.fullRequest` retrieves complete model facts. Default HTTP capabilities
+remain full for existing clients; MCP requests summary automatically.
+`export` is an optional inventory lookup and retries retained evidence publication
+after a storage failure. It never starts another simulation.
 
 For ngspice, `save` selects vectors, `print` produces log text, and `write`
 creates the rawfile consumed by the existing JSON/CSV pipeline. A DC device

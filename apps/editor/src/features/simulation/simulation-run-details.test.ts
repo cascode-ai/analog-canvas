@@ -59,3 +59,41 @@ it("reports expired files as recoverable without throwing", async () => {
     }),
   ).toMatchObject({ ok: false });
 });
+
+it.each([false, true])(
+  "preserves diagnostics alongside Specs in either file order (%s)",
+  async (reverse) => {
+    const files = new SimulationFiles();
+    const specs = {
+      schemaVersion: 1,
+      runId: "r",
+      preparedId: "p",
+      inputDigest: "a".repeat(64),
+      results: [],
+    };
+    const diagnostics = [
+      { outputId: "noise", code: "NO_DATA", message: "Noise analysis failed" },
+    ];
+    const artifacts = [
+      await files.put("specs.json", "application/json", JSON.stringify(specs)),
+      await files.put(
+        "outputs.json",
+        "application/json",
+        JSON.stringify({ schemaVersion: 1, analyses: [], diagnostics }),
+      ),
+    ];
+    if (reverse) artifacts.reverse();
+    const result = await new SimulationRunDetails().read(files, {
+      id: "r",
+      preparedId: "p",
+      inputRevision: "i",
+      state: "finished",
+      resultPreview: true,
+      artifacts,
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      run: { outputData: { specs, diagnostics }, resultPreview: false },
+    });
+  },
+);

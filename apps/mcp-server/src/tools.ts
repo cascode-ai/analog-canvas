@@ -3,7 +3,10 @@ import { z } from "zod";
 import { downloadSimulationArtifact } from "./artifact-download.js";
 import { LocalWorkspace, defaultWorkspacePath } from "./local-workspace.js";
 import { simulationAuthoringTools } from "./simulation-authoring-tools.js";
-import { SimulationOperationSchema } from "@icm/simulation-service/contract";
+import {
+  SimulationOperationSchema,
+  ArtifactRefSchema,
+} from "@icm/simulation-service/contract";
 import { SimulationFileOperationSchema } from "@icm/simulation-service/files";
 import {
   AGENT_API_VERSION,
@@ -60,6 +63,12 @@ const SimulationArgs = z
   .strictObject({
     request: SimulationOperationSchema,
     requestId: z.string().min(1).optional(),
+    detail: z
+      .enum(["summary", "full"])
+      .optional()
+      .describe(
+        "Prepare response only: summary returns launch fields and the complete preparation file; full includes vector and device mappings. Run samples always use files.",
+      ),
     waitMs: z
       .number()
       .int()
@@ -146,6 +155,8 @@ const SimulationFilesArgs = z.strictObject({
       action: z.literal("sync"),
       runId: z.string().min(1),
       fileIds: z.array(z.string().min(1)).optional(),
+      analysisIndex: z.number().int().nonnegative().optional(),
+      roles: z.array(ArtifactRefSchema.shape.role.unwrap()).min(1).optional(),
     }),
   ]),
   requestId: z.string().min(1).optional(),
@@ -577,13 +588,21 @@ const TOOLS: readonly ToolEntry[] = [
       inputSchema: jsonSchemaOf(SimulationArgs),
     },
     handle: async (args, session) => {
-      const { request, requestId, waitMs = 0 } = SimulationArgs.parse(args);
+      const {
+        request,
+        requestId,
+        waitMs = 0,
+        detail = "summary",
+      } = SimulationArgs.parse(args);
       const effectiveRequestId = requestId ?? crypto.randomUUID();
       let runId = "runId" in request ? request.runId : undefined;
       let waiting = false;
       try {
         const response = await session.client.simulationResource({
           ...request,
+          ...(request.operation === "capabilities"
+            ? { detail: request.detail ?? "summary" }
+            : {}),
           apiVersion: AGENT_API_VERSION,
           requestId: effectiveRequestId,
         });
@@ -592,6 +611,38 @@ const TOOLS: readonly ToolEntry[] = [
         const result = waitMs
           ? await waitForSimulation(session.client, response, waitMs)
           : response;
+        if (detail === "summary" && result.ok && "prepared" in result) {
+          const {
+            vectors,
+            signalNames,
+            signalTargets,
+            outputs,
+            deviceOperatingPoints,
+            measurements,
+            ...prepared
+          } = result.prepared;
+          const detailsArtifact = prepared.artifacts.find(
+            (a) => a.name === "preparation.json",
+          );
+          // Older editors may not publish preparation details yet. Preserve access then.
+          if (detailsArtifact)
+            return {
+              ...result,
+              prepared: {
+                ...prepared,
+                projection: "summary",
+                detailsArtifact,
+                counts: {
+                  vectors: vectors.length,
+                  signalNames: Object.keys(signalNames ?? {}).length,
+                  signalTargets: Object.keys(signalTargets ?? {}).length,
+                  outputs: outputs.length,
+                  deviceOperatingPoints: deviceOperatingPoints.length,
+                  measurements: measurements?.length ?? 0,
+                },
+              },
+            };
+        }
         return { ...result, ...(runId ? { runId } : {}) };
       } catch (error) {
         if (!(error instanceof AgentSessionError)) throw error;
@@ -672,6 +723,7 @@ const TOOLS: readonly ToolEntry[] = [
           response.catalog,
           (ref, offset) => fetchWorkspaceArtifact(session, ref.id, offset),
           request.fileIds,
+          { analysisIndex: request.analysisIndex, roles: request.roles },
         );
       }
       if (

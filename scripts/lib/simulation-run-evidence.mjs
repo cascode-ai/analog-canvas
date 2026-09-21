@@ -16,16 +16,18 @@ export async function materializeSimulationRunEvidence(run, readJsonArtifact) {
   const result = await readJsonArtifact(resultArtifact);
   const outputArtifact = artifacts.get("outputs.json");
   const specArtifact = artifacts.get("specs.json");
+  const outputs = outputArtifact
+    ? await readJsonArtifact(outputArtifact)
+    : undefined;
   const outputData = specArtifact
     ? {
         schemaVersion: 1,
         analyses: [],
         diagnostics: [],
+        ...outputs,
         specs: await readJsonArtifact(specArtifact),
       }
-    : outputArtifact
-      ? await readJsonArtifact(outputArtifact)
-      : undefined;
+    : outputs;
 
   return {
     ...run,

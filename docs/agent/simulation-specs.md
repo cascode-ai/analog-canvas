@@ -74,7 +74,7 @@ the same measurement name are ambiguous; use distinct names. Repeated reports
 from one declaration retain their occurrence and log line, without inventing a
 corner/plot mapping. A batch's ordinary run ID identifies its run point.
 
-Run `outputData.specs` and the `specs.json` artifact contain the same versioned
+The `specs.json` artifact (materialized as GUI `outputData.specs`) contains the versioned
 report: runId, preparedId, inputDigest and results with source path/line/text,
 measurement name, occurrence, numeric value, unit, structured expected condition,
 judgment, reason and logLine. Retrieve artifacts through the existing authorized
@@ -88,7 +88,8 @@ support before deploying producers of those reports; do not replace an immutable
 published package in place.
 
 The GUI file tree presents `specs.csv`; `specs.json` remains available through
-File Resource and diagnostic export. Waveforms live in `result.data` or
+File Resource and diagnostic export. Run receipts expose Spec counts in
+`details.specs`; complete reports are fetched from files. Waveforms live in the GUI's materialized `result.data` or
 `result.json`, with one complete CSV per analysis record. New runs do not compute
 automatic min/max/RMS summaries or generate a second `outputs-*.csv` family.
 Legacy output fields and archived files remain readable but are not regenerated.

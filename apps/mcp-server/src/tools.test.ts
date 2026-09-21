@@ -204,7 +204,7 @@ describe("mcp tool surface", () => {
   it("advertises raw and captured Specs rather than a retired result renderer", () => {
     const tools = listToolDefinitions();
     expect(tools.find((t) => t.name === "simulation")?.description).toContain(
-      "outputData.specs",
+      "run.details",
     );
     const download = tools.find((t) => t.name === "export_file")!;
     expect(download.description).toContain("simulation_files");

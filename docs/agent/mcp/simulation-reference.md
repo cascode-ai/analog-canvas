@@ -46,6 +46,10 @@ evidence details.
    is for scripts and plots. Use ordinary local tools for analysis afterwards.
    Set `fileIds` to select stable file IDs or current artifact IDs; `[]` updates
    only the directory. Verified existing files are reused without re-downloading.
+   `analysisIndex` selects one dataset and `roles` selects producer file roles;
+   these intersect with `fileIds` when combined. `roles:["table"]` downloads CSV.
+   Raw/result files can represent multiple analyses; selecting one analysis still
+   downloads the complete shared file, never silently slices it.
    `request:{action:"workspace"}` inspects the base, even offline when its path
    is known. A new MCP conversation can provide that path to continue. Local
    files survive disconnect; the host, not the browser, controls their retention.

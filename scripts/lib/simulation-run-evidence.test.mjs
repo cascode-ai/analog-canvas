@@ -45,6 +45,29 @@ describe("bounded simulation run evidence", () => {
     ).rejects.toThrow("no result.json artifact");
   });
 
+  it("retains diagnostics when a separate Spec report is present", async () => {
+    const diagnostics = [{ code: "NOISE_FAILED", message: "No spectrum" }];
+    const specs = { results: [] };
+    const read = async ({ name }) =>
+      name === "outputs.json"
+        ? { diagnostics }
+        : name === "specs.json"
+          ? specs
+          : { data: {} };
+    const run = await materializeSimulationRunEvidence(
+      {
+        resultPreview: true,
+        artifacts: [
+          artifact("result.json"),
+          artifact("specs.json"),
+          artifact("outputs.json"),
+        ],
+      },
+      read,
+    );
+    expect(run.outputData).toMatchObject({ diagnostics, specs });
+  });
+
   it("hydrates new Spec-only results without a duplicate outputs.json", async () => {
     const specs = { schemaVersion: 1, runId: "run", results: [] };
     const read = vi.fn(async ({ name }) =>

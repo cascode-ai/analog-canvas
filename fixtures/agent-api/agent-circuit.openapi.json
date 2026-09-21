@@ -33742,6 +33742,7 @@
                   "table",
                   "specs",
                   "log",
+                  "diagnostics",
                   "manifest"
                 ]
               },
@@ -34033,6 +34034,16 @@
                 "type": "string",
                 "const": "capabilities"
               },
+              "detail": {
+                "type": "string",
+                "enum": [
+                  "summary",
+                  "full"
+                ]
+              },
+              "profileId": {
+                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema0"
+              },
               "apiVersion": {
                 "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema1"
               },
@@ -34222,6 +34233,23 @@
               },
               "runId": {
                 "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema0"
+              },
+              "section": {
+                "type": "string",
+                "enum": [
+                  "files",
+                  "datasets"
+                ]
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
               },
               "apiVersion": {
                 "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema1"
@@ -34795,6 +34823,44 @@
               "capabilities": {
                 "type": "object",
                 "properties": {
+                  "discovery": {
+                    "type": "object",
+                    "properties": {
+                      "detail": {
+                        "type": "string",
+                        "enum": [
+                          "summary",
+                          "full"
+                        ]
+                      },
+                      "fullRequest": {
+                        "type": "object",
+                        "properties": {
+                          "operation": {
+                            "type": "string",
+                            "const": "capabilities"
+                          },
+                          "detail": {
+                            "type": "string",
+                            "const": "full"
+                          },
+                          "profileId": {
+                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema3"
+                          }
+                        },
+                        "required": [
+                          "operation",
+                          "detail"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "detail",
+                      "fullRequest"
+                    ],
+                    "additionalProperties": false
+                  },
                   "configured": {
                     "type": "boolean"
                   },
@@ -35061,8 +35127,112 @@
                   "resultPreview": {
                     "type": "boolean"
                   },
+                  "details": {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "const": "catalog"
+                      },
+                      "runId": {
+                        "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema3"
+                      },
+                      "execution": {
+                        "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema26"
+                      },
+                      "collection": {
+                        "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema27"
+                      },
+                      "datasetCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "fileCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "diagnostics": {
+                        "type": "object",
+                        "properties": {
+                          "total": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "shown": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "textMayBeShortened": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "total",
+                          "shown",
+                          "textMayBeShortened"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "outputDiagnostics": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "specs": {
+                        "type": "object",
+                        "properties": {
+                          "available": {
+                            "type": "boolean"
+                          },
+                          "total": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "passed": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "failed": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "notEvaluated": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "unconstrained": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "available",
+                          "total",
+                          "passed",
+                          "failed",
+                          "notEvaluated",
+                          "unconstrained"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "runId"
+                    ],
+                    "additionalProperties": false
+                  },
                   "catalog": {
-                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema26"
+                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema28"
                   },
                   "result": {
                     "type": "object",
@@ -36746,7 +36916,42 @@
                 "const": true
               },
               "catalog": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema26"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema28"
+              },
+              "page": {
+                "type": "object",
+                "properties": {
+                  "section": {
+                    "type": "string",
+                    "enum": [
+                      "files",
+                      "datasets"
+                    ]
+                  },
+                  "total": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "nextOffset": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "section",
+                  "total",
+                  "nextOffset"
+                ],
+                "additionalProperties": false
               },
               "apiVersion": {
                 "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema0"
@@ -36786,13 +36991,13 @@
                       "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema3"
                     },
                     "inputRevision": {
-                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema27"
+                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema29"
                     },
                     "execution": {
-                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema28"
+                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema26"
                     },
                     "collection": {
-                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema29"
+                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema27"
                     },
                     "storedAt": {
                       "type": "number"
@@ -38192,6 +38397,7 @@
                   "table",
                   "specs",
                   "log",
+                  "diagnostics",
                   "manifest"
                 ]
               },
@@ -38214,6 +38420,26 @@
             "additionalProperties": false
           },
           "__schema26": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "completed",
+              "completed-with-dropped-input",
+              "failed",
+              "timed-out",
+              "cancelled",
+              "lost"
+            ]
+          },
+          "__schema27": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "complete",
+              "partial"
+            ]
+          },
+          "__schema28": {
             "type": "object",
             "properties": {
               "schemaVersion": {
@@ -38227,16 +38453,16 @@
                 "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema3"
               },
               "inputRevision": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema27"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema29"
               },
               "signalTargets": {
                 "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema20"
               },
               "execution": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema28"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema26"
               },
               "collection": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema29"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema27"
               },
               "error": {
                 "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema2"
@@ -38434,28 +38660,8 @@
             ],
             "additionalProperties": false
           },
-          "__schema27": {
-            "type": "string"
-          },
-          "__schema28": {
-            "type": "string",
-            "enum": [
-              "pending",
-              "completed",
-              "completed-with-dropped-input",
-              "failed",
-              "timed-out",
-              "cancelled",
-              "lost"
-            ]
-          },
           "__schema29": {
-            "type": "string",
-            "enum": [
-              "pending",
-              "complete",
-              "partial"
-            ]
+            "type": "string"
           },
           "__schema30": {
             "type": "string",

@@ -345,6 +345,33 @@ export const simulationAuthoringTools: readonly Entry[] = [
         ? {
             ...result,
             folder: { id: next.id, name: next.name, entry: next.input.entry },
+            source: {
+              owner: { kind: "project-folder", folderId: next.id },
+              ...(result.projectStructure
+                ? { revision: result.projectStructure.toRevision }
+                : !result.applied
+                  ? { revision: project.structureRevision }
+                  : {}),
+              entry: next.input.entry,
+              configPath: next.input.configPath,
+              files: [
+                ...next.input.files.map((file) => ({
+                  path: file.path,
+                  kind: "authored",
+                  editing: "text",
+                })),
+                ...next.input.circuitBindings.map((binding) => ({
+                  path: binding.path,
+                  kind: "generated",
+                  editing: "mapped-parameters",
+                })),
+                ...next.input.dependencies.map((dependency) => ({
+                  path: dependency.mountPath,
+                  kind: "dependency",
+                  editing: "read-only",
+                })),
+              ],
+            },
           }
         : result;
     },
