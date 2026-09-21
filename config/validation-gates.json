@@ -31,7 +31,9 @@
       "apps/editor/e2e/instance-table.spec.ts",
       "apps/editor/e2e/manual-editor.spec.ts",
       "apps/editor/e2e/reference-label.spec.ts",
-      "apps/editor/e2e/manual-editor-fixtures.ts"
+      "apps/editor/e2e/manual-editor-fixtures.ts",
+      "apps/editor/src/features/editor-shell/document-settings*",
+      "packages/derived/src/annotation-text*"
     ],
     "editorCommands": [
       "apps/editor/src/app/editor-transaction-commands*",
@@ -82,7 +84,9 @@
       "apps/editor/src/canvas/editor-wiring-overlay*",
       "apps/editor/src/features/wiring/**",
       "packages/derived/src/contact-target*",
-      "apps/editor/e2e/wiring-semantics.spec.ts"
+      "apps/editor/e2e/wiring-semantics.spec.ts",
+      "packages/derived/src/connectivity.ts",
+      "packages/derived/src/connectivity-index.ts"
     ],
     "placementNearMiss": [
       "apps/editor/src/features/component-insert/placement-near-miss*"
@@ -133,7 +137,8 @@
       "packages/project-protocol/**",
       "apps/editor/e2e/project-source-format.spec.ts",
       "apps/editor/src/features/editor-shell/project-tabs*",
-      "apps/editor/src/features/project-code/**"
+      "apps/editor/src/features/project-code/**",
+      "apps/editor/src/components/recovery-banners.tsx"
     ],
     "gallery": [
       "worker/auth.ts",

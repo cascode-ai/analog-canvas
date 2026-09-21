@@ -88,6 +88,31 @@ describe("CI validation planning", () => {
     }
   });
 
+  it("maps label naming, circuit settings and recovery changes to their browser contracts", () => {
+    for (const [path, spec] of [
+      ["apps/editor/src/components/recovery-banners.tsx", "recovery-hardening"],
+      [
+        "apps/editor/src/features/editor-shell/document-settings-code-assists.ts",
+        "manual-editor",
+      ],
+      [
+        "apps/editor/src/features/editor-shell/document-settings-code.ts",
+        "manual-editor",
+      ],
+      [
+        "apps/editor/src/features/editor-shell/document-settings-section.tsx",
+        "manual-editor",
+      ],
+      ["packages/derived/src/annotation-text.ts", "manual-editor"],
+      ["packages/derived/src/connectivity-index.ts", "wiring-semantics"],
+      ["packages/derived/src/connectivity.ts", "wiring-semantics"],
+    ]) {
+      const plan = ciPlan([path]);
+      expect(plan.mode, path).toBe("focused");
+      expect(plan.e2eArgs, path).toContain(`apps/editor/e2e/${spec}.spec.ts`);
+    }
+  });
+
   it("selects the existing Analog Simulation browser contract", () => {
     expect(
       ciPlan(["packages/simulation-service/src/service.ts"]),
