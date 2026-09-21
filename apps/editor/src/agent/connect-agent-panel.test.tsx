@@ -54,7 +54,7 @@ describe("ConnectAgentPanel", () => {
     expect(instructions).toContain(
       "Connect to Analog Canvas at https://editor.example",
     );
-    expect(instructions).toContain("targets this exact server");
+    expect(instructions).toContain("reports this exact server");
     expect(instructions).toContain(
       "No plugin installation or restart is needed",
     );
