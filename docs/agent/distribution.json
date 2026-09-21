@@ -42,9 +42,7 @@
       ],
       "task": "MCP live-session quickstart",
       "load": "entry",
-      "requires": [
-        "reference/authoring"
-      ],
+      "requires": [],
       "uri": "analog-canvas://reference/quickstart"
     },
     {
@@ -439,6 +437,22 @@
       "uri": "analog-canvas://reference/mcp-simulation",
       "name": "MCP simulation calls and file ownership",
       "description": "MCP simulation calls and file ownership",
+      "mimeType": "text/markdown"
+    },
+    {
+      "id": "reference/mcp-simulation-details",
+      "source": "docs/agent/mcp/simulation-reference.md",
+      "consumers": [
+        "mcp",
+        "http-cli",
+        "repo-skill"
+      ],
+      "task": "Detailed MCP simulation contracts",
+      "load": "on-demand",
+      "requires": [],
+      "uri": "analog-canvas://reference/mcp-simulation-details",
+      "name": "MCP simulation detailed contracts",
+      "description": "Device mapping, file ownership, Batch and recovery on demand.",
       "mimeType": "text/markdown"
     },
     {

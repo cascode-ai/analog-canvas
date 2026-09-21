@@ -7,7 +7,7 @@ import { AgentSchematicEditSchema } from "@icm/agent-adapter";
 import { z } from "zod";
 import { mcpResources } from "./resources.generated.js";
 import { agentToolHelp } from "./guidance.generated.js";
-import { listToolDefinitions } from "./tools.js";
+import { callTool, listToolDefinitions } from "./tools.js";
 import {
   ADVANCED_EDITS_RESOURCE_URI,
   listResourceEntries,
@@ -31,6 +31,48 @@ interface ManifestResource {
  * the registry declares, independently of the HTTP Kit projection.
  */
 describe("mcp resources single-source projection", () => {
+  it("bounds discovery size while retaining complete contracts and runtime validation", async () => {
+    const tools = listToolDefinitions();
+    expect(Buffer.byteLength(JSON.stringify(tools))).toBeLessThan(100_000);
+    for (const tool of tools) {
+      const complete = JSON.parse(
+        readResourceContent(`analog-canvas://contract/tools/${tool.name}`).text,
+      );
+      expect(complete.type).toBe("object");
+      const visit = (value: unknown): void => {
+        if (!value || typeof value !== "object") return;
+        if ("$ref" in value) {
+          const ref = String(value.$ref);
+          expect(ref.startsWith("#/$defs/")).toBe(true);
+          expect(
+            (tool.inputSchema.$defs as Record<string, unknown>)[ref.slice(8)],
+          ).toBeDefined();
+        }
+        for (const child of Object.values(value)) visit(child);
+      };
+      visit(tool.inputSchema);
+    }
+    const complete = readResourceContent(
+      "analog-canvas://contract/tools/simulation_output",
+    );
+    expect(complete.text).toContain('"expression"');
+    expect(complete.text).toContain('"operand"');
+    // The advertised compact entry does not loosen dispatch validation.
+    const response = await callTool(
+      "simulation_output",
+      {
+        action: "upsert",
+        folderId: "test",
+        label: "bad",
+        expression: { kind: "invented" },
+      },
+      {} as never,
+    );
+    expect(response.isError).toBe(true);
+    expect(response.content[0]?.text).toContain(
+      "SIMULATION_HELPER_INPUT_INVALID",
+    );
+  });
   it("returns a complete compact annotation contract with identical expanded semantics", () => {
     const kind = "upsert_schematic_annotation";
     const original = z.toJSONSchema(

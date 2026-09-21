@@ -32,6 +32,8 @@ import {
   type SearchKind,
 } from "./results.js";
 import { exportFile, importFile } from "./file-operations.js";
+import { compactSchema } from "./compact-schema.js";
+import { waitForSimulation } from "./simulation-wait.js";
 
 /**
  * The default MCP tool surface (Agent rationale) stays compact. The full
@@ -54,10 +56,28 @@ const ConnectArgs = z.strictObject({
       "Claim code from the editor connect panel. Omit to resume the browser-approved connector saved for this MCP host.",
     ),
 });
-const SimulationArgs = z.strictObject({
-  request: SimulationOperationSchema,
-  requestId: z.string().min(1).optional(),
-});
+const SimulationArgs = z
+  .strictObject({
+    request: SimulationOperationSchema,
+    requestId: z.string().min(1).optional(),
+    waitMs: z
+      .number()
+      .int()
+      .min(0)
+      .max(20_000)
+      .optional()
+      .describe(
+        "For start/read only: poll the same run inside MCP for up to this budget before returning its latest receipt. A running receipt can be resumed with read. In-flight network calls retain their transport timeout.",
+      ),
+  })
+  .superRefine((value, context) => {
+    if (value.waitMs && !["start", "read"].includes(value.request.operation))
+      context.addIssue({
+        code: "custom",
+        path: ["waitMs"],
+        message: "waitMs is supported by start/read only",
+      });
+  });
 const ProjectCellsArgs = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("list-projects") }),
   z.strictObject({
@@ -556,38 +576,52 @@ const TOOLS: readonly ToolEntry[] = [
       inputSchema: jsonSchemaOf(SimulationArgs),
     },
     handle: async (args, session) => {
-      const { request, requestId } = SimulationArgs.parse(args);
+      const { request, requestId, waitMs = 0 } = SimulationArgs.parse(args);
       const effectiveRequestId = requestId ?? crypto.randomUUID();
+      let runId = "runId" in request ? request.runId : undefined;
+      let waiting = false;
       try {
-        return await session.client.simulationResource({
+        const response = await session.client.simulationResource({
           ...request,
           apiVersion: AGENT_API_VERSION,
           requestId: effectiveRequestId,
         });
+        if (response.ok && "run" in response) runId = response.run.id;
+        waiting = waitMs > 0 && response.ok && "run" in response;
+        const result = waitMs
+          ? await waitForSimulation(session.client, response, waitMs)
+          : response;
+        return { ...result, ...(runId ? { runId } : {}) };
       } catch (error) {
         if (!(error instanceof AgentSessionError)) throw error;
         return {
           ok: false,
           requestId: effectiveRequestId,
+          ...(runId ? { runId } : {}),
+          ...(waiting && runId
+            ? { nextRequest: { operation: "read", runId } }
+            : {}),
           error: {
             code: error.code,
             message: error.message,
-            stage: request.operation,
+            stage: waiting ? "read" : request.operation,
             ...(error.httpStatus === undefined
               ? {}
               : { httpStatus: error.httpStatus }),
             recovery:
               error.category === "unrecoverable-credential"
                 ? "reauthorize"
-                : error.httpStatus !== undefined &&
-                    (error.httpStatus >= 500 ||
-                      error.httpStatus === 429 ||
-                      error.httpStatus === 408)
-                  ? "retry-same-request"
-                  : error.category === "request-rejected" &&
-                      error.code !== "INVALID_RESPONSE"
-                    ? "fix-input"
-                    : "retry-same-request",
+                : waiting
+                  ? "read-run"
+                  : error.httpStatus !== undefined &&
+                      (error.httpStatus >= 500 ||
+                        error.httpStatus === 429 ||
+                        error.httpStatus === 408)
+                    ? "retry-same-request"
+                    : error.category === "request-rejected" &&
+                        error.code !== "INVALID_RESPONSE"
+                      ? "fix-input"
+                      : "retry-same-request",
           },
         };
       }
@@ -918,7 +952,46 @@ const TOOLS: readonly ToolEntry[] = [
 ];
 
 export function listToolDefinitions(): McpToolDefinition[] {
-  return TOOLS.map((tool) => tool.definition);
+  return TOOLS.map(({ definition }) => {
+    let schema = definition.inputSchema;
+    if (definition.name === "simulation_output") {
+      // The legacy depth-bounded expression tree is large even with refs.
+      // Keep its full contract discoverable without loading it for native runs.
+      schema = structuredClone(schema);
+      for (const branch of (schema.oneOf ?? []) as Record<string, unknown>[]) {
+        const properties = branch.properties as
+          Record<string, unknown> | undefined;
+        if (properties?.expression) {
+          properties.expression = {
+            type: "object",
+            description:
+              "Legacy output expression. Exact schema: analog-canvas://contract/tools/simulation_output. Runtime validates the complete expression.",
+          };
+        }
+      }
+    }
+    const compact = compactSchema(schema);
+    return {
+      ...definition,
+      inputSchema:
+        JSON.stringify(compact).length < JSON.stringify(schema).length
+          ? compact
+          : schema,
+    };
+  });
+}
+
+/** On-demand complete input contract; dispatch still parses the original schema. */
+export function toolInputSchema(
+  name: string,
+): Record<string, unknown> | undefined {
+  const schema = TOOLS.find((tool) => tool.definition.name === name)?.definition
+    .inputSchema;
+  if (!schema) return undefined;
+  const compact = compactSchema(schema);
+  return JSON.stringify(compact).length < JSON.stringify(schema).length
+    ? compact
+    : schema;
 }
 
 /** Marker for a tool that completed with a structured failure payload. */

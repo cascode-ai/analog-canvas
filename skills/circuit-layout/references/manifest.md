@@ -29,6 +29,7 @@ Select your transport first. Read only the task-relevant rows; reading is not a 
 | Agent simulation result handoff | on-demand | [reference/simulation-result-handoff](../../../docs/agent/simulation-result-handoff.md) |
 | MCP editing and recovery | on-demand | [reference/mcp-tools](../../../docs/agent/mcp/tools.md) |
 | MCP simulation calls and file ownership | on-demand | [reference/mcp-simulation](../../../docs/agent/mcp/simulation.md) |
+| Detailed MCP simulation contracts | on-demand | [reference/mcp-simulation-details](../../../docs/agent/mcp/simulation-reference.md) |
 | Shared simulation lifecycle | on-demand | [reference/simulation-workflow](../../../docs/agent/shared/simulation.md) |
 | Place recognizable circuit groups | on-demand | [reference/knowledge/patterns](../../../docs/agent/knowledge/patterns.md) |
 | Use optional repository RouteGraph helper | on-demand | [repo/routegraph](../../../docs/agent/repo-skill/routegraph.md) |

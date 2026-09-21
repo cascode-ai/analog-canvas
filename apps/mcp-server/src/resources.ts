@@ -7,12 +7,20 @@ import { AgentSchematicEditSchema } from "@icm/agent-adapter";
 import { z } from "zod";
 import type { McpResourceContent, McpResourceEntry } from "./protocol.js";
 import { compactSchema } from "./compact-schema.js";
+import { toolInputSchema } from "./tools.js";
 
 export const ADVANCED_EDITS_RESOURCE_URI =
   "analog-canvas://contract/advanced-edits";
 
 export function listResourceTemplates() {
   return [
+    {
+      uriTemplate: "analog-canvas://contract/tools/{name}",
+      name: "Complete tool input contract",
+      description:
+        "Full canonical input schema for one tool, including legacy expression trees. Reading is optional; runtime validation is unchanged.",
+      mimeType: "application/schema+json",
+    },
     {
       uriTemplate: "analog-canvas://contract/edits/{kind}",
       name: "One typed edit contract",
@@ -33,6 +41,16 @@ export function listResourceEntries(): McpResourceEntry[] {
 }
 
 export function readResourceContent(uri: string): McpResourceContent {
+  const toolPrefix = "analog-canvas://contract/tools/";
+  if (uri.startsWith(toolPrefix)) {
+    const schema = toolInputSchema(uri.slice(toolPrefix.length));
+    if (!schema) throw new RpcMethodError(-32602, "Unknown tool contract");
+    return {
+      uri,
+      mimeType: "application/schema+json",
+      text: JSON.stringify(schema),
+    };
+  }
   const prefix = "analog-canvas://contract/edits/";
   if (uri.startsWith(prefix)) {
     const kind = uri.slice(prefix.length);

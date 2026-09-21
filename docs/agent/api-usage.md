@@ -71,11 +71,12 @@ cached response is gone: reconcile current state, do not replay the mutation.
    Inspect prepared input artifacts only when needed to investigate the input.
    Retain the entire request before sending. Retry an uncertain start unchanged.
    Each new `read` poll uses a new request ID and returned `runId`.
-5. Use complete returned data or the run's artifact references directly; `export`
-   is an optional inventory lookup. File simulation-input
-   `input:{action:"artifact",artifactId,...}` retrieves content using the
-   advertised paging fields. Verify byte length and SHA-256 before saving.
-   Large receipts may be previews: retrieve complete raw/result/Spec artifacts.
+5. Use `catalog` to select registered files, then File simulation-input
+   `input:{action:"download",artifactId}` for a download descriptor. Download
+   whole files to the caller's local workspace through its returned authenticated
+   path; verify the declared byte length and digest. Text `artifact` paging is
+   optional preview, not the default transfer. `export` is an optional inventory
+   lookup; reuse complete local files. Large receipts may be previews.
    Follow [result handoff](simulation-result-handoff.md) for browser visibility,
    durable evidence and source export versus results ZIP.
 
