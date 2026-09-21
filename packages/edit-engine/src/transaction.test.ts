@@ -395,7 +395,7 @@ describe("Edit Transaction envelope", () => {
       runs: [
         {
           kind: "span" as const,
-          style: "overbar" as const,
+          style: "bold" as const,
           children: [{ kind: "text" as const, value: "Vout" }],
         },
       ],
@@ -452,7 +452,7 @@ describe("Edit Transaction envelope", () => {
       runs: [
         {
           kind: "span",
-          style: "overbar",
+          style: "bold",
           children: [{ kind: "text", value: "OUT" }],
         },
       ],

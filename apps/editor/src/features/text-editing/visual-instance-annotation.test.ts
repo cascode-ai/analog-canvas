@@ -177,7 +177,7 @@ describe("one visual annotation, one electrical authority", () => {
       runs: [
         {
           kind: "span",
-          style: "overbar",
+          style: "bold",
           children: [{ kind: "text", value: "R1" }],
         },
       ],
@@ -198,7 +198,7 @@ describe("one visual annotation, one electrical authority", () => {
       flattenRichText(resolveAnnotationText(after, after.annotations[0]!)),
     ).toBe("R7");
     expect(after.annotations[0]!.formatOverride?.runs[0]).toMatchObject({
-      style: "overbar",
+      style: "bold",
     });
     const custom = edit(after, text("load"));
     const renamed = apply(custom, [

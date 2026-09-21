@@ -171,7 +171,7 @@ keep the last accepted drawing. Changing selection discards its pending draft.
 ## Label names and typography
 
 Double-click a bound label to edit its text and formatting. Labels default to
-bold italic. Bold, italic, upright text, color, superscript and overbar remain
+bold italic. Bold, italic, upright text, color and superscript remain
 independent of the electrical name; changing a name preserves those choices.
 `Use display alias` is off by default. Enable it only for a canvas-only name.
 
@@ -180,6 +180,13 @@ stays on the baseline. Applying or removing subscript in the text editor adds
 or removes the underscore in the netlist name. Netlist edits update the label
 in the other direction. Historical explicit label formatting is preserved on
 open; editing that label's text adopts this naming convention.
+
+An overbar on a bound name uses the suffix `_bar`: F with a bar is `F_bar`,
+and a barred F with subscript in is `F_in_bar`. Applying or removing the bar
+updates the netlist. A source name ending in `_bar` renders with an overbar;
+removing that suffix when renaming the source removes the bar. Subscript case
+changes leave this reserved suffix as `_bar`. Free text and explicit display
+aliases remain presentation-only.
 
 In **Properties** code, `labels.subscriptCase` accepts `preserve`, `uppercase`
 or `lowercase`. Changing it renames existing underscore suffixes in both labels

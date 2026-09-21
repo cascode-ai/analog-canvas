@@ -67,6 +67,7 @@ import {
   planBindCellParameter,
   planSetDeviceModelTarget,
   planSetVddConnectionMode,
+  planRenameCellTerminal,
   planAngledWireRepairs,
   gateRoutingOperationPlan,
   type ProjectStructureEdit,
@@ -6721,11 +6722,25 @@ function WorkspaceEditor({
                             : null,
                         onApply: (value: ComponentPropertyCodeValue) => {
                           try {
+                            // Formal Pin names own a Cell interface, never a display alias.
+                            const { displayName, ...nonNameValues } = value;
+                            const terminalEdits =
+                              selectedFormalTerminal &&
+                              displayName !== undefined &&
+                              displayName !== selectedFormalTerminal.name
+                                ? planRenameCellTerminal(
+                                    project,
+                                    document.id,
+                                    selectedFormalTerminal.id,
+                                    displayName,
+                                    { mergeExistingPort: true },
+                                  )
+                                : [];
                             const edits: SchematicEdit[] =
                               planComponentPropertyCodeEdits(
                                 document,
                                 selectedInstance,
-                                value,
+                                selectedFormalTerminal ? nonNameValues : value,
                               );
                             if (
                               !selectedInstance.placement &&
@@ -6892,6 +6907,7 @@ function WorkspaceEditor({
                                   )
                                 : [];
                             const structureEdits = [
+                              ...terminalEdits,
                               ...targetEdits,
                               ...connectionEdits,
                             ];

@@ -1,9 +1,11 @@
 import { parseSavedProject } from "./editor-fixtures";
 import { test, expect } from "@playwright/test";
+import { openSelectionShelf } from "./manual-editor-fixtures.js";
 import { createEmptyProject } from "@icm/model";
 import {
   awaitEditorReady,
   clickCommand,
+  editComponentPropertyCode,
   downloadBytes,
 } from "./editor-fixtures.js";
 
@@ -679,4 +681,112 @@ test("opening and reopening a PDK BJT adds X only to SPICE, never its canvas nam
   await expect(
     page.getByRole("textbox", { name: "Canvas text editor" }),
   ).toHaveText("Q1");
+});
+
+test("Cell Pin overbars rename the exported interface and follow source renames", async ({
+  page,
+}) => {
+  const project = fixture();
+  const document = project.documents[0]!;
+  document.instances.push({
+    id: "P1",
+    symbolId: "port",
+    placement: { position: { x: 100, y: 200 }, rotation: 0, mirror: "none" },
+  });
+  document.nets[0]!.terminals.push({ instanceId: "P1", pinName: "P" });
+  document.netlist!.terminals.push({
+    id: "output",
+    name: "F",
+    netId: "net-1",
+    direction: "output",
+    interfaceInstanceIds: ["P1"],
+  });
+  document.annotations.push({
+    id: "label-output",
+    kind: "instance-label",
+    binding: { kind: "cell-terminal-name", terminalId: "output" },
+    anchor: {
+      kind: "object",
+      objectId: "P1",
+      localOffset: { x: 0, y: -30 },
+      fallbackPosition: { x: 100, y: 170 },
+    },
+    alignment: "middle",
+    rotation: 0,
+    locked: false,
+  });
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "barred-pin.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  const hit = page.getByTestId("annotation-hit-label-output");
+  const label = page.locator(
+    '[data-layer="annotations"] [data-object-id="label-output"]',
+  );
+  await hit.dblclick();
+  const editor = page.getByRole("textbox", { name: "Canvas text editor" });
+  await editor.press("ControlOrMeta+a");
+  await page.getByRole("button", { name: "Overbar", exact: true }).click();
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  await expect(editor).toHaveCount(0);
+  await expect(label).toHaveText("F");
+  await expect(
+    label.locator("..").locator('[data-text-decoration="overbar"]'),
+  ).toHaveCount(1);
+  const code = page.getByLabel("Netlist code", { exact: true });
+  await expect(code).toContainText("F_bar");
+  const saved = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(
+    saved.documents[0].netlist.terminals.find(
+      (item: { id: string }) => item.id === "output",
+    ).name,
+  ).toBe("F_bar");
+  // Device names are writable in the netlist; the marker must round trip there too.
+  await code.fill((await code.innerText()).replace("R1 ", "R1_bar "));
+  await code.press("Enter");
+  const instanceLabel = page.locator(
+    '[data-layer="annotations"] [data-object-id="label-R1"]',
+  );
+  await expect(instanceLabel).toHaveText("R1");
+  await expect(instanceLabel.locator('[data-text-run="overbar"]')).toHaveCount(
+    1,
+  );
+  await code.fill((await code.innerText()).replace("R1_bar ", "R1 "));
+  await code.press("Enter");
+  await expect(instanceLabel.locator('[data-text-run="overbar"]')).toHaveCount(
+    0,
+  );
+  await page.getByTestId("hit-P1").click();
+  await openSelectionShelf(page);
+  await editComponentPropertyCode(page, (code) => {
+    code.name = "Q_bar";
+  });
+  await expect(label).toHaveText("Q");
+  await expect(
+    label.locator("..").locator('[data-text-decoration="overbar"]'),
+  ).toHaveCount(1);
+  await editComponentPropertyCode(page, (code) => {
+    code.name = "Q";
+  });
+  await expect(
+    label.locator("..").locator('[data-text-decoration="overbar"]'),
+  ).toHaveCount(0);
+  const renamed = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(
+    renamed.documents[0].netlist.terminals.find(
+      (item: { id: string }) => item.id === "output",
+    ).name,
+  ).toBe("Q");
+  expect(
+    renamed.documents[0].annotations.find(
+      (item: { id: string }) => item.id === "label-output",
+    ).binding,
+  ).toEqual({ kind: "cell-terminal-name", terminalId: "output" });
 });

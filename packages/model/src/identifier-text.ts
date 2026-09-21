@@ -5,18 +5,29 @@ import {
   rewriteRichTextPlainText,
 } from "./rich-text.js";
 
-/** Electrical spelling of a styled identifier. Only subscript affects names;
- * weight, slant, color, overbars and superscripts remain presentation. */
+/** Electrical spelling of a styled identifier: subscripts introduce `_`, and
+ * an overbar marks the whole identifier with a trailing `_bar`. Weight,
+ * slant, color and superscripts remain presentation. */
 export function richTextIdentifier(content: RichTextDocument): string {
   let result = "";
   let previousSubscript = false;
-  const visit = (runs: readonly RichTextRun[], subscript = false): void => {
+  let hasOverbar = false;
+  const visit = (
+    runs: readonly RichTextRun[],
+    subscript = false,
+    overbar = false,
+  ): void => {
     for (const run of runs) {
       if (run.kind === "span")
-        visit(run.children, subscript || run.style === "subscript");
+        visit(
+          run.children,
+          subscript || run.style === "subscript",
+          overbar || run.style === "overbar",
+        );
       else {
         const value = flattenRichText({ runs: [run] });
         if (!value) continue;
+        hasOverbar ||= overbar;
         if (subscript && !previousSubscript && !result.endsWith("_"))
           result += "_";
         result += value;
@@ -25,7 +36,7 @@ export function richTextIdentifier(content: RichTextDocument): string {
     }
   };
   visit(content.runs);
-  return result;
+  return result + (hasOverbar ? "_bar" : "");
 }
 
 /** Legacy explicit formatting can omit the separator; never reinterpret its
@@ -39,10 +50,17 @@ export function richTextPresentsIdentifier(
   );
 }
 
-/** Underscores, not guessed leading letters, introduce the default subscript. */
+function identifierParts(name: string): { body: string; overbar: boolean } {
+  const overbar = name.length > 4 && name.endsWith("_bar");
+  return { body: overbar ? name.slice(0, -4) : name, overbar };
+}
+
+/** A terminal `_bar` becomes an overbar; the first remaining underscore
+ * introduces the default subscript. No spelling is guessed from leading letters. */
 export function identifierTextDocument(name: string): RichTextDocument {
   if (!name) return { runs: [{ kind: "line-break" }] };
-  const split = name.indexOf("_");
+  const { body, overbar } = identifierParts(name);
+  const split = body.indexOf("_");
   const styled = (value: string): RichTextRun => ({
     kind: "span",
     style: "italic",
@@ -50,31 +68,36 @@ export function identifierTextDocument(name: string): RichTextDocument {
       { kind: "span", style: "bold", children: [{ kind: "text", value }] },
     ],
   });
+  const runs: RichTextRun[] =
+    split > 0 && split < body.length - 1
+      ? [
+          styled(body.slice(0, split)),
+          {
+            kind: "span",
+            style: "subscript",
+            children: [styled(body.slice(split + 1))],
+          },
+        ]
+      : [styled(body)];
   return {
-    runs:
-      split > 0 && split < name.length - 1
-        ? [
-            styled(name.slice(0, split)),
-            {
-              kind: "span",
-              style: "subscript",
-              children: [styled(name.slice(split + 1))],
-            },
-          ]
-        : [styled(name)],
+    runs: overbar ? [{ kind: "span", style: "overbar", children: runs }] : runs,
   };
 }
 
 /** Rename while retaining authored non-name typography. Reconstruct script
- * boundaries from the actual name so removing '_' also removes its subscript. */
+ * boundaries and the overbar from the actual name. */
 export function rewriteRichTextIdentifier(
   content: RichTextDocument,
   name: string,
 ): RichTextDocument {
-  const visible = name.replace(/(?<=.)_(?=.)/u, "");
+  const { body, overbar } = identifierParts(name);
+  const visible = body.replace(/(?<=.)_(?=.)/u, "");
   const rewritten = rewriteRichTextPlainText(content, visible);
-  const split = name.indexOf("_");
-  const scriptStart = split > 0 && split < name.length - 1 ? split : Infinity;
+  const split = body.indexOf("_");
+  const scriptStart =
+    split > 0 && split < body.length - 1
+      ? [...body.slice(0, split)].length
+      : Infinity;
   let offset = 0;
   const groups: { value: string; styles: RichTextStyle[] }[] = [];
   const collect = (
@@ -85,7 +108,12 @@ export function rewriteRichTextIdentifier(
       if (run.kind === "span") {
         collect(
           run.children,
-          ["subscript", "uppercase", "lowercase"].includes(run.style)
+          [
+            "subscript",
+            "uppercase",
+            "lowercase",
+            ...(!overbar ? ["overbar"] : []),
+          ].includes(run.style)
             ? styles
             : [...new Set([...styles, run.style])],
         );
@@ -105,13 +133,24 @@ export function rewriteRichTextIdentifier(
     }
   };
   collect(rewritten.runs);
+  // Keep a partial authored bar where it was. A whole-name bar belongs outside
+  // all styled runs so renaming a subscript does not split its horizontal line.
+  const wrapOverbar =
+    overbar &&
+    (!groups.some(({ styles }) => styles.includes("overbar")) ||
+      groups.every(({ styles }) => styles.includes("overbar")));
+  const runs = groups.map(({ value, styles }) => {
+    let run: RichTextRun = { kind: "text", value };
+    for (const style of [...styles].reverse()) {
+      if (wrapOverbar && style === "overbar") continue;
+      run = { kind: "span", style, children: [run] };
+    }
+    return run;
+  });
   return normalizeRichText({
-    runs: groups.map(({ value, styles }) => {
-      let run: RichTextRun = { kind: "text", value };
-      for (const style of [...styles].reverse())
-        run = { kind: "span", style, children: [run] };
-      return run;
-    }),
+    runs: wrapOverbar
+      ? [{ kind: "span", style: "overbar", children: runs }]
+      : runs,
   });
 }
 
@@ -120,11 +159,13 @@ export function identifierSubscriptCase(
   name: string,
   mode: LabelSubscriptCase,
 ): string {
-  const index = name.indexOf("_");
+  const { body, overbar } = identifierParts(name);
+  const index = body.indexOf("_");
   if (index < 0 || mode === "preserve") return name;
-  const suffix = name.slice(index + 1);
+  const suffix = body.slice(index + 1);
   return (
-    name.slice(0, index + 1) +
-    (mode === "uppercase" ? suffix.toUpperCase() : suffix.toLowerCase())
+    body.slice(0, index + 1) +
+    (mode === "uppercase" ? suffix.toUpperCase() : suffix.toLowerCase()) +
+    (overbar ? "_bar" : "")
   );
 }

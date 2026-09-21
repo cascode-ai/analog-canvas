@@ -350,38 +350,44 @@ describe("built-in Analog Block subcircuits", () => {
     );
   });
 
-  it("applies the selected case to authored signal ports as one interface", () => {
-    const project = createEmptyProject("port-case", "Port Case", "dut");
-    const document = project.documents[0]!;
-    document.netlist!.name = "dut";
-    document.instances.push({
-      id: "P1",
-      symbolId: "port",
-      placement: null,
-    });
-    document.nets.push({
-      id: "net-vin",
-      terminals: [{ instanceId: "P1", pinName: "P" }],
-    });
-    document.netlist!.terminals.push({
-      id: "terminal-vin",
-      name: "Vin",
-      netId: "net-vin",
-      direction: "input",
-      interfaceInstanceIds: ["P1"],
-    });
+  it.each([
+    ["Vin", "VIN", "vin"],
+    ["F_in_bar", "F_IN_bar", "f_in_bar"],
+  ])(
+    "applies the selected case to %s without changing its overbar marker",
+    (name, uppercase, lowercase) => {
+      const project = createEmptyProject("port-case", "Port Case", "dut");
+      const document = project.documents[0]!;
+      document.netlist!.name = "dut";
+      document.instances.push({
+        id: "P1",
+        symbolId: "port",
+        placement: null,
+      });
+      document.nets.push({
+        id: "net-vin",
+        terminals: [{ instanceId: "P1", pinName: "P" }],
+      });
+      document.netlist!.terminals.push({
+        id: "terminal-vin",
+        name,
+        netId: "net-vin",
+        direction: "input",
+        interfaceInstanceIds: ["P1"],
+      });
 
-    const upper = createDesignNetlistExport(project, {
-      portCase: "upper",
-    });
-    const lower = createDesignNetlistExport(project, {
-      portCase: "lower",
-    });
+      const upper = createDesignNetlistExport(project, {
+        portCase: "upper",
+      });
+      const lower = createDesignNetlistExport(project, {
+        portCase: "lower",
+      });
 
-    expect(upper.status).toBe("ready");
-    expect(lower.status).toBe("ready");
-    if (upper.status !== "ready" || lower.status !== "ready") return;
-    expect(upper.file.text).toContain(".subckt dut VIN\n");
-    expect(lower.file.text).toContain(".subckt dut vin\n");
-  });
+      expect(upper.status).toBe("ready");
+      expect(lower.status).toBe("ready");
+      if (upper.status !== "ready" || lower.status !== "ready") return;
+      expect(upper.file.text).toContain(`.subckt dut ${uppercase}\n`);
+      expect(lower.file.text).toContain(`.subckt dut ${lowercase}\n`);
+    },
+  );
 });

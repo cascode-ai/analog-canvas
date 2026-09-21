@@ -539,3 +539,44 @@ it("changing typography on a historical subscript does not rename the instance",
   if (proposal.kind === "update")
     expect(proposal.beforeEdits ?? []).toEqual([]);
 });
+
+it("overbars rename bound instances while display aliases keep their electrical identity", () => {
+  const document = createEmptyDocument("bar", "Bar");
+  document.instances.push({
+    id: "M1",
+    reference: "M1",
+    symbolId: "nmos",
+    placement: null,
+  });
+  const label: Annotation = {
+    ...annotation(),
+    kind: "instance-label",
+    netId: undefined,
+    content: undefined,
+    binding: { kind: "instance-reference", instanceId: "M1" },
+  };
+  document.annotations.push(label);
+  const original = createTextEditingSession(
+    { owner: "annotation", object: label },
+    document,
+  );
+  const edited = updateTextEditingSession(original, {
+    content: {
+      runs: [
+        { kind: "span", style: "overbar", children: original.content.runs },
+      ],
+    },
+  });
+  expect(proposeTextEditingCommit(document, edited)).toMatchObject({
+    kind: "update",
+    beforeEdits: [
+      { kind: "set_instance_reference", instanceId: "M1", reference: "M1_bar" },
+    ],
+  });
+  const alias = proposeTextEditingCommit(document, {
+    ...edited,
+    displayAlias: true,
+  });
+  expect(alias.kind).toBe("update");
+  if (alias.kind === "update") expect(alias.beforeEdits ?? []).toEqual([]);
+});
