@@ -1,4 +1,5 @@
 import { serializeProject } from "@icm/project-protocol";
+import type { SchematicDocument } from "@icm/model";
 import { parseSavedProject } from "./editor-fixtures";
 import { expect, test, type Page } from "@playwright/test";
 import {
@@ -190,3 +191,107 @@ test("Properties renames the electrical identity explicitly; restore is an in-pl
   expect(labels[0]).not.toHaveProperty("content");
   expect(saved.documents[0].instances[0].reference).toBe("R7");
 });
+
+for (const symbolId of ["current-source", "opamp"]) {
+  test(`${symbolId} name can be dragged far away and still follows its component after reopen`, async ({
+    page,
+  }) => {
+    await page.goto("/editor");
+    await awaitEditorReady(page);
+    const netlist = page.getByTestId("netlist-panel-toggle");
+    if ((await netlist.getAttribute("aria-pressed")) === "true")
+      await netlist.click();
+    await chooseComponent(page, symbolId);
+    await page
+      .getByTestId("schematic-canvas")
+      .click({ position: { x: 340, y: 260 } });
+    await page.keyboard.press("Escape");
+    const originalProject = await projectFile(page);
+    const original = originalProject.documents[0] as SchematicDocument;
+    const instance = original.instances[0]!;
+    const label = original.annotations.find(
+      (a) =>
+        a.kind === "instance-label" &&
+        a.anchor.kind === "object" &&
+        a.anchor.objectId === instance.id,
+    )!;
+    expect(label.anchor.kind).toBe("object");
+    if (label.anchor.kind !== "object")
+      throw new Error("Missing component label anchor");
+    const hit = page.getByTestId(`annotation-hit-${label.id}`);
+    const beforeBox = (await hit.boundingBox())!;
+    const start = {
+      x: beforeBox.x + beforeBox.width / 2,
+      y: beforeBox.y + beforeBox.height / 2,
+    };
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x + 220, start.y - 100, { steps: 8 });
+    await page.mouse.up();
+    const afterBox = (await hit.boundingBox())!;
+    expect(Math.abs(afterBox.x - beforeBox.x - 220)).toBeLessThan(2);
+    expect(Math.abs(afterBox.y - beforeBox.y + 100)).toBeLessThan(2);
+    const movedProject = await projectFile(page);
+    const moved = movedProject.documents[0] as SchematicDocument;
+    const movedLabel = moved.annotations.find((a) => a.id === label.id)!;
+    expect(moved.instances).toEqual(original.instances);
+    expect(moved.nets).toEqual(original.nets);
+    expect(movedLabel).toMatchObject({
+      ...label,
+      anchor: { kind: "object", objectId: instance.id },
+    });
+    if (movedLabel.anchor.kind !== "object")
+      throw new Error("Label lost its owner");
+    expect(
+      Math.abs(movedLabel.anchor.localOffset.x - label.anchor.localOffset.x),
+    ).toBeGreaterThan(150);
+
+    await page.keyboard.press("ControlOrMeta+z");
+    expect((await projectFile(page)).documents[0].annotations).toEqual(
+      original.annotations,
+    );
+    await page.keyboard.press("ControlOrMeta+Shift+z");
+    expect((await projectFile(page)).documents[0].annotations).toEqual(
+      moved.annotations,
+    );
+    await page.getByTestId("project-file").setInputFiles({
+      name: "free-label.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(serializeProject(movedProject)),
+    });
+    await expect(page.getByTestId("status")).toContainText(
+      "Opened free-label.icproj.json",
+    );
+    expect((await projectFile(page)).documents[0].annotations).toEqual(
+      moved.annotations,
+    );
+
+    const body = (await page.getByTestId(`hit-${instance.id}`).boundingBox())!;
+    await page.mouse.move(body.x + body.width / 2, body.y + body.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(
+      body.x + body.width / 2 + 60,
+      body.y + body.height / 2 + 40,
+      { steps: 6 },
+    );
+    await page.mouse.up();
+    const followed = (await projectFile(page))
+      .documents[0] as SchematicDocument;
+    const finalInstance = followed.instances.find((a) => a.id === instance.id)!;
+    const finalLabel = followed.annotations.find((a) => a.id === label.id)!;
+    expect(finalInstance.placement!.position).not.toEqual(
+      instance.placement!.position,
+    );
+    expect(finalLabel.anchor).toMatchObject({
+      kind: "object",
+      objectId: instance.id,
+      localOffset: movedLabel.anchor.localOffset,
+      fallbackPosition: {
+        x:
+          finalInstance.placement!.position.x + movedLabel.anchor.localOffset.x,
+        y:
+          finalInstance.placement!.position.y + movedLabel.anchor.localOffset.y,
+      },
+    });
+  });
+}

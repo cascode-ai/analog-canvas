@@ -1,5 +1,9 @@
-import { createEmptyDocument } from "@icm/model";
-import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
+import { createEmptyDocument, transformPoint } from "@icm/model";
+import {
+  InMemorySymbolResolver,
+  builtInSymbols,
+  getRazaviCatalogEntry,
+} from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -53,6 +57,62 @@ function placedDefaultLabel(
 }
 
 describe("instance label placement", () => {
+  it.each(
+    builtInSymbols
+      .filter(
+        (symbol) =>
+          getRazaviCatalogEntry(symbol.id)?.category === "analog-block",
+      )
+      .map((symbol) => symbol.id),
+  )(
+    "keeps the %s label five units from the artwork through rotation and mirror",
+    (symbolId) => {
+      const bounds = visibleSymbolInkBounds(resolver.resolve(symbolId)!);
+      for (const rotation of [0, 90, 180, 270] as const) {
+        for (const mirror of [
+          "none",
+          "horizontal",
+          "vertical",
+          "both",
+        ] as const) {
+          const orientation = { rotation, mirror };
+          const corners = [
+            { x: bounds.x, y: bounds.y },
+            { x: bounds.x + bounds.width, y: bounds.y },
+            { x: bounds.x, y: bounds.y + bounds.height },
+            { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+          ].map((point) =>
+            transformPoint(point, { x: 100, y: 100 }, orientation),
+          );
+          const edgeDirection = transformPoint(
+            { x: 0, y: 1 },
+            { x: 0, y: 0 },
+            orientation,
+          );
+          const label = placedDefaultLabel(symbolId, rotation, mirror);
+          let gap: number;
+          if (edgeDirection.y > 0) {
+            gap =
+              label.position.y -
+              profile.typography.instanceFontSize * 0.7 -
+              Math.max(...corners.map((p) => p.y));
+            expect(label.alignment).toBe("middle");
+          } else if (edgeDirection.y < 0) {
+            gap = Math.min(...corners.map((p) => p.y)) - label.position.y;
+            expect(label.alignment).toBe("middle");
+          } else if (edgeDirection.x > 0) {
+            gap = label.position.x - Math.max(...corners.map((p) => p.x));
+            expect(label.alignment).toBe("start");
+          } else {
+            gap = Math.min(...corners.map((p) => p.x)) - label.position.x;
+            expect(label.alignment).toBe("end");
+          }
+          expect(Math.abs(gap - 5)).toBeLessThanOrEqual(0.5);
+        }
+      }
+    },
+  );
+
   it("uses the MOS channel-side rule for NPN and PNP names", () => {
     const document = createEmptyDocument("labels", "Labels");
     for (const symbolId of ["npn", "pnp"] as const) {

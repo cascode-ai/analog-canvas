@@ -14,7 +14,6 @@ import type {
 import { snapGridPoint } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-import { clamp } from "../../canvas/canvas-geometry";
 import {
   dragRouteAttachmentAtPoint,
   effectiveRouteAttachment,
@@ -55,54 +54,6 @@ export function annotationDragPosition(
     return markerPlacement.labelPoint;
   }
   return resolveVisualAnchor(document, resolver, annotation.anchor).position;
-}
-
-function constrainAnnotationPosition(
-  { document, annotationGrid, resolver }: AnnotationDragGeometryContext,
-  annotation: Annotation,
-  candidate: DerivedPoint,
-): Point {
-  if (
-    // Value labels are authored layout: their object anchor keeps them tied
-    // to the component without limiting how far the user can place them.
-    annotation.kind === "instance-label" &&
-    annotation.anchor.kind === "object"
-  ) {
-    const anchor = annotation.anchor;
-    const instance = document.instances.find(
-      (item) => item.id === anchor.objectId,
-    );
-    if (instance?.placement) {
-      const resolved = resolver.resolve(
-        instance.symbolId,
-        instance.symbolVariantId,
-      );
-      const radius = Math.ceil(
-        Math.max(
-          resolved?.definition.viewBox.width ?? 60,
-          resolved?.definition.viewBox.height ?? 60,
-        ) /
-          2 +
-          30,
-      );
-      return snapGridPoint(
-        {
-          x: clamp(
-            candidate.x,
-            instance.placement.position.x - radius,
-            instance.placement.position.x + radius,
-          ),
-          y: clamp(
-            candidate.y,
-            instance.placement.position.y - radius,
-            instance.placement.position.y + radius,
-          ),
-        },
-        annotationGrid,
-      );
-    }
-  }
-  return snapGridPoint(candidate, annotationGrid);
 }
 
 /** Resolve the persisted annotation produced by one completed drag gesture. */
@@ -149,7 +100,8 @@ export function draggedAnnotationAtPosition(
     };
   }
 
-  const position = constrainAnnotationPosition(context, annotation, candidate);
+  // Attachment records ownership, not a limit on where its label may be drawn.
+  const position = snapGridPoint(candidate, context.annotationGrid);
   if (annotation.anchor.kind === "object") {
     // Rendering resolves an object anchor as target position + localOffset, so
     // localOffset is what a drag has to carry. Ask the resolver's own lookup

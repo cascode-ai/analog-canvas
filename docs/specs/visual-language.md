@@ -148,8 +148,13 @@ active symbol variant's visible geometry and clusters repeated overlaps.
   metrics are transient derived output.
 - Annotation attachment moves with an edited instance while its offset and
   semantic kind remain persisted.
-- Instance-label drag is bounded around its symbol and Net-label drag is
-  bounded around attached route geometry; free text is unconstrained.
+- Instance labels may be dragged to any position, retaining their
+  object-relative anchor so they follow subsequent component moves. Ordinary
+  Net labels also move freely without changing their electrical binding;
+  directional route markers retain their route attachment.
+- New Analog Block names sit about five units outside the drawn artwork,
+  matching compact device-label spacing. Label coordinates use fine precision
+  rather than connection-grid rounding; saved, authored placements are retained.
 - Visual goldens use original project fixtures, not copied textbook artwork.
 
 ## Operations and state transitions

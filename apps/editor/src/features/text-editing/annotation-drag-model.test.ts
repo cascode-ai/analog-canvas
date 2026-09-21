@@ -43,7 +43,7 @@ describe("annotation drag model", () => {
     ).toEqual({ kind: "free", position: { x: 20, y: 40 } });
   });
 
-  it("keeps an instance label near its host and updates local offset", () => {
+  it("freely places an instance label while retaining its host-relative anchor", () => {
     const document = createEmptyDocument("document", "Document");
     document.presentation.grid = 10;
     document.instances.push({
@@ -69,19 +69,23 @@ describe("annotation drag model", () => {
       locked: false,
     };
 
-    const dragged = draggedAnnotationAtPosition(context(document), annotation, {
-      x: 1000,
-      y: 1000,
-    });
-
-    expect(dragged.anchor.kind).toBe("object");
-    if (dragged.anchor.kind !== "object") return;
-    expect(dragged.anchor.fallbackPosition.x).toBeLessThan(200);
-    expect(dragged.anchor.fallbackPosition.y).toBeLessThan(200);
-    expect(dragged.anchor.localOffset).toEqual({
-      x: dragged.anchor.fallbackPosition.x - 100,
-      y: dragged.anchor.fallbackPosition.y - 100,
-    });
+    for (const position of [
+      { x: 1000, y: 1000 },
+      { x: -500, y: -700 },
+      { x: -500, y: 1000 },
+      { x: 1000, y: -700 },
+    ]) {
+      expect(
+        draggedAnnotationAtPosition(context(document), annotation, position),
+      ).toEqual({
+        ...annotation,
+        anchor: {
+          ...annotation.anchor,
+          localOffset: { x: position.x - 100, y: position.y - 100 },
+          fallbackPosition: position,
+        },
+      });
+    }
   });
 
   it.each(["nmos", "pmos", "resistor"])(

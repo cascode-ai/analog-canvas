@@ -1,6 +1,7 @@
 import { transformPoint } from "@icm/model";
 import type { Point, Rect, SchematicDocument } from "@icm/model";
 import type { ResolvedSymbol } from "@icm/symbols";
+import { getRazaviCatalogEntry } from "@icm/symbols";
 
 import type { SchematicStyleProfile } from "./style-profile.js";
 import { visibleSymbolInkBounds } from "./visual.js";
@@ -263,8 +264,8 @@ function compactLabelInkBounds(resolved: ResolvedSymbol): Rect {
 
 /**
  * Places horizontal SVG text around the active symbol variant. Compact device
- * labels use a five-unit gap and a centered glyph row at integer precision;
- * other labels retain their existing grid-aligned spacing. Distances use the
+ * and Analog Block labels use a five-unit gap and a centered glyph row at
+ * integer precision; other labels retain their grid-aligned spacing. Distances use the
  * drawn artwork, excluding the padded interaction envelope.
  */
 export function placeUprightInstanceLabel(
@@ -284,11 +285,14 @@ export function placeUprightInstanceLabel(
   horizontalSidesOnly = false,
 ): InstanceLabelPlacement | null {
   if (!instance.placement) return null;
-  const compact =
+  const compactDevice =
     isMosSymbol(resolved) ||
     isBjtSymbol(resolved) ||
     SIDE_LABEL_SYMBOLS.has(instance.symbolId);
-  const localBounds = compact
+  const compact =
+    compactDevice ||
+    getRazaviCatalogEntry(instance.symbolId)?.category === "analog-block";
+  const localBounds = compactDevice
     ? compactLabelInkBounds(resolved)
     : visibleSymbolInkBounds(resolved, instance.signalFlowParameters);
   const worldBounds = transformedBounds(localBounds, instance);
