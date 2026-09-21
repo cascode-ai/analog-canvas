@@ -59,7 +59,7 @@ describe("selection geometry", () => {
           symbol.id,
         ) || ["transconductance", "adc", "dac"].includes(symbol.id),
     );
-    expect(blocks).toHaveLength(23);
+    expect(blocks).toHaveLength(35);
     for (const symbol of blocks) {
       const bounds = visibleSymbolLocalBounds(resolver.resolve(symbol.id)!);
       // All triangular Analog Blocks now share the accepted x=30 output
