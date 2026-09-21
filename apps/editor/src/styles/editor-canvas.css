@@ -656,6 +656,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-start;
+  text-align: left;
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
@@ -698,7 +700,6 @@
 .rich-text-toolbar-size-controls {
   display: inline-flex;
   flex: 0 0 auto;
-  margin-left: auto;
 }
 
 .rich-text-toolbar-separator {
