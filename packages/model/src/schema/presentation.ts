@@ -77,6 +77,8 @@ export const PresentationIntentSchema = z.strictObject({
   styleOverrides: StyleOverridesSchema.optional(),
   /** Current-Cell label naming preference; never a browser-wide setting. */
   labelSubscriptCase: z.enum(["preserve", "uppercase", "lowercase"]).optional(),
+  /** Default for generated label subscripts; explicit RichText stays editable. */
+  labelSubscriptItalic: z.boolean().optional(),
   flow: z
     .strictObject({
       power: z.literal("top").optional(),

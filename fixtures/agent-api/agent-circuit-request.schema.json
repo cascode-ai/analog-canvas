@@ -15580,6 +15580,9 @@
             "lowercase"
           ]
         },
+        "labelSubscriptItalic": {
+          "type": "boolean"
+        },
         "flow": {
           "type": "object",
           "properties": {

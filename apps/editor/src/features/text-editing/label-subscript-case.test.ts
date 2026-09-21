@@ -108,3 +108,176 @@ it("allows same-name Nets to remain electrically merged", () => {
   expect(nets.byBaseNetId.get("a")?.id).toBe(nets.byBaseNetId.get("b")?.id);
   expect(nets.byBaseNetId.get("a")?.name).toBe("V_LOAD");
 });
+
+it("updates historical explicit subscripts and the bound names without guessing plain names", () => {
+  const source = fixture();
+  const doc = source.documents[0]!;
+  doc.instances[0]!.reference = "Rload";
+  doc.netlist!.terminals[0]!.name = "Vin";
+  doc.annotations.push({
+    ...doc.annotations[0]!,
+    id: "label-port",
+    binding: { kind: "cell-terminal-name", terminalId: "vip" },
+    formatOverride: semanticTextDocument("V_in", "formal-port"),
+  });
+  doc.instances.push({
+    ...doc.instances[0]!,
+    id: "plain",
+    reference: "Rplain",
+  });
+  const next = applyLabelSubscriptCase(source, doc.id, "uppercase", resolver);
+  expect(next.documents[0]!.instances.map((i) => i.reference)).toEqual([
+    "R_LOAD",
+    undefined,
+    "Rplain",
+  ]);
+  expect(next.documents[0]!.netlist!.terminals[0]!.name).toBe("V_IN");
+  expect(next.documents[0]!.annotations[0]!.formatOverride).toEqual(
+    semanticTextDocument("R_LOAD", "instance-label"),
+  );
+});
+
+it("toggles only subscript slant, persists it and leaves source names and other Cells untouched", () => {
+  const source = fixture(),
+    doc = source.documents[0]!;
+  doc.instances[0]!.reference = "Rload"; // explicit historical subscript
+  const upright = applyLabelSubscriptCase(
+    source,
+    doc.id,
+    "preserve",
+    resolver,
+    [],
+    false,
+  );
+  const updated = upright.documents[0]!;
+  expect(updated.instances).toEqual(doc.instances);
+  expect(updated.nets).toEqual(doc.nets);
+  expect(updated.netlist).toEqual(doc.netlist);
+  expect(updated.annotations[0]!.textColor).toBe("#ff0000");
+  expect(updated.annotations[0]!.formatOverride!.runs).toEqual([
+    doc.annotations[0]!.formatOverride!.runs[0],
+    {
+      kind: "span",
+      style: "subscript",
+      children: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [{ kind: "text", value: "load" }],
+        },
+      ],
+    },
+  ]);
+  expect(upright.documents[1]).toEqual(source.documents[1]);
+  const restored = parseProject(serializeProject(upright));
+  expect(restored.documents[0]!.presentation.labelSubscriptItalic).toBe(false);
+  const italic = applyLabelSubscriptCase(
+    restored,
+    doc.id,
+    "preserve",
+    resolver,
+    [],
+    true,
+  );
+  expect(italic.documents[0]!.annotations).toEqual(doc.annotations);
+});
+
+it("formats display aliases independently of their instance name", () => {
+  const source = fixture(),
+    doc = source.documents[0]!;
+  const alias = doc.annotations[0]!;
+  delete alias.binding;
+  alias.content = semanticTextDocument("R_alias", "instance-label");
+  delete alias.formatOverride;
+  const next = applyLabelSubscriptCase(
+    source,
+    doc.id,
+    "uppercase",
+    resolver,
+    [],
+    false,
+  );
+  // The instance's own underscore name still participates in circuit naming.
+  expect(next.documents[0]!.instances[0]!.reference).toBe("R_LOAD");
+  expect(next.documents[0]!.annotations[0]!.content!.runs[1]).toMatchObject({
+    style: "subscript",
+    children: [{ style: "bold", children: [{ value: "ALIAS" }] }],
+  });
+  expect(next.documents[0]!.annotations[0]!.binding).toBeUndefined();
+});
+
+it("applies appearance and label changes together without dropping either edit", () => {
+  const source = fixture(),
+    doc = source.documents[0]!;
+  const next = applyLabelSubscriptCase(
+    source,
+    doc.id,
+    "uppercase",
+    resolver,
+    [
+      {
+        kind: "set_presentation_style",
+        styleProfileId: doc.presentation.styleProfileId,
+        styleOverrides: { fontScale: 1.5 },
+      },
+    ],
+    false,
+  );
+  expect(next.documents[0]!.presentation.styleOverrides).toEqual({
+    fontScale: 1.5,
+  });
+  expect(next.documents[0]!.presentation.labelSubscriptItalic).toBe(false);
+  expect(next.documents[0]!.instances[0]!.reference).toBe("R_LOAD");
+});
+
+it("renames a legacy power-label claim and keeps its authored upright subscript", () => {
+  const source = fixture(),
+    doc = source.documents[0]!;
+  doc.annotations.push({
+    ...doc.annotations[0]!,
+    id: "rail",
+    kind: "power-label",
+    netId: "rail-net",
+    binding: { kind: "net-name", netId: "rail-net" },
+    formatOverride: {
+      runs: [
+        { kind: "text", value: "V" },
+        {
+          kind: "span",
+          style: "subscript",
+          children: [{ kind: "text", value: "dd" }],
+        },
+      ],
+    },
+  });
+  doc.nets.push({ id: "rail-net", terminals: [] });
+  doc.connectivityEvidence.push({
+    id: "rail-name",
+    kind: "name-claim",
+    netId: "rail-net",
+    name: "Vdd",
+    scope: "local",
+    owner: { kind: "net-label", annotationId: "rail" },
+  });
+  const next = applyLabelSubscriptCase(
+    source,
+    doc.id,
+    "uppercase",
+    resolver,
+    [],
+    true,
+  );
+  expect(next.documents[0]!.connectivityEvidence[0]).toMatchObject({
+    name: "V_DD",
+  });
+  expect(next.documents[0]!.annotations.at(-1)!.formatOverride).toEqual({
+    runs: [
+      { kind: "text", value: "V" },
+      {
+        kind: "span",
+        style: "subscript",
+        children: [{ kind: "text", value: "DD" }],
+      },
+    ],
+  });
+});

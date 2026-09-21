@@ -4,10 +4,14 @@ import {
   planRenameCellTerminal,
   type SchematicEdit,
 } from "@icm/edit-engine";
-import { resolveAnnotationName } from "@icm/derived";
+import { resolveAnnotationName, resolveAnnotationText } from "@icm/derived";
 import {
   CircuitProjectSchema,
   identifierSubscriptCase,
+  formatLabelSubscripts,
+  flattenRichText,
+  richTextIdentifier,
+  type Annotation,
   rewriteRichTextIdentifier,
   type CircuitProject,
   type LabelSubscriptCase,
@@ -23,21 +27,68 @@ export function applyLabelSubscriptCase(
   mode: LabelSubscriptCase,
   resolver: SymbolResolver,
   additionalEdits: SchematicEdit[] = [],
+  italic?: boolean,
 ): CircuitProject {
   let project = source;
   const original = source.documents.find((item) => item.id === documentId)!;
-  const names = new Set<string>();
+  const changeCase =
+    mode !== (original.presentation.labelSubscriptCase ?? "preserve");
+  const changeItalic =
+    italic !== undefined &&
+    italic !== (original.presentation.labelSubscriptItalic ?? true);
+  // Historical explicit subscripts can be bound to a name without `_`. Only
+  // an explicit case edit adopts their script boundaries; opening a file or
+  // changing slant must never rename a terminal.
+  const rename = (
+    name: string,
+    matches: (annotation: Annotation) => boolean,
+  ): string => {
+    if (!changeCase || mode === "preserve") return name;
+    const legacy = original.annotations.find(
+      (annotation) =>
+        matches(annotation) &&
+        annotation.formatOverride &&
+        flattenRichText(annotation.formatOverride) === name &&
+        richTextIdentifier(annotation.formatOverride) !== name,
+    );
+    return identifierSubscriptCase(
+      legacy?.formatOverride ? richTextIdentifier(legacy.formatOverride) : name,
+      mode,
+    );
+  };
+  const instanceName = (id: string, name: string) =>
+    rename(
+      name,
+      (a) =>
+        a.binding?.kind === "instance-reference" && a.binding.instanceId === id,
+    );
+  const portName = (id: string, name: string) =>
+    rename(
+      name,
+      (a) =>
+        a.binding?.kind === "cell-terminal-name" && a.binding.terminalId === id,
+    );
+  const netName = (id: string, name: string) =>
+    rename(
+      name,
+      (a) => a.binding?.kind === "net-name" && a.binding.netId === id,
+    );
+  const names = new Map<string, boolean>();
   for (const instance of original.instances) {
     if (!instance.reference) continue;
-    const name = identifierSubscriptCase(instance.reference, mode);
-    if (names.has(name.toLowerCase()))
+    const name = instanceName(instance.id, instance.reference);
+    const changed = name !== instance.reference;
+    if (
+      names.has(name.toLowerCase()) &&
+      (changed || names.get(name.toLowerCase()))
+    )
       throw new Error(
         `Instance name ${name} already exists. Use display alias to show the same text without renaming the device.`,
       );
-    names.add(name.toLowerCase());
+    names.set(name.toLowerCase(), changed);
   }
   for (const terminal of original.netlist?.terminals ?? []) {
-    const name = identifierSubscriptCase(terminal.name, mode);
+    const name = portName(terminal.id, terminal.name);
     if (name === terminal.name) continue;
     const current = project.documents.find((item) => item.id === documentId)!;
     if (!current.netlist?.terminals.some((item) => item.id === terminal.id))
@@ -59,7 +110,7 @@ export function applyLabelSubscriptCase(
   const edits: SchematicEdit[] = [...additionalEdits];
   for (const instance of document.instances) {
     if (!instance.reference) continue;
-    const reference = identifierSubscriptCase(instance.reference, mode);
+    const reference = instanceName(instance.id, instance.reference);
     if (reference !== instance.reference)
       edits.push({
         kind: "set_instance_reference",
@@ -69,7 +120,7 @@ export function applyLabelSubscriptCase(
   }
   for (const evidence of document.connectivityEvidence) {
     if (evidence.kind !== "name-claim") continue;
-    const name = identifierSubscriptCase(evidence.name, mode);
+    const name = netName(evidence.netId, evidence.name);
     if (name !== evidence.name)
       edits.push({
         kind: "upsert_connectivity_evidence",
@@ -77,26 +128,56 @@ export function applyLabelSubscriptCase(
       });
   }
   for (const annotation of document.annotations) {
-    if (!annotation.binding || !annotation.formatOverride) continue;
-    const name = resolveAnnotationName(document, annotation);
-    const next = identifierSubscriptCase(name, mode);
-    if (next !== name)
+    const binding = annotation.binding;
+    if (
+      binding?.kind === "instance-value" ||
+      annotation.kind === "instance-value"
+    )
+      continue;
+    if (
+      !binding &&
+      !["instance-label", "net-label", "power-label"].includes(annotation.kind)
+    )
+      continue;
+    // Unformatted bound labels derive both their new name and slant; do not
+    // materialize redundant per-label copies of the generated text.
+    if (binding && !annotation.formatOverride) continue;
+    let content = resolveAnnotationText(document, annotation);
+    if (binding) {
+      const name = resolveAnnotationName(document, annotation);
+      const next =
+        binding.kind === "instance-reference"
+          ? instanceName(binding.instanceId, name)
+          : binding.kind === "cell-terminal-name"
+            ? portName(binding.terminalId, name)
+            : netName(binding.netId, name);
+      if (next !== name) content = rewriteRichTextIdentifier(content, next);
+    }
+    const formatted = formatLabelSubscripts(content, {
+      ...(changeCase ? { case: mode } : {}),
+      ...(changeItalic ? { italic } : {}),
+    });
+    if (
+      JSON.stringify(formatted) !==
+      JSON.stringify(resolveAnnotationText(document, annotation))
+    )
       edits.push({
         kind: "upsert_schematic_annotation",
         annotation: {
           ...annotation,
-          formatOverride: rewriteRichTextIdentifier(
-            annotation.formatOverride,
-            next,
-          ),
+          ...(binding ? { formatOverride: formatted } : { content: formatted }),
         },
       });
   }
   // Also advance the revision when only the persisted choice changes.
-  edits.push({
-    kind: "set_presentation_style",
-    styleProfileId: document.presentation.styleProfileId,
-  });
+  if (!edits.some((edit) => edit.kind === "set_presentation_style"))
+    edits.push({
+      kind: "set_presentation_style",
+      styleProfileId: document.presentation.styleProfileId,
+      ...(document.presentation.styleOverrides
+        ? { styleOverrides: document.presentation.styleOverrides }
+        : {}),
+    });
   const result = executeTransaction(
     document,
     {
@@ -112,7 +193,11 @@ export function applyLabelSubscriptCase(
     throw new Error(result.diagnostics[0]?.message ?? result.error.message);
   const next = {
     ...result.document,
-    presentation: { ...result.document.presentation, labelSubscriptCase: mode },
+    presentation: {
+      ...result.document.presentation,
+      labelSubscriptCase: mode,
+      ...(italic !== undefined ? { labelSubscriptItalic: italic } : {}),
+    },
   };
   return CircuitProjectSchema.parse({
     ...project,

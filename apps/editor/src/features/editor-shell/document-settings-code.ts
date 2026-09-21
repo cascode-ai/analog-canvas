@@ -19,7 +19,10 @@ export interface DocumentSettingsCodeValue {
     nmosNet: string | null;
     pmosNet: string | null;
   };
-  labels: { subscriptCase: "preserve" | "uppercase" | "lowercase" };
+  labels: {
+    subscript_case: "preserve" | "uppercase" | "lowercase";
+    subscript_italic: boolean;
+  };
   canvas: CanvasPreferenceCodeValue;
 }
 
@@ -60,7 +63,8 @@ export function documentSettingsCodeValue(
           ?.netId ?? null,
     },
     labels: {
-      subscriptCase: document.presentation.labelSubscriptCase ?? "preserve",
+      subscript_case: document.presentation.labelSubscriptCase ?? "preserve",
+      subscript_italic: document.presentation.labelSubscriptItalic ?? true,
     },
     canvas,
   };
@@ -91,7 +95,7 @@ export function defaultDocumentSettingsCode(
     appearance: Object.fromEntries(
       STYLE_KNOBS.map((knob) => [knob.key, 1]),
     ) as DocumentSettingsCodeValue["appearance"],
-    labels: { subscriptCase: "preserve" },
+    labels: { subscript_case: "preserve", subscript_italic: true },
   });
 }
 
@@ -174,19 +178,32 @@ export function parseDocumentSettingsCode(
   }
 
   const labels = raw.labels ?? {
-    subscriptCase: document.presentation.labelSubscriptCase ?? "preserve",
+    subscript_case: document.presentation.labelSubscriptCase ?? "preserve",
+    subscript_italic: document.presentation.labelSubscriptItalic ?? true,
   };
+  if (!isRecord(labels))
+    return { ok: false, message: "labels must be an object" };
+  const labelError = exactKeys(
+    labels,
+    ["subscript_case", "subscript_italic"],
+    "labels",
+  );
+  if (labelError) return { ok: false, message: labelError };
   if (
-    !isRecord(labels) ||
-    exactKeys(labels, ["subscriptCase"], "labels") ||
     !["preserve", "uppercase", "lowercase"].includes(
-      labels.subscriptCase as string,
+      labels.subscript_case as string,
     )
   )
     return {
       ok: false,
       message:
-        'labels.subscriptCase must be "preserve", "uppercase", or "lowercase"',
+        'labels.subscript_case must be "preserve", "uppercase", or "lowercase"',
+    };
+
+  if (typeof labels.subscript_italic !== "boolean")
+    return {
+      ok: false,
+      message: "labels.subscript_italic must be true or false",
     };
 
   if (!isRecord(raw.canvas))

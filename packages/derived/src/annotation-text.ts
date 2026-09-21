@@ -1,6 +1,8 @@
 import {
   boundAnnotationName,
   flattenRichText,
+  formatLabelSubscripts,
+  type SemanticTextKind,
   semanticTextDocument,
 } from "@icm/model";
 import type {
@@ -30,6 +32,13 @@ export function resolveAnnotationText(
   annotation: Annotation,
   logicalNets?: ResolvedDocumentLogicalNets,
 ): RichTextDocument {
+  const semanticLabel = (
+    name: string,
+    kind: SemanticTextKind,
+  ): RichTextDocument =>
+    formatLabelSubscripts(semanticTextDocument(name, kind), {
+      italic: document.presentation.labelSubscriptItalic,
+    });
   const binding = annotation.binding;
   if (!binding) return annotation.content ?? EMPTY_TEXT;
   if (
@@ -45,7 +54,7 @@ export function resolveAnnotationText(
       const instance = document.instances.find(
         (candidate) => candidate.id === binding.instanceId,
       );
-      return semanticTextDocument(instance?.reference ?? "", "instance-label");
+      return semanticLabel(instance?.reference ?? "", "instance-label");
     }
     case "instance-value": {
       const instance = document.instances.find(
@@ -73,7 +82,7 @@ export function resolveAnnotationText(
       ).byBaseNetId.get(binding.netId)?.name;
       const ownerClaimName =
         ownerClaim?.kind === "name-claim" ? ownerClaim.name : undefined;
-      return semanticTextDocument(
+      return semanticLabel(
         ownerClaimName ?? logicalName ?? "",
         annotation.kind === "power-label" ? "power-label" : "net-label",
       );
@@ -82,7 +91,7 @@ export function resolveAnnotationText(
       const terminal = document.netlist?.terminals.find(
         (candidate) => candidate.id === binding.terminalId,
       );
-      return semanticTextDocument(terminal?.name ?? "", "formal-port");
+      return semanticLabel(terminal?.name ?? "", "formal-port");
     }
   }
 }

@@ -5670,7 +5670,7 @@ test("docked Properties JSON is the only global configuration surface", async ({
   ).toHaveCount(0);
   await expect(page.getByTestId("hit-R1")).toBeVisible();
   await expect(settings.getByLabel("Editable Properties code")).toBeVisible();
-  await expect(settings.locator(".cm-netlist-target-select")).toHaveCount(12);
+  await expect(settings.locator(".cm-netlist-target-select")).toHaveCount(13);
   await expect(settings.getByLabel("Font size options")).toBeVisible();
   await expect(
     settings.getByLabel("NMOS bulk Net (usually VSS) options"),
@@ -5692,7 +5692,10 @@ test("docked Properties JSON is the only global configuration surface", async ({
   const styleSource = await readDocumentStyleCode(page);
   const style = JSON.parse(styleSource);
   expect(style.bulkDefaults).toEqual({ nmosNet: null, pmosNet: null });
-  expect(style.labels).toEqual({ subscriptCase: "preserve" });
+  expect(style.labels).toEqual({
+    subscript_case: "preserve",
+    subscript_italic: true,
+  });
   expect(style.canvas).toEqual({
     showGrid: true,
     annotationGrid: 5,

@@ -155,6 +155,61 @@ export function rewriteRichTextIdentifier(
 }
 
 export type LabelSubscriptCase = "preserve" | "uppercase" | "lowercase";
+
+/** Change only explicit subscript runs, leaving baseline text and other styles
+ * intact. Script spans reset inherited slant in the shared SVG/text renderers. */
+export function formatLabelSubscripts(
+  content: RichTextDocument,
+  options: {
+    case?: LabelSubscriptCase | undefined;
+    italic?: boolean | undefined;
+  },
+): RichTextDocument {
+  if (
+    options.italic === undefined &&
+    (!options.case || options.case === "preserve")
+  )
+    return content;
+  const visit = (runs: RichTextRun[], subscript = false): RichTextRun[] =>
+    runs.flatMap((run): RichTextRun[] => {
+      if (run.kind === "text" && subscript && options.case !== undefined)
+        return [
+          {
+            ...run,
+            value:
+              options.case === "uppercase"
+                ? run.value.toUpperCase()
+                : options.case === "lowercase"
+                  ? run.value.toLowerCase()
+                  : run.value,
+          },
+        ];
+      if (run.kind !== "span") return [run];
+      const children = visit(
+        run.children,
+        subscript || run.style === "subscript",
+      );
+      if (
+        subscript &&
+        ((run.style === "italic" && options.italic !== undefined) ||
+          (["uppercase", "lowercase"].includes(run.style) &&
+            options.case !== undefined &&
+            options.case !== "preserve"))
+      )
+        return children;
+      return [
+        {
+          ...run,
+          children:
+            run.style === "subscript" && options.italic === true
+              ? [{ kind: "span", style: "italic", children }]
+              : children,
+        },
+      ];
+    });
+  return { runs: visit(content.runs) };
+}
+
 export function identifierSubscriptCase(
   name: string,
   mode: LabelSubscriptCase,

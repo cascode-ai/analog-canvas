@@ -973,7 +973,7 @@ test("changes Port subscript case in both labels and names with one undo", async
     0,
   );
   await editDocumentStyleCode(page, (code) => {
-    code.labels.subscriptCase = "uppercase";
+    code.labels.subscript_case = "uppercase";
   });
   await expect(firstLabel).toHaveText("IND");
   await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveText(

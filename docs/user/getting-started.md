@@ -199,9 +199,13 @@ removing that suffix when renaming the source removes the bar. Subscript case
 changes leave this reserved suffix as `_bar`. Free text and explicit display
 aliases remain presentation-only.
 
-In **Properties** code, `labels.subscriptCase` accepts `preserve`, `uppercase`
-or `lowercase`. Changing it renames existing underscore suffixes in both labels
-and the netlist for the current Cell, in one undoable change. The choice is
+In **Properties** code, `labels.subscript_case` accepts `preserve`, `uppercase`
+or `lowercase`. Valid edits apply immediately. Changing it renames existing underscore suffixes
+and historical explicit rich-text subscripts in both labels and the netlist for
+the current Cell, in one undoable change. Plain names without subscripts stay
+plain. `labels.subscript_italic` accepts `true` (italic) or `false` (upright),
+changes only the subscript slant, and preserves names, color and weight.
+Individual labels remain freely editable afterwards. The choice is
 stored in Project Code, not as a browser-wide preference. `preserve` leaves
 current spelling alone; use Undo to restore an earlier spelling. Same-name Nets
 and Pins denote one electrical connection. Instance names must remain unique:

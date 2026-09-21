@@ -1,11 +1,12 @@
 import { parseSavedProject } from "./editor-fixtures";
 import { test, expect } from "@playwright/test";
 import { openSelectionShelf } from "./manual-editor-fixtures.js";
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, semanticTextDocument } from "@icm/model";
 import {
   awaitEditorReady,
   clickCommand,
   editComponentPropertyCode,
+  editDocumentStyleCode,
   downloadBytes,
 } from "./editor-fixtures.js";
 
@@ -576,11 +577,17 @@ test("instance name collisions suggest an alias in status without interrupting t
   ).toEqual(["R1", "R2"]);
 });
 
-test("subscript case changes the current circuit code and netlist with one undo", async ({
+test("subscript controls immediately update labels and names and survive reopen and undo", async ({
   page,
 }) => {
   const source = fixture();
-  source.documents[0]!.instances[0]!.reference = "R_load";
+  // A historical rich-text subscript whose stored name has no underscore.
+  source.documents[0]!.instances[0]!.reference = "Rload";
+  source.documents[0]!.annotations[0]!.formatOverride = semanticTextDocument(
+    "R_load",
+    "instance-label",
+  );
+  source.documents[0]!.annotations[0]!.textColor = "#ff0000";
   await page.goto("/editor");
   await awaitEditorReady(page);
   await page.getByTestId("project-file").setInputFiles({
@@ -593,16 +600,70 @@ test("subscript case changes the current circuit code and netlist with one undo"
     "Subscript case in this circuit (label + netlist) options",
     { exact: true },
   );
+  const italic = page.getByLabel("Subscript italic in this circuit options", {
+    exact: true,
+  });
+  const subscript = label(page).locator('[data-text-run="subscript"]');
+  const slant = () =>
+    subscript.evaluate(
+      (el) => getComputedStyle(el.querySelector("tspan") ?? el).fontStyle,
+    );
   await setting.selectOption("uppercase");
+  await expect(subscript).toHaveText("LOAD");
+  await italic.selectOption("false");
+  await expect.poll(slant).toBe("normal");
   await expect(label(page)).toHaveText("RLOAD");
   const saved = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
   expect(saved.documents[0].instances[0].reference).toBe("R_LOAD");
-  expect(saved.documents[0].presentation.labelSubscriptCase).toBe("uppercase");
+  expect(saved.documents[0].presentation).toMatchObject({
+    labelSubscriptCase: "uppercase",
+    labelSubscriptItalic: false,
+  });
+  expect(saved.documents[0].annotations[0].textColor).toBe("#ff0000");
   await page.getByTestId("draw-tool-undo").click();
-  await expect(label(page)).toHaveText("Rload");
+  await expect.poll(slant).toBe("italic");
+  await expect(subscript).toHaveText("LOAD");
+  await page.getByTestId("draw-tool-undo").click();
+  await expect(subscript).toHaveText("load");
   await expect(setting).toHaveValue("preserve");
+  await page.getByTestId("draw-tool-redo").click();
+  await page.getByTestId("draw-tool-redo").click();
+  await expect.poll(slant).toBe("normal");
+  await editDocumentStyleCode(page, (code) => {
+    code.labels.subscript_case = "lowercase";
+    code.labels.subscript_italic = true;
+  });
+  await expect(subscript).toHaveText("load");
+  await expect.poll(slant).toBe("italic");
+  // Invalid drafts leave the drawing at the last valid style.
+  await editDocumentStyleCode(page, (code) => {
+    code.labels.subscript_italic = "false";
+  });
+  await expect.poll(slant).toBe("italic");
+  await expect(
+    page.getByText(
+      "labels.subscript_italic must be true or false · Canvas keeps the last valid edit",
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Discard Properties draft" }).click();
+  await page.getByTestId("project-file").setInputFiles({
+    name: "subscript-reopened.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(saved)),
+  });
+  const discard = page.getByRole("button", {
+    name: "Discard and continue",
+    exact: true,
+  });
+  if (await discard.isVisible()) await discard.click();
+  await expect(subscript).toHaveText("LOAD");
+  await expect.poll(slant).toBe("normal");
+  const code = page.getByLabel("Netlist code", { exact: true });
+  if (!(await code.isVisible()))
+    await page.getByTestId("netlist-panel-toggle").click();
+  await expect(code).toContainText("R_LOAD");
 });
 
 test("opening and reopening a PDK BJT adds X only to SPICE, never its canvas name", async ({

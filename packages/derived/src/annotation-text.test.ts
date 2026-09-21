@@ -202,3 +202,38 @@ describe("bound annotation text", () => {
     );
   });
 });
+
+it("uses the saved slant for generated subscripts while preserving explicit per-label formatting", () => {
+  const document = createEmptyDocument("slant", "Slant");
+  document.instances.push({
+    id: "R1",
+    reference: "R_load",
+    symbolId: "resistor",
+    placement: null,
+  });
+  document.presentation.labelSubscriptItalic = false;
+  const annotation: Annotation = {
+    id: "label",
+    kind: "instance-label",
+    binding: { kind: "instance-reference", instanceId: "R1" },
+    anchor: { kind: "free", position: { x: 0, y: 0 } },
+    alignment: "start",
+    rotation: 0,
+    locked: false,
+  };
+  expect(resolveAnnotationText(document, annotation).runs[1]).toEqual({
+    kind: "span",
+    style: "subscript",
+    children: [
+      {
+        kind: "span",
+        style: "bold",
+        children: [{ kind: "text", value: "load" }],
+      },
+    ],
+  });
+  annotation.formatOverride = semanticTextDocument("R_load", "instance-label");
+  expect(resolveAnnotationText(document, annotation)).toEqual(
+    annotation.formatOverride,
+  );
+});

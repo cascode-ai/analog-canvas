@@ -32,7 +32,7 @@ function editableValue(): DocumentSettingsCodeValue {
       junctionRadiusScale: 1,
     },
     bulkDefaults: { nmosNet: null, pmosNet: null },
-    labels: { subscriptCase: "preserve" },
+    labels: { subscript_case: "preserve", subscript_italic: true },
     canvas: { ...canvas },
   };
 }
@@ -85,7 +85,9 @@ describe("document Style code", () => {
     ["canvas.annotationGrid", 2, "must be 1, 5, or 10"],
     ["canvas.drawAngle", "diagonal", 'must be "free", "45", or "orthogonal"'],
     ["canvas.scrollBehavior", "smooth", 'must be "auto", "zoom", or "pan"'],
-    ["labels.subscriptCase", "titlecase", "preserve"],
+    ["labels.subscript_case", "titlecase", "preserve"],
+    ["labels.subscript_italic", "false", "must be true or false"],
+    ["labels.subscript_italic", 0, "must be true or false"],
   ])("rejects an unsupported %s value", (path, invalid, message) => {
     const document = createEmptyDocument("document-main", "Main");
     const value = editableValue() as unknown as Record<string, any>;
@@ -146,7 +148,7 @@ describe("document Style code", () => {
     const source = serializeDocumentSettingsCode(editableValue());
     const spans = documentSettingsCodeSpans(source, document);
 
-    expect(spans).toHaveLength(12);
+    expect(spans).toHaveLength(13);
     expect(
       spans.find((span) => span.field.path === "appearance.fontScale")?.field
         .options,
@@ -171,7 +173,7 @@ describe("document Style code", () => {
       help: expect.stringContaining("highest supply Net"),
     });
     expect(
-      spans.find((span) => span.field.path === "labels.subscriptCase")?.field
+      spans.find((span) => span.field.path === "labels.subscript_case")?.field
         .options,
     ).toEqual([
       { value: "preserve", label: "Keep typed case" },
@@ -184,14 +186,15 @@ describe("document Style code", () => {
       documentSettingsCodeChanges(source, document, {
         "appearance.fontScale": 1.5,
         "bulkDefaults.nmosNet": "net-ground",
-        "labels.subscriptCase": "lowercase",
+        "labels.subscript_case": "lowercase",
+        "labels.subscript_italic": false,
         "canvas.showGrid": false,
       }),
     );
     expect(JSON.parse(changed)).toMatchObject({
       appearance: { fontScale: 1.5 },
       bulkDefaults: { nmosNet: "net-ground" },
-      labels: { subscriptCase: "lowercase" },
+      labels: { subscript_case: "lowercase", subscript_italic: false },
       canvas: { showGrid: false },
     });
   });

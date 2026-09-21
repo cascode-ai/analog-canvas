@@ -23,7 +23,7 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
   ];
   return [
     {
-      path: "labels.subscriptCase",
+      path: "labels.subscript_case",
       label: "Subscript case in this circuit (label + netlist)",
       kind: "choice",
       options: [
@@ -33,6 +33,16 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
       ],
       description:
         "Renames subscript suffixes in this Cell; saved in Project Code.",
+    },
+    {
+      path: "labels.subscript_italic",
+      label: "Subscript italic in this circuit",
+      kind: "choice",
+      options: [
+        { value: true, label: "Italic" },
+        { value: false, label: "Upright" },
+      ],
+      description: "Display only; keeps electrical names unchanged.",
     },
     ...STYLE_KNOBS.map((knob): CanvasPropertyField => ({
       path: `appearance.${knob.key}`,

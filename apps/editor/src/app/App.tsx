@@ -6485,17 +6485,20 @@ function WorkspaceEditor({
                             ),
                           );
                         if (
-                          value.labels.subscriptCase !==
-                          current.labels.subscriptCase
+                          value.labels.subscript_case !==
+                            current.labels.subscript_case ||
+                          value.labels.subscript_italic !==
+                            current.labels.subscript_italic
                         ) {
                           try {
                             commitProjectStructure(
                               applyLabelSubscriptCase(
                                 project,
                                 document.id,
-                                value.labels.subscriptCase,
+                                value.labels.subscript_case,
                                 resolver,
                                 edits,
+                                value.labels.subscript_italic,
                               ),
                               document.id,
                             );
