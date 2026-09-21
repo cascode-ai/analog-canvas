@@ -50,6 +50,44 @@ describe("CI validation planning", () => {
     });
   });
 
+  it("routes Shelf, snapshot history, duplicate correspondence and project sessions to their actual browser workflows", () => {
+    for (const path of [
+      "worker/gallery-do.ts",
+      "apps/editor/src/components/shelf-wall.tsx",
+      "apps/editor/src/components/gallery-version-diff.ts",
+      "apps/editor/src/components/gallery-version-project.ts",
+      "apps/editor/src/components/version-history-comparison.tsx",
+      "apps/editor/src/components/version-history-dialog.css",
+      "apps/editor/src/features/editor-shell/cloud-projects.ts",
+      "apps/editor/src/features/editor-shell/gallery-topology-comparison.tsx",
+      "apps/editor/src/features/editor-shell/gallery-topology-task.ts",
+      "apps/editor/src/features/editor-shell/publish-gallery-dialog.css",
+      "apps/editor/src/gallery-topology-match.ts",
+      "apps/editor/src/gallery.css",
+      "packages/netlist/src/equivalence.ts",
+      "packages/netlist/src/index.ts",
+      "packages/netlist/src/topology-correspondence.ts",
+    ]) {
+      const plan = ciPlan([path]);
+      expect(plan.mode, path).toBe("focused");
+      expect(plan.e2eArgs, path).toContain("apps/editor/e2e/gallery.spec.ts");
+    }
+    for (const path of [
+      "apps/editor/src/features/editor-shell/project-tabs.tsx",
+      "apps/editor/src/features/editor-shell/project-tabs.css",
+      "apps/editor/src/features/project-code/project-code-panel.tsx",
+    ]) {
+      const plan = ciPlan([path]);
+      expect(plan.mode, path).toBe("focused");
+      expect(plan.e2eArgs, path).toContain(
+        "apps/editor/e2e/project-tabs.spec.ts",
+      );
+      expect(plan.e2eArgs, path).toContain(
+        "apps/editor/e2e/project-file.spec.ts",
+      );
+    }
+  });
+
   it("selects the existing Analog Simulation browser contract", () => {
     expect(
       ciPlan(["packages/simulation-service/src/service.ts"]),
