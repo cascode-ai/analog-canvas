@@ -9,6 +9,22 @@ import {
 } from "@icm/netlist";
 import { sha256 } from "./content-digest.js";
 
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value
+      .map((item) => (item === undefined ? "null" : canonicalJson(item)))
+      .join(",")}]`;
+  }
+  if (value !== null && typeof value === "object") {
+    return `{${Object.entries(value)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
 /** Authored/electrical identity is separate from the resolved runtime's prepared digest. */
 export function sourceInputRevision(
   folder: ProjectSimulationFolder,
@@ -18,7 +34,7 @@ export function sourceInputRevision(
   >,
 ) {
   return sha256(
-    JSON.stringify({
+    canonicalJson({
       source: folder.input,
       electricalHash: compiled.electricalHash,
       files: compiled.files,

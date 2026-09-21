@@ -6,6 +6,48 @@ import { ProjectInputIdentity, sourceInputRevision } from "./input-identity.js";
 import { compileNgspiceSourceSimulation } from "@icm/netlist";
 
 describe("Project input identity", () => {
+  it("does not treat object key order as an authored input change", async () => {
+    const project = createEmptyProject("ordered", "Stable identity");
+    const folder = createSimulationFolder({
+      id: "ordered-source",
+      name: "Ordered source",
+      profileId: "ngspice-test",
+    });
+    folder.input.circuitBindings = [];
+    folder.input.entry = "ordered.cir";
+    folder.input.files = [
+      {
+        path: folder.input.configPath,
+        text: JSON.stringify({
+          version: 2,
+          environment: { profileId: "ngspice-test" },
+        }),
+      },
+      {
+        path: "ordered.cir",
+        text: "Ordered\nV1 in 0 1\n.control\nop\n.endc\n.end\n",
+      },
+    ];
+    project.simulationFolders = [folder];
+    const prepared = compileNgspiceSourceSimulation(project, folder);
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) throw new Error(JSON.stringify(prepared));
+
+    const reordered = structuredClone(folder);
+    reordered.input = {
+      dependencies: [...reordered.input.dependencies],
+      files: reordered.input.files.map(({ path, text }) => ({ text, path })),
+      circuitBindings: [...reordered.input.circuitBindings],
+      configPath: reordered.input.configPath,
+      entry: reordered.input.entry,
+      kind: reordered.input.kind,
+    };
+
+    expect(await sourceInputRevision(reordered, prepared)).toBe(
+      await sourceInputRevision(folder, prepared),
+    );
+  });
+
   it("compares an ngspice run against the same compiler used by its captured Prepare", async () => {
     const project = createEmptyProject("dual", "Dual engine identity");
     const folder = createSimulationFolder({
