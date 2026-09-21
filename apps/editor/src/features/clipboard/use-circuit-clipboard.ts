@@ -102,7 +102,7 @@ export function useCircuitClipboard(options: Options) {
     }
   };
   useEffect(() => {
-    const ownsEvent = (event: ClipboardEvent) =>
+    const ownsEvent = (event: ClipboardEvent | KeyboardEvent) =>
       options.enabled &&
       !event.defaultPrevented &&
       !isTypingTarget(event.target) &&
@@ -112,7 +112,13 @@ export function useCircuitClipboard(options: Options) {
           '[role="dialog"], dialog, .simulation-code-workspace, [data-workspace-interaction]',
         )
       ) &&
-      !window.getSelection()?.toString();
+      // Canvas focus owns circuit operations even when an earlier header/code
+      // text selection survived the pointer handler's preventDefault().
+      (Boolean(
+        event.target instanceof Element &&
+        event.target.closest('[data-testid="schematic-canvas"]'),
+      ) ||
+        !window.getSelection()?.toString());
     const report = (error: unknown) =>
       options.setStatus(error instanceof Error ? error.message : String(error));
     const copy = (event: ClipboardEvent) => {
@@ -157,9 +163,36 @@ export function useCircuitClipboard(options: Options) {
         report(error);
       }
     };
+    const alternateShortcut = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      if (
+        !ownsEvent(event) ||
+        (!event.ctrlKey && !event.metaKey) ||
+        event.altKey ||
+        event.shiftKey ||
+        event.repeat ||
+        (key !== "c" && key !== "v")
+      )
+        return;
+      // Keep the platform chord native: synchronous copy/paste events work
+      // without async clipboard permission. The other modifier must invoke
+      // the same C/V operations because the browser emits no clipboard event.
+      if (
+        event.target instanceof Element &&
+        event.target.closest('[data-testid="schematic-canvas"]')
+      )
+        window.getSelection()?.removeAllRanges();
+      const apple = /Mac|iPhone|iPad|iPod/u.test(navigator.platform);
+      if (apple ? event.metaKey : event.ctrlKey) return;
+      event.preventDefault();
+      if (key === "c") void copySelection();
+      else void pasteSelection();
+    };
+    window.addEventListener("keydown", alternateShortcut);
     window.addEventListener("copy", copy);
     window.addEventListener("paste", paste);
     return () => {
+      window.removeEventListener("keydown", alternateShortcut);
       window.removeEventListener("copy", copy);
       window.removeEventListener("paste", paste);
     };
