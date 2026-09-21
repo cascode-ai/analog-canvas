@@ -57,9 +57,12 @@ describe("mcp tool surface", () => {
         },
       });
       const writes: unknown[] = [];
+      let snapshots = 0;
       http.circuitHandler = async ({ request }) => {
-        if (request.operation === "snapshot")
+        if (request.operation === "snapshot") {
+          snapshots++;
           return snapshotResponse(request.requestId);
+        }
         if (request.operation === "transact") {
           writes.push(request);
           return transactSuccessResponse(
@@ -84,6 +87,7 @@ describe("mcp tool surface", () => {
           ),
         ),
       ).toMatchObject({ ok: true });
+      expect(snapshots).toBe(1);
       expect(writes).toEqual([
         expect.objectContaining({
           structureEdits: [
