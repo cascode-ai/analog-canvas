@@ -212,10 +212,21 @@ export class LocalWorkspace {
       else this.index.runs[old] = parsed;
       await this.save();
       const files = [];
-      for (const file of selected) {
-        try {
-          files.push(await this.download(file, fetchArtifact, parsed.runId));
-        } catch (error) {
+      for (let offset = 0; offset < selected.length; offset += 2) {
+        const batch = selected.slice(offset, offset + 2);
+        // Match the publisher's small bounded concurrency; settle in-flight
+        // downloads before reporting partial failure, preserving catalog order.
+        const results = await Promise.allSettled(
+          batch.map((file) => this.download(file, fetchArtifact, parsed.runId)),
+        );
+        for (const result of results)
+          if (result.status === "fulfilled") files.push(result.value);
+        const failed = results.findIndex(
+          (result) => result.status === "rejected",
+        );
+        if (failed !== -1) {
+          const error: unknown = (results[failed] as PromiseRejectedResult)
+            .reason;
           return {
             ...this.describe(),
             ok: false,
@@ -223,7 +234,7 @@ export class LocalWorkspace {
             files,
             error: {
               code: "WORKSPACE_DOWNLOAD_INCOMPLETE",
-              fileId: file.fileId ?? file.id,
+              fileId: batch[failed]!.fileId ?? batch[failed]!.id,
               message:
                 error instanceof Error
                   ? error.message

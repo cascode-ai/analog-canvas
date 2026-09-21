@@ -311,6 +311,13 @@ export class AgentSessionDO {
     // browser stays CLOSING and never reaches its reconnect handler.
     if (socket && socket.readyState !== WebSocket.CLOSED) socket.close();
     await this.ready;
+    for (const [requestId, pending] of this.pendingForwards) {
+      if (socket && pending.socket !== socket) continue;
+      clearTimeout(pending.timeout);
+      pending.reject(new Error("EDITOR_DISCONNECTED"));
+      this.machine?.failRequest(requestId, false);
+      this.pendingForwards.delete(requestId);
+    }
     const replacement = (
       this.state.getWebSockets?.(EDITOR_SOCKET_TAG) ?? []
     ).some(
@@ -322,12 +329,6 @@ export class AgentSessionDO {
       type: "editor.offline",
       sessionId: this.machine?.sessionId ?? "unknown",
     });
-    for (const [requestId, pending] of this.pendingForwards) {
-      clearTimeout(pending.timeout);
-      pending.reject(new Error("EDITOR_DISCONNECTED"));
-      this.machine?.failRequest(requestId, false);
-    }
-    this.pendingForwards.clear();
     const status = this.machine?.statusAt(Date.now());
     if (this.replacedUntil > Date.now()) return;
     if (status === "revoked" || status === "expired") {
@@ -1291,7 +1292,12 @@ export class AgentSessionDO {
           ? SIMULATION_FORWARD_TIMEOUT_MS
           : FORWARD_TIMEOUT_MS,
       );
-      this.pendingForwards.set(requestId, { resolve, reject, timeout });
+      this.pendingForwards.set(requestId, {
+        resolve,
+        reject,
+        timeout,
+        socket,
+      });
     });
     socket.send(
       JSON.stringify({

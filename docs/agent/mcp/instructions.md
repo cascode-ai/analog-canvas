@@ -1,1 +1,1 @@
-Analog Canvas MCP adapter over the four-operation Agent API. Start with connect, read analog-canvas://reference/quickstart, then get_context. Read reference resources on demand; do not guess symbol IDs, pin names, or revisions.
+Analog Canvas MCP adapter over the four-operation Agent API. Connect returns context; read analog-canvas://reference/quickstart and follow only the guidance for the current task. Inspect objects when needed. Do not guess symbol IDs, pin names, or revisions.

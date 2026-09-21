@@ -45,7 +45,7 @@ const artworkCenter = {
   y: (bounds.minY + bounds.maxY) / 2,
 };
 const formatCoordinate = (value) => Number(value.toFixed(6)).toString();
-const iconSymbolScale = 0.75;
+const iconSymbolScale = 0.95;
 // The source geometry's bounding box is centered above, but the drain/source
 // branches and arrow carry more visual weight on the right and slightly below
 // centre. Scale the measured full-size visual bias with the artwork so its

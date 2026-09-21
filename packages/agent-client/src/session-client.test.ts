@@ -29,6 +29,66 @@ async function freshClient(
 }
 
 describe("agent session client", () => {
+  it.each(["dirty", "other-project"])(
+    "does not submit a %s operation snapshot",
+    async (reason) => {
+      const { client, http } = await freshClient();
+      await client.connect("session-1.code");
+      const snapshot = structuredClone(await client.snapshot());
+      if (reason === "dirty") snapshot.dirty = true;
+      else snapshot.snapshot.project.id = "other-project";
+      http.circuitHandler = async ({ request }) => {
+        expect(request.operation).toBe("snapshot");
+        return snapshotResponse(request.requestId);
+      };
+      const report = await client.advancedTransact(
+        {
+          edits: [
+            {
+              kind: "set_instance_reference",
+              instanceId: "R1",
+              reference: "R2",
+            },
+          ],
+        },
+        { snapshot },
+      );
+      expect(report.ok).toBe(false);
+    },
+  );
+  it("reuses a composed operation's snapshot and preserves its revision on conflicts", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    const snapshot = await client.snapshot();
+    const calls: string[] = [];
+    http.circuitHandler = async ({ request }) => {
+      calls.push(request.operation);
+      if (request.operation === "transact") {
+        expect(request.expectedRevision).toBe(snapshot.revision);
+        return errorResponse(
+          request.requestId,
+          "transact",
+          "REVISION_CONFLICT",
+          "Human changed the document",
+        );
+      }
+      throw new Error("Unexpected refetch");
+    };
+    const report = await client.advancedTransact(
+      {
+        edits: [
+          { kind: "set_instance_reference", instanceId: "R1", reference: "R2" },
+        ],
+      },
+      { snapshot },
+    );
+    expect(report).toMatchObject({
+      ok: false,
+      stage: "commit",
+      code: "REVISION_CONFLICT",
+    });
+    expect(calls).toEqual(["transact"]);
+  });
   it("waits for publication using fresh descriptor IDs without restarting the simulation", async () => {
     const ids: string[] = [];
     const http = new FakeAgentHttp({

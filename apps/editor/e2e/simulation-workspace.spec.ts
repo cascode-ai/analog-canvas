@@ -12,7 +12,7 @@ import {
   readSimulationExperimentConfig,
   replaceSimulationExperimentConfig,
 } from "@icm/model";
-import { parseProject } from "@icm/project-protocol";
+import { parseProject, serializeProject } from "@icm/project-protocol";
 import {
   generateCircuitSource,
   simulationSignals,
@@ -607,7 +607,9 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
     "experiment.json",
   ]);
   expect(saved.topDocumentId).toBe(project.topDocumentId);
-  expect(saved.documents).toEqual(project.documents);
+  expect(saved.documents).toEqual(
+    parseProject(serializeProject(project)).documents,
+  );
   const generated = generateCircuitSource(
     saved,
     folder.input.circuitBindings[0]!,

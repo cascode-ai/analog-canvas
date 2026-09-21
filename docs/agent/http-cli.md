@@ -8,8 +8,10 @@ HTTP uses the same server validation and permissions. The version-pinned package
 in the MCP bootstrap manifest also runs without an MCP host: execute its binary
 with --http followed by a published tool name (connect, connection_status,
 get_context, etc.), supplying that tool's JSON arguments on standard input.
-Use --http list-tools to read the exact argument schemas, and --http resource
-with a resource URI on standard input for quickstart and authoring references.
+Use --http list-tools to discover argument schemas. Full per-tool contracts,
+including legacy expression details, are available through --http resource
+with `analog-canvas://contract/tools/{name}` on standard input. Use the same
+resource command for quickstart and task-selected references.
 This is a local entry into the same AgentSessionClient and tool handlers, not
 another network protocol. The package must be installed, but no MCP-host
 configuration or restart is required. Each invocation is a new process:

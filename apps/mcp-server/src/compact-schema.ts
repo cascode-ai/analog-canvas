@@ -17,13 +17,15 @@ export function compactSchema(
       return value;
     const schema = { ...(value as Record<string, unknown>) };
     if (root) delete schema.$defs;
-    if (
-      typeof schema.$ref === "string" &&
-      schema.$ref.startsWith("#/$defs/") &&
-      Object.keys(schema).length === 1
-    ) {
+    if (typeof schema.$ref === "string" && schema.$ref.startsWith("#/$defs/")) {
       const name = schema.$ref.slice("#/$defs/".length);
-      if (resolved.has(name)) return resolved.get(name);
+      const siblings = { ...schema };
+      delete siblings.$ref;
+      const withSiblings = (target: unknown) =>
+        Object.keys(siblings).length
+          ? { allOf: [target, visit(siblings)] }
+          : target;
+      if (resolved.has(name)) return withSiblings(resolved.get(name));
       if (resolving.has(name) || originalDefs[name] === undefined) {
         recursive = true;
         return schema;
@@ -32,7 +34,7 @@ export function compactSchema(
       const target = visit(originalDefs[name]);
       resolving.delete(name);
       resolved.set(name, target);
-      return target;
+      return withSiblings(target);
     }
     for (const key of [
       "properties",

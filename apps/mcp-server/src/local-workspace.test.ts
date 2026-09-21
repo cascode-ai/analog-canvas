@@ -33,6 +33,39 @@ const catalog = (files: ArtifactRef[]): ResultCatalog => ({
   datasets: [],
 });
 describe("local simulation workspace", () => {
+  it("downloads two files concurrently and settles partial evidence before returning", async () => {
+    const root = await mkdtemp(join(tmpdir(), "icm-concurrent-base-"));
+    let release!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    try {
+      const base = await LocalWorkspace.open(scope, root);
+      const started: string[] = [];
+      const pending = base.sync(
+        catalog([file("one", "a"), file("two", "b"), file("three", "c")]),
+        async (ref) => {
+          started.push(ref.id);
+          await ready;
+          if (ref.id === "one") throw new Error("offline");
+          return new Response("b");
+        },
+      );
+      await vi.waitFor(() => expect(started).toHaveLength(2));
+      release();
+      const result = await pending;
+      expect(started.sort()).toEqual(["one", "two"]);
+      expect(result).toMatchObject({ ok: false, error: { fileId: "one" } });
+      expect(result.files).toHaveLength(1);
+      expect(await readFile(result.files[0]!.outputPath, "utf8")).toBe("b");
+      expect(await LocalWorkspace.inspect(root)).toMatchObject({
+        downloadedFiles: 1,
+      });
+    } finally {
+      release();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it("defaults to a Project/host-isolated directory stable across authorization sessions", () => {
     const first = defaultWorkspacePath(scope);
     expect(first).toBe(defaultWorkspacePath({ ...scope, sessionId: "other" }));

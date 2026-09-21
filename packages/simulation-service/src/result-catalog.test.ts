@@ -108,4 +108,66 @@ describe("result catalog", () => {
       resultCatalog({ ...run, artifacts: [], state: "lost" }, "partial"),
     ).toMatchObject({ execution: "lost", collection: "partial" });
   });
+  it("registers integrated noise scalars with exact result selectors", () => {
+    const catalog = resultCatalog(
+      {
+        ...run,
+        artifacts: [file("json", "result")],
+        result: {
+          outcome: { status: "completed" },
+          data: {
+            schemaVersion: 1,
+            analyses: [
+              {
+                analysis: "noise",
+                plotName: "Noise Analysis",
+                frequencyHz: [10, 100],
+                outputNoiseDensity: [1e-9, 2e-9],
+                inputNoiseDensity: [5e-10, 1e-9],
+                integratedOutputNoise: 1.5e-8,
+                integratedInputNoise: 7.5e-9,
+                units: {
+                  outputDensity: "V/sqrt(Hz)",
+                  inputDensity: "V/sqrt(Hz)",
+                  integratedOutput: "V",
+                  integratedInput: "V",
+                },
+              },
+            ],
+            rawPlots: [],
+          },
+        },
+      },
+      "complete",
+    );
+
+    expect(ResultCatalogSchema.parse(catalog)).toEqual(catalog);
+    expect(catalog.datasets[0]?.scalars).toEqual([
+      {
+        name: "integratedOutputNoise",
+        quantity: "integrated-output-noise",
+        unit: "V",
+        representations: [
+          {
+            artifactId: "json",
+            fileId: "json",
+            selector: "/data/analyses/0/integratedOutputNoise",
+          },
+        ],
+      },
+      {
+        name: "integratedInputNoise",
+        quantity: "integrated-input-noise",
+        unit: "V",
+        representations: [
+          {
+            artifactId: "json",
+            fileId: "json",
+            selector: "/data/analyses/0/integratedInputNoise",
+          },
+        ],
+      },
+    ]);
+    expect(JSON.stringify(catalog)).not.toContain("1.5e-8");
+  });
 });

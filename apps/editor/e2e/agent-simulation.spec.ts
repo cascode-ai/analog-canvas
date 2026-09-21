@@ -771,6 +771,11 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
         records.getByRole("button", { name: "Open result" }),
       ).toBeEnabled();
       await records.getByRole("button", { name: "Open result" }).click();
+      await expect(
+        page
+          .getByRole("region", { name: "Analog simulation" })
+          .getByRole("status"),
+      ).toHaveText("completed");
       await page
         .getByRole("treeitem", { name: "Folder Divider", exact: true })
         .click({ button: "right" });

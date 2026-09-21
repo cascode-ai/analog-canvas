@@ -76,6 +76,7 @@ export type PendingForward = {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
   timeout: ReturnType<typeof setTimeout>;
+  socket: WebSocket;
 };
 
 export function relayHeaders(allowedOrigin: string | null): Headers {

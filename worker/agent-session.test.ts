@@ -851,6 +851,78 @@ describe("public Agent session routes", () => {
     expect(put).not.toHaveBeenCalled();
   });
 
+  it("fails a request owned by the replaced editor socket without waiting for its timeout", async () => {
+    const { env, objects, sockets } = routedFixture();
+    const createdResponse = await routeAgentSessionRequest(
+      new Request("https://editor.example/api/agent/sessions", {
+        method: "POST",
+        headers: {
+          origin: "https://editor.example",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          projectSessionId: "project:replacement",
+          projectId: "project",
+          documentIds: ["document-main"],
+          scopes: ["circuit.snapshot"],
+        }),
+      }),
+      env,
+    );
+    const created = (await createdResponse!.json()) as {
+      session: { sessionId: string; claimCode: string };
+    };
+    const claimResponse = await routeAgentSessionRequest(
+      new Request("https://editor.example/api/agent/claims", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ claimCode: created.session.claimCode }),
+      }),
+      env,
+    );
+    const claim = (await claimResponse!.json()) as { agentToken: string };
+    let forwarded!: () => void;
+    const wasForwarded = new Promise<void>((resolve) => {
+      forwarded = resolve;
+    });
+    const oldSocket = {
+      readyState: WebSocket.OPEN,
+      send: () => forwarded(),
+      close: vi.fn(),
+    } as unknown as WebSocket;
+    sockets.set(created.session.sessionId, [oldSocket]);
+    const responsePromise = routeAgentSessionRequest(
+      new Request(
+        `https://editor.example/api/agent/sessions/${created.session.sessionId}/circuit`,
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${claim.agentToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            apiVersion: "3.0",
+            requestId: "request-on-old-socket",
+            operation: "snapshot",
+            documentId: "document-main",
+          }),
+        },
+      ),
+      env,
+    );
+    await wasForwarded;
+    const replacement = { readyState: WebSocket.OPEN } as WebSocket;
+    sockets.set(created.session.sessionId, [oldSocket, replacement]);
+
+    await objects.get(created.session.sessionId)!.webSocketClose(oldSocket);
+
+    const response = await responsePromise;
+    expect(response?.status).toBe(503);
+    expect(await response!.json()).toMatchObject({
+      error: { code: "EDITOR_DISCONNECTED" },
+    });
+  });
+
   it("acknowledges a session-bound browser heartbeat outside business dispatch", async () => {
     const storage = new MemoryStorage();
     const object = new AgentSessionDO(

@@ -599,6 +599,8 @@ export class AgentSessionClient {
       documentId?: string;
       dryRun?: boolean;
       expectedStructureRevision?: number;
+      /** Reuse the snapshot read by this composed operation; commit still checks revisions. */
+      snapshot?: CachedSnapshot;
     } = {},
   ): Promise<ApplyActionsReport> {
     const normalized = Array.isArray(payload) ? { edits: payload } : payload;
@@ -610,7 +612,22 @@ export class AgentSessionClient {
         code: "EDIT_SCHEMA_INVALID",
         message: parsed.error.issues[0]?.message ?? "Invalid transaction",
       };
-    const entry = await this.snapshot(options.documentId, { refresh: true });
+    const entry =
+      options.snapshot ??
+      (await this.snapshot(options.documentId, { refresh: true }));
+    if (
+      options.snapshot &&
+      (entry.dirty || entry.snapshot.project.id !== this.session?.projectId)
+    )
+      return this.stateChangedReport(
+        entry,
+        "Snapshot is stale or belongs to another Project",
+      );
+    if (options.documentId && entry.documentId !== options.documentId)
+      return this.stateChangedReport(
+        entry,
+        "Snapshot belongs to another Document",
+      );
     if (
       options.expectedStructureRevision !== undefined &&
       entry.snapshot.project.structureRevision !==

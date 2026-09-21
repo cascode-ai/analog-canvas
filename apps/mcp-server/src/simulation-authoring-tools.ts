@@ -13,6 +13,7 @@ import {
 } from "@icm/model";
 import type { McpToolDefinition } from "./protocol.js";
 import type { ToolSessionState } from "./tools.js";
+import type { CachedSnapshot } from "@icm/agent-client";
 
 const Id = z.string().min(1).max(256);
 const Name = z.string().trim().min(1).max(128);
@@ -190,6 +191,7 @@ async function read(
     folder,
     config: parsed.config,
     revision: snapshot.snapshot.project.structureRevision,
+    snapshot,
   };
 }
 async function save(
@@ -197,12 +199,14 @@ async function save(
   folder: ProjectSimulationFolder,
   revision: number,
   documentId?: string,
+  snapshot?: CachedSnapshot,
 ) {
   return session.client.advancedTransact(
     { structureEdits: [{ kind: "upsert_simulation_folder", folder }] },
     {
       ...(documentId ? { documentId } : {}),
       expectedStructureRevision: revision,
+      ...(snapshot ? { snapshot } : {}),
     },
   );
 }
@@ -268,6 +272,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
           {
             ...(parsed.documentId ? { documentId: parsed.documentId } : {}),
             expectedStructureRevision: project.structureRevision,
+            snapshot,
           },
         );
       let next: ProjectSimulationFolder;
@@ -330,6 +335,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
         next,
         project.structureRevision,
         parsed.documentId,
+        snapshot,
       );
       return result.ok
         ? {
@@ -370,6 +376,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
         configFolder(result.folder, config),
         result.revision,
         parsed.documentId,
+        result.snapshot,
       );
     },
   ),
@@ -405,6 +412,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
         configFolder(result.folder, config),
         result.revision,
         parsed.documentId,
+        result.snapshot,
       );
     },
   ),
@@ -447,6 +455,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
         configFolder(result.folder, config),
         result.revision,
         parsed.documentId,
+        result.snapshot,
       );
     },
   ),

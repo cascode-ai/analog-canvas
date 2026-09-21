@@ -15,7 +15,7 @@ export const agentToolHelp = {
   netlist_code:
     "Read the open Project's generated SPICE/Spectre netlist or replace its editable device names, models and values through the same planner as the Netlist panel. Use Project Code or structured circuit edits for topology and connectivity changes.",
   simulation:
-    "Prepare/start runs, read status, and inspect catalog metadata. history lists retained completed run identities after reconnect; catalog and sync reuse their files without restarting. Retain the SAME requestId and payload for an uncertain start retry. Native source editing remains available; authoring help is optional. outputData.specs reports verdicts; completion alone does not promise waveform capture. Prefer simulation_files sync to download complete results for local analysis. Device/vector mapping: analog-canvas://reference/mcp-simulation.",
+    "Prepare/start runs, read status, and inspect catalog metadata. history lists retained completed run identities after reconnect; catalog and sync reuse their files without restarting. Retain the SAME requestId and payload for an uncertain start retry. Native source editing remains available; authoring help is optional. outputData.specs reports verdicts; completion alone does not promise waveform capture. Prefer simulation_files sync to download complete results for local analysis. Device/vector mapping: analog-canvas://reference/mcp-simulation. Optional outer waitMs (0–20000) on start/read waits on that same run; resume via read when runId is known. One active hosted run at a time; sequence starts or use Batch.",
   simulation_files:
     "Source read/update retains owner revisions and full native editing. For small edits use replacements with path/textDigest/oldText/newText; each oldText must match exactly once in the original file. Batch edits are atomic. Success returns source.revision plus update with changed files and new digests; no mandatory reread. Listings advertise editing modes. Local action workspace opens/inspects a Project base; sync with runId downloads its catalog and complete files (fileIds selects files; [] syncs metadata only). basePath optionally chooses and remembers a local directory; otherwise one is created automatically. download with artifactId saves locally by default; outputPath overrides its location. artifact without outputPath is text preview only. See analog-canvas://reference/mcp-simulation.",
   export_file:
@@ -29,9 +29,9 @@ export const agentToolHelp = {
   search:
     "Case-insensitive search, including LaTeX, over one authorized document or scope:project. Results include documentId. Refreshes by default.",
   apply_actions:
-    "Apply one atomic batch, wire, GUI-planned command or focus operation. Helper previews edits and supplies revisions; split create/wire phases for resolved pins. Actions and native labels/displays: analog-canvas://reference/mcp-tools.",
+    "Apply one atomic batch, wire, GUI-planned command or focus operation. Client plans edits and supplies revisions; split create/wire phases for resolved pins. Actions and native labels/displays: analog-canvas://reference/mcp-tools.",
   advanced_transact:
-    "Submit exactly one of edits, structureEdits, wireIntent, semanticIntent or command. Helper previews and supplies revisions/IDs. Read analog-canvas://contract/edits/{kind} for one edit schema; full offline schema: analog-canvas://contract/advanced-edits. Reading is advisory.",
+    "Submit exactly one of edits, structureEdits, wireIntent, semanticIntent or command. Client plans the transaction and supplies revisions/IDs; dryRun is optional. Read analog-canvas://contract/edits/{kind} for one edit schema; full offline schema: analog-canvas://contract/advanced-edits. Reading is advisory.",
   verify:
     "Refresh the snapshot and report revision, error/warning totals, and which object IDs changed since the cached snapshot. Use after edits or when a transaction reported STATE_CHANGED.",
   render:
@@ -39,11 +39,11 @@ export const agentToolHelp = {
   simulation_folder:
     "List/get/create/clone/rename/remove saved source experiments. rootDocumentId binds the drawn Cell; dut adds a text testbench using its exported name and ordered ports. Edit native source with simulation_files, not parallel JSON analyses. See analog-canvas://reference/mcp-simulation.",
   simulation_output:
-    "Legacy config v1 only: manage output ASTs. Native Code uses simulation_files for saves and postprocess Python; this tool cannot add parallel JSON rules. See analog-canvas://reference/mcp-simulation.",
+    "Legacy config v1 only: manage output ASTs. Native Code uses simulation_files for saves and postprocess Python; this tool cannot add parallel JSON rules. See analog-canvas://reference/mcp-simulation. Exact expression schema: analog-canvas://contract/tools/simulation_output.",
   simulation_measurement:
     "Legacy config v1 only: manage scalar measurement rules. Native VACASK uses authored Python and report_measurement; obtain helpers with simulation authoring-help. See analog-canvas://reference/mcp-simulation.",
   simulation_device_operating_point:
     "Legacy config v1 only: select terminal-derived MOS operating-point quantities. Native Code uses module-supported saves and native OP analysis; never guess i(pin). See analog-canvas://reference/mcp-simulation.",
 };
 export const agentServerInstructions =
-  "Analog Canvas MCP adapter over the four-operation Agent API. Start with connect, read analog-canvas://reference/quickstart, then get_context. Read reference resources on demand; do not guess symbol IDs, pin names, or revisions.";
+  "Analog Canvas MCP adapter over the four-operation Agent API. Connect returns context; read analog-canvas://reference/quickstart and follow only the guidance for the current task. Inspect objects when needed. Do not guess symbol IDs, pin names, or revisions.";
