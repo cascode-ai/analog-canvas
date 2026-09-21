@@ -38111,6 +38111,60 @@
                         "additionalProperties": false
                       }
                     },
+                    "scalars": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "quantity": {
+                            "type": "string"
+                          },
+                          "unit": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "representations": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "artifactId": {
+                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema3"
+                                },
+                                "fileId": {
+                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema3"
+                                },
+                                "selector": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "artifactId",
+                                "fileId",
+                                "selector"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "quantity",
+                          "unit",
+                          "representations"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
                     "representations": {
                       "type": "array",
                       "items": {
