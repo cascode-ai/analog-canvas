@@ -41,7 +41,10 @@ import type {
 } from "./schema.js";
 import { AgentAuthoringCommandSchema } from "./authoring-command.js";
 import { buildProjectConnectivityIndex, traceHierarchyNet } from "@icm/derived";
-import { buildAgentSessionSnapshot } from "./snapshot.js";
+import {
+  buildAgentBootstrapSnapshot,
+  buildAgentSessionSnapshot,
+} from "./snapshot.js";
 import { terminalConnectivity } from "./terminal-connectivity.js";
 
 const OPERATIONS = ["capabilities", "snapshot", "transact", "render"] as const;
@@ -299,6 +302,13 @@ export function createAgentCircuitService(
         snapshot: AgentSessionSnapshot;
       }
     | undefined;
+  let bootstrapSnapshotCache:
+    | {
+        project: CircuitProject | undefined;
+        document: SchematicDocument;
+        context: ReturnType<typeof buildAgentBootstrapSnapshot>;
+      }
+    | undefined;
   const response = (input: unknown): AgentCircuitResponse =>
     AgentCircuitResponseSchema.parse(input);
   const useHost = "host" in options;
@@ -422,6 +432,18 @@ export function createAgentCircuitService(
             document.revision,
           );
         }
+        if (
+          request.projection === "bootstrap" &&
+          (request.includeSourceSpans === true ||
+            request.traceNet !== undefined)
+        ) {
+          return fail(
+            "snapshot",
+            "INVALID_REQUEST",
+            "Bootstrap Snapshot cannot include source spans or a Net trace; request the full projection",
+            document.revision,
+          );
+        }
         const includeSourceSpans = request.includeSourceSpans === true;
         if (includeSourceSpans && !options.permissions.sourceSpans) {
           return fail(
@@ -430,6 +452,36 @@ export function createAgentCircuitService(
             "Source-span permission is not granted",
             document.revision,
           );
+        }
+        if (request.projection === "bootstrap") {
+          const cachedBootstrap = bootstrapSnapshotCache;
+          const context =
+            cachedBootstrap !== undefined &&
+            cachedBootstrap.project === project &&
+            cachedBootstrap.document === document
+              ? cachedBootstrap.context
+              : buildAgentBootstrapSnapshot({
+                  ...(project ? { project } : {}),
+                  document,
+                });
+          bootstrapSnapshotCache = { project, document, context };
+          if (context.byteLength > limits.maxSnapshotBytes) {
+            return fail(
+              "snapshot",
+              "SNAPSHOT_TOO_LARGE",
+              `Bootstrap Snapshot content exceeds ${limits.maxSnapshotBytes} bytes`,
+              document.revision,
+            );
+          }
+          return response({
+            apiVersion: request.apiVersion,
+            requestId: request.requestId,
+            operation: "snapshot",
+            ok: true,
+            projection: "bootstrap",
+            revision: document.revision,
+            context,
+          });
         }
         const cachedSnapshot = snapshotCache;
         const snapshot =

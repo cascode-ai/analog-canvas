@@ -11,10 +11,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   AgentCircuitRequestSchema,
+  AgentBootstrapSnapshotSchema,
   AgentSessionSnapshotSchema,
   AgentSchematicEditSchema,
 } from "./schema.js";
 import {
+  buildAgentBootstrapSnapshot,
   buildAgentSessionSnapshot,
   canonicalSnapshotContent,
 } from "./snapshot.js";
@@ -34,6 +36,51 @@ function fixtureProject(): CircuitProject {
 }
 
 describe("Agent Document Snapshot", () => {
+  it("builds a bounded bootstrap projection without full topology or diagnostics", () => {
+    const project = fixtureProject();
+    const document = project.documents[0]!;
+    const bootstrap = buildAgentBootstrapSnapshot({ project, document });
+    const full = buildAgentSessionSnapshot({ project, document, resolver });
+
+    expect(AgentBootstrapSnapshotSchema.parse(bootstrap)).toEqual(bootstrap);
+    expect(bootstrap).toMatchObject({
+      project: {
+        id: project.id,
+        structureRevision: project.structureRevision,
+        topDocumentId: project.topDocumentId,
+      },
+      document: {
+        id: document.id,
+        revision: document.revision,
+        instanceCount: document.instances.length,
+        netCount: document.nets.length,
+      },
+    });
+    expect(bootstrap.byteLength).toBeLessThan(full.byteLength);
+    expect(bootstrap).not.toHaveProperty("electricalTopologyHash");
+    expect(bootstrap.document).not.toHaveProperty("instances");
+    expect(bootstrap.document).not.toHaveProperty("diagnostics");
+
+    const newerDocument = {
+      ...document,
+      revision: document.revision + 1,
+      instances: [
+        ...document.instances,
+        structuredClone(document.instances[0]!),
+      ],
+    };
+    const newer = buildAgentBootstrapSnapshot({
+      project,
+      document: newerDocument,
+    });
+    expect(
+      newer.project.documents.find((item) => item.id === document.id),
+    ).toMatchObject({
+      revision: newerDocument.revision,
+      instanceCount: newerDocument.instances.length,
+    });
+  });
+
   it("reads and edits Route styling without losing color, arrow, or connectivity", () => {
     const project = fixtureProject();
     const document = project.documents[0]!;

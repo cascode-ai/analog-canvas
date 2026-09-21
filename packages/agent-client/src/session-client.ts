@@ -1,5 +1,6 @@
 import {
   parseAgentCircuitRequest,
+  AgentBootstrapSnapshotResponseSchema,
   AgentCapabilitiesResponseSchema,
   AgentRenderResponseSchema,
   AgentTransactionPayloadSchema,
@@ -7,6 +8,7 @@ import {
   AGENT_API_VERSION,
   type AgentCircuitRequest,
   type AgentCircuitResponse,
+  type AgentBootstrapSnapshot,
   type AgentSnapshotRequest,
   type AgentFileResourceRequest,
   type AgentFileResourceResponse,
@@ -35,9 +37,11 @@ import {
 } from "./connector-store.js";
 import {
   SnapshotCache,
+  bootstrapFromFullSnapshot,
+  bootstrapSummary,
   changedObjectIds,
-  snapshotSummary,
   type CachedSnapshot,
+  type BootstrapSummary,
   type SnapshotSummary,
 } from "./snapshot-cache.js";
 import {
@@ -79,7 +83,13 @@ export interface ConnectReport {
     permissions: Record<string, unknown>;
     limits: Record<string, number>;
   };
-  context: SnapshotSummary | null;
+  context: BootstrapSummary | null;
+  timing: {
+    credentialMs: number;
+    capabilitiesMs: number;
+    bootstrapSnapshotMs: number;
+    totalMs: number;
+  };
 }
 
 export interface StatusReport extends ConnectionSnapshot {
@@ -181,8 +191,9 @@ export class AgentSessionClient {
    * resume the persisted connector.
    */
   async connect(claimCode?: string): Promise<ConnectReport> {
+    const startedAt = this.now();
     if (claimCode === undefined || claimCode.trim() === "") {
-      const resumed = await this.tryResume();
+      const resumed = await this.tryResume(startedAt);
       if (resumed === null) {
         throw new AgentSessionError(
           "CLAIM_REQUIRED",
@@ -201,14 +212,18 @@ export class AgentSessionClient {
       this.observation = null;
       this.session = this.activeSession(claim);
       await this.persistConnector(claim);
-      return await this.establishContext("claimed");
+      return await this.establishContext(
+        "claimed",
+        startedAt,
+        this.elapsedSince(startedAt),
+      );
     } catch (error) {
       if (!this.session) this.connection.apply("reset");
       throw error;
     }
   }
 
-  private async tryResume(): Promise<ConnectReport | null> {
+  private async tryResume(startedAt: number): Promise<ConnectReport | null> {
     let stored = this.session;
     if (!stored || !this.tokenValid(stored)) {
       stored = await this.resumeConnector();
@@ -216,7 +231,11 @@ export class AgentSessionClient {
     if (!stored) return null;
     this.connection.apply("resume-started");
     try {
-      return await this.establishContext("resumed");
+      return await this.establishContext(
+        "resumed",
+        startedAt,
+        this.elapsedSince(startedAt),
+      );
     } catch (error) {
       if (
         error instanceof AgentSessionError &&
@@ -230,14 +249,32 @@ export class AgentSessionClient {
 
   private async establishContext(
     mode: "claimed" | "resumed",
+    startedAt: number,
+    credentialMs: number,
   ): Promise<ConnectReport> {
-    const capabilities = await this.capabilities({ force: true });
-    let context: SnapshotSummary | null = null;
-    let editorOffline = false;
     const documentId = this.session?.documentIds[0];
-    if (documentId) {
+    let capabilitiesMs = 0;
+    let bootstrapSnapshotMs = 0;
+    const capabilitiesTask = (async () => {
+      const stageStartedAt = this.now();
       try {
-        context = snapshotSummary(await this.snapshot(documentId));
+        // A same-process resume can reuse the version-bound capability result.
+        return await this.capabilities();
+      } finally {
+        capabilitiesMs = this.elapsedSince(stageStartedAt);
+      }
+    })();
+    const contextTask = (async (): Promise<{
+      context: BootstrapSummary | null;
+      editorOffline: boolean;
+    }> => {
+      if (!documentId) return { context: null, editorOffline: false };
+      const stageStartedAt = this.now();
+      try {
+        return {
+          context: bootstrapSummary(await this.bootstrapSnapshot(documentId)),
+          editorOffline: false,
+        };
       } catch (error) {
         // An offline editor still leaves a paired, resumable session; the
         // host will see editor-offline through connection_status.
@@ -245,12 +282,18 @@ export class AgentSessionClient {
           error instanceof AgentSessionError &&
           (error.category === "editor-offline" || error.category === "network")
         ) {
-          editorOffline = true;
-        } else {
-          throw error;
+          return { context: null, editorOffline: true };
         }
+        throw error;
+      } finally {
+        bootstrapSnapshotMs = this.elapsedSince(stageStartedAt);
       }
-    }
+    })();
+    const [capabilities, contextResult] = await Promise.all([
+      capabilitiesTask,
+      contextTask,
+    ]);
+    const { context, editorOffline } = contextResult;
     if (!editorOffline) {
       this.connection.apply("request-succeeded");
     }
@@ -272,7 +315,17 @@ export class AgentSessionClient {
         >,
       },
       context,
+      timing: {
+        credentialMs,
+        capabilitiesMs,
+        bootstrapSnapshotMs,
+        totalMs: this.elapsedSince(startedAt),
+      },
     };
+  }
+
+  private elapsedSince(startedAt: number): number {
+    return Math.max(0, this.now() - startedAt);
   }
 
   async status(options: { refresh?: boolean } = {}): Promise<StatusReport> {
@@ -452,7 +505,11 @@ export class AgentSessionClient {
       operation: "snapshot",
       documentId: target,
     });
-    if (!response.ok || response.operation !== "snapshot") {
+    if (
+      !response.ok ||
+      response.operation !== "snapshot" ||
+      !("snapshot" in response)
+    ) {
       throw new AgentSessionError(
         response.ok ? "INVALID_RESPONSE" : response.error.code,
         response.ok
@@ -481,6 +538,69 @@ export class AgentSessionClient {
     return entry;
   }
 
+  /** Small connection projection. Full topology remains lazy and independently cached. */
+  async bootstrapSnapshot(
+    documentId?: string,
+  ): Promise<AgentBootstrapSnapshot> {
+    const target = await this.resolveDocumentId(documentId);
+    const response = await this.send({
+      ...baseRequest(this.newRequestId()),
+      operation: "snapshot",
+      documentId: target,
+      projection: "bootstrap",
+    });
+    const parsed = AgentBootstrapSnapshotResponseSchema.safeParse(response);
+    if (!parsed.success) {
+      if (
+        response.ok &&
+        response.operation === "snapshot" &&
+        "snapshot" in response
+      ) {
+        const entry: CachedSnapshot = {
+          documentId: target,
+          revision: response.revision,
+          snapshot: response.snapshot,
+          diagnostics: [...response.diagnostics],
+          fetchedAt: this.now(),
+          requestId: response.requestId,
+          dirty: false,
+        };
+        this.cache.set(entry);
+        const fallback = bootstrapFromFullSnapshot(response.snapshot);
+        this.updateDocumentRoster(
+          fallback.project.documents.map((document) => document.id),
+          fallback.project.topDocumentId,
+        );
+        return fallback;
+      }
+      if (!response.ok && response.error.code === "INVALID_REQUEST") {
+        // During a rolling deployment an older Editor rejects the new optional
+        // projection field. Fall back once to the established full request.
+        const full = await this.refreshSnapshot(target);
+        const fallback = bootstrapFromFullSnapshot(full.snapshot);
+        return fallback;
+      }
+      if (!response.ok) {
+        throw new AgentSessionError(
+          response.error.code,
+          response.error.message,
+          "request-rejected",
+        );
+      }
+      throw new AgentSessionError(
+        "INVALID_RESPONSE",
+        "bootstrap snapshot response failed schema validation",
+        "request-rejected",
+      );
+    }
+    const context = parsed.data.context;
+    this.updateDocumentRoster(
+      context.project.documents.map((document) => document.id),
+      context.project.topDocumentId,
+    );
+    return context;
+  }
+
   summary(documentId?: string): SnapshotSummary | null {
     const target = documentId ?? this.defaultDocumentId();
     return this.cache.summary(target);
@@ -496,7 +616,11 @@ export class AgentSessionClient {
       documentId: await this.resolveDocumentId(documentId),
       traceNet,
     });
-    if (!response.ok || response.operation !== "snapshot")
+    if (
+      !response.ok ||
+      response.operation !== "snapshot" ||
+      !("snapshot" in response)
+    )
       throw new AgentSessionError(
         response.ok ? "INVALID_RESPONSE" : response.error.code,
         response.ok ? "Expected a Snapshot trace" : response.error.message,
@@ -537,7 +661,7 @@ export class AgentSessionClient {
   }
 
   /**
-   * Compile high-level actions against a fresh Snapshot, require one atomic
+   * Compile high-level actions against the current clean Snapshot, require one atomic
    * transaction, then commit it in a single request. The commit validates
    * atomically, so a concurrent human edit surfaces as `STATE_CHANGED` with
    * the objects that moved, never as a blind overwrite.
@@ -549,7 +673,7 @@ export class AgentSessionClient {
       dryRunOnly?: boolean;
     } = {},
   ): Promise<ApplyActionsReport> {
-    const entry = await this.snapshot(options.documentId, { refresh: true });
+    const entry = await this.snapshot(options.documentId);
     let compiled: CompiledTransaction[];
     try {
       compiled = compileActions(actions, {
@@ -626,9 +750,7 @@ export class AgentSessionClient {
         code: "EDIT_SCHEMA_INVALID",
         message: parsed.error.issues[0]?.message ?? "Invalid transaction",
       };
-    const entry =
-      options.snapshot ??
-      (await this.snapshot(options.documentId, { refresh: true }));
+    const entry = options.snapshot ?? (await this.snapshot(options.documentId));
     if (
       options.snapshot &&
       (entry.dirty || entry.snapshot.project.id !== this.session?.projectId)

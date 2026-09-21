@@ -1458,6 +1458,13 @@
               "documentId": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
               },
+              "projection": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "bootstrap"
+                ]
+              },
               "includeSourceSpans": {
                 "type": "boolean"
               },
@@ -17599,6 +17606,203 @@
               "operation",
               "ok",
               "capabilities"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "type": "string",
+                "const": "3.0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
+                "const": "snapshot"
+              },
+              "ok": {
+                "type": "boolean",
+                "const": true
+              },
+              "projection": {
+                "type": "string",
+                "const": "bootstrap"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "context": {
+                "type": "object",
+                "properties": {
+                  "snapshotVersion": {
+                    "type": "string",
+                    "const": "3.0"
+                  },
+                  "byteLength": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "project": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema1"
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "structureRevision": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "topDocumentId": {
+                        "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema1"
+                      },
+                      "simulationFolderCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "documents": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema1"
+                            },
+                            "name": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "revision": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "instanceCount": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "netCount": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "revision",
+                            "instanceCount",
+                            "netCount"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "structureRevision",
+                      "topDocumentId",
+                      "simulationFolderCount",
+                      "documents"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "document": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema1"
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "instanceCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "netCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "routeCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "junctionCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "annotationCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "noConnectCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "draftingObjectCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "revision",
+                      "instanceCount",
+                      "netCount",
+                      "routeCount",
+                      "junctionCount",
+                      "annotationCount",
+                      "noConnectCount",
+                      "draftingObjectCount"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "snapshotVersion",
+                  "byteLength",
+                  "project",
+                  "document"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation",
+              "ok",
+              "projection",
+              "revision",
+              "context"
             ],
             "additionalProperties": false
           },

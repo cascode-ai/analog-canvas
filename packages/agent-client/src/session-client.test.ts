@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AgentSessionError } from "./errors.js";
 import {
+  bootstrapSnapshotResponse,
   capabilitiesResponse,
   errorResponse,
   FakeAgentHttp,
@@ -322,22 +323,110 @@ describe("agent session client", () => {
       documentIds: [],
     });
   });
-  it("claims a code, caches capabilities, snapshots once, and reports online", async () => {
+  it("claims a code, caches capabilities, bootstraps once, and reports online", async () => {
     const { client, http } = await freshClient();
     const report = await client.connect("session-1.claim-code");
     expect(http.claims).toEqual(["session-1.claim-code"]);
     expect(report.mode).toBe("claimed");
     expect(report.projectId).toBe("project-1");
     expect(report.context?.revision).toBe(5);
+    expect(report.context?.byteLength).toBeGreaterThan(0);
+    expect(report.context?.diagnosticsLoaded).toBe(false);
+    expect(report.timing).toMatchObject({
+      credentialMs: expect.any(Number),
+      capabilitiesMs: expect.any(Number),
+      bootstrapSnapshotMs: expect.any(Number),
+      totalMs: expect.any(Number),
+    });
     expect(client.connection.snapshot.state).toBe("online");
     expect(http.circuitCalls.map((call) => call.request.operation)).toEqual([
       "capabilities",
       "snapshot",
     ]);
+    expect(http.circuitCalls[1]?.request).toMatchObject({
+      operation: "snapshot",
+      projection: "bootstrap",
+    });
+    expect(client.cachedSnapshot("main")).toBeNull();
     // A second capabilities call reuses the cache without another request.
     const calls = http.circuitCalls.length;
     await client.capabilities();
     expect(http.circuitCalls.length).toBe(calls);
+  });
+
+  it("starts capabilities and bootstrap Snapshot in the same post-claim wave", async () => {
+    let releaseCapabilities!: () => void;
+    let releaseBootstrap!: () => void;
+    const capabilitiesGate = new Promise<void>((resolve) => {
+      releaseCapabilities = resolve;
+    });
+    const bootstrapGate = new Promise<void>((resolve) => {
+      releaseBootstrap = resolve;
+    });
+    const http = new FakeAgentHttp({
+      circuit: async ({ request }) => {
+        if (request.operation === "capabilities") {
+          await capabilitiesGate;
+          return capabilitiesResponse(request.requestId);
+        }
+        if (
+          request.operation === "snapshot" &&
+          request.projection === "bootstrap"
+        ) {
+          await bootstrapGate;
+          return bootstrapSnapshotResponse(request.requestId);
+        }
+        return snapshotResponse(request.requestId);
+      },
+    });
+    const { client } = await freshClient({ http });
+    const pending = client.connect("session-1.claim-code");
+
+    await vi.waitFor(() => expect(http.circuitCalls).toHaveLength(2));
+    expect(
+      new Set(http.circuitCalls.map((call) => call.request.operation)),
+    ).toEqual(new Set(["capabilities", "snapshot"]));
+    releaseCapabilities();
+    releaseBootstrap();
+    await expect(pending).resolves.toMatchObject({ mode: "claimed" });
+  });
+
+  it("falls back to the established full Snapshot during a rolling deployment", async () => {
+    const http = new FakeAgentHttp({
+      circuit: async ({ request }) => {
+        if (request.operation === "capabilities") {
+          return capabilitiesResponse(request.requestId);
+        }
+        if (
+          request.operation === "snapshot" &&
+          request.projection === "bootstrap"
+        ) {
+          return errorResponse(
+            request.requestId,
+            "snapshot",
+            "INVALID_REQUEST",
+            "old Editor schema",
+          );
+        }
+        return snapshotResponse(request.requestId);
+      },
+    });
+    const { client } = await freshClient({ http });
+
+    await expect(client.connect("session-1.claim-code")).resolves.toMatchObject(
+      {
+        context: { documentId: "main", revision: 5 },
+      },
+    );
+    expect(
+      http.circuitCalls
+        .filter((call) => call.request.operation === "snapshot")
+        .map((call) => call.request),
+    ).toEqual([
+      expect.objectContaining({ projection: "bootstrap" }),
+      expect.not.objectContaining({ projection: "bootstrap" }),
+    ]);
+    expect(client.cachedSnapshot("main")?.dirty).toBe(false);
   });
 
   it("reads relay observations without a Circuit probe and retains pairing on network failure", async () => {
@@ -395,10 +484,26 @@ describe("agent session client", () => {
   it("re-checks the active session without a new claim", async () => {
     const { client, http } = await freshClient();
     await client.connect("session-1.claim-code");
+    const capabilityCalls = http.circuitCalls.filter(
+      (call) => call.request.operation === "capabilities",
+    ).length;
+    const callsBeforeResume = http.circuitCalls.length;
     const report = await client.connect();
     expect(report.mode).toBe("resumed");
     expect(http.claims).toEqual(["session-1.claim-code"]);
-    expect(http.circuitCalls.at(-1)?.request.operation).toBe("capabilities");
+    expect(
+      http.circuitCalls.filter(
+        (call) => call.request.operation === "capabilities",
+      ),
+    ).toHaveLength(capabilityCalls);
+    expect(
+      http.circuitCalls.slice(callsBeforeResume).map((call) => call.request),
+    ).toEqual([
+      expect.objectContaining({
+        operation: "snapshot",
+        projection: "bootstrap",
+      }),
+    ]);
   });
 
   it("resumes a browser-approved connector in a new Helper process", async () => {

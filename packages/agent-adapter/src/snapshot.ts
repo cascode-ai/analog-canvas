@@ -23,9 +23,11 @@ import {
 } from "./diagnostics.js";
 import {
   AGENT_SNAPSHOT_VERSION,
+  AgentBootstrapSnapshotSchema,
   AgentSessionSnapshotSchema,
 } from "./schema.js";
 import type {
+  AgentBootstrapSnapshot,
   AgentDiagnostic,
   AgentSessionSnapshot,
   AgentSnapshotDocument,
@@ -36,6 +38,11 @@ export interface BuildAgentSessionSnapshotOptions {
   document: SchematicDocument;
   resolver: SymbolResolver;
   includeSourceSpans?: boolean;
+}
+
+export interface BuildAgentBootstrapSnapshotOptions {
+  project?: CircuitProject;
+  document: SchematicDocument;
 }
 
 function stableValue(input: unknown): unknown {
@@ -53,6 +60,57 @@ function stableValue(input: unknown): unknown {
 
 export function canonicalSnapshotContent(input: unknown): string {
   return JSON.stringify(stableValue(input));
+}
+
+/**
+ * Small authoritative context used while connecting. It intentionally avoids
+ * connectivity resolution, geometry, diagnostics, source spans, and authored
+ * simulation bodies; those remain available through a full Snapshot on demand.
+ */
+export function buildAgentBootstrapSnapshot(
+  options: BuildAgentBootstrapSnapshotOptions,
+): AgentBootstrapSnapshot {
+  const project = options.project;
+  const documents = project
+    ? project.documents.map((document) =>
+        document.id === options.document.id ? options.document : document,
+      )
+    : [options.document];
+  const content = {
+    snapshotVersion: AGENT_SNAPSHOT_VERSION,
+    project: {
+      id: project?.id ?? `project-${options.document.id}`,
+      name: project?.name ?? options.document.name,
+      structureRevision: project?.structureRevision ?? 0,
+      topDocumentId: project?.topDocumentId ?? options.document.id,
+      simulationFolderCount: project?.simulationFolders.length ?? 0,
+      documents: documents
+        .map((document) => ({
+          id: document.id,
+          name: document.name,
+          revision: document.revision,
+          instanceCount: document.instances.length,
+          netCount: document.nets.length,
+        }))
+        .sort((left, right) => left.id.localeCompare(right.id, "en")),
+    },
+    document: {
+      id: options.document.id,
+      name: options.document.name,
+      revision: options.document.revision,
+      instanceCount: options.document.instances.length,
+      netCount: options.document.nets.length,
+      routeCount: options.document.routes.length,
+      junctionCount: options.document.junctions.length,
+      annotationCount: options.document.annotations.length,
+      noConnectCount: options.document.noConnects.length,
+      draftingObjectCount: options.document.drafting?.objects.length ?? 0,
+    },
+  };
+  return AgentBootstrapSnapshotSchema.parse({
+    ...content,
+    byteLength: utf8ByteLength(canonicalSnapshotContent(content)),
+  });
 }
 
 function pointBounds(point: Point): Rect {

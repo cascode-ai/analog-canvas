@@ -127,6 +127,8 @@ export const AgentProjectResourceCapabilitySchema = z.strictObject({
 export const AgentSnapshotRequestSchema = RequestBaseSchema.extend({
   operation: z.literal("snapshot"),
   documentId: StableIdSchema,
+  /** Full remains the default for wire compatibility; bootstrap is the small connection projection. */
+  projection: z.enum(["full", "bootstrap"]).optional(),
   includeSourceSpans: z.boolean().optional(),
   traceNet: z
     .strictObject({
@@ -573,6 +575,39 @@ export const AgentProjectIndexDocumentSchema = z.strictObject({
   ),
 });
 
+export const AgentBootstrapSnapshotSchema = z.strictObject({
+  snapshotVersion: z.literal(AGENT_SNAPSHOT_VERSION),
+  byteLength: z.number().int().nonnegative(),
+  project: z.strictObject({
+    id: StableIdSchema,
+    name: z.string().min(1),
+    structureRevision: z.number().int().nonnegative(),
+    topDocumentId: StableIdSchema,
+    simulationFolderCount: z.number().int().nonnegative(),
+    documents: z.array(
+      z.strictObject({
+        id: StableIdSchema,
+        name: z.string().min(1),
+        revision: z.number().int().nonnegative(),
+        instanceCount: z.number().int().nonnegative(),
+        netCount: z.number().int().nonnegative(),
+      }),
+    ),
+  }),
+  document: z.strictObject({
+    id: StableIdSchema,
+    name: z.string().min(1),
+    revision: z.number().int().nonnegative(),
+    instanceCount: z.number().int().nonnegative(),
+    netCount: z.number().int().nonnegative(),
+    routeCount: z.number().int().nonnegative(),
+    junctionCount: z.number().int().nonnegative(),
+    annotationCount: z.number().int().nonnegative(),
+    noConnectCount: z.number().int().nonnegative(),
+    draftingObjectCount: z.number().int().nonnegative(),
+  }),
+});
+
 export const AgentSessionSnapshotSchema = z.strictObject({
   snapshotVersion: z.literal(AGENT_SNAPSHOT_VERSION),
   electricalTopologyHash: z.string().regex(/^[a-f0-9]{64}$/u),
@@ -669,6 +704,14 @@ export const AgentSnapshotResponseSchema = ResponseBaseSchema.extend({
   diagnostics: z.array(AgentDiagnosticSchema),
   trace: AgentNetTraceSchema.nullable().optional(),
 });
+export const AgentBootstrapSnapshotResponseSchema = ResponseBaseSchema.extend({
+  apiVersion: z.literal(AGENT_API_VERSION),
+  operation: z.literal("snapshot"),
+  ok: z.literal(true),
+  projection: z.literal("bootstrap"),
+  revision: z.number().int().nonnegative(),
+  context: AgentBootstrapSnapshotSchema,
+});
 
 export const AgentSemanticIntentResultSchema = z.strictObject({
   kind: z.enum([
@@ -745,6 +788,7 @@ export const AgentErrorResponseSchema = ResponseBaseSchema.extend({
 
 export const AgentProductionCircuitResponseSchema = z.union([
   AgentCapabilitiesResponseSchema,
+  AgentBootstrapSnapshotResponseSchema,
   AgentSnapshotResponseSchema,
   AgentTransactSuccessResponseSchema,
   AgentRenderResponseSchema,
@@ -782,6 +826,9 @@ export type AgentProductionCircuitResponse = z.infer<
 >;
 export type AgentDiagnostic = z.infer<typeof AgentDiagnosticSchema>;
 export type AgentDiff = z.infer<typeof AgentDiffSchema>;
+export type AgentBootstrapSnapshot = z.infer<
+  typeof AgentBootstrapSnapshotSchema
+>;
 export type AgentSessionSnapshot = z.infer<typeof AgentSessionSnapshotSchema>;
 export type AgentSnapshotDocument = z.infer<typeof AgentSnapshotDocumentSchema>;
 export type AgentFileResourceCapability = z.infer<

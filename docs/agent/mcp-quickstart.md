@@ -1,13 +1,20 @@
 # Analog Canvas MCP quickstart
 
 Before pairing, `connection_status({"refresh":false})` reports the loaded
-version and exact API origin locally. Match the current bootstrap manifest;
-see [installation](mcp-install.md) only for setup problems.
+version and exact API origin locally. When the origin matches, connect directly
+and let the capabilities/bootstrap exchange confirm compatibility. Fetch the
+bootstrap manifest and read [installation](mcp-install.md) only for a missing,
+wrong-origin, or rejected incompatible adapter; installed-package integrity
+checks are not part of ordinary pairing.
 
 Call `connect` with the Claim once, or omit it to resume the saved connector.
-Its reply already includes context. Use that context immediately; no duplicate
-`get_context` is required. Use `inspect` when you need objects/pins; it refreshes
-by default. MCP manages credentials, request IDs and expected revisions.
+Its reply already includes lightweight authoritative context. Capabilities and
+that bootstrap Snapshot are fetched in parallel. Use the returned identity,
+counts and revisions immediately; no duplicate `get_context` is required. Use
+`inspect` when you need objects or pins. Unchanged reads reuse the clean full
+Snapshot after its first load; set `refresh:true` after a known human change or
+when explicitly reconciling. MCP manages credentials, request IDs and expected
+revisions.
 
 Choose only the guidance needed for the task:
 
@@ -23,3 +30,9 @@ deadline. Keep the editor open. Closing connection details does not disconnect.
 Read [session rules](shared/session.md) when investigating lifecycle behavior.
 HTTP fallback requires the user's explicit choice; it is not MCP acceptance.
 Resources describe capabilities; reading them is not an authorization gate.
+
+Transactions carry the revision of their planning Snapshot. Do not refresh just
+to confirm an accepted commit receipt. A stale-revision response causes a fresh
+read and replan; `verify` is for a milestone or reconciliation, not every small
+edit. Simulation `prepare` freezes one explicitly revisioned input, so
+start/read/download do not reread the circuit.

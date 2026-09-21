@@ -982,7 +982,11 @@ test("copies a working handoff through the normal local dev relay", async ({
       operation: "snapshot",
       documentId,
     });
-    if (!result.ok || result.operation !== "snapshot")
+    if (
+      !result.ok ||
+      result.operation !== "snapshot" ||
+      !("snapshot" in result)
+    )
       throw new Error(`Snapshot failed: ${JSON.stringify(result)}`);
     return result;
   };

@@ -1,4 +1,8 @@
-import type { AgentDiagnostic, AgentSessionSnapshot } from "@icm/agent-adapter";
+import type {
+  AgentBootstrapSnapshot,
+  AgentDiagnostic,
+  AgentSessionSnapshot,
+} from "@icm/agent-adapter";
 
 /** One document's last complete Snapshot plus the response-level diagnostics. */
 export interface CachedSnapshot {
@@ -24,6 +28,91 @@ export interface SnapshotSummary {
   netCount: number;
   errors: number;
   warnings: number;
+}
+
+export interface BootstrapSummary {
+  byteLength: number;
+  projectId: string;
+  projectName: string;
+  documentId: string;
+  documentName: string;
+  revision: number;
+  structureRevision: number;
+  topDocumentId: string;
+  documentCount: number;
+  simulationFolderCount: number;
+  instanceCount: number;
+  netCount: number;
+  routeCount: number;
+  junctionCount: number;
+  annotationCount: number;
+  noConnectCount: number;
+  draftingObjectCount: number;
+  /** Bootstrap deliberately does not run full diagnostic derivation. */
+  diagnosticsLoaded: false;
+}
+
+export function bootstrapSummary(
+  context: AgentBootstrapSnapshot,
+): BootstrapSummary {
+  return {
+    byteLength: context.byteLength,
+    projectId: context.project.id,
+    projectName: context.project.name,
+    documentId: context.document.id,
+    documentName: context.document.name,
+    revision: context.document.revision,
+    structureRevision: context.project.structureRevision,
+    topDocumentId: context.project.topDocumentId,
+    documentCount: context.project.documents.length,
+    simulationFolderCount: context.project.simulationFolderCount,
+    instanceCount: context.document.instanceCount,
+    netCount: context.document.netCount,
+    routeCount: context.document.routeCount,
+    junctionCount: context.document.junctionCount,
+    annotationCount: context.document.annotationCount,
+    noConnectCount: context.document.noConnectCount,
+    draftingObjectCount: context.document.draftingObjectCount,
+    diagnosticsLoaded: false,
+  };
+}
+
+/** Rolling-deploy fallback when an older host answers a bootstrap request with a full Snapshot. */
+export function bootstrapFromFullSnapshot(
+  snapshot: AgentSessionSnapshot,
+): AgentBootstrapSnapshot {
+  const current = snapshot.document;
+  return {
+    snapshotVersion: snapshot.snapshotVersion,
+    // This fallback really transferred the full payload, so report that cost.
+    byteLength: snapshot.byteLength,
+    project: {
+      id: snapshot.project.id,
+      name: snapshot.project.name,
+      structureRevision: snapshot.project.structureRevision,
+      topDocumentId: snapshot.project.topDocumentId,
+      simulationFolderCount: snapshot.project.simulationFolders.length,
+      documents: snapshot.project.documents.map((document) => ({
+        id: document.id,
+        name: document.name,
+        revision: document.id === current.id ? current.revision : 0,
+        instanceCount: document.instanceCount,
+        netCount: document.netCount,
+      })),
+    },
+    document: {
+      id: current.id,
+      name: current.name,
+      revision: current.revision,
+      instanceCount: current.instances.length,
+      netCount: current.nets.length,
+      routeCount: current.routes.length,
+      junctionCount: current.junctions.length,
+      annotationCount: current.annotations.length,
+      noConnectCount: current.noConnects.length,
+      draftingObjectCount: current.drafting.objects.length,
+    },
+  };
 }
 
 export function countDiagnostics(diagnostics: readonly AgentDiagnostic[]): {

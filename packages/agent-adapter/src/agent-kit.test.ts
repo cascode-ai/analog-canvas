@@ -231,7 +231,12 @@ describe("Agent operating Kit", () => {
       documentId: document.id,
     });
     expect(snapshot).toMatchObject({ ok: true, operation: "snapshot" });
-    if (!snapshot.ok || snapshot.operation !== "snapshot") return;
+    if (
+      !snapshot.ok ||
+      snapshot.operation !== "snapshot" ||
+      !("snapshot" in snapshot)
+    )
+      return;
     expect(snapshot.snapshot.document.instances).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -314,7 +319,12 @@ describe("Agent operating Kit", () => {
       documentId: document.id,
     });
     expect(afterWiring).toMatchObject({ ok: true, operation: "snapshot" });
-    if (!afterWiring.ok || afterWiring.operation !== "snapshot") return;
+    if (
+      !afterWiring.ok ||
+      afterWiring.operation !== "snapshot" ||
+      !("snapshot" in afterWiring)
+    )
+      return;
     const groundNetId = afterWiring.snapshot.document.instances
       .find((instance) => instance.id === "GND1")
       ?.pins.find((pin) => pin.name === "0")?.netId;
@@ -346,7 +356,12 @@ describe("Agent operating Kit", () => {
       documentId: document.id,
     });
     expect(finalSnapshot).toMatchObject({ ok: true, operation: "snapshot" });
-    if (!finalSnapshot.ok || finalSnapshot.operation !== "snapshot") return;
+    if (
+      !finalSnapshot.ok ||
+      finalSnapshot.operation !== "snapshot" ||
+      !("snapshot" in finalSnapshot)
+    )
+      return;
     expect(finalSnapshot.snapshot.document.instances).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

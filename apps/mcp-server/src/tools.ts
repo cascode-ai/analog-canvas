@@ -384,6 +384,7 @@ const TOOLS: readonly ToolEntry[] = [
         tokenExpiresAt: report.tokenExpiresAt,
         capabilities: report.capabilities,
         context: report.context,
+        timing: report.timing,
       };
     },
   },
@@ -793,7 +794,7 @@ const TOOLS: readonly ToolEntry[] = [
     handle: async (args, session) => {
       const parsed = DocumentArgs.parse(args ?? {});
       const entry = await session.client.snapshot(parsed.documentId, {
-        refresh: parsed.refresh ?? true,
+        refresh: parsed.refresh ?? false,
       });
       const summary = session.client.summary(entry.documentId);
       return {
@@ -827,7 +828,7 @@ const TOOLS: readonly ToolEntry[] = [
           parsed.documentId,
         );
       const entry = await session.client.snapshot(parsed.documentId, {
-        refresh: parsed.refresh ?? true,
+        refresh: parsed.refresh ?? false,
       });
       switch (parsed.target.kind) {
         case "document":
@@ -852,20 +853,25 @@ const TOOLS: readonly ToolEntry[] = [
     handle: async (args, session) => {
       const parsed = SearchArgs.parse(args);
       const entry = await session.client.snapshot(parsed.documentId, {
-        refresh: parsed.refresh ?? true,
+        refresh: parsed.refresh ?? false,
       });
       const limit = parsed.limit ?? 20;
       const entries = [entry];
       if (parsed.scope === "project") {
         const allowed = new Set((await session.client.status()).documentIds);
-        for (const document of entry.snapshot.project.documents) {
-          if (document.id !== entry.documentId && allowed.has(document.id))
-            entries.push(
-              await session.client.snapshot(document.id, {
-                refresh: parsed.refresh ?? true,
+        const otherDocuments = entry.snapshot.project.documents.filter(
+          (document) =>
+            document.id !== entry.documentId && allowed.has(document.id),
+        );
+        entries.push(
+          ...(await Promise.all(
+            otherDocuments.map((document) =>
+              session.client.snapshot(document.id, {
+                refresh: parsed.refresh ?? false,
               }),
-            );
-        }
+            ),
+          )),
+        );
       }
       return {
         query: parsed.query,

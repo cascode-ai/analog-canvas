@@ -3,8 +3,11 @@
 The Circuit resource has four operations: `capabilities`, `snapshot`, `transact`
 and `render`. File, Simulation and Project are separate advertised resources.
 Capabilities reports versions, permissions, limits, transaction forms and edit
-kinds; it does not return a Project Index. A Snapshot contains the selected
-Document and Project context. Use the current transport schema for exact fields.
+kinds; it does not return a Project Index. Snapshot has one protocol operation
+with two projections: `bootstrap` contains only Project/Document identities,
+revisions and counts for fast connection, while the default `full` projection
+contains the selected Document and Project editing context. Use the current
+transport schema for exact fields.
 
 ## Transactions
 
@@ -15,6 +18,10 @@ Document and Project context. Use the current transport schema for exact fields.
   not advance revision. Semantic focus changes do not mutate Project data.
 - Snapshot is read-only evidence, not a replacement Project payload. GUI and
   Agent changes use the same edit validation and locks.
+- Clean full Snapshots may be reused across unchanged reads and transaction
+  planning. Every mutation still supplies `expectedRevision` (and structure
+  revision when required); stale rejection, not a precautionary reread before
+  every operation, is the authoritative concurrency boundary.
 
 For MCP calls the helper constructs the envelope. Raw HTTP callers construct it
 from published OpenAPI. A built-in catalog describes available assets, never

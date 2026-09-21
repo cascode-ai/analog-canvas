@@ -347,6 +347,92 @@ describe("current Agent Circuit API service", () => {
     );
   });
 
+  it("returns bootstrap context without resolving full symbol geometry", () => {
+    let resolveCalls = 0;
+    const countingResolver: SymbolResolver = {
+      resolve(symbolId, variantId) {
+        resolveCalls += 1;
+        return resolver.resolve(symbolId, variantId);
+      },
+    };
+    const fixture = serviceFixture(allPermissions, {}, countingResolver);
+    const response = fixture.service.handle({
+      apiVersion: "3.0",
+      requestId: "snapshot-bootstrap",
+      operation: "snapshot",
+      documentId: fixture.getDocument().id,
+      projection: "bootstrap",
+    });
+
+    expect(response).toMatchObject({
+      ok: true,
+      operation: "snapshot",
+      projection: "bootstrap",
+      revision: 0,
+      context: {
+        project: { id: expect.any(String), documents: expect.any(Array) },
+        document: {
+          id: fixture.getDocument().id,
+          revision: fixture.getDocument().revision,
+          instanceCount: fixture.getDocument().instances.length,
+          netCount: fixture.getDocument().nets.length,
+        },
+      },
+    });
+    expect(response).not.toHaveProperty("snapshot");
+    expect(response).not.toHaveProperty("diagnostics");
+    expect(resolveCalls).toBe(0);
+
+    expect(
+      fixture.service.handle({
+        apiVersion: "3.0",
+        requestId: "bootstrap-move",
+        operation: "transact",
+        documentId: fixture.getDocument().id,
+        transactionId: "bootstrap-move",
+        expectedRevision: fixture.getDocument().revision,
+        edits: [
+          {
+            kind: "move_instance",
+            instanceId: "M1",
+            position: { x: 200, y: 220 },
+          },
+        ],
+      }),
+    ).toMatchObject({ ok: true, revision: 1 });
+    expect(
+      fixture.service.handle({
+        apiVersion: "3.0",
+        requestId: "snapshot-bootstrap-after-move",
+        operation: "snapshot",
+        documentId: fixture.getDocument().id,
+        projection: "bootstrap",
+      }),
+    ).toMatchObject({
+      ok: true,
+      revision: 1,
+      context: { document: { revision: 1 } },
+    });
+  });
+
+  it("rejects full-only Snapshot options on the bootstrap projection", () => {
+    const fixture = serviceFixture();
+    expect(
+      fixture.service.handle({
+        apiVersion: "3.0",
+        requestId: "snapshot-bootstrap-trace",
+        operation: "snapshot",
+        documentId: fixture.getDocument().id,
+        projection: "bootstrap",
+        traceNet: { netId: "net-vinp" },
+      }),
+    ).toMatchObject({
+      ok: false,
+      operation: "snapshot",
+      error: { code: "INVALID_REQUEST" },
+    });
+  });
+
   it("rejects Snapshots above the server-owned byte limit", () => {
     const fixture = serviceFixture(allPermissions, { maxSnapshotBytes: 10 });
     expect(
@@ -390,8 +476,10 @@ describe("current Agent Circuit API service", () => {
     if (
       !first.ok ||
       first.operation !== "snapshot" ||
+      !("snapshot" in first) ||
       !second.ok ||
-      second.operation !== "snapshot"
+      second.operation !== "snapshot" ||
+      !("snapshot" in second)
     ) {
       return;
     }

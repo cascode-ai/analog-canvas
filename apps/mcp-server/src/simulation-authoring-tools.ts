@@ -21,7 +21,10 @@ const NativeName = Id.regex(
   /^\S+$/u,
   "Use an exact native identifier without whitespace",
 );
-const common = { documentId: Id.optional() };
+const common = {
+  documentId: Id.optional(),
+  refresh: z.boolean().optional(),
+};
 const FolderArgs = z.discriminatedUnion("action", [
   z.strictObject({
     action: z.literal("list"),
@@ -156,8 +159,9 @@ async function read(
   session: ToolSessionState,
   folderId: string,
   documentId?: string,
+  refresh = false,
 ) {
-  const snapshot = await session.client.snapshot(documentId, { refresh: true });
+  const snapshot = await session.client.snapshot(documentId, { refresh });
   const folder = snapshot.snapshot.project.simulationFolders.find(
     (item) => item.id === folderId,
   );
@@ -229,7 +233,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
     FolderArgs,
     async (parsed, session) => {
       const snapshot = await session.client.snapshot(parsed.documentId, {
-        refresh: true,
+        refresh: parsed.refresh ?? false,
       });
       const project = snapshot.snapshot.project;
       if (parsed.action === "list")
@@ -350,7 +354,12 @@ export const simulationAuthoringTools: readonly Entry[] = [
     agentToolHelp["simulation_output"],
     OutputArgs,
     async (parsed, session) => {
-      const result = await read(session, parsed.folderId, parsed.documentId);
+      const result = await read(
+        session,
+        parsed.folderId,
+        parsed.documentId,
+        parsed.refresh,
+      );
       if (!result.ok) return result.result;
       const { config } = result;
       if (parsed.action === "list")
@@ -385,7 +394,12 @@ export const simulationAuthoringTools: readonly Entry[] = [
     agentToolHelp["simulation_measurement"],
     MeasurementArgs,
     async (parsed, session) => {
-      const result = await read(session, parsed.folderId, parsed.documentId);
+      const result = await read(
+        session,
+        parsed.folderId,
+        parsed.documentId,
+        parsed.refresh,
+      );
       if (!result.ok) return result.result;
       const { config } = result;
       if (parsed.action === "list")
@@ -421,7 +435,12 @@ export const simulationAuthoringTools: readonly Entry[] = [
     agentToolHelp["simulation_device_operating_point"],
     DeviceArgs,
     async (parsed, session) => {
-      const result = await read(session, parsed.folderId, parsed.documentId);
+      const result = await read(
+        session,
+        parsed.folderId,
+        parsed.documentId,
+        parsed.refresh,
+      );
       if (!result.ok) return result.result;
       const { config } = result;
       if (parsed.action === "list")

@@ -38,6 +38,13 @@
         "documentId": {
           "$ref": "#/$defs/__schema1"
         },
+        "projection": {
+          "type": "string",
+          "enum": [
+            "full",
+            "bootstrap"
+          ]
+        },
         "includeSourceSpans": {
           "type": "boolean"
         },

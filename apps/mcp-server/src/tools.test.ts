@@ -778,7 +778,7 @@ describe("mcp tool surface", () => {
     });
   });
 
-  it("inspect and search refresh by default so human edits are visible", async () => {
+  it("loads inspection state once, reuses it, and honors explicit refresh", async () => {
     const { session, http } = await toolSession();
     await callTool("connect", { claimCode: "session-1.code" }, session);
     const after = testSnapshot();
@@ -805,6 +805,14 @@ describe("mcp tool surface", () => {
     ) as { hits: { kind: string; id: string }[] };
     expect(hits.hits.length).toBeGreaterThan(0);
     expect(hits.hits.some((hit) => hit.id === "net-vout")).toBe(true);
+    expect(
+      http.circuitCalls.filter((call) => call.request.operation === "snapshot"),
+    ).toHaveLength(2);
+    await callTool(
+      "inspect",
+      { target: { kind: "document" }, refresh: true },
+      session,
+    );
     expect(
       http.circuitCalls.filter((call) => call.request.operation === "snapshot"),
     ).toHaveLength(3);
@@ -999,6 +1007,7 @@ describe("mcp tool surface", () => {
     const http = new FakeAgentHttp();
     const { session } = await toolSession(http);
     await callTool("connect", { claimCode: "session-1.code" }, session);
+    await session.client.refreshSnapshot();
     http.circuitHandler = async ({ request }) => {
       if (request.operation === "snapshot") {
         const count = http.circuitCalls.filter(

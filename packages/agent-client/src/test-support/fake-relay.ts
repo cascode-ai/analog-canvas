@@ -53,7 +53,7 @@ export function snapshotResponse(
   requestId: string,
   snapshot = testSnapshot(),
   revision = snapshot.document.revision,
-): AgentCircuitResponse {
+): Extract<AgentCircuitResponse, { operation: "snapshot"; snapshot: unknown }> {
   return {
     apiVersion: "3.0",
     requestId,
@@ -62,6 +62,51 @@ export function snapshotResponse(
     revision,
     snapshot,
     diagnostics: snapshot.document.diagnostics,
+  };
+}
+
+export function bootstrapSnapshotResponse(
+  requestId: string,
+  snapshot = testSnapshot(),
+): Extract<AgentCircuitResponse, { projection: "bootstrap" }> {
+  const current = snapshot.document;
+  return {
+    apiVersion: "3.0",
+    requestId,
+    operation: "snapshot",
+    ok: true,
+    projection: "bootstrap",
+    revision: current.revision,
+    context: {
+      snapshotVersion: "3.0",
+      byteLength: 512,
+      project: {
+        id: snapshot.project.id,
+        name: snapshot.project.name,
+        structureRevision: snapshot.project.structureRevision,
+        topDocumentId: snapshot.project.topDocumentId,
+        simulationFolderCount: snapshot.project.simulationFolders.length,
+        documents: snapshot.project.documents.map((document) => ({
+          id: document.id,
+          name: document.name,
+          revision: document.id === current.id ? current.revision : 0,
+          instanceCount: document.instanceCount,
+          netCount: document.netCount,
+        })),
+      },
+      document: {
+        id: current.id,
+        name: current.name,
+        revision: current.revision,
+        instanceCount: current.instances.length,
+        netCount: current.nets.length,
+        routeCount: current.routes.length,
+        junctionCount: current.junctions.length,
+        annotationCount: current.annotations.length,
+        noConnectCount: current.noConnects.length,
+        draftingObjectCount: current.drafting.objects.length,
+      },
+    },
   };
 }
 
@@ -195,7 +240,9 @@ export class FakeAgentHttp extends AgentHttpClient {
           case "capabilities":
             return capabilitiesResponse(request.requestId);
           case "snapshot":
-            return snapshotResponse(request.requestId);
+            return request.projection === "bootstrap"
+              ? bootstrapSnapshotResponse(request.requestId)
+              : snapshotResponse(request.requestId);
           case "render":
             return renderResponse(request.requestId);
           default:
