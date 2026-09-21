@@ -1083,10 +1083,10 @@ export class GalleryDO {
       conditions.push(`(${tags.map(() => "e.tags LIKE ?").join(" OR ")})`);
       for (const tag of tags) bindings.push(`%,${tag},%`);
     }
+    const needsAttention =
+      "json_extract(CASE WHEN e.curation_json = '' THEN '{}' ELSE e.curation_json END, '$.attention.status') = 'needs-attention'";
     if (body.attention === true) {
-      conditions.push(
-        "json_extract(CASE WHEN e.curation_json = '' THEN '{}' ELSE e.curation_json END, '$.attention.status') = 'needs-attention'",
-      );
+      conditions.push(needsAttention);
       if (body.isAdmin !== true) {
         conditions.push("e.owner_user_id = ?");
         bindings.push(viewerId);
@@ -1104,15 +1104,27 @@ export class GalleryDO {
     }
     // The whole filtered wall's size, not the page's: counted before the
     // cursor narrows the query, so every page carries the same total.
-    const total = Number(
-      this.sql
-        .exec<{ total: number }>(
-          `SELECT COUNT(*) AS total FROM gallery_entries e
-           WHERE ${conditions.join(" AND ")}`,
-          ...bindings,
-        )
-        .toArray()[0]!.total,
-    );
+    const counts = this.sql
+      .exec<{
+        total: number;
+        attention: number;
+        netlistable: number;
+        liked: number;
+      }>(
+        `SELECT COUNT(*) AS total,
+           COUNT(CASE WHEN e.netlistable = 1 THEN 1 END) AS netlistable,
+           COUNT(CASE WHEN EXISTS (SELECT 1 FROM gallery_likes
+             WHERE entry_id = e.id AND user_id = ?) THEN 1 END) AS liked,
+           COUNT(CASE WHEN ? != '' AND (? = 1 OR e.owner_user_id = ?)
+             AND ${needsAttention} THEN 1 END) AS attention
+         FROM gallery_entries e WHERE ${conditions.join(" AND ")}`,
+        viewerId,
+        viewerId,
+        body.isAdmin === true ? 1 : 0,
+        viewerId,
+        ...bindings,
+      )
+      .toArray()[0]!;
     if (cursor) {
       conditions.push("(e.created_at || '|' || e.id) < ?");
       bindings.push(cursor);
@@ -1147,7 +1159,12 @@ export class GalleryDO {
         ),
       ),
       nextCursor,
-      total,
+      total: Number(counts.total),
+      filterCounts: {
+        attention: Number(counts.attention),
+        netlistable: Number(counts.netlistable),
+        liked: Number(counts.liked),
+      },
     });
   }
 

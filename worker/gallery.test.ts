@@ -725,7 +725,12 @@ describe("newest-first gallery feed", () => {
   it("stops when the newest-first cursor chain is exhausted", async () => {
     const env = environment();
     const empty = await galleryPage(env);
-    expect(empty).toEqual({ entries: [], nextCursor: null, total: 0 });
+    expect(empty).toEqual({
+      entries: [],
+      nextCursor: null,
+      total: 0,
+      filterCounts: { attention: 0, netlistable: 0, liked: 0 },
+    });
 
     await wallOf(env, 2);
     const full = await galleryPage(env);
@@ -991,22 +996,57 @@ describe("netlist marks and thumbs", () => {
       return (await response.json()) as {
         entries: { id: string }[];
         total: number;
+        nextCursor: string | null;
+        filterCounts: { attention: number; netlistable: number; liked: number };
       };
     };
+
+    const firstPage = await list("limit=1", cookie);
+    expect(firstPage.entries).toHaveLength(1);
+    expect(firstPage.filterCounts).toEqual({
+      attention: 0,
+      netlistable: 1,
+      liked: 1,
+    });
+    const secondPage = await list(
+      `limit=1&cursor=${encodeURIComponent(firstPage.nextCursor!)}`,
+      cookie,
+    );
+    expect(secondPage.filterCounts).toEqual(firstPage.filterCounts);
+    expect((await list("")).filterCounts).toEqual({
+      attention: 0,
+      netlistable: 1,
+      liked: 0,
+    });
 
     const marked = await list("netlistable=1", cookie);
     expect(marked.entries.map((entry) => entry.id)).toEqual([extractableId]);
     // The total describes the narrowed wall, so paging stays honest.
     expect(marked.total).toBe(1);
+    expect(marked.filterCounts).toEqual({
+      attention: 0,
+      netlistable: 1,
+      liked: 0,
+    });
 
     const liked = await list("liked=1", cookie);
     expect(liked.entries.map((entry) => entry.id)).toEqual([sketchId]);
     expect(liked.total).toBe(1);
+    expect(liked.filterCounts).toEqual({
+      attention: 0,
+      netlistable: 0,
+      liked: 1,
+    });
 
     // The marks compose, and here nothing satisfies both.
     const both = await list("netlistable=1&liked=1", cookie);
     expect(both.entries).toHaveLength(0);
     expect(both.total).toBe(0);
+    expect(both.filterCounts).toEqual({
+      attention: 0,
+      netlistable: 0,
+      liked: 0,
+    });
 
     // A like belongs to an account: signed out, "the ones I liked" is none of
     // them rather than all of them.
@@ -4750,12 +4790,18 @@ describe("Gallery visual curation", () => {
           tags: string[];
         }>;
         total: number;
+        filterCounts: { attention: number; netlistable: number; liked: number };
       }>;
     const manyTags = Array.from({ length: 20 }, (_, i) => `absent${i}`);
     manyTags.push("ota");
     expect((await feed("", `?tags=${manyTags.join(",")}`)).total).toBe(2);
     const publicFeed = await feed("");
     expect(publicFeed.total).toBe(2);
+    expect(publicFeed.filterCounts.attention).toBe(0);
+    expect((await feed(admin, "?limit=1")).filterCounts.attention).toBe(2);
+    expect((await feed(maker)).filterCounts.attention).toBe(1);
+    expect((await feed(other)).filterCounts.attention).toBe(1);
+    expect((await feed(maker, "?tags=absent")).filterCounts.attention).toBe(0);
     expect((await feed("", "?category=amplifiers")).total).toBe(2);
     expect(publicFeed.entries.every((e) => e.attention === undefined)).toBe(
       true,
@@ -4785,6 +4831,8 @@ describe("Gallery visual curation", () => {
       ).status,
     ).toBe(200);
     expect((await feed(maker, "?attention=1")).total).toBe(0);
+    expect((await feed(maker)).filterCounts.attention).toBe(0);
+    expect((await feed(admin)).filterCounts.attention).toBe(1);
     expect((await update(env, mine, maker)).status).toBe(200);
     expect((await feed(maker, "?attention=1")).total).toBe(1);
   });

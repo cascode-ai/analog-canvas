@@ -108,6 +108,33 @@ describe("loadGalleryFeed", () => {
     expect(withoutTotal?.total).toBeNull();
   });
 
+  it("keeps full quick-filter totals distinct from the loaded page", async () => {
+    const filterCounts = { attention: 15, netlistable: 240, liked: 3 };
+    const page = await loadGalleryFeed(
+      fetchReturning({
+        entries: [],
+        nextCursor: "next",
+        total: 500,
+        filterCounts,
+      }),
+    );
+    expect(page?.filterCounts).toEqual(filterCounts);
+    for (const invalid of [
+      undefined,
+      {},
+      { ...filterCounts, liked: -1 },
+      { ...filterCounts, liked: "3" },
+    ]) {
+      expect(
+        (
+          await loadGalleryFeed(
+            fetchReturning({ entries: [], filterCounts: invalid }),
+          )
+        )?.filterCounts,
+      ).toBeUndefined();
+    }
+  });
+
   it("degrades to null on errors and non-OK responses", async () => {
     expect(await loadGalleryFeed(fetchReturning({}, false))).toBeNull();
     const throwing = (async () => {

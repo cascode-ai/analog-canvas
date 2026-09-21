@@ -675,18 +675,49 @@ export function GalleryFeed({
       likedByViewer?: boolean;
     } | null;
     if (!result) return;
-    setState((previous) => ({
-      ...previous,
-      entries: previous.entries.map((entry): GalleryFeedEntry =>
-        entry.id === entryId
+    setState((previous) => {
+      const entry = previous.entries.find((item) => item.id === entryId);
+      if (!entry) return previous;
+      const liked = result.likedByViewer === true;
+      const removed = likedOnly && !liked;
+      return {
+        ...previous,
+        entries: removed
+          ? previous.entries.filter((item) => item.id !== entryId)
+          : previous.entries.map((item): GalleryFeedEntry =>
+              item.id === entryId
+                ? {
+                    ...item,
+                    likes: result.likes ?? item.likes ?? 0,
+                    likedByViewer: liked,
+                  }
+                : item,
+            ),
+        total:
+          removed && previous.total !== null
+            ? previous.total - 1
+            : previous.total,
+        ...(previous.filterCounts
           ? {
-              ...entry,
-              likes: result.likes ?? entry.likes ?? 0,
-              likedByViewer: result.likedByViewer === true,
+              filterCounts: {
+                attention:
+                  previous.filterCounts.attention -
+                  Number(
+                    removed && entry.attention?.status === "needs-attention",
+                  ),
+                netlistable:
+                  previous.filterCounts.netlistable -
+                  Number(removed && entry.netlistable === true),
+                liked:
+                  previous.filterCounts.liked +
+                  Number(liked) -
+                  Number(entry.likedByViewer === true),
+              },
             }
-          : entry,
-      ),
-    }));
+          : {}),
+      };
+    });
+    announceGalleryChange({ entryId });
   }
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -795,6 +826,9 @@ export function GalleryFeed({
                 entries: [...previous.entries, ...page.entries],
                 nextCursor: page.nextCursor,
                 total: page.total ?? previous.total,
+                ...(page.filterCounts
+                  ? { filterCounts: page.filterCounts }
+                  : {}),
               }
             : previous,
         );
@@ -844,6 +878,21 @@ export function GalleryFeed({
         (candidate) => candidate.id !== entry.id,
       ),
       total: previous.total === null ? null : previous.total - 1,
+      ...(previous.filterCounts
+        ? {
+            filterCounts: {
+              attention:
+                previous.filterCounts.attention -
+                Number(entry.attention?.status === "needs-attention"),
+              netlistable:
+                previous.filterCounts.netlistable -
+                Number(entry.netlistable === true),
+              liked:
+                previous.filterCounts.liked -
+                Number(entry.likedByViewer === true),
+            },
+          }
+        : {}),
     }));
     const removedTags = new Set(entry.tags ?? []);
     if (removedTags.size > 0) {
@@ -933,6 +982,31 @@ export function GalleryFeed({
         galleryEntryMatchesQuery(entry, normalizedSearchQuery),
       )
     : entries;
+  const localQuickCounts = normalizedSearchQuery || !state.filterCounts;
+  const quickCounts = localQuickCounts
+    ? {
+        attention: visibleEntries.filter(
+          (entry) => entry.attention?.status === "needs-attention",
+        ).length,
+        netlistable: visibleEntries.filter((entry) => entry.netlistable).length,
+        liked: visibleEntries.filter((entry) => entry.likedByViewer).length,
+      }
+    : state.filterCounts!;
+  const quickCountsPartial = localQuickCounts && state.nextCursor !== null;
+  const quickCount = (key: keyof typeof quickCounts) => (
+    <span
+      className="gallery-sidebar-count"
+      title={
+        quickCountsPartial ? "Matches in circuits loaded so far" : undefined
+      }
+    >
+      {state.status === "loading"
+        ? "…"
+        : state.status === "unavailable"
+          ? "—"
+          : `${quickCounts[key].toLocaleString()}${quickCountsPartial ? "+" : ""}`}
+    </span>
+  );
   const duplicates = new Map(
     duplicateReport?.groups.flatMap((group, index) =>
       group.map(
@@ -1033,7 +1107,10 @@ export function GalleryFeed({
                     onClick={() => updateFilters({ attention: !attentionOnly })}
                     data-testid="gallery-filter-attention"
                   >
-                    Needs attention{signedIn && !isOwner ? " · Mine" : ""}
+                    <span>
+                      Needs attention{signedIn && !isOwner ? " · Mine" : ""}
+                    </span>
+                    {quickCount("attention")}
                   </button>
                 ) : null}
                 <button
@@ -1054,7 +1131,8 @@ export function GalleryFeed({
                     updateFilters({ netlistable: !netlistableOnly })
                   }
                 >
-                  <NetlistIcon /> With netlist
+                  <NetlistIcon /> <span>With netlist</span>
+                  {quickCount("netlistable")}
                 </button>
                 {signedIn || likedOnly ? (
                   <button
@@ -1073,7 +1151,8 @@ export function GalleryFeed({
                     }
                     onClick={() => updateFilters({ liked: !likedOnly })}
                   >
-                    <HeartIcon filled={true} /> Liked
+                    <HeartIcon filled={true} /> <span>Liked</span>
+                    {quickCount("liked")}
                   </button>
                 ) : null}
               </>

@@ -187,11 +187,19 @@ export interface GalleryFeedEntry {
   likedByViewer?: boolean;
 }
 
+export interface GalleryQuickFilterCounts {
+  attention: number;
+  netlistable: number;
+  liked: number;
+}
+
 export interface GalleryFeedPage {
   entries: GalleryFeedEntry[];
   nextCursor: string | null;
   /** Whole filtered wall's size; null while a pre-totals API answers. */
   total: number | null;
+  /** Counts across the filtered wall, before pagination, scoped to this viewer. */
+  filterCounts?: GalleryQuickFilterCounts;
 }
 
 export interface GalleryFeedState {
@@ -199,6 +207,8 @@ export interface GalleryFeedState {
   entries: GalleryFeedEntry[];
   nextCursor: string | null;
   total: number | null;
+  /** Counts across the filtered wall, before pagination, scoped to this viewer. */
+  filterCounts?: GalleryQuickFilterCounts;
 }
 
 function normalizeGallerySearchText(value: string): string {
@@ -356,12 +366,21 @@ export async function loadGalleryFeed(
       entries?: GalleryFeedEntry[];
       nextCursor?: unknown;
       total?: unknown;
+      filterCounts?: GalleryQuickFilterCounts;
     };
     return {
       entries: payload.entries ?? [],
       nextCursor:
         typeof payload.nextCursor === "string" ? payload.nextCursor : null,
       total: typeof payload.total === "number" ? payload.total : null,
+      ...(payload.filterCounts &&
+      ["attention", "netlistable", "liked"].every((key) => {
+        const count =
+          payload.filterCounts![key as keyof GalleryQuickFilterCounts];
+        return Number.isSafeInteger(count) && count >= 0;
+      })
+        ? { filterCounts: payload.filterCounts }
+        : {}),
     };
   } catch {
     return null;

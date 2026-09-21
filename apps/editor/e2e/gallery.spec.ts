@@ -1374,6 +1374,160 @@ test("narrows the wall by netlist mark and by the reader's own likes", async ({
   await expect(page.getByTestId("gallery-tile-f-ready")).toHaveCount(0);
 });
 
+test("quick filters show right-aligned counts and follow filters, search and likes", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "reader",
+          displayName: "Reader",
+          email: "reader@example.com",
+          provider: "github",
+          role: "user",
+          isAdmin: true,
+        },
+      },
+    }),
+  );
+  let entries = [
+    {
+      ...ENTRY,
+      id: "count-amp",
+      name: "Amplifier",
+      tags: ["amplifier"],
+      netlistable: true,
+      likedByViewer: true,
+      attention: { status: "needs-attention", issues: [] },
+    },
+    {
+      ...ENTRY,
+      id: "count-osc",
+      name: "Oscillator",
+      tags: ["oscillator"],
+      netlistable: true,
+      likedByViewer: false,
+      attention: undefined,
+    },
+    {
+      ...ENTRY,
+      id: "count-comp",
+      name: "Comparator",
+      tags: ["comparator"],
+      netlistable: false,
+      likedByViewer: true,
+      attention: { status: "needs-attention", issues: [] },
+    },
+  ];
+  await page.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/like")) {
+      const id = url.pathname.split("/")[3];
+      entries = entries.map((entry) =>
+        entry.id === id
+          ? { ...entry, likedByViewer: !entry.likedByViewer }
+          : entry,
+      );
+      return route.fulfill({ json: { likes: 0, likedByViewer: false } });
+    }
+    if (url.pathname === "/api/gallery/tags")
+      return route.fulfill({
+        json: {
+          tags: [{ tag: "amplifier", count: 1 }],
+          groups: [{ group: "Amplifiers", count: 1 }],
+        },
+      });
+    if (url.pathname.endsWith("/preview.svg"))
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"/>',
+      });
+    if (url.pathname !== "/api/gallery") return route.fallback();
+    const filtered = entries.filter(
+      (entry) =>
+        (url.searchParams.get("netlistable") !== "1" || entry.netlistable) &&
+        (url.searchParams.get("liked") !== "1" || entry.likedByViewer) &&
+        (url.searchParams.get("attention") !== "1" || entry.attention) &&
+        (!url.searchParams.get("tags") ||
+          entry.tags.includes(url.searchParams.get("tags")!)),
+    );
+    return route.fulfill({
+      json: {
+        entries: filtered,
+        nextCursor: null,
+        total: filtered.length,
+        filterCounts: {
+          attention: filtered.filter((entry) => entry.attention).length,
+          netlistable: filtered.filter((entry) => entry.netlistable).length,
+          liked: filtered.filter((entry) => entry.likedByViewer).length,
+        },
+      },
+    });
+  });
+  await page.goto("/");
+  const attention = page.getByTestId("gallery-filter-attention");
+  const netlist = page.getByTestId("gallery-filter-netlistable");
+  const liked = page.getByTestId("gallery-filter-liked");
+  const counts = async (a: string, n: string, l: string) => {
+    await expect(attention.locator(".gallery-sidebar-count")).toHaveText(a);
+    await expect(netlist.locator(".gallery-sidebar-count")).toHaveText(n);
+    await expect(liked.locator(".gallery-sidebar-count")).toHaveText(l);
+  };
+  await counts("2", "2", "2");
+  await netlist.click();
+  await counts("1", "2", "1");
+  await attention.click();
+  await counts("1", "1", "1");
+  await netlist.click();
+  await counts("2", "1", "2");
+  await attention.click();
+  const search = page.getByTestId("gallery-search");
+  await search.fill("Oscillator");
+  await counts("0", "1", "0");
+  await search.fill("");
+  await counts("2", "2", "2");
+  await page
+    .getByRole("button", { name: "Expand Amplifiers", exact: true })
+    .click();
+  await page.getByTestId("gallery-tag-option-amplifier").click();
+  await counts("1", "1", "1");
+  await page.getByTestId("gallery-tags-clear").click();
+  await counts("2", "2", "2");
+  await liked.click();
+  await counts("2", "1", "2");
+  await page.getByTestId("gallery-like-count-amp").click();
+  await counts("1", "0", "1");
+  await expect(page.getByTestId("gallery-tile-count-amp")).toHaveCount(0);
+
+  const sidebar = page.getByRole("separator", {
+    name: "Resize Gallery filters",
+  });
+  await sidebar.focus();
+  await page.keyboard.press("Home");
+  const edges = await Promise.all(
+    [attention, netlist, liked].map((button) =>
+      button.evaluate((node) => {
+        const count = node
+          .querySelector(".gallery-sidebar-count")!
+          .getBoundingClientRect();
+        const label = node.querySelector("span")!.getBoundingClientRect();
+        const bounds = node.getBoundingClientRect();
+        return {
+          right: count.right,
+          inside: count.right <= bounds.right,
+          separated: label.right <= count.left,
+        };
+      }),
+    ),
+  );
+  expect(edges.every((edge) => edge.inside && edge.separated)).toBe(true);
+  expect(
+    Math.max(...edges.map((edge) => edge.right)) -
+      Math.min(...edges.map((edge) => edge.right)),
+  ).toBeLessThan(1);
+});
+
 test("netlist filter updates category and tag counts and ignores a late summary", async ({
   page,
 }) => {
