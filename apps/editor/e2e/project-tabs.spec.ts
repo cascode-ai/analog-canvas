@@ -23,6 +23,9 @@ test("project tabs append a partial selection and retain independent history, ca
   page,
   context,
 }) => {
+  // This covers clipboard import, multiple complete Project exports, tab
+  // switching, camera restoration, undo history and a code draft in one flow.
+  test.slow();
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/editor?new=1");
   const canvas = page.getByTestId("schematic-canvas");
