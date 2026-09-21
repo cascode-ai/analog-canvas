@@ -231,7 +231,7 @@ body {
   height: 22px;
   flex: 0 0 auto;
   border-radius: 6px;
-  background: #2f3437 url("/icon.svg") center / cover no-repeat;
+  background: #2f3437 url("/icon.svg?v=nmos-1") center / cover no-repeat;
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 8%);
 }
 
