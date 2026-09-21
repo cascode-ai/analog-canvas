@@ -62,22 +62,22 @@ export function ShelfWall() {
     y: number;
   } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pressPoint = useRef<{ x: number; y: number } | null>(null);
-  const longPressed = useRef(false);
-  const cancelPress = () => {
-    if (pressTimer.current) clearTimeout(pressTimer.current);
-    pressTimer.current = null;
-  };
-  useEffect(() => () => cancelPress(), []);
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     if (!menu) return;
     menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
     const outside = (event: PointerEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setMenu(null);
+      if (
+        !menuRef.current?.contains(event.target as Node) &&
+        !menuButtonRef.current?.contains(event.target as Node)
+      )
+        setMenu(null);
     };
     const key = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenu(null);
+      if (event.key === "Escape") {
+        setMenu(null);
+        menuButtonRef.current?.focus();
+      }
     };
     window.addEventListener("pointerdown", outside);
     window.addEventListener("keydown", key);
@@ -246,47 +246,7 @@ export function ShelfWall() {
           .map((project) => ({
             key: project.id,
             node: (
-              <div
-                className="gallery-tile-wrap"
-                onContextMenu={(event) => {
-                  event.preventDefault();
-                  showMenu(project, event.clientX, event.clientY);
-                }}
-                onPointerDown={(event) => {
-                  longPressed.current = false;
-                  if (event.pointerType !== "touch") return;
-                  cancelPress();
-                  longPressed.current = false;
-                  pressPoint.current = { x: event.clientX, y: event.clientY };
-                  pressTimer.current = setTimeout(() => {
-                    longPressed.current = true;
-                    showMenu(
-                      project,
-                      pressPoint.current!.x,
-                      pressPoint.current!.y,
-                    );
-                  }, 500);
-                }}
-                onPointerMove={(event) => {
-                  if (
-                    pressPoint.current &&
-                    Math.hypot(
-                      event.clientX - pressPoint.current.x,
-                      event.clientY - pressPoint.current.y,
-                    ) > 10
-                  )
-                    cancelPress();
-                }}
-                onPointerUp={cancelPress}
-                onPointerCancel={cancelPress}
-                onClickCapture={(event) => {
-                  if (longPressed.current) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    longPressed.current = false;
-                  }
-                }}
-              >
+              <div className="gallery-tile-wrap">
                 <a
                   className="gallery-tile"
                   href={shelfProjectHref(project.id)}
@@ -320,9 +280,15 @@ export function ShelfWall() {
                   className="shelf-tile-actions"
                   aria-label={`Actions for ${project.name}`}
                   aria-haspopup="menu"
+                  aria-expanded={menu?.project.id === project.id}
                   data-testid={`shelf-actions-${project.id}`}
                   disabled={busyId !== null}
                   onClick={(event) => {
+                    menuButtonRef.current = event.currentTarget;
+                    if (menu?.project.id === project.id) {
+                      setMenu(null);
+                      return;
+                    }
                     const rect = event.currentTarget.getBoundingClientRect();
                     showMenu(project, rect.left, rect.bottom);
                   }}

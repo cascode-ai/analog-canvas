@@ -3847,7 +3847,30 @@ test("Shelf cards duplicate, rename, export and keep account favorites without e
   await page.goto("/?view=shelf");
   const tile = page.getByTestId("shelf-tile-original");
   await expect(tile).toBeVisible();
+  const actions = page.getByTestId("shelf-actions-original");
+  await expect(actions).toBeVisible();
   await tile.click({ button: "right" });
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  // The card no longer cancels the browser's context-menu event.
+  expect(
+    await tile.evaluate((element) =>
+      element.dispatchEvent(
+        new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
+      ),
+    ),
+  ).toBe(true);
+  await actions.click();
+  await expect(actions).toHaveAttribute("aria-expanded", "true");
+  await actions.click();
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(actions).toHaveAttribute("aria-expanded", "false");
+  await actions.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("menu")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(actions).toBeFocused();
+  await actions.click();
   await expect(
     page.getByRole("menuitem", { name: "Open in new tab" }),
   ).toHaveAttribute("target", "_blank");
@@ -3881,26 +3904,14 @@ test("Shelf cards duplicate, rename, export and keep account favorites without e
     saved.get("copy")!.projectText,
   );
   expect(saved.get("original")).toEqual(original);
-  // Touch long-press opens the same menu; moving a finger cancels the gesture.
+  // Holding a card on touch also leaves native browser gestures alone.
   await tile.dispatchEvent("pointerdown", {
     pointerType: "touch",
     clientX: 120,
     clientY: 220,
   });
-  await expect(page.getByRole("menu")).toBeVisible();
+  await page.waitForTimeout(600);
   await tile.dispatchEvent("pointerup", { pointerType: "touch" });
-  await page.keyboard.press("Escape");
-  await tile.dispatchEvent("pointerdown", {
-    pointerType: "touch",
-    clientX: 120,
-    clientY: 220,
-  });
-  await tile.dispatchEvent("pointermove", {
-    pointerType: "touch",
-    clientX: 120,
-    clientY: 270,
-  });
-  await page.waitForTimeout(550);
   await expect(page.getByRole("menu")).toHaveCount(0);
   await expect(page).toHaveURL(/view=shelf/);
 });
