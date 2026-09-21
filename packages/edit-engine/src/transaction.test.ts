@@ -11,7 +11,7 @@ import {
   displayableInstanceValue,
   resolveDocumentLogicalNets,
   resolveSchematicStyleProfile,
-  visibleSymbolLocalBounds,
+  visibleSymbolInkBounds,
 } from "@icm/derived";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
@@ -2441,9 +2441,9 @@ describe("Edit Transaction envelope", () => {
     });
   });
 
-  it("reflows a legacy canonical resistor label after another rotation", () => {
-    // Before the Resistor path declared tight ink bounds, its viewBox put
-    // these untouched 90-degree rows one grid interval too far from the glyph.
+  it("preserves authored legacy resistor label offsets through rotation", () => {
+    // Historical rows are no longer today's compact defaults. Keep their
+    // authored offsets under rotation instead of silently adopting new spacing.
     const document = documentWithLegacyResistorLabels([
       {
         id: "instance-label-R1",
@@ -2472,21 +2472,21 @@ describe("Edit Transaction envelope", () => {
     if (!result.ok) return;
     expect(result.document.annotations).toMatchObject([
       {
-        alignment: "end",
+        alignment: "middle",
         rotation: 0,
         anchor: {
           kind: "object",
-          localOffset: { x: -20, y: -10 },
-          fallbackPosition: { x: 80, y: 90 },
+          localOffset: { x: -40, y: -10 },
+          fallbackPosition: { x: 60, y: 90 },
         },
       },
       {
-        alignment: "end",
+        alignment: "middle",
         rotation: 0,
         anchor: {
           kind: "object",
-          localOffset: { x: -20, y: 20 },
-          fallbackPosition: { x: 80, y: 120 },
+          localOffset: { x: -70, y: -10 },
+          fallbackPosition: { x: 30, y: 90 },
         },
       },
     ]);
@@ -2576,7 +2576,7 @@ describe("Edit Transaction envelope", () => {
     expect(rotated.ok).toBe(true);
     if (!rotated.ok) return;
     const rotatedInstance = rotated.document.instances[0]!;
-    const localBounds = visibleSymbolLocalBounds(resolved);
+    const localBounds = visibleSymbolInkBounds(resolved);
     const worldCorners = [
       { x: localBounds.x, y: localBounds.y },
       { x: localBounds.x + localBounds.width, y: localBounds.y },
@@ -2595,17 +2595,14 @@ describe("Edit Transaction envelope", () => {
     const bottom = Math.max(...worldCorners.map((point) => point.y));
     const label = rotated.document.annotations[0]!;
     expect(label).toMatchObject({ alignment: "middle", rotation: 0 });
-    // The persisted semantic anchor is grid-snapped.  Assert the visible glyph
-    // edge, not the raw baseline: the label must retain at least one whole
-    // Document-grid interval outside the rotated symbol.
+    // Compact labels use a five-unit artwork gap at integer precision, not
+    // the electrical grid or the symbol's padded interaction envelope.
     if (label.anchor.kind === "free") {
       throw new Error("Rotated instance label must retain an object anchor");
     }
     const fallback = label.anchor.fallbackPosition;
-    const glyphTop = fallback.y - profile.typography.instanceFontSize * 1.05;
-    expect(glyphTop).toBeGreaterThanOrEqual(
-      bottom + document.presentation.grid,
-    );
+    const glyphTop = fallback.y - profile.typography.instanceFontSize * 0.7;
+    expect(Math.abs(glyphTop - bottom - 5)).toBeLessThanOrEqual(0.5);
   });
 
   it("reuses the canonical upright placement when a Cell Pin rotates", () => {
