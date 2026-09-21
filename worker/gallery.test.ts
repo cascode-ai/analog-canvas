@@ -595,7 +595,7 @@ describe("gallery data migrations", () => {
     ).toBe("3187863239-netizen");
   });
 
-  it("migrates histories to two versions and removes orphaned data", () => {
+  it("migrates histories to three versions and removes orphaned data", () => {
     const state = sqliteState();
     new GalleryDO(state);
     for (const entryId of ["entry-a", "entry-b"]) {
@@ -659,8 +659,10 @@ describe("gallery data migrations", () => {
     ).toEqual([
       { entry_id: "entry-a", version_no: 4 },
       { entry_id: "entry-a", version_no: 3 },
+      { entry_id: "entry-a", version_no: 2 },
       { entry_id: "entry-b", version_no: 3 },
       { entry_id: "entry-b", version_no: 2 },
+      { entry_id: "entry-b", version_no: 1 },
     ]);
     expect(
       state.storage.sql
@@ -2434,6 +2436,7 @@ describe("gallery version history", () => {
     expect(afterRestore.versions.map((version) => version.name)).toEqual([
       "Versioned v3",
       "Versioned v2",
+      "Versioned v1",
     ]);
   });
 
@@ -2475,9 +2478,9 @@ describe("gallery version history", () => {
         }),
       )
     ).json()) as { versions: { versionNo: number }[] };
-    expect(listed.versions).toHaveLength(2);
+    expect(listed.versions).toHaveLength(3);
     expect(listed.versions[0]!.versionNo).toBe(4);
-    expect(listed.versions.at(-1)!.versionNo).toBe(3);
+    expect(listed.versions.at(-1)!.versionNo).toBe(2);
 
     const prunedPreview = await route(
       env,
@@ -2487,6 +2490,15 @@ describe("gallery version history", () => {
       ),
     );
     expect(prunedPreview.status).toBe(404);
+    const prunedProject = await route(
+      env,
+      new Request(
+        `${ORIGIN}/api/gallery/${id}/versions/${oldestVersionId}/project`,
+        { headers: cookieHeaders(adminCookie) },
+      ),
+    );
+    expect(prunedProject.status).toBe(404);
+
     const prunedRestore = await route(
       env,
       new Request(
@@ -3949,7 +3961,7 @@ describe("gallery administration", () => {
     ).toBe(400);
   });
 
-  it("reapplies two-version retention when restoring a legacy backup", async () => {
+  it("reapplies three-version retention when restoring a legacy backup", async () => {
     const env = environment();
     const adminCookie = await adminOf(env);
     const id = await submitOne(env, "Legacy backup v1", {
@@ -3990,11 +4002,14 @@ describe("gallery administration", () => {
         .map((version) => Number(version.version_no))
         .sort((left, right) => left - right),
     ).toEqual([1, 2]);
-    versions.push({
-      ...versions[0],
-      id: "legacy-version-zero",
-      version_no: 0,
-    });
+    versions.push(
+      {
+        ...versions[0],
+        id: "legacy-version-zero",
+        version_no: 0,
+      },
+      { ...versions[0], id: "legacy-version-four", version_no: 4 },
+    );
 
     const restored = await route(
       env,
@@ -4010,10 +4025,10 @@ describe("gallery administration", () => {
     );
     expect(await restored.json()).toMatchObject({
       restored: true,
-      records: 3,
+      records: 4,
       tables: {
         galleryEntries: 1,
-        galleryEntryVersions: 2,
+        galleryEntryVersions: 3,
         cloudProjects: 0,
       },
     });
@@ -4026,7 +4041,7 @@ describe("gallery administration", () => {
         )
         .toArray()
         .map((version) => version.version_no),
-    ).toEqual([2, 1]);
+    ).toEqual([4, 2, 1]);
   });
 });
 
@@ -4177,6 +4192,33 @@ describe("gallery owner lifecycle (withdrawal and history)", () => {
       new Request(previewPath, { headers: { Cookie: ownerCookie } }),
     );
     expect(await ownerPreview.text()).toContain("<svg");
+    const projectPath = previewPath.replace("preview.svg", "project");
+    for (const cookie of [null, strangerCookie]) {
+      const denied = await route(
+        env,
+        new Request(projectPath, { headers: cookie ? { Cookie: cookie } : {} }),
+      );
+      expect(denied.status).toBe(404);
+      expect(denied.headers.get("cache-control")).toBe("no-store");
+    }
+    const historical = await route(
+      env,
+      new Request(projectPath, { headers: { Cookie: ownerCookie } }),
+    );
+    expect(historical.status).toBe(200);
+    expect(historical.headers.get("cache-control")).toBe("no-store");
+    const snapshot = (await historical.json()) as { projectText: string };
+    expect(Object.keys(snapshot)).toEqual(["projectText"]);
+    expect(parseProject(snapshot.projectText).name).toBe("Hist v1");
+    const otherId = await submitPublished(env, ownerCookie, "Other entry");
+    const wrongEntry = await route(
+      env,
+      new Request(
+        projectPath.replace(`/gallery/${id}/`, `/gallery/${otherId}/`),
+        { headers: { Cookie: ownerCookie } },
+      ),
+    );
+    expect(wrongEntry.status).toBe(404);
 
     // Restoring v1 puts the old content back without taking the entry down.
     const restore = await route(

@@ -1,4 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { CircuitProject } from "@icm/model";
+import {
+  branchGalleryVersion,
+  galleryVersionBranchUrl,
+  loadGalleryVersionProject,
+} from "./gallery-version-project";
+import { VersionHistoryComparison } from "./version-history-comparison";
 
 import { announceGalleryChange } from "../gallery-client";
 
@@ -6,7 +13,7 @@ import { announceGalleryChange } from "../gallery-client";
  * Version history of one gallery entry, for reviewers and the entry's
  * owner: every update snapshotted the previous state; Restore adopts a
  * version after snapshotting the current one, so restores are themselves
- * reversible. An ordinary owner's restore re-enters review server-side.
+ * reversible. Access remains restricted to owners and reviewers.
  */
 
 export interface GalleryEntryVersion {
@@ -70,6 +77,7 @@ export interface VersionHistoryDialogProps {
   entryName: string;
   onRestored(result: { previewRevision?: string }): void;
   onClose(): void;
+  onBranch?(project: CircuitProject): Promise<boolean>;
 }
 
 export function VersionHistoryDialog({
@@ -77,57 +85,120 @@ export function VersionHistoryDialog({
   entryName,
   onRestored,
   onClose,
+  onBranch,
 }: VersionHistoryDialogProps) {
+  const modal = useRef<HTMLDialogElement>(null);
+  const generation = useRef(0);
   const [versions, setVersions] = useState<GalleryEntryVersion[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
+  const [retry, setRetry] = useState(0);
+  const [comparison, setComparison] = useState<{
+    versionNo: number;
+    before: CircuitProject;
+    after: CircuitProject;
+  } | null>(null);
   useEffect(() => {
-    let cancelled = false;
+    const dialog = modal.current!;
+    dialog.showModal();
+    return () => dialog.close();
+  }, []);
+  useEffect(() => {
+    const request = ++generation.current;
+    setVersions(null);
+    setComparison(null);
+    setError(null);
     void loadEntryVersions(entryId).then((loaded) => {
-      if (!cancelled) setVersions(loaded ?? []);
+      if (request !== generation.current) return;
+      setVersions(loaded);
+      if (!loaded)
+        setError("Could not load history. Sign in as the owner or try again.");
     });
     return () => {
-      cancelled = true;
+      generation.current += 1;
     };
-  }, [entryId]);
+  }, [entryId, retry]);
 
-  async function restore(versionId: string): Promise<void> {
+  async function run(action: () => Promise<void>): Promise<void> {
     setBusy(true);
     setError(null);
+    const request = generation.current;
+    try {
+      await action();
+    } catch (error) {
+      if (request === generation.current)
+        setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      if (request === generation.current) setBusy(false);
+    }
+  }
+  async function compare(version: GalleryEntryVersion) {
+    const request = generation.current;
+    const [before, after] = await Promise.all([
+      loadGalleryVersionProject(entryId, version.versionId),
+      loadGalleryVersionProject(entryId),
+    ]);
+    if (request === generation.current)
+      setComparison({ versionNo: version.versionNo, before, after });
+  }
+  async function branch(version: GalleryEntryVersion) {
+    const request = generation.current;
+    const project = await loadGalleryVersionProject(entryId, version.versionId);
+    if (request !== generation.current) return;
+    await onBranch?.(branchGalleryVersion(project, version.versionNo));
+  }
+  async function restore(versionId: string) {
+    const request = generation.current;
     const result = await restoreVersion(entryId, versionId);
-    setBusy(false);
+    if (request !== generation.current) return;
     if (result) onRestored(result);
-    else setError("Could not restore this version.");
+    else
+      throw new Error(
+        "Could not restore this version. It may no longer be available.",
+      );
   }
 
   return (
-    <div
+    <dialog
+      ref={modal}
+      aria-labelledby="version-history-title"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!busy) onClose();
+      }}
       className="version-history-backdrop"
       onPointerDown={(event) => {
         if (event.target === event.currentTarget && !busy) onClose();
       }}
     >
       <section
-        className="version-history-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="version-history-title"
+        className={`version-history-dialog${comparison ? " is-comparing" : ""}`}
         data-testid="version-history-dialog"
       >
         <header className="version-history-header">
-          <p>Up to two previous versions are kept</p>
+          <p>
+            Latest 3 historical versions · current publication kept separately
+          </p>
           <h2 id="version-history-title">Version history — {entryName}</h2>
+          <button
+            type="button"
+            className="version-history-dismiss"
+            aria-label="Close version history"
+            disabled={busy}
+            onClick={onClose}
+          >
+            ×
+          </button>
         </header>
-        {versions === null ? (
+        {versions === null && !error ? (
           <p className="version-history-note">Loading history…</p>
-        ) : versions.length === 0 ? (
+        ) : versions?.length === 0 ? (
           <p className="version-history-note" data-testid="version-empty">
             No earlier versions yet — history starts with the first update.
           </p>
         ) : (
           <div className="version-list">
-            {versions.map((version) => (
+            {versions?.map((version) => (
               <article
                 key={version.versionId}
                 className="version-row"
@@ -150,22 +221,73 @@ export function VersionHistoryDialog({
                       : ""}
                   </small>
                 </div>
-                <button
-                  type="button"
-                  className="version-history-primary"
-                  data-testid={`version-restore-${version.versionNo}`}
-                  disabled={busy}
-                  onClick={() => void restore(version.versionId)}
-                >
-                  Restore
-                </button>
+                <div className="version-row-actions">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    data-testid={`version-compare-${version.versionNo}`}
+                    onClick={() => void run(() => compare(version))}
+                  >
+                    Compare
+                  </button>
+                  {onBranch ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      data-testid={`version-branch-${version.versionNo}`}
+                      onClick={() => void run(() => branch(version))}
+                    >
+                      Branch
+                    </button>
+                  ) : (
+                    <a
+                      data-testid={`version-branch-${version.versionNo}`}
+                      href={galleryVersionBranchUrl(
+                        entryId,
+                        version.versionId,
+                        version.versionNo,
+                      )}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Branch ↗
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    className="version-history-primary"
+                    data-testid={`version-restore-${version.versionNo}`}
+                    disabled={busy}
+                    onClick={() => void run(() => restore(version.versionId))}
+                  >
+                    Restore
+                  </button>
+                </div>
               </article>
             ))}
           </div>
         )}
+        {comparison ? (
+          <section aria-label={`Compare version ${comparison.versionNo}`}>
+            <h3>v{comparison.versionNo} → Current publication</h3>
+            <VersionHistoryComparison
+              key={comparison.versionNo}
+              before={comparison.before}
+              after={comparison.after}
+            />
+          </section>
+        ) : null}
         {error ? (
           <p role="alert" className="version-history-error">
-            {error}
+            {error}{" "}
+            {versions === null ? (
+              <button
+                type="button"
+                onClick={() => setRetry((value) => value + 1)}
+              >
+                Retry
+              </button>
+            ) : null}
           </p>
         ) : null}
         <div className="version-history-actions">
@@ -174,6 +296,6 @@ export function VersionHistoryDialog({
           </button>
         </div>
       </section>
-    </div>
+    </dialog>
   );
 }

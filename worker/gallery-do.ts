@@ -192,7 +192,7 @@ export const GALLERY_RECYCLED_KEEP_PER_ACCOUNT = 25;
 export const GALLERY_MAX_TAGS = 12;
 export const GALLERY_MAX_TAG_LENGTH = 32;
 /** How many previous states each Gallery entry retains. */
-export const GALLERY_MAX_VERSIONS_PER_ENTRY = 2;
+export const GALLERY_MAX_VERSIONS_PER_ENTRY = 3;
 export const GALLERY_DEFAULT_LIST_LIMIT = 30;
 export const GALLERY_MAX_LIST_LIMIT = 60;
 

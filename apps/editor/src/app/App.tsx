@@ -1,3 +1,7 @@
+import {
+  branchGalleryVersion,
+  loadGalleryVersionProject,
+} from "../components/gallery-version-project";
 import { InstanceCodePanel } from "../features/properties/instance-code-panel";
 import { NetlistCodePanel } from "../features/netlist-export/netlist-code-panel";
 import { NetlistProfileCode } from "../features/netlist-export/netlist-profile-code";
@@ -612,6 +616,7 @@ export function App({
       initialGalleryEntryId !== null ||
       search.has("example") ||
       search.has("project") ||
+      search.has("history") ||
       search.get("new") === "1"
     )
       return null;
@@ -1277,6 +1282,7 @@ export function App({
         return (
           search.has("example") ||
           search.has("project") ||
+          search.has("history") ||
           search.get("new") === "1"
         );
       })());
@@ -3537,7 +3543,11 @@ export function App({
     project,
     document,
     selection: visualSelection,
-    enabled: !componentEditor && !userComponentsOpen && !interfaceConfirmation,
+    enabled:
+      !componentEditor &&
+      !userComponentsOpen &&
+      !interfaceConfirmation &&
+      !versionHistoryOpen,
     setStatus,
     beginPaste: (clipboard) => {
       if (getCurrentInteractionState().kind !== "idle") {
@@ -3616,6 +3626,29 @@ export function App({
       new URLSearchParams(window.location.search).get("new") === "1";
     if (initialGalleryEntryId) {
       void openGalleryEntryById(initialGalleryEntryId, false);
+      return;
+    }
+    const historySearch = new URLSearchParams(window.location.search);
+    const historyEntryId = historySearch.get("history");
+    if (historyEntryId) {
+      const versionId = historySearch.get("version");
+      const versionNo = Number(historySearch.get("versionNo"));
+      if (!versionId || !Number.isInteger(versionNo) || versionNo < 1) {
+        setStatus("Invalid historical branch link");
+        return;
+      }
+      setStatus("Opening historical version as a new branch…");
+      void loadGalleryVersionProject(historyEntryId, versionId)
+        .then(async (snapshot) => {
+          await openProjectInTabRef.current(
+            branchGalleryVersion(snapshot, versionNo),
+            DEFAULT_VIEWBOX,
+            { source: "opened-file", persistenceState: "dirty" },
+          );
+        })
+        .catch((error: unknown) =>
+          setStatus(error instanceof Error ? error.message : String(error)),
+        );
       return;
     }
     if (requestsNewProject) {
@@ -4273,6 +4306,7 @@ export function App({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
+      if (versionHistoryOpen) return;
       if (
         event.target instanceof Element &&
         (event.target.closest(".gallery-topology-comparison") ||
@@ -5738,6 +5772,18 @@ export function App({
             ? {
                 entryId: galleryEntryContext.id,
                 entryName: galleryEntryContext.name,
+                onBranch: async (snapshot) => {
+                  setVersionHistoryOpen(false);
+                  // Let the dialog close before the normal tab-switch guard runs.
+                  await new Promise<void>((resolve) =>
+                    requestAnimationFrame(() => resolve()),
+                  );
+                  return openProjectInTabRef.current(
+                    snapshot,
+                    DEFAULT_VIEWBOX,
+                    { source: "opened-file", persistenceState: "dirty" },
+                  );
+                },
                 onRestored: ({ previewRevision }) => {
                   void primeGalleryPreview(
                     galleryEntryContext.id,

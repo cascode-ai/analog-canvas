@@ -501,3 +501,24 @@ publishing to the Gallery is a deliberate, separate act rather than a backup.
 
 Before a public release, verify opening, refreshing, importing and exporting,
 browser recovery, and PWA installation at the deployed URL.
+
+
+## Gallery version history
+
+Open your Gallery entry, choose Publish, then **Version history**; your entries
+also offer this action on **My submissions**. The current publication and up to
+three previous snapshots are retained. Every update and restore snapshots the
+previous state; older snapshots are pruned.
+
+- **Compare** shows the historical and current published circuits side by side.
+  Added components are green, removed ones red, and modified ones amber. Click a
+  highlight or component row for parameter, placement, name and connection changes.
+  Choose a Cell to inspect a child circuit. The comparison does not edit the canvas.
+- **Branch** opens the complete historical Project as an independent draft. Save
+  it to create a new Shelf project; the original publication and draft are unchanged.
+- **Restore** updates the original publication while preserving its link and likes.
+  The pre-restore current version becomes a historical snapshot.
+
+History is available to the author and administrators/moderators. Previously
+pruned versions cannot be recovered by the new three-snapshot limit. This is a
+small publication history, not a full Git merge system or private Shelf timeline.

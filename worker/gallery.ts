@@ -940,6 +940,27 @@ export async function routeGalleryRequest(
   if (
     segments.length === 4 &&
     segments[1] === "versions" &&
+    segments[3] === "project" &&
+    request.method === "GET"
+  ) {
+    const headers = { "cache-control": "no-store" };
+    const access = await entryManager(request, env, segments[0]!);
+    if (!access.found || (!access.reviewer && !access.owner)) {
+      return Response.json({ error: "not-found" }, { status: 404, headers });
+    }
+    const { status, payload } = await callGallery<{ projectText?: string }>(
+      env,
+      "version",
+      { entryId: segments[0], versionId: segments[2] },
+    );
+    if (status !== 200 || !payload.projectText) {
+      return Response.json({ error: "not-found" }, { status: 404, headers });
+    }
+    return Response.json({ projectText: payload.projectText }, { headers });
+  }
+  if (
+    segments.length === 4 &&
+    segments[1] === "versions" &&
     segments[3] === "preview.svg" &&
     request.method === "GET"
   ) {

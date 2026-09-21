@@ -309,14 +309,16 @@ entries, and a confirmed Delete.
 Every content-replacing update (`PUT`, and Restore itself) first
 snapshots the entry's previous state — name, author, description, tags,
 canonical project text, preview — into `gallery_entry_versions`,
-numbered per entry and capped at the newest 2 (older versions are pruned).
-The live current state is separate and does not count toward those 2 snapshots.
+numbered per entry and capped at the newest 3 (older versions are pruned).
+The live current state is separate and does not count toward those 3 snapshots.
 Maintenance re-serialization does not snapshot (content-equivalent).
 Authority: moderators (admin or moderator session) and the entry's
 owning session:
 
 - `GET /api/gallery/<id>/versions` — versions, newest first.
 - `GET /api/gallery/<id>/versions/<versionId>/preview.svg`.
+- `GET /api/gallery/<id>/versions/<versionId>/project` — canonical Project text;
+  same owner/reviewer access, `no-store`, no submitter metadata.
 - `POST /api/gallery/<id>/versions/<versionId>/restore` — snapshots the
   current state, then adopts the version's content and metadata, so
   restores are themselves reversible. A restore keeps the entry's status
@@ -324,7 +326,21 @@ owning session:
 
 The editor surfaces this as "Version history…" inside the publish
 dialog's update mode (moderators and owners) and as a per-entry
-"Version history" action on `/mine`.
+"Version history" action on `/mine`. Compare loads frozen historical and current
+published Projects, shows additions (green), removals (red) and modifications
+(amber), with per-component field changes and a Cell selector. Stable Cell and
+Instance ids own correspondence; delete/recreate is addition/removal. Parameters,
+placement, labels, embedded definitions and logical terminal membership are
+compared; generated Net ids and source provenance are not. Standalone drawings
+and raw source-file changes are outside this component report. A component with
+no placement remains listed but has no highlight on the canvas.
+
+Branch opens a full independent Project, with a fresh Project identity and no
+Cloud/publication binding. In the editor it opens a new project tab; `/mine`
+opens an editor tab using the protected historical Project endpoint. Save creates
+an independent private draft; publishing it is a separate action. There is no
+merge graph, automatic publication, or private Shelf timeline. Expanding the cap
+from 2 to 3 does not recover versions already pruned under the old policy.
 
 ## Accounts and sessions
 
@@ -410,7 +426,7 @@ unreadable, ruleVersion, remaining}`). Every entry stores the rule version
 - `POST /api/gallery/maintenance/schema-restore` — atomically restore the three
   Project-bearing tables from a `schema-backup` payload supplied as
   `{ "backup": ... }`. Current retention is reapplied, so a legacy backup with
-  more than 2 versions for an entry restores only its newest 2. This same-origin
+  more than 3 versions for an entry restores only its newest 3. This same-origin
   endpoint is an emergency rollback operation, not a general import surface.
 
 ## Retention and privacy

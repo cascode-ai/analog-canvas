@@ -155,3 +155,145 @@
     justify-self: end;
   }
 }
+
+/* Native modality keeps canvas shortcuts/focus outside the history task. */
+dialog.version-history-backdrop {
+  box-sizing: border-box;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+}
+dialog.version-history-backdrop:not([open]) {
+  display: none;
+}
+.version-history-dialog.is-comparing {
+  width: min(1160px, calc(100vw - 2.5rem));
+}
+.version-list {
+  flex-shrink: 0;
+}
+.version-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.version-row-actions button,
+.version-row-actions a,
+.version-comparison button,
+.version-comparison select {
+  padding: 5px 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: 5px;
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.version-row-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.version-compare-summary,
+.version-compare-side header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  padding: 8px 0;
+}
+.version-compare-canvases {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+.version-compare-side {
+  min-width: 0;
+  border: 1px solid var(--icm-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.version-compare-side header {
+  padding: 8px;
+}
+.version-compare-drawing {
+  height: min(36dvh, 360px);
+  min-height: 180px;
+  overflow: auto;
+}
+.version-compare-drawing svg {
+  display: block;
+  min-width: 100%;
+  min-height: 100%;
+}
+.version-compare-drawing rect[data-change] {
+  cursor: pointer;
+}
+.version-compare-details {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(0, 3fr);
+  gap: 12px;
+  margin: 12px 0;
+  font-size: 12px;
+}
+.version-compare-details nav,
+.version-compare-details section {
+  max-height: 180px;
+  overflow: auto;
+}
+.version-compare-details nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.version-compare-details nav button {
+  text-align: left;
+  border-left-width: 4px;
+}
+.version-compare-details nav button[aria-pressed="true"] {
+  background: var(--icm-surface-hover);
+  font-weight: 700;
+}
+.version-compare-details table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.version-compare-details th,
+.version-compare-details td {
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--icm-border);
+  padding: 5px;
+  overflow-wrap: anywhere;
+}
+@media (width <= 700px) {
+  .version-row-actions {
+    grid-column: 1 / -1;
+  }
+  .version-compare-canvases,
+  .version-compare-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.version-history-header {
+  position: relative;
+  padding-right: 32px;
+}
+.version-history-dismiss {
+  position: absolute;
+  right: 0;
+  top: 0;
+  border: 0;
+  background: transparent;
+  color: var(--icm-text);
+  font-size: 24px;
+  cursor: pointer;
+}

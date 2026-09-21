@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import type { Locator, Page } from "@playwright/test";
 
 import {
+  type CircuitProject,
   createEmptyDocument,
   createRoutePath,
   createEmptyProject,
@@ -18,6 +19,8 @@ import { hierarchicalSymbolId } from "@icm/symbols";
 import {
   awaitEditorReady,
   chooseComponent,
+  downloadBytes,
+  parseSavedProject,
   openMenu,
 } from "./editor-fixtures.js";
 import { CLOUD_PROJECT_LIMIT } from "../src/features/editor-shell/cloud-projects";
@@ -3914,4 +3917,217 @@ test("Shelf cards duplicate, rename, export and keep account favorites without e
   await tile.dispatchEvent("pointerup", { pointerType: "touch" });
   await expect(page.getByRole("menu")).toHaveCount(0);
   await expect(page).toHaveURL(/view=shelf/);
+});
+
+test("Gallery history compares components and branches without changing the source publication", async ({
+  page,
+}) => {
+  const before = galleryResistorProject("1k", 3);
+  const after = structuredClone(before);
+  const document = after.documents[0]!;
+  document.instances[0]!.netlist!.parameters.value = "2k";
+  document.instances[2]!.id = "R4";
+  document.instances[2]!.reference = "R4";
+  document.instances[2]!.placement!.position.x += 40;
+  for (const net of document.nets)
+    for (const terminal of net.terminals)
+      if (terminal.instanceId === "R3") terminal.instanceId = "R4";
+  document.routes = [];
+  const beforeText = serializeProject(before);
+  let currentText = serializeProject(after);
+  await mockGallery(page, [ENTRY]);
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "u1",
+          displayName: "Reviewer",
+          email: "owner@example.com",
+          provider: "github",
+          role: "user",
+          isAdmin: true,
+        },
+      },
+    }),
+  );
+  await page.route(`**/api/gallery/${ENTRY.id}`, (route) =>
+    route.fulfill({ json: { entry: ENTRY, projectText: currentText } }),
+  );
+  await page.route(`**/api/gallery/${ENTRY.id}/versions`, (route) =>
+    route.fulfill({
+      json: {
+        versions: [
+          {
+            versionId: "v1",
+            versionNo: 1,
+            name: "Resistors",
+            author: "tz",
+            tags: [],
+            createdAt: "2026-09-20T00:00:00.000Z",
+          },
+        ],
+      },
+    }),
+  );
+  await page.route(
+    `**/api/gallery/${ENTRY.id}/versions/v1/preview.svg`,
+    (route) =>
+      route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg"/>',
+      }),
+  );
+  await page.route(`**/api/gallery/${ENTRY.id}/versions/v1/project`, (route) =>
+    route.fulfill({ json: { projectText: beforeText } }),
+  );
+  const cloudWrites: { method: string; projectText: string }[] = [];
+  await page.route("**/api/projects", (route) => {
+    if (route.request().method() === "GET")
+      return route.fulfill({ json: { projects: [] } });
+    const body = route.request().postDataJSON();
+    cloudWrites.push({
+      method: route.request().method(),
+      projectText: body.projectText,
+    });
+    return route.fulfill({
+      status: 201,
+      json: {
+        project: {
+          id: "branched-cloud",
+          name: body.name,
+          revision: 1,
+          schemaVersion: CURRENT_PROJECT_FILE_VERSION,
+          updatedAt: "2026-09-21T09:00:00.000Z",
+          projectText: body.projectText,
+        },
+      },
+    });
+  });
+  const writes: string[] = [];
+  page.on("request", (request) => {
+    if (
+      ["PUT", "POST", "DELETE"].includes(request.method()) &&
+      new URL(request.url()).pathname.startsWith("/api/gallery/")
+    )
+      writes.push(request.url());
+  });
+  await page.goto(`/g/${ENTRY.id}`);
+  await awaitEditorReady(page);
+  await expect(page.getByTestId("status")).toContainText(
+    `Opened gallery circuit: ${ENTRY.name}`,
+  );
+  await page.getByTestId("hit-R1").click();
+  await page.getByTestId("publish-gallery-button").click();
+  await page.getByTestId("publish-history").click();
+  await page.getByTestId("version-compare-1").click();
+  const comparison = page.getByTestId("version-comparison");
+  await expect(comparison).toContainText("1 added · 1 removed · 2 modified");
+  await expect(page.getByTestId("version-highlight-before")).toHaveCount(3);
+  await expect(page.getByTestId("version-highlight-after")).toHaveCount(3);
+  await expect(
+    page.locator(
+      '[data-testid="version-highlight-before"][data-change="removed"]',
+    ),
+  ).toHaveAttribute("data-instance-id", "R3");
+  const highlight = page.locator(
+    '[data-testid="version-highlight-after"][data-instance-id="R1"]',
+  );
+  const box = await highlight.boundingBox();
+  expect(box!.width).toBeGreaterThan(20);
+  await highlight.click();
+  const details = page.getByRole("table", { name: "R1 changes" });
+  await expect(details).toContainText("netlist.parameters.value");
+  await expect(details).toContainText("1k");
+  await expect(details).toContainText("2k");
+  // Mouse/keyboard comparison is isolated from the live editor and stays frozen.
+  await page.keyboard.press("Delete");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("3");
+  currentText = beforeText;
+  await expect(details).toContainText("2k");
+  await page.screenshot({ path: "plan/gallery-history-comparison.png" });
+  await page.setViewportSize({ width: 640, height: 800 });
+  const beforeBox = await page
+    .locator(".version-compare-side")
+    .first()
+    .boundingBox();
+  const afterBox = await page
+    .locator(".version-compare-side")
+    .last()
+    .boundingBox();
+  expect(afterBox!.y).toBeGreaterThanOrEqual(beforeBox!.y + beforeBox!.height);
+  expect(
+    await page
+      .getByTestId("version-history-dialog")
+      .evaluate((element) => element.scrollWidth <= element.clientWidth),
+  ).toBe(true);
+  await page.screenshot({ path: "plan/gallery-history-mobile.png" });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.getByTestId("version-branch-1").click();
+  await expect(page.getByTestId("version-history-dialog")).toHaveCount(0);
+  await expect(page.getByRole("tab")).toHaveCount(2);
+  await expect(page.getByRole("tab").nth(1)).toContainText("branch v1");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("3");
+  const branched = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(branched.id).not.toBe(before.id);
+  expect(
+    (branched as CircuitProject).documents[0]!.instances.map(
+      (item) => item.reference,
+    ),
+  ).toEqual(["R1", "R2", "R3"]);
+  expect(branched.documents[0]!.instances[0]!.netlist!.parameters.value).toBe(
+    "1k",
+  );
+  await page.getByTestId("publish-gallery-button").click();
+  await expect(page.getByTestId("publish-history")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Update entry", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  await page.keyboard.press("ControlOrMeta+s");
+  await expect.poll(() => cloudWrites.length).toBe(1);
+  expect(cloudWrites[0]!.method).toBe("POST");
+  expect(parseProject(cloudWrites[0]!.projectText).id).toBe(branched.id);
+  await page.getByRole("tab").first().click();
+  await expect(page.getByTestId("hit-R4")).toBeVisible();
+  await page.getByTestId("publish-gallery-button").click();
+  await expect(page.getByTestId("publish-history")).toBeVisible();
+  expect(writes).toEqual([]);
+});
+
+test("Gallery historical branch link creates an independent project and unavailable snapshots explain the error", async ({
+  page,
+}) => {
+  const project = galleryResistorProject("47k", 1);
+  await page.route("**/api/gallery/entry/versions/v1/project", (route) =>
+    route.fulfill({ json: { projectText: serializeProject(project) } }),
+  );
+  await page.goto("/editor?history=entry&version=v1&versionNo=1");
+  await awaitEditorReady(page);
+  await expect(page.getByRole("tab").last()).toContainText("branch v1");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  const branch = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(branch.id).not.toBe(project.id);
+  expect(branch.documents[0]!.instances[0]!.netlist!.parameters.value).toBe(
+    "47k",
+  );
+  await page.route("**/api/gallery/entry/versions/missing/project", (route) =>
+    route.fulfill({ status: 404, json: { error: "not-found" } }),
+  );
+  page.on("dialog", (dialog) => dialog.accept());
+  await page.goto("/editor?history=entry&version=missing&versionNo=1");
+  await expect(page.getByTestId("status")).toContainText(
+    "snapshot is unavailable",
+  );
 });
