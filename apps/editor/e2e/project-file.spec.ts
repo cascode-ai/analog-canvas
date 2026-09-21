@@ -703,6 +703,7 @@ test("the circuit name drives Cloud Save and portable export", async ({
 }) => {
   const cloud = await mockCloudProjects(page);
   await page.goto("/editor");
+  await page.getByTestId("project-menu-toggle").click();
   const name = page.getByTestId("project-name-input");
   await name.fill("Bandgap Reference");
   await name.press("Enter");

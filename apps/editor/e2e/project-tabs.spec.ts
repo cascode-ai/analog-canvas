@@ -411,3 +411,61 @@ for (const modifier of ["Control", "Meta", "plain"]) {
     await expect(page.getByTestId("active-instance-count")).toHaveText("3");
   });
 }
+
+test("Project menu keeps long names out of the header and switches checked projects", async ({
+  page,
+}) => {
+  await page.goto("/editor?new=1");
+  await insert(page, "resistor", 260, 220);
+  const toggle = page.getByTestId("project-menu-toggle");
+  const menu = page.getByRole("region", {
+    name: "Project details",
+    exact: true,
+  });
+  const longName =
+    "Voltage regulator with a very long circuit name for temperature and supply characterization";
+  await expect(menu).toBeHidden();
+  await toggle.click();
+  const name = page.getByTestId("project-name-input");
+  await name.fill(longName);
+  await name.press("Enter");
+  await expect(menu).toBeHidden();
+  await expect(toggle).toHaveAttribute("title", longName);
+  await expect(toggle).not.toContainText(longName);
+  for (const width of [1360, 720]) {
+    await page.setViewportSize({ width, height: 900 });
+    const brand = (await page.locator(".gallery-home-link").boundingBox())!;
+    const trigger = (await toggle.boundingBox())!;
+    expect(trigger.x).toBeGreaterThanOrEqual(brand.x + brand.width);
+    expect(trigger.width).toBeLessThan(120);
+    await toggle.click();
+    await expect(name).toHaveValue(longName);
+    const bounds = (await menu.boundingBox())!;
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    await page.screenshot({ path: `plan/project-menu-${width}.png` });
+    await page.keyboard.press("Escape");
+    await expect(menu).toBeHidden();
+  }
+  await page
+    .getByRole("button", { name: "New project tab", exact: true })
+    .click();
+  await insert(page, "capacitor", 340, 260);
+  await toggle.click();
+  const current = menu.getByRole("menuitemradio", { checked: true });
+  await expect(current).toContainText("New Circuit");
+  const first = menu.getByRole("menuitemradio").filter({ hasText: longName });
+  await first.focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(current).toBeFocused();
+  await first.click();
+  await expect(menu).toBeHidden();
+  await expect(page.getByTestId("hit-R1")).toHaveCount(1);
+  await expect(page.getByTestId("hit-C1")).toHaveCount(0);
+  await toggle.click();
+  await expect(first).toHaveAttribute("aria-checked", "true");
+  await name.fill("Uncommitted rename");
+  await name.press("Escape");
+  await expect(menu).toBeHidden();
+  await expect(toggle).toHaveAttribute("title", longName);
+});

@@ -2,6 +2,7 @@ import { type ReactNode, type ComponentProps } from "react";
 
 import { AccountMenu } from "../components/account";
 import { BugReportLink } from "../components/bug-report-link";
+import { ProjectMenu, type ProjectMenuProps } from "./project-menu";
 import { DrawingToolbar } from "../features/editor-shell/drawing-toolbar";
 import { EditorTestTelemetry } from "../features/editor-shell/editor-test-telemetry";
 import type { ReleaseChannel } from "../document/release-channel";
@@ -28,6 +29,7 @@ interface AlignmentAction extends CommandAction {
 
 export interface EditorAppChromeProps {
   projectTabs?: ReactNode;
+  projectChoices?: ProjectMenuProps["projects"];
   projectName: string;
   galleryEntryMetadata: {
     author: string;
@@ -91,6 +93,7 @@ export function ReleaseChannelBadge({
 /** Persistent command chrome above the document workspace. */
 export function EditorAppChrome({
   projectTabs,
+  projectChoices,
   projectName,
   galleryEntryMetadata,
   projectSchemaVersion,
@@ -134,10 +137,6 @@ export function EditorAppChrome({
   telemetry,
   releaseChannel,
 }: EditorAppChromeProps) {
-  const displayedProjectName = projectNameDraft ?? projectName;
-  const galleryContributor =
-    galleryEntryMetadata?.author.trim() || "Unknown contributor";
-  const galleryNotes = galleryEntryMetadata?.description.trim() ?? "";
   const copyNetlist = (format: "spice" | "spectre") => {
     dismissOpenCommandMenus();
     onExportNetlist(format);
@@ -175,79 +174,17 @@ export function EditorAppChrome({
             <span className="app-brand-mark" aria-hidden="true" />
             <h1 title="Analog Canvas">Analog Canvas</h1>
           </a>
-          <div className="app-brand-copy">
-            <p title={`${projectName} / ${documentName}`}>
-              <input
-                className="app-project-name"
-                aria-label="Circuit name"
-                data-testid="project-name-input"
-                value={displayedProjectName}
-                size={Math.max(displayedProjectName.length, 6)}
-                onChange={(event) =>
-                  onProjectNameDraftChange(event.currentTarget.value)
-                }
-                onBlur={onProjectNameCommit}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") event.currentTarget.blur();
-                  if (event.key === "Escape") onProjectNameCancel();
-                }}
-              />{" "}
-              {hasUnsavedWork ? (
-                <span
-                  className="project-unsaved-indicator"
-                  data-testid="project-unsaved-indicator"
-                  aria-label="Unsaved changes"
-                  title="Unsaved changes"
-                >
-                  ●
-                </span>
-              ) : null}{" "}
-              / <span data-testid="active-document-name">{documentName}</span>
-            </p>
-            {galleryEntryMetadata ? (
-              <details
-                className="app-gallery-entry-details"
-                data-testid="gallery-entry-details"
-              >
-                <summary
-                  data-testid="gallery-entry-summary"
-                  title={
-                    galleryNotes
-                      ? `Contributor: ${galleryContributor}\nNotes: ${galleryNotes}`
-                      : `Contributor: ${galleryContributor}`
-                  }
-                >
-                  <span className="app-gallery-entry-author">
-                    by {galleryContributor}
-                  </span>
-                  {galleryNotes ? (
-                    <span className="app-gallery-entry-description">
-                      {" · "}
-                      {galleryNotes}
-                    </span>
-                  ) : null}
-                </summary>
-                <div
-                  className="app-gallery-entry-popover"
-                  data-testid="gallery-entry-popover"
-                  aria-label="Gallery entry information"
-                >
-                  <dl>
-                    <div>
-                      <dt>Contributor</dt>
-                      <dd>{galleryContributor}</dd>
-                    </div>
-                    {galleryNotes ? (
-                      <div>
-                        <dt>Notes</dt>
-                        <dd>{galleryNotes}</dd>
-                      </div>
-                    ) : null}
-                  </dl>
-                </div>
-              </details>
-            ) : null}
-          </div>
+          <ProjectMenu
+            name={projectName}
+            nameDraft={projectNameDraft}
+            documentName={documentName}
+            dirty={hasUnsavedWork}
+            publication={galleryEntryMetadata}
+            onNameChange={onProjectNameDraftChange}
+            onNameCommit={onProjectNameCommit}
+            onNameCancel={onProjectNameCancel}
+            {...(projectChoices ? { projects: projectChoices } : {})}
+          />
         </div>
         <nav
           className="app-command-surface"

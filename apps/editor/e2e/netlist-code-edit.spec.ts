@@ -251,6 +251,7 @@ test("explicit inspectors yield to Netlist for a replacement while ordinary edit
 
   // An ordinary edit respects the workspace the reader explicitly chose.
   await page.getByTestId("netlist-panel-toggle").click();
+  await page.getByTestId("project-menu-toggle").click();
   await page.getByTestId("project-name-input").fill("Changed circuit name");
   await page.getByTestId("project-name-input").press("Enter");
   await expect(page.getByTestId("project-name-input")).toHaveValue(

@@ -4341,6 +4341,10 @@ function WorkspaceEditor({
       if (
         event.target instanceof Element &&
         (event.target.closest(".gallery-topology-comparison") ||
+          (event.target.closest(".project-menu") &&
+            ["Escape", "ArrowUp", "ArrowDown", "Home", "End"].includes(
+              event.key,
+            )) ||
           (event.target.closest(".project-tabs") &&
             ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)))
       )
@@ -5249,6 +5253,14 @@ function WorkspaceEditor({
       ) : null}
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
       <EditorAppChrome
+        projectChoices={{
+          tabs: projectTabs.tabs,
+          activeId: projectTabs.activeId,
+          busy: projectTabs.busy,
+          onSelect: (id) => {
+            void projectTabs.select(id);
+          },
+        }}
         projectTabs={
           <>
             <ProjectTabs

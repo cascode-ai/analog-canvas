@@ -4766,6 +4766,7 @@ test("edits the complete Project Code with one undo boundary and protects a stal
   const staleDraft = structuredClone(original);
   staleDraft.name = "Draft Project";
   await projectCode.fill(JSON.stringify(staleDraft, null, 2));
+  await page.getByTestId("project-menu-toggle").click();
   const projectName = page.getByTestId("project-name-input");
   await projectName.fill("Canvas changed");
   await projectName.press("Enter");
@@ -5131,8 +5132,10 @@ test("dismisses a command menu on outside click or Escape", async ({
   const fileMenu = await openMenu(page, "File");
   await expect(fileMenu).toHaveAttribute("open", "");
 
-  // The wordmark now navigates to the gallery, so dismiss on a neutral spot.
-  await page.locator(".app-brand-copy p").click();
+  // A blank canvas click dismisses the menu without navigating away.
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 400, y: 300 } });
   await expect(fileMenu).not.toHaveAttribute("open", "");
 
   await openMenu(page, "File");

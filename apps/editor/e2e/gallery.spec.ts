@@ -2382,12 +2382,10 @@ test("a gallery tile opens its circuit in the editor", async ({ page }) => {
   await expect(page.getByTestId("status")).toContainText(
     `Opened gallery circuit: ${ENTRY.name}`,
   );
-  // The circuit name is an editable field now, so it is read as a value.
+  // Variable-length names and contributor notes are read inside Project.
+  await expect(page.getByTestId("project-name-input")).toBeHidden();
+  await page.getByTestId("project-menu-toggle").click();
   await expect(page.getByTestId("project-name-input")).toHaveValue(ENTRY.name);
-  const gallerySummary = page.getByTestId("gallery-entry-summary");
-  await expect(gallerySummary).toContainText(`by ${ENTRY.author}`);
-  await expect(gallerySummary).toContainText(ENTRY.description);
-  await gallerySummary.click();
   const galleryInformation = page.getByTestId("gallery-entry-popover");
   await expect(galleryInformation).toBeVisible();
   await expect(galleryInformation).toContainText("Contributor");

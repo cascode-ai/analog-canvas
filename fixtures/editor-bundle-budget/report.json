@@ -5,15 +5,15 @@
     "editor": {
       "budget": {
         "files": 36,
-        "rawKib": 2697,
+        "rawKib": 2700,
         "gzipKib": 687,
         "brotliKib": 576
       },
       "measured": {
         "files": 36,
-        "rawKib": 2696.1,
-        "gzipKib": 686.1,
-        "brotliKib": 575.2
+        "rawKib": 2698.9,
+        "gzipKib": 686.2,
+        "brotliKib": 575.9
       }
     },
     "gallery": {

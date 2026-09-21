@@ -44,13 +44,19 @@ is defined.
   press `C` to copy and `V` to start placement, then click to place them.
 - To reuse an editable circuit in another tab or window, select it (or use
   `Ctrl/Cmd+A`), press `Ctrl/Cmd+C`, then switch to the destination canvas and
-  press `Ctrl/Cmd+V`. Move the preview and click to place; `Esc` cancels. Devices,
-  parameters, selected wires, node labels, custom definitions and referenced
+  press `Ctrl/Cmd+V`. Plain `C` and `V` perform the same copy/paste operations;
+  both Ctrl and Cmd are supported on the canvas. Move the preview and click to
+  place; `Esc` cancels. Devices, parameters, selected wires, node labels,
+  custom definitions and referenced
   child Cells travel together. Name conflicts receive fresh names; explicit
   global supplies retain their normal shared meaning. Each placement is one
   undoable operation. In text/code fields, these shortcuts still copy and paste
-  text. Plain `C` and `V` use the same selection transport; pasting appends to
-  the destination, including when it already contains a circuit.
+  text. Pasting appends to the destination, including when it already contains
+  a circuit.
+- Open **Project** beside the site logo to edit the full circuit name, inspect
+  the current Cell and Gallery contributor/notes, or choose an open project.
+  The current project is checked. Enter commits a name; Escape cancels it.
+  Long names stay inside the dropdown instead of widening the menubar.
 - The compact project tab bar opens several independent circuits in one editor.
   Use **+** for a new project, **Open file in new tab** for a local file, or
   **Open Shelf project in tab** for a saved draft. Tabs keep separate cameras,
@@ -530,7 +536,6 @@ publishing to the Gallery is a deliberate, separate act rather than a backup.
 
 Before a public release, verify opening, refreshing, importing and exporting,
 browser recovery, and PWA installation at the deployed URL.
-
 
 ## Gallery version history
 
