@@ -2620,6 +2620,55 @@ describe("gallery version history", () => {
 });
 
 describe("gallery circuit tags", () => {
+  it("scopes tag and deduplicated group counts to the netlist mark without exposing hidden entries", async () => {
+    const env = environment();
+    const cookie = await adminOf(env);
+    const sketch = createEmptyProject("sketch", "Sketch");
+    sketch.documents[0]!.instances.push({
+      id: "S1",
+      symbolId: "ideal-switch",
+      reference: "S1",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    for (const [name, tags, text] of [
+      ["Extractable", ["amplifier", "ota"], projectText("Extractable")],
+      ["Sketch", ["amplifier", "comparator"], serializeProject(sketch)],
+      ["Hidden", ["amplifier", "buffer"], projectText("Hidden")],
+    ] as const) {
+      const response = await route(
+        env,
+        submissionRequest({ name, tags, projectText: text }, { cookie }),
+      );
+      expect(response.status).toBe(201);
+    }
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET status = 'rejected' WHERE name = 'Hidden'",
+    );
+    const summary = async (query = "") =>
+      (
+        await route(env, new Request(`${ORIGIN}/api/gallery/tags${query}`))
+      ).json();
+    const all = await summary();
+    expect(all).toMatchObject({
+      tags: expect.arrayContaining([
+        { tag: "amplifier", count: 2 },
+        { tag: "comparator", count: 1 },
+      ]),
+      groups: expect.arrayContaining([
+        { group: "Amplifiers", count: 2 },
+        { group: "Conversion", count: 1 },
+      ]),
+    });
+    expect(await summary("?netlistable=1")).toEqual({
+      tags: [
+        { tag: "amplifier", count: 1 },
+        { tag: "ota", count: 1 },
+      ],
+      groups: [{ group: "Amplifiers", count: 1 }],
+    });
+    expect(await summary("?netlistable=0")).toEqual(all);
+  });
+
   it("normalizes tags on write, filters as an OR-union, and aggregates", async () => {
     const env = environment();
     const adminCookie = await adminOf(env);

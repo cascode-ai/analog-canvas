@@ -532,6 +532,9 @@ export function GalleryFeed({
   const [tagGroupCounts, setTagGroupCounts] = useState<Record<string, number>>(
     {},
   );
+  const [tagCountsNetlistable, setTagCountsNetlistable] = useState<
+    boolean | null
+  >(null);
   const [refreshSignal, setRefreshSignal] = useState(0);
   const [bundledFallback, setBundledFallback] = useState<{
     status: "idle" | "loading" | "ready" | "failed";
@@ -592,7 +595,11 @@ export function GalleryFeed({
   useEffect(() => {
     let cancelled = false;
     const request =
-      refreshSignal === 0 && preload ? preload.tags : loadGalleryTagSummary();
+      refreshSignal === 0 &&
+      preload &&
+      (preload.tagsNetlistable ?? false) === netlistableOnly
+        ? preload.tags
+        : loadGalleryTagSummary(fetch, { netlistable: netlistableOnly });
     void request.then((payload) => {
       if (!cancelled) {
         setTagOptions(payload.tags);
@@ -601,12 +608,13 @@ export function GalleryFeed({
             payload.groups.map(({ group, count }) => [group, count]),
           ),
         );
+        setTagCountsNetlistable(netlistableOnly);
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [preload, refreshSignal]);
+  }, [preload, refreshSignal, netlistableOnly]);
   const [state, setState] = useState<GalleryFeedState>({
     status: "loading",
     entries: [],
@@ -1010,6 +1018,7 @@ export function GalleryFeed({
           <GalleryTagSidebar
             tags={tagOptions}
             groupCounts={tagGroupCounts}
+            countsLoading={tagCountsNetlistable !== netlistableOnly}
             selected={selectedTags}
             onChange={(tags) => updateFilters({ tags })}
             search={searchQuery}

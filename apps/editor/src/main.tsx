@@ -9,7 +9,7 @@ import {
   loadGalleryTagSummary,
   type GalleryLandingPreload,
 } from "./gallery-client";
-import { GALLERY_FILTERS_KEY } from "./gallery-filters";
+import { GALLERY_FILTERS_KEY, resolveGalleryFilters } from "./gallery-filters";
 import "../analytics/analytics.css";
 import "./styles.css";
 
@@ -21,15 +21,24 @@ if (!container) {
 
 function galleryLandingPreload(): GalleryLandingPreload | undefined {
   if (!/^\/?$/.test(window.location.pathname)) return undefined;
-  const tags = loadGalleryTagSummary();
+  let storedFilters: string | null = null;
   try {
-    if (window.location.search || localStorage.getItem(GALLERY_FILTERS_KEY)) {
-      return { tags };
-    }
+    storedFilters = localStorage.getItem(GALLERY_FILTERS_KEY);
   } catch {
-    return { tags };
+    // An explicit URL filter still works when browser storage is disabled.
   }
-  return { tags, feed: loadGalleryFeed() };
+  const tagsNetlistable = resolveGalleryFilters(
+    window.location.search,
+    storedFilters,
+  ).netlistable;
+  const tags = loadGalleryTagSummary(fetch, { netlistable: tagsNetlistable });
+  return {
+    tags,
+    tagsNetlistable,
+    ...(!window.location.search && !storedFilters
+      ? { feed: loadGalleryFeed() }
+      : {}),
+  };
 }
 
 // Start public Gallery data beside the route chunk, before React mounts. A

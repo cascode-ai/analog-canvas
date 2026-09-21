@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   announceGalleryChange,
   galleryPreviewUrl,
+  loadGalleryTagSummary,
   primeGalleryPreview,
   subscribeGalleryRefresh,
 } from "./gallery-client";
@@ -52,6 +53,27 @@ class FakeBroadcastChannel {
 afterEach(() => {
   vi.unstubAllGlobals();
   FakeBroadcastChannel.channels.clear();
+});
+
+it("requests tag counts for the same netlist scope as the Gallery wall", async () => {
+  const payload = {
+    tags: [{ tag: "ota", count: 2 }],
+    groups: [{ group: "Amplifiers", count: 2 }],
+  };
+  const fetchLike = vi
+    .fn<typeof fetch>()
+    .mockImplementation(async () => Response.json(payload));
+  expect(await loadGalleryTagSummary(fetchLike, { netlistable: true })).toEqual(
+    payload,
+  );
+  expect(fetchLike).toHaveBeenLastCalledWith(
+    "/api/gallery/tags?netlistable=1",
+    { credentials: "same-origin" },
+  );
+  await loadGalleryTagSummary(fetchLike, { netlistable: false });
+  expect(fetchLike).toHaveBeenLastCalledWith("/api/gallery/tags", {
+    credentials: "same-origin",
+  });
 });
 
 describe("Gallery preview caching", () => {

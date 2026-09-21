@@ -60,6 +60,7 @@ function tagGroup(tag: string): string {
 export function GalleryTagSidebar({
   tags,
   groupCounts,
+  countsLoading = false,
   selected,
   onChange,
   search,
@@ -69,6 +70,7 @@ export function GalleryTagSidebar({
 }: {
   tags: GalleryTagOption[];
   groupCounts?: Readonly<Record<string, number>>;
+  countsLoading?: boolean;
   selected: string[];
   onChange: (tags: string[]) => void;
   search: string;
@@ -180,7 +182,7 @@ export function GalleryTagSidebar({
             </button>
           ) : null}
         </div>
-        <div className="gallery-tag-groups">
+        <div className="gallery-tag-groups" aria-busy={countsLoading}>
           {groups.map((name) => {
             const group = options
               .filter(({ tag }) => tagGroup(tag) === name)
@@ -228,7 +230,7 @@ export function GalleryTagSidebar({
                     </span>
                     <span className="gallery-tag-group-name">{name}</span>
                     <span className="gallery-sidebar-count" aria-hidden="true">
-                      {circuitCount}
+                      {countsLoading ? "…" : circuitCount}
                     </span>
                   </button>
                   <button
@@ -269,7 +271,9 @@ export function GalleryTagSidebar({
                       <span className="gallery-tag-name">
                         {galleryTagLabel(tag)}
                       </span>
-                      <span className="gallery-sidebar-count">{count}</span>
+                      <span className="gallery-sidebar-count">
+                        {countsLoading ? "…" : count}
+                      </span>
                     </button>
                   ))}
                 </div>

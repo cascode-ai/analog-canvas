@@ -961,7 +961,9 @@ export async function routeGalleryRequest(
     segments[0] === "tags" &&
     request.method === "GET"
   ) {
-    const { payload } = await callGallery(env, "tags", {});
+    const { payload } = await callGallery(env, "tags", {
+      netlistable: url.searchParams.get("netlistable") === "1",
+    });
     return Response.json(payload, { headers: { "cache-control": "no-store" } });
   }
   if (

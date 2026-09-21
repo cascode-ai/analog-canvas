@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import type { Locator, Page } from "@playwright/test";
+import type { Locator, Page, Route } from "@playwright/test";
 
 import {
   type CircuitProject,
@@ -1222,6 +1222,119 @@ test("narrows the wall by netlist mark and by the reader's own likes", async ({
   await page.getByTestId("gallery-filter-netlistable").click();
   await expect(page.getByTestId("gallery-tile-f-sketch")).toBeVisible();
   await expect(page.getByTestId("gallery-tile-f-ready")).toHaveCount(0);
+});
+
+test("netlist filter updates category and tag counts and ignores a late summary", async ({
+  page,
+}) => {
+  const summary = (filtered: boolean) => ({
+    tags: [
+      { tag: "amplifier", count: filtered ? 1 : 2 },
+      { tag: "ota", count: filtered ? 1 : 2 },
+      ...(!filtered ? [{ tag: "comparator", count: 1 }] : []),
+    ],
+    groups: [
+      { group: "Amplifiers", count: filtered ? 1 : 3 },
+      ...(!filtered ? [{ group: "Conversion", count: 1 }] : []),
+    ],
+  });
+  let holdFiltered = false;
+  let receiveHeld!: (route: Route) => void;
+  const heldRequest = new Promise<Route>((resolve) => {
+    receiveHeld = resolve;
+  });
+  await page.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/gallery/tags") {
+      const filtered = url.searchParams.get("netlistable") === "1";
+      if (filtered && holdFiltered) {
+        receiveHeld(route);
+        return;
+      }
+      return route.fulfill({ json: summary(filtered) });
+    }
+    if (url.pathname === "/api/gallery")
+      return route.fulfill({ json: { entries: [], nextCursor: null } });
+    return route.fallback();
+  });
+  await page.goto("/");
+  const sidebar = page.getByTestId("gallery-tag-sidebar");
+  const categoryCount = (name: string) =>
+    sidebar
+      .getByRole("checkbox", { name, exact: true })
+      .locator(".gallery-sidebar-count");
+  const amplifierCount = page
+    .getByTestId("gallery-tag-option-amplifier")
+    .locator(".gallery-sidebar-count");
+  const toggle = page.getByTestId("gallery-filter-netlistable");
+  await expect(categoryCount("Amplifiers")).toHaveText("3");
+  await sidebar
+    .getByRole("button", { name: "Expand Amplifiers", exact: true })
+    .click();
+  await expect(amplifierCount).toHaveText("2");
+  await toggle.click();
+  await expect(categoryCount("Amplifiers")).toHaveText("1");
+  await expect(amplifierCount).toHaveText("1");
+  await expect(categoryCount("Conversion")).toHaveText("0");
+  await toggle.click();
+  await expect(categoryCount("Amplifiers")).toHaveText("3");
+  await expect(amplifierCount).toHaveText("2");
+  await expect(categoryCount("Conversion")).toHaveText("1");
+
+  // A slower filtered response must not overwrite the restored full counts.
+  holdFiltered = true;
+  await toggle.click();
+  const held = await heldRequest;
+  await expect(categoryCount("Amplifiers")).toHaveText("…");
+  await expect(amplifierCount).toHaveText("…");
+  await toggle.click();
+  await expect(categoryCount("Amplifiers")).toHaveText("3");
+  const lateResponse = page.waitForResponse((response) =>
+    response.url().includes("/api/gallery/tags?netlistable=1"),
+  );
+  await held.fulfill({ json: summary(true) });
+  await lateResponse;
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  await expect(categoryCount("Amplifiers")).toHaveText("3");
+  await expect(amplifierCount).toHaveText("2");
+});
+
+test("netlist tag counts honor linked and remembered filters on first load", async ({
+  page,
+}) => {
+  const scopes: boolean[] = [];
+  await page.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/gallery/tags") {
+      const filtered = url.searchParams.get("netlistable") === "1";
+      scopes.push(filtered);
+      return route.fulfill({
+        json: {
+          tags: [{ tag: "amplifier", count: filtered ? 1 : 2 }],
+          groups: [{ group: "Amplifiers", count: filtered ? 1 : 2 }],
+        },
+      });
+    }
+    if (url.pathname === "/api/gallery")
+      return route.fulfill({ json: { entries: [], nextCursor: null } });
+    return route.fallback();
+  });
+  for (const url of ["/?netlist=1", "/"]) {
+    scopes.length = 0;
+    await page.goto(url);
+    await expect(
+      page
+        .getByTestId("gallery-tag-sidebar")
+        .getByRole("checkbox", { name: "Amplifiers", exact: true })
+        .locator(".gallery-sidebar-count"),
+    ).toHaveText("1");
+    expect(scopes).toEqual([true]);
+  }
 });
 
 test("keeps the reader's filter when they leave the wall and come back", async ({

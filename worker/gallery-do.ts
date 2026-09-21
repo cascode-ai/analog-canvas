@@ -781,7 +781,7 @@ export class GalleryDO {
       case "curate":
         return this.curate(body);
       case "tags":
-        return this.tagCounts();
+        return this.tagCounts(body.netlistable === true);
       case "authors":
         return this.authorCounts();
       case "rename-owner":
@@ -2787,10 +2787,10 @@ export class GalleryDO {
   }
 
   /** Public tag counts plus deduplicated circuit totals for each visual group. */
-  private tagCounts(): Response {
+  private tagCounts(netlistableOnly = false): Response {
     const rows = this.sql
       .exec<{ tags: string | null }>(
-        "SELECT tags FROM gallery_entries WHERE status = 'public'",
+        `SELECT tags FROM gallery_entries WHERE status = 'public'${netlistableOnly ? " AND netlistable = 1" : ""}`,
       )
       .toArray();
     const counts = new Map<string, number>();

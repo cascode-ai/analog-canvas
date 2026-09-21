@@ -309,6 +309,7 @@ export interface GalleryTagSummary {
 export interface GalleryLandingPreload {
   feed?: Promise<GalleryFeedPage | null>;
   tags: Promise<GalleryTagSummary>;
+  tagsNetlistable?: boolean;
 }
 
 /** One public byline and its contribution to the whole Gallery wall. */
@@ -388,11 +389,15 @@ export async function loadGalleryAuthors(
 /** The grouped tag menu. An unreachable worker leaves the menu empty. */
 export async function loadGalleryTagSummary(
   fetchLike: typeof fetch = fetch,
+  options: { netlistable?: boolean } = {},
 ): Promise<GalleryTagSummary> {
   try {
-    const response = await fetchLike("/api/gallery/tags", {
-      credentials: "same-origin",
-    });
+    const response = await fetchLike(
+      `/api/gallery/tags${options.netlistable ? "?netlistable=1" : ""}`,
+      {
+        credentials: "same-origin",
+      },
+    );
     if (!response.ok) return { tags: [], groups: [] };
     const payload = (await response.json()) as Partial<GalleryTagSummary>;
     return { tags: payload.tags ?? [], groups: payload.groups ?? [] };
