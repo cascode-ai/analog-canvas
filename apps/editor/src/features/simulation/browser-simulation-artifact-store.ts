@@ -73,7 +73,7 @@ export function createBrowserSimulationArtifactStore(
         const { createBrowserSimulationArchiveStore } =
           await import("./browser-simulation-archive-store");
         const archives = createBrowserSimulationArchiveStore({
-          idbFactory: factory,
+          idbFactory: factory!,
           ...(options.locks ? { locks: options.locks } : {}),
         });
         try {
