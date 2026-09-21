@@ -302,6 +302,12 @@ test("paired refresh and Gallery return preserve the saved Cloud binding", async
   await expect(page.getByTestId("status")).toContainText(
     "Saved New Circuit to Cloud",
   );
+  await expect
+    .poll(
+      async () =>
+        (await client.status(session.sessionId, session.agentToken)).editor,
+    )
+    .toBe("attached");
   const documentId = session.documentIds[0]!;
   const snapshot = await client.circuit(session.sessionId, session.agentToken, {
     apiVersion: "3.0",

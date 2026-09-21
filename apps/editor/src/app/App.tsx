@@ -526,6 +526,9 @@ function WorkspaceEditor({
   restoredWorkspace: ProjectWorkspace | null;
   workspaceError: string | null;
 }) {
+  const [restoringWorkspace, setRestoringWorkspace] = useState(
+    restoredWorkspace !== null,
+  );
   const [preparedInitialProject] = useState(
     () =>
       materializeRazaviProjectBulkConnections(
@@ -1334,7 +1337,11 @@ function WorkspaceEditor({
     startupCloudProjectId,
   ]);
   const agentSession = useAgentSession({
-    recover: !hasExplicitBootTarget,
+    // A restored workspace is already the requested circuit. Resume its
+    // matching Agent only after the active Project and working copy are installed.
+    recover:
+      !hasExplicitBootTarget ||
+      (restoredWorkspace !== null && !restoringWorkspace),
     beforeConnect: async () => {
       const snapshot = await captureAuthoredProject();
       if (snapshot) {
@@ -4914,6 +4921,7 @@ function WorkspaceEditor({
     setPublishDraft(session.publishDraft);
     setNetlistEntry(session.netlistEntry);
     setStatus(`Switched to ${session.controller.project.name}`);
+    setRestoringWorkspace(false);
     stageRecovery(session.controller.project, {
       cloudBinding: session.file.cloudBinding,
       unsavedAtSnapshot: session.dirty,
