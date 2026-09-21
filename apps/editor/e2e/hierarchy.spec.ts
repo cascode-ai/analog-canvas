@@ -1421,7 +1421,6 @@ test("copies and independently deletes Formal Cell Pins", async ({ page }) => {
   const canvasBox = await canvas.boundingBox();
   expect(canvasBox).not.toBeNull();
   await page.keyboard.press("c");
-  await page.keyboard.press("v");
   await page.mouse.move(canvasBox!.x + 440, canvasBox!.y + 180);
   await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
   await canvas.click({ position: { x: 440, y: 180 } });

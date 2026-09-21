@@ -26,7 +26,10 @@ export function useCircuitClipboard(options: Options) {
   const current = useRef(options);
   current.current = options;
   const operation = useRef(0);
-  const copySelection = async () => {
+  const copySelection = async (
+    placeImmediately = false,
+    selection?: Options["selection"],
+  ) => {
     const owner = current.current;
     const action = ++operation.current;
     if (!owner.enabled) return;
@@ -34,7 +37,7 @@ export function useCircuitClipboard(options: Options) {
       const text = encodeCircuitClipboard(
         owner.project,
         owner.document,
-        owner.selection,
+        selection ?? owner.selection,
       );
       if (!text) {
         owner.setStatus("Select components or wires before copying");
@@ -45,6 +48,16 @@ export function useCircuitClipboard(options: Options) {
       owner.setStatus(
         "Circuit copied · switch to another canvas and paste to place",
       );
+      if (placeImmediately) {
+        const clipboard = decodeCircuitClipboard(text);
+        if (!clipboard) throw new Error("Copied selection cannot be placed");
+        // C starts the cursor preview synchronously, even if the optional
+        // system clipboard write is waiting for permission or never resolves.
+        owner.beginPaste(clipboard);
+        owner.setStatus(
+          "Circuit copied · click to place · R rotates · Esc cancels",
+        );
+      }
       try {
         await navigator.clipboard.writeText(text);
         copied.synced = true;
@@ -52,6 +65,7 @@ export function useCircuitClipboard(options: Options) {
         /* Internal tabs can still use the complete selection. */
       }
       if (
+        placeImmediately ||
         action !== operation.current ||
         current.current.project !== owner.project
       )

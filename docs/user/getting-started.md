@@ -41,12 +41,17 @@ is defined.
   selection atomically.
 - Internal wires and Junctions move with a selected component group; only
   wires leaving the group stretch. Select the components and wires to reuse,
-  press `C` to copy and `V` to start placement, then click to place them.
+  press `C` to immediately attach a copy to the cursor, then click to place it.
+  `Esc` cancels; no `V` is needed.
+  With nothing selected, press `C` first and click a component to pick up its
+  copy; the following click places it. Further clicks place more copies until
+  `Esc` exits, just like copying an already selected component.
 - To reuse an editable circuit in another tab or window, select it (or use
   `Ctrl/Cmd+A`), press `Ctrl/Cmd+C`, then switch to the destination canvas and
-  press `Ctrl/Cmd+V`. Plain `C` and `V` perform the same copy/paste operations;
-  both Ctrl and Cmd are supported on the canvas. Move the preview and click to
-  place; `Esc` cancels. Devices, parameters, selected wires, node labels,
+  press `Ctrl/Cmd+V`. Plain `C` also keeps the selection in the clipboard while
+  starting its cursor preview; cancel or switch projects, then `V` starts a new
+  placement. Both Ctrl and Cmd are supported on the canvas. Move the preview
+  and click to place; `Esc` cancels. Devices, parameters, selected wires, node labels,
   custom definitions and referenced
   child Cells travel together. Name conflicts receive fresh names; explicit
   global supplies retain their normal shared meaning. Each placement is one
@@ -367,7 +372,8 @@ at 3x with a bounded image size. SVG stays vector; formula glyphs remain paths,
 and the receiving application determines paste/editing support. Clipboard writes
 require HTTPS or localhost and browser permission. Failures are reported without
 silently downloading a file or substituting a different format. These commands
-remain separate from editable circuit copying with **C**, then **V**.
+remain separate from editable circuit copying with **C** (immediate placement)
+or **Ctrl/Cmd+C**, then **V** / **Ctrl/Cmd+V**.
 
 Use **Netlist / Check and Save** to check the whole Project for ERC and
 visual issues and save it through the existing private Cloud Project service.

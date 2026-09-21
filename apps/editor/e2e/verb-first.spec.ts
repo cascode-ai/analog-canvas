@@ -16,39 +16,44 @@ function instances(page: Page) {
   return page.locator('[data-canvas-hit-kind="instance"]');
 }
 
-test("C requires a selection and V starts placing its copy", async ({
+test("C before selection picks up one copy and only subsequent clicks place it", async ({
   page,
 }) => {
   await page.goto("/editor");
-  await placeComponent(page, "resistor", { x: 300, y: 250 });
-  await expect(instances(page)).toHaveCount(1);
+  await placeComponent(page, "resistor", { x: 340, y: 220 });
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.click({ position: { x: 700, y: 500 } });
+  const original = page.getByTestId("hit-R1");
+  const origin = (await original.boundingBox())!;
+  const revision = await page.getByTestId("revision").textContent();
+  const ghost = page.getByTestId("copy-placement-preview");
 
-  // Copy needs an explicit selection, as it does with Ctrl/Cmd+C.
-  // Click empty canvas so nothing is selected before pressing the verb key.
-  await page.getByTestId("schematic-canvas").click({
-    position: { x: 150, y: 420 },
-  });
   await page.keyboard.press("c");
-  await expect(page.getByTestId("status")).toContainText(
-    "Select components or wires",
-  );
-
-  // Selecting and copying does not change the circuit; V starts placement.
-  const part = instances(page).first();
-  const box = (await part.boundingBox())!;
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await page.keyboard.press("c");
-  await expect(page.getByTestId("status")).toContainText("Circuit copied");
-  await expect(page.getByTestId("copy-placement-preview")).toHaveCount(0);
-  await page.keyboard.press("v");
-  await expect(page.getByTestId("status")).toContainText("click to place");
-
-  // Clicking empty canvas commits the copy.
-  await page.getByTestId("schematic-canvas").click({
-    position: { x: 520, y: 250 },
-  });
-  await expect(instances(page)).toHaveCount(2);
+  await expect(page.getByTestId("status")).toContainText("Copy: click a part");
+  await expect(ghost).toHaveCount(0);
   await page.keyboard.press("Escape");
+  await expect(page.getByTestId("revision")).toHaveText(revision!);
+  await page.keyboard.press("c");
+  await original.click();
+  await expect(ghost).toBeVisible();
+  // The pickup click must not leave an overlapping copy on the source.
+  await expect(page.getByTestId("instance-count")).toHaveText("1");
+  await expect(page.getByTestId("revision")).toHaveText(revision!);
+  const first = (await ghost.boundingBox())!;
+  const box = (await canvas.boundingBox())!;
+  await page.mouse.move(box.x + 560, box.y + 350);
+  const moved = (await ghost.boundingBox())!;
+  expect(moved.x).not.toBe(first.x);
+  expect(moved.y).not.toBe(first.y);
+  expect(await original.boundingBox()).toEqual(origin);
+  await canvas.click({ position: { x: 560, y: 350 } });
+  await expect(page.getByTestId("instance-count")).toHaveText("2");
+  await canvas.click({ position: { x: 650, y: 440 } });
+  await expect(page.getByTestId("instance-count")).toHaveText("3");
+  await page.keyboard.press("Escape");
+  await expect(ghost).toHaveCount(0);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(page.getByTestId("instance-count")).toHaveText("2");
 });
 
 test("Delete pressed first enters a repeating delete mode until Escape", async ({

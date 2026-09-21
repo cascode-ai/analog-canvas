@@ -1537,11 +1537,11 @@ function WorkspaceEditor({
   /**
    * A verb key pressed with nothing selected arms that verb: the next
    * object pointed at is the one acted on (Cadence-style verb-first).
-   * Rotate and Delete stay armed for repeated clicks; Move hands
-   * over to its own move interaction on the first target.
+   * Rotate and Delete stay armed for repeated clicks; Copy and Move hand
+   * over to their placement interaction on the first target.
    */
   const [armedVerb, setArmedVerb] = useState<
-    "rotate" | "move" | "move-detached" | "delete" | null
+    "rotate" | "copy" | "move" | "move-detached" | "delete" | null
   >(null);
   /** The click paired with an armed-verb pickup must not commit a placement. */
   const suppressCommitClickRef = useRef(false);
@@ -2783,16 +2783,20 @@ function WorkspaceEditor({
   });
 
   /** Arm a verb so the next object pointed at is the one acted on. */
-  function armVerb(verb: "rotate" | "move" | "move-detached" | "delete"): void {
+  function armVerb(
+    verb: "rotate" | "copy" | "move" | "move-detached" | "delete",
+  ): void {
     setArmedVerb(verb);
     setStatus(
       verb === "rotate"
         ? "Rotate: click a part to turn it, Escape to stop"
-        : verb === "move"
-          ? "Move: click a part to pick it up · Esc cancels"
-          : verb === "move-detached"
-            ? "Move without wires: click a part to pick it up · Esc cancels"
-            : "Delete: click objects to delete them · Esc exits",
+        : verb === "copy"
+          ? "Copy: click a part to pick up its copy · Esc cancels"
+          : verb === "move"
+            ? "Move: click a part to pick it up · Esc cancels"
+            : verb === "move-detached"
+              ? "Move without wires: click a part to pick it up · Esc cancels"
+              : "Delete: click objects to delete them · Esc exits",
     );
   }
 
@@ -2803,8 +2807,8 @@ function WorkspaceEditor({
 
   /**
    * Apply the armed verb to one part. Returns false when nothing was armed.
-   * Rotate and Delete remain armed for the next click; Move disarms
-   * because its command move interaction takes over
+   * Rotate and Delete remain armed for the next click; Copy and Move disarm
+   * because their placement interaction takes over
    * and owns Esc from here.
    */
   function consumeArmedVerbOnInstance(instanceId: string): boolean {
@@ -2813,6 +2817,18 @@ function WorkspaceEditor({
       (candidate) => candidate.id === instanceId,
     );
     if (!instance?.placement) return false;
+    if (armedVerb === "copy") {
+      setArmedVerb(null);
+      selectOnly("instance", [instanceId]);
+      suppressCommitClickRef.current = true;
+      // The pointer-down target is authoritative; React selection state has
+      // not updated yet, and this same click must not also place the copy.
+      void circuitClipboard.copySelection(true, {
+        ...EMPTY_VISUAL_SELECTION,
+        instanceIds: [instanceId],
+      });
+      return true;
+    }
     if (armedVerb === "rotate") {
       const next = (instance.placement.rotation + 90) % 360;
       const applied = transact([
@@ -4203,7 +4219,15 @@ function WorkspaceEditor({
         armVerb("delete");
       },
       beginCopy: () => {
-        void circuitClipboard.copySelection();
+        if (getCurrentInteractionState().kind === "copy-placement") {
+          setStatus("Copy placement is already active · Esc cancels");
+          return;
+        }
+        if (!hasVisualSelection(visualSelection)) {
+          armVerb("copy");
+          return;
+        }
+        void circuitClipboard.copySelection(true);
       },
       copyVisualSelection: visualClipboard.copy,
       openSelectionFilter: () => {

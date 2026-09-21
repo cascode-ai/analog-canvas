@@ -254,7 +254,8 @@ test("plain C/V works between internal tabs when system clipboard permission is 
   await insert(page, "nmos", 630, 220);
   await page.getByTestId("hit-M1").click();
   await page.keyboard.press("c");
-  await expect(page.getByTestId("status")).toContainText("within this page");
+  await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
+  await page.keyboard.press("Escape");
   await page
     .getByRole("button", { name: "New project tab", exact: true })
     .click();
@@ -376,6 +377,11 @@ for (const modifier of ["Control", "Meta", "plain"]) {
     await page.getByTestId("schematic-canvas").focus();
     await page.keyboard.press(key("c"));
     await expect(page.getByTestId("status")).toContainText("Circuit copied");
+    if (modifier === "plain") {
+      await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
+    } else {
+      await expect(page.getByTestId("copy-placement-preview")).toHaveCount(0);
+    }
     const encoded = await page.evaluate(() => navigator.clipboard.readText());
     const source = JSON.parse(encoded).project.documents[0];
     expect(source.instances).toHaveLength(2);
