@@ -1,4 +1,3 @@
-import { GalleryAttentionReview } from "./gallery-attention-review";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { TilePreview } from "./tile-preview";
 import "../styles/gallery-entry.css";
@@ -55,6 +54,11 @@ import type { GalleryDuplicateReport } from "../gallery-duplicates";
 
 const ShelfWall = lazy(() =>
   import("./shelf-wall").then((module) => ({ default: module.ShelfWall })),
+);
+const GalleryAttentionReview = lazy(() =>
+  import("./gallery-attention-review").then((module) => ({
+    default: module.GalleryAttentionReview,
+  })),
 );
 const GalleryDuplicateCheck = lazy(() =>
   import("./gallery-duplicate-check").then((module) => ({
@@ -1314,19 +1318,21 @@ export function GalleryFeed({
                           </a>
                           {isOwner ||
                           (!!viewerId && viewerId === entry.ownerUserId) ? (
-                            <GalleryAttentionReview
-                              entry={entry}
-                              onChange={(updated) => {
-                                setState((previous) => ({
-                                  ...previous,
-                                  entries: previous.entries.map((item) =>
-                                    item.id === updated.id ? updated : item,
-                                  ),
-                                }));
-                                setRefreshSignal((signal) => signal + 1);
-                                announceGalleryChange({ entryId: entry.id });
-                              }}
-                            />
+                            <Suspense fallback={null}>
+                              <GalleryAttentionReview
+                                entry={entry}
+                                onChange={(updated) => {
+                                  setState((previous) => ({
+                                    ...previous,
+                                    entries: previous.entries.map((item) =>
+                                      item.id === updated.id ? updated : item,
+                                    ),
+                                  }));
+                                  setRefreshSignal((signal) => signal + 1);
+                                  announceGalleryChange({ entryId: entry.id });
+                                }}
+                              />
+                            </Suspense>
                           ) : null}
                           {isOwner ? (
                             <>
