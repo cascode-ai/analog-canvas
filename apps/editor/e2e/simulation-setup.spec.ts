@@ -287,7 +287,7 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
   ).toMatchObject({ ok: true, config: { outputs: config.outputs } });
 });
 
-test("uncommitted source survives reload and an explicit working-copy recovery fork", async ({
+test("uncommitted source survives whole-workspace reload", async ({
   page,
 }) => {
   await page.route("**/api/simulate", (route) =>
@@ -322,10 +322,8 @@ test("uncommitted source survives reload and an explicit working-copy recovery f
   page.on("dialog", (dialog) => void dialog.accept());
   await page.reload();
   await awaitEditorReady(page);
-  const banner = page.getByTestId("startup-recovery-banner");
-  await expect(banner).toBeVisible();
-  await banner.getByRole("button", { name: "Restore", exact: true }).click();
-  await expect(banner).toBeHidden();
+  // Whole-workspace restoration supersedes the single-document recovery toast.
+  // Verify the restored Cell and draft below, without requiring the retired UI.
   await page.getByTestId("hit-XDUT").click();
   await clickNetlistWorkflowCommand(page, "open-analog-simulation");
   await expect(panel.locator(".cm-activeLine")).toContainText("XDUT");
