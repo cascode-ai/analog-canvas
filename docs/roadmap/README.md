@@ -5,6 +5,8 @@ belongs in [specifications](../specs/README.md); implementation and delivery
 evidence belong in commits and pull requests. A file's existence or a module's
 unit tests do not establish end-to-end completion.
 
+- [Shelf management, cross-page reuse and version history](shelf-reuse-and-history.md): requested outcomes, implemented scope and remaining acceptance criteria.
+
 ## Active boundaries
 
 | Outcome                           | Remaining boundary                                                                                                                                  | Acceptance owner                                                                      |

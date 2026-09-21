@@ -429,3 +429,21 @@ identity is not public:
 
 What a visitor sees is the byline — the account's display name — which
 the account holder controls from the account menu.
+
+
+## Current-cell duplicate tasks
+
+The editor's duplicate scan captures the current Cell when started. Its worker
+and results belong to the page session, independent of the Publish dialog.
+Closing the dialog, editing the canvas or changing browser focus leaves it
+running; a persistent notice exposes progress and completed results. Explicit
+Cancel, a new check, or closing/reloading the browser page ends the old task.
+This is not a server-persisted job and does not claim restart recovery.
+
+Exact topology is confirmed using device classes, polarity, pin roles and
+connectivity. Full netlist equivalence, including models and parameters, is
+checked separately; confirmed full matches rank ahead of equal topologies whose
+netlist details differ. Non-exact results retain the existing descending
+structural score and nearest-five limit. A structural percentage is not a
+simulation-equivalence guarantee or a parameter similarity score. Partial
+instance correspondence and canvas highlighting remain future work.
