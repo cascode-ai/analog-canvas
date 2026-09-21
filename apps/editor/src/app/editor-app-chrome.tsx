@@ -6,7 +6,7 @@ import { DrawingToolbar } from "../features/editor-shell/drawing-toolbar";
 import { EditorTestTelemetry } from "../features/editor-shell/editor-test-telemetry";
 import type { ReleaseChannel } from "../document/release-channel";
 import { FileCommandMenu } from "../features/editor-shell/file-command-menu";
-import { EDITOR_REPOSITORY_URL } from "../features/editor-shell/editor-resource-links";
+import { SITE_REPOSITORY_URL } from "../components/site-resource-links";
 import { ToolIcon } from "../features/editor-shell/tool-icon";
 import { HierarchyToolbar } from "../features/hierarchy/hierarchy-toolbar";
 import type { EdgeAlignmentMode } from "../features/selection/align-selection";
@@ -446,7 +446,7 @@ export function EditorAppChrome({
           <a
             className="app-repository-link"
             data-testid="editor-repository-link"
-            href={EDITOR_REPOSITORY_URL}
+            href={SITE_REPOSITORY_URL}
             target="_blank"
             rel="noreferrer"
             aria-label="GitHub repository"

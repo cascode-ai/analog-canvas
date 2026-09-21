@@ -579,6 +579,18 @@ test("the site lands on the full-screen gallery feed", async ({ page }) => {
     "href",
     "/editor?new=1",
   );
+  const repositoryLink = page.getByTestId("gallery-repository-link");
+  await expect(repositoryLink).toHaveAttribute(
+    "href",
+    "https://github.com/cascode-ai/analog-canvas",
+  );
+  await expect(repositoryLink).toHaveAttribute("target", "_blank");
+  await expect(repositoryLink.locator("svg")).toBeVisible();
+  expect(
+    await repositoryLink.evaluate((link) =>
+      link.nextElementSibling?.getAttribute("data-testid"),
+    ),
+  ).toBe("gallery-new-circuit");
 });
 
 test("an open Gallery switches to a newly published preview revision", async ({
