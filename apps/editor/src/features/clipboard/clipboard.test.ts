@@ -1525,7 +1525,7 @@ describe("captureDocumentComposition", () => {
     expect(copiedLabel?.formatOverride).toBeDefined();
     expect(flattenRichText(copiedLabel!.formatOverride!)).toBe("M6");
     expect(copiedLabel!.formatOverride!.runs[0]).toEqual(
-      semanticTextDocument("M5", "instance-label").runs[0],
+      semanticTextDocument("M6", "instance-label").runs[0],
     );
 
     const renamed = executeTransaction(
@@ -1558,7 +1558,7 @@ describe("captureDocumentComposition", () => {
     );
     expect(flattenRichText(renamedLabel!.formatOverride!)).toBe("M21");
     expect(renamedLabel!.formatOverride!.runs[0]).toEqual(
-      semanticTextDocument("M5", "instance-label").runs[0],
+      semanticTextDocument("M21", "instance-label").runs[0],
     );
   });
 

@@ -1,10 +1,6 @@
+import { resolveAnnotationName } from "@icm/derived";
 import type { SchematicEdit } from "@icm/edit-engine";
-import { resolveAnnotationText } from "@icm/derived";
-import {
-  flattenRichText,
-  semanticTextDocument,
-  type SchematicDocument,
-} from "@icm/model";
+import { semanticTextDocument, type SchematicDocument } from "@icm/model";
 
 import { snapCoordinate } from "../../snap/engine";
 import type { ComponentPropertyCodeValue } from "./component-property-code";
@@ -44,8 +40,7 @@ export function planComponentPropertyCodeEdits(
     const label = instanceLabelAnnotationFor(document, instance.id);
     if (
       label?.kind === "instance-label" &&
-      flattenRichText(resolveAnnotationText(document, label)).trim() !==
-        value.displayName
+      resolveAnnotationName(document, label).trim() !== value.displayName
     ) {
       if (label.binding?.kind === "instance-reference") {
         if (

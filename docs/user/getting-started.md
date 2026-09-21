@@ -168,6 +168,28 @@ shows the common type; it is blank for differing types and is informational.
 Each valid code edit applies atomically and can be undone once. Invalid edits
 keep the last accepted drawing. Changing selection discards its pending draft.
 
+## Label names and typography
+
+Double-click a bound label to edit its text and formatting. Labels default to
+bold italic. Bold, italic, upright text, color, superscript and overbar remain
+independent of the electrical name; changing a name preserves those choices.
+`Use display alias` is off by default. Enable it only for a canvas-only name.
+
+An underscore introduces a subscript: `M_1` is displayed as M₁, while `M1`
+stays on the baseline. Applying or removing subscript in the text editor adds
+or removes the underscore in the netlist name. Netlist edits update the label
+in the other direction. Historical explicit label formatting is preserved on
+open; editing that label's text adopts this naming convention.
+
+In **Properties** code, `labels.subscriptCase` accepts `preserve`, `uppercase`
+or `lowercase`. Changing it renames existing underscore suffixes in both labels
+and the netlist for the current Cell, in one undoable change. The choice is
+stored in Project Code, not as a browser-wide preference. `preserve` leaves
+current spelling alone; use Undo to restore an earlier spelling. Same-name Nets
+and Pins denote one electrical connection. Instance names must remain unique:
+a collision keeps the draft open and suggests `Use display alias` in the status
+bar, without opening a blocking dialog.
+
 ## Arrow styles
 
 Choose **Arrow** in the Library's **Annotations** group. A new arrow is a line

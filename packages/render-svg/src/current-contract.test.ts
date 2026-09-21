@@ -19,7 +19,7 @@ describe("current rendering contract", () => {
     const child = createEmptyDocument("child", "GainStage");
     child.netlist!.terminals.push({
       id: "terminal-v-in",
-      name: "VGS1",
+      name: "V_GS1",
       netId: "net-in",
       direction: "input",
       interfaceInstanceIds: ["P1"],
@@ -44,7 +44,7 @@ describe("current rendering contract", () => {
         kind: "subcircuit",
         sourceMasterName: child.netlist!.name,
         sourceTarget: `cell:${child.id}`,
-        terminalMapping: [{ sourcePosition: 0, pinName: "VGS1" }],
+        terminalMapping: [{ sourcePosition: 0, pinName: "V_GS1" }],
       },
     });
     const project = createEmptyProject("project", "Hierarchy", top.id);
@@ -56,7 +56,7 @@ describe("current rendering contract", () => {
       createProjectSymbolResolver(project, builtInSymbols),
     );
 
-    expect(svg).toContain('data-pin-name="VGS1"');
+    expect(svg).toContain('data-pin-name="V_GS1"');
     expect(svg).toContain("font-style:italic;font-weight:700");
     expect(svg).toContain('data-text-run="subscript"');
     expect(svg).toContain(">GS1</tspan>");
@@ -94,9 +94,9 @@ describe("current rendering contract", () => {
     );
     expect(formatted).toContain('data-text-run="subscript"');
     expect(formatted).toContain(">GS1</tspan>");
-    expect(formatted).toContain('data-pin-name="VGS1"');
+    expect(formatted).toContain('data-pin-name="V_GS1"');
     child.annotations[0]!.formatOverride = {
-      runs: [{ kind: "text", value: "VGS1" }],
+      runs: [{ kind: "text", value: "V_GS1" }],
     };
     const plain = renderDocumentSvg(
       top,

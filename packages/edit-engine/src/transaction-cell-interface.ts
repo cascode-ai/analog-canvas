@@ -1,8 +1,8 @@
 import {
-  CellNetlistTerminalSchema,
-  flattenRichText,
-  projectCellInterface,
+  richTextPresentsIdentifier,
+  rewriteRichTextIdentifier,
 } from "@icm/model";
+import { CellNetlistTerminalSchema, projectCellInterface } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 
 import type { EditTransaction } from "./edit-schema.js";
@@ -57,7 +57,7 @@ export function inheritCellPortFormatting(
       !target ||
       target.formatOverride ||
       changedObjectIds.has(target.id) ||
-      flattenRichText(source.formatOverride) !== port.name
+      !richTextPresentsIdentifier(source.formatOverride, port.name)
     )
       continue;
     target.formatOverride = structuredClone(source.formatOverride);
@@ -199,7 +199,10 @@ function mutateCellInterface(
             annotation.binding.terminalId === terminal.id &&
             annotation.formatOverride
           ) {
-            delete annotation.formatOverride;
+            annotation.formatOverride = rewriteRichTextIdentifier(
+              annotation.formatOverride,
+              edit.name,
+            );
             changedObjectIds.add(annotation.id);
           }
         }

@@ -1,3 +1,4 @@
+import { richTextPresentsIdentifier } from "../identifier-text.js";
 import { z } from "zod";
 
 import { StableIdSchema } from "./common.js";
@@ -15,8 +16,7 @@ import {
 import { JunctionSchema, RouteBranchSchema } from "./routing.js";
 import { AnnotationSchema } from "./annotations.js";
 import { DraftingLayerSchema } from "./drafting.js";
-import { flattenRichText } from "../rich-text.js";
-import { boundAnnotationSemanticText } from "./bound-annotation-text.js";
+import { boundAnnotationName } from "./bound-annotation-text.js";
 import {
   LayoutConstraintSchema,
   LayoutGroupSchema,
@@ -423,11 +423,10 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
         });
       }
       if (!annotation.formatOverride || !binding) continue;
-      const semanticContent = boundAnnotationSemanticText(document, annotation);
+      const semanticName = boundAnnotationName(document, annotation);
       if (
-        semanticContent &&
-        flattenRichText(annotation.formatOverride) !==
-          flattenRichText(semanticContent)
+        semanticName !== null &&
+        !richTextPresentsIdentifier(annotation.formatOverride, semanticName)
       ) {
         context.addIssue({
           code: "custom",

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyDocument, semanticTextDocument } from "@icm/model";
+import {
+  createEmptyDocument,
+  semanticTextDocument,
+  defaultDraftTextDocument,
+} from "@icm/model";
 import type { Annotation, DraftingObject } from "@icm/model";
 
 import {
@@ -448,4 +452,43 @@ describe("Symbol body text edits in place", () => {
       ),
     ).toEqual({ kind: "unchanged" });
   });
+});
+
+it("changing typography on a historical subscript does not rename the instance", () => {
+  const document = createEmptyDocument("old", "Old");
+  document.instances.push({
+    id: "M1",
+    reference: "M1",
+    symbolId: "nmos",
+    placement: null,
+  });
+  const label: Annotation = {
+    ...annotation(),
+    kind: "instance-label",
+    netId: undefined,
+    content: undefined,
+    binding: { kind: "instance-reference", instanceId: "M1" },
+    formatOverride: defaultDraftTextDocument("M1"),
+  };
+  document.annotations.push(label);
+  const session = createTextEditingSession(
+    { owner: "annotation", object: label },
+    document,
+  );
+  const edited = updateTextEditingSession(session, {
+    content: {
+      runs: [
+        { kind: "text", value: "M" },
+        {
+          kind: "span",
+          style: "subscript",
+          children: [{ kind: "text", value: "1" }],
+        },
+      ],
+    },
+  });
+  const proposal = proposeTextEditingCommit(document, edited);
+  expect(proposal.kind).toBe("update");
+  if (proposal.kind === "update")
+    expect(proposal.beforeEdits ?? []).toEqual([]);
 });

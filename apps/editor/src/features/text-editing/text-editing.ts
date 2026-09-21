@@ -1,6 +1,7 @@
+import { richTextIdentifier, rewriteRichTextIdentifier } from "@icm/model";
 import type { SchematicEdit } from "@icm/edit-engine";
 import { flattenRichText, semanticTextDocument } from "@icm/model";
-import { resolveAnnotationText } from "@icm/derived";
+import { resolveAnnotationText, resolveAnnotationName } from "@icm/derived";
 import type {
   Annotation,
   AnnotationTextBinding,
@@ -64,7 +65,28 @@ export type TextEditingCommitProposal =
     }
   | { kind: "delete"; edit: SchematicEdit; id: string }
   | { kind: "unchanged" }
-  | { kind: "blocked" };
+  | { kind: "blocked"; message?: string };
+
+// Preserve uniform label styling when replacing all characters. Mixed styles
+// remain in the rich-text spans instead of becoming a blanket default.
+function uniformTextStyle(
+  runs: readonly RichTextRun[],
+  style: "bold" | "italic",
+  inherited = false,
+): boolean {
+  return (
+    runs.length > 0 &&
+    runs.every((run) =>
+      run.kind === "span"
+        ? uniformTextStyle(
+            run.children,
+            style,
+            inherited || run.style === style,
+          )
+        : run.kind === "text" && inherited,
+    )
+  );
+}
 
 export function createTextEditingSession(
   target: EditableTextTarget,
@@ -81,7 +103,12 @@ export function createTextEditingSession(
       annotation.formatOverride !== undefined &&
       richTextEqual(
         annotation.formatOverride,
-        semanticTextDocument(flattenRichText(content), "formal-port"),
+        semanticTextDocument(
+          document
+            ? resolveAnnotationName(document, annotation)
+            : richTextIdentifier(content),
+          "formal-port",
+        ),
       );
     const instanceId =
       annotation.binding?.kind === "instance-reference"
@@ -93,6 +120,8 @@ export function createTextEditingSession(
       owner: "annotation",
       id: annotation.id,
       content,
+      defaultBold: uniformTextStyle(content.runs, "bold"),
+      defaultItalic: uniformTextStyle(content.runs, "italic"),
       sizeScale: annotation.sizeScale ?? 1,
       alignment: annotation.alignment,
       bound:
@@ -304,18 +333,39 @@ export function proposeTextEditingCommit(
         ...rest
       } = annotation;
       const follows = !session.displayAlias;
-      const name = flattenRichText(session.content).trim();
+      const name =
+        session.contentEdited &&
+        richTextIdentifier(session.content) !==
+          richTextIdentifier(resolveAnnotationText(document, annotation))
+          ? richTextIdentifier(session.content).trim()
+          : reference;
       if (
         follows &&
         (!isNamePresentation(session.content.runs) ||
           !/^[A-Za-z][A-Za-z0-9_]*$/u.test(name))
       )
         return { kind: "blocked" };
+      if (
+        follows &&
+        document.instances.some(
+          (item) =>
+            item.id !== instanceId &&
+            item.reference?.toLowerCase() === name.toLowerCase(),
+        )
+      )
+        return {
+          kind: "blocked",
+          message: `Instance name ${name} already exists. Use display alias to show the same text without renaming the device.`,
+        };
       const beforeEdits: SchematicEdit[] =
         follows && name !== reference
           ? [{ kind: "set_instance_reference", instanceId, reference: name }]
           : [];
       const defaultContent = semanticTextDocument(name, "instance-label");
+      const presentation =
+        session.contentEdited && flattenRichText(session.content).includes("_")
+          ? rewriteRichTextIdentifier(session.content, name)
+          : session.content;
       const next: Annotation = {
         ...rest,
         sizeScale: session.sizeScale,
@@ -323,8 +373,8 @@ export function proposeTextEditingCommit(
         ...(follows
           ? {
               binding: { kind: "instance-reference" as const, instanceId },
-              ...(!richTextEqual(session.content, defaultContent)
-                ? { formatOverride: session.content }
+              ...(!richTextEqual(presentation, defaultContent)
+                ? { formatOverride: presentation }
                 : {}),
             }
           : { content: session.content }),

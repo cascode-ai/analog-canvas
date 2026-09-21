@@ -111,33 +111,32 @@ describe("semantic formal-Port text", () => {
     },
   );
 
-  it.each(["Vout", "vOUT", "V_{in,cm}"])(
-    "uses the voltage-node default for %s without changing its identity",
+  it.each(["Vout", "vOUT", "M1", "VDD"])(
+    "keeps %s on the baseline without guessing a suffix",
     (name) => {
-      const content = semanticTextDocument(name, "formal-port");
-      expect(flattenRichText(content)).toBe(name);
-      expect(content).toEqual(voltageNodeTextDocument(name));
-      expect(JSON.stringify(content)).toContain('"subscript"');
+      expect(flattenRichText(semanticTextDocument(name, "formal-port"))).toBe(
+        name,
+      );
+      expect(
+        JSON.stringify(semanticTextDocument(name, "formal-port")),
+      ).not.toContain('"subscript"');
     },
   );
-
-  it("keeps a polarity sign outside the complete name", () => {
-    const content = semanticTextDocument("Vout+", "formal-port");
-    expect(flattenRichText(content)).toBe("Vout+");
-    expect(content.runs).toHaveLength(3);
-    expect(content.runs[2]).toEqual({ kind: "text", value: "+" });
-    expect(JSON.stringify(content)).toContain('"subscript"');
-  });
-});
-
-describe("other semantic text remains unchanged", () => {
-  it("keeps device designators and supply indices", () => {
-    expect(semanticTextDocument("M1", "instance-label").runs[1]).toMatchObject({
-      style: "subscript",
-    });
-    expect(semanticTextDocument("VDD", "power-label").runs[1]).toMatchObject({
-      style: "subscript",
-      children: [{ style: "italic" }],
+  it("keeps the whole unmarked name, including polarity, bold italic", () => {
+    expect(semanticTextDocument("Vout+", "formal-port")).toEqual({
+      runs: [
+        {
+          kind: "span",
+          style: "italic",
+          children: [
+            {
+              kind: "span",
+              style: "bold",
+              children: [{ kind: "text", value: "Vout+" }],
+            },
+          ],
+        },
+      ],
     });
   });
 });

@@ -1,11 +1,7 @@
+import { resolveAnnotationName } from "@icm/derived";
 import { z } from "zod";
 
-import { resolveAnnotationText } from "@icm/derived";
-import {
-  flattenRichText,
-  type Annotation,
-  type SchematicDocument,
-} from "@icm/model";
+import { type Annotation, type SchematicDocument } from "@icm/model";
 
 import {
   colorToRgb,
@@ -104,9 +100,7 @@ export function routePropertyCodeValue(
 ): RoutePropertyCodeValue {
   return {
     net: {
-      name: netLabel
-        ? flattenRichText(resolveAnnotationText(document, netLabel)).trim()
-        : "",
+      name: netLabel ? resolveAnnotationName(document, netLabel).trim() : "",
       scope: netLabelScope(document, netLabel),
     },
     appearance: {

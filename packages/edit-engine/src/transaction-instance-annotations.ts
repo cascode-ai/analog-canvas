@@ -1,7 +1,7 @@
 import {
   inverseTransformPoint,
   mirrorScale,
-  rewriteRichTextPlainText,
+  rewriteRichTextIdentifier,
   snapGridPoint,
   transformPoint,
 } from "@icm/model";
@@ -232,7 +232,7 @@ export function refreshInstanceReferenceAnnotation(
       continue;
     }
     if (annotation.formatOverride) {
-      annotation.formatOverride = rewriteRichTextPlainText(
+      annotation.formatOverride = rewriteRichTextIdentifier(
         annotation.formatOverride,
         nextReference,
       );

@@ -52,27 +52,25 @@ interface BoundAnnotationLike {
  *
  * Returns null when the Annotation binds to nothing, which has no obligation.
  */
-export function boundAnnotationSemanticText(
+export function boundAnnotationName(
   document: BoundAnnotationSource,
   annotation: BoundAnnotationLike,
-): RichTextDocument | null {
+): string | null {
   const binding = annotation.binding;
   if (!binding) return null;
 
   if (binding.kind === "instance-reference") {
-    return semanticTextDocument(
+    return (
       (document.instances ?? []).find(
         (instance) => instance.id === binding.instanceId,
-      )?.reference ?? "",
-      "instance-label",
+      )?.reference ?? ""
     );
   }
   if (binding.kind === "cell-terminal-name") {
-    return semanticTextDocument(
+    return (
       document.netlist?.terminals.find(
         (terminal) => terminal.id === binding.terminalId,
-      )?.name ?? "",
-      "formal-port",
+      )?.name ?? ""
     );
   }
   if (binding.kind !== "net-name") return null;
@@ -93,8 +91,24 @@ export function boundAnnotationSemanticText(
             evidence.owner.objectId === annotation.anchor.objectId) ||
             evidence.owner.objectId === annotation.id))),
   );
-  return semanticTextDocument(
-    nameClaim?.name ?? "",
-    annotation.kind === "power-label" ? "power-label" : "net-label",
-  );
+  return nameClaim?.name ?? "";
+}
+
+export function boundAnnotationSemanticText(
+  document: BoundAnnotationSource,
+  annotation: BoundAnnotationLike,
+): RichTextDocument | null {
+  const name = boundAnnotationName(document, annotation);
+  return name === null
+    ? null
+    : semanticTextDocument(
+        name,
+        annotation.binding?.kind === "instance-reference"
+          ? "instance-label"
+          : annotation.binding?.kind === "cell-terminal-name"
+            ? "formal-port"
+            : annotation.kind === "power-label"
+              ? "power-label"
+              : "net-label",
+      );
 }

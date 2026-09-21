@@ -15565,6 +15565,14 @@
         "styleOverrides": {
           "$ref": "#/$defs/__schema105"
         },
+        "labelSubscriptCase": {
+          "type": "string",
+          "enum": [
+            "preserve",
+            "uppercase",
+            "lowercase"
+          ]
+        },
         "flow": {
           "type": "object",
           "properties": {

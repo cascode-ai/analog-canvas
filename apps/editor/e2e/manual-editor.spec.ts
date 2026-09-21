@@ -5675,13 +5675,13 @@ test("docked Properties JSON is the only global configuration surface", async ({
     settings.getByRole("button", {
       name: "Format all Port labels in this Cell",
     }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   await expect(
     page.getByRole("region", { name: "Port label formatting" }),
   ).toHaveCount(0);
   await expect(page.getByTestId("hit-R1")).toBeVisible();
   await expect(settings.getByLabel("Editable Properties code")).toBeVisible();
-  await expect(settings.locator(".cm-netlist-target-select")).toHaveCount(13);
+  await expect(settings.locator(".cm-netlist-target-select")).toHaveCount(12);
   await expect(settings.getByLabel("Font size options")).toBeVisible();
   await expect(
     settings.getByLabel("NMOS bulk Net (usually VSS) options"),
@@ -5690,12 +5690,10 @@ test("docked Properties JSON is the only global configuration surface", async ({
     settings.getByLabel("PMOS bulk Net (usually VDD) options"),
   ).toBeVisible();
   await expect(
-    settings.getByLabel("Port label suffix case options"),
+    settings.getByLabel(
+      "Subscript case in this circuit (label + netlist) options",
+    ),
   ).toBeVisible();
-  await expect(
-    settings.getByLabel("Port label suffix placement options"),
-  ).toBeVisible();
-
   await settings.getByLabel("Font size options").selectOption("1.5");
   await expect(label).toHaveAttribute("font-size", "22.674");
   await expect(page.getByTestId("status")).toContainText(
@@ -5705,10 +5703,7 @@ test("docked Properties JSON is the only global configuration surface", async ({
   const styleSource = await readDocumentStyleCode(page);
   const style = JSON.parse(styleSource);
   expect(style.bulkDefaults).toEqual({ nmosNet: null, pmosNet: null });
-  expect(style.portLabels).toEqual({
-    suffixCase: "preserve",
-    suffixPlacement: "subscript",
-  });
+  expect(style.labels).toEqual({ subscriptCase: "preserve" });
   expect(style.canvas).toEqual({
     showGrid: true,
     annotationGrid: 5,

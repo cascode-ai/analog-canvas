@@ -1,4 +1,8 @@
-import { semanticTextDocument } from "@icm/model";
+import {
+  boundAnnotationName,
+  flattenRichText,
+  semanticTextDocument,
+} from "@icm/model";
 import type {
   Annotation,
   RichTextDocument,
@@ -81,4 +85,25 @@ export function resolveAnnotationText(
       return semanticTextDocument(terminal?.name ?? "", "formal-port");
     }
   }
+}
+
+/** Electrical names must never be inferred from a lossy rendered string. */
+export function resolveAnnotationName(
+  document: SchematicDocument,
+  annotation: Annotation,
+  logicalNets?: ResolvedDocumentLogicalNets,
+): string {
+  const name = boundAnnotationName(document, annotation);
+  if (annotation.binding?.kind === "net-name")
+    return (
+      name ||
+      (logicalNets ?? resolveDocumentLogicalNets(document)).byBaseNetId.get(
+        annotation.binding.netId,
+      )?.name ||
+      ""
+    );
+  return (
+    name ??
+    flattenRichText(resolveAnnotationText(document, annotation, logicalNets))
+  );
 }

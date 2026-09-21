@@ -6,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { PortLabelFormatOptions, SchematicDocument } from "@icm/model";
+import type { SchematicDocument } from "@icm/model";
 import type { PropertyJsonEditorAdapter } from "../properties/component-property-json-editor";
 
 import {
@@ -29,26 +29,20 @@ const PropertyJsonEditor = lazy(
 export interface DocumentSettingsSectionProps {
   document: SchematicDocument;
   canvas: CanvasPreferenceCodeValue;
-  portLabels: PortLabelFormatOptions;
-  portLabelCount: number;
   onApply(
     value: DocumentSettingsCodeValue,
   ): { ok: true } | { ok: false; message: string };
-  onFormatPortLabels(options: PortLabelFormatOptions): void;
 }
 
 /** One plain JSON surface for every Document-wide and editor preference. */
 export function DocumentSettingsSection({
   document,
   canvas,
-  portLabels,
-  portLabelCount,
   onApply,
-  onFormatPortLabels,
 }: DocumentSettingsSectionProps) {
   const baseline = useMemo(
-    () => formatDocumentSettingsCode(document, canvas, portLabels),
-    [canvas, document, portLabels],
+    () => formatDocumentSettingsCode(document, canvas),
+    [canvas, document],
   );
   const previousBaseline = useRef(baseline);
   const appliedCode = useRef<string | null>(null);
@@ -124,7 +118,7 @@ export function DocumentSettingsSection({
             type="button"
             className="component-property-help"
             onClick={() =>
-              change(defaultDocumentSettingsCode(document, canvas, portLabels))
+              change(defaultDocumentSettingsCode(document, canvas))
             }
           >
             Defaults
@@ -188,20 +182,6 @@ export function DocumentSettingsSection({
           <span>{status}</span>
         </div>
       ) : null}
-      <div className="document-settings-port-action">
-        <button
-          type="button"
-          disabled={portLabelCount === 0}
-          onClick={() => onFormatPortLabels(portLabels)}
-        >
-          Format all Port labels in this Cell
-        </button>
-        <small>
-          Uses <code>portLabels</code> above for {portLabelCount} existing label
-          {portLabelCount === 1 ? "" : "s"}. Names and electrical connections do
-          not change.
-        </small>
-      </div>
     </section>
   );
 }

@@ -16985,6 +16985,14 @@
               "styleOverrides": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema105"
               },
+              "labelSubscriptCase": {
+                "type": "string",
+                "enum": [
+                  "preserve",
+                  "uppercase",
+                  "lowercase"
+                ]
+              },
               "flow": {
                 "type": "object",
                 "properties": {
@@ -17935,6 +17943,14 @@
                               }
                             },
                             "additionalProperties": false
+                          },
+                          "labelSubscriptCase": {
+                            "type": "string",
+                            "enum": [
+                              "preserve",
+                              "uppercase",
+                              "lowercase"
+                            ]
                           },
                           "flow": {
                             "type": "object",

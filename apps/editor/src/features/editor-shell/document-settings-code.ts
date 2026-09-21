@@ -1,9 +1,4 @@
-import {
-  DEFAULT_PORT_LABEL_FORMAT,
-  type PortLabelFormatOptions,
-  type SchematicDocument,
-  type StyleOverrides,
-} from "@icm/model";
+import { type SchematicDocument, type StyleOverrides } from "@icm/model";
 
 import {
   logicalNetChoiceForNet,
@@ -24,7 +19,7 @@ export interface DocumentSettingsCodeValue {
     nmosNet: string | null;
     pmosNet: string | null;
   };
-  portLabels: PortLabelFormatOptions;
+  labels: { subscriptCase: "preserve" | "uppercase" | "lowercase" };
   canvas: CanvasPreferenceCodeValue;
 }
 
@@ -52,7 +47,6 @@ function exactKeys(
 export function documentSettingsCodeValue(
   document: SchematicDocument,
   canvas: CanvasPreferenceCodeValue,
-  portLabels: PortLabelFormatOptions = DEFAULT_PORT_LABEL_FORMAT,
 ): DocumentSettingsCodeValue {
   const netChoices = logicalNetChoices(document);
   return {
@@ -65,7 +59,9 @@ export function documentSettingsCodeValue(
         logicalNetChoiceForNet(netChoices, document.mosBulkDefaults?.pmosNetId)
           ?.netId ?? null,
     },
-    portLabels,
+    labels: {
+      subscriptCase: document.presentation.labelSubscriptCase ?? "preserve",
+    },
     canvas,
   };
 }
@@ -79,25 +75,23 @@ export function serializeDocumentSettingsCode(
 export function formatDocumentSettingsCode(
   document: SchematicDocument,
   canvas: CanvasPreferenceCodeValue,
-  portLabels: PortLabelFormatOptions = DEFAULT_PORT_LABEL_FORMAT,
 ): string {
   return serializeDocumentSettingsCode(
-    documentSettingsCodeValue(document, canvas, portLabels),
+    documentSettingsCodeValue(document, canvas),
   );
 }
 
 export function defaultDocumentSettingsCode(
   document: SchematicDocument,
   canvas: CanvasPreferenceCodeValue,
-  portLabels: PortLabelFormatOptions = DEFAULT_PORT_LABEL_FORMAT,
 ): string {
-  const current = documentSettingsCodeValue(document, canvas, portLabels);
+  const current = documentSettingsCodeValue(document, canvas);
   return serializeDocumentSettingsCode({
     ...current,
     appearance: Object.fromEntries(
       STYLE_KNOBS.map((knob) => [knob.key, 1]),
     ) as DocumentSettingsCodeValue["appearance"],
-    portLabels: DEFAULT_PORT_LABEL_FORMAT,
+    labels: { subscriptCase: "preserve" },
   });
 }
 
@@ -115,7 +109,12 @@ export function parseDocumentSettingsCode(
     return { ok: false, message: "Properties code must be an object" };
   const rootError = exactKeys(
     raw,
-    ["appearance", "bulkDefaults", "portLabels", "canvas"],
+    [
+      "appearance",
+      "bulkDefaults",
+      "canvas",
+      ...(raw.labels !== undefined ? ["labels"] : []),
+    ],
     "properties",
   );
   if (rootError) return { ok: false, message: rootError };
@@ -174,34 +173,21 @@ export function parseDocumentSettingsCode(
     bulkDefaults[field as keyof typeof bulkDefaults] = value as string | null;
   }
 
-  if (!isRecord(raw.portLabels))
-    return { ok: false, message: "portLabels must be an object" };
-  const portLabelsError = exactKeys(
-    raw.portLabels,
-    ["suffixCase", "suffixPlacement"],
-    "portLabels",
-  );
-  if (portLabelsError) return { ok: false, message: portLabelsError };
+  const labels = raw.labels ?? {
+    subscriptCase: document.presentation.labelSubscriptCase ?? "preserve",
+  };
   if (
+    !isRecord(labels) ||
+    exactKeys(labels, ["subscriptCase"], "labels") ||
     !["preserve", "uppercase", "lowercase"].includes(
-      raw.portLabels.suffixCase as string,
+      labels.subscriptCase as string,
     )
   )
     return {
       ok: false,
       message:
-        'portLabels.suffixCase must be "preserve", "uppercase", or "lowercase"',
+        'labels.subscriptCase must be "preserve", "uppercase", or "lowercase"',
     };
-  if (
-    !["subscript", "baseline"].includes(
-      raw.portLabels.suffixPlacement as string,
-    )
-  )
-    return {
-      ok: false,
-      message: 'portLabels.suffixPlacement must be "subscript" or "baseline"',
-    };
-  const portLabels = raw.portLabels as unknown as PortLabelFormatOptions;
 
   if (!isRecord(raw.canvas))
     return { ok: false, message: "canvas must be an object" };
@@ -231,7 +217,7 @@ export function parseDocumentSettingsCode(
     value: {
       appearance,
       bulkDefaults,
-      portLabels,
+      labels: labels as DocumentSettingsCodeValue["labels"],
       canvas: raw.canvas as unknown as CanvasPreferenceCodeValue,
     },
   };

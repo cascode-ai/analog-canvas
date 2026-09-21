@@ -12,7 +12,7 @@ describe("Razavi schematic typography", () => {
       razaviTextbookProfile,
     );
     const rendered = renderRichTextDocument(
-      semanticTextDocument("VDD", "power-label"),
+      semanticTextDocument("V_DD", "power-label"),
       razaviTextbookProfile,
       { fontSize },
     );

@@ -1,3 +1,4 @@
+import { rewriteRichTextIdentifier } from "@icm/model";
 import {
   AnnotationSchema,
   ConnectivityEvidenceSchema,
@@ -280,14 +281,21 @@ export function applyNetPowerEdit(
       }
       if (
         evidence.kind === "name-claim" &&
-        evidence.owner.kind === "net-label"
+        (evidence.owner.kind === "net-label" ||
+          evidence.owner.kind === "power-marker")
       ) {
-        const annotationId = evidence.owner.annotationId;
+        const annotationId =
+          evidence.owner.kind === "net-label"
+            ? evidence.owner.annotationId
+            : evidence.owner.objectId;
         const annotation = draft.annotations.find(
           (candidate) => candidate.id === annotationId,
         );
         if (annotation?.formatOverride) {
-          delete annotation.formatOverride;
+          annotation.formatOverride = rewriteRichTextIdentifier(
+            annotation.formatOverride,
+            evidence.name,
+          );
           changedObjectIds.add(annotation.id);
         }
       }

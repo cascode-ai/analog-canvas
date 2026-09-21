@@ -2,7 +2,7 @@ import {
   createEmptyProject,
   CURRENT_PROJECT_SCHEMA_VERSION,
   flattenRichText,
-  semanticTextDocument,
+  defaultDraftTextDocument,
 } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
@@ -37,7 +37,7 @@ function schema35Project(): Record<string, unknown> {
     {
       id: "instance-label-copied-mos",
       kind: "instance-label",
-      content: semanticTextDocument("M5", "instance-label"),
+      content: defaultDraftTextDocument("M5"),
       anchor: {
         kind: "object",
         objectId: "copied-mos",
@@ -51,7 +51,7 @@ function schema35Project(): Record<string, unknown> {
     {
       id: "instance-label-tail-current",
       kind: "instance-label",
-      content: semanticTextDocument("ISS", "instance-label"),
+      content: defaultDraftTextDocument("ISS"),
       anchor: {
         kind: "object",
         objectId: "tail-current",

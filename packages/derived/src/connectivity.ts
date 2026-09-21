@@ -1,4 +1,4 @@
-import { deriveStableId, flattenRichText, routeEnd } from "@icm/model";
+import { deriveStableId, routeEnd } from "@icm/model";
 import type { Net, Point, RouteEndpoint, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -10,7 +10,7 @@ import {
 } from "./endpoint.js";
 import { deriveDocumentContactEvidence } from "./contact.js";
 import { resolveNetLabelBindings } from "./net-label.js";
-import { resolveAnnotationText } from "./annotation-text.js";
+import { resolveAnnotationName } from "./annotation-text.js";
 import { resolveDocumentLogicalNets } from "./logical-net.js";
 import {
   deriveRoutingGuidance,
@@ -163,12 +163,10 @@ export function deriveNetConnectivity(
       document.annotations.find(
         (candidate) => candidate.id === binding.annotationId,
       )!;
-    const label = flattenRichText(
-      resolveAnnotationText(
-        document,
-        annotation,
-        context?.logicalNetResolution,
-      ),
+    const label = resolveAnnotationName(
+      document,
+      annotation,
+      context?.logicalNetResolution,
     ).trim();
     const key = endpointKey(binding.endpoint);
     if (label.length === 0 || !nodes.has(key)) continue;
@@ -187,12 +185,10 @@ export function deriveNetConnectivity(
     if (!binding) continue;
     const key = endpointKey(binding.endpoint);
     if (!nodes.has(key)) continue;
-    const label = flattenRichText(
-      resolveAnnotationText(
-        document,
-        annotation,
-        context?.logicalNetResolution,
-      ),
+    const label = resolveAnnotationName(
+      document,
+      annotation,
+      context?.logicalNetResolution,
     ).trim();
     if (label.length === 0) continue;
     const group = labeledEndpoints.get(label) ?? [];

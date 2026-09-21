@@ -1,3 +1,5 @@
+import { plainNameDocument } from "@icm/model";
+import { resolveAnnotationName } from "./annotation-text.js";
 import {
   createEmptyDocument,
   flattenRichText,
@@ -175,17 +177,11 @@ describe("bound annotation text", () => {
     });
 
     const before = structuredClone(annotation.anchor);
-    expect(flattenRichText(resolveAnnotationText(document, annotation))).toBe(
-      "V_{in,cm}",
-    );
-    expect(flattenRichText(resolveAnnotationText(document, annotation))).toBe(
-      "V_{in,cm}",
-    );
+    expect(resolveAnnotationName(document, annotation)).toBe("V_{in,cm}");
+    expect(resolveAnnotationName(document, annotation)).toBe("V_{in,cm}");
     const claim = document.connectivityEvidence[0];
     if (claim?.kind === "name-claim") claim.name = "V_{refp}";
-    expect(flattenRichText(resolveAnnotationText(document, annotation))).toBe(
-      "V_{refp}",
-    );
+    expect(resolveAnnotationName(document, annotation)).toBe("V_{refp}");
     expect(annotation.anchor).toEqual(before);
   });
 
@@ -194,7 +190,7 @@ describe("bound annotation text", () => {
     const annotation = {
       id: "master-M1",
       kind: "instance-label" as const,
-      content: semanticTextDocument("sky130_nfet", "instance-label"),
+      content: plainNameDocument("sky130_nfet"),
       anchor: { kind: "free" as const, position: { x: 0, y: 0 } },
       alignment: "start" as const,
       rotation: 0 as const,

@@ -242,7 +242,6 @@ export function CanvasTextEditorOverlay({
     // syntax. Offering bold, an overbar or the formula tool on a field that
     // cannot store any of them would promise formatting the commit drops.
     session.owner === "instance-formula" ||
-    (Boolean(session.visualInstanceId) && !session.displayAlias) ||
     (session.bound &&
       session.bindingKind !== "net-name" &&
       session.bindingKind !== "cell-terminal-name");

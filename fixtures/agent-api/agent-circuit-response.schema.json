@@ -697,6 +697,14 @@
                       },
                       "additionalProperties": false
                     },
+                    "labelSubscriptCase": {
+                      "type": "string",
+                      "enum": [
+                        "preserve",
+                        "uppercase",
+                        "lowercase"
+                      ]
+                    },
                     "flow": {
                       "type": "object",
                       "properties": {

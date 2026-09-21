@@ -927,7 +927,7 @@ test("inherits explicit Port subscripts without guessing from pin names", async 
 }) => {
   await page.goto("/editor");
   await createCell(page, "FormattedStage");
-  await placeCellPin(page, { name: "Vout", position: { x: 300, y: 180 } });
+  await placeCellPin(page, { name: "V_out", position: { x: 300, y: 180 } });
   const internalLabel = page.locator('[data-object-id="instance-label-P1"]');
   await expect(internalLabel.locator('[data-text-run="subscript"]')).toHaveText(
     "out",
@@ -973,76 +973,35 @@ test("inherits explicit Port subscripts without guessing from pin names", async 
     .getByTestId("cell-navigation")
     .getByRole("button", { name: "Top", exact: true })
     .click();
-  await expect(parentPin).toHaveText("Vout");
-  await expect(parentPin.locator('[data-text-run="subscript"]')).toHaveText(
-    "out",
-  );
+  const renamedParentPin = page.locator('[data-pin-name="V_out"]');
+  await expect(renamedParentPin).toHaveText("Vout");
+  await expect(
+    renamedParentPin.locator('[data-text-run="subscript"]'),
+  ).toHaveText("out");
 });
 
-test("formats every Port label in the current Cell without renaming it", async ({
+test("changes Port subscript case in both labels and names with one undo", async ({
   page,
 }) => {
   await page.goto("/editor");
-  await placeCellPin(page, { name: "IND", position: { x: 280, y: 160 } });
+  await placeCellPin(page, { name: "I_nd", position: { x: 280, y: 160 } });
   await placeCellPin(page, { name: "out", position: { x: 280, y: 240 } });
   const firstLabel = page.locator('[data-object-id="instance-label-P1"]');
   const secondLabel = page.locator('[data-object-id="instance-label-P2"]');
-  await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveCount(
-    0,
+  await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveText(
+    "nd",
   );
   await expect(secondLabel.locator('[data-text-run="subscript"]')).toHaveCount(
     0,
   );
-
   await editDocumentStyleCode(page, (code) => {
-    code.portLabels.suffixCase = "uppercase";
+    code.labels.subscriptCase = "uppercase";
   });
-  const properties = page.getByLabel("Document settings");
-  await expect(
-    page.getByRole("region", { name: "Port label formatting" }),
-  ).toHaveCount(0);
-  const format = properties.getByRole("button", {
-    name: "Format all Port labels in this Cell",
-  });
-  await format.click();
-  await expect(page.getByTestId("status")).toContainText(
-    "Formatted all Port labels",
-  );
-
   await expect(firstLabel).toHaveText("IND");
   await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveText(
     "ND",
   );
-  await expect(
-    firstLabel.locator(
-      '[data-text-run="span"][style*="font-style:italic"][style*="font-weight:700"]',
-    ),
-  ).toHaveText("I");
-  await expect(
-    firstLabel.locator(
-      '[data-text-run="subscript"] [data-text-run="span"][style*="font-style:normal"][style*="font-weight:700"]',
-    ),
-  ).toHaveText("ND");
-  await expect(secondLabel).toHaveText("oUT");
-  await expect(secondLabel.locator('[data-text-run="subscript"]')).toHaveText(
-    "UT",
-  );
-
-  await editDocumentStyleCode(page, (code) => {
-    code.portLabels.suffixCase = "lowercase";
-    code.portLabels.suffixPlacement = "baseline";
-  });
-  await format.click();
-  await expect(firstLabel).toHaveText("Ind");
   await expect(secondLabel).toHaveText("out");
-  await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveCount(
-    0,
-  );
-  await expect(
-    firstLabel.locator(
-      '[data-text-run="span"][style*="font-style:normal"][style*="font-weight:700"]',
-    ),
-  ).toHaveText("nd");
   const project = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
       "utf8",
@@ -1052,18 +1011,15 @@ test("formats every Port label in the current Cell without renaming it", async (
     project.documents[0]!.netlist?.terminals.map(
       (port: { name: string }) => port.name,
     ),
-  ).toEqual(["IND", "out"]);
-
-  await page.keyboard.press("Control+z");
-  await expect(firstLabel).toHaveText("IND");
+  ).toEqual(["I_ND", "out"]);
+  expect(project.documents[0]!.presentation.labelSubscriptCase).toBe(
+    "uppercase",
+  );
+  await page.getByTestId("draw-tool-undo").click();
   await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveText(
-    "ND",
+    "nd",
   );
-  await expect(secondLabel).toHaveText("oUT");
-  await page.keyboard.press("Control+z");
-  await expect(firstLabel.locator('[data-text-run="subscript"]')).toHaveCount(
-    0,
-  );
+  await expect(secondLabel).toHaveText("out");
 });
 
 test("places an unreferenced top Cell in an ordinary new Cell", async ({
@@ -1484,10 +1440,10 @@ test("copies and independently deletes Formal Cell Pins", async ({ page }) => {
     page
       .locator('[data-object-id="instance-label-P1"]')
       .locator('[data-text-run="subscript"]'),
-  ).toHaveText("IN");
+  ).toHaveCount(0);
   await expect(
     page.locator('[data-object-id="instance-label-P1-copy-1"]'),
-  ).toHaveText("VIN_copy1");
+  ).toHaveText("VINcopy1");
   await page.getByTestId("hit-P1").click();
   await page.keyboard.press("Delete");
   await expect(page.getByTestId("hit-P1")).toHaveCount(0);
@@ -1499,7 +1455,7 @@ test("copies and independently deletes Formal Cell Pins", async ({ page }) => {
   }
   await expect(
     page.locator('[data-object-id="instance-label-P1-copy-1"]'),
-  ).toHaveText("VIN_copy1");
+  ).toHaveText("VINcopy1");
   await clickCommand(page, "Netlist", "Review Netlist Issues…");
   await expect(
     page
@@ -1533,7 +1489,7 @@ test("edits a Cell Pin name and RichText presentation in place", async ({
     page
       .locator('[data-object-id="instance-label-P1"]')
       .locator('[data-text-run="subscript"]'),
-  ).toHaveText("BIAS");
+  ).toHaveCount(0);
 
   await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
   await page
@@ -1542,8 +1498,8 @@ test("edits a Cell Pin name and RichText presentation in place", async ({
   await page.getByRole("button", { name: "Apply text changes" }).click();
   const renamedLabel = page.locator('[data-object-id="instance-label-P1"]');
   await expect(renamedLabel).toHaveText("vINPUT");
-  await expect(renamedLabel.locator('[data-text-run="subscript"]')).toHaveText(
-    "INPUT",
+  await expect(renamedLabel.locator('[data-text-run="subscript"]')).toHaveCount(
+    0,
   );
 
   await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
@@ -1899,7 +1855,7 @@ test("same-name Cell Pins stay independent while the final interface groups them
     page
       .locator('[data-object-id="instance-label-P2"]')
       .locator('[data-text-run="subscript"]'),
-  ).toHaveText("in");
+  ).toHaveCount(0);
   await runCellCommand(page, "Manage Cells…");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await expect(

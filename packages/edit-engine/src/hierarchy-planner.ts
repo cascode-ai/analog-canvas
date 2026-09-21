@@ -11,7 +11,7 @@ import {
   deriveStableId,
   foldNetName,
   projectCellInterface,
-  rewriteRichTextPlainText,
+  rewriteRichTextIdentifier,
   routeEnd,
   semanticTextDocument,
 } from "@icm/model";
@@ -1329,7 +1329,7 @@ export function planRenameCellTerminal(
               ...rest,
               ...(!automaticFormat
                 ? {
-                    formatOverride: rewriteRichTextPlainText(
+                    formatOverride: rewriteRichTextIdentifier(
                       annotation.formatOverride,
                       newName,
                     ),

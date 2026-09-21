@@ -175,7 +175,7 @@ test("Properties renames the electrical identity explicitly; restore is an in-pl
   await expect(visual(page)).toContainText("R7");
   await expect(
     page.getByRole("textbox", { name: "Canvas text editor" }),
-  ).toHaveValue("R7");
+  ).toHaveText("R7");
   await page.getByRole("button", { name: "Apply text changes" }).click();
   await expect(visual(page)).toContainText("R7");
   const saved = await projectFile(page);

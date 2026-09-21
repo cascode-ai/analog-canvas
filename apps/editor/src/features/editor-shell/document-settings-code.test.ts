@@ -32,7 +32,7 @@ function editableValue(): DocumentSettingsCodeValue {
       junctionRadiusScale: 1,
     },
     bulkDefaults: { nmosNet: null, pmosNet: null },
-    portLabels: { suffixCase: "preserve", suffixPlacement: "subscript" },
+    labels: { subscriptCase: "preserve" },
     canvas: { ...canvas },
   };
 }
@@ -85,8 +85,7 @@ describe("document Style code", () => {
     ["canvas.annotationGrid", 2, "must be 1, 5, or 10"],
     ["canvas.drawAngle", "diagonal", 'must be "free", "45", or "orthogonal"'],
     ["canvas.scrollBehavior", "smooth", 'must be "auto", "zoom", or "pan"'],
-    ["portLabels.suffixCase", "titlecase", "preserve"],
-    ["portLabels.suffixPlacement", "superscript", "subscript"],
+    ["labels.subscriptCase", "titlecase", "preserve"],
   ])("rejects an unsupported %s value", (path, invalid, message) => {
     const document = createEmptyDocument("document-main", "Main");
     const value = editableValue() as unknown as Record<string, any>;
@@ -147,7 +146,7 @@ describe("document Style code", () => {
     const source = serializeDocumentSettingsCode(editableValue());
     const spans = documentSettingsCodeSpans(source, document);
 
-    expect(spans).toHaveLength(13);
+    expect(spans).toHaveLength(12);
     expect(
       spans.find((span) => span.field.path === "appearance.fontScale")?.field
         .options,
@@ -172,7 +171,7 @@ describe("document Style code", () => {
       help: expect.stringContaining("highest supply Net"),
     });
     expect(
-      spans.find((span) => span.field.path === "portLabels.suffixCase")?.field
+      spans.find((span) => span.field.path === "labels.subscriptCase")?.field
         .options,
     ).toEqual([
       { value: "preserve", label: "Keep typed case" },
@@ -185,14 +184,14 @@ describe("document Style code", () => {
       documentSettingsCodeChanges(source, document, {
         "appearance.fontScale": 1.5,
         "bulkDefaults.nmosNet": "net-ground",
-        "portLabels.suffixPlacement": "baseline",
+        "labels.subscriptCase": "lowercase",
         "canvas.showGrid": false,
       }),
     );
     expect(JSON.parse(changed)).toMatchObject({
       appearance: { fontScale: 1.5 },
       bulkDefaults: { nmosNet: "net-ground" },
-      portLabels: { suffixPlacement: "baseline" },
+      labels: { subscriptCase: "lowercase" },
       canvas: { showGrid: false },
     });
   });

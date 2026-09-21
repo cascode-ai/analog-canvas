@@ -22,6 +22,18 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
     })),
   ];
   return [
+    {
+      path: "labels.subscriptCase",
+      label: "Subscript case in this circuit (label + netlist)",
+      kind: "choice",
+      options: [
+        { value: "preserve", label: "Keep typed case" },
+        { value: "uppercase", label: "UPPERCASE" },
+        { value: "lowercase", label: "lowercase" },
+      ],
+      description:
+        "Renames subscript suffixes in this Cell; saved in Project Code.",
+    },
     ...STYLE_KNOBS.map((knob): CanvasPropertyField => ({
       path: `appearance.${knob.key}`,
       label: knob.label,
@@ -45,27 +57,6 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
       options: netOptions("Not set · choose after VDD exists"),
       description: "",
       help: "Choose the highest supply Net in this Cell, usually VDD",
-    },
-    {
-      path: "portLabels.suffixCase",
-      label: "Port label suffix case",
-      kind: "choice",
-      options: [
-        { value: "preserve", label: "Keep typed case" },
-        { value: "uppercase", label: "UPPERCASE" },
-        { value: "lowercase", label: "lowercase" },
-      ],
-      description: "",
-    },
-    {
-      path: "portLabels.suffixPlacement",
-      label: "Port label suffix placement",
-      kind: "choice",
-      options: [
-        { value: "subscript", label: "Subscript" },
-        { value: "baseline", label: "Baseline" },
-      ],
-      description: "",
     },
     {
       path: "canvas.showGrid",

@@ -1,3 +1,5 @@
+import { applyLabelSubscriptCase } from "../features/text-editing/label-subscript-case";
+import { resolveAnnotationName } from "@icm/derived";
 import {
   branchGalleryVersion,
   loadGalleryVersionProject,
@@ -80,15 +82,9 @@ import {
   resolveDocumentStyleProfile,
   summarizeProjectCells,
   resolveRouteAttachment,
-  resolveAnnotationText,
 } from "@icm/derived";
 import type { HierarchyFrame } from "@icm/derived";
-import {
-  createEmptyProject,
-  createId,
-  DEFAULT_PORT_LABEL_FORMAT,
-  flattenRichText,
-} from "@icm/model";
+import { createEmptyProject, createId } from "@icm/model";
 import {
   resolveReviewedExternalBinding,
   reviewedExternalModelSuggestions,
@@ -100,7 +96,6 @@ import type {
   GridRect,
   LayoutGroup,
   Point,
-  PortLabelFormatOptions,
   Rect,
   Rotation,
   SchematicDocument,
@@ -441,7 +436,6 @@ function defaultPropertiesWidth(viewportWidth: number): number {
   );
 }
 const COMPACT_LAYOUT_MEDIA_QUERY = "(max-width: 860px)";
-const PORT_LABEL_FORMAT_STORAGE_KEY = "icm.port-label-format.v1";
 const DRAG_START_DISTANCE_PX = 4;
 const SNAP_CAPTURE_RADIUS_PX = 4;
 const NET_LABEL_SNAP_CAPTURE_RADIUS_PX = 12;
@@ -749,37 +743,6 @@ export function App({
       window.localStorage.setItem("icm.annotation-grid.v1", String(pitch));
     } catch {
       // Storage may be unavailable; the choice still applies to this session.
-    }
-  };
-  const [portLabelFormat, setPortLabelFormatState] =
-    useState<PortLabelFormatOptions>(() => {
-      if (typeof window === "undefined") return DEFAULT_PORT_LABEL_FORMAT;
-      try {
-        const stored = JSON.parse(
-          window.localStorage.getItem(PORT_LABEL_FORMAT_STORAGE_KEY) ?? "null",
-        ) as Partial<PortLabelFormatOptions> | null;
-        if (
-          stored &&
-          ["preserve", "uppercase", "lowercase"].includes(
-            stored.suffixCase ?? "",
-          ) &&
-          ["subscript", "baseline"].includes(stored.suffixPlacement ?? "")
-        )
-          return stored as PortLabelFormatOptions;
-      } catch {
-        // Invalid or unavailable storage falls back to the canonical defaults.
-      }
-      return DEFAULT_PORT_LABEL_FORMAT;
-    });
-  const setPortLabelFormat = (format: PortLabelFormatOptions): void => {
-    setPortLabelFormatState(format);
-    try {
-      window.localStorage.setItem(
-        PORT_LABEL_FORMAT_STORAGE_KEY,
-        JSON.stringify(format),
-      );
-    } catch {
-      // The Properties code remains authoritative for this session.
     }
   };
   const arrowPreset: ArrowPreset = DEFAULT_ARROW_PRESET;
@@ -1456,7 +1419,6 @@ export function App({
     setCellSymbolBodySize,
     setCellSymbolPortPlacement,
     editCellTerminalAnnotation,
-    formatCellTerminalAnnotations,
     removeCellTerminalSelection,
     renameProject,
   } = createProjectStructureCommands({
@@ -2448,9 +2410,7 @@ export function App({
     : undefined;
   const selectedDisplayName =
     selectedInstanceLabel?.kind === "instance-label"
-      ? flattenRichText(
-          resolveAnnotationText(document, selectedInstanceLabel),
-        ).trim() || null
+      ? resolveAnnotationName(document, selectedInstanceLabel).trim() || null
       : null;
   const selectedInstanceValue = selectedInstance
     ? instanceValueAnnotation(document, selectedInstance.id)
@@ -6313,24 +6273,13 @@ export function App({
                         drawAngle: drawAngleMode,
                         scrollBehavior: wheelBehavior,
                       },
-                      portLabels: portLabelFormat,
-                      portLabelCount: document.annotations.filter(
-                        (annotation) =>
-                          annotation.binding?.kind === "cell-terminal-name",
-                      ).length,
-                      onFormatPortLabels: (options) =>
-                        formatCellTerminalAnnotations(document.id, options),
                       onApply: (value) => {
-                        const current = documentSettingsCodeValue(
-                          document,
-                          {
-                            showGrid: gridDotsVisible,
-                            annotationGrid,
-                            drawAngle: drawAngleMode,
-                            scrollBehavior: wheelBehavior,
-                          },
-                          portLabelFormat,
-                        );
+                        const current = documentSettingsCodeValue(document, {
+                          showGrid: gridDotsVisible,
+                          annotationGrid,
+                          drawAngle: drawAngleMode,
+                          scrollBehavior: wheelBehavior,
+                        });
                         const edits: SchematicEdit[] = [];
                         if (
                           JSON.stringify(value.appearance) !==
@@ -6367,7 +6316,30 @@ export function App({
                               value.bulkDefaults.pmosNet,
                             ),
                           );
-                        if (edits.length > 0 && !transact(edits).ok) {
+                        if (
+                          value.labels.subscriptCase !==
+                          current.labels.subscriptCase
+                        ) {
+                          try {
+                            commitProjectStructure(
+                              applyLabelSubscriptCase(
+                                project,
+                                document.id,
+                                value.labels.subscriptCase,
+                                resolver,
+                                edits,
+                              ),
+                              document.id,
+                            );
+                          } catch (error) {
+                            const message =
+                              error instanceof Error
+                                ? error.message
+                                : "Could not rename labels";
+                            setStatus(message);
+                            return { ok: false as const, message };
+                          }
+                        } else if (edits.length > 0 && !transact(edits).ok) {
                           return {
                             ok: false as const,
                             message: "Properties code was rejected",
@@ -6381,13 +6353,6 @@ export function App({
                           setDrawAngleMode(value.canvas.drawAngle);
                         if (value.canvas.scrollBehavior !== wheelBehavior)
                           setWheelBehavior(value.canvas.scrollBehavior);
-                        if (
-                          value.portLabels.suffixCase !==
-                            current.portLabels.suffixCase ||
-                          value.portLabels.suffixPlacement !==
-                            current.portLabels.suffixPlacement
-                        )
-                          setPortLabelFormat(value.portLabels);
                         setStatus("Updated Properties code");
                         return { ok: true as const };
                       },
@@ -6536,11 +6501,9 @@ export function App({
                           : {}),
                         displayName: selectedDisplayName,
                         itemName: selectedInstanceLabel
-                          ? flattenRichText(
-                              resolveAnnotationText(
-                                document,
-                                selectedInstanceLabel,
-                              ),
+                          ? resolveAnnotationName(
+                              document,
+                              selectedInstanceLabel,
                             )
                           : (selectedInstance.reference ?? selectedInstance.id),
                         defaultForeground: styleProfile.foreground,

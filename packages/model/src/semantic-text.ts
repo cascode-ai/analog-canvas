@@ -1,12 +1,12 @@
+import { identifierTextDocument } from "./identifier-text.js";
 import type { RichTextDocument, RichTextRun, RichTextStyle } from "./schema.js";
 
 /**
  * Semantic text emitted by current authoring for standardized schematic names.
  *
- * This is deliberately not a markup parser. Every input character remains in
- * the RichText projection; this helper only assigns the initial Razavi house
- * style. Callers use an explicit RichText AST for later formatting and the
- * explicit Formula editor for LaTeX syntax.
+ * An underscore starts a visible subscript; the underlying bound name retains
+ * that separator. Electrical readers must read the binding, not flatten this
+ * presentation. RichText carries later formatting independently of the name.
  */
 export type SemanticTextKind =
   | "default-instance"
@@ -168,34 +168,6 @@ export function semanticTextDocument(
   kind: SemanticTextKind,
 ): RichTextDocument {
   if (value.length === 0) return { runs: [{ kind: "line-break" }] };
-  // A Net Label or formal Port is a complete authored name, not a designator or a
-  // symbolic variable with an implicit index. Keep the Razavi bold-italic
-  // face, but require an explicit RichText edit for subscript semantics.
-  // A trailing polarity sign still qualifies the whole name.
-  const signed = /^(.+?)([+-])$/u.exec(value);
-  if (kind === "formal-port" && value.slice(0, 1).toLowerCase() === "v") {
-    if (!signed) return voltageNodeTextDocument(value);
-    return {
-      runs: [
-        ...voltageNodeTextDocument(signed[1]!).runs,
-        { kind: "text", value: signed[2]! },
-      ],
-    };
-  }
-  if (kind === "net-label" || kind === "formal-port") {
-    return {
-      runs: signed
-        ? [mathBase(signed[1]!), { kind: "text", value: signed[2]! }]
-        : [mathBase(value)],
-    };
-  }
-  // Other semantic identifiers retain the established leading-symbol and
-  // subscript convention.
-  if (!signed) return { runs: symbolRuns(value) };
-  return {
-    runs: [
-      ...symbolRuns(signed[1]!),
-      { kind: "text" as const, value: signed[2]! },
-    ],
-  };
+  if (kind === "route-marker") return { runs: symbolRuns(value) };
+  return identifierTextDocument(value);
 }

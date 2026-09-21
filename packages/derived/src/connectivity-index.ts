@@ -1,4 +1,4 @@
-import { deriveStableId, flattenRichText, foldNetName } from "@icm/model";
+import { deriveStableId, foldNetName } from "@icm/model";
 import type {
   CircuitProject,
   Net,
@@ -22,7 +22,7 @@ import {
   type HierarchyFrame,
 } from "./object-locator.js";
 import type { ResolvedNetLabelBinding } from "./net-label.js";
-import { resolveAnnotationText } from "./annotation-text.js";
+import { resolveAnnotationName } from "./annotation-text.js";
 import {
   resolveDocumentLogicalNets,
   type ResolvedDocumentLogicalNets,
@@ -347,8 +347,10 @@ function deriveLabelVirtualEdges(
     const annotation = document.annotations.find(
       (candidate) => candidate.id === binding.annotationId,
     )!;
-    const label = flattenRichText(
-      resolveAnnotationText(document, annotation, logicalNets),
+    const label = resolveAnnotationName(
+      document,
+      annotation,
+      logicalNets,
     ).trim();
     if (label.length === 0) continue;
     const group = groups.get(label) ?? {
@@ -366,8 +368,10 @@ function deriveLabelVirtualEdges(
       (candidate) => candidate.annotationId === annotation.id,
     );
     if (!binding) continue;
-    const label = flattenRichText(
-      resolveAnnotationText(document, annotation, logicalNets),
+    const label = resolveAnnotationName(
+      document,
+      annotation,
+      logicalNets,
     ).trim();
     if (label.length === 0) continue;
     const group = groups.get(label) ?? {

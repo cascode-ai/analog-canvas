@@ -448,10 +448,18 @@ describe("Edit Transaction envelope", () => {
     });
     expect(renamed).toMatchObject({ ok: true });
     if (!renamed.ok) return;
-    expect(renamed.document.annotations[0]!.formatOverride).toBeUndefined();
+    expect(renamed.document.annotations[0]!.formatOverride).toEqual({
+      runs: [
+        {
+          kind: "span",
+          style: "overbar",
+          children: [{ kind: "text", value: "OUT" }],
+        },
+      ],
+    });
   });
 
-  it("clears a stale Net-label format override when the Net is renamed", () => {
+  it("updates a Net-label projection without discarding its authored typeface", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.nets.push({
       id: "net-vin",
@@ -497,7 +505,15 @@ describe("Edit Transaction envelope", () => {
 
     expect(result).toMatchObject({ ok: true });
     if (!result.ok) return;
-    expect(result.document.annotations[0]!.formatOverride).toBeUndefined();
+    expect(result.document.annotations[0]!.formatOverride).toEqual({
+      runs: [
+        {
+          kind: "span",
+          style: "italic",
+          children: [{ kind: "text", value: "VINP" }],
+        },
+      ],
+    });
   });
 
   it("enforces the same layout lock before placing a retained Instance", () => {
@@ -2342,12 +2358,7 @@ describe("Edit Transaction envelope", () => {
     expect(renamed.document.instances[0]!.reference).toBe("M21");
     const presentation = renamed.document.annotations[0]!.formatOverride!;
     expect(flattenRichText(presentation)).toBe("M21");
-    expect(presentation.runs[0]).toEqual(
-      semanticTextDocument("M1", "instance-label").runs[0],
-    );
-    expect(presentation.runs[1]).toEqual(
-      semanticTextDocument("M21", "instance-label").runs[1],
-    );
+    expect(presentation).toEqual(semanticTextDocument("M21", "instance-label"));
   });
 
   it("applies a bounded bulk netlist patch atomically", () => {

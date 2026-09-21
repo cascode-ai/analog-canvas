@@ -1,3 +1,5 @@
+import { richTextIdentifier, rewriteRichTextIdentifier } from "@icm/model";
+import { resolveAnnotationName } from "@icm/derived";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -5,11 +7,7 @@ import {
   gateRoutingOperationPlan,
   type SchematicEdit,
 } from "@icm/edit-engine";
-import {
-  flattenRichText,
-  rewriteRichTextPlainText,
-  semanticTextDocument,
-} from "@icm/model";
+import { flattenRichText, semanticTextDocument } from "@icm/model";
 import { resolveAnnotationText } from "@icm/derived";
 import type {
   Annotation,
@@ -260,9 +258,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     const existing = options.netLabelForRoute(route);
     const draftName = netLabelDraft.trim();
     const currentName = existing
-      ? flattenRichText(
-          resolveAnnotationText(options.document, existing),
-        ).trim()
+      ? resolveAnnotationName(options.document, existing).trim()
       : "";
     if (existing ? draftName === currentName : draftName === "") return;
     const edits = options.netLabelEditsForRoute(route, netLabelDraft);
@@ -282,12 +278,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     }
     setNetLabelDraft(
       options.selectedRouteNetLabel
-        ? flattenRichText(
-            resolveAnnotationText(
-              options.document,
-              options.selectedRouteNetLabel,
-            ),
-          )
+        ? resolveAnnotationName(options.document, options.selectedRouteNetLabel)
         : "",
     );
     netLabelDraftDirtyRef.current = false;
@@ -422,7 +413,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     if (!name) {
       options.replaceSelectionKind("annotation", []);
       options.setStatus(
-        `Deleted Net Label ${flattenRichText(resolveAnnotationText(options.document, existingLabel!))}`,
+        `Deleted Net Label ${resolveAnnotationName(options.document, existingLabel!)}`,
       );
       return;
     }
@@ -443,9 +434,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     const existing = options.netLabelForRoute(route);
     const nextName = draft.trim();
     const currentName = existing
-      ? flattenRichText(
-          resolveAnnotationText(options.document, existing),
-        ).trim()
+      ? resolveAnnotationName(options.document, existing).trim()
       : "";
     if (nextName === currentName || (!nextName && !existing)) {
       netLabelDraftDirtyRef.current = false;
@@ -479,7 +468,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       setNetLabelDraft("");
       netLabelDraftDirtyRef.current = false;
       options.setStatus(
-        `Deleted Net Label ${flattenRichText(resolveAnnotationText(options.document, label))}`,
+        `Deleted Net Label ${resolveAnnotationName(options.document, label)}`,
       );
     }
   };
@@ -492,7 +481,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     if (!edits || edits.length === 0) return;
     if (transactNamedNet(edits)) {
       options.setStatus(
-        `Net Label ${flattenRichText(resolveAnnotationText(options.document, annotation))} is now ${scope}`,
+        `Net Label ${resolveAnnotationName(options.document, annotation)} is now ${scope}`,
       );
     }
   };
@@ -717,12 +706,12 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     content: RichTextDocument;
     formatOverride?: RichTextDocument;
   } => {
-    const plainText = flattenRichText(placement.content);
+    const plainText = richTextIdentifier(placement.content);
     const name = plainText.trim();
     const content =
       plainText === name
         ? placement.content
-        : rewriteRichTextPlainText(placement.content, name);
+        : rewriteRichTextIdentifier(placement.content, name);
     const semanticContent = semanticTextDocument(name, "net-label");
     return {
       name,
@@ -904,9 +893,17 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       boundAnnotation?.binding &&
       boundAnnotation.binding.kind !== "instance-reference"
     ) {
-      const name = flattenRichText(textEditing.content).trim();
-      const currentName = flattenRichText(
-        resolveAnnotationText(options.document, boundAnnotation),
+      const name =
+        textEditing.contentEdited &&
+        richTextIdentifier(textEditing.content) !==
+          richTextIdentifier(
+            resolveAnnotationText(options.document, boundAnnotation),
+          )
+          ? richTextIdentifier(textEditing.content).trim()
+          : resolveAnnotationName(options.document, boundAnnotation);
+      const currentName = resolveAnnotationName(
+        options.document,
+        boundAnnotation,
       ).trim();
       const presentationChanged =
         (boundAnnotation.sizeScale ?? 1) !== textEditing.sizeScale ||
@@ -934,7 +931,9 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
         boundAnnotation.binding.kind === "cell-terminal-name" &&
         !textEditing.formatEdited
           ? semanticContent
-          : textEditing.content;
+          : flattenRichText(textEditing.content).includes("_")
+            ? rewriteRichTextIdentifier(textEditing.content, name)
+            : textEditing.content;
       const nextFormatOverride = formatOverrideAllowed
         ? JSON.stringify(semanticContent) === JSON.stringify(editedPresentation)
           ? undefined
@@ -1045,9 +1044,10 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     const proposal = proposeTextEditingCommit(options.document, textEditing);
     if (proposal.kind === "blocked") {
       options.setStatus(
-        textEditing.visualInstanceId && !textEditing.displayAlias
-          ? "Enter a valid netlist name, or enable Use display alias for free text"
-          : "This text can no longer be edited",
+        proposal.message ??
+          (textEditing.visualInstanceId && !textEditing.displayAlias
+            ? "Enter a valid netlist name, or enable Use display alias for free text"
+            : "This text can no longer be edited"),
       );
       return;
     }

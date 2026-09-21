@@ -75,6 +75,8 @@ export const PresentationIntentSchema = z.strictObject({
   grid: z.number().int().positive(),
   compactness: z.enum(["loose", "normal", "compact"]),
   styleOverrides: StyleOverridesSchema.optional(),
+  /** Current-Cell label naming preference; never a browser-wide setting. */
+  labelSubscriptCase: z.enum(["preserve", "uppercase", "lowercase"]).optional(),
   flow: z
     .strictObject({
       power: z.literal("top").optional(),
