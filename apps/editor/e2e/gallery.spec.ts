@@ -446,6 +446,153 @@ test("Gallery copies SKY130 dependencies with preview, repeat placement and atom
   await expect(page.getByTestId("instance-count")).toHaveText(String(count));
 });
 
+test("Editor Gallery gives tags one column only after widening beyond three circuit columns", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1600, height: 950 });
+  const clockEntries = Array.from({ length: 30 }, (_, i) => ({
+    ...ENTRY,
+    id: `clock-${i}`,
+    tags: ["clock"],
+    name: `Clock ${i}`,
+  }));
+  let olderRequests = 0;
+  await page.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/gallery/tags")
+      return route.fulfill({
+        json: {
+          tags: [
+            { tag: "clock", count: 30 },
+            { tag: "bandgap", count: 1 },
+          ],
+          groups: [{ group: "Bias & references", count: 1 }],
+        },
+      });
+    if (url.pathname !== "/api/gallery") return route.fallback();
+    const older = url.searchParams.has("cursor");
+    if (older) olderRequests++;
+    return route.fulfill({
+      json: {
+        entries: older
+          ? [
+              {
+                ...ENTRY,
+                id: "bias",
+                name: "Bandgap reference",
+                author: "Lin",
+                tags: ["bandgap"],
+              },
+            ]
+          : clockEntries,
+        total: 31,
+        nextCursor: older ? null : "older",
+      },
+    });
+  });
+  await page.route("**/preview.svg*", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M1 5h8" stroke="black"/></svg>',
+    }),
+  );
+  await page.goto("/editor?new=1");
+  await awaitEditorReady(page);
+  await page.getByTestId("examples-toggle").click();
+  const panel = page.getByTestId("examples-panel");
+  const tags = panel.getByTestId("examples-panel-tags");
+  const cards = panel.locator(".shapes-example-card");
+  const resize = async (width: number) => {
+    const handle = await page
+      .getByTestId("library-resize-handle")
+      .boundingBox();
+    const box = await panel.boundingBox();
+    if (!handle || !box) throw new Error("Gallery cannot be measured");
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + 100);
+    await page.mouse.down();
+    await page.mouse.move(
+      handle.x + handle.width / 2 + width - box.width,
+      handle.y + 100,
+      { steps: 10 },
+    );
+    await page.mouse.up();
+  };
+  await expect(cards).toHaveCount(30);
+  await resize(640);
+  await expect(tags).toBeHidden();
+  await expect
+    .poll(() =>
+      panel
+        .locator(".shapes-example-list")
+        .evaluate(
+          (e) => getComputedStyle(e).gridTemplateColumns.split(" ").length,
+        ),
+    )
+    .toBe(3);
+  await resize(720);
+  await expect(tags).toBeVisible();
+  await expect
+    .poll(() =>
+      panel
+        .locator(".shapes-example-list")
+        .evaluate(
+          (e) => getComputedStyle(e).gridTemplateColumns.split(" ").length,
+        ),
+    )
+    .toBe(3);
+  await expect(
+    tags.getByRole("checkbox", { name: "Bias & references", exact: true }),
+  ).toContainText("1");
+  await page.screenshot({ path: "plan/gallery-wide-tags.png" });
+  await tags
+    .getByRole("button", { name: "Expand Bias & references", exact: true })
+    .click();
+  await tags.getByTestId("gallery-tag-option-bandgap").click();
+  await expect(panel.getByTestId("gallery-example-bias")).toBeVisible();
+  expect(olderRequests).toBe(1);
+  await expect(cards).toHaveCount(1);
+  await expect(panel.getByTestId("examples-panel-count")).toHaveText(
+    "31 circuits · 1 match",
+  );
+  const search = panel.getByTestId("examples-panel-search");
+  await search.fill("lin");
+  await expect(cards).toHaveCount(1);
+  await search.fill("clock");
+  await expect(cards).toHaveCount(0);
+  await expect(panel.getByTestId("examples-panel-empty")).toHaveText(
+    "No circuits match these filters.",
+  );
+  await expect(panel.locator('[data-testid^="shapes-example-"]')).toHaveCount(
+    0,
+  );
+  await search.fill("");
+  await resize(320);
+  await expect(tags).toBeHidden();
+  await expect(panel.getByTestId("gallery-example-bias")).toBeVisible();
+  await expect(search).toBeVisible();
+  await panel.getByTestId("examples-panel-clear-tags").click();
+  await expect(cards).toHaveCount(31);
+  await resize(900);
+  await expect(tags).toBeVisible();
+  await expect
+    .poll(() =>
+      panel
+        .locator(".shapes-example-list")
+        .evaluate(
+          (e) => getComputedStyle(e).gridTemplateColumns.split(" ").length,
+        ),
+    )
+    .toBe(4);
+  await tags
+    .getByRole("checkbox", { name: "Bias & references", exact: true })
+    .click();
+  await expect(cards).toHaveCount(1);
+  await tags
+    .getByRole("checkbox", { name: "Bias & references", exact: true })
+    .click();
+  await expect(cards).toHaveCount(31);
+});
+
 test("Publish checks exact and nearest duplicates without adding a Gallery control", async ({
   page,
   context,

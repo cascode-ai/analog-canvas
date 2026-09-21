@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 
 export const LIBRARY_WIDTH_MIN = 180;
-export const LIBRARY_WIDTH_MAX = 520;
+// Leave room for an expanded Gallery: one tag column and at least three cards.
+export const LIBRARY_WIDTH_MAX = 960;
 export const LIBRARY_WIDTH_DEFAULT = 248;
 
 export function clampLibraryWidth(width: number): number {

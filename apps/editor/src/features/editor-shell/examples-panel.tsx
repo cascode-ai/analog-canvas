@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { GalleryTagGroups } from "../../components/gallery-tag-groups";
+import "./examples-panel.css";
 
 import { renderDocumentSvg } from "@icm/render-svg";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
@@ -12,6 +14,8 @@ import {
   galleryEntryMatchesQuery,
   galleryPreviewUrl,
   loadGalleryFeed,
+  loadGalleryTagSummary,
+  type GalleryTagSummary,
   subscribeGalleryRefresh,
   type GalleryFeedEntry,
 } from "../../gallery-client";
@@ -69,30 +73,35 @@ export interface GalleryPanelView {
  */
 export function deriveGalleryPanelView(
   feed: Pick<FeedState, "status" | "entries" | "nextCursor" | "total">,
-  options: { searchQuery: string },
+  options: { searchQuery: string; selectedTags?: readonly string[] },
 ): GalleryPanelView {
   const normalizedQuery = options.searchQuery.trim().toLowerCase();
   const showGallery = feed.status === "ready" && feed.entries.length > 0;
-  const visibleEntries = normalizedQuery
-    ? feed.entries.filter((entry) =>
-        galleryEntryMatchesQuery(entry, normalizedQuery),
-      )
-    : feed.entries;
+  const selectedTags = options.selectedTags ?? [];
+  const filtering = !!normalizedQuery || selectedTags.length > 0;
+  const visibleEntries = feed.entries.filter(
+    (entry) =>
+      (!normalizedQuery || galleryEntryMatchesQuery(entry, normalizedQuery)) &&
+      (!selectedTags.length ||
+        selectedTags.some((tag) => entry.tags?.includes(tag))),
+  );
   const exhausted = feed.nextCursor === null;
   return {
     showGallery,
     visibleEntries,
     countLabel: showGallery
       ? galleryCountLabel(feed.total, {
-          search: normalizedQuery
+          search: filtering
             ? { visible: visibleEntries.length, settled: exhausted }
             : null,
         })
       : null,
     emptyMessage:
-      showGallery && normalizedQuery && visibleEntries.length === 0
+      showGallery && filtering && visibleEntries.length === 0
         ? exhausted
-          ? `No circuits match “${options.searchQuery.trim()}”.`
+          ? selectedTags.length
+            ? "No circuits match these filters."
+            : `No circuits match “${options.searchQuery.trim()}”.`
           : "No matches yet — searching older circuits…"
         : null,
   };
@@ -105,9 +114,8 @@ export function deriveGalleryPanelView(
  *
  * It reads the same feed as the Gallery wall through the same shared data
  * layer, so paging and free-text search behave identically in both places.
- * The dock is intentionally search-only: its narrow width cannot present the
- * Gallery wall's complete tag navigation legibly, while the shared search
- * already reaches entry tags.
+ * Search is always available; the shared tag tree takes one column only when
+ * the dock is wide enough for more than three circuit columns.
  */
 export function ExamplesPanel({
   open,
@@ -119,6 +127,32 @@ export function ExamplesPanel({
   const [feed, setFeed] = useState<FeedState>(EMPTY_FEED);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshSignal, setRefreshSignal] = useState(0);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [tagSummary, setTagSummary] = useState<GalleryTagSummary>({
+    tags: [],
+    groups: [],
+  });
+  const [tagsLoading, setTagsLoading] = useState(false);
+  const groupCounts = useMemo(
+    () =>
+      Object.fromEntries(
+        tagSummary.groups.map((group) => [group.group, group.count]),
+      ),
+    [tagSummary],
+  );
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setTagsLoading(true);
+    void loadGalleryTagSummary(fetcher).then((summary) => {
+      if (cancelled) return;
+      setTagSummary(summary);
+      setTagsLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, fetcher, refreshSignal]);
   const loadGenerationRef = useRef(0);
   const loadingMoreRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -183,7 +217,7 @@ export function ExamplesPanel({
   }, [open, fetcher, feed.nextCursor]);
 
   const { showGallery, visibleEntries, countLabel, emptyMessage } =
-    deriveGalleryPanelView(feed, { searchQuery });
+    deriveGalleryPanelView(feed, { searchQuery, selectedTags });
   const previewCache = useRef<Map<string, string> | null>(null);
   const bundledPreviews = useMemo(() => {
     if (!open || showGallery) return new Map<string, string>();
@@ -240,85 +274,123 @@ export function ExamplesPanel({
                 {countLabel}
               </span>
             ) : null}
+            {selectedTags.length ? (
+              <button
+                type="button"
+                className="examples-panel-clear-tags"
+                data-testid="examples-panel-clear-tags"
+                onClick={() => setSelectedTags([])}
+                aria-label={`Clear ${selectedTags.length} selected tags`}
+              >
+                Tags · {selectedTags.length} ×
+              </button>
+            ) : null}
           </div>
         ) : null}
-        {/* Columns follow the panel's dragged width, the same way the Library
+        <div
+          className="examples-panel-browser"
+          data-tags-available={showGallery}
+        >
+          {showGallery ? (
+            <aside
+              className="examples-panel-tags"
+              aria-label="Gallery tags"
+              data-testid="examples-panel-tags"
+            >
+              <h2>Tags</h2>
+              <GalleryTagGroups
+                tags={tagSummary.tags}
+                groupCounts={groupCounts}
+                countsLoading={tagsLoading}
+                selected={selectedTags}
+                onChange={setSelectedTags}
+              />
+            </aside>
+          ) : null}
+          <div className="examples-panel-results">
+            {/* Columns follow the panel's dragged width, the same way the Library
             tiles do; a separate control for the same thing is one knob too
             many. */}
-        <div className="shapes-example-list">
-          {showGallery
-            ? visibleEntries.map((example) => (
-                <button
-                  key={example.id}
-                  type="button"
-                  className="shapes-example-card"
-                  data-testid={`gallery-example-${example.id}`}
-                  aria-label={`Insert gallery circuit ${example.name}`}
-                  title={`Insert ${example.name}`}
-                  onClick={() => onOpenGalleryExample?.(example.id)}
-                >
-                  <span className="shapes-example-preview">
-                    <img
-                      src={galleryPreviewUrl(
-                        example.id,
-                        example.previewRevision,
-                      )}
-                      alt=""
-                      loading="lazy"
-                    />
-                  </span>
-                  <span className="shapes-example-copy">
-                    <span className="shapes-example-kicker">
-                      {example.author || "Gallery"}
-                    </span>
-                    <span className="shapes-example-name">{example.name}</span>
-                  </span>
-                </button>
-              ))
-            : libraryProjectExamples.map((example) => (
-                <button
-                  key={example.id}
-                  type="button"
-                  className="shapes-example-card"
-                  data-testid={`shapes-example-${example.id}`}
-                  aria-label={`Insert example ${example.name}`}
-                  title={`Insert ${example.name}`}
-                  onClick={() => onOpenExample(example)}
-                >
-                  <span
-                    className="shapes-example-preview"
-                    // Server-free preview: our own renderer's escaped output.
-                    dangerouslySetInnerHTML={{
-                      __html: bundledPreviews.get(example.id) ?? "",
-                    }}
-                  />
-                  <span className="shapes-example-copy">
-                    <span className="shapes-example-kicker">Example</span>
-                    <span className="shapes-example-name">{example.name}</span>
-                  </span>
-                </button>
-              ))}
-        </div>
-        {/* Says "still looking" while pages remain, and only claims nothing
+            <div className="shapes-example-list">
+              {showGallery
+                ? visibleEntries.map((example) => (
+                    <button
+                      key={example.id}
+                      type="button"
+                      className="shapes-example-card"
+                      data-testid={`gallery-example-${example.id}`}
+                      aria-label={`Insert gallery circuit ${example.name}`}
+                      title={`Insert ${example.name}`}
+                      onClick={() => onOpenGalleryExample?.(example.id)}
+                    >
+                      <span className="shapes-example-preview">
+                        <img
+                          src={galleryPreviewUrl(
+                            example.id,
+                            example.previewRevision,
+                          )}
+                          alt=""
+                          loading="lazy"
+                        />
+                      </span>
+                      <span className="shapes-example-copy">
+                        <span className="shapes-example-kicker">
+                          {example.author || "Gallery"}
+                        </span>
+                        <span className="shapes-example-name">
+                          {example.name}
+                        </span>
+                      </span>
+                    </button>
+                  ))
+                : libraryProjectExamples.map((example) => (
+                    <button
+                      key={example.id}
+                      type="button"
+                      className="shapes-example-card"
+                      data-testid={`shapes-example-${example.id}`}
+                      aria-label={`Insert example ${example.name}`}
+                      title={`Insert ${example.name}`}
+                      onClick={() => onOpenExample(example)}
+                    >
+                      <span
+                        className="shapes-example-preview"
+                        // Server-free preview: our own renderer's escaped output.
+                        dangerouslySetInnerHTML={{
+                          __html: bundledPreviews.get(example.id) ?? "",
+                        }}
+                      />
+                      <span className="shapes-example-copy">
+                        <span className="shapes-example-kicker">Example</span>
+                        <span className="shapes-example-name">
+                          {example.name}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+            </div>
+            {/* Says "still looking" while pages remain, and only claims nothing
             matches once the feed is exhausted — a wall of 120 circuits paged
             30 at a time would otherwise deny a circuit that is simply not
             loaded yet. */}
-        {emptyMessage ? (
-          <p
-            className="examples-panel-empty"
-            data-testid="examples-panel-empty"
-          >
-            {emptyMessage}
-          </p>
-        ) : null}
-        {showGallery && !exhausted ? (
-          <div
-            ref={sentinelRef}
-            className="examples-panel-sentinel"
-            data-testid="examples-panel-sentinel"
-            aria-hidden="true"
-          />
-        ) : null}
+            {emptyMessage ? (
+              <p
+                className="examples-panel-empty"
+                data-testid="examples-panel-empty"
+              >
+                {emptyMessage}
+              </p>
+            ) : null}
+            {showGallery && !exhausted ? (
+              <div
+                ref={sentinelRef}
+                className="examples-panel-sentinel"
+                data-testid="examples-panel-sentinel"
+                aria-hidden="true"
+              />
+            ) : null}
+          </div>
+        </div>
       </div>
     </aside>
   );

@@ -133,6 +133,38 @@ describe("gallery panel view", () => {
     expect(view.countLabel).toBe("120 circuits · 0 matches");
   });
 
+  it("combines multi-tag OR selection with text search without duplicating circuits", () => {
+    expect(
+      deriveGalleryPanelView(feed, {
+        searchQuery: "",
+        selectedTags: ["clock", "bias"],
+      }).visibleEntries.map((e) => e.id),
+    ).toEqual(["g-1", "g-2"]);
+    const view = deriveGalleryPanelView(feed, {
+      searchQuery: "lin",
+      selectedTags: ["clock", "bias"],
+    });
+    expect(view.visibleEntries.map((e) => e.id)).toEqual(["g-2"]);
+    expect(view.countLabel).toBe("120 circuits · 1 match");
+  });
+
+  it("keeps filtered zero results in the Gallery and searches remaining pages", () => {
+    const filters = { searchQuery: "", selectedTags: ["adc"] };
+    const pending = deriveGalleryPanelView(
+      { ...feed, nextCursor: "later" },
+      filters,
+    );
+    expect(pending.showGallery).toBe(true);
+    expect(pending.visibleEntries).toHaveLength(0);
+    expect(pending.emptyMessage).toBe(
+      "No matches yet — searching older circuits…",
+    );
+    const done = deriveGalleryPanelView(feed, filters);
+    expect(done.showGallery).toBe(true);
+    expect(done.emptyMessage).toBe("No circuits match these filters.");
+    expect(done.countLabel).toBe("120 circuits · 0 matches");
+  });
+
   it("stands the bundled circuits in while the feed is unavailable", () => {
     for (const status of ["loading", "unavailable"] as const) {
       const view = deriveGalleryPanelView(
