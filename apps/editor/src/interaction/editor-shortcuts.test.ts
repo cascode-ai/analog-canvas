@@ -52,6 +52,16 @@ function resolve(
 const command = (value: object) => ({ kind: "run-command", command: value });
 
 describe("editor shortcut contract", () => {
+  it("uses plain C/V for selection reuse without intercepting text editing", () => {
+    expect(resolve("c")).toEqual(command({ id: "selection.copy" }));
+    expect(resolve("v")).toEqual({ kind: "paste-selection" });
+    expect(resolve("c", { isTyping: true })).toBeNull();
+    expect(resolve("v", { isTyping: true })).toBeNull();
+    expect(resolve("v", { interactionMode: "wire" })).toEqual({
+      kind: "blocked-interaction-command",
+      command: "Paste",
+    });
+  });
   it("opens a selected component definition with E without stealing typing, Q or hierarchy navigation", () => {
     expect(resolve("e", { hasDefinitionSelection: true })).toEqual({
       kind: "edit-component-definition",

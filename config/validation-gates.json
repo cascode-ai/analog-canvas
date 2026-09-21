@@ -122,9 +122,11 @@
       "packages/render-svg/**"
     ],
     "projectPersistence": [
+      "apps/editor/src/features/clipboard/**",
       "apps/editor/src/document/**",
       "apps/editor/e2e/auto-fit.spec.ts",
       "apps/editor/e2e/project-file.spec.ts",
+      "apps/editor/e2e/project-tabs.spec.ts",
       "apps/editor/e2e/recovery-dialog.spec.ts",
       "apps/editor/e2e/recovery-hardening.spec.ts",
       "packages/model/**",
@@ -360,12 +362,14 @@
       "command": [
         "pnpm",
         "test:e2e:local",
-        "apps/editor/e2e/project-file.spec.ts"
+        "apps/editor/e2e/project-file.spec.ts",
+        "apps/editor/e2e/project-tabs.spec.ts"
       ],
       "ci": {
         "e2eArgs": [
           "apps/editor/e2e/auto-fit.spec.ts",
           "apps/editor/e2e/project-file.spec.ts",
+          "apps/editor/e2e/project-tabs.spec.ts",
           "apps/editor/e2e/recovery-dialog.spec.ts",
           "apps/editor/e2e/recovery-hardening.spec.ts",
           "apps/editor/e2e/project-source-format.spec.ts"

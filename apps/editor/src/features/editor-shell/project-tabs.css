@@ -1,0 +1,82 @@
+.project-tabs {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  min-width: 0;
+  border-top: 1px solid var(--icm-border);
+  background: var(--icm-surface-muted);
+}
+.project-tabs [role="tablist"] {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.project-tab {
+  display: flex;
+  flex: 0 0 auto;
+  max-width: 220px;
+  border-right: 1px solid var(--icm-border);
+}
+.project-tab[data-active="true"] {
+  background: var(--icm-surface);
+  box-shadow: inset 0 -2px var(--icm-accent);
+}
+.project-tabs button,
+.project-tabs summary {
+  height: 28px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--icm-text);
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.project-tabs button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.project-tabs [role="tab"] {
+  min-width: 70px;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.project-tabs button:hover,
+.project-tabs summary:hover {
+  background: var(--icm-surface-hover);
+}
+.project-tabs-shelf {
+  position: relative;
+}
+.project-tabs-shelf summary {
+  list-style: none;
+}
+.project-tabs-shelf > div {
+  position: absolute;
+  right: 0;
+  z-index: 40;
+  width: 230px;
+  max-height: 280px;
+  overflow: auto;
+  padding: 6px;
+  background: var(--icm-surface);
+  border: 1px solid var(--icm-border);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 15%);
+}
+.project-tabs-shelf > div button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  height: auto;
+  padding: 8px;
+}
+.project-tabs-shelf span {
+  font-size: 12px;
+  color: var(--icm-text-muted);
+}

@@ -476,3 +476,38 @@ describe("portable system circuit clipboard", () => {
     );
   });
 });
+
+it("appends one fully parameterized transistor to an occupied circuit without changing its existing devices", () => {
+  const source = fixture("simulation-common-source");
+  const document = source.documents.find(
+    (item) => item.id === source.topDocumentId,
+  )!;
+  const transistor = document.instances.find((item) =>
+    item.symbolId.includes("nmos"),
+  )!;
+  expect(transistor.netlist?.parameters).toBeDefined();
+  const fragment = encodeCircuitClipboard(source, document, {
+    instanceIds: [transistor.id],
+    routeIds: [],
+    junctionIds: [],
+    annotationIds: [],
+    draftingIds: [],
+  })!;
+  const original = structuredClone(source);
+  const result = paste(source, fragment);
+  const output = result.documents.find(
+    (item) => item.id === source.topDocumentId,
+  )!;
+  expect(source).toEqual(original);
+  expect(output.instances).toHaveLength(document.instances.length + 1);
+  for (const item of document.instances)
+    expect(
+      output.instances.find((candidate) => candidate.id === item.id),
+    ).toEqual(item);
+  const copied = output.instances.find(
+    (item) => !document.instances.some((original) => original.id === item.id),
+  )!;
+  expect(copied.netlist).toEqual(transistor.netlist);
+  expect(copied.reference).not.toEqual(transistor.reference);
+  expect(output.routes).toHaveLength(document.routes.length);
+});

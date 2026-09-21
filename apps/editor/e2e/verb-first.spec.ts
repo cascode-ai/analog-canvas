@@ -16,26 +16,32 @@ function instances(page: Page) {
   return page.locator('[data-canvas-hit-kind="instance"]');
 }
 
-test("C pressed first arms copy; the next click picks up a copy", async ({
+test("C requires a selection and V starts placing its copy", async ({
   page,
 }) => {
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 300, y: 250 });
   await expect(instances(page)).toHaveCount(1);
 
-  // Nothing selected: C arms the verb instead of complaining.
+  // Copy needs an explicit selection, as it does with Ctrl/Cmd+C.
   // Click empty canvas so nothing is selected before pressing the verb key.
   await page.getByTestId("schematic-canvas").click({
     position: { x: 150, y: 420 },
   });
   await page.keyboard.press("c");
-  await expect(page.getByTestId("status")).toContainText("Copy: click");
+  await expect(page.getByTestId("status")).toContainText(
+    "Select components or wires",
+  );
 
-  // Clicking the part starts copy placement with its ghost on the cursor.
+  // Selecting and copying does not change the circuit; V starts placement.
   const part = instances(page).first();
   const box = (await part.boundingBox())!;
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await expect(page.getByTestId("status")).toContainText("Place copy");
+  await page.keyboard.press("c");
+  await expect(page.getByTestId("status")).toContainText("Circuit copied");
+  await expect(page.getByTestId("copy-placement-preview")).toHaveCount(0);
+  await page.keyboard.press("v");
+  await expect(page.getByTestId("status")).toContainText("click to place");
 
   // Clicking empty canvas commits the copy.
   await page.getByTestId("schematic-canvas").click({

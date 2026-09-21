@@ -653,11 +653,18 @@ export function useDocumentController(
   const onCommittedRef = useRef(onCommittedProject);
   onCommittedRef.current = onCommittedProject;
   const [snapshot, setSnapshot] = useState(() => controller.snapshot());
-  const synchronize = () => setSnapshot(controller.snapshot());
+  const synchronize = () => {
+    if (controllerRef.current === controller)
+      setSnapshot(controller.snapshot());
+  };
 
   return {
     ...snapshot,
     controller,
+    activateSession: (next: EditorDocumentController) => {
+      controllerRef.current = next;
+      setSnapshot(next.snapshot());
+    },
     openDocument: (documentId: string) => {
       const document = controller.openDocument(documentId);
       if (document) synchronize();
@@ -677,14 +684,16 @@ export function useDocumentController(
         activeDocumentId,
       );
       synchronize();
-      onCommittedRef.current(controller.project);
+      if (controllerRef.current === controller)
+        onCommittedRef.current(controller.project);
       return document;
     },
     transact: (edits: readonly SchematicEdit[]) => {
       const result = controller.transact(edits);
       if (result.ok && result.applied) {
         synchronize();
-        onCommittedRef.current(controller.project);
+        if (controllerRef.current === controller)
+          onCommittedRef.current(controller.project);
       }
       return result;
     },
@@ -692,7 +701,8 @@ export function useDocumentController(
       const result = controller.dispatchTransaction(request);
       if (result.ok && result.applied) {
         synchronize();
-        onCommittedRef.current(controller.project);
+        if (controllerRef.current === controller)
+          onCommittedRef.current(controller.project);
       }
       return result;
     },
@@ -706,13 +716,15 @@ export function useDocumentController(
       );
       if (result.ok && result.applied) {
         synchronize();
-        onCommittedRef.current(controller.project);
+        if (controllerRef.current === controller)
+          onCommittedRef.current(controller.project);
       }
       return result;
     },
     synchronizeExternalCommit: () => {
       synchronize();
-      onCommittedRef.current(controller.project);
+      if (controllerRef.current === controller)
+        onCommittedRef.current(controller.project);
     },
   };
 }

@@ -40,8 +40,8 @@ is defined.
   canvas to box-select. Dragging one selected instance moves the whole
   selection atomically.
 - Internal wires and Junctions move with a selected component group; only
-  wires leaving the group stretch. Press `C` to pick up a copy of the selected
-  group and its internal wiring, then click to place it.
+  wires leaving the group stretch. Select the components and wires to reuse,
+  press `C` to copy and `V` to start placement, then click to place them.
 - To reuse an editable circuit in another tab or window, select it (or use
   `Ctrl/Cmd+A`), press `Ctrl/Cmd+C`, then switch to the destination canvas and
   press `Ctrl/Cmd+V`. Move the preview and click to place; `Esc` cancels. Devices,
@@ -49,7 +49,17 @@ is defined.
   child Cells travel together. Name conflicts receive fresh names; explicit
   global supplies retain their normal shared meaning. Each placement is one
   undoable operation. In text/code fields, these shortcuts still copy and paste
-  text. Plain `C` keeps its existing fresh-device placement behavior.
+  text. Plain `C` and `V` use the same selection transport; pasting appends to
+  the destination, including when it already contains a circuit.
+- The compact project tab bar opens several independent circuits in one editor.
+  Use **+** for a new project, **Open file in new tab** for a local file, or
+  **Open Shelf project in tab** for a saved draft. Tabs keep separate cameras,
+  selections, undo histories, Cloud Save bindings and browser recovery copies.
+  Copy selected objects, switch tabs, and paste to merge them into that circuit.
+  Apply or discard pending code edits before switching. Closing an unsaved tab
+  asks first. Open tabs are an in-memory workspace, not a saved tab collection;
+  save your projects before leaving. Switching projects ends the previous
+  Agent connection and closes its simulation panel.
 - Use **Wire** or press `W`, then choose two pins, Junctions, or route segments.
   Passing across a conductor remains a Crossing; ending on one creates a
   Junction automatically. An exact multi-route intersection is rejected as
@@ -322,7 +332,7 @@ at 3x with a bounded image size. SVG stays vector; formula glyphs remain paths,
 and the receiving application determines paste/editing support. Clipboard writes
 require HTTPS or localhost and browser permission. Failures are reported without
 silently downloading a file or substituting a different format. These commands
-do not change the existing **C** copy-placement workflow.
+remain separate from editable circuit copying with **C**, then **V**.
 
 Use **Netlist / Check and Save** to check the whole Project for ERC and
 visual issues and save it through the existing private Cloud Project service.

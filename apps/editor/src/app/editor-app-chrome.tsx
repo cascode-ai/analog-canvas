@@ -1,4 +1,4 @@
-import { type ComponentProps } from "react";
+import { type ReactNode, type ComponentProps } from "react";
 
 import { AccountMenu } from "../components/account";
 import { BugReportLink } from "../components/bug-report-link";
@@ -27,6 +27,7 @@ interface AlignmentAction extends CommandAction {
 }
 
 export interface EditorAppChromeProps {
+  projectTabs?: ReactNode;
   projectName: string;
   galleryEntryMetadata: {
     author: string;
@@ -89,6 +90,7 @@ export function ReleaseChannelBadge({
 
 /** Persistent command chrome above the document workspace. */
 export function EditorAppChrome({
+  projectTabs,
   projectName,
   galleryEntryMetadata,
   projectSchemaVersion,
@@ -483,6 +485,7 @@ export function EditorAppChrome({
       </div>
       <DrawingToolbar {...drawingToolbar} />
       <HierarchyToolbar {...hierarchyToolbar} />
+      {projectTabs}
       <EditorTestTelemetry {...telemetry} />
     </header>
   );

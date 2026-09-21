@@ -70,6 +70,7 @@ test("C copy shows alignment guides, commits the preview and clears guides on Es
     );
   await page.getByTestId("hit-R1").click();
   await page.keyboard.press("c");
+  await page.keyboard.press("v");
   const horizontal = await screenPoint(500, 202);
   await page.mouse.move(horizontal.x, horizontal.y);
   const ghost = page.getByTestId("copy-placement-preview");
@@ -289,6 +290,7 @@ test("mirrors component and copy placement previews before their commits", async
 
   await page.getByTestId("hit-R1").click();
   await page.keyboard.press("c");
+  await page.keyboard.press("v");
   await page.mouse.move(box.x + 520, box.y + 220);
   const copyPreview = page
     .getByTestId("copy-placement-preview")
@@ -1207,7 +1209,9 @@ test("reopens I and starts Copy from retained selection without stacking modes",
     page.getByRole("dialog", { name: "Insert Component" }),
   ).toHaveCount(0);
   await page.keyboard.press("c");
+  await page.keyboard.press("v");
   await page.keyboard.press("c");
+  await page.keyboard.press("v");
   await canvas.hover({ position: { x: 560, y: 330 } });
   await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
   await page.keyboard.press("Escape");
@@ -1261,6 +1265,7 @@ test("Copy shows its ghost under the cursor without waiting for a move", async (
   // from the remembered position rather than from the next pointer move.
   await canvas.hover({ position: { x: 500, y: 300 } });
   await page.keyboard.press("c");
+  await page.keyboard.press("v");
   await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
 });
 
@@ -1293,6 +1298,9 @@ test("publishes placement cancellation synchronously before rapid Copy", async (
       document.body.dispatchEvent(
         new KeyboardEvent("keydown", { key: "c", bubbles: true }),
       );
+      document.body.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "v", bubbles: true }),
+      );
     });
 
     await canvas.hover({ position: { x: 400 + index * 130, y: 380 } });
@@ -1317,6 +1325,7 @@ test("copies a MOS whose bulk belongs to a shared supply Net", async ({
 
   await page.getByTestId("hit-M1").click();
   await page.keyboard.press("c");
+  await page.keyboard.press("v");
   await canvas.hover({ position: { x: 620, y: 340 } });
   await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
   await canvas.click({ position: { x: 620, y: 340 } });

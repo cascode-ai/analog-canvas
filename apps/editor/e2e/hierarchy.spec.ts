@@ -1465,6 +1465,7 @@ test("copies and independently deletes Formal Cell Pins", async ({ page }) => {
   const canvasBox = await canvas.boundingBox();
   expect(canvasBox).not.toBeNull();
   await page.keyboard.press("c");
+  await page.keyboard.press("v");
   await page.mouse.move(canvasBox!.x + 440, canvasBox!.y + 180);
   await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
   await canvas.click({ position: { x: 440, y: 180 } });
@@ -1486,7 +1487,7 @@ test("copies and independently deletes Formal Cell Pins", async ({ page }) => {
   ).toHaveText("IN");
   await expect(
     page.locator('[data-object-id="instance-label-P1-copy-1"]'),
-  ).toHaveText("Vout");
+  ).toHaveText("VIN_copy1");
   await page.getByTestId("hit-P1").click();
   await page.keyboard.press("Delete");
   await expect(page.getByTestId("hit-P1")).toHaveCount(0);
@@ -1498,13 +1499,13 @@ test("copies and independently deletes Formal Cell Pins", async ({ page }) => {
   }
   await expect(
     page.locator('[data-object-id="instance-label-P1-copy-1"]'),
-  ).toHaveText("Vout");
+  ).toHaveText("VIN_copy1");
   await clickCommand(page, "Netlist", "Review Netlist Issues…");
   await expect(
     page
       .getByRole("dialog", { name: "Check Report" })
       .getByTestId("netlist-preview"),
-  ).toContainText(".subckt dut VOUT");
+  ).toContainText(".subckt dut VIN_COPY1");
 });
 
 test("edits a Cell Pin name and RichText presentation in place", async ({

@@ -50,6 +50,7 @@ const ProjectTextEditor = lazy(
 /** Live structural output. Diagnostics belong outside the copyable code. */
 export function NetlistCodePanel({
   project,
+  onDirtyChange,
   rootDocumentId,
   onRootChange,
   format,
@@ -66,6 +67,7 @@ export function NetlistCodePanel({
   onProcessChange,
   onDeviceTargetChange,
 }: {
+  onDirtyChange?(dirty: boolean): void;
   project: CircuitProject;
   rootDocumentId?: string | undefined;
   onRootChange?(documentId: string): void;
@@ -163,6 +165,11 @@ export function NetlistCodePanel({
   const [applyError, setApplyError] = useState<string | null>(null);
   const ownApply = useRef(false);
   const dirty = draft !== editBaseline;
+  useLayoutEffect(() => {
+    onDirtyChange?.(dirty);
+    return () => onDirtyChange?.(false);
+  }, [dirty, onDirtyChange]);
+
   const conflict = dirty && source !== editBaseline;
   const draftRef = useRef(draft);
   draftRef.current = draft;

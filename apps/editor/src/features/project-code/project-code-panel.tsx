@@ -20,8 +20,10 @@ export interface ProjectCodeApplyOutcome {
 /** Complete Project JSON, kept separate from per-object Properties. */
 export function ProjectCodePanel({
   project,
+  onDirtyChange,
   onApply,
 }: {
+  onDirtyChange?(dirty: boolean): void;
   project: CircuitProject;
   onApply(source: string, baseline: string): ProjectCodeApplyOutcome;
 }) {
@@ -41,6 +43,11 @@ export function ProjectCodePanel({
       setError(null);
     }
   }, [baseline, dirty]);
+
+  useLayoutEffect(() => {
+    onDirtyChange?.(dirty);
+    return () => onDirtyChange?.(false);
+  }, [dirty, onDirtyChange]);
 
   const changedOutsideDraft = dirty && editBaseline !== baseline;
   const parsed = validateProjectCode(draft, project.id);

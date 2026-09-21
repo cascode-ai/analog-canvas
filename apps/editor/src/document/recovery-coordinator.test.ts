@@ -440,3 +440,43 @@ describe("createRecoveryCoordinator", () => {
     expect(read.sessions[0]?.workingCopyId).not.toBe("id-1");
   });
 });
+
+it("resumes separate project-tab recovery identities without overwriting another drawing", async () => {
+  const { coordinator, settle, storage } = createHarness();
+  await settle();
+  const first = createEmptyProject("tab-a", "First");
+  coordinator.noteFormalFileHint({ name: "first.icproj.json" });
+  coordinator.stage(first);
+  await coordinator.flushNow();
+  const a = coordinator.captureWorkingSession();
+  coordinator.beginWorkingCopy("new");
+  const second = createEmptyProject("tab-b", "Second");
+  coordinator.stage(second);
+  await coordinator.flushNow();
+  const b = coordinator.captureWorkingSession();
+  expect(a.workingCopyId).not.toBe(b.workingCopyId);
+  coordinator.resumeWorkingSession(a);
+  expect(storage.getItem(WORKING_COPY_STORAGE_KEY)).toBe(a.workingCopyId);
+  coordinator.stage({ ...first, name: "First revised" });
+  await coordinator.flushNow();
+  const restoredA = await coordinator.readSessionProject(
+    a.workingCopyId,
+    "latest",
+  );
+  const restoredB = await coordinator.readSessionProject(
+    b.workingCopyId,
+    "latest",
+  );
+  expect(restoredA.status).toBe("valid");
+  expect(restoredB.status).toBe("valid");
+  if (restoredA.status === "valid")
+    expect(restoredA.project.name).toBe("First revised");
+  if (restoredB.status === "valid")
+    expect(restoredB.project.name).toBe("Second");
+  expect(coordinator.captureWorkingSession().formalFileHint).toEqual({
+    name: "first.icproj.json",
+  });
+  coordinator.resumeWorkingSession(b);
+  expect(coordinator.captureWorkingSession().formalFileHint).toBeUndefined();
+  coordinator.dispose();
+});

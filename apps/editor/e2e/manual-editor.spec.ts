@@ -294,6 +294,7 @@ async function copySelectionAt(
   const box = await canvas.boundingBox();
   if (!box) throw new Error("Canvas is not measurable");
   await page.keyboard.press("c");
+  await page.keyboard.press("v");
   await page.mouse.move(box.x + position.x, box.y + position.y);
   await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
   await canvas.click({ position });
@@ -4057,7 +4058,7 @@ test("R rotates a selected component instead of entering Rectangle", async ({
   await expect(page.getByTestId("revision")).toHaveText("4");
 });
 
-test("C inserts a fresh device instead of copying its name alias and source connections", async ({
+test("C/V preserves display aliases but detaches unselected connections and allocates a unique reference", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -4088,12 +4089,19 @@ test("C inserts a fresh device instead of copying its name alias and source conn
   const copy = document.instances.find(
     (instance) => instance.id !== "R1" && instance.id !== "R2",
   )!;
-  expect(copy.reference).toBe("R1");
+  expect(copy.reference).not.toBe("R99");
+  expect(new Set(document.instances.map((item) => item.reference)).size).toBe(
+    3,
+  );
   expect(
     document.nets
-      .flatMap((net) => net.terminals)
-      .some((terminal) => terminal.instanceId === copy.id),
-  ).toBe(false);
+      .filter((net) =>
+        net.terminals.some((terminal) => terminal.instanceId === copy.id),
+      )
+      .every((net) =>
+        net.terminals.every((terminal) => terminal.instanceId === copy.id),
+      ),
+  ).toBe(true);
   expect(document.routes).toHaveLength(1);
   const annotation = document.annotations.find(
     (item) =>
@@ -4101,22 +4109,24 @@ test("C inserts a fresh device instead of copying its name alias and source conn
       item.anchor.objectId === copy.id &&
       item.kind === "instance-label",
   )!;
-  expect(annotation.content).toBeUndefined();
-  expect(annotation.binding).toEqual({
-    kind: "instance-reference",
-    instanceId: copy.id,
-  });
+  expect(annotation.content).toBeDefined();
+  // An explicit display alias stays authored text, independent of the fresh netlist name.
+  expect(annotation.binding).toBeUndefined();
+  expect(annotation.content).toEqual(
+    document.annotations.find((item) => item.id === "instance-label-R1")!
+      .content,
+  );
   await expect(
     page.locator(
       `[data-layer="annotations"] [data-object-id="${annotation.id}"]`,
     ),
-  ).toContainText("R1");
+  ).toContainText("Old_alias");
   await page.keyboard.press("Escape");
   await page.keyboard.press("Control+z");
   await expect(page.getByTestId("instance-count")).toHaveText("2");
 });
 
-test("C previews one copy and Escape cancels without a revision", async ({
+test("C/V previews one copy and Escape cancels without a revision", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -4127,9 +4137,11 @@ test("C previews one copy and Escape cancels without a revision", async ({
   const box = await canvas.boundingBox();
   if (!box) throw new Error("Canvas is not measurable");
   await page.keyboard.press("c");
+  await page.keyboard.press("v");
   await page.mouse.move(box.x + 560, box.y + 340);
   await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
   await page.keyboard.press("c");
+  await page.keyboard.press("v");
   await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
   await page.keyboard.press("Escape");
 
@@ -4155,6 +4167,7 @@ test("copy ghost follows each pointer position and commits over existing geometr
     throw new Error("Canvas objects are not measurable");
 
   await page.keyboard.press("c");
+  await page.keyboard.press("v");
   await page.mouse.move(canvasBox.x + 500, canvasBox.y + 180);
   const ghost = page.getByTestId("copy-placement-preview");
   await expect(ghost).toBeVisible();
@@ -4192,6 +4205,7 @@ test("R rotates a copy preview before committing the copied component", async ({
   if (!box) throw new Error("Canvas is not measurable");
 
   await page.keyboard.press("c");
+  await page.keyboard.press("v");
   await page.mouse.move(box.x + 560, box.y + 340);
   const previewSymbol = page
     .getByTestId("copy-placement-preview")
@@ -4293,6 +4307,7 @@ test("keeps copy placement active for repeated commits until Escape", async ({
   if (!box) throw new Error("Canvas is not measurable");
 
   await page.keyboard.press("c");
+  await page.keyboard.press("v");
   await page.mouse.move(box.x + 520, box.y + 220);
   await canvas.click({ position: { x: 520, y: 220 } });
   await expect(page.getByTestId("instance-count")).toHaveText("2");
@@ -6514,6 +6529,7 @@ test("the copy ghost shows the wires it is about to place", async ({
   await page.mouse.up();
 
   await page.keyboard.press("c");
+  await page.keyboard.press("v");
   await canvas.hover({ position: { x: 400, y: 420 } });
   const ghost = page.locator(".copy-placement-preview");
   await expect(ghost).toBeVisible();

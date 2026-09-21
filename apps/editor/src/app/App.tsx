@@ -81,6 +81,7 @@ import {
 import type { HierarchyFrame } from "@icm/derived";
 import {
   createEmptyProject,
+  createId,
   DEFAULT_PORT_LABEL_FORMAT,
   flattenRichText,
 } from "@icm/model";
@@ -268,8 +269,14 @@ import {
   createLibraryExampleProject,
   libraryProjectExamples,
 } from "../examples/library-examples";
-import { useDocumentController } from "../document/document-controller";
+import {
+  EditorDocumentController,
+  useDocumentController,
+} from "../document/document-controller";
 import { useProjectFileLifecycle } from "../document/use-project-file-lifecycle";
+import { useProjectTabs } from "../document/use-project-tabs";
+import { ProjectTabs } from "../features/editor-shell/project-tabs";
+import type { ReplaceProjectOptions } from "../document/use-project-file-lifecycle";
 import { useUnsavedWorkGuard } from "../document/use-unsaved-work-guard";
 import { authoredObjectCount } from "../document/project-content";
 import { translateDraftingObject } from "../features/drafting/drafting-manipulation";
@@ -583,6 +590,8 @@ export function App({
   // offers the refresh that restores the current circuit.
   const [chunkLoadFailure, setChunkLoadFailure] = useState<string | null>(null);
   const {
+    captureWorkingSession: captureRecoverySession,
+    resumeWorkingSession: resumeRecoverySession,
     state: recoveryState,
     sessions: recoverySessions,
     ready: recoveryReady,
@@ -620,6 +629,7 @@ export function App({
     commitProjectStructure,
     dispatchProjectTransaction,
     transact: transactDocument,
+    activateSession: activateDocumentSession,
     controller: editorDocumentController,
     projectSessionId,
     synchronizeExternalCommit,
@@ -1063,6 +1073,17 @@ export function App({
     void humanSimulationSession?.clear();
     setAnalogSimulationState("closed");
   };
+  const [codeDraftDirty, setCodeDraftDirty] = useState(false);
+  const noteCodeDraftDirty = useCallback((dirty: boolean) => {
+    setCodeDraftDirty(dirty);
+  }, []);
+  const openProjectInTabRef = useRef<
+    (
+      project: CircuitProject,
+      view: GridRect,
+      options: ReplaceProjectOptions,
+    ) => Promise<boolean>
+  >(async () => false);
   const captureAuthoredProject = async () => {
     if (
       simulationSourceBuffer.current &&
@@ -1076,6 +1097,8 @@ export function App({
     return editorDocumentController.project;
   };
   const {
+    captureFileSession,
+    restoreFileSession,
     cloudBinding,
     noteGalleryPublication,
     savedProjectBaseline,
@@ -1111,6 +1134,8 @@ export function App({
     openProjectFile,
     openCloudProjectById,
   } = useProjectFileLifecycle({
+    openProjectInTab: (project, view, options) =>
+      openProjectInTabRef.current(project, view, options),
     restoreWorkingSession: agentStartupRecovery !== null,
     galleryEntryId: canUpdateGalleryPublication(
       galleryEntryContext,
@@ -1243,7 +1268,6 @@ export function App({
     setGalleryEntryContext(context);
   };
 
-  const allowNextBrowserUnload = useUnsavedWorkGuard(hasUnsafeWork());
   const startupCloudRestoreAttemptedRef = useRef(false);
   const hasExplicitBootTarget =
     initialGalleryEntryId !== null ||
@@ -1475,11 +1499,11 @@ export function App({
   /**
    * A verb key pressed with nothing selected arms that verb: the next
    * object pointed at is the one acted on (Cadence-style verb-first).
-   * Rotate and Delete stay armed for repeated clicks; Copy and Move hand
-   * over to their own placement/move interactions on the first target.
+   * Rotate and Delete stay armed for repeated clicks; Move hands
+   * over to its own move interaction on the first target.
    */
   const [armedVerb, setArmedVerb] = useState<
-    "rotate" | "copy" | "move" | "move-detached" | "delete" | null
+    "rotate" | "move" | "move-detached" | "delete" | null
   >(null);
   /** The click paired with an armed-verb pickup must not commit a placement. */
   const suppressCommitClickRef = useRef(false);
@@ -1585,6 +1609,7 @@ export function App({
   }
   const suppressInstanceClick = useRef(false);
   const projectInputRef = useRef<HTMLInputElement>(null);
+  const tabProjectInputRef = useRef<HTMLInputElement>(null);
   const selectionShelfRef = useRef<HTMLButtonElement>(null);
   const documentViewBoxes = useRef(new Map<string, GridRect>());
   const [projectedMovePreviewDocument, setProjectedMovePreviewDocument] =
@@ -2721,20 +2746,16 @@ export function App({
   });
 
   /** Arm a verb so the next object pointed at is the one acted on. */
-  function armVerb(
-    verb: "rotate" | "copy" | "move" | "move-detached" | "delete",
-  ): void {
+  function armVerb(verb: "rotate" | "move" | "move-detached" | "delete"): void {
     setArmedVerb(verb);
     setStatus(
       verb === "rotate"
         ? "Rotate: click a part to turn it, Escape to stop"
-        : verb === "copy"
-          ? "Copy: click a part to pick up a copy · Esc cancels"
-          : verb === "move"
-            ? "Move: click a part to pick it up · Esc cancels"
-            : verb === "move-detached"
-              ? "Move without wires: click a part to pick it up · Esc cancels"
-              : "Delete: click objects to delete them · Esc exits",
+        : verb === "move"
+          ? "Move: click a part to pick it up · Esc cancels"
+          : verb === "move-detached"
+            ? "Move without wires: click a part to pick it up · Esc cancels"
+            : "Delete: click objects to delete them · Esc exits",
     );
   }
 
@@ -2745,9 +2766,9 @@ export function App({
 
   /**
    * Apply the armed verb to one part. Returns false when nothing was armed.
-   * Rotate and Delete remain armed for the next click; Copy and Move disarm
-   * because their own interactions (copy placement, command move) take over
-   * and own Esc from here.
+   * Rotate and Delete remain armed for the next click; Move disarms
+   * because its command move interaction takes over
+   * and owns Esc from here.
    */
   function consumeArmedVerbOnInstance(instanceId: string): boolean {
     if (armedVerb === null) return false;
@@ -2769,13 +2790,6 @@ export function App({
           `Rotated ${instanceId} to ${next}° — click another, Escape to stop`,
         );
       }
-      return true;
-    }
-    if (armedVerb === "copy") {
-      setArmedVerb(null);
-      selectOnly("instance", [instanceId]);
-      suppressCommitClickRef.current = true;
-      beginCopyPlacementFromSelection([instanceId]);
       return true;
     }
     if (armedVerb === "move" || armedVerb === "move-detached") {
@@ -2821,7 +2835,6 @@ export function App({
       setStatus,
     });
   const {
-    beginCopyPlacement: beginCopyPlacementFromSelection,
     beginKeyboardSelectionMove: beginKeyboardSelectionMoveFromSelection,
     beginMove: beginMoveFromSelection,
     beginVisualSelectionMove: beginVisualSelectionMoveFromSelection,
@@ -3520,7 +3533,7 @@ export function App({
     showProjectPanel(mode);
   }
 
-  useCircuitClipboard({
+  const circuitClipboard = useCircuitClipboard({
     project,
     document,
     selection: visualSelection,
@@ -3536,6 +3549,7 @@ export function App({
       if (!anchor) throw new Error("Copied objects have no placeable origin");
       cancelAllTransientInteraction();
       beginCopyPlacementInteraction(clipboard, anchor);
+      seedCopyPreviewFromPointer();
       setStatus(
         `Paste ${clipboard.instances.length} components · click to place · Esc cancels`,
       );
@@ -4125,11 +4139,7 @@ export function App({
         armVerb("delete");
       },
       beginCopy: () => {
-        if (hasVisualSelection(visualSelection)) {
-          beginCopyPlacementFromSelection();
-          return;
-        }
-        armVerb("copy");
+        void circuitClipboard.copySelection();
       },
       copyVisualSelection: visualClipboard.copy,
       openSelectionFilter: () => {
@@ -4265,7 +4275,9 @@ export function App({
     function onKeyDown(event: KeyboardEvent): void {
       if (
         event.target instanceof Element &&
-        event.target.closest(".gallery-topology-comparison")
+        (event.target.closest(".gallery-topology-comparison") ||
+          (event.target.closest(".project-tabs") &&
+            ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)))
       )
         return;
       if (componentEditor) return;
@@ -4410,6 +4422,9 @@ export function App({
           return;
         case "block-browser-bookmark":
           setStatus("Browser bookmark shortcut blocked while editing");
+          return;
+        case "paste-selection":
+          void circuitClipboard.pasteSelection();
           return;
         case "save":
           void saveProjectToCloud();
@@ -4796,6 +4811,156 @@ export function App({
     },
   });
 
+  function captureTabSession() {
+    return {
+      controller: editorDocumentController,
+      file: captureFileSession(),
+      recovery: captureRecoverySession(),
+      view: cameraRuntime.current(),
+      cellViews: new Map(documentViewBoxes.current),
+      stack: documentStack,
+      selection: visualSelection,
+      panel: projectPanel,
+      properties: selectionOpen,
+      publication: galleryEntryContext,
+      publishDraft,
+      netlistEntry,
+      dirty: isDirtyWork(),
+      unsafe: hasUnsafeWork() || codeDraftDirty,
+      fit: false,
+    };
+  }
+  type TabSession = ReturnType<typeof captureTabSession>;
+  function restoreTabSession(session: TabSession) {
+    resetInteractionState();
+    browserAgentFileHost.clear();
+    setAgentFileCandidate(null);
+    setImportReport(null);
+    setImportReviewOpen(false);
+    setProjectNameDraft(null);
+    setCanvasContextMenu(null);
+    setNetlistFocusedInstance(null);
+    setHighlightedNetOrigin(null);
+    setCodeNetPreview(null);
+    setAnalogSimulationState("closed");
+    setNetlistPreflightOpen(false);
+    activateDocumentSession(session.controller);
+    restoreFileSession(session.file);
+    resumeRecoverySession(session.recovery);
+    documentViewBoxes.current = new Map(session.cellViews);
+    setDocumentStack(session.stack);
+    setViewBox(session.view, session.controller.document.presentation.grid);
+    autoFitProjectRef.current = session.controller.projectSessionId;
+    pendingAutoFitRef.current = session.fit;
+    replaceSelection(session.selection);
+    setSelectionOpen(session.properties);
+    setProjectPanel(session.panel);
+    setGalleryEntryContext(session.publication);
+    setPublishDraft(session.publishDraft);
+    setNetlistEntry(session.netlistEntry);
+    setStatus(`Switched to ${session.controller.project.name}`);
+    stageRecovery(session.controller.project, {
+      cloudBinding: session.file.cloudBinding,
+      unsavedAtSnapshot: session.dirty,
+    });
+  }
+  function createTabSession(
+    nextProject = createEmptyProject(
+      createId("project"),
+      "New Circuit",
+      createId("document"),
+    ),
+    nextView = DEFAULT_VIEWBOX,
+    options: ReplaceProjectOptions = {},
+  ): TabSession {
+    const prepared =
+      materializeRazaviProjectBulkConnections(nextProject).project;
+    const controller = new EditorDocumentController(prepared);
+    // Identity is allocated without changing the outgoing recovery coordinator.
+    return {
+      ...captureTabSession(),
+      controller,
+      file: {
+        persistenceState: options.persistenceState ?? "unbound",
+        cloudBinding: options.cloudBinding ?? null,
+        savedBaseline: options.savedBaseline ?? null,
+        safeSnapshotToken: null,
+      },
+      recovery: {
+        workingCopyId: createId("working-copy"),
+        source: options.source ?? "new",
+        ...(options.formalFileHint
+          ? { formalFileHint: options.formalFileHint }
+          : {}),
+      },
+      view: nextView,
+      cellViews: new Map(),
+      stack: [],
+      selection: {
+        instanceIds: [],
+        routeIds: [],
+        annotationIds: [],
+        draftingIds: [],
+        junctionIds: [],
+      },
+      panel: "netlist",
+      properties: false,
+      publication: null,
+      publishDraft: null,
+      netlistEntry: null,
+      dirty: options.persistenceState === "dirty",
+      unsafe: options.persistenceState === "dirty",
+      fit: true,
+    };
+  }
+  const projectTabs = useProjectTabs<TabSession>({
+    capture: captureTabSession,
+    restore: restoreTabSession,
+    describe: (session) => ({
+      name: session.controller.project.name,
+      dirty: session.dirty,
+      unsafe: session.unsafe,
+      cloudId: session.file.cloudBinding?.id ?? null,
+    }),
+    prepare: async () => {
+      if (
+        isSaveInFlight() ||
+        replaceGuard ||
+        recoveryDialogOpen ||
+        publishGalleryOpen ||
+        componentEditor ||
+        documentSettingsOpen ||
+        versionHistoryOpen ||
+        projectNameDraft !== null ||
+        textEditing ||
+        codeDraftDirty
+      ) {
+        setStatus(
+          "Finish or cancel the current edit or dialog before switching project tabs. No work was discarded.",
+        );
+        return false;
+      }
+      if (!["idle", "revoked", "expired"].includes(agentSession.status))
+        await agentSession.revoke();
+      const snapshot = await captureAuthoredProject();
+      if (!snapshot) return false;
+      cancelAllTransientInteraction();
+      stageRecovery(snapshot, {
+        cloudBinding,
+        unsavedAtSnapshot: isDirtyWork(),
+      });
+      await flushRecovery();
+      return true;
+    },
+    onError: (message) => setStatus(message),
+  });
+  openProjectInTabRef.current = (next, view, options) =>
+    projectTabs.open(
+      () => createTabSession(next, view, options),
+      options.cloudBinding?.id,
+    );
+  const allowNextBrowserUnload = useUnsavedWorkGuard(projectTabs.hasUnsafeTabs);
+
   const openAgentConnection = () => {
     setAgentPanelOpen(true);
     if (
@@ -4891,6 +5056,44 @@ export function App({
       ) : null}
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
       <EditorAppChrome
+        projectTabs={
+          <>
+            <ProjectTabs
+              tabs={projectTabs.tabs}
+              activeId={projectTabs.activeId}
+              busy={projectTabs.busy}
+              onSelect={(id) => {
+                void projectTabs.select(id);
+              }}
+              onClose={(id) => {
+                void projectTabs.close(id, () => createTabSession());
+              }}
+              onNew={() => {
+                void projectTabs.open(() => createTabSession());
+              }}
+              onOpenFile={() => tabProjectInputRef.current?.click()}
+              cloudProjects={cloudProjects}
+              onRefreshShelf={() => {
+                void reloadCloudProjects();
+              }}
+              onOpenShelf={(id) => {
+                void openCloudProjectById(id, true);
+              }}
+            />
+            <input
+              ref={tabProjectInputRef}
+              hidden
+              type="file"
+              accept=".json,.icproj.json"
+              data-testid="tab-project-file"
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = "";
+                if (file) void openProjectFile(file, { inTab: true });
+              }}
+            />
+          </>
+        }
         {...(publicSimulationUiEnabled
           ? { simulationAction: openAnalogSimulation }
           : {})}
@@ -5926,6 +6129,7 @@ export function App({
                   />
                 ) : projectPanel === "netlist" ? (
                   <NetlistCodePanel
+                    onDirtyChange={noteCodeDraftDirty}
                     key={projectSessionId}
                     onApply={(edits) =>
                       commitStructure("edit-netlist-code", edits)
@@ -5958,6 +6162,7 @@ export function App({
                   />
                 ) : projectPanel === "instances" ? (
                   <InstanceCodePanel
+                    onDirtyChange={noteCodeDraftDirty}
                     key={projectSessionId}
                     project={project}
                     onApply={(edits) => {
@@ -5974,6 +6179,8 @@ export function App({
                   />
                 ) : (
                   <ProjectCodePanel
+                    key={projectSessionId}
+                    onDirtyChange={noteCodeDraftDirty}
                     project={project}
                     onApply={(source, baseline) => {
                       if (formatProjectCode(project) !== baseline) {

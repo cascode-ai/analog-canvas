@@ -112,6 +112,12 @@ export interface RecoveryCoordinatorEvents {
   onNotice?(message: string): void;
 }
 
+export interface RecoveryWorkingSession {
+  workingCopyId: string;
+  source: BrowserRecoverySource;
+  formalFileHint?: BrowserRecoveryFormalFileHint;
+}
+
 export interface RecoveryCoordinator {
   readonly store: BrowserRecoveryStore;
   readonly workingCopyId: string;
@@ -128,6 +134,9 @@ export interface RecoveryCoordinator {
    * for the outgoing identity are dropped, its stored records are retained.
    */
   beginWorkingCopy(source: BrowserRecoverySource): string;
+  captureWorkingSession(): RecoveryWorkingSession;
+  /** Flush outgoing writes first; resume an existing internal project tab. */
+  resumeWorkingSession(session: RecoveryWorkingSession): void;
   /** Attach a formal-file hint to subsequent records (file service, WP-3). */
   noteFormalFileHint(hint: BrowserRecoveryFormalFileHint): void;
   /** Re-read stored records and publish fresh session summaries. */
@@ -350,6 +359,24 @@ export function createRecoveryCoordinator(
       return state;
     },
 
+    captureWorkingSession: () => ({
+      workingCopyId,
+      source: currentSource,
+      ...(formalFileHint ? { formalFileHint } : {}),
+    }),
+    resumeWorkingSession(session: RecoveryWorkingSession) {
+      scheduler.cancel();
+      workingCopyId = session.workingCopyId;
+      currentSource = session.source;
+      formalFileHint = session.formalFileHint;
+      try {
+        storage?.setItem(WORKING_COPY_STORAGE_KEY, workingCopyId);
+      } catch {
+        /* Memory remains authoritative. */
+      }
+      events.onWorkingCopyChange?.(workingCopyId);
+      publishState("idle");
+    },
     beginWorkingCopy(source: BrowserRecoverySource): string {
       scheduler.cancel();
       workingCopyId = createId();
@@ -461,6 +488,8 @@ export interface UseRecoveryCoordinatorResult {
   cancelPending: () => void;
   flushNow: () => Promise<RecoveryState>;
   beginWorkingCopy: (source: BrowserRecoverySource) => string;
+  captureWorkingSession: () => RecoveryWorkingSession;
+  resumeWorkingSession: (session: RecoveryWorkingSession) => void;
   noteFormalFileHint: (hint: BrowserRecoveryFormalFileHint) => void;
   discover: () => Promise<void>;
   readSessionProject: (
@@ -550,6 +579,9 @@ export function useRecoveryCoordinator(
       setWorkingCopyId(next);
       return next;
     },
+    captureWorkingSession: () => coordinator.captureWorkingSession(),
+    resumeWorkingSession: (session) =>
+      coordinator.resumeWorkingSession(session),
     noteFormalFileHint: (hint) => coordinator.noteFormalFileHint(hint),
     discover: () => coordinator.discover(),
     readSessionProject: (id, generation) =>

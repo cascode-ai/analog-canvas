@@ -34,7 +34,7 @@ export type EditorShortcutIntent =
   | { kind: "run-command"; command: EditorCommandRequest }
   | { kind: "block-browser-refresh" }
   | { kind: "block-browser-bookmark" }
-  | { kind: "save" | "open" }
+  | { kind: "save" | "open" | "paste-selection" }
   | { kind: "edit-net-label" | "toggle-display-settings" }
   | {
       kind: "toggle-panel";
@@ -238,6 +238,7 @@ export function resolveEditorShortcut(
     }
     const blockedCommands: Record<string, string> = {
       c: "Copy",
+      v: "Paste",
       q: "Properties",
       m: "Move",
       t: "Text",
@@ -249,7 +250,8 @@ export function resolveEditorShortcut(
       delete: "Delete",
       backspace: "Delete",
     };
-    const command = blockedCommands[key];
+    const command =
+      key === "v" && event.shiftKey ? undefined : blockedCommands[key];
     return command ? { kind: "blocked-interaction-command", command } : null;
   }
 
@@ -282,6 +284,8 @@ export function resolveEditorShortcut(
   if (plain && key === "c") {
     return { kind: "run-command", command: { id: "selection.copy" } };
   }
+  if (plain && !event.shiftKey && key === "v")
+    return { kind: "paste-selection" };
   if (plain && key === "m") {
     // Shift+M is Virtuoso's move-without-wires. `plain` allows Shift through,
     // so this branch must read it rather than let it fall to a plain Move.
