@@ -67,7 +67,7 @@ describe("ConnectAgentPanel", () => {
     expect(instructions).toContain("https://editor.example/api/agent/kit");
     expect(instructions).toContain("do not silently switch to HTTP");
     expect(instructions).toContain("it is not MCP acceptance");
-    expect(instructions).toContain("install or update it");
+    expect(instructions).toContain("install or update using");
     expect(instructions).toContain("version-pinned package");
     expect(instructions).toContain("tools are actually callable");
     expect(instructions).toContain("tell the user once");
