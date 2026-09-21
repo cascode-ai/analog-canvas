@@ -39,6 +39,53 @@ const draftingText = (): Extract<DraftingObject, { kind: "text" }> => ({
 });
 
 describe("unified text editing", () => {
+  it("edits a scalar Value at its source and leaves compound MOS values to Properties", () => {
+    const document = createEmptyDocument("value", "Value");
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: null,
+      netlist: { parameters: { value: "1k", tc: "0.01" } },
+    });
+    const label: Annotation = {
+      ...annotation(),
+      kind: "instance-value",
+      binding: { kind: "instance-value", instanceId: "R1" },
+    };
+    document.annotations = [label];
+    const edit = (value: string) =>
+      proposeTextEditingCommit(
+        document,
+        updateTextEditingSession(
+          createTextEditingSession(
+            { owner: "annotation", object: label },
+            document,
+          ),
+          { content: { runs: [{ kind: "text", value }] } },
+        ),
+      );
+    expect(edit("10k")).toMatchObject({
+      kind: "update",
+      beforeEdits: [
+        {
+          kind: "patch_instance_netlist_parameters",
+          instanceId: "R1",
+          set: { value: "10k" },
+        },
+      ],
+    });
+    document.instances[0] = {
+      id: "R1",
+      symbolId: "nmos",
+      placement: null,
+      netlist: { parameters: { w: "1u", l: "150n" } },
+    };
+    expect(edit("10u")).toMatchObject({
+      kind: "blocked",
+      message: expect.stringContaining("Properties"),
+    });
+  });
+
   it("creates one session shape from semantic annotations and drafting text", () => {
     const annotationSession = createTextEditingSession({
       owner: "annotation",

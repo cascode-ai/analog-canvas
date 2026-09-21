@@ -1356,7 +1356,9 @@ export function RichTextEditor({
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === "Escape") {
               event.preventDefault();
-              onCommit();
+              event.stopPropagation();
+              if (event.key === "Escape") (onEscape ?? onCommit)();
+              else onCommit();
             }
           }}
         />
@@ -1392,6 +1394,7 @@ export function RichTextEditor({
               event.preventDefault();
             } else if (event.key === "Escape") {
               event.preventDefault();
+              event.stopPropagation();
               (onEscape ?? onCommit)();
             } else if (event.key === "Enter" && event.shiftKey && multiline) {
               // Enter finishes the text everywhere; a deliberate modifier is

@@ -1657,6 +1657,61 @@ for (const fixture of [
 }
 
 for (const symbol of ["xfmr", "tcoil"] as const) {
+  test(`${symbol} parameter label editing commits, escapes invalid input and closes when hidden`, async ({
+    page,
+  }) => {
+    await page.goto("/editor");
+    await placeComponent(page, symbol, { x: 360, y: 220 });
+    await openSelectionShelf(page);
+    const winding = symbol === "xfmr" ? "lp" : "l1";
+    const windingLabel = symbol === "xfmr" ? "Lp" : "L1";
+    await editComponentPropertyCode(page, (code) => {
+      code.display.parameters[winding] = true;
+      code.rotation = 270;
+    });
+    const label = page.locator(
+      '[data-layer="formal"] [data-kind="instance-value"]',
+    );
+    const id = await label.getAttribute("data-object-id");
+    const hit = page.getByTestId(`annotation-hit-${id}`);
+    const editor = page.getByLabel("Canvas text editor", { exact: true });
+    await hit.dblclick();
+    await editor.fill(`${windingLabel} = 2.5n`);
+    await editor.press("Enter");
+    await expect(editor).toHaveCount(0);
+    await expect(label).toContainText(`${windingLabel} = 2.5n`);
+    await page.getByTestId("draw-tool-undo").click();
+    await expect(label).toContainText(`${windingLabel} = 1n`);
+    await page.getByTestId("draw-tool-redo").click();
+    await expect(label).toContainText(`${windingLabel} = 2.5n`);
+    await hit.dblclick();
+    await editor.fill(`${windingLabel} =`);
+    await editor.press("Enter");
+    await expect(editor).toBeVisible();
+    await editor.press("Escape");
+    await expect(editor).toHaveCount(0);
+    await expect(label).toContainText(`${windingLabel} = 2.5n`);
+    await hit.dblclick();
+    await editor.fill(`${windingLabel} =`);
+    await page.locator('[data-testid^="hit-"]').first().click();
+    await openSelectionShelf(page);
+    await editComponentPropertyCode(page, (code) => {
+      for (const key of Object.keys(code.display.parameters))
+        code.display.parameters[key] = false;
+    });
+    await expect(label).toHaveCount(0);
+    await expect(editor).toHaveCount(0);
+    await expectComponentCodeField(page, `parameters.${winding}`, "2.5n");
+    const saved = parseSavedProject(
+      (await downloadBytes(page, "File", "Export Project File…")).toString(
+        "utf8",
+      ),
+    );
+    expect(saved.documents[0].instances[0].netlist.parameters[winding]).toBe(
+      "2.5n",
+    );
+  });
+
   test(`${symbol} independently displays magnetic parameters and preserves them through history and files`, async ({
     page,
   }) => {

@@ -33,6 +33,7 @@ import type { AdditionalParameterDraft } from "./additional-parameters";
 import {
   createTextEditingSession,
   proposeTextEditingCommit,
+  resolveTextEditingTarget,
   textDeletionEdit,
   updateTextEditingSession,
 } from "../text-editing/text-editing";
@@ -175,6 +176,10 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
   const [textEditing, setTextEditing] = useState<TextEditingSession | null>(
     null,
   );
+  useEffect(() => {
+    if (textEditing && !resolveTextEditingTarget(options.document, textEditing))
+      setTextEditing(null);
+  }, [options.document, textEditing]);
   const netLabelDraftRouteRef = useRef<string | null>(null);
   const netLabelDraftDirtyRef = useRef(false);
   const lastSelectedInstanceKeyRef = useRef<string | null>(null);
@@ -883,6 +888,10 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
 
   const commitTextEditing = (): void => {
     if (!textEditing) return;
+    if (!resolveTextEditingTarget(options.document, textEditing)) {
+      setTextEditing(null);
+      return;
+    }
     const boundAnnotation =
       textEditing.owner === "annotation"
         ? options.document.annotations.find(
@@ -891,7 +900,8 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
         : undefined;
     if (
       boundAnnotation?.binding &&
-      boundAnnotation.binding.kind !== "instance-reference"
+      boundAnnotation.binding.kind !== "instance-reference" &&
+      boundAnnotation.binding.kind !== "instance-value"
     ) {
       const name =
         textEditing.contentEdited &&
@@ -1036,9 +1046,6 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
             setTextEditing(null);
           }
           return;
-        case "instance-value":
-          options.setStatus("Edit component values in Properties");
-          return;
       }
     }
     const proposal = proposeTextEditingCommit(options.document, textEditing);
@@ -1144,6 +1151,12 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     commitNetLabelEditing,
     commitPendingNetLabelDraft,
     commitTextEditing,
+    escapeTextEditing: () => {
+      // Preserve Escape's existing commit behavior for valid edits, but never
+      // trap the user in an invalid or unsupported bound-label draft.
+      commitTextEditing();
+      setTextEditing(null);
+    },
     cancelAdditionalParameters,
     clearTextEditing: () => setTextEditing(null),
     deleteSelectedRouteNetLabel,

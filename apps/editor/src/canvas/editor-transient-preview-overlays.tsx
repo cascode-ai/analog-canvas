@@ -174,6 +174,7 @@ export function EditorInteractionPreviews({
   onTextUpdate,
   onTextCommit,
   onTextCancel,
+  onTextEscape,
   onTextDelete,
   onDisplayAliasChange,
 }: {
@@ -193,6 +194,7 @@ export function EditorInteractionPreviews({
   onTextUpdate: CanvasTextEditorOverlayProps["onUpdate"];
   onTextCommit: () => void;
   onTextCancel: () => void;
+  onTextEscape?: () => void;
   onTextDelete: () => void;
   onDisplayAliasChange?: CanvasTextEditorOverlayProps["onDisplayAliasChange"];
 }) {
@@ -244,6 +246,7 @@ export function EditorInteractionPreviews({
           onUpdate={onTextUpdate}
           onCommit={onTextCommit}
           onCancel={onTextCancel}
+          {...(onTextEscape ? { onEscape: onTextEscape } : {})}
           onDelete={onTextDelete}
           {...(onDisplayAliasChange ? { onDisplayAliasChange } : {})}
         />

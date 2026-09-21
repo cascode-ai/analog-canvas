@@ -2369,6 +2369,7 @@ function WorkspaceEditor({
     commitNetLabelEditing,
     commitPendingNetLabelDraft,
     commitTextEditing,
+    escapeTextEditing,
     clearTextEditing,
     deleteTextEditing,
     netLabelPlacement,
@@ -4323,7 +4324,7 @@ function WorkspaceEditor({
         dismissOnOutsidePointerDown,
         true,
       );
-  }, [textEditing]);
+  }, [textEditing, document]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
@@ -4405,10 +4406,8 @@ function WorkspaceEditor({
       }
       if (event.key === "Escape" && textEditing) {
         event.preventDefault();
-        // Escape commits the session; emptying the text still deletes the
-        // annotation, matching the Apply button. Explicit cancellation stays
-        // available through the editor's Cancel action.
-        commitTextEditing();
+        // Valid drafts commit; invalid drafts must still let the user leave.
+        escapeTextEditing();
         return;
       }
       if (
@@ -7734,6 +7733,7 @@ function WorkspaceEditor({
             textEditingLocked,
             onTextUpdate: updateTextEditing,
             onTextCommit: commitTextEditing,
+            onTextEscape: escapeTextEditing,
             onTextCancel: () => {
               clearTextEditing();
               setStatus("Cancelled text changes");

@@ -2,6 +2,7 @@ import { richTextIdentifier, rewriteRichTextIdentifier } from "@icm/model";
 import type { SchematicEdit } from "@icm/edit-engine";
 import { flattenRichText, semanticTextDocument } from "@icm/model";
 import { resolveAnnotationText, resolveAnnotationName } from "@icm/derived";
+import { deviceDescriptor } from "@icm/devices";
 import type {
   Annotation,
   AnnotationTextBinding,
@@ -195,8 +196,13 @@ export function resolveTextEditingTarget(
 ): EditableTextTarget | null {
   if (session.owner === "annotation") {
     const object = document.annotations.find(
-      (candidate) => candidate.id === session.id,
+      (candidate) => candidate.id === session.id && candidate.visible !== false,
     );
+    if (
+      object?.binding?.kind === "instance-value" &&
+      !flattenRichText(resolveAnnotationText(document, object)).trim()
+    )
+      return null;
     return object ? { owner: "annotation", object } : null;
   }
   if (session.owner === "instance-formula") {
@@ -249,12 +255,107 @@ function isNamePresentation(runs: readonly RichTextRun[]): boolean {
   );
 }
 
+// A displayed parameter edits its source, never a disconnected annotation
+// string. Keep the optional "L1 =" prefix out of the electrical value.
+function proposeInstanceValueCommit(
+  document: SchematicDocument,
+  annotation: Annotation,
+  session: TextEditingSession,
+): TextEditingCommitProposal {
+  const binding = annotation.binding;
+  if (binding?.kind !== "instance-value" || annotation.locked)
+    return { kind: "blocked" };
+  const instance = document.instances.find(
+    (item) => item.id === binding.instanceId,
+  );
+  if (!instance?.netlist) return { kind: "blocked" };
+  const definition = deviceDescriptor(instance.symbolId)?.parameters.find(
+    (parameter) =>
+      binding.parameter
+        ? parameter.name.toLowerCase() === binding.parameter.toLowerCase()
+        : parameter.displayRole === "value",
+  );
+  const parameter = binding.parameter ?? definition?.name;
+  const currentText = flattenRichText(
+    resolveAnnotationText(document, annotation),
+  );
+  const editedText = flattenRichText(session.content).trim();
+  const beforeEdits: SchematicEdit[] = [];
+  if (session.contentEdited && editedText !== currentText.trim()) {
+    if (!parameter)
+      return {
+        kind: "blocked",
+        message:
+          "Edit compound component values in Properties. Escape cancels these text changes.",
+      };
+    let value = editedText;
+    const assignment = /^([A-Za-z][A-Za-z0-9_]*)\s*=\s*(?![=])([\s\S]*)$/u.exec(
+      value,
+    );
+    if (assignment) {
+      if (
+        ![parameter, definition?.label].some(
+          (name) => name?.toLowerCase() === assignment[1]!.toLowerCase(),
+        )
+      )
+        return {
+          kind: "blocked",
+          message: `Edit ${definition?.label ?? parameter} using a value or ${definition?.label ?? parameter} = value. Escape cancels.`,
+        };
+      value = assignment[2]!.trim();
+    }
+    if (!value)
+      return {
+        kind: "blocked",
+        message: "Enter a parameter value. Escape cancels these text changes.",
+      };
+    const key =
+      Object.keys(instance.netlist.parameters).find(
+        (key) => key.toLowerCase() === parameter.toLowerCase(),
+      ) ?? parameter;
+    if (instance.netlist.parameters[key] !== value)
+      beforeEdits.push({
+        kind: "patch_instance_netlist_parameters",
+        instanceId: instance.id,
+        set: { [key]: value },
+      });
+  }
+  if (
+    !beforeEdits.length &&
+    (annotation.sizeScale ?? 1) === session.sizeScale &&
+    annotation.alignment === session.alignment
+  )
+    return { kind: "unchanged" };
+  return {
+    kind: "update",
+    id: annotation.id,
+    beforeEdits,
+    edit: {
+      kind: "upsert_schematic_annotation",
+      annotation: {
+        ...annotation,
+        sizeScale: session.sizeScale,
+        alignment: session.alignment,
+      },
+    },
+  };
+}
+
 // Persist the exact rich-text AST and suppress revisions when both that AST
 // and its presentation scale are unchanged.
 export function proposeTextEditingCommit(
   document: SchematicDocument,
   session: TextEditingSession,
 ): TextEditingCommitProposal {
+  if (
+    session.owner === "annotation" &&
+    session.bindingKind === "instance-value"
+  ) {
+    const target = resolveTextEditingTarget(document, session);
+    return target?.owner === "annotation"
+      ? proposeInstanceValueCommit(document, target.object, session)
+      : { kind: "blocked" };
+  }
   if (session.owner === "instance-formula") {
     const instance = document.instances.find(
       (candidate) => candidate.id === session.id,

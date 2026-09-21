@@ -13,6 +13,12 @@ import {
   instanceParameterVisibilityEdits,
 } from "./instance-parameter-display";
 import { copySelection, proposePaste } from "../clipboard/clipboard";
+import {
+  createTextEditingSession,
+  proposeTextEditingCommit,
+  resolveTextEditingTarget,
+  updateTextEditingSession,
+} from "../text-editing/text-editing";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 function fixture(symbolId = "xfmr") {
@@ -59,6 +65,75 @@ function show(document: SchematicDocument, desired: Record<string, boolean>) {
 }
 
 describe("magnetic parameter display", () => {
+  it.each(["xfmr", "tcoil"])(
+    "edits a %s parameter from its label without detaching or replacing its other parameters",
+    (symbolId) => {
+      const winding = symbolId === "xfmr" ? "lp" : "l1";
+      const document = show(fixture(symbolId), { [winding]: true });
+      const annotation = document.annotations[0]!;
+      const original = createTextEditingSession(
+        { owner: "annotation", object: annotation },
+        document,
+      );
+      expect(proposeTextEditingCommit(document, original)).toEqual({
+        kind: "unchanged",
+      });
+      for (const value of [
+        "4.5n",
+        `${winding.toUpperCase()} = 4.5n`,
+        `${winding} = {inductance * 2}`,
+      ]) {
+        const session = updateTextEditingSession(original, {
+          content: { runs: [{ kind: "text", value }] },
+        });
+        const proposal = proposeTextEditingCommit(document, session);
+        expect(proposal.kind).toBe("update");
+        if (proposal.kind !== "update")
+          throw new Error("Expected value update");
+        const updated = apply(document, [
+          ...(proposal.beforeEdits ?? []),
+          proposal.edit,
+        ]);
+        expect(updated.instances[0]!.netlist).toEqual({
+          ...document.instances[0]!.netlist,
+          parameters: {
+            ...document.instances[0]!.netlist!.parameters,
+            [winding]: value.includes("{") ? "{inductance * 2}" : "4.5n",
+          },
+        });
+        expect(updated.annotations[0]!.binding).toEqual(annotation.binding);
+        expect(updated.annotations[0]!.content).toBeUndefined();
+        expect(updated.annotations[0]!.anchor).toEqual(annotation.anchor);
+      }
+      for (const value of ["", `${winding} =`, "other = 9n"]) {
+        const proposal = proposeTextEditingCommit(
+          document,
+          updateTextEditingSession(original, {
+            content: { runs: [{ kind: "text", value }] },
+          }),
+        );
+        expect(proposal.kind).toBe("blocked");
+      }
+      expect(
+        resolveTextEditingTarget(
+          show(document, { [winding]: false }),
+          original,
+        ),
+      ).toBeNull();
+      expect(
+        resolveTextEditingTarget({ ...document, annotations: [] }, original),
+      ).toBeNull();
+      const cleared = apply(document, [
+        {
+          kind: "patch_instance_netlist_parameters",
+          instanceId: "T1",
+          unset: [winding],
+        },
+      ]);
+      expect(resolveTextEditingTarget(cleared, original)).toBeNull();
+    },
+  );
+
   it.each(["xfmr", "tcoil"])(
     "independently toggles K and winding labels on %s without changing electrical parameters",
     (symbolId) => {
