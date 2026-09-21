@@ -151,9 +151,15 @@ test("a failed dialog chunk degrades to a scoped notice, not the crash screen", 
     .click();
   await navigated;
   await expect(page.getByTestId("hit-R1")).toBeVisible();
-  await expect(page.getByTestId("status")).toHaveText(
-    "Restored recovery revision 1",
-  );
+  // Whole-window recovery now restores the project tab, so the old
+  // single-document recovery toast is no longer the recovery contract.
+  // Check the actual restored revision and that the editor remains usable.
+  await expect(page.getByTestId("revision")).toHaveText("1");
+  await clickCommand(page, "Edit", "Manage Cells…");
+  await expect(page.getByTestId("dialog-chunk-load-fallback")).toHaveCount(0);
+  await expect(
+    page.getByRole("dialog", { name: "Cell Manager" }),
+  ).toBeVisible();
 });
 
 test("a scene build failure degrades to the last good view and recovers", async ({

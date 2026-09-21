@@ -1696,6 +1696,7 @@ test("keeps the workspace inside the viewport and exposes low-interference zoom 
   page,
 }) => {
   await page.goto("/editor");
+  await awaitEditorReady(page);
 
   expect(
     await page.evaluate(() => ({
