@@ -737,6 +737,15 @@ export class GalleryDO {
     switch (operation) {
       case "submit":
         return this.submit(body);
+      case "topology-inventory":
+        return Response.json({
+          ids: this.sql
+            .exec<{ id: string }>(
+              "SELECT id FROM gallery_entries WHERE status = 'public' ORDER BY id",
+            )
+            .toArray()
+            .map((row) => row.id),
+        });
       case "list":
         return this.list(body);
       case "entry":

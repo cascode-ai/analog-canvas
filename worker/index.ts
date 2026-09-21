@@ -1,3 +1,8 @@
+import {
+  routeTopologyTaskRequest,
+  type TopologyTaskEnv,
+} from "./topology-task";
+export { TopologyTaskDO } from "./topology-task";
 import { handleNetlistConversionRequest } from "../packages/spice/src/conversion-request.js";
 import {
   routeAnalyticsRequest,
@@ -42,7 +47,8 @@ export { GalleryDO } from "./gallery";
 export { AuthDO } from "./auth";
 export { SimulationControlDO } from "./simulation-control-do";
 
-type Env = ComponentLibraryEnv &
+type Env = TopologyTaskEnv &
+  ComponentLibraryEnv &
   SimulationEnv &
   SimulationOperationsEnv &
   ChannelEnv & {
@@ -112,6 +118,9 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   const authResponse = await routeAuthRequest(request, env);
   if (authResponse) return authResponse;
+
+  const topologyResponse = await routeTopologyTaskRequest(request, env);
+  if (topologyResponse) return topologyResponse;
 
   const galleryResponse = await routeGalleryRequest(request, env);
   if (galleryResponse) return galleryResponse;

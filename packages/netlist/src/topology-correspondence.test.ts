@@ -81,6 +81,33 @@ function graph(
 }
 
 describe("parameter-aware topology correspondence", () => {
+  it("returns a verified partial witness above the recursive size limit", () => {
+    const source = Array.from({ length: 300 }, (_, i) =>
+      resistor(`R${i}`, "a", "b"),
+    );
+    const target = Array.from({ length: 301 }, (_, i) =>
+      resistor(`X${i}`, "x", "y"),
+    );
+    const result = compareTopologyCorrespondence(
+      graph(source),
+      graph(target),
+      200_000,
+    );
+    expect(result).toMatchObject({
+      exact: false,
+      limited: true,
+      matchedDevices: 300,
+    });
+    expect(
+      new Set(result.pairs.map((pair) => pair.target.instanceId)).size,
+    ).toBe(300);
+    expect(result.similarity).toBeLessThan(1);
+    expect(
+      compareTopologyCorrespondence(graph(source), graph(target), 1)
+        .matchedDevices,
+    ).toBeLessThan(300);
+  });
+
   it("finds a full witness under renaming, reordering, passive reversal and equivalent units", () => {
     const a = graph([
       resistor("R1", "a", "b", "1k"),

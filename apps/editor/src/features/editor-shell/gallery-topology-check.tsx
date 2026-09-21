@@ -12,7 +12,7 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
     source: CircuitProject;
     match: GalleryTopologyMatch;
   } | null>(null);
-  const { report, running, failure, snapshot, sourceProject } =
+  const { report, running, failure, snapshot, sourceProject, durable } =
     useSyncExternalStore(
       galleryTopologyTask.subscribe,
       galleryTopologyTask.getSnapshot,
@@ -21,7 +21,10 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
   const start = () => galleryTopologyTask.start(project);
   const stop = () => galleryTopologyTask.cancel();
 
-  const exactCount = report?.matches.filter((match) => match.exact).length ?? 0;
+  const exactCount =
+    report?.exactMatches ??
+    report?.matches.filter((match) => match.exact).length ??
+    0;
   return (
     <section
       className="publish-duplicate-check"
@@ -48,6 +51,24 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
           </button>
         ) : null}
       </div>
+      {snapshot && durable === false ? (
+        <p className="publish-duplicate-message">
+          Local development check: keep this page open. Durable checks require
+          the hosted backend.
+        </p>
+      ) : null}
+      {report?.omittedMatches ? (
+        <p className="publish-duplicate-message">
+          Showing the best {report.matches.length} results;{" "}
+          {report.omittedMatches} lower-ranked results omitted.
+        </p>
+      ) : null}
+      {report?.limitedComparisons ? (
+        <p className="publish-duplicate-message">
+          {report.limitedComparisons} comparisons reached the search budget.
+          Unconfirmed results are not proof of a different topology.
+        </p>
+      ) : null}
       {snapshot ? (
         <p
           className="publish-duplicate-message"

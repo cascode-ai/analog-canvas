@@ -4276,3 +4276,101 @@ test("Shelf save history compares, branches privately and restores with the list
   await expect(page.getByTestId("version-history-dialog")).toHaveCount(0);
   expect(restored).toBe(true);
 });
+
+test("durable duplicate check reconnects after reload and a closed browser page", async ({
+  page,
+  context,
+}) => {
+  let job: {
+    id: string;
+    revision: number;
+    projectText: string;
+    running: boolean;
+    dismissed: boolean;
+    report: {
+      scanned: number;
+      total: number;
+      comparable: number;
+      matches: [];
+      uncheckable: number;
+      complete: boolean;
+    };
+  } | null = null;
+  await context.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "publisher",
+          displayName: "Publisher",
+          provider: "github",
+          role: "user",
+          isAdmin: false,
+        },
+      },
+    }),
+  );
+  let starts = 0;
+  await context.route("**/api/topology-task**", (route) => {
+    if (route.request().method() === "POST") {
+      starts++;
+      const body = route.request().postDataJSON();
+      job = {
+        id: body.id,
+        revision: 1,
+        projectText: body.projectText,
+        running: true,
+        dismissed: false,
+        report: {
+          scanned: 1,
+          total: 7,
+          comparable: 1,
+          matches: [],
+          uncheckable: 0,
+          complete: false,
+        },
+      };
+    }
+    return route.fulfill({ json: { job } });
+  });
+  await mockGallery(page, []);
+  await page.goto("/editor?new=1");
+  await chooseComponent(page, "resistor");
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 300, y: 230 } });
+  await page.keyboard.press("Escape");
+  await page.getByTestId("publish-gallery-button").click();
+  await page.getByTestId("gallery-find-similar").click();
+  await expect(page.getByTestId("gallery-topology-check")).toContainText(
+    "1 / 7",
+  );
+  const originalText = job!.projectText;
+  page.on("dialog", (dialog) => dialog.accept());
+  await page.reload();
+  await expect(page.getByTestId("gallery-topology-task-notice")).toContainText(
+    "1 compared",
+  );
+  expect(starts).toBe(1);
+  await page.close();
+  // The server finishes while no page exists; reopening merely reads it.
+  job = {
+    ...job!,
+    revision: 2,
+    running: false,
+    report: { ...job!.report, scanned: 7, comparable: 7, complete: true },
+  };
+  const reopened = await context.newPage();
+  await reopened.goto("/editor?new=1");
+  await expect(
+    reopened.getByTestId("gallery-topology-task-notice"),
+  ).toContainText("Duplicate check finished");
+  await reopened
+    .getByRole("button", { name: "View results", exact: true })
+    .click();
+  await expect(reopened.getByTestId("gallery-topology-check")).toContainText(
+    "7 comparable circuits checked",
+  );
+  expect(job.projectText).toBe(originalText);
+  expect(starts).toBe(1);
+  await reopened.close();
+});

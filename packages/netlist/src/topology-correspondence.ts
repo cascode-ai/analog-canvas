@@ -220,9 +220,57 @@ function partialCorrespondence(
     }
     visit(index + 1, score);
   };
-  // Avoid unbounded recursion for imported or adversarial graph inputs.
-  if (order.length > 256)
-    return { mapping: [] as [Device, Device][], limited: true };
+  // Large inputs still get a verified greedy witness. The old depth guard
+  // returned no correspondence at all above 256 devices. Keep the same net
+  // bijection/pin-role rules without recursive backtracking and label the
+  // result limited: coverage is useful evidence, never an optimality claim.
+  if (order.length > 256) {
+    for (const device of order) {
+      let accepted = false;
+      for (const candidate of options.get(device.vertex)!) {
+        if (++work > maxWork) break;
+        if (used.has(candidate.vertex)) continue;
+        for (const pins of pinOptions(device, candidate)) {
+          const added: [number, number][] = [];
+          let valid = true;
+          for (let index = 0; index < pins.length; index++) {
+            const from = device.pins[index]!.net,
+              to = pins[index]!;
+            if (
+              (netMap.has(from) && netMap.get(from) !== to) ||
+              (netReverse.has(to) && netReverse.get(to) !== from)
+            ) {
+              valid = false;
+              break;
+            }
+            if (!netMap.has(from)) {
+              netMap.set(from, to);
+              netReverse.set(to, from);
+              added.push([from, to]);
+            }
+          }
+          if (valid) {
+            matched.push([device, candidate]);
+            used.add(candidate.vertex);
+            accepted = true;
+            break;
+          }
+          for (const [from, to] of added) {
+            netMap.delete(from);
+            netReverse.delete(to);
+          }
+        }
+        if (accepted) break;
+      }
+      if (work > maxWork) break;
+    }
+    return {
+      mapping: reverse
+        ? matched.map(([a, b]): [Device, Device] => [b, a])
+        : matched,
+      limited: true,
+    };
+  }
   visit(0, 0);
   return {
     mapping: reverse ? best.map(([a, b]): [Device, Device] => [b, a]) : best,

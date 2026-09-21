@@ -79,3 +79,58 @@ describe("background topology task", () => {
     });
   });
 });
+
+describe("durable topology observation", () => {
+  it("rediscovers the frozen server job after the page session is discarded", async () => {
+    const { createDurableGalleryTopologyTask } =
+      await import("./gallery-topology-task");
+    const { serializeProject } = await import("@icm/project-protocol");
+    const source = createEmptyProject("source", "Clicked snapshot");
+    let server: Record<string, unknown> | null = null;
+    let deletes = 0;
+    const fetchLike: typeof fetch = async (_input, init) => {
+      if (init?.method === "POST") {
+        const body = JSON.parse(init.body as string);
+        server = {
+          id: body.id,
+          revision: 1,
+          projectText: body.projectText,
+          running: true,
+          dismissed: false,
+          report: { ...report, complete: false, scanned: 1 },
+        };
+      }
+      if (init?.method === "DELETE") deletes++;
+      return Response.json({ job: server });
+    };
+    const first = createDurableGalleryTopologyTask(fetchLike);
+    await first.start(source);
+    source.name = "Edited after clicking";
+    expect(first.getSnapshot().snapshot?.name).toBe("Clicked snapshot");
+    first.dispose();
+    expect(deletes).toBe(0);
+    server = {
+      id: "restored-job",
+      dismissed: false,
+      revision: 2,
+      running: false,
+      report,
+      projectText: serializeProject(
+        createEmptyProject("source", "Clicked snapshot"),
+      ),
+    };
+    vi.stubGlobal("window", {});
+    const reopened = createDurableGalleryTopologyTask(fetchLike);
+    const unsubscribe = reopened.subscribe(vi.fn());
+    await vi.waitFor(() =>
+      expect(reopened.getSnapshot()).toMatchObject({
+        running: false,
+        snapshot: { name: "Clicked snapshot" },
+        report,
+      }),
+    );
+    unsubscribe();
+    reopened.dispose();
+    vi.unstubAllGlobals();
+  });
+});

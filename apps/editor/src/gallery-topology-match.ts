@@ -21,6 +21,9 @@ export interface GalleryTopologyMatchReport {
   matches: GalleryTopologyMatch[];
   uncheckable: number;
   complete: boolean;
+  exactMatches?: number;
+  limitedComparisons?: number;
+  omittedMatches?: number;
   sourceError?: string;
   error?: string;
 }
