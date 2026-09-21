@@ -1,50 +1,5 @@
 /* Editor dialog owner: modal editor workflows and their responsive layout contracts. */
 
-.cell-parameter-popover {
-  position: fixed;
-  inset: auto;
-  margin: 0;
-  width: min(17rem, calc(100vw - 1rem));
-  max-height: calc(100dvh - 1rem);
-  overflow: auto;
-  padding: 0.65rem;
-  border: 1px solid var(--icm-border-strong);
-  border-radius: var(--icm-radius-md);
-  background: var(--icm-surface);
-  color: var(--icm-text);
-  box-shadow: var(--icm-shadow-lg);
-  font-size: var(--icm-font-sm);
-}
-.cell-parameter-popover form {
-  display: grid;
-  gap: 0.5rem;
-}
-.cell-parameter-popover header {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-.cell-parameter-popover header button {
-  margin-left: auto;
-}
-.cell-parameter-popover label {
-  display: grid;
-  grid-template-columns: 3.5rem minmax(0, 1fr);
-  align-items: center;
-  gap: 0.35rem;
-}
-.cell-parameter-popover input {
-  width: 100%;
-  min-width: 0;
-}
-.cell-parameter-popover p {
-  margin: 0;
-}
-.cell-parameter-popover footer {
-  display: flex;
-  justify-content: flex-end;
-}
-
 .insert-dialog-backdrop {
   position: fixed;
   z-index: 80;

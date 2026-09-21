@@ -182,15 +182,14 @@ Their typed editing operations remain available to explicit programmatic workflo
 
 ## Cell parameters
 
-In a device's Property JSON, use the **ƒ** button beside an electrical value
-to open a compact **Hierarchical para** popover beside that field. Choose an
-existing parameter or create one with a default and Apply. Escape or an outside
-click dismisses the popover; changing selection or closing Properties also closes
-it. Creating
-`Rbase` from a resistor value of `1k` declares `Rbase=1k` and changes that
-resistor's value to `{Rbase}` in one undoable operation. Other devices can use
-the same parameter, including expressions such as `{2*Rbase}`. Point lists and
-derived digital-clock controls are not scalar parameter slots.
+Edit electrical values directly in a device's Property JSON. Numeric text such
+as `180um` or `80nm` and expressions such as `{Rbase}` or `{2*Rbase}` remain
+exactly as authored, without per-value buttons or redundant unit comments.
+For a new Cell parameter, declare its name and default in the Cell's Project
+Code first, then reference it in the device value. For example, declare
+`Rbase=1k` and set a resistor's value to `{Rbase}`. Existing declarations remain
+available to all devices in that Cell. Point lists and derived digital-clock
+controls are not scalar parameter slots.
 
 Manager lists declared parameter names and defaults. Hover a name to see internal
 reference and caller override counts; these counts are not another setting. Edit a name

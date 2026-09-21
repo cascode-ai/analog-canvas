@@ -112,57 +112,33 @@ async function setCellTerminalDirection(
   await manager.getByLabel("Close Cell Manager").click();
 }
 
-test("creates a Cell parameter from a device JSON field with atomic Undo", async ({
+test("edits Cell parameter references as plain device JSON with Undo", async ({
   page,
 }) => {
+  const project = createEmptyProject("parameters", "Parameters");
+  const cell = project.documents[0]!;
+  cell.netlist = {
+    name: "Resistors",
+    terminals: [],
+    formalParameters: [{ name: "Rbase", defaultValue: "1k" }],
+  };
+  const childId = cell.id;
   await page.goto("/editor");
-  await createCell(page, "Resistors");
-  const childId = await page.getByTestId("active-document-id").innerText();
+  await page.getByTestId("project-file").setInputFiles({
+    name: "parameters.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
   await placeComponent(page, "resistor", { x: 320, y: 200 });
   await page.getByTestId("hit-R1").click();
   await revealPropertiesShelf(page);
   const shelf = page.getByTestId("selection-shelf");
   if ((await shelf.getAttribute("aria-expanded")) === "false")
     await shelf.click();
-  await page
-    .getByRole("button", { name: "Use Cell parameter for Value" })
-    .click();
-  const dialog = page.getByRole("dialog", { name: "Hierarchical para" });
-  await expect(dialog).not.toHaveAttribute("aria-modal", "true");
-  const bounds = (await dialog.boundingBox())!;
-  expect(bounds.width).toBeLessThan(300);
-  expect(bounds.height).toBeLessThan(240);
-  await page.screenshot({
-    path: test.info().outputPath("parameter-popover.png"),
-  });
-  await dialog.getByLabel("Cell parameter name").press("Escape");
-  await expect(dialog).toHaveCount(0);
-  await page
-    .getByRole("button", { name: "Use Cell parameter for Value" })
-    .click();
-  await shelf.click();
-  await expect(dialog).toHaveCount(0);
-  await shelf.click();
-  await page
-    .getByRole("button", { name: "Use Cell parameter for Value" })
-    .click();
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 60, y: 60 } });
-  await expect(dialog).toHaveCount(0);
-  await page.getByTestId("hit-R1").click();
-  await revealPropertiesShelf(page);
-  if ((await shelf.getAttribute("aria-expanded")) === "false")
-    await shelf.click();
-  await page
-    .getByRole("button", { name: "Use Cell parameter for Value" })
-    .click();
-  await dialog.getByLabel("Cell parameter name").fill("Rbase");
-  await dialog.getByLabel("Cell parameter default").fill("1k");
-  await page.keyboard.press("Delete");
-  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
-  await dialog.getByRole("button", { name: "Apply", exact: true }).click();
-  await expect(dialog).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: /Use Cell parameter/ }),
+  ).toHaveCount(0);
+  await setComponentParameter(page, "value", "{Rbase}");
   const save = async () =>
     parseSavedProject(
       (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -180,7 +156,9 @@ test("creates a Cell parameter from a device JSON field with atomic Undo", async
   expect(bound.instances[0].netlist.parameters.value).toBe("{Rbase}");
   await page.keyboard.press("Control+z");
   const undone = child(await save());
-  expect(undone.netlist.formalParameters).toEqual([]);
+  expect(undone.netlist.formalParameters).toEqual([
+    { name: "Rbase", defaultValue: "1k" },
+  ]);
   expect(undone.instances[0].netlist.parameters.value).not.toBe("{Rbase}");
   await page.keyboard.press("Control+Shift+z");
   expect(child(await save()).instances[0].netlist.parameters.value).toBe(

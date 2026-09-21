@@ -64,7 +64,6 @@ import type {
 } from "@icm/agent-adapter";
 import {
   planProjectCellImport,
-  planBindCellParameter,
   planSetDeviceModelTarget,
   planSetVddConnectionMode,
   planRenameCellTerminal,
@@ -147,7 +146,6 @@ import {
 import { resolveSimulationTransport } from "../features/simulation/deployment-transport";
 import { createCanvasHitController } from "../canvas/canvas-hit-controller";
 import { CellInterfaceConfirmationDialog } from "../features/hierarchy/cell-interface-confirmation";
-import { CellParameterDialog } from "../features/hierarchy/cell-parameter-dialog";
 import type { CellInterfaceConfirmation } from "../features/hierarchy/project-structure-commands";
 import { applyConfirmedCellInterfaceEdit } from "../features/hierarchy/project-structure-commands";
 import { screenScaleHitRadius } from "../canvas/canvas-hit-resolver";
@@ -1459,14 +1457,6 @@ function WorkspaceEditor({
     request: CellInterfaceConfirmation;
     snapshot: typeof project;
   } | null>(null);
-  const [parameterBinding, setParameterBinding] = useState<{
-    snapshot: CircuitProject;
-    cell: SchematicDocument;
-    instanceId: string;
-    field: string;
-    value: string;
-    anchor: HTMLElement;
-  } | null>(null);
   const { commitStructure, transact, transactConnectivity } =
     createEditorTransactionCommands({
       project,
@@ -1881,15 +1871,6 @@ function WorkspaceEditor({
   const selectedAnnotationOwnerInstanceId = selectedAnnotation
     ? annotationOwningInstanceId(selectedAnnotation)
     : undefined;
-  useEffect(() => {
-    if (
-      parameterBinding &&
-      (!selectionOpen ||
-        selectedInstance?.id !== parameterBinding.instanceId ||
-        document.id !== parameterBinding.cell.id)
-    )
-      setParameterBinding(null);
-  }, [selectionOpen, selectedInstance?.id, document.id, parameterBinding]);
   const selectedComponentSourceCode = useMemo(
     () =>
       selectedInstance
@@ -4393,11 +4374,6 @@ function WorkspaceEditor({
       // The interface confirmation owns keys even though this router captures
       // at window level before the modal's React handlers.
       if (interfaceConfirmation) return;
-      if (
-        event.target instanceof Element &&
-        event.target.closest(".cell-parameter-popover")
-      )
-        return;
       // File flyout arrows navigate the focused menu, never pan the canvas.
       if (
         event.target instanceof Element &&
@@ -5206,57 +5182,6 @@ function WorkspaceEditor({
         hidden={publishGalleryOpen}
         onOpen={() => setPublishGalleryOpen(true)}
       />
-      {parameterBinding &&
-      selectionOpen &&
-      selectedInstance?.id === parameterBinding.instanceId &&
-      document.id === parameterBinding.cell.id ? (
-        <CellParameterDialog
-          anchor={parameterBinding.anchor}
-          cell={parameterBinding.cell}
-          field={parameterBinding.field}
-          value={parameterBinding.value}
-          onCancel={() => setParameterBinding(null)}
-          onApply={(name, defaultValue) => {
-            if (project !== parameterBinding.snapshot)
-              return {
-                ok: false,
-                message:
-                  "Project changed. Close this dialog and select the field again.",
-              };
-            try {
-              const edits = planBindCellParameter(
-                project,
-                parameterBinding.cell.id,
-                parameterBinding.instanceId,
-                parameterBinding.field,
-                name,
-                defaultValue,
-              );
-              const ok = commitStructure("bind-cell-parameter", edits);
-              if (ok) {
-                setParameterBinding(null);
-                setStatus(`Using Cell parameter ${name}`);
-              }
-              return {
-                ok,
-                ...(!ok
-                  ? {
-                      message: "Could not bind the Cell parameter; see status.",
-                    }
-                  : {}),
-              };
-            } catch (error) {
-              return {
-                ok: false,
-                message:
-                  error instanceof Error
-                    ? error.message
-                    : "Could not bind Cell parameter",
-              };
-            }
-          }}
-        />
-      ) : null}
       {interfaceConfirmation ? (
         <CellInterfaceConfirmationDialog
           request={interfaceConfirmation.request}
@@ -6725,23 +6650,6 @@ function WorkspaceEditor({
                   ? {
                       code: {
                         instance: selectedInstance,
-                        ...(document.netlist
-                          ? {
-                              onUseCellParameter: (
-                                field: string,
-                                value: string,
-                                anchor: HTMLElement,
-                              ) =>
-                                setParameterBinding({
-                                  snapshot: project,
-                                  cell: document,
-                                  instanceId: selectedInstance.id,
-                                  field,
-                                  value,
-                                  anchor,
-                                }),
-                            }
-                          : {}),
                         displayName: selectedDisplayName,
                         itemName: selectedInstanceLabel
                           ? resolveAnnotationName(

@@ -1,5 +1,4 @@
 import { useLayoutEffect, useRef } from "react";
-import { supportsScalarParameterExpression } from "@icm/devices";
 import {
   EditorState,
   Annotation,
@@ -78,7 +77,6 @@ interface Props {
   defaultForeground: string;
   ariaLabel?: string;
   onChange(source: string): void;
-  onUseCellParameter?(field: string, value: string, anchor: HTMLElement): void;
 }
 const externalUpdate = Annotation.define<boolean>();
 const refreshDecorations = StateEffect.define<null>();
@@ -432,23 +430,6 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
   }
   for (const span of spans) {
     const at = source[span.to] === "," ? span.to + 1 : span.to;
-    if (
-      read().onUseCellParameter &&
-      span.field.path.startsWith("parameters.") &&
-      supportsScalarParameterExpression(
-        read().context?.instance.symbolId ?? "",
-        span.field.path.slice("parameters.".length),
-      ) &&
-      span.field.kind === "text" &&
-      typeof span.value === "string"
-    ) {
-      ranges.push(
-        Decoration.widget({
-          widget: new CellParameterButton(span, documentValid, read),
-          side: 1,
-        }).range(span.to),
-      );
-    }
     if (span.field.description)
       ranges.push(
         Decoration.widget({
@@ -476,43 +457,6 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
       );
   }
   return Decoration.set(ranges, true);
-}
-
-class CellParameterButton extends WidgetType {
-  constructor(
-    private readonly span: PropertyCodeSpan,
-    private readonly enabled: boolean,
-    private readonly read: () => Props,
-  ) {
-    super();
-  }
-  override eq(other: CellParameterButton): boolean {
-    return (
-      this.span.field.path === other.span.field.path &&
-      this.span.value === other.span.value &&
-      this.enabled === other.enabled
-    );
-  }
-  toDOM(): HTMLElement {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "cm-property-parameter-button";
-    button.disabled = !this.enabled;
-    button.title = `Use Cell parameter for ${this.span.field.label}`;
-    button.setAttribute("aria-label", button.title);
-    button.addEventListener("click", (event) => {
-      event.stopPropagation();
-      this.read().onUseCellParameter?.(
-        this.span.field.path.slice("parameters.".length),
-        String(this.span.value),
-        button,
-      );
-    });
-    return button;
-  }
-  override ignoreEvent(): boolean {
-    return true;
-  }
 }
 
 class PropertyUnit extends WidgetType {

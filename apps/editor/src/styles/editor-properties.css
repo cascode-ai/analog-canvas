@@ -1180,17 +1180,3 @@
 .signal-flow-actions button {
   margin: 0;
 }
-
-.cm-property-parameter-button {
-  margin: 0 0.2rem;
-  padding: 0 0.25rem;
-  min-height: 0;
-  font: inherit;
-  line-height: 1.1;
-  cursor: pointer;
-}
-
-.cm-property-parameter-button::before {
-  /* Keep the action icon out of the editor's selectable JSON text. */
-  content: "ƒ";
-}

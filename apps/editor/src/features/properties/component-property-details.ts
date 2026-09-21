@@ -203,7 +203,7 @@ export function componentDetailFields(
           ? parameter.defaultValue !== undefined
             ? `Default: ${parameter.defaultValue}`
             : "Required"
-          : (parameter.unit ?? ""),
+          : "",
       help: parameter.help,
     })),
     {

@@ -41,7 +41,6 @@ export interface ComponentPropertyCodeEditorProps {
   netName?: string | null;
   defaultForeground?: string;
   details?: ComponentPropertyCodeContext["details"];
-  onUseCellParameter?(field: string, value: string, anchor: HTMLElement): void;
   onApply: (
     value: ComponentPropertyCodeValue,
   ) => { ok: true } | { ok: false; message: string };
@@ -60,7 +59,6 @@ export function ComponentPropertyCodeEditor({
   netName,
   defaultForeground = "#000000",
   details,
-  onUseCellParameter,
   onApply,
 }: ComponentPropertyCodeEditorProps) {
   const context = useMemo<ComponentPropertyCodeContext>(
@@ -258,7 +256,6 @@ export function ComponentPropertyCodeEditor({
           context={context}
           defaultForeground={defaultForeground}
           onChange={change}
-          {...(onUseCellParameter ? { onUseCellParameter } : {})}
         />
       </Suspense>
       {statusMessage ? (

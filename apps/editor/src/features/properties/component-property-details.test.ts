@@ -37,16 +37,12 @@ const context = {
 };
 
 describe("unified component property details", () => {
-  it("uses only declared units for parameters and distinguishes the netlist name", () => {
+  it("leaves parameter values free of redundant unit comments and distinguishes the netlist name", () => {
     const fields = componentDetailFields(instance, context.details);
-    for (const key of ["m", "nf"])
+    for (const key of ["w", "l", "m", "nf"])
       expect(
         fields.find((field) => field.path === `parameters.${key}`)?.description,
       ).toBe("");
-    for (const key of ["w", "l"])
-      expect(
-        fields.find((field) => field.path === `parameters.${key}`)?.description,
-      ).toBe("m");
     expect(fields.find((field) => field.path === "netlistName")?.label).toBe(
       "Netlist name",
     );

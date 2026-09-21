@@ -84,7 +84,10 @@ test("live JSON properties update controls immediately and round-trip raw parame
   await expect(panel.getByRole("button", { name: "Apply code" })).toHaveCount(
     0,
   );
-  await expect(panel.locator(".cm-property-unit")).toHaveCount(2);
+  await expect(panel.locator(".cm-property-unit")).toHaveCount(0);
+  await expect(
+    panel.getByRole("button", { name: /Use Cell parameter/ }),
+  ).toHaveCount(0);
   await expect(panel.getByLabel("Target netlist options")).toBeVisible();
   await editComponentPropertyCode(page, (code) => {
     code.rotation = 90;
