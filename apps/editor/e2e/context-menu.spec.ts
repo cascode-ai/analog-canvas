@@ -80,7 +80,6 @@ test("right-click on a device only offers direct selection actions", async ({
   await instance.click({ button: "right" });
   await menu.getByRole("menuitem", { name: "Copy (C)" }).click();
   await expect(menu).toHaveCount(0);
-  await page.keyboard.press("v");
   await page
     .getByTestId("schematic-canvas")
     .click({ position: { x: 520, y: 300 } });

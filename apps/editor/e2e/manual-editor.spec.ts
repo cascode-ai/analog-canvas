@@ -294,7 +294,6 @@ async function copySelectionAt(
   const box = await canvas.boundingBox();
   if (!box) throw new Error("Canvas is not measurable");
   await page.keyboard.press("c");
-  await page.keyboard.press("v");
   await page.mouse.move(box.x + position.x, box.y + position.y);
   await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
   await canvas.click({ position });
@@ -4062,7 +4061,7 @@ test("R rotates a selected component instead of entering Rectangle", async ({
   await expect(page.getByTestId("revision")).toHaveText("4");
 });
 
-test("C/V preserves display aliases but detaches unselected connections and allocates a unique reference", async ({
+test("Ctrl/Cmd+C/V preserves display aliases but detaches unselected connections and allocates a unique reference", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -4082,7 +4081,15 @@ test("C/V preserves display aliases but detaches unselected connections and allo
     .fill("Old_alias");
   await page.getByRole("button", { name: "Apply text changes" }).click();
   await page.getByTestId("hit-R1").click();
-  await copySelectionAt(page, { x: 560, y: 420 });
+  const canvas = page.getByTestId("schematic-canvas");
+  const canvasBox = await canvas.boundingBox();
+  if (!canvasBox) throw new Error("Canvas is not measurable");
+  await page.keyboard.press("ControlOrMeta+c");
+  await page.keyboard.press("ControlOrMeta+v");
+  await page.mouse.move(canvasBox.x + 560, canvasBox.y + 420);
+  await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
+  await canvas.click({ position: { x: 560, y: 420 } });
+  await page.keyboard.press("Escape");
   await expect(page.getByTestId("instance-count")).toHaveText("3");
   const saved = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -4130,7 +4137,7 @@ test("C/V preserves display aliases but detaches unselected connections and allo
   await expect(page.getByTestId("instance-count")).toHaveText("2");
 });
 
-test("C/V previews one copy and Escape cancels without a revision", async ({
+test("C previews one copy and Escape cancels without a revision", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -4141,11 +4148,9 @@ test("C/V previews one copy and Escape cancels without a revision", async ({
   const box = await canvas.boundingBox();
   if (!box) throw new Error("Canvas is not measurable");
   await page.keyboard.press("c");
-  await page.keyboard.press("v");
   await page.mouse.move(box.x + 560, box.y + 340);
   await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
   await page.keyboard.press("c");
-  await page.keyboard.press("v");
   await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
   await page.keyboard.press("Escape");
 
@@ -4171,7 +4176,6 @@ test("copy ghost follows each pointer position and commits over existing geometr
     throw new Error("Canvas objects are not measurable");
 
   await page.keyboard.press("c");
-  await page.keyboard.press("v");
   await page.mouse.move(canvasBox.x + 500, canvasBox.y + 180);
   const ghost = page.getByTestId("copy-placement-preview");
   await expect(ghost).toBeVisible();
@@ -4209,7 +4213,6 @@ test("R rotates a copy preview before committing the copied component", async ({
   if (!box) throw new Error("Canvas is not measurable");
 
   await page.keyboard.press("c");
-  await page.keyboard.press("v");
   await page.mouse.move(box.x + 560, box.y + 340);
   const previewSymbol = page
     .getByTestId("copy-placement-preview")
@@ -4311,7 +4314,6 @@ test("keeps copy placement active for repeated commits until Escape", async ({
   if (!box) throw new Error("Canvas is not measurable");
 
   await page.keyboard.press("c");
-  await page.keyboard.press("v");
   await page.mouse.move(box.x + 520, box.y + 220);
   await canvas.click({ position: { x: 520, y: 220 } });
   await expect(page.getByTestId("instance-count")).toHaveText("2");
@@ -6524,7 +6526,6 @@ test("the copy ghost shows the wires it is about to place", async ({
   await page.mouse.up();
 
   await page.keyboard.press("c");
-  await page.keyboard.press("v");
   await canvas.hover({ position: { x: 400, y: 420 } });
   const ghost = page.locator(".copy-placement-preview");
   await expect(ghost).toBeVisible();

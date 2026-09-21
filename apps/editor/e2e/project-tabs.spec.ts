@@ -44,7 +44,7 @@ test("project tabs append a partial selection and retain independent history, ca
     { steps: 5 },
   );
   await page.mouse.up();
-  await page.keyboard.press("c");
+  await page.keyboard.press("ControlOrMeta+c");
   await expect(page.getByTestId("status")).toContainText("Circuit copied");
   const fragment = await page.evaluate(() => navigator.clipboard.readText());
   expect(fragment).toContain("analog-canvas/clipboard");
@@ -61,7 +61,7 @@ test("project tabs append a partial selection and retain independent history, ca
   await expect(page.getByTestId("active-instance-count")).toHaveText("0");
   await insert(page, "resistor", 260, 400);
   const before = await saved(page);
-  await page.keyboard.press("v");
+  await page.keyboard.press("ControlOrMeta+v");
   await expect(page.getByTestId("status")).toContainText("click to place");
   await canvas.click({ position: { x: 480, y: 230 } });
   await page.keyboard.press("Escape");
@@ -232,7 +232,7 @@ test("Shelf tabs deduplicate an open draft and save back to their own Cloud iden
   ).toBe("resistor");
 });
 
-test("plain C/V works between internal tabs when system clipboard permission is denied", async ({
+test("Ctrl/Cmd+C/V works between internal tabs when async clipboard permission is denied", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -253,8 +253,8 @@ test("plain C/V works between internal tabs when system clipboard permission is 
   await insert(page, "nmos", 470, 220);
   await insert(page, "nmos", 630, 220);
   await page.getByTestId("hit-M1").click();
-  await page.keyboard.press("c");
-  await expect(page.getByTestId("status")).toContainText("within this page");
+  await page.keyboard.press("ControlOrMeta+c");
+  await expect(page.getByTestId("status")).toContainText("Circuit copied");
   await page
     .getByRole("button", { name: "New project tab", exact: true })
     .click();
@@ -271,7 +271,7 @@ test("plain C/V works between internal tabs when system clipboard permission is 
       return event.defaultPrevented;
     }),
   ).toBe(true);
-  await page.keyboard.press("v");
+  await page.keyboard.press("ControlOrMeta+v");
   await expect(page.getByTestId("status")).toContainText("click to place");
   await page
     .getByTestId("schematic-canvas")

@@ -1537,11 +1537,11 @@ function WorkspaceEditor({
   /**
    * A verb key pressed with nothing selected arms that verb: the next
    * object pointed at is the one acted on (Cadence-style verb-first).
-   * Rotate and Delete stay armed for repeated clicks; Move hands
-   * over to its own move interaction on the first target.
+   * Rotate and Delete stay armed for repeated clicks; Copy and Move hand
+   * over to their own placement/move interactions on the first target.
    */
   const [armedVerb, setArmedVerb] = useState<
-    "rotate" | "move" | "move-detached" | "delete" | null
+    "rotate" | "copy" | "move" | "move-detached" | "delete" | null
   >(null);
   /** The click paired with an armed-verb pickup must not commit a placement. */
   const suppressCommitClickRef = useRef(false);
@@ -2783,16 +2783,20 @@ function WorkspaceEditor({
   });
 
   /** Arm a verb so the next object pointed at is the one acted on. */
-  function armVerb(verb: "rotate" | "move" | "move-detached" | "delete"): void {
+  function armVerb(
+    verb: "rotate" | "copy" | "move" | "move-detached" | "delete",
+  ): void {
     setArmedVerb(verb);
     setStatus(
       verb === "rotate"
         ? "Rotate: click a part to turn it, Escape to stop"
-        : verb === "move"
-          ? "Move: click a part to pick it up · Esc cancels"
-          : verb === "move-detached"
-            ? "Move without wires: click a part to pick it up · Esc cancels"
-            : "Delete: click objects to delete them · Esc exits",
+        : verb === "copy"
+          ? "Copy: click a part to pick up a copy · Esc cancels"
+          : verb === "move"
+            ? "Move: click a part to pick it up · Esc cancels"
+            : verb === "move-detached"
+              ? "Move without wires: click a part to pick it up · Esc cancels"
+              : "Delete: click objects to delete them · Esc exits",
     );
   }
 
@@ -2827,6 +2831,13 @@ function WorkspaceEditor({
           `Rotated ${instanceId} to ${next}° — click another, Escape to stop`,
         );
       }
+      return true;
+    }
+    if (armedVerb === "copy") {
+      setArmedVerb(null);
+      selectOnly("instance", [instanceId]);
+      suppressCommitClickRef.current = true;
+      beginCopyPlacementFromSelection([instanceId]);
       return true;
     }
     if (armedVerb === "move" || armedVerb === "move-detached") {
@@ -2872,6 +2883,7 @@ function WorkspaceEditor({
       setStatus,
     });
   const {
+    beginCopyPlacement: beginCopyPlacementFromSelection,
     beginKeyboardSelectionMove: beginKeyboardSelectionMoveFromSelection,
     beginMove: beginMoveFromSelection,
     beginVisualSelectionMove: beginVisualSelectionMoveFromSelection,
@@ -4203,7 +4215,11 @@ function WorkspaceEditor({
         armVerb("delete");
       },
       beginCopy: () => {
-        void circuitClipboard.copySelection();
+        if (hasVisualSelection(visualSelection)) {
+          beginCopyPlacementFromSelection();
+          return;
+        }
+        armVerb("copy");
       },
       copyVisualSelection: visualClipboard.copy,
       openSelectionFilter: () => {

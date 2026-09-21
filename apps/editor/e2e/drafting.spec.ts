@@ -1027,8 +1027,7 @@ test("previews copied text upright and commits its pose atomically", async ({
     origin.y + origin.height / 2,
   );
   await page.keyboard.press("c");
-  await page.keyboard.press("v");
-  await expect(page.getByTestId("status")).toContainText("click to place");
+  await expect(page.getByTestId("status")).toContainText("Place copy");
 
   const box = (await canvas.boundingBox())!;
   const ghost = page.getByTestId("copy-placement-preview");
@@ -1054,7 +1053,6 @@ test("previews copied text upright and commits its pose atomically", async ({
     origin.y + origin.height / 2,
   );
   await page.keyboard.press("c");
-  await page.keyboard.press("v");
   await page.mouse.move(box.x + 420, box.y + 380);
   await page.keyboard.press("r");
   await expect(previewText).toBeInViewport();
