@@ -13,8 +13,8 @@ Choose only the guidance needed for the task:
 
 - Circuit editing: [authoring](shared/authoring.md), then the built-in catalog
   before placing new symbols. [Tool details](mcp/tools.md) cover less common edits.
-- Simulation: [simulation calls](mcp/simulation.md). Start with its quick path;
-  later sections describe specific features.
+- Simulation: [simulation calls](mcp/simulation.md). Start with its quick path
+  and follow its detailed-contract link only for the feature being used.
 - Failures: [recovery](response-semantics.md). Keep uncertain write/start identities;
   reconcile before repeating a mutation. Never restart a run just to fetch results.
 
