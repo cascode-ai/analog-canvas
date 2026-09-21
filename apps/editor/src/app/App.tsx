@@ -1354,6 +1354,7 @@ function WorkspaceEditor({
     },
     enabled:
       publicAgentUiEnabled &&
+      !restoringWorkspace &&
       (startupRestoreReady ||
         recoveryWorkingCopyId !== agentStartupRecovery?.projectSessionId),
     project,
@@ -5098,7 +5099,10 @@ function WorkspaceEditor({
     }
   }
   useEffect(() => {
-    if (restoredTabs.error) setStatus(restoredTabs.error);
+    if (restoredTabs.error) {
+      setStatus(restoredTabs.error);
+      setRestoringWorkspace(false);
+    }
   }, [restoredTabs.error]);
   const projectTabs = useProjectTabs<TabSession>({
     initial: restoredTabs.value,

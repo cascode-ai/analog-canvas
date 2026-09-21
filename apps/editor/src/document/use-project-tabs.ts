@@ -25,6 +25,9 @@ export function useProjectTabs<Session>(options: {
 }) {
   const current = useRef(options);
   current.current = options;
+  const [activated, setActivated] = useState(!options.initial);
+  const activatedRef = useRef(activated);
+  activatedRef.current = activated;
   const [activeId, setActiveId] = useState(
     () => options.initial?.activeId ?? createId("tab"),
   );
@@ -43,11 +46,13 @@ export function useProjectTabs<Session>(options: {
   const liveIds = useRef(ids);
   liveIds.current = ids;
   useEffect(() => {
-    if (options.initial)
+    if (options.initial) {
       current.current.restore(sessions.current.get(active.current)!);
+      setActivated(true);
+    }
   }, []);
   const persist = (final: boolean) => {
-    if (!current.current.persist) return;
+    if (!current.current.persist || !activatedRef.current) return;
     current.current.persist(
       {
         activeId: active.current,
@@ -82,6 +87,9 @@ export function useProjectTabs<Session>(options: {
     window.addEventListener("beforeunload", final);
     document.addEventListener("visibilitychange", hidden);
     return () => {
+      // A render crash unmounts this hook before pagehide. The controller still
+      // holds acknowledged edits; journal them before removing the listeners.
+      final();
       if (timer.current !== null) {
         clearTimeout(timer.current);
         timer.current = null;

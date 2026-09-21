@@ -616,6 +616,14 @@ test("restores the same paired working copy through refresh and Gallery without 
   page,
   baseURL,
 }) => {
+  let sessionCreates = 0;
+  page.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/api/agent/sessions"
+    )
+      sessionCreates++;
+  });
   await page.goto("/editor");
   await page.getByTestId("open-agent").click();
   const panel = page.getByTestId("connect-agent-panel");
@@ -670,6 +678,7 @@ test("restores the same paired working copy through refresh and Gallery without 
   expect(
     await client.status(session.sessionId, session.agentToken),
   ).toMatchObject({ authorization: "paused", editor: "attached" });
+  expect(sessionCreates).toBe(1);
   await page.goto("/");
   await expect(page.getByTestId("gallery-agent-return")).toBeVisible();
   await expect

@@ -287,9 +287,7 @@ test("the qualified OTA folder opens unchanged and preserves all root and hierar
   ).toMatchObject({ ok: true, config: { outputs: config.outputs } });
 });
 
-test("uncommitted source survives whole-workspace reload", async ({
-  page,
-}) => {
+test("uncommitted source survives whole-workspace reload", async ({ page }) => {
   await page.route("**/api/simulate", (route) =>
     route.fulfill({ json: { configured: false } }),
   );

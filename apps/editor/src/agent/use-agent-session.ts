@@ -210,7 +210,9 @@ export function useAgentSession(
   const liveRef = useRef<LiveSession | null>(null);
   const creatingConnectionRef = useRef(false);
   const recoveryAttemptedForProjectRef = useRef<string | null>(null);
-  const projectSessionRef = useRef(options.projectSessionId);
+  const projectSessionRef = useRef<string | null>(
+    options.enabled ? options.projectSessionId : null,
+  );
   const revisionRef = useRef(
     new Map(
       options.project.documents.map((document) => [
@@ -222,7 +224,9 @@ export function useAgentSession(
   const agentRevisionRef = useRef(new Map<string, number>());
   const [view, setView] = useState<AgentSessionViewModel>(() => {
     const recovery =
-      options.recover === false || typeof window === "undefined"
+      !options.enabled ||
+      options.recover === false ||
+      typeof window === "undefined"
         ? null
         : readAgentSessionRecovery(window.sessionStorage, {
             projectId: options.project.id,
@@ -1172,8 +1176,8 @@ export function useAgentSession(
   useEffect(() => {
     if (!options.enabled) return;
     if (projectSessionRef.current === options.projectSessionId) return;
+    const firstBinding = projectSessionRef.current === null;
     projectSessionRef.current = options.projectSessionId;
-    recoveryAttemptedForProjectRef.current = options.projectSessionId;
     revisionRef.current = new Map(
       options.project.documents.map((document) => [
         document.id,
@@ -1181,6 +1185,10 @@ export function useAgentSession(
       ]),
     );
     agentRevisionRef.current.clear();
+    // Bootstrap activation is not a user Project replacement. Validate recovery
+    // against the restored identity in the recovery effect, without revoking it.
+    if (firstBinding) return;
+    recoveryAttemptedForProjectRef.current = options.projectSessionId;
     clearAgentSessionRecovery(window.sessionStorage);
     options.fileHost?.clear?.();
     void options.simulationHost?.clear?.();
