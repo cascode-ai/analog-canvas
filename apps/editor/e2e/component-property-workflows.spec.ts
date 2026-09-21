@@ -1522,7 +1522,7 @@ test("selects a reviewed SKY130 MOS through the inline Target netlist field", as
   expect(saved.documents[0].instances[0]).toMatchObject({
     id: "M1",
     symbolId: "nmos",
-    reference: "XM1",
+    reference: "M1",
     netlist: {
       parameters: { w: "1u", l: "150n", nf: "1", m: "1" },
       binding: { kind: "external-subcircuit" },

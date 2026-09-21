@@ -8,6 +8,7 @@ import { serializeProject } from "@icm/project-protocol";
 import { AgentHttpClient } from "../../../packages/agent-client/src/http-client.js";
 import {
   revealPropertiesShelf,
+  awaitEditorReady,
   clickCommand,
   clickDrawTool,
   readComponentPropertyCode,
@@ -958,7 +959,7 @@ test("copies a working handoff through the normal local dev relay", async ({
   try {
     await sibling.listen();
     await siblingPage.goto(sibling.resolvedUrls!.local[0]! + "editor");
-    await expect(siblingPage.getByTestId("schematic-canvas")).toBeVisible();
+    await awaitEditorReady(siblingPage);
   } finally {
     await siblingPage.close();
     await sibling.close();

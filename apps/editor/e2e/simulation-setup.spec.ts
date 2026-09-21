@@ -9,6 +9,7 @@ import { unzipSync } from "fflate";
 
 import {
   clickNetlistWorkflowCommand,
+  awaitEditorReady,
   downloadBytes,
   recoveryProjectTexts,
 } from "./editor-fixtures.js";
@@ -16,6 +17,9 @@ import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
 test("the qualified OTA folder opens unchanged and preserves all root and hierarchical outputs", async ({
   page,
 }) => {
+  // This roundtrip includes signal picking, two exports, configuration editing
+  // and a reload. Its assertions are functional, not a 30-second speed budget.
+  test.setTimeout(60_000);
   const project = parseProject(JSON.stringify(ota));
   const dut = project.documents.find(
     (document) => document.id === "document-ota-5t",
@@ -317,6 +321,7 @@ test("uncommitted source survives reload and an explicit working-copy recovery f
     .toContain(marker);
   page.on("dialog", (dialog) => void dialog.accept());
   await page.reload();
+  await awaitEditorReady(page);
   const banner = page.getByTestId("startup-recovery-banner");
   await expect(banner).toBeVisible();
   await banner.getByRole("button", { name: "Restore", exact: true }).click();

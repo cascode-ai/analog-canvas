@@ -6,7 +6,10 @@ import {
   readSimulationData,
 } from "@icm/spice-run";
 
-import { clickNetlistWorkflowCommand } from "./editor-fixtures.js";
+import {
+  clickNetlistWorkflowCommand,
+  awaitEditorReady,
+} from "./editor-fixtures.js";
 import { profile } from "./simulation-e2e-fixtures.js";
 import { createSimulationFolder, createEmptyProject } from "@icm/model";
 import { createHash } from "node:crypto";
@@ -447,6 +450,7 @@ test("HTTP Kit alone authors native objects and hands off a Project-folder run",
     (await request.get(`${baseURL}${transfer.download.path}`)).status(),
   ).toBe(401);
   await page.reload();
+  await awaitEditorReady(page);
   await expect
     .poll(async () => {
       try {
