@@ -1,14 +1,23 @@
-import { useSyncExternalStore } from "react";
+import { lazy, Suspense, useState, useSyncExternalStore } from "react";
 import type { CircuitProject } from "@icm/model";
 import { galleryPreviewUrl } from "../../gallery-client";
 import { galleryTopologyTask } from "./gallery-topology-task";
+import type { GalleryTopologyMatch } from "../../gallery-topology-match";
+const GalleryTopologyComparison = lazy(
+  () => import("./gallery-topology-comparison"),
+);
 
 export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
-  const { report, running, failure, snapshot } = useSyncExternalStore(
-    galleryTopologyTask.subscribe,
-    galleryTopologyTask.getSnapshot,
-    galleryTopologyTask.getSnapshot,
-  );
+  const [comparison, setComparison] = useState<{
+    source: CircuitProject;
+    match: GalleryTopologyMatch;
+  } | null>(null);
+  const { report, running, failure, snapshot, sourceProject } =
+    useSyncExternalStore(
+      galleryTopologyTask.subscribe,
+      galleryTopologyTask.getSnapshot,
+      galleryTopologyTask.getSnapshot,
+    );
   const start = () => galleryTopologyTask.start(project);
   const stop = () => galleryTopologyTask.cancel();
 
@@ -44,7 +53,7 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
           className="publish-duplicate-message"
           data-testid="gallery-topology-snapshot"
         >
-          {snapshot !== project
+          {sourceProject !== project
             ? `Canvas changed. These results still use “${snapshot.name}” captured when you clicked Check Duplicate.`
             : "Comparing a snapshot of this Cell. You can still publish while the check runs."}
         </p>
@@ -81,11 +90,8 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
           data-testid="gallery-topology-results"
         >
           {report.matches.map((match) => (
-            <a
+            <article
               key={match.entry.id}
-              href={`/g/${match.entry.id}`}
-              target="_blank"
-              rel="noreferrer"
               className="publish-duplicate-result"
               data-exact={match.exact}
             >
@@ -98,13 +104,40 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
                 loading="lazy"
               />
               <span>
-                <strong>{match.entry.name}</strong>
+                <a
+                  href={`/g/${match.entry.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <strong>{match.entry.name}</strong>
+                </a>
                 <small>{match.entry.author || "Gallery"}</small>
                 <small>
+                  {Math.min(
+                    match.netlistMatch === "equal" ? 100 : 99,
+                    Math.round(match.similarity * 100),
+                  )}
+                  % match
                   {match.exact
-                    ? "Exact topology match · 100%"
-                    : `${Math.min(99, Math.round(match.similarity * 100))}% structural similarity`}
+                    ? " · Exact topology match"
+                    : " · Partial structure"}
                 </small>
+                <small>
+                  Structure {Math.round(match.structureSimilarity * 100)}% ·
+                  Parameters/models{" "}
+                  {Math.round(match.parameterSimilarity * 100)}%
+                </small>
+                <small>
+                  {match.matchedDevices}/{match.sourceDevices} source devices
+                  correspond to {match.matchedDevices}/{match.targetDevices}{" "}
+                  Gallery devices
+                </small>
+                {match.limited ? (
+                  <small>
+                    Search limit reached; shown pairs are verified, coverage may
+                    be incomplete.
+                  </small>
+                ) : null}
                 {match.exact ? (
                   <small>
                     {match.netlistMatch === "equal"
@@ -114,10 +147,36 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
                         : "Netlist equivalence not confirmed"}
                   </small>
                 ) : null}
+                <button
+                  type="button"
+                  className="topology-compare-button"
+                  data-testid={`topology-compare-${match.entry.id}`}
+                  disabled={!match.pairs.length || !snapshot}
+                  onClick={() =>
+                    snapshot && setComparison({ source: snapshot, match })
+                  }
+                >
+                  Compare on canvas
+                </button>
               </span>
-            </a>
+            </article>
           ))}
         </div>
+      ) : null}
+      {report?.matches.length ? (
+        <p className="publish-duplicate-message">
+          Ranking: structure score × (85% + 15% × parameter/model score). A
+          similarity score is not proof of an identical netlist.
+        </p>
+      ) : null}
+      {comparison ? (
+        <Suspense fallback={<p role="status">Opening comparison…</p>}>
+          <GalleryTopologyComparison
+            source={comparison.source}
+            match={comparison.match}
+            onClose={() => setComparison(null)}
+          />
+        </Suspense>
       ) : null}
     </section>
   );

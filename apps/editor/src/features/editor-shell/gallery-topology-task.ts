@@ -3,6 +3,7 @@ import type { GalleryTopologyMatchReport } from "../../gallery-topology-match";
 
 export interface TopologyTaskState {
   snapshot: CircuitProject | null;
+  sourceProject: CircuitProject | null;
   report: GalleryTopologyMatchReport | null;
   running: boolean;
   failure: string | null;
@@ -19,6 +20,7 @@ export function createGalleryTopologyTask(
   let worker: Worker | null = null;
   let state: TopologyTaskState = {
     snapshot: null,
+    sourceProject: null,
     report: null,
     running: false,
     failure: null,
@@ -49,8 +51,10 @@ export function createGalleryTopologyTask(
     dismissNotice: () => update({ noticeDismissed: true }),
     start: (project: CircuitProject) => {
       release();
+      const snapshot = structuredClone(project);
       update({
-        snapshot: project,
+        snapshot,
+        sourceProject: project,
         report: null,
         running: true,
         failure: null,
@@ -74,7 +78,7 @@ export function createGalleryTopologyTask(
           });
         };
         // Browser structured cloning captures all circuit data before the next edit.
-        next.postMessage({ type: "topology", project });
+        next.postMessage({ type: "topology", project: snapshot });
       } catch {
         release();
         update({

@@ -2,6 +2,7 @@ export * from "./extract.js";
 export * from "./export.js";
 export * from "./ir.js";
 export * from "./equivalence.js";
+export * from "./topology-correspondence.js";
 export * from "./net-name-codec.js";
 export * from "./printers.js";
 export * from "./printed-netlist.js";

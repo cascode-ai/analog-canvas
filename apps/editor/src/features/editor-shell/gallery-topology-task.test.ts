@@ -47,6 +47,24 @@ describe("background topology task", () => {
     });
     expect(workers[0]!.terminate).toHaveBeenCalledOnce();
   });
+  it("retains the same independent source snapshot for matching and drawing after live edits", () => {
+    const { task, workers } = harness();
+    const project = createEmptyProject("source", "Original");
+    task.start(project);
+    const snapshot = task.getSnapshot().snapshot!;
+    expect(snapshot).not.toBe(project);
+    expect(workers[0]!.postMessage).toHaveBeenCalledWith({
+      type: "topology",
+      project: snapshot,
+    });
+    project.name = "Edited";
+    project.documents[0]!.name = "Edited cell";
+    workers[0]!.onmessage!({ data: report });
+    expect(task.getSnapshot().snapshot).toBe(snapshot);
+    expect(snapshot.name).toBe("Original");
+    expect(snapshot.documents[0]!.name).not.toBe("Edited cell");
+    expect(task.getSnapshot().sourceProject).toBe(project);
+  });
   it("ignores late messages from cancelled or replaced workers", () => {
     const { task, workers } = harness();
     task.start(createEmptyProject("first", "First"));

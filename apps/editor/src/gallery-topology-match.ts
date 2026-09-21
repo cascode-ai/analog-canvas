@@ -1,19 +1,17 @@
 import { requestGalleryScan } from "./gallery-scan-request";
 import type { CircuitProject } from "@icm/model";
 import {
-  compareElectricalTopologies,
-  compareElectricalGraphs,
-  electricalGraphTopologySimilarity,
+  compareTopologyCorrespondence,
+  type TopologyCorrespondence,
   projectElectricalGraph,
 } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
 import type { GalleryFeedEntry } from "./gallery-client";
 
-export interface GalleryTopologyMatch {
+export interface GalleryTopologyMatch extends TopologyCorrespondence {
   entry: GalleryFeedEntry;
-  exact: boolean;
-  similarity: number;
-  netlistMatch: "equal" | "different" | "unknown";
+  /** Drawing-only candidate snapshot used by comparison; never refetch a newer version. */
+  candidate: CircuitProject;
 }
 
 export interface GalleryTopologyMatchReport {
@@ -60,17 +58,17 @@ export async function scanGalleryTopologyMatches(
   const publish = () => {
     const ordered = [...candidates].sort(
       (left, right) =>
-        Number(right.exact) - Number(left.exact) ||
-        Number(right.netlistMatch === "equal") -
-          Number(left.netlistMatch === "equal") ||
         right.similarity - left.similarity ||
+        Number(right.exact) - Number(left.exact) ||
         left.entry.name.localeCompare(right.entry.name) ||
         left.entry.id.localeCompare(right.entry.id),
     );
-    report.matches = [
-      ...ordered.filter((item) => item.exact),
-      ...ordered.filter((item) => !item.exact).slice(0, NEAREST_LIMIT),
-    ];
+    let nearest = 0;
+    report.matches = ordered.filter(
+      (item) => item.exact || nearest++ < NEAREST_LIMIT,
+    );
+    // Only visible results retain drawing snapshots between progress updates.
+    candidates.splice(0, candidates.length, ...report.matches);
     onProgress(structuredClone(report));
   };
 
@@ -115,30 +113,17 @@ export async function scanGalleryTopologyMatches(
             ) {
               throw new Error("Circuit is no longer publicly available");
             }
-            const candidate = projectElectricalGraph(
-              parseProject(detail.projectText),
-            );
+            const candidateProject = parseProject(detail.projectText);
+            const candidate = projectElectricalGraph(candidateProject);
             if (candidate.status !== "ready") throw new Error(candidate.reason);
-            const exact = compareElectricalTopologies(
+            const comparison = compareTopologyCorrespondence(
               source.graph,
               candidate.graph,
             );
-            if (exact === "unknown")
-              throw new Error("Comparison limit reached");
             candidates.push({
               entry: detail.entry ?? entry,
-              exact: exact === "equal",
-              netlistMatch:
-                exact === "equal"
-                  ? compareElectricalGraphs(source.graph, candidate.graph)
-                  : "different",
-              similarity:
-                exact === "equal"
-                  ? 1
-                  : electricalGraphTopologySimilarity(
-                      source.graph,
-                      candidate.graph,
-                    ),
+              ...comparison,
+              candidate: { ...candidateProject, simulationFolders: [] },
             });
             report.comparable++;
           } catch {

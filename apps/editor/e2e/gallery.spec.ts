@@ -4,6 +4,7 @@ import type { Locator, Page } from "@playwright/test";
 
 import {
   createEmptyDocument,
+  createRoutePath,
   createEmptyProject,
   CURRENT_PROJECT_SCHEMA_VERSION,
 } from "@icm/model";
@@ -43,7 +44,11 @@ function galleryResistorProject(value = "1k", count = 2) {
     id: `R${index + 1}`,
     reference: `R${index + 1}`,
     symbolId: "resistor",
-    placement: null,
+    placement: {
+      position: { x: 120 + index * 140, y: 120 },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    },
     netlist: {
       binding: { kind: "primitive" as const, deviceClass: "resistor" as const },
       parameters: { value },
@@ -56,6 +61,17 @@ function galleryResistorProject(value = "1k", count = 2) {
       pinName,
     })),
   }));
+  if (count > 1)
+    document.routes = ["1", "2"].map((pinName) =>
+      createRoutePath({
+        id: `rail-${pinName}`,
+        netId: pinName,
+        start: { kind: "terminal", instanceId: "R1", pinName },
+        end: { kind: "terminal", instanceId: `R${count}`, pinName },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
   return project;
 }
 
@@ -547,27 +563,193 @@ test("Publish checks exact and nearest duplicates without adding a Gallery contr
   await expect(results.getByRole("link").nth(0)).toContainText(
     "Exact resistor pair",
   );
-  await expect(results.getByRole("link").nth(0)).toContainText(
+  await expect(results.locator("article").nth(0)).toContainText(
     "Exact topology match",
   );
   await expect(results.getByRole("link").nth(1)).toContainText(
     "Same topology, other value",
   );
-  await expect(results.getByRole("link").nth(1)).toContainText(
+  await expect(results.locator("article").nth(1)).toContainText(
     "Exact topology match",
   );
   await expect(results.getByRole("link").nth(0)).toHaveAttribute(
     "href",
     "/g/exact",
   );
-  await expect(results.getByRole("link").nth(0)).toContainText(
+  await expect(results.locator("article").nth(0)).toContainText(
     "including models and parameters",
   );
-  await expect(results.getByRole("link").nth(1)).toContainText(
+  await expect(results.locator("article").nth(1)).toContainText(
     "netlist details differ",
   );
   await expect(check).toBeEnabled();
   await expect(check).toHaveText("Check Again");
+  await expect(results.locator("article").nth(1)).toContainText("94% match");
+  await page.getByTestId("topology-compare-nearest").click();
+  const comparison = page.getByRole("dialog", {
+    name: "Circuit match comparison",
+  });
+  await expect(comparison).toBeVisible();
+  await expect(comparison.getByTestId("topology-highlight-source")).toHaveCount(
+    2,
+  );
+  await expect(comparison.getByTestId("topology-highlight-target")).toHaveCount(
+    2,
+  );
+  // The comparison includes actual conductors, not just isolated symbol previews.
+  await expect(
+    comparison
+      .locator(
+        '[data-testid="topology-comparison-source"] [data-layer="routes"] path',
+      )
+      .first(),
+  ).toBeVisible();
+  await comparison.getByTestId("topology-highlight-source").first().click();
+  await expect(comparison.getByTestId("topology-highlight-source")).toHaveCount(
+    1,
+  );
+  await expect(comparison.getByTestId("topology-highlight-target")).toHaveCount(
+    1,
+  );
+  const valueRow = comparison.getByRole("row", { name: "value 1k 2k" });
+  await expect(valueRow).toBeVisible();
+  await comparison
+    .getByRole("button", { name: "All matches", exact: true })
+    .click();
+  await page.screenshot({ path: "plan/topology-comparison.png" });
+  await page.keyboard.press("Delete");
+  await page.keyboard.press("Escape");
+  await expect(comparison).toHaveCount(0);
+  await expect(dialog).toBeVisible();
+  await expect(page.getByTestId("instance-count")).toHaveText("2");
+  // Editing the live Project and revising a candidate cannot rewrite completed comparisons.
+  await dialog
+    .getByRole("button", { name: "Cancel", exact: true })
+    .first()
+    .click();
+  projects.set("nearest", galleryResistorProject("99k"));
+  await page.getByTestId("project-file").setInputFiles({
+    name: "edited.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(galleryResistorProject("9k"))),
+  });
+  await expect(page.getByTestId("status")).toContainText("edited.icproj.json");
+  await page.getByTestId("publish-gallery-button").click();
+  await expect(dialog.getByTestId("gallery-topology-snapshot")).toContainText(
+    "Canvas changed",
+  );
+  await page.getByTestId("topology-compare-nearest").click();
+  await comparison
+    .getByRole("button", { name: "R1 ↔ R1", exact: true })
+    .click();
+  await expect(valueRow).toBeVisible();
+  expect(detailRequests).toBe(3);
+  await comparison
+    .getByRole("button", { name: "Close circuit comparison" })
+    .click();
+  await page.getByTestId("topology-compare-partial").click();
+  await expect(comparison.getByTestId("topology-highlight-source")).toHaveCount(
+    1,
+  );
+  await expect(comparison.getByTestId("topology-highlight-target")).toHaveCount(
+    1,
+  );
+  await expect(comparison).toContainText("1 matched devices");
+});
+
+test("topology comparison enters the matched child Cell and shows SKY130 parameter differences", async ({
+  page,
+  context,
+}) => {
+  const project = parseProject(
+    readFileSync(
+      new URL(
+        "../src/examples/five-transistor-ota-sky130.icproj.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+  const candidate = structuredClone(project);
+  const transistor = candidate.documents
+    .find((doc) => doc.id === "document-ota-5t")!
+    .instances.find((item) => item.id === "M1")!;
+  transistor.netlist!.parameters.w = "99u";
+  await context.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "publisher",
+          displayName: "Publisher",
+          provider: "github",
+          role: "user",
+          isAdmin: false,
+        },
+      },
+    }),
+  );
+  await context.route("**/api/gallery**", (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === "/api/gallery")
+      return route.fulfill({
+        json: { entries: [ENTRY], nextCursor: null, total: 1 },
+      });
+    if (pathname === "/api/gallery/tags")
+      return route.fulfill({ json: { tags: [] } });
+    if (pathname.endsWith("preview.svg"))
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg"/>',
+      });
+    return route.fulfill({
+      json: {
+        status: "public",
+        entry: ENTRY,
+        projectText: serializeProject(candidate),
+      },
+    });
+  });
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "ota.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(project)),
+  });
+  await expect(page.getByTestId("status")).toContainText("ota.icproj.json");
+  await page.getByTestId("publish-gallery-button").click();
+  await page.getByTestId("gallery-find-similar").click();
+  await page.getByTestId(`topology-compare-${ENTRY.id}`).click();
+  const comparison = page.getByRole("dialog", {
+    name: "Circuit match comparison",
+  });
+  await expect(
+    comparison.locator(
+      '[data-testid="topology-highlight-source"][data-instance-id="XDUT"]',
+    ),
+  ).toBeVisible();
+  await comparison
+    .getByRole("button", { name: "XDUT / XM1 ↔ XDUT / XM1", exact: true })
+    .click();
+  await expect(
+    comparison.getByTestId("topology-highlight-source"),
+  ).toHaveAttribute("data-instance-id", "M1");
+  await expect(
+    comparison.getByTestId("topology-highlight-target"),
+  ).toHaveAttribute("data-instance-id", "M1");
+  await expect(
+    comparison.getByRole("row", { name: "w 96u 99u", exact: true }),
+  ).toBeVisible();
+  await page.screenshot({ path: "plan/topology-ota-comparison.png" });
+  await comparison
+    .getByRole("button", { name: "All matches", exact: true })
+    .click();
+  await expect(
+    comparison.locator(
+      '[data-testid="topology-highlight-source"][data-instance-id="XDUT"]',
+    ),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(comparison).toHaveCount(0);
 });
 
 test("the site lands on the full-screen gallery feed", async ({ page }) => {

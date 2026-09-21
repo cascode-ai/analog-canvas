@@ -1,0 +1,122 @@
+.gallery-topology-comparison {
+  width: min(1180px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 32px);
+  padding: 18px;
+  border: 1px solid var(--icm-border);
+  border-radius: 12px;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  box-shadow: 0 12px 60px rgb(0 0 0 / 22%);
+}
+.gallery-topology-comparison::backdrop {
+  background: rgb(0 0 0 / 35%);
+}
+.topology-comparison-header,
+.topology-comparison-side header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.topology-comparison-header p,
+.topology-comparison-details p {
+  font-size: 12px;
+  color: var(--icm-text-muted);
+}
+.topology-comparison-header > button {
+  font-size: 24px;
+}
+.topology-comparison-canvases {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+.topology-comparison-side {
+  min-width: 0;
+  border: 1px solid var(--icm-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.topology-comparison-side header {
+  padding: 8px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--icm-border);
+}
+.topology-comparison-side header span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topology-comparison-drawing {
+  height: min(43dvh, 420px);
+  min-height: 200px;
+  overflow: auto;
+  background: white;
+}
+.topology-comparison-drawing svg {
+  display: block;
+  min-width: 100%;
+  min-height: 100%;
+}
+.topology-comparison-highlight {
+  cursor: pointer;
+}
+.topology-comparison-details {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(0, 2fr);
+  gap: 16px;
+  margin-top: 12px;
+}
+.topology-comparison-details nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow: auto;
+}
+.gallery-topology-comparison button {
+  border: 1px solid var(--icm-border);
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  border-radius: 5px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+.topology-comparison-details nav button {
+  text-align: left;
+  border-left-width: 4px;
+  font-size: 12px;
+}
+.topology-comparison-details nav button[aria-pressed="true"] {
+  background: var(--icm-accent-soft, #e7f0ff);
+  font-weight: 600;
+}
+.topology-comparison-details table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.topology-comparison-details th,
+.topology-comparison-details td {
+  padding: 5px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--icm-border);
+  overflow-wrap: anywhere;
+}
+.topology-comparison-details section {
+  max-height: 200px;
+  overflow: auto;
+}
+@media (max-width: 700px) {
+  .topology-comparison-canvases {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .topology-comparison-drawing {
+    height: 220px;
+  }
+  .topology-comparison-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -349,3 +349,22 @@
   color: var(--icm-text);
   cursor: pointer;
 }
+
+.publish-duplicate-result a {
+  color: inherit;
+  text-decoration: none;
+}
+.publish-duplicate-result a:hover {
+  text-decoration: underline;
+}
+.publish-duplicate-result .topology-compare-button {
+  justify-self: start;
+  margin-top: 4px;
+  border: 1px solid var(--icm-border);
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  border-radius: 5px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}

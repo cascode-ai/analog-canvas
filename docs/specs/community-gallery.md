@@ -85,8 +85,8 @@ restrictive content-security-policy.
   its renderer, symbol catalogue, and bundled Projects only after the remote
   feed has settled empty or unavailable; a populated Gallery never pays for
   those fallback-only dependencies.
-- The editor Gallery panel offers an on-demand **Check current topology**
-  action above its filters. It compares the currently visible Cell (not
+- The editor Publish dialog offers an on-demand **Check Duplicate**
+  action. It compares the currently visible Cell (not
   unconditionally the Project's root Cell) against every public Gallery
   entry in a Web Worker. Exact topology results ignore instance, Net, Cell and
   external-port names; model and parameter values; top-level port order; and
@@ -94,11 +94,11 @@ restrictive content-security-policy.
   Device classes, recognizable MOS/BJT polarity, terminal roles and actual
   connectivity remain structural evidence. This topology-only contract is
   intentionally broader than the administrator's exact electrical duplicate
-  contract. After exact topology matches, the panel shows at most five nearest
-  structural results ranked by device/pin/external-terminal populations and
-  their electrical neighborhoods. The action is public and read-only: results
-  open the existing Gallery entry, and no cleanup authority is exposed in the
-  editor.
+  contract. Results retain all exact topology matches and at most five partial
+  matches, ranked by verified structural coverage and parameter/model closeness
+  as described in [Current-cell duplicate tasks](#current-cell-duplicate-tasks). The action is public and read-only: results
+  link to the existing Gallery entry and offer read-only snapshot comparison.
+  No cleanup authority is exposed in the editor.
   The click captures the comparison Cell: subsequent edits, hiding the panel,
   or refreshing its feed do not cancel the running scan or erase its results.
   A notice identifies results from an earlier canvas state; checking again
@@ -442,8 +442,39 @@ This is not a server-persisted job and does not claim restart recovery.
 
 Exact topology is confirmed using device classes, polarity, pin roles and
 connectivity. Full netlist equivalence, including models and parameters, is
-checked separately; confirmed full matches rank ahead of equal topologies whose
-netlist details differ. Non-exact results retain the existing descending
-structural score and nearest-five limit. A structural percentage is not a
-simulation-equivalence guarantee or a parameter similarity score. Partial
-instance correspondence and canvas highlighting remain future work.
+checked separately. The public comparison returns a graph witness and device
+occurrence paths; it does not weaken the administrator's exact-duplicate
+cleanup contract.
+
+For partial results, a bounded injective mapping of compatible devices and
+incident nets proves each displayed correspondence. A common net remains
+common and distinct nets cannot collapse. Passive two-pin devices may reverse;
+transistor and external black-box terminal roles may not. Structural score is
+matched-device Dice coverage multiplied by `0.8 + 0.2 × neighborhood score`.
+An exact topology receives structural score 1.
+
+Parameter comparison normalizes SPICE engineering numbers and averages
+`min(abs(a), abs(b)) / max(abs(a), abs(b))` over parameter names present on either
+side, with equal values scoring 1, missing values or different signs scoring 0.
+Symbolic expressions require literal equality. This contributes 80% of the
+parameter/model score, with 20% from matching model and invocation identity.
+Overall score is `structure × (0.85 + 0.15 × parameter/model score)`. Results
+sort by this score; only confirmed full netlist equality displays 100%. Keep
+all exact topology matches and at most five partial matches. A similarity
+percentage is not a simulation-equivalence guarantee.
+
+**Compare on canvas** renders frozen source and candidate Projects side by
+side. Equal colors mark corresponding devices. Selecting a pair opens each
+leaf Cell, focuses its device and lists the original parameters. Complete
+instance paths distinguish repeated child Cell occurrences. Unplaced devices
+have a parameter comparison but no highlight. Subsequent live edits or Gallery
+updates do not replace these snapshots; closing or using keys in this dialog
+cannot edit the live circuit.
+
+Matching is bounded. Budget exhaustion is visible and only verified pairs are
+shown, without claiming maximal coverage. Symmetric circuits may have multiple
+valid correspondences; parameter ordering is a preference, not a guarantee of
+the globally best assignment. Graph extraction's existing limits and
+uncheckable cases remain explicit. The primary algorithm tests live in
+`packages/netlist/src/topology-correspondence.test.ts`; Gallery ranking, task
+lifetime and browser workflows cover their own boundaries.

@@ -8,6 +8,15 @@ import type {
   DesignNetlistParameter,
 } from "./ir.js";
 
+/** An occurrence, not just a Cell-local ID: repeated child Cells remain distinct. */
+export interface ElectricalDeviceOrigin {
+  vertex: number;
+  documentId: string;
+  instanceId: string;
+  path: string[];
+  referencePath: string[];
+}
+
 export interface ElectricalGraph {
   labels: string[];
   edges: number[][];
@@ -15,6 +24,7 @@ export interface ElectricalGraph {
   bucket: string;
   /** Semantic identities for topology search only; exact duplicate labels stay intact. */
   topologyLabels?: string[];
+  deviceOrigins?: ElectricalDeviceOrigin[];
 }
 
 export type ElectricalGraphResult =
@@ -80,6 +90,7 @@ export function electricalGraphFromIR(
   try {
     const labels: string[] = [];
     const topologyLabels: string[] = [];
+    const deviceOrigins: ElectricalDeviceOrigin[] = [];
     const adjacency: Set<number>[] = [];
     const parent: number[] = [];
     const vertex = (label: string, topology = topologyLabel(label)) => {
@@ -112,6 +123,8 @@ export function electricalGraphFromIR(
       cell: DesignNetlistIR["cells"][number],
       ports: number[] | null,
       ancestors: Set<string>,
+      instancePath: string[] = [],
+      referencePath: string[] = [],
     ) => {
       if (ancestors.has(cell.id) || ancestors.size > 32)
         throw new Error("Recursive hierarchy needs manual comparison");
@@ -166,6 +179,8 @@ export function electricalGraphFromIR(
               return net(node.netName);
             }),
             path,
+            [...instancePath, instance.id],
+            [...referencePath, instance.reference],
           );
           continue;
         }
@@ -218,6 +233,13 @@ export function electricalGraphFromIR(
             ]),
           ),
         );
+        deviceOrigins.push({
+          vertex: device,
+          documentId: cell.id,
+          instanceId: instance.id,
+          path: [...instancePath, instance.id],
+          referencePath: [...referencePath, instance.reference],
+        });
         const symmetric =
           instance.invocationKind === "primitive" &&
           ["resistor", "capacitor", "inductor"].includes(instance.deviceClass);
@@ -253,6 +275,10 @@ export function electricalGraphFromIR(
       status: "ready",
       graph: {
         labels: compactLabels,
+        deviceOrigins: deviceOrigins.map((origin) => ({
+          ...origin,
+          vertex: indices.get(origin.vertex)!,
+        })),
         topologyLabels: roots.map((id) => topologyLabels[id]!),
         edges: edges.map((neighbors) => [...neighbors].sort((a, b) => a - b)),
         bucket: JSON.stringify(
@@ -315,12 +341,16 @@ export function projectElectricalGraph(
 }
 
 /** Exact colored-graph bijection. A budget exhaustion is explicitly unknown. */
-export function compareElectricalGraphs(
+export type ElectricalGraphMatch =
+  { status: "equal"; mapping: number[] } | { status: "different" | "unknown" };
+
+export function matchElectricalGraphs(
   a: ElectricalGraph,
   b: ElectricalGraph,
   maxSteps = 100_000,
-): "equal" | "different" | "unknown" {
-  if (a.bucket !== b.bucket) return "different";
+  preference?: (source: number, target: number) => number,
+): ElectricalGraphMatch {
+  if (a.bucket !== b.bucket) return { status: "different" };
   const n = a.labels.length;
   const palette = (values: string[]) => {
     const sorted = [...new Set(values)].sort();
@@ -348,10 +378,16 @@ export function compareElectricalGraphs(
   const histogram = (items: number[]) =>
     JSON.stringify([...items].sort((x, y) => x - y));
   if (histogram(colors.slice(0, n)) !== histogram(colors.slice(n)))
-    return "different";
+    return { status: "different" };
   const candidates = a.labels.map((_, i) =>
     b.labels.flatMap((_, j) => (colors[i] === colors[n + j] ? [j] : [])),
   );
+  if (preference)
+    candidates.forEach((choices, source) =>
+      choices.sort(
+        (a, b) => preference(source, b) - preference(source, a) || a - b,
+      ),
+    );
   const mapped = new Map<number, number>();
   const used = new Set<number>();
   const neighbors = b.edges.map((items) => new Set(items));
@@ -393,7 +429,36 @@ export function compareElectricalGraphs(
     return false;
   };
   const result = search();
-  return result === null ? "unknown" : result ? "equal" : "different";
+  return result === null
+    ? { status: "unknown" }
+    : result
+      ? {
+          status: "equal",
+          mapping: a.labels.map((_, index) => mapped.get(index)!),
+        }
+      : { status: "different" };
+}
+
+export function compareElectricalGraphs(
+  a: ElectricalGraph,
+  b: ElectricalGraph,
+  maxSteps = 100_000,
+): "equal" | "different" | "unknown" {
+  return matchElectricalGraphs(a, b, maxSteps).status;
+}
+
+export function matchElectricalTopologies(
+  a: ElectricalGraph,
+  b: ElectricalGraph,
+  maxSteps = 100_000,
+  preference?: (source: number, target: number) => number,
+): ElectricalGraphMatch {
+  return matchElectricalGraphs(
+    topologyGraph(a),
+    topologyGraph(b),
+    maxSteps,
+    preference,
+  );
 }
 
 function topologyLabel(label: string): string {
@@ -448,7 +513,7 @@ function topologyLabel(label: string): string {
   }
 }
 
-function topologyGraph(graph: ElectricalGraph): ElectricalGraph {
+export function topologyGraph(graph: ElectricalGraph): ElectricalGraph {
   const labels = graph.topologyLabels ?? graph.labels.map(topologyLabel);
   return {
     labels,

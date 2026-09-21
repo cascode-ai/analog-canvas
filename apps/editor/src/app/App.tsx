@@ -4263,6 +4263,11 @@ export function App({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
+      if (
+        event.target instanceof Element &&
+        event.target.closest(".gallery-topology-comparison")
+      )
+        return;
       if (componentEditor) return;
       if (userComponentsOpen) {
         if (event.key === "Escape") setUserComponentsOpen(false);
