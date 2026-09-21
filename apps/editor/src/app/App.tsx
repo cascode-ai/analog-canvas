@@ -253,6 +253,7 @@ import {
   subscribeGalleryRefresh,
 } from "../gallery-client";
 import { projectWithTopologyRoot } from "../features/editor-shell/gallery-topology-project";
+import { GalleryTopologyTaskNotice } from "../features/editor-shell/gallery-topology-task-notice";
 import { fetchSessionUser, type SessionUser } from "../components/account";
 import {
   evaluateSubmissionGates,
@@ -4782,6 +4783,10 @@ export function App({
 
   return (
     <main className="app-shell">
+      <GalleryTopologyTaskNotice
+        hidden={publishGalleryOpen}
+        onOpen={() => setPublishGalleryOpen(true)}
+      />
       {parameterBinding &&
       selectionOpen &&
       selectedInstance?.id === parameterBinding.instanceId &&

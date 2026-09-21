@@ -1,57 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useSyncExternalStore } from "react";
 import type { CircuitProject } from "@icm/model";
 import { galleryPreviewUrl } from "../../gallery-client";
-import type { GalleryTopologyMatchReport } from "../../gallery-topology-match";
+import { galleryTopologyTask } from "./gallery-topology-task";
 
 export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
-  const worker = useRef<Worker | null>(null);
-  const [report, setReport] = useState<GalleryTopologyMatchReport | null>(null);
-  const [running, setRunning] = useState(false);
-  const [failure, setFailure] = useState<string | null>(null);
-  const [snapshot, setSnapshot] = useState<CircuitProject | null>(null);
-
-  const stop = () => {
-    worker.current?.terminate();
-    worker.current = null;
-    setRunning(false);
-  };
-  useEffect(() => {
-    return () => {
-      worker.current?.terminate();
-      worker.current = null;
-    };
-  }, []);
-
-  const start = () => {
-    stop();
-    setReport(null);
-    setFailure(null);
-    // postMessage clones this immutable Project synchronously. Later edits
-    // belong to the next check, not to this worker's captured circuit.
-    setSnapshot(project);
-    try {
-      const next = new Worker(
-        new URL("../../gallery-duplicates.worker.ts", import.meta.url),
-        { type: "module" },
-      );
-      worker.current = next;
-      setRunning(true);
-      next.onmessage = (event: MessageEvent<GalleryTopologyMatchReport>) => {
-        if (worker.current !== next) return;
-        setReport(event.data);
-        if (event.data.complete || event.data.error) stop();
-      };
-      next.onerror = () => {
-        if (worker.current !== next) return;
-        stop();
-        setFailure("Could not compare this Cell. Try again.");
-      };
-      next.postMessage({ type: "topology", project });
-    } catch {
-      stop();
-      setFailure("Could not start topology matching. Try again.");
-    }
-  };
+  const { report, running, failure, snapshot } = useSyncExternalStore(
+    galleryTopologyTask.subscribe,
+    galleryTopologyTask.getSnapshot,
+    galleryTopologyTask.getSnapshot,
+  );
+  const start = () => galleryTopologyTask.start(project);
+  const stop = () => galleryTopologyTask.cancel();
 
   const exactCount = report?.matches.filter((match) => match.exact).length ?? 0;
   return (
@@ -86,7 +45,7 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
           data-testid="gallery-topology-snapshot"
         >
           {snapshot !== project
-            ? "Canvas changed. These results still use the circuit captured when you clicked Check Duplicate."
+            ? `Canvas changed. These results still use “${snapshot.name}” captured when you clicked Check Duplicate.`
             : "Comparing a snapshot of this Cell. You can still publish while the check runs."}
         </p>
       ) : null}
@@ -143,9 +102,18 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
                 <small>{match.entry.author || "Gallery"}</small>
                 <small>
                   {match.exact
-                    ? "Exact topology match"
+                    ? "Exact topology match · 100%"
                     : `${Math.min(99, Math.round(match.similarity * 100))}% structural similarity`}
                 </small>
+                {match.exact ? (
+                  <small>
+                    {match.netlistMatch === "equal"
+                      ? "Netlist matches, including models and parameters"
+                      : match.netlistMatch === "different"
+                        ? "Topology matches; netlist details differ"
+                        : "Netlist equivalence not confirmed"}
+                  </small>
+                ) : null}
               </span>
             </a>
           ))}

@@ -1,0 +1,24 @@
+.gallery-topology-task-notice {
+  position: fixed;
+  right: 16px;
+  bottom: 44px;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 14px;
+  border: 1px solid var(--icm-border);
+  border-radius: 8px;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  box-shadow: 0 4px 20px rgb(0 0 0 / 12%);
+  font-size: 12px;
+}
+.gallery-topology-task-notice button {
+  border: 0;
+  background: none;
+  color: var(--icm-accent);
+  cursor: pointer;
+  white-space: nowrap;
+}

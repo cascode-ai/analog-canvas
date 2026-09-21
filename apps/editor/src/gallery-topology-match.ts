@@ -2,6 +2,7 @@ import { requestGalleryScan } from "./gallery-scan-request";
 import type { CircuitProject } from "@icm/model";
 import {
   compareElectricalTopologies,
+  compareElectricalGraphs,
   electricalGraphTopologySimilarity,
   projectElectricalGraph,
 } from "@icm/netlist";
@@ -12,6 +13,7 @@ export interface GalleryTopologyMatch {
   entry: GalleryFeedEntry;
   exact: boolean;
   similarity: number;
+  netlistMatch: "equal" | "different" | "unknown";
 }
 
 export interface GalleryTopologyMatchReport {
@@ -59,6 +61,8 @@ export async function scanGalleryTopologyMatches(
     const ordered = [...candidates].sort(
       (left, right) =>
         Number(right.exact) - Number(left.exact) ||
+        Number(right.netlistMatch === "equal") -
+          Number(left.netlistMatch === "equal") ||
         right.similarity - left.similarity ||
         left.entry.name.localeCompare(right.entry.name) ||
         left.entry.id.localeCompare(right.entry.id),
@@ -124,6 +128,10 @@ export async function scanGalleryTopologyMatches(
             candidates.push({
               entry: detail.entry ?? entry,
               exact: exact === "equal",
+              netlistMatch:
+                exact === "equal"
+                  ? compareElectricalGraphs(source.graph, candidate.graph)
+                  : "different",
               similarity:
                 exact === "equal"
                   ? 1

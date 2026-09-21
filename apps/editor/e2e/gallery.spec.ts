@@ -521,7 +521,27 @@ test("Publish checks exact and nearest duplicates without adding a Gallery contr
     "still publish",
   );
   await expect(publish).toBeEnabled();
+  await dialog
+    .getByRole("button", { name: "Cancel", exact: true })
+    .first()
+    .click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByTestId("gallery-topology-task-notice")).toContainText(
+    "Checking",
+  );
+  const otherTab = await context.newPage();
+  await otherTab.goto("about:blank");
+  await otherTab.bringToFront();
   releaseScan();
+  await expect(page.getByTestId("gallery-topology-task-notice")).toContainText(
+    "finished",
+  );
+  await page.bringToFront();
+  await otherTab.close();
+  await page
+    .getByTestId("gallery-topology-task-notice")
+    .getByRole("button", { name: "View results" })
+    .click();
   const results = dialog.getByTestId("gallery-topology-results");
   await expect(results.getByRole("link")).toHaveCount(3);
   await expect(results.getByRole("link").nth(0)).toContainText(
@@ -539,6 +559,12 @@ test("Publish checks exact and nearest duplicates without adding a Gallery contr
   await expect(results.getByRole("link").nth(0)).toHaveAttribute(
     "href",
     "/g/exact",
+  );
+  await expect(results.getByRole("link").nth(0)).toContainText(
+    "including models and parameters",
+  );
+  await expect(results.getByRole("link").nth(1)).toContainText(
+    "netlist details differ",
   );
   await expect(check).toBeEnabled();
   await expect(check).toHaveText("Check Again");

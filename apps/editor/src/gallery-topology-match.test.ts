@@ -58,11 +58,11 @@ describe("current Gallery topology matching", () => {
   });
 
   it("puts exact topologies first and ranks the nearest non-exact topology", async () => {
-    const entries = [entry("partial"), entry("same-shape"), entry("exact")];
+    const entries = [entry("partial"), entry("a-same-shape"), entry("z-exact")];
     const projects = new Map([
       ["partial", resistorProject("1k", 1)],
-      ["same-shape", resistorProject("2k", 2)],
-      ["exact", resistorProject("1k", 2)],
+      ["a-same-shape", resistorProject("2k", 2)],
+      ["z-exact", resistorProject("1k", 2)],
     ]);
     const report = await scanGalleryTopologyMatches(
       resistorProject(),
@@ -95,14 +95,16 @@ describe("current Gallery topology matching", () => {
         similarity,
       })),
     ).toEqual([
-      { id: "exact", exact: true, similarity: 1 },
-      { id: "same-shape", exact: true, similarity: 1 },
+      { id: "z-exact", exact: true, similarity: 1 },
+      { id: "a-same-shape", exact: true, similarity: 1 },
       {
         id: "partial",
         exact: false,
         similarity: expect.any(Number),
       },
     ]);
+    expect(report.matches[0]!.netlistMatch).toBe("equal");
+    expect(report.matches[1]!.netlistMatch).toBe("different");
     expect(report.matches[2]!.similarity).toBeLessThan(1);
   });
 
