@@ -325,9 +325,28 @@ describe("CI validation planning", () => {
       "apps/editor/src/lib/new-helper.ts",
     ]);
     expect(plan.mode).toBe("fallback");
+    expect(plan.e2eArgs).toEqual([
+      "apps/editor/e2e/component-insert.spec.ts",
+      "apps/editor/e2e/gallery.spec.ts",
+      "apps/editor/e2e/runtime-crash-safety.spec.ts",
+    ]);
     expect(plan.reasons).toContain(
       "uncovered browser impact: apps/editor/src/lib/new-helper.ts",
     );
+  });
+
+  it("deduplicates fallback specs already selected by a mixed batch", () => {
+    const plan = ciPlan([
+      "apps/editor/e2e/component-insert.spec.ts",
+      "apps/editor/e2e/gallery.spec.ts",
+      "apps/editor/src/lib/new-helper.ts",
+    ]);
+    expect(plan.e2eArgs).toContain("apps/editor/e2e/gallery.spec.ts");
+    expect(
+      plan.e2eArgs.filter(
+        (arg) => arg === "apps/editor/e2e/component-insert.spec.ts",
+      ),
+    ).toHaveLength(1);
   });
 
   it("keeps every browser spec reachable through a focused route", async () => {

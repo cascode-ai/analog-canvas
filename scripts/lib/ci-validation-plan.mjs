@@ -103,8 +103,9 @@ export function planCiValidation(plan, { forceFull = false } = {}) {
       heavy: true,
       browser: true,
       mode: "fallback",
-      e2eArgs: fallbackBrowserArgs,
+      e2eArgs: unique([...focusedArgs, ...fallbackBrowserArgs]).sort(),
       reasons: [
+        ...focusedArgs.map((arg) => `focused browser contract: ${arg}`),
         "the small browser fallback covers unmapped product impact",
         ...uncoveredPaths.map((path) => `uncovered browser impact: ${path}`),
       ],

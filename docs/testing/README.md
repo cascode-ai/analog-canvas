@@ -46,7 +46,8 @@ branch/full fallback for local planning. The PR planner separately translates
 shipped product paths into focused browser contracts. Unit tests, package
 manifests, the Node-only local host and Node platform package stay in Core
 contracts instead of allocating a browser. An unmapped browser path gets a
-small insertion/runtime-safety fallback. The complete browser suite remains a
+small insertion/runtime-safety fallback alongside all mapped contracts; an
+unmapped path never removes another changed path's selected tests. The complete browser suite remains a
 weekly scheduled and manual audit.
 
 `gate:preflight` runs cheap static contracts and cross-checks the commit's test
