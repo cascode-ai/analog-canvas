@@ -664,7 +664,7 @@
     "/api/agent/sessions/{sessionId}/files": {
       "post": {
         "operationId": "agentSessionFileResource",
-        "description": "Export Project/SVG/PNG/PDF; stage and inspect import candidates; read/update simulation source or retrieve immutable run artifacts. Staging alone never replaces the Project: browser-human confirmation is required. Source updates use their owner's revision; artifact access does not grant arbitrary host files.",
+        "description": "Export Project/SVG/PNG/PDF; stage and inspect import candidates; read/update simulation source or retrieve immutable run artifacts. Staging alone never replaces the Project: browser-human confirmation is required. Source updates use their owner's revision. replacements accepts path/textDigest/oldText/newText, requires one exact match against original text, and commits atomically with writes/removes/patches. Success returns source.revision and update with changed files, new digests and byte lengths; no-op saves do not advance revision. Listings advertise editing modes; fileEdit errors locate rejected edits with applied:false. Artifact access does not grant arbitrary host files.",
         "security": [
           {
             "bearerAuth": []
@@ -31854,12 +31854,19 @@
                   {
                     "type": "object",
                     "properties": {
+                      "replacements": {
+                        "maxItems": 4096,
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema7"
+                        }
+                      },
                       "writes": {
                         "default": [],
                         "maxItems": 4096,
                         "type": "array",
                         "items": {
-                          "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema7"
+                          "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema8"
                         }
                       },
                       "removes": {
@@ -31875,7 +31882,7 @@
                         "maxItems": 4096,
                         "type": "array",
                         "items": {
-                          "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema8"
+                          "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema9"
                         }
                       },
                       "action": {
@@ -31898,7 +31905,7 @@
                         "maxItems": 4096,
                         "type": "array",
                         "items": {
-                          "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema9"
+                          "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema10"
                         }
                       },
                       "circuitEdits": {
@@ -31906,7 +31913,7 @@
                         "maxItems": 64,
                         "type": "array",
                         "items": {
-                          "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema11"
+                          "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
                         }
                       }
                     },
@@ -32066,7 +32073,7 @@
                 "maxItems": 24,
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
+                  "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema13"
                 }
               },
               "entryPath": {
@@ -32237,6 +32244,32 @@
               "path": {
                 "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema5"
               },
+              "textDigest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "oldText": {
+                "type": "string",
+                "minLength": 1
+              },
+              "newText": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "textDigest",
+              "oldText",
+              "newText"
+            ],
+            "additionalProperties": false
+          },
+          "__schema8": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema5"
+              },
               "text": {
                 "type": "string"
               }
@@ -32247,7 +32280,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema8": {
+          "__schema9": {
             "type": "object",
             "properties": {
               "path": {
@@ -32280,7 +32313,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema9": {
+          "__schema10": {
             "type": "object",
             "properties": {
               "path": {
@@ -32296,13 +32329,13 @@
                 "type": "object",
                 "properties": {
                   "id": {
-                    "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema10"
+                    "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema11"
                   },
                   "path": {
                     "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema5"
                   },
                   "documentId": {
-                    "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema10"
+                    "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema11"
                   },
                   "emission": {
                     "type": "string",
@@ -32328,12 +32361,12 @@
             ],
             "additionalProperties": false
           },
-          "__schema10": {
+          "__schema11": {
             "type": "string",
             "minLength": 1,
             "maxLength": 256
           },
-          "__schema11": {
+          "__schema12": {
             "type": "object",
             "properties": {
               "path": {
@@ -32354,7 +32387,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema12": {
+          "__schema13": {
             "type": "object",
             "properties": {
               "name": {
@@ -32654,6 +32687,14 @@
                                         "dependency"
                                       ]
                                     },
+                                    "editing": {
+                                      "type": "string",
+                                      "enum": [
+                                        "text",
+                                        "mapped-parameters",
+                                        "read-only"
+                                      ]
+                                    },
                                     "byteLength": {
                                       "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
                                     }
@@ -32670,6 +32711,57 @@
                               "owner",
                               "revision",
                               "entry",
+                              "files"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "update": {
+                            "type": "object",
+                            "properties": {
+                              "changed": {
+                                "type": "boolean"
+                              },
+                              "mappedCircuitPaths": {
+                                "type": "array",
+                                "items": {
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
+                                }
+                              },
+                              "files": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "path": {
+                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
+                                    },
+                                    "action": {
+                                      "type": "string",
+                                      "enum": [
+                                        "created",
+                                        "updated",
+                                        "removed"
+                                      ]
+                                    },
+                                    "textDigest": {
+                                      "type": "string"
+                                    },
+                                    "byteLength": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 9007199254740991
+                                    }
+                                  },
+                                  "required": [
+                                    "path",
+                                    "action"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "changed",
                               "files"
                             ],
                             "additionalProperties": false
@@ -32896,6 +32988,46 @@
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 9007199254740991
+                          },
+                          "fileEdit": {
+                            "type": "object",
+                            "properties": {
+                              "applied": {
+                                "type": "boolean",
+                                "const": false
+                              },
+                              "path": {
+                                "type": "string"
+                              },
+                              "operationIndex": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "operation": {
+                                "type": "string",
+                                "enum": [
+                                  "replace",
+                                  "patch",
+                                  "write",
+                                  "remove"
+                                ]
+                              },
+                              "matchCount": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "expectedRevision": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "applied"
+                            ],
+                            "additionalProperties": false
                           },
                           "diagnostics": {
                             "type": "array",
@@ -36627,6 +36759,46 @@
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991
+              },
+              "fileEdit": {
+                "type": "object",
+                "properties": {
+                  "applied": {
+                    "type": "boolean",
+                    "const": false
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "operationIndex": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "replace",
+                      "patch",
+                      "write",
+                      "remove"
+                    ]
+                  },
+                  "matchCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "applied"
+                ],
+                "additionalProperties": false
               },
               "diagnostics": {
                 "type": "array",

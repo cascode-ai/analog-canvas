@@ -103,6 +103,23 @@ editable numeric fields to normal parameter transactions; topology edits go
 through Canvas APIs. Project file writes require `project.import`; mapped
 circuit changes additionally require connectivity editing authority.
 
+For small edits prefer `update.replacements:[{path,textDigest,oldText,newText}]`.
+Each nonempty `oldText` must match exactly once in the original file, including
+whitespace and line endings. Multiple replacements use the same original text,
+not each other's output. Zero/multiple matches, stale digests and overlapping
+edits reject the whole batch. Full writes and UTF-16 patches remain available.
+The returned `source.revision` is ready for the next update or prepare; `update`
+reports `changed`, actual created/updated/removed files and their new digests and
+byte lengths (removed files have no digest). `mappedCircuitPaths` separately
+reports generated paths involved in parameter changes. Entry/config/draft-only
+changes may have `changed:true` with no file entries. No-op saves do not advance
+revision. Do not reread solely to verify a successful commit.
+Listings advertise `editing`: `text`, `mapped-parameters`, or `read-only`.
+Located edit failures include `fileEdit.applied:false` and the path when known;
+replacement failures also identify the replacement array index and match count
+when applicable. Revision conflicts return expected/current revisions when
+available. Invalid native code can still be saved; prepare performs validation.
+
 For an expiring graphless session workspace, call File `create`, then
 `update` with `owner:{kind:"session-workspace",workspaceId}`,
 `expectedRevision`, `entry`, and authored files including a valid config.

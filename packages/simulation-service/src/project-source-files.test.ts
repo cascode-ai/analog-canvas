@@ -80,6 +80,107 @@ function fixture() {
 }
 
 describe("Project and session File Resource ownership", () => {
+  it("replaces text online with a reusable receipt and leaves no-op revisions unchanged", async () => {
+    const f = fixture();
+    const original = f.snapshot.folder.input.files[0]!;
+    expect(
+      await f.files.handle({
+        action: "update",
+        owner,
+        expectedRevision: 7,
+        writes: [original],
+      }),
+    ).toMatchObject({
+      source: { revision: 7 },
+      update: { changed: false, files: [] },
+    });
+    const updated = original.text.replace("op", "ac dec 10 1 1e6");
+    const reply = await f.files.handle({
+      action: "update",
+      owner,
+      expectedRevision: 7,
+      replacements: [
+        {
+          path: original.path,
+          textDigest: await sha256(original.text),
+          oldText: "op",
+          newText: "ac dec 10 1 1e6",
+        },
+      ],
+    });
+    expect(SimulationFileResultSchema.safeParse(reply).success).toBe(true);
+    expect(reply).toMatchObject({
+      ok: true,
+      source: { revision: 8 },
+      update: {
+        changed: true,
+        files: [
+          {
+            path: original.path,
+            action: "updated",
+            textDigest: await sha256(updated),
+            byteLength: new TextEncoder().encode(updated).byteLength,
+          },
+        ],
+      },
+    });
+    expect(
+      await f.files.handle({
+        action: "update",
+        owner,
+        expectedRevision: 8,
+        writes: [{ path: original.path, text: updated }],
+      }),
+    ).toMatchObject({
+      source: { revision: 8 },
+      update: { changed: false, files: [] },
+    });
+    expect(f.commit).toHaveBeenCalledTimes(1);
+    const conflict = await f.files.handle({
+      action: "update",
+      owner,
+      expectedRevision: 7,
+      writes: [],
+    });
+    expect(conflict).toMatchObject({
+      ok: false,
+      error: {
+        currentRevision: 8,
+        fileEdit: { applied: false, expectedRevision: 7 },
+      },
+    });
+  });
+  it("advertises editing modes and rejects dependency writes distinctly without partial commits", async () => {
+    const f = fixture();
+    expect(await f.files.handle({ action: "list", owner })).toMatchObject({
+      source: {
+        files: [
+          { path: "run.cir", editing: "text" },
+          { path: "config.json", editing: "text" },
+          { path: "dut.spice", editing: "mapped-parameters" },
+          { path: "models.lib", editing: "read-only" },
+        ],
+      },
+    });
+    expect(
+      await f.files.handle({
+        action: "update",
+        owner,
+        expectedRevision: 7,
+        writes: [
+          { path: "new.cir", text: "op" },
+          { path: "models.lib", text: "bad" },
+        ],
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: "SIMULATION_DEPENDENCY_READ_ONLY",
+        fileEdit: { applied: false, path: "models.lib" },
+      },
+    });
+    expect(f.commit).not.toHaveBeenCalled();
+  });
   it("saves unfinished buffers explicitly and clears them only when their file is applied", async () => {
     const f = fixture();
     const draft = {
@@ -242,7 +343,12 @@ describe("Project and session File Resource ownership", () => {
         }),
       ).toMatchObject({
         ok: false,
-        error: { code: "SIMULATION_GENERATED_FILE_READ_ONLY" },
+        error: {
+          code:
+            path === "models.lib"
+              ? "SIMULATION_DEPENDENCY_READ_ONLY"
+              : "SIMULATION_GENERATED_FILE_READ_ONLY",
+        },
       });
     expect(
       await f.files.handle({

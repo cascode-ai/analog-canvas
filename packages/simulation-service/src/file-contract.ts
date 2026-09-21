@@ -4,7 +4,10 @@ import {
   SimulationSourceDraftSchema,
 } from "@icm/model";
 import { Id, Digest, ArtifactRefSchema } from "./contract.js";
-import { SimulationSourceChangesSchema } from "./source-files.js";
+import {
+  SimulationSourceChangesSchema,
+  SourceUpdateReceiptSchema,
+} from "./source-files.js";
 
 export const SimulationFileOwnerSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("session-workspace"), workspaceId: Id }),
@@ -89,6 +92,7 @@ export const SimulationSourceListingSchema = z.strictObject({
     z.strictObject({
       path: SimulationInputPathSchema,
       kind: z.enum(["authored", "generated", "dependency"]),
+      editing: z.enum(["text", "mapped-parameters", "read-only"]).optional(),
       byteLength: Revision.optional(),
     }),
   ),
@@ -113,6 +117,7 @@ export const SimulationFileResultSchema = z.union([
   z.strictObject({
     ok: z.literal(true),
     source: SimulationSourceListingSchema,
+    update: SourceUpdateReceiptSchema.optional(),
   }),
   z.strictObject({ ok: z.literal(true), discarded: z.literal(true) }),
   z.strictObject({

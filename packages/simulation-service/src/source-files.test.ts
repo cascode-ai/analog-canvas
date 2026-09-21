@@ -3,6 +3,74 @@ import { sha256 } from "./content-digest.js";
 import { planSimulationSourceChanges } from "./source-files.js";
 
 describe("atomic source text changes", () => {
+  it("resolves exact replacements against original text, preserves Unicode and rejects overlapping matches", async () => {
+    const text = "* 🧪\r\nR1 a b 1k\r\nR2 b 0 2k\r\n";
+    const current = [{ path: "tb.cir", text }];
+    const replacement = {
+      path: "tb.cir",
+      textDigest: await sha256(text),
+      oldText: "1k",
+      newText: "2k",
+    };
+    expect(
+      await planSimulationSourceChanges(current, {
+        writes: [],
+        removes: [],
+        patches: [],
+        replacements: [
+          replacement,
+          { ...replacement, oldText: "2k", newText: "3k" },
+        ],
+      }),
+    ).toEqual({
+      ok: true,
+      files: [
+        {
+          path: "tb.cir",
+          text: text.replace("1k", "2k").replace("R2 b 0 2k", "R2 b 0 3k"),
+        },
+      ],
+    });
+    for (const [oldText, matchCount] of [
+      ["missing", 0],
+      ["R", 2],
+    ] as const) {
+      expect(
+        await planSimulationSourceChanges(current, {
+          writes: [{ path: "other", text: "new" }],
+          removes: [],
+          patches: [],
+          replacements: [{ ...replacement, oldText }],
+        }),
+      ).toMatchObject({
+        ok: false,
+        error: {
+          fileEdit: {
+            applied: false,
+            path: "tb.cir",
+            operation: "replace",
+            operationIndex: 0,
+            matchCount,
+          },
+        },
+      });
+    }
+    expect(
+      await planSimulationSourceChanges(current, {
+        writes: [],
+        removes: [],
+        patches: [],
+        replacements: [replacement, replacement],
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: "SIMULATION_FILE_OVERLAPPING_EDIT",
+        fileEdit: { path: "tb.cir", applied: false },
+      },
+    });
+    expect(current[0]!.text).toBe(text);
+  });
   it("applies all UTF-16 patches to the same original text and retains CRLF", async () => {
     const text = "* 中文 🧪\r\nR1 a b 1k\r\nR2 b 0 2k\r\n";
     const textDigest = await sha256(text);

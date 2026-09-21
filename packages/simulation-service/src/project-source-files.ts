@@ -9,7 +9,10 @@ import {
   type CircuitParameterChange,
 } from "@icm/netlist";
 import { problem, type Problem } from "./contract.js";
-import { planSimulationSourceChanges } from "./source-files.js";
+import {
+  planSimulationSourceChanges,
+  sourceUpdateReceipt,
+} from "./source-files.js";
 import type {
   SimulationFileOperation,
   SimulationFileResult,
@@ -64,15 +67,18 @@ export function listProjectSource(
         ...input.files.map((file) => ({
           path: file.path,
           kind: "authored" as const,
+          editing: "text" as const,
           byteLength: new TextEncoder().encode(file.text).byteLength,
         })),
         ...input.circuitBindings.map((b) => ({
           path: b.path,
           kind: "generated" as const,
+          editing: "mapped-parameters" as const,
         })),
         ...input.dependencies.map((d) => ({
           path: d.mountPath,
           kind: "dependency" as const,
+          editing: "read-only" as const,
         })),
       ],
     },
@@ -110,7 +116,18 @@ export async function handleProjectSourceFiles(
     );
     return {
       ...result,
-      error: { ...result.error, currentRevision: current()?.structureRevision },
+      error: {
+        ...result.error,
+        currentRevision: current()?.structureRevision,
+        ...(op.action === "update"
+          ? {
+              fileEdit: {
+                applied: false as const,
+                expectedRevision: op.expectedRevision,
+              },
+            }
+          : {}),
+      },
     };
   };
   const unchanged = () => {
@@ -203,12 +220,33 @@ export async function handleProjectSourceFiles(
   }
   if (op.expectedRevision !== before.structureRevision) return conflict();
   const input = before.folder.input;
+  const dependencyPath = [
+    ...op.writes.map((file) => file.path),
+    ...op.removes,
+    ...op.patches.map((edit) => edit.path),
+    ...(op.replacements ?? []).map((edit) => edit.path),
+  ].find((path) =>
+    input.dependencies.some((dependency) => dependency.mountPath === path),
+  );
+  if (dependencyPath)
+    return {
+      ok: false,
+      error: {
+        ...problem(
+          "SIMULATION_DEPENDENCY_READ_ONLY",
+          "Dependencies are environment-owned; edit authored source or its dependency declaration",
+          "input",
+        ).error,
+        fileEdit: { applied: false, path: dependencyPath },
+      },
+    };
   const planned = await planSimulationSourceChanges(
     input.files,
     {
       writes: op.writes,
       removes: op.removes,
       patches: op.patches,
+      replacements: op.replacements,
     },
     [
       ...input.circuitBindings.map((b) => b.path),
@@ -273,6 +311,7 @@ export async function handleProjectSourceFiles(
     ...op.writes.map((file) => file.path),
     ...op.removes,
     ...op.patches.map((patch) => patch.path),
+    ...(op.replacements ?? []).map((edit) => edit.path),
     ...editedPaths,
   ]);
   const remainingDrafts =
@@ -294,12 +333,19 @@ export async function handleProjectSourceFiles(
       next.error.issues[0]?.message ?? "Invalid file ownership",
       "input",
     );
+  const update = await sourceUpdateReceipt(input.files, next.data.input.files);
+  // Sorting by the planner is not an authored change on an untouched folder.
+  if (!update.files.length) next.data.input.files = input.files;
+  if (parameters.size) update.mappedCircuitPaths = [...editedPaths];
+  update.changed =
+    parameters.size > 0 ||
+    JSON.stringify(next.data) !==
+      JSON.stringify(ProjectSimulationFolderSchema.parse(before.folder));
+  if (!unchanged()) return conflict();
   // Do not parse SPICE/JSON here: broken text and missing references are saveable.
-  if (
-    !parameters.size &&
-    JSON.stringify(next.data) === JSON.stringify(before.folder)
-  )
-    return listProjectSource(before);
+  if (!update.changed) return { ...listProjectSource(before), update };
   const committed = host.commit(before, next.data, [...parameters.values()]);
-  return committed.ok ? listProjectSource(committed.snapshot) : committed;
+  return committed.ok
+    ? { ...listProjectSource(committed.snapshot), update }
+    : committed;
 }

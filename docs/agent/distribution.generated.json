@@ -101,7 +101,7 @@
     },
     {
       "source": "docs/agent/mcp/simulation.md",
-      "sha256": "8f4c915b09e3f1114380b66ac4ca6951304e35325d4d8bf7410afdfb8c30c51d"
+      "sha256": "25dcc759abc2ed657019e3985f4bfc3400b9e778bb773a17a253391a837cdf3f"
     },
     {
       "source": "docs/agent/shared/simulation.md",
@@ -117,11 +117,11 @@
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "7e7d5bcd03cef9f927663a9a5398f3626e2f89a8de7f2da2c8d53caf9fa690ad"
+      "sha256": "ec7dfe173cc7a09b8b377dcdc3f9adb2dbf6129fc56facdefe1827b6e49955cf"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
-      "sha256": "0b38603d17b24605b6117ab36b1e55b38f1dcf5e1d51e11df85529cc30fce1f2"
+      "sha256": "21ce289d857d471588028f45ac4bee665b7cdbad6286654fb2885cc0a76acf67"
     },
     {
       "source": "docs/agent/mcp/instructions.md",
@@ -613,7 +613,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/knowledge/patterns.md"
       ],
-      "sha256": "a2c0388110f35279a764aad203eef93a7a2e33e9f5ee3b18c3c2a10add08ebf3"
+      "sha256": "e25f198802a5bccc4fa99f561871ad8e9569891aedcfdee2d51d901967356b87"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -650,7 +650,7 @@
         "docs/agent/distribution.json",
         "docs/agent/http-kit/api-help.json"
       ],
-      "sha256": "57107be68ec183bae24715004e5e943d82770afc71e91fa55dc7503b983ae405"
+      "sha256": "a96f91bf661a3f4e72a306e2b6502f5537f897f71b318f2df50814711404b05a"
     },
     {
       "file": "apps/mcp-server/src/guidance.generated.ts",
@@ -659,7 +659,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "5b320b8bae6235450cdbec6928d7cfd87ba21b53abefcef98a4fc2f0cbd40396"
+      "sha256": "9a8bad1c12ca48a113bc83ccc70d8a2c6cc49bd8e4d32db12f33f9581a8a0686"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",

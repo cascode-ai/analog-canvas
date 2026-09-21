@@ -1,6 +1,60 @@
 import { describe, it, expect } from "vitest";
 import { ArtifactDownloadError, SimulationFiles, sha256 } from "./files.js";
 describe("simulation File Resource evidence", () => {
+  it("returns online edit receipts and preserves workspace revisions on no-op saves", async () => {
+    const files = new SimulationFiles();
+    const created = await files.handle({ action: "create" });
+    if (!created.ok || !("workspace" in created)) throw Error("create");
+    const owner = {
+      kind: "session-workspace",
+      workspaceId: created.workspace.id,
+    };
+    const written = await files.handle({
+      action: "update",
+      owner,
+      expectedRevision: 0,
+      writes: [{ path: "run.cir", text: "op\n" }],
+    });
+    expect(written).toMatchObject({
+      update: {
+        changed: true,
+        files: [
+          {
+            path: "run.cir",
+            action: "created",
+            textDigest: await sha256("op\n"),
+            byteLength: 3,
+          },
+        ],
+      },
+    });
+    const updated = await files.handle({
+      action: "update",
+      owner,
+      expectedRevision: 1,
+      replacements: [
+        {
+          path: "run.cir",
+          textDigest: await sha256("op\n"),
+          oldText: "op",
+          newText: "op",
+        },
+      ],
+    });
+    expect(updated).toMatchObject({
+      source: { revision: 1 },
+      update: { changed: false, files: [] },
+    });
+    expect(
+      await files.handle({ action: "update", owner, expectedRevision: 0 }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        currentRevision: 1,
+        fileEdit: { applied: false, expectedRevision: 0 },
+      },
+    });
+  });
   it("releases only the consumer lifetime on clear, preserving durable evidence", async () => {
     let releases = 0;
     let saved: {

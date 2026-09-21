@@ -1,5 +1,8 @@
 import { sha256 } from "./content-digest.js";
-import { planSimulationSourceChanges } from "./source-files.js";
+import {
+  planSimulationSourceChanges,
+  sourceUpdateReceipt,
+} from "./source-files.js";
 import {
   SimulationFileOperationSchema,
   type SimulationFileResult,
@@ -350,12 +353,22 @@ export class SimulationFiles {
         "Circuit edits and saved drafts require a Project folder owner",
         "input",
       );
-    if (op.expectedRevision !== workspace.revision)
-      return problem(
-        "WORKSPACE_REVISION_CONFLICT",
-        "Read the workspace and apply the edit to its current revision",
-        "input",
-      );
+    const conflict = () => ({
+      ok: false as const,
+      error: {
+        ...problem(
+          "WORKSPACE_REVISION_CONFLICT",
+          "Read the workspace and apply the edit to its current revision",
+          "input",
+        ).error,
+        currentRevision: this.workspaces.get(workspace.id)?.revision,
+        fileEdit: {
+          applied: false as const,
+          expectedRevision: op.expectedRevision,
+        },
+      },
+    });
+    if (op.expectedRevision !== workspace.revision) return conflict();
     for (const path of [...op.removes, ...op.writes.map((file) => file.path)]) {
       if (!safeInputPath(path))
         return problem(
@@ -368,18 +381,17 @@ export class SimulationFiles {
       writes: op.writes,
       removes: op.removes,
       patches: op.patches,
+      replacements: op.replacements,
     });
     if (!planned.ok) return planned;
+    const update = await sourceUpdateReceipt(workspace.files, planned.files);
     this.prune();
-    if (this.workspaces.get(workspace.id) !== workspace)
-      return problem(
-        "WORKSPACE_REVISION_CONFLICT",
-        "Workspace changed while applying patches; read it again",
-        "input",
-      );
+    if (this.workspaces.get(workspace.id) !== workspace) return conflict();
     const files = new Map(planned.files.map((file) => [file.path, file.text]));
     const entry = op.entry ?? workspace.entry;
     const configPath = op.configPath ?? workspace.configPath;
+    update.changed ||=
+      entry !== workspace.entry || configPath !== workspace.configPath;
     if (entry === configPath)
       return problem(
         "SIMULATION_FILE_INVALID",
@@ -401,7 +413,7 @@ export class SimulationFiles {
       );
     const next: Workspace = {
       ...workspace,
-      revision: workspace.revision + 1,
+      revision: workspace.revision + (update.changed ? 1 : 0),
       entry,
       configPath,
       files: [...files]
@@ -410,7 +422,7 @@ export class SimulationFiles {
       expiresAt: null,
     };
     this.workspaces.set(next.id, next);
-    return this.listWorkspace(next);
+    return { ...this.listWorkspace(next), update };
   }
   private trimCache() {
     if (!this.artifactStore) return;
@@ -589,6 +601,7 @@ export class SimulationFiles {
         files: workspace.files.map((file) => ({
           path: file.path,
           kind: "authored",
+          editing: "text",
           byteLength: new TextEncoder().encode(file.text).byteLength,
         })),
       },

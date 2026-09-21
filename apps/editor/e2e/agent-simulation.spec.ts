@@ -310,6 +310,67 @@ test("HTTP Kit alone authors native objects and hands off a Project-folder run",
       },
     ],
   });
+  const sourceOwner = { kind: "project-folder", folderId: "http-folder" };
+  const sourceRead = (
+    await send("files", {
+      operation: "simulation-input",
+      input: {
+        action: "read",
+        owner: sourceOwner,
+        path: "run.cir",
+      },
+    })
+  ).result;
+  const edited = (
+    await send("files", {
+      operation: "simulation-input",
+      input: {
+        action: "update",
+        owner: sourceOwner,
+        expectedRevision: sourceRead.revision,
+        replacements: [
+          {
+            path: "run.cir",
+            textDigest: sourceRead.textDigest,
+            oldText: "* HTTP divider",
+            newText: "* HTTP divider online edit",
+          },
+        ],
+      },
+    })
+  ).result;
+  expect(edited.ok).toBe(true);
+  expect(edited.update).toMatchObject({
+    changed: true,
+    files: [{ path: "run.cir", action: "updated" }],
+  });
+  expect(edited.update.files[0].textDigest).toBe(
+    createHash("sha256")
+      .update(
+        sourceRead.text.replace("* HTTP divider", "* HTTP divider online edit"),
+      )
+      .digest("hex"),
+  );
+  const noChange = (
+    await send("files", {
+      operation: "simulation-input",
+      input: {
+        action: "update",
+        owner: sourceOwner,
+        expectedRevision: edited.source.revision,
+        replacements: [
+          {
+            path: "run.cir",
+            textDigest: edited.update.files[0].textDigest,
+            oldText: "* HTTP divider online edit",
+            newText: "* HTTP divider online edit",
+          },
+        ],
+      },
+    })
+  ).result;
+  expect(noChange.update).toEqual({ changed: false, files: [] });
+  expect(noChange.source.revision).toBe(edited.source.revision);
   const current = await snapshot();
   const prepared = (
     await send("simulation", {

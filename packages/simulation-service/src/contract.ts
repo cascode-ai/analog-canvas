@@ -49,6 +49,16 @@ export const ProblemSchema = z.strictObject({
   retryAfterMs: z.number().nonnegative().optional(),
   correlationId: Id.optional(),
   currentRevision: z.number().int().nonnegative().optional(),
+  fileEdit: z
+    .strictObject({
+      applied: z.literal(false),
+      path: z.string().optional(),
+      operationIndex: z.number().int().nonnegative().optional(),
+      operation: z.enum(["replace", "patch", "write", "remove"]).optional(),
+      matchCount: z.number().int().nonnegative().optional(),
+      expectedRevision: z.number().int().nonnegative().optional(),
+    })
+    .optional(),
   diagnostics: z
     .array(
       z.strictObject({
