@@ -4783,6 +4783,7 @@ test("keeps panel tooltips visible and exposes panel keyboard shortcuts", async 
   page,
 }) => {
   await page.goto("/editor");
+  await awaitEditorReady(page);
   const gallery = page.getByTestId("examples-toggle");
   await expect(gallery).not.toHaveAttribute("title");
   await expect(gallery).toHaveAttribute("aria-keyshortcuts", "G");

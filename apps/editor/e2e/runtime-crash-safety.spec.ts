@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-import { chooseComponent, clickCommand } from "./editor-fixtures.js";
+import {
+  awaitEditorReady,
+  chooseComponent,
+  clickCommand,
+} from "./editor-fixtures.js";
 
 // These cases deliberately break and reload the shared editor origin. Keep
 // them in one worker so cache cleanup and failed chunk requests cannot race.
@@ -10,7 +14,7 @@ test("a render crash shows the recovery screen instead of a blank page", async (
   page,
 }) => {
   await page.goto("/editor");
-  await expect(page.getByTestId("schematic-canvas")).toBeVisible();
+  await awaitEditorReady(page);
 
   // Arm the DEV-only render crash probe and force one more App render.
   page.on("pageerror", (error) => console.log("PAGEERROR:", error.message));
@@ -39,7 +43,7 @@ test("a render crash shows the recovery screen instead of a blank page", async (
 
   // Reloading brings the editor back without the transient crash flag.
   await crashScreen.getByRole("button", { name: "Reload editor" }).click();
-  await expect(page.getByTestId("schematic-canvas")).toBeVisible();
+  await awaitEditorReady(page);
 });
 
 test("a repeated route chunk failure is not misreported as an old build", async ({
@@ -107,7 +111,7 @@ test("the recovery button gets a stuck page back into the editor", async ({
   chunkRetired = false;
   await recover.click();
 
-  await expect(page.getByTestId("schematic-canvas")).toBeVisible();
+  await awaitEditorReady(page);
   await expect(crashScreen).toHaveCount(0);
   // The build's cached shell is gone, not merely bypassed by the reload.
   expect(await page.evaluate(() => caches.keys())).not.toContain(
