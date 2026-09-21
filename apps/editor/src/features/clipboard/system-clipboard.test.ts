@@ -5,6 +5,7 @@ import {
   createEmptyDocument,
   createRoutePath,
   type CircuitProject,
+  type RichTextDocument,
 } from "@icm/model";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { compareElectricalGraphs, projectElectricalGraph } from "@icm/netlist";
@@ -15,6 +16,7 @@ import {
   createProjectSymbolResolver,
 } from "@icm/symbols";
 import {
+  resolveAnnotationText,
   resolveDocumentRoutingGeometry,
   resolveDocumentLogicalNets,
 } from "@icm/derived";
@@ -28,6 +30,7 @@ import {
   encodeCircuitClipboard,
 } from "./system-clipboard";
 import {
+  captureProjectCopy,
   applyProjectCopyPlacement,
   planProjectCopyPlacement,
 } from "./project-copy";
@@ -340,7 +343,7 @@ describe("portable system circuit clipboard", () => {
     expect(paste(target, content, 2).documents).toHaveLength(3);
   });
 
-  it("isolates colliding local net names while preserving explicit global supplies", () => {
+  it("preserves matching local names as one logical Net and retains global supplies", () => {
     const source = createEmptyProject("source", "Signals");
     const document = source.documents[0]!;
     document.instances.push({
@@ -374,20 +377,28 @@ describe("portable system circuit clipboard", () => {
     });
     const target = paste(source, text(source));
     const groups = resolveDocumentLogicalNets(target.documents[0]!).groups;
-    expect(groups.find((group) => group.name === "OUT")?.baseNetIds).toEqual([
-      "n",
-    ]);
-    const copyGroup = groups.find((group) => group.name === "OUT_copy1")!;
-    expect(copyGroup).toBeDefined();
-    expect(copyGroup.baseNetIds).not.toContain("n");
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({
+      name: "OUT",
+      baseNetIds: expect.arrayContaining(["n"]),
+    });
+    expect(groups[0]!.baseNetIds).toHaveLength(2);
     const again = paste(target, text(source), 2);
-    expect(
-      resolveDocumentLogicalNets(again.documents[0]!).groups.some(
-        (group) => group.name === "OUT_copy2",
-      ),
-    ).toBe(true);
+    const repeated = resolveDocumentLogicalNets(again.documents[0]!).groups;
+    expect(repeated).toHaveLength(1);
+    expect(repeated[0]!.name).toBe("OUT");
+    expect(repeated[0]!.baseNetIds).toHaveLength(3);
     document.instances[0]!.netlist!.parameters.value = "{V(OUT)}";
-    expect(() => paste(target, text(source))).toThrow(/behavioral expressions/);
+    const behavioral = paste(target, text(source));
+    expect(
+      behavioral.documents[0]!.instances.at(-1)!.netlist!.parameters.value,
+    ).toBe("{V(OUT)}");
+    for (const value of ["{I(R1)}", "{@R1[resistance]}"]) {
+      document.instances[0]!.netlist!.parameters.value = value;
+      expect(() => paste(target, text(source))).toThrow(
+        /behavioral expressions/,
+      );
+    }
     document.instances[0]!.netlist!.parameters.value = "1k";
     const claim = document.connectivityEvidence[0]!;
     if (claim.kind === "name-claim") {
@@ -510,4 +521,174 @@ it("appends one fully parameterized transistor to an occupied circuit without ch
   expect(copied.netlist).toEqual(transistor.netlist);
   expect(copied.reference).not.toEqual(transistor.reference);
   expect(output.routes).toHaveLength(document.routes.length);
+});
+
+const barredInput: RichTextDocument = {
+  runs: [
+    {
+      kind: "span",
+      style: "bold",
+      children: [
+        {
+          kind: "span",
+          style: "italic",
+          children: [
+            {
+              kind: "span",
+              style: "overbar",
+              children: [
+                { kind: "text", value: "IN" },
+                {
+                  kind: "span",
+                  style: "subscript",
+                  children: [{ kind: "text", value: "1" }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+describe("copied electrical label fidelity", () => {
+  it.each(["port", "net"] as const)(
+    "preserves a %s name and exact styled label through repeated native and legacy copies",
+    (kind) => {
+      const source = createEmptyProject("source", "Labels");
+      const document = source.documents[0]!;
+      if (kind === "port")
+        document.instances.push({
+          id: "P1",
+          symbolId: "port",
+          placement: {
+            position: { x: 100, y: 100 },
+            rotation: 0,
+            mirror: "none",
+          },
+        });
+      document.nets.push({
+        id: "input",
+        terminals: kind === "port" ? [{ instanceId: "P1", pinName: "P" }] : [],
+      });
+      document.netlist = {
+        name: "dut",
+        formalParameters: [],
+        terminals:
+          kind === "port"
+            ? [
+                {
+                  id: "input-port",
+                  name: "IN_1_bar",
+                  direction: "input",
+                  netId: "input",
+                  interfaceInstanceIds: ["P1"],
+                },
+              ]
+            : [],
+      };
+      if (kind === "net")
+        document.connectivityEvidence.push({
+          id: "claim",
+          kind: "name-claim",
+          name: "IN_1_bar",
+          netId: "input",
+          scope: "local",
+          owner: { kind: "net-label", annotationId: "input-label" },
+        });
+      document.annotations.push({
+        id: "input-label",
+        kind: kind === "port" ? "instance-label" : "net-label",
+        ...(kind === "net" ? { netId: "input" } : {}),
+        binding:
+          kind === "port"
+            ? { kind: "cell-terminal-name", terminalId: "input-port" }
+            : { kind: "net-name", netId: "input" },
+        anchor:
+          kind === "port"
+            ? {
+                kind: "object",
+                objectId: "P1",
+                localOffset: { x: -25, y: -10 },
+                fallbackPosition: { x: 75, y: 90 },
+              }
+            : { kind: "free", position: { x: 100, y: 100 } },
+        alignment: "end",
+        rotation: 90,
+        locked: false,
+        textColor: "#be123c",
+        sizeScale: 1.25,
+        formatOverride: barredInput,
+      });
+      const selection = {
+        instanceIds: kind === "port" ? ["P1"] : [],
+        routeIds: [],
+        junctionIds: [],
+        annotationIds: ["input-label"],
+        draftingIds: [],
+      };
+      document.instances.push({
+        id: "unselected",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 500, y: 500 },
+          rotation: 0,
+          mirror: "none",
+        },
+      });
+      const before = structuredClone(source);
+      const content = encodeCircuitClipboard(source, document, selection)!;
+      const once = paste(source, content);
+      const twice = paste(once, content, 2);
+      // Ordinary object IDs stay unique; the electrical names are intentionally identical.
+      for (const copied of [
+        once,
+        twice,
+        parseProject(serializeProject(twice)),
+        paste(createEmptyProject("destination", "Destination"), content),
+      ]) {
+        const target = copied.documents[0]!;
+        for (const label of target.annotations) {
+          expect(label.formatOverride).toEqual(barredInput);
+          expect(resolveAnnotationText(target, label)).toEqual(barredInput);
+          expect(label).toMatchObject({
+            textColor: "#be123c",
+            sizeScale: 1.25,
+            alignment: "end",
+            rotation: 90,
+          });
+          if (kind === "port")
+            expect(label.anchor).toMatchObject({
+              kind: "object",
+              localOffset: { x: -25, y: -10 },
+            });
+        }
+        const nets = resolveDocumentLogicalNets(target).groups;
+        expect(nets).toHaveLength(1);
+        expect(nets[0]!.name).toBe("IN_1_bar");
+        expect(nets[0]!.baseNetIds).toHaveLength(target.annotations.length);
+        expect(new Set(target.annotations.map((a) => a.id)).size).toBe(
+          target.annotations.length,
+        );
+        if (kind === "port")
+          expect(target.netlist!.terminals.map((t) => t.name)).toEqual(
+            target.annotations.map(() => "IN_1_bar"),
+          );
+      }
+      const legacy = captureProjectCopy(source, document, selection)!;
+      const placed = applyProjectCopyPlacement(
+        planProjectCopyPlacement(
+          source,
+          document,
+          legacy,
+          { x: 200, y: 200 },
+          1,
+        ),
+      );
+      for (const label of placed.documents[0]!.annotations)
+        expect(label.formatOverride).toEqual(barredInput);
+      expect(source).toEqual(before);
+    },
+  );
 });

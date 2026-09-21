@@ -53,8 +53,6 @@ import { createNewInstance } from "../netlist-export/netlist-authoring";
 export interface SchematicClipboard {
   context?: import("./project-copy").CopyContext;
   intent: "clone-selection" | "compose-document";
-  /** System paste keeps local names independent from an existing target circuit. */
-  isolateLocalNames?: boolean;
   sourceDocumentId: string;
   sourceGrid: number;
   instances: Instance[];
@@ -959,35 +957,8 @@ export function copySelection(
     constraints,
   });
   if (preserveElectrical) return clipboard;
-  // A copied supply marker starts with the same VDD/ground name as Insert.
-  // Explicitly copied rails and standalone net labels remain authored objects.
-  for (const evidence of clipboard.connectivityEvidence) {
-    if (
-      evidence.kind !== "name-claim" ||
-      evidence.owner.kind !== "power-marker"
-    )
-      continue;
-    const ownerId = evidence.owner.objectId;
-    const owner = clipboard.instances.find(
-      (instance) => instance.id === ownerId,
-    );
-    const power = owner && powerConnectionForSymbol(owner.symbolId);
-    if (!power) continue;
-    evidence.name = power.name;
-    evidence.scope = power.scope;
-    for (const annotation of clipboard.annotations) {
-      if (
-        annotation.binding?.kind === "net-name" &&
-        annotation.binding.netId === evidence.netId &&
-        annotation.formatOverride
-      ) {
-        annotation.formatOverride = rewriteRichTextPlainText(
-          annotation.formatOverride,
-          power.name,
-        );
-      }
-    }
-  }
+  // Copied electrical names and rich-text labels remain authored content,
+  // including customized power markers. Fresh object IDs do not imply fresh names.
   // Two selected Port markers must not retain a shared invisible source Net.
   // Their selected wires, when present, remain the only reason to share it.
   for (const instance of clipboard.instances) {
@@ -1306,16 +1277,27 @@ export function proposePaste(
     ]),
   );
   const errors: string[] = [];
+  // Net names survive paste, so V(node) expressions are stable. Device
+  // References still need unique names: reject expressions that would silently
+  // keep targeting the original device after its copied instance is renamed.
+  const renamedReferences = new Set(
+    clipboard.instances.flatMap((instance) =>
+      instance.reference &&
+      instanceReferences.has(instance.id) &&
+      instanceReferences.get(instance.id) !== instance.reference
+        ? [instance.reference.toLowerCase()]
+        : [],
+    ),
+  );
   if (
-    clipboard.isolateLocalNames &&
-    clipboard.instances.some(
-      (instance) =>
-        instance.reference &&
-        instanceReferences.get(instance.id) !== instance.reference,
-    ) &&
+    clipboard.intent === "compose-document" &&
     clipboard.instances.some((instance) =>
       Object.values(instance.netlist?.parameters ?? {}).some((value) =>
-        /(?:\b[vi]\s*\(|@)/iu.test(value),
+        [
+          ...value.matchAll(/\bi\s*\(\s*([^\s,)]+)|@([^\s[\](){}+*/=,]+)/giu),
+        ].some((match) =>
+          renamedReferences.has((match[1] ?? match[2]!).toLowerCase()),
+        ),
       ),
     )
   )
@@ -1437,7 +1419,6 @@ export function proposePaste(
     })),
   );
 
-  const terminalNames = new Map<string, string>();
   for (const terminal of clipboard.cellTerminals) {
     const copiedMarkerIds = terminal.interfaceInstanceIds.flatMap(
       (instanceId) => {
@@ -1449,13 +1430,10 @@ export function proposePaste(
       ? annotationIds.get(terminal.interfaceAnnotationId)
       : undefined;
     if (copiedMarkerIds.length === 0 && !copiedAnnotationId) continue;
-    const name = terminal.name;
-    terminalNames.set(terminal.id, name);
     edits.push({
       kind: "add_cell_terminal",
       terminal: {
         ...terminal,
-        name,
         id: terminalIds.get(terminal.id)!,
         netId: netIds.get(terminal.netId) ?? terminal.netId,
         interfaceInstanceIds: copiedMarkerIds,
@@ -1673,17 +1651,6 @@ export function proposePaste(
           instanceId: clone.anchor.objectId,
         };
         delete clone.content;
-      }
-      if (
-        clipboard.intent === "clone-selection" &&
-        clone.binding?.kind === "cell-terminal-name"
-      ) {
-        const name = terminalNames.get(clone.binding.terminalId);
-        if (name && clone.formatOverride)
-          clone.formatOverride = rewriteRichTextPlainText(
-            clone.formatOverride,
-            name,
-          );
       }
       if (
         clone.binding?.kind === "instance-reference" &&

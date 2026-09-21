@@ -475,3 +475,228 @@ test("Project menu keeps long names out of the header and switches checked proje
   await expect(menu).toBeHidden();
   await expect(toggle).toHaveAttribute("title", longName);
 });
+
+for (const kind of ["port", "net"] as const) {
+  test(`copies a styled ${kind} with identical name and overbar using C, Ctrl+C/V and project tabs`, async ({
+    page,
+    context,
+  }) => {
+    const { createEmptyProject, createRoutePath } = await import("@icm/model");
+    const { resolveDocumentLogicalNets } = await import("@icm/derived");
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    const project = createEmptyProject("copy-names", "Copy names");
+    const document = project.documents[0]!;
+    document.nets.push({
+      id: "input-net",
+      terminals: kind === "port" ? [{ instanceId: "P1", pinName: "P" }] : [],
+    });
+    if (kind === "port") {
+      document.instances.push({
+        id: "P1",
+        symbolId: "port",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      });
+      document.netlist = {
+        name: "dut",
+        formalParameters: [],
+        terminals: [
+          {
+            id: "input-port",
+            name: "IN_1_bar",
+            netId: "input-net",
+            direction: "input",
+            interfaceInstanceIds: ["P1"],
+          },
+        ],
+      };
+    } else {
+      document.junctions.push(
+        {
+          id: "a",
+          netId: "input-net",
+          position: { x: 100, y: 100 },
+          role: "route-anchor",
+        },
+        {
+          id: "b",
+          netId: "input-net",
+          position: { x: 250, y: 100 },
+          role: "route-anchor",
+        },
+      );
+      document.routes.push(
+        createRoutePath({
+          id: "wire",
+          netId: "input-net",
+          start: { kind: "junction", junctionId: "a" },
+          end: { kind: "junction", junctionId: "b" },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+      document.connectivityEvidence.push({
+        id: "input-name",
+        kind: "name-claim",
+        netId: "input-net",
+        name: "IN_1_bar",
+        scope: "local",
+        owner: { kind: "net-label", annotationId: "input-label" },
+      });
+    }
+    document.annotations.push({
+      id: "input-label",
+      kind: kind === "port" ? "instance-label" : "net-label",
+      ...(kind === "net" ? { netId: "input-net" } : {}),
+      binding:
+        kind === "port"
+          ? { kind: "cell-terminal-name", terminalId: "input-port" }
+          : { kind: "net-name", netId: "input-net" },
+      anchor:
+        kind === "port"
+          ? {
+              kind: "object",
+              objectId: "P1",
+              localOffset: { x: -25, y: -10 },
+              fallbackPosition: { x: 75, y: 90 },
+            }
+          : { kind: "free", position: { x: 160, y: 75 } },
+      alignment: "end",
+      rotation: 0,
+      locked: false,
+      textColor: "#be123c",
+      sizeScale: 1.25,
+      formatOverride: {
+        runs: [
+          {
+            kind: "span",
+            style: "bold",
+            children: [
+              {
+                kind: "span",
+                style: "italic",
+                children: [
+                  {
+                    kind: "span",
+                    style: "overbar",
+                    children: [
+                      { kind: "text", value: "IN" },
+                      {
+                        kind: "span",
+                        style: "subscript",
+                        children: [{ kind: "text", value: "1" }],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    await page.goto("/editor?new=1");
+    await page.getByTestId("project-file").setInputFiles({
+      name: "copy-names.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(project)),
+    });
+    const canvas = page.getByTestId("schematic-canvas");
+    const labels = page.locator(
+      '[data-layer="annotations"] [data-object-id^="input-label"]',
+    );
+    await expect(labels).toHaveCount(1);
+    const originalText = await labels.first().textContent();
+    const sourceLabel = structuredClone(document.annotations[0]!);
+    const select = async () => {
+      if (kind === "port") await page.getByTestId("hit-P1").click();
+      else await page.getByTestId("annotation-hit-input-label").click();
+    };
+    const verify = async (count: number) => {
+      await expect(labels).toHaveCount(count);
+      for (const label of await labels.all()) {
+        await expect(label).toHaveText(originalText!);
+        await expect(
+          label.locator("..").locator('[data-text-decoration="overbar"]'),
+        ).toHaveCount(1);
+        await expect(label.locator('[data-text-run="subscript"]')).toHaveCount(
+          1,
+        );
+      }
+      const result = await saved(page);
+      const target = result.documents[0]!;
+      for (const label of target.annotations) {
+        expect(label).toMatchObject({
+          formatOverride: sourceLabel.formatOverride,
+          textColor: sourceLabel.textColor,
+          sizeScale: sourceLabel.sizeScale,
+          alignment: sourceLabel.alignment,
+          rotation: sourceLabel.rotation,
+        });
+        if (kind === "port")
+          expect(label.anchor).toMatchObject({
+            kind: "object",
+            localOffset: { x: -25, y: -10 },
+          });
+      }
+      const logical = resolveDocumentLogicalNets(target).groups;
+      expect(logical).toHaveLength(1);
+      expect(logical[0]!.name).toBe("IN_1_bar");
+      expect(logical[0]!.baseNetIds).toHaveLength(count);
+      if (kind === "port") {
+        expect(
+          target.netlist!.terminals.every(
+            (terminal) => terminal.name === "IN_1_bar",
+          ),
+        ).toBe(true);
+        const netlist = page.getByLabel("Netlist code", { exact: true });
+        await expect(netlist).toContainText("IN_1_bar");
+        await expect(netlist).not.toContainText("copy");
+      }
+      return result;
+    };
+    await select();
+    await page.keyboard.press("c");
+    const ghost = page.getByTestId("copy-placement-preview");
+    await expect(ghost).toBeVisible();
+    await expect(ghost).not.toContainText("copy");
+    await expect(ghost.locator('[data-text-decoration="overbar"]')).toHaveCount(
+      1,
+    );
+    await canvas.click({ position: { x: 390, y: 280 } });
+    await page.keyboard.press("Escape");
+    await verify(2);
+    await canvas.focus();
+    await page.keyboard.press("Control+z");
+    await expect(labels).toHaveCount(1);
+    await page.keyboard.press("Control+Shift+z");
+    await verify(2);
+
+    await select();
+    await page.keyboard.press("Control+c");
+    await page.keyboard.press("Control+v");
+    await expect(ghost).toBeVisible();
+    await canvas.click({ position: { x: 420, y: 420 } });
+    await page.keyboard.press("Escape");
+    const repeated = await verify(3);
+    await page
+      .getByRole("button", { name: "New project tab", exact: true })
+      .click();
+    await page.keyboard.press("v");
+    await expect(ghost).toBeVisible();
+    await canvas.click({ position: { x: 350, y: 260 } });
+    await page.keyboard.press("Escape");
+    await verify(1);
+    await page.getByRole("tab").first().click();
+    await verify(3);
+    await page.getByTestId("project-file").setInputFiles({
+      name: "reopened.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(repeated)),
+    });
+    await verify(3);
+  });
+}

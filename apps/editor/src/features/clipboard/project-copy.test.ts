@@ -309,7 +309,7 @@ describe("one Project copy path", () => {
     );
   });
 
-  it("uses the Insert supply name instead of silently reconnecting a copied AVDD marker", () => {
+  it("preserves the authored AVDD supply name when copying its marker", () => {
     const project = createEmptyProject("supplies", "Supplies");
     const document = project.documents[0]!;
     document.instances.push({
@@ -335,15 +335,14 @@ describe("one Project copy path", () => {
       captureProjectCopy(project, document, selection(["VDD1"]))!,
     ).documents[0]!;
     const logical = resolveDocumentLogicalNets(copied);
-    expect(logical.groups.map((group) => group.name).sort()).toEqual([
-      "AVDD",
-      "VDD",
-    ]);
+    expect(logical.groups.map((group) => group.name)).toEqual(["AVDD"]);
+    expect(logical.groups[0]!.baseNetIds).toHaveLength(2);
     const copy = copied.instances.find((instance) => instance.id !== "VDD1")!;
     const net = copied.nets.find((candidate) =>
       candidate.terminals.some((terminal) => terminal.instanceId === copy.id),
     )!;
-    expect(logical.byBaseNetId.get(net.id)?.name).toBe("VDD");
+    expect(logical.byBaseNetId.get(net.id)?.name).toBe("AVDD");
+    expect(net.id).not.toBe("analog-supply");
   });
 
   it("undoes dependencies and placed objects together, with no writes from preparation", () => {

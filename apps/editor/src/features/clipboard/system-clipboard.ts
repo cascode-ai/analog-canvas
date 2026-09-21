@@ -115,7 +115,5 @@ export function decodeCircuitClipboard(
   const document = project.documents.find(
     (item) => item.id === project.topDocumentId,
   )!;
-  const clipboard = captureProjectCopy(project, document);
-  if (clipboard) clipboard.isolateLocalNames = true;
-  return clipboard;
+  return captureProjectCopy(project, document);
 }

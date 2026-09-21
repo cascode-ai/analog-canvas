@@ -591,7 +591,16 @@ referenced source-file records. It is not persisted or added to the Agent API.
 Source-file records are provenance, not bundled PDK model contents. Simulation
 folders, simulator configuration, run results and unrelated Cells are not copied.
 
-Every placement allocates new canvas object IDs and collision-free References.
+Every placement allocates new canvas object IDs and collision-free component
+instance References. Net names and Cell Pin names remain exactly as authored on
+all copy paths (C, Ctrl/Cmd+C/V, project tabs, and Gallery insertion), including
+when the destination already has the same name. No `_copy` suffix is added.
+Copied electrical labels retain their RichText, overbars, subscripts, typography,
+color and host-relative offsets; moving a copy changes its position only.
+Equal explicit Net/Pin names resolve to the same Logical Net while their drawn
+routes and individual markers remain independently editable. Voltage expressions
+keep their unchanged node names; behavioral references to renamed component
+instances still reject rather than silently target a different device.
 Compatible external definitions are reused by validated interface and presentation,
 not by coincident source IDs. Incompatible same-name definitions or Cell parameter
 defaults reject before placement. Child imports share one immutable source snapshot;

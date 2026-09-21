@@ -3,7 +3,6 @@ import {
   ComponentDefinitionSchema,
   deriveStableId,
   routeEnd,
-  rewriteRichTextPlainText,
   type CircuitProject,
   type Point,
   type SchematicDocument,
@@ -358,100 +357,6 @@ export function captureProjectCopy(
   return clipboard;
 }
 
-/** Explicit global/supply names still join by their electrical contract. Local
- * signal names must not accidentally join an unrelated circuit on paste. */
-function isolateCopiedLocalNames(
-  document: SchematicDocument,
-  clipboard: SchematicClipboard,
-): void {
-  if (!clipboard.isolateLocalNames) return;
-  const occupied = new Set(
-    resolveDocumentLogicalNets(document).groups.flatMap((net) =>
-      net.name ? [net.name.toLowerCase()] : [],
-    ),
-  );
-  for (const terminal of document.netlist?.terminals ?? [])
-    occupied.add(terminal.name.toLowerCase());
-  const globals = new Set(
-    clipboard.connectivityEvidence.flatMap((item) =>
-      item.kind === "name-claim" && item.scope === "global"
-        ? [item.name.toLowerCase()]
-        : [],
-    ),
-  );
-  const localNames = new Set([
-    ...clipboard.cellTerminals.map((terminal) => terminal.name),
-    ...clipboard.connectivityEvidence.flatMap((item) =>
-      item.kind === "name-claim" && item.scope === "local" ? [item.name] : [],
-    ),
-  ]);
-  const reserved = new Set([...localNames].map((name) => name.toLowerCase()));
-  const names = new Map<string, string>();
-  for (const name of localNames) {
-    const key = name.toLowerCase();
-    if (
-      !occupied.has(key) ||
-      globals.has(key) ||
-      /^(vdd|vss|0)$/iu.test(name) ||
-      names.has(key)
-    )
-      continue;
-    let index = 1;
-    let candidate: string;
-    do {
-      candidate = `${name.slice(0, 110)}_copy${index++}`;
-    } while (
-      occupied.has(candidate.toLowerCase()) ||
-      reserved.has(candidate.toLowerCase())
-    );
-    names.set(key, candidate);
-    reserved.add(candidate.toLowerCase());
-  }
-  if (
-    names.size &&
-    clipboard.instances.some((instance) =>
-      Object.values(instance.netlist?.parameters ?? {}).some((value) =>
-        /(?:\b[vi]\s*\(|@)/iu.test(value),
-      ),
-    )
-  )
-    throw new Error(
-      "Copied behavioral expressions refer to signal names that conflict with this Cell; paste into an empty Cell first",
-    );
-  const netNames = new Map<string, string>();
-  const terminalNames = new Map<string, string>();
-  for (const terminal of clipboard.cellTerminals) {
-    const name = names.get(terminal.name.toLowerCase());
-    if (name) {
-      terminal.name = name;
-      terminalNames.set(terminal.id, name);
-      netNames.set(terminal.netId, name);
-    }
-  }
-  for (const item of clipboard.connectivityEvidence) {
-    if (item.kind !== "name-claim" || item.scope !== "local") continue;
-    const name = names.get(item.name.toLowerCase());
-    if (name) {
-      item.name = name;
-      netNames.set(item.netId, name);
-    }
-  }
-  for (const annotation of clipboard.annotations) {
-    const binding = annotation.binding;
-    const name =
-      binding?.kind === "net-name"
-        ? netNames.get(binding.netId)
-        : binding?.kind === "cell-terminal-name"
-          ? terminalNames.get(binding.terminalId)
-          : undefined;
-    if (name && annotation.formatOverride)
-      annotation.formatOverride = rewriteRichTextPlainText(
-        annotation.formatOverride,
-        name,
-      );
-  }
-}
-
 /** Resolve dependencies once per Project revision/orientation, not per pointer move. */
 export function prepareProjectCopy(
   project: CircuitProject,
@@ -459,7 +364,6 @@ export function prepareProjectCopy(
   sourceClipboard: SchematicClipboard,
 ) {
   let clipboard = structuredClone(sourceClipboard);
-  isolateCopiedLocalNames(document, clipboard);
   let prepared = project;
   const edits: ProjectStructureEdit[] = [];
   const install = (additional: readonly ProjectStructureEdit[]) => {
