@@ -61,6 +61,43 @@ export function resultCatalog(
           },
         );
       }
+      const scalarRepresentations = (name: string) =>
+        run.artifacts
+          .filter((file) => file.role === "result")
+          .map((file) => ({
+            artifactId: file.id,
+            fileId: file.fileId ?? file.id,
+            selector: `/data/analyses/${analysisIndex}/${name}`,
+          }));
+      const scalars =
+        analysis.analysis === "noise"
+          ? [
+              ...(analysis.integratedOutputNoise === undefined
+                ? []
+                : [
+                    {
+                      name: "integratedOutputNoise",
+                      quantity: "integrated-output-noise",
+                      unit: analysis.units.integratedOutput,
+                      representations: scalarRepresentations(
+                        "integratedOutputNoise",
+                      ),
+                    },
+                  ]),
+              ...(analysis.integratedInputNoise === undefined
+                ? []
+                : [
+                    {
+                      name: "integratedInputNoise",
+                      quantity: "integrated-input-noise",
+                      unit: analysis.units.integratedInput,
+                      representations: scalarRepresentations(
+                        "integratedInputNoise",
+                      ),
+                    },
+                  ]),
+            ]
+          : [];
       const representations: ResultCatalog["datasets"][number]["representations"] =
         [];
       for (const file of run.artifacts) {
@@ -100,6 +137,7 @@ export function resultCatalog(
         pointCount,
         ...(axis ? { axis } : {}),
         signals,
+        ...(scalars.length > 0 ? { scalars } : {}),
         representations,
       };
     }),

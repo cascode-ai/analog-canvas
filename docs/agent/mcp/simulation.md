@@ -64,7 +64,10 @@ analyses or code. Basic OP/DC/AC/TRAN code needs no dedicated helper call.
    resumable partial file and only publish complete verified bytes, without
    replacing unrelated files. `request:{action:"artifact",artifactId}` without
    `outputPath` remains an optional text preview. `simulation` / `catalog` gives
-   dataset axes, units, representation selectors and file roles without samples.
+   dataset axes, signals, scalar result descriptors, units, exact representation
+   selectors and file roles without copying samples. For example, a Noise dataset
+   registers available integrated input/output noise and points each scalar at its
+   canonical `result.json` field.
    `read` is for status and diagnostics, not the primary waveform transfer.
    For result fields, measurement verdicts and canonical output files, read
    [Spec rules](../simulation-specs.md). Browser visibility, archival limits

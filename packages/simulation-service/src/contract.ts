@@ -160,6 +160,22 @@ export const ResultCatalogSchema = z.strictObject({
           unit: z.string().nullable(),
         }),
       ),
+      scalars: z
+        .array(
+          z.strictObject({
+            name: z.string(),
+            quantity: z.string(),
+            unit: z.string().nullable(),
+            representations: z.array(
+              z.strictObject({
+                artifactId: Id,
+                fileId: Id,
+                selector: z.string(),
+              }),
+            ),
+          }),
+        )
+        .optional(),
       representations: z.array(
         z.strictObject({
           artifactId: Id,
