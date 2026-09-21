@@ -547,7 +547,7 @@ export class GalleryDO {
       ON gallery_entry_versions(entry_id, version_no)
     `);
     // A signed-in account's private, stable Projects. Save updates one row;
-    // it never consumes another slot or creates implicit version history.
+    // each changed save keeps the three preceding revisions separately.
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS cloud_projects (
         id TEXT PRIMARY KEY,
@@ -565,6 +565,20 @@ export class GalleryDO {
       CREATE INDEX IF NOT EXISTS idx_cloud_projects_user
       ON cloud_projects(user_id, updated_at)
     `);
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS cloud_project_versions (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        revision INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        saved_at TEXT NOT NULL,
+        schema_version INTEGER NOT NULL,
+        project_text TEXT NOT NULL,
+        preview_svg TEXT NOT NULL DEFAULT ''
+      ) WITHOUT ROWID
+    `);
+    this.sql.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cloud_project_versions
+      ON cloud_project_versions(project_id, revision)`);
     // One-time conversion of the retired rolling workspace shelf. Old rows
     // become stable Projects at revision 1; no compatibility route remains.
     try {
@@ -783,6 +797,12 @@ export class GalleryDO {
         return this.cloudProjectCreate(body);
       case "cloud-project-favorite":
         return this.cloudProjectFavorite(body);
+      case "cloud-project-versions":
+        return this.cloudProjectVersions(
+          String(body.userId),
+          String(body.id),
+          body.versionId,
+        );
       case "cloud-project-update":
         return this.cloudProjectUpdate(body);
       case "cloud-project-list":
@@ -1627,22 +1647,90 @@ export class GalleryDO {
       );
     }
     const nextRevision = current.revision + 1;
-    this.sql.exec(
-      `UPDATE cloud_projects
+    this.state.storage.transactionSync(() => {
+      this.sql.exec(
+        `INSERT INTO cloud_project_versions
+        (id, project_id, revision, name, saved_at, schema_version, project_text, preview_svg)
+        SELECT id || ':' || revision, id, revision, name, updated_at, schema_version, project_text, preview_svg
+        FROM cloud_projects WHERE id = ? AND user_id = ?`,
+        id,
+        userId,
+      );
+      this.sql.exec(
+        `UPDATE cloud_projects
        SET name = ?, updated_at = ?, revision = ?, schema_version = ?,
            project_text = ?, preview_svg = ?
        WHERE id = ? AND user_id = ? AND revision = ?`,
-      String(body.name),
-      String(body.updatedAt),
-      nextRevision,
-      Number(body.schemaVersion),
-      String(body.projectText),
-      String(body.previewSvg ?? ""),
-      id,
-      userId,
-      expectedRevision,
-    );
+        String(body.name),
+        String(body.updatedAt),
+        nextRevision,
+        Number(body.schemaVersion),
+        String(body.projectText),
+        String(body.previewSvg ?? ""),
+        id,
+        userId,
+        expectedRevision,
+      );
+      this.pruneCloudProjectVersions();
+    });
     return Response.json({ project: this.cloudProjectOpenPayload(userId, id) });
+  }
+
+  private pruneCloudProjectVersions(): void {
+    this.sql.exec(`DELETE FROM cloud_project_versions
+      WHERE id NOT IN (
+        SELECT id FROM (
+          SELECT id, ROW_NUMBER() OVER (PARTITION BY project_id ORDER BY revision DESC) AS rank
+          FROM cloud_project_versions
+        ) WHERE rank <= 3
+      ) OR project_id NOT IN (SELECT id FROM cloud_projects)`);
+  }
+
+  private cloudProjectVersions(
+    userId: string,
+    id: string,
+    versionId: unknown,
+  ): Response {
+    const current = this.cloudProjectOpenPayload(userId, id);
+    if (!current) return Response.json({ error: "not-found" }, { status: 404 });
+    if (typeof versionId === "string") {
+      const version = this.sql
+        .exec<{
+          project_text: string;
+          preview_svg: string;
+          name: string;
+          schema_version: number;
+        }>(
+          "SELECT * FROM cloud_project_versions WHERE project_id = ? AND id = ?",
+          id,
+          versionId,
+        )
+        .toArray()[0];
+      return version
+        ? Response.json({ version, currentRevision: current.revision })
+        : Response.json({ error: "not-found" }, { status: 404 });
+    }
+    const versions = this.sql
+      .exec<{
+        id: string;
+        revision: number;
+        name: string;
+        saved_at: string;
+      }>(
+        `SELECT id, revision, name, saved_at FROM cloud_project_versions
+        WHERE project_id = ? ORDER BY revision DESC`,
+        id,
+      )
+      .toArray()
+      .map((row) => ({
+        versionId: row.id,
+        versionNo: row.revision,
+        name: row.name,
+        createdAt: row.saved_at,
+        author: "",
+        tags: [],
+      }));
+    return Response.json({ versions, revision: current.revision });
   }
 
   private cloudProjectSummary(row: CloudProjectRow): CloudProjectSummary {
@@ -1752,11 +1840,17 @@ export class GalleryDO {
     const existing = this.cloudProjectOpenPayload(userId, id);
     if (!existing)
       return Response.json({ error: "not-found" }, { status: 404 });
-    this.sql.exec(
-      "DELETE FROM cloud_projects WHERE id = ? AND user_id = ?",
-      id,
-      userId,
-    );
+    this.state.storage.transactionSync(() => {
+      this.sql.exec(
+        "DELETE FROM cloud_project_versions WHERE project_id = ?",
+        id,
+      );
+      this.sql.exec(
+        "DELETE FROM cloud_projects WHERE id = ? AND user_id = ?",
+        id,
+        userId,
+      );
+    });
     return Response.json({
       deleted: id,
       projects: this.cloudProjectRows(userId),
@@ -1772,14 +1866,18 @@ export class GalleryDO {
       galleryEntries: { name: "gallery_entries", keys: ["id"] },
       galleryEntryVersions: { name: "gallery_entry_versions", keys: ["id"] },
       cloudProjects: { name: "cloud_projects", keys: ["id"] },
+      cloudProjectVersions: { name: "cloud_project_versions", keys: ["id"] },
       galleryLikes: { name: "gallery_likes", keys: ["entry_id", "user_id"] },
     };
-    if (body.scope === "gallery" && body.table === "cloudProjects") {
+    if (
+      body.scope === "gallery" &&
+      String(body.table).startsWith("cloudProject")
+    ) {
       return Response.json({ error: "invalid-table" }, { status: 400 });
     }
     if (body.table === "inventory") {
       const selected = Object.entries(tables).filter(
-        ([key]) => body.scope !== "gallery" || key !== "cloudProjects",
+        ([key]) => body.scope !== "gallery" || !key.startsWith("cloudProject"),
       );
       return Response.json({
         format: "analog-canvas-gallery-backup-inventory-v1",
@@ -1862,6 +1960,9 @@ export class GalleryDO {
         galleryEntryVersions: this.sql
           .exec<Record<string, unknown>>("SELECT * FROM gallery_entry_versions")
           .toArray(),
+        cloudProjectVersions: this.sql
+          .exec<Record<string, unknown>>("SELECT * FROM cloud_project_versions")
+          .toArray(),
         cloudProjects: this.sql
           .exec<Record<string, unknown>>("SELECT * FROM cloud_projects")
           .toArray(),
@@ -1884,7 +1985,16 @@ export class GalleryDO {
     const galleryEntries = tableRows(tables?.galleryEntries);
     const galleryEntryVersions = tableRows(tables?.galleryEntryVersions);
     const cloudProjects = tableRows(tables?.cloudProjects);
-    if (!galleryEntries || !galleryEntryVersions || !cloudProjects) {
+    const cloudProjectVersions =
+      tables?.cloudProjectVersions === undefined
+        ? []
+        : tableRows(tables.cloudProjectVersions);
+    if (
+      !galleryEntries ||
+      !galleryEntryVersions ||
+      !cloudProjects ||
+      !cloudProjectVersions
+    ) {
       return Response.json(
         { restored: false, error: "invalid-backup-tables" },
         { status: 400 },
@@ -1894,6 +2004,7 @@ export class GalleryDO {
       this.sql.exec("DELETE FROM gallery_entries");
       this.sql.exec("DELETE FROM gallery_entry_versions");
       this.sql.exec("DELETE FROM cloud_projects");
+      this.sql.exec("DELETE FROM cloud_project_versions");
       for (const row of galleryEntries) {
         const values = rowValues(row, [
           "id",
@@ -1962,8 +2073,8 @@ export class GalleryDO {
         this.sql.exec(
           `INSERT INTO cloud_projects
            (id, user_id, name, created_at, updated_at, revision,
-            schema_version, project_text, gallery_entry_id, favorite)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            schema_version, project_text, gallery_entry_id, favorite, preview_svg)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           ...rowValues(row, [
             "id",
             "user_id",
@@ -1978,22 +2089,61 @@ export class GalleryDO {
             ? row.gallery_entry_id
             : null,
           row.favorite === 1 ? 1 : 0,
+          typeof row.preview_svg === "string" ? row.preview_svg : "",
         );
       }
+      for (const row of cloudProjectVersions) {
+        const parent = cloudProjects.find(
+          (project) => project.id === row.project_id,
+        );
+        if (
+          !parent ||
+          typeof row.revision !== "number" ||
+          !Number.isInteger(row.revision) ||
+          row.revision < 1 ||
+          Number(parent.revision) <= row.revision
+        )
+          throw new Error("Invalid Shelf history parent or revision");
+        this.sql.exec(
+          `INSERT INTO cloud_project_versions
+          (id, project_id, revision, name, saved_at, schema_version, project_text, preview_svg)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          ...rowValues(row, [
+            "id",
+            "project_id",
+            "revision",
+            "name",
+            "saved_at",
+            "schema_version",
+            "project_text",
+            "preview_svg",
+          ]),
+        );
+      }
+      this.pruneCloudProjectVersions();
       return this.sql
         .exec<{ count: number }>(
           "SELECT COUNT(*) AS count FROM gallery_entry_versions",
         )
         .one().count;
     });
+    const retainedCloudVersions = this.sql
+      .exec<{ count: number }>(
+        "SELECT COUNT(*) AS count FROM cloud_project_versions",
+      )
+      .one().count;
     return Response.json({
       restored: true,
       records:
-        galleryEntries.length + retainedVersionCount + cloudProjects.length,
+        galleryEntries.length +
+        retainedVersionCount +
+        cloudProjects.length +
+        retainedCloudVersions,
       tables: {
         galleryEntries: galleryEntries.length,
         galleryEntryVersions: retainedVersionCount,
         cloudProjects: cloudProjects.length,
+        cloudProjectVersions: retainedCloudVersions,
       },
     });
   }
@@ -2105,6 +2255,14 @@ export class GalleryDO {
         rows: this.sql
           .exec<StoredProjectRow>(
             "SELECT id, schema_version, project_text FROM cloud_projects",
+          )
+          .toArray(),
+      },
+      {
+        table: "cloud_project_versions",
+        rows: this.sql
+          .exec<StoredProjectRow>(
+            "SELECT id, schema_version, project_text FROM cloud_project_versions",
           )
           .toArray(),
       },

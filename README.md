@@ -40,6 +40,9 @@ An explicit **File / Save** updates one private Cloud Project in place. Local
 `.icproj.json` files are portable import/export and backup artifacts; browser
 recovery is an origin-local crash-safety copy. Neither is confused with formal
 Cloud Save, and Community Gallery entries remain separate public publications.
+Shelf cards offer **Version history** for the latest three earlier saves: compare
+component changes, restore with conflict protection, or create an independent
+private branch. Restoring a draft never updates its Gallery publication.
 The hosted service keeps its visitor reporting first-party and honors browser
 Do Not Track instead of embedding a third-party analytics tracker.
 

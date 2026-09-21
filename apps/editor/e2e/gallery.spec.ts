@@ -4181,3 +4181,98 @@ test("Gallery historical branch link creates an independent project and unavaila
     "snapshot is unavailable",
   );
 });
+
+test("Shelf save history compares, branches privately and restores with the listed revision", async ({
+  page,
+}) => {
+  const before = galleryResistorProject("1k");
+  const after = galleryResistorProject("2k");
+  const summary = {
+    id: "draft",
+    name: "Private amplifier",
+    revision: 4,
+    updatedAt: "2026-09-21T08:00:00Z",
+    schemaVersion: CURRENT_PROJECT_FILE_VERSION,
+  };
+  let branch: { projectText: string; galleryEntryId?: string } | undefined;
+  let restored = false;
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "owner",
+          displayName: "Author",
+          role: "user",
+          isAdmin: false,
+        },
+      },
+    }),
+  );
+  await mockGallery(page, []);
+  await page.route("**/api/projects**", (route) => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    if (path.endsWith("/preview.svg"))
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg"/>',
+      });
+    if (path.endsWith("/restore")) {
+      expect(req.headers()["if-match"]).toBe("revision-4");
+      restored = true;
+      return route.fulfill({ json: { project: { ...summary, revision: 5 } } });
+    }
+    if (path.endsWith("/versions"))
+      return route.fulfill({
+        json: {
+          revision: 4,
+          versions: [
+            {
+              versionId: "draft:3",
+              versionNo: 3,
+              name: "Earlier amplifier",
+              author: "",
+              tags: [],
+              createdAt: summary.updatedAt,
+            },
+          ],
+        },
+      });
+    if (path.endsWith("/project"))
+      return route.fulfill({ json: { projectText: serializeProject(before) } });
+    if (req.method() === "POST") {
+      branch = req.postDataJSON();
+      return route.fulfill({
+        status: 201,
+        json: { project: { ...summary, id: "branch", revision: 1 } },
+      });
+    }
+    return route.fulfill({
+      json:
+        path === "/api/projects"
+          ? { projects: [summary] }
+          : { project: { ...summary, projectText: serializeProject(after) } },
+    });
+  });
+  await page.goto("/?view=shelf");
+  const openHistory = async () => {
+    await page.getByTestId("shelf-actions-draft").click();
+    await page.getByRole("menuitem", { name: "Version history" }).click();
+    await expect(page.getByTestId("version-history-dialog")).toContainText(
+      "current draft kept separately",
+    );
+  };
+  await openHistory();
+  await page.getByTestId("version-compare-3").click();
+  await expect(page.getByTestId("version-comparison")).toContainText(
+    "2 modified",
+  );
+  await page.getByTestId("version-branch-3").click();
+  await expect(page.getByTestId("version-history-dialog")).toHaveCount(0);
+  expect(branch?.galleryEntryId).toBeUndefined();
+  expect(parseProject(branch!.projectText).id).not.toBe(before.id);
+  await openHistory();
+  await page.getByTestId("version-restore-3").click();
+  await expect(page.getByTestId("version-history-dialog")).toHaveCount(0);
+  expect(restored).toBe(true);
+});

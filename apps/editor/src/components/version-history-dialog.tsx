@@ -72,7 +72,18 @@ async function restoreVersion(
   }
 }
 
+/** Storage-specific operations keep one history UI for public and private work. */
+export interface VersionHistorySource {
+  currentLabel: string;
+  loadVersions(): Promise<GalleryEntryVersion[] | null>;
+  loadProject(versionId?: string): Promise<CircuitProject>;
+  previewUrl(versionId: string): string;
+  restore(versionId: string): Promise<void>;
+  branch(project: CircuitProject): Promise<boolean>;
+}
+
 export interface VersionHistoryDialogProps {
+  source?: VersionHistorySource;
   entryId: string;
   entryName: string;
   onRestored(result: { previewRevision?: string }): void;
@@ -86,6 +97,7 @@ export function VersionHistoryDialog({
   onRestored,
   onClose,
   onBranch,
+  source,
 }: VersionHistoryDialogProps) {
   const modal = useRef<HTMLDialogElement>(null);
   const generation = useRef(0);
@@ -108,7 +120,11 @@ export function VersionHistoryDialog({
     setVersions(null);
     setComparison(null);
     setError(null);
-    void loadEntryVersions(entryId).then((loaded) => {
+    void (
+      source
+        ? source.loadVersions().catch(() => null)
+        : loadEntryVersions(entryId)
+    ).then((loaded) => {
       if (request !== generation.current) return;
       setVersions(loaded);
       if (!loaded)
@@ -117,7 +133,7 @@ export function VersionHistoryDialog({
     return () => {
       generation.current += 1;
     };
-  }, [entryId, retry]);
+  }, [entryId, retry, source]);
 
   async function run(action: () => Promise<void>): Promise<void> {
     setBusy(true);
@@ -135,21 +151,29 @@ export function VersionHistoryDialog({
   async function compare(version: GalleryEntryVersion) {
     const request = generation.current;
     const [before, after] = await Promise.all([
-      loadGalleryVersionProject(entryId, version.versionId),
-      loadGalleryVersionProject(entryId),
+      source
+        ? source.loadProject(version.versionId)
+        : loadGalleryVersionProject(entryId, version.versionId),
+      source ? source.loadProject() : loadGalleryVersionProject(entryId),
     ]);
     if (request === generation.current)
       setComparison({ versionNo: version.versionNo, before, after });
   }
   async function branch(version: GalleryEntryVersion) {
     const request = generation.current;
-    const project = await loadGalleryVersionProject(entryId, version.versionId);
+    const project = await (source
+      ? source.loadProject(version.versionId)
+      : loadGalleryVersionProject(entryId, version.versionId));
     if (request !== generation.current) return;
-    await onBranch?.(branchGalleryVersion(project, version.versionNo));
+    await (source?.branch ?? onBranch)?.(
+      branchGalleryVersion(project, version.versionNo),
+    );
   }
   async function restore(versionId: string) {
     const request = generation.current;
-    const result = await restoreVersion(entryId, versionId);
+    const result = source
+      ? await source.restore(versionId).then(() => ({}))
+      : await restoreVersion(entryId, versionId);
     if (request !== generation.current) return;
     if (result) onRestored(result);
     else
@@ -177,7 +201,8 @@ export function VersionHistoryDialog({
       >
         <header className="version-history-header">
           <p>
-            Latest 3 historical versions · current publication kept separately
+            Latest 3 historical versions ·{" "}
+            {source ? "current draft" : "current publication"} kept separately
           </p>
           <h2 id="version-history-title">Version history — {entryName}</h2>
           <button
@@ -205,7 +230,11 @@ export function VersionHistoryDialog({
                 data-testid={`version-${version.versionNo}`}
               >
                 <img
-                  src={`/api/gallery/${entryId}/versions/${version.versionId}/preview.svg`}
+                  src={
+                    source
+                      ? source.previewUrl(version.versionId)
+                      : `/api/gallery/${entryId}/versions/${version.versionId}/preview.svg`
+                  }
                   alt={`Version ${version.versionNo} preview`}
                   loading="lazy"
                 />
@@ -230,7 +259,7 @@ export function VersionHistoryDialog({
                   >
                     Compare
                   </button>
-                  {onBranch ? (
+                  {onBranch || source ? (
                     <button
                       type="button"
                       disabled={busy}
@@ -269,7 +298,10 @@ export function VersionHistoryDialog({
         )}
         {comparison ? (
           <section aria-label={`Compare version ${comparison.versionNo}`}>
-            <h3>v{comparison.versionNo} → Current publication</h3>
+            <h3>
+              v{comparison.versionNo} →{" "}
+              {source?.currentLabel ?? "Current publication"}
+            </h3>
             <VersionHistoryComparison
               key={comparison.versionNo}
               before={comparison.before}

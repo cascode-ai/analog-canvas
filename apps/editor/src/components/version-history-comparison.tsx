@@ -77,9 +77,7 @@ function VersionCanvas({
   return (
     <section className="version-compare-side">
       <header>
-        <b>
-          {side === "before" ? "Historical version" : "Current publication"}
-        </b>
+        <b>{side === "before" ? "Historical version" : "Current version"}</b>
         <span>
           <button
             type="button"

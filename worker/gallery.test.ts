@@ -1422,6 +1422,112 @@ describe("private Cloud Projects", () => {
     });
   });
 
+  it("retains three private saves, restores reversibly with revision checks, and backs up history", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    const stranger = await adminOf(env);
+    const { project } = await (
+      await route(env, saveRequest(cookie, "Draft 1"))
+    ).json();
+    const base = `${ORIGIN}/api/projects/${project.id}`;
+    const call = (
+      path = "",
+      method = "GET",
+      revision?: number,
+      name?: string,
+      identity = cookie,
+    ) =>
+      route(
+        env,
+        new Request(base + path, {
+          method,
+          headers: {
+            Cookie: identity,
+            Origin: ORIGIN,
+            ...(revision ? { "If-Match": `revision-${revision}` } : {}),
+          },
+          ...(name
+            ? { body: JSON.stringify({ name, projectText: projectText(name) }) }
+            : {}),
+        }),
+      );
+    for (let revision = 1; revision < 5; revision++)
+      expect(
+        (await call("", "PUT", revision, `Draft ${revision + 1}`)).status,
+      ).toBe(200);
+    // Retried Save must not grow history or displace a useful revision.
+    expect((await call("", "PUT", 4, "Draft 5")).status).toBe(200);
+    const history = await (await call("/versions")).json();
+    expect(history.revision).toBe(5);
+    expect(
+      history.versions.map((v: { versionNo: number }) => v.versionNo),
+    ).toEqual([4, 3, 2]);
+    const path = `/versions/${encodeURIComponent(history.versions[1].versionId)}`;
+    expect(
+      (await call("/versions", "GET", undefined, undefined, stranger)).status,
+    ).toBe(404);
+    expect(
+      (await call(path + "/project", "GET", undefined, undefined, stranger))
+        .status,
+    ).toBe(404);
+    expect(
+      (await call(path + "/restore", "POST", 5, undefined, stranger)).status,
+    ).toBe(404);
+    expect(
+      (await call(path + "/preview.svg")).headers.get("cache-control"),
+    ).toContain("private");
+    expect(await (await call(path + "/preview.svg")).text()).toContain("<svg");
+    expect((await call(path + "/restore", "POST")).status).toBe(428);
+    expect((await call(path + "/restore", "POST", 4)).status).toBe(409);
+    env.gallerySql.exec(
+      "UPDATE cloud_projects SET favorite = 1, gallery_entry_id = 'publication' WHERE id = ?",
+      project.id,
+    );
+    expect((await call(path + "/restore", "POST", 5)).status).toBe(200);
+    expect((await (await call()).json()).project).toMatchObject({
+      name: "Draft 3",
+      revision: 6,
+      favorite: true,
+      galleryEntryId: "publication",
+    });
+    expect(
+      (await (await call("/versions")).json()).versions.map(
+        (v: { versionNo: number }) => v.versionNo,
+      ),
+    ).toEqual([5, 4, 3]);
+    const maintenance = async (action: string, body: unknown) => {
+      const response = await env.GALLERY.getByName("global").fetch(
+        `https://gallery/${action}`,
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+        },
+      );
+      return response.json();
+    };
+    const backup = await maintenance("schema-backup", {});
+    expect(backup.tables.cloudProjectVersions).toHaveLength(3);
+    const publicOnly = await maintenance("schema-backup", {
+      table: "inventory",
+      scope: "gallery",
+    });
+    expect(publicOnly.tables).not.toHaveProperty("cloudProjectVersions");
+    expect(
+      await maintenance("schema-backup", {
+        table: "cloudProjectVersions",
+        scope: "gallery",
+      }),
+    ).toMatchObject({ error: "invalid-table" });
+    await call("", "DELETE");
+    expect(
+      env.gallerySql.exec("SELECT * FROM cloud_project_versions").toArray(),
+    ).toHaveLength(0);
+    await maintenance("schema-restore", { backup });
+    expect((await (await call("/versions")).json()).versions).toHaveLength(3);
+    expect((await call(path + "/project")).status).toBe(200);
+    expect(await (await call(path + "/preview.svg")).text()).toContain("<svg");
+  });
+
   it("is private to the account that saved it", async () => {
     const env = environment();
     const mine = await makerOf(env);
@@ -3921,6 +4027,7 @@ describe("gallery administration", () => {
       galleryEntryVersions: 1,
       cloudProjects: 0,
       galleryLikes: 2,
+      cloudProjectVersions: 0,
     });
     for (const [key, name] of Object.entries({
       galleryEntries: "gallery_entries",

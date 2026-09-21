@@ -327,6 +327,59 @@ async function handleCloudProjects(
   return Response.json(payload, { status });
 }
 
+/** Private save history uses the same account boundary and revision gate as Save. */
+async function handleCloudProjectHistory(
+  request: Request,
+  env: GalleryEnv & PreviewAcceptanceEnv,
+  projectId: string,
+  versionId?: string,
+  action?: string,
+): Promise<Response> {
+  if (request.method !== "GET" && !sameOrigin(request))
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  const user =
+    previewAcceptanceUserOf(request, env) ??
+    (await sessionUserOf(request, env));
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const headers = { "cache-control": "private, no-store" };
+  const result = await callGallery(env, "cloud-project-versions", {
+    userId: user.id,
+    id: projectId,
+    ...(versionId ? { versionId } : {}),
+  });
+  if (result.status !== 200 || !versionId)
+    return Response.json(result.payload, { status: result.status, headers });
+  const payload = result.payload as {
+    version: { project_text: string; preview_svg: string; name: string };
+  };
+  if (request.method === "GET" && action === "preview.svg")
+    return new Response(payload.version.preview_svg, {
+      headers: { ...headers, "content-type": "image/svg+xml" },
+    });
+  if (request.method === "GET" && action === "project")
+    return Response.json(
+      { projectText: payload.version.project_text },
+      { headers },
+    );
+  if (request.method === "POST" && action === "restore") {
+    // Route through Save, including parsing, rendering, compare-and-swap and
+    // snapshotting the displaced draft. Publication/favorite bindings stay put.
+    return handleCloudProjects(
+      new Request(request.url, {
+        method: "PUT",
+        headers: request.headers,
+        body: JSON.stringify({
+          name: payload.version.name,
+          projectText: payload.version.project_text,
+        }),
+      }),
+      env,
+      projectId,
+    );
+  }
+  return Response.json({ error: "not-found" }, { status: 404, headers });
+}
+
 /**
  * One shelf thumbnail. Private by construction: the Durable Object scopes the
  * read to the signed-in account, and the response is marked private so no
@@ -637,6 +690,22 @@ export async function routeGalleryRequest(
   }
   if (url.pathname.startsWith("/api/projects/")) {
     const projectId = url.pathname.slice("/api/projects/".length);
+    const historyMatch =
+      /^([^/]+)\/versions(?:\/([^/]+)\/(project|preview\.svg|restore))?$/u.exec(
+        projectId,
+      );
+    if (
+      historyMatch &&
+      (request.method === "GET" ||
+        (request.method === "POST" && historyMatch[3] === "restore"))
+    )
+      return handleCloudProjectHistory(
+        request,
+        env,
+        historyMatch[1]!,
+        historyMatch[2] ? decodeURIComponent(historyMatch[2]) : undefined,
+        historyMatch[3],
+      );
     const previewMatch = /^([^/]+)\/preview\.svg$/u.exec(projectId);
     if (previewMatch && request.method === "GET") {
       return handleCloudProjectPreview(request, env, previewMatch[1]!);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TilePreview } from "./tile-preview";
 
 import {
@@ -9,8 +9,14 @@ import {
   openCloudProject,
   setShelfFavorite,
   listCloudProjects,
+  saveCloudProject,
   type CloudProjectSummary,
 } from "../features/editor-shell/cloud-projects";
+import { parseProject } from "@icm/project-protocol";
+import {
+  VersionHistoryDialog,
+  type VersionHistorySource,
+} from "./version-history-dialog";
 import { Masonry } from "./masonry";
 
 /**
@@ -53,6 +59,7 @@ function formatUpdatedAt(value: string): string {
 
 export function ShelfWall() {
   const [state, setState] = useState<ShelfState>({ status: "loading" });
+  const [history, setHistory] = useState<CloudProjectSummary | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +112,65 @@ export function ShelfWall() {
           }
         : current,
     );
+
+  const historySource = useMemo<VersionHistorySource | undefined>(() => {
+    if (!history) return undefined;
+    const endpoint = `/api/projects/${encodeURIComponent(history.id)}`;
+    let revision = history.revision;
+    return {
+      currentLabel: "Current draft",
+      async loadVersions() {
+        const response = await fetch(`${endpoint}/versions`, {
+          credentials: "same-origin",
+        });
+        if (!response.ok) return null;
+        const result = await response.json();
+        revision = result.revision;
+        return result.versions;
+      },
+      async loadProject(versionId) {
+        const response = await fetch(
+          versionId
+            ? `${endpoint}/versions/${encodeURIComponent(versionId)}/project`
+            : endpoint,
+          { credentials: "same-origin" },
+        );
+        if (!response.ok) throw new Error("Could not load this draft version.");
+        const result = await response.json();
+        return parseProject(
+          versionId ? result.projectText : result.project.projectText,
+        );
+      },
+      previewUrl: (versionId) =>
+        `${endpoint}/versions/${encodeURIComponent(versionId)}/preview.svg`,
+      async restore(versionId) {
+        const response = await fetch(
+          `${endpoint}/versions/${encodeURIComponent(versionId)}/restore`,
+          {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "If-Match": `revision-${revision}` },
+          },
+        );
+        if (!response.ok)
+          throw new Error(
+            response.status === 409
+              ? "This draft changed elsewhere. Reopen history before restoring; no changes were overwritten."
+              : "Could not restore this draft version. Try again.",
+          );
+      },
+      async branch(project) {
+        const result = await saveCloudProject(project, null);
+        if (result.status !== "saved")
+          throw new Error(
+            `Could not create a Shelf branch (${result.status}).`,
+          );
+        replaceSummary(result.project);
+        setHistory(null);
+        return true;
+      },
+    };
+  }, [history]);
 
   async function act(
     project: CloudProjectSummary,
@@ -309,6 +375,18 @@ export function ShelfWall() {
             ),
           }))}
       />
+      {history && historySource ? (
+        <VersionHistoryDialog
+          entryId={history.id}
+          entryName={history.name}
+          source={historySource}
+          onClose={() => setHistory(null)}
+          onRestored={() => {
+            setHistory(null);
+            void refresh();
+          }}
+        />
+      ) : null}
       {menu ? (
         <div
           className="shelf-context-menu"
@@ -348,6 +426,16 @@ export function ShelfWall() {
           >
             Open in new tab
           </a>
+          <button
+            role="menuitem"
+            type="button"
+            onClick={() => {
+              setHistory(menu.project);
+              setMenu(null);
+            }}
+          >
+            Version history
+          </button>
           <button
             role="menuitem"
             type="button"
