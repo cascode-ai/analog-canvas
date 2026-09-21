@@ -474,3 +474,65 @@ describe("annotation code projection", () => {
     expect(adapter.changes(code, { "appearance.weight": "heavy" })).toEqual([]);
   });
 });
+
+describe("polyline property code", () => {
+  it("edits coordinates and endpoint shapes together without redundant angle bookkeeping", () => {
+    const result = change(arrow, (code) => {
+      code.geometry!.points = [
+        [100, 100],
+        [100, 250],
+        [350, 250],
+      ];
+      code.appearance.startStyle = "dot";
+      code.appearance.endStyle = "large-arrow";
+      code.geometry!.closed = true;
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        from: arrow.from,
+        to: arrow.from,
+        waypoints: [
+          { x: 100, y: 250 },
+          { x: 350, y: 250 },
+        ],
+        styleOverride: { arrowStart: "dot", arrowEnd: "large-arrow" },
+      },
+    });
+    if (!result.ok) throw new Error(result.message);
+    expect(
+      change(result.value, (code) => {
+        code.geometry!.closed = false;
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        from: arrow.from,
+        to: { kind: "free", position: { x: 350, y: 250 } },
+        waypoints: [{ x: 100, y: 250 }],
+      },
+    });
+  });
+  it("does not overwrite a translation or rotation with the unchanged points projection", () => {
+    const result = change(arrow, (code) => {
+      code.placement.at = [200, 200];
+      code.placement.rotation = 90;
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        from: { position: { x: 250, y: 150 } },
+        to: { position: { x: 250, y: 250 } },
+      },
+    });
+  });
+  it("rejects closing a two-vertex line without damaging its endpoints", () => {
+    const result = change(arrow, (code) => {
+      code.geometry!.closed = true;
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      message: expect.stringContaining("three distinct"),
+    });
+  });
+});

@@ -712,7 +712,7 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
 
   const annotations = page.getByTestId("shapes-category-annotations");
   await expect(annotations).toBeVisible();
-  await expect(annotations.locator(".shapes-category-count")).toHaveText("8");
+  await expect(annotations.locator(".shapes-category-count")).toHaveText("9");
   // Drawing tools lead; the polarity label and the standalone fixed marks
   // close the category. The one-sign-with-text variants no longer exist.
   expect(
@@ -724,6 +724,7 @@ test("groups drafting tools and editable polarity labels under Annotations", asy
   ).toEqual([
     "shapes-chip-annotation-arrow",
     "shapes-chip-annotation-line",
+    "shapes-chip-annotation-polyline",
     "shapes-chip-annotation-rectangle",
     "shapes-chip-annotation-circle",
     "shapes-chip-annotation-polarity-both",

@@ -25,7 +25,7 @@ export interface DrawingToolInsertRequest {
   kind: "drawing-tool";
   symbolId: string;
   symbolName: string;
-  tool: "arrow" | "construction-line" | "rectangle" | "circle";
+  tool: "arrow" | "polyline" | "construction-line" | "rectangle" | "circle";
 }
 
 export interface PolarityAnnotationInsertRequest {

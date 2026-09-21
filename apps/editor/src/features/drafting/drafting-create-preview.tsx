@@ -50,11 +50,11 @@ export function DraftingCreatePreview({
 
   return (
     <g data-testid="drafting-create-preview" pointerEvents="none">
-      {tool === "arrow" ? (
+      {tool === "arrow" || tool === "polyline" ? (
         <ArrowArtworkView
           object={{
             styleOverride: {
-              arrowHead: arrowPreset.head,
+              arrowHead: tool === "polyline" ? "none" : arrowPreset.head,
               arrowHeadAt: arrowPreset.at,
             },
             ...(placement ? { outline: { width: placement.width } } : {}),

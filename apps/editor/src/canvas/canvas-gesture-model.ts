@@ -50,6 +50,7 @@ export function classifyCanvasGestureStart({
     tool === "wire" ||
     tool === "construction-line" ||
     tool === "arrow" ||
+    tool === "polyline" ||
     tool === "rectangle" ||
     tool === "circle";
   if (frameZoomDrag) {

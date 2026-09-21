@@ -591,6 +591,7 @@ export function createCanvasGestureController({
     }
     if (
       (tool === "arrow" ||
+        tool === "polyline" ||
         tool === "construction-line" ||
         tool === "rectangle" ||
         tool === "circle") &&

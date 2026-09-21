@@ -3924,9 +3924,11 @@ function WorkspaceEditor({
               ? arrowPreset.family === "outline"
                 ? "Outline arrow: click to place, or drag to size (Esc cancels)"
                 : "Arrow: click the start point"
-              : nextTool === "construction-line"
-                ? "Construction line: click the start point"
-                : "Pointer ready",
+              : nextTool === "polyline"
+                ? "Polyline: click vertices; double-click or Enter to finish"
+                : nextTool === "construction-line"
+                  ? "Construction line: click the start point"
+                  : "Pointer ready",
     );
   }
 
@@ -4461,6 +4463,7 @@ function WorkspaceEditor({
         wireReadyToFinish: Boolean(wireSource && wirePreviewPoint),
         draftingReadyToFinish:
           (tool === "arrow" ||
+            tool === "polyline" ||
             tool === "construction-line" ||
             tool === "rectangle" ||
             tool === "circle") &&
@@ -7270,6 +7273,7 @@ function WorkspaceEditor({
               : "",
             pendingWaveformPlacement ? "waveform-placement-active" : "",
             tool === "arrow" ||
+            tool === "polyline" ||
             tool === "construction-line" ||
             tool === "rectangle" ||
             tool === "circle"

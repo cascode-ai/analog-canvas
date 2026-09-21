@@ -8,6 +8,7 @@ export type PolarityAnnotationKind = "both" | "positive" | "negative";
 
 const drawingToolBySymbolId = {
   "annotation-arrow": "arrow",
+  "annotation-polyline": "polyline",
   "annotation-line": "construction-line",
   "annotation-rectangle": "rectangle",
   "annotation-circle": "circle",
@@ -95,6 +96,23 @@ const annotationLine = {
   name: "Line",
   viewBox: { x: -22, y: -12, width: 44, height: 24 },
   primitives: [{ kind: "line", from: { x: -18, y: 0 }, to: { x: 18, y: 0 } }],
+} satisfies SymbolDefinition;
+
+const annotationPolyline = {
+  ...shared,
+  id: "annotation-polyline",
+  name: "Polyline",
+  viewBox: { x: -22, y: -16, width: 44, height: 32 },
+  primitives: [
+    {
+      kind: "polyline",
+      points: [
+        { x: -16, y: 12 },
+        { x: -16, y: -10 },
+        { x: 16, y: -10 },
+      ],
+    },
+  ],
 } satisfies SymbolDefinition;
 
 const annotationRectangle = {
@@ -224,6 +242,7 @@ const annotationEllipsis = {
 export const annotationPreviewSymbols: readonly SymbolDefinition[] = [
   annotationArrow,
   annotationLine,
+  annotationPolyline,
   annotationRectangle,
   annotationCircle,
   annotationPolarityBoth,

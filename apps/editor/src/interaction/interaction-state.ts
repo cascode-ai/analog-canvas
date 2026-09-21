@@ -50,11 +50,17 @@ export function freeWireDraftTarget(point: Point): WireDraftTarget {
 }
 
 export type EditorTool =
-  "pointer" | "wire" | "construction-line" | "arrow" | "rectangle" | "circle";
+  | "pointer"
+  | "wire"
+  | "construction-line"
+  | "arrow"
+  | "polyline"
+  | "rectangle"
+  | "circle";
 
 export type DrawingTool = Extract<
   EditorTool,
-  "construction-line" | "arrow" | "rectangle" | "circle"
+  "construction-line" | "arrow" | "polyline" | "rectangle" | "circle"
 >;
 
 export type InteractionMode = InteractionState<unknown>["kind"];
@@ -206,6 +212,7 @@ export function activateInteractionTool<TClipboard>(
         cornerOrder: "auto",
       };
     case "arrow":
+    case "polyline":
     case "construction-line":
     case "rectangle":
     case "circle":

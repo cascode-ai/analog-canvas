@@ -20,6 +20,12 @@ import {
   setDraftingBearing,
   setDraftingTangentAngle,
 } from "../drafting/drafting-manipulation";
+import {
+  freeArrowPoints,
+  isClosedPolyline,
+  replaceArrowPoints,
+  setPolylineClosed,
+} from "../drafting/drafting-polyline";
 import { quadraticTangentAngle } from "../drafting/drafting-path";
 import {
   colorToRgb,
@@ -64,6 +70,11 @@ const schema = z.strictObject({
       width: z.number().finite().positive().optional(),
       height: z.number().int().positive().optional(),
       radius: z.number().int().positive().optional(),
+      points: z
+        .array(z.tuple([z.number().int(), z.number().int()]))
+        .min(2)
+        .optional(),
+      closed: z.boolean().optional(),
       tangentAngles: z.array(z.number().finite().min(0).max(180)).optional(),
     })
     .optional(),
@@ -180,6 +191,14 @@ export function draftingPropertyValue(
     !(object.kind === "arrow" && object.outline)
       ? {
           geometry: {
+            ...(object.kind === "arrow" && freeArrowPoints(object)
+              ? {
+                  points: freeArrowPoints(object)!.map(
+                    (point) => [point.x, point.y] as [number, number],
+                  ),
+                  closed: isClosedPolyline(object),
+                }
+              : {}),
             tangentAngles: geometry.points
               .slice(0, -1)
               .map((point, index) =>
@@ -431,6 +450,22 @@ export function parseDraftingPropertyCode(
       value.geometry?.width !== undefined
     )
       next.outline = { width: value.geometry.width };
+    if (next.kind === "arrow" && !next.outline) {
+      if (
+        value.geometry?.points &&
+        JSON.stringify(value.geometry.points) !==
+          JSON.stringify(baseline.geometry?.points)
+      )
+        next = replaceArrowPoints(
+          next,
+          value.geometry.points.map(([x, y]) => ({ x, y })),
+        );
+      if (
+        value.geometry?.closed !== undefined &&
+        value.geometry.closed !== baseline.geometry?.closed
+      )
+        next = setPolylineClosed(next, value.geometry.closed);
+    }
     if (next.kind === "floating-symbol") {
       next.transform = {
         rotation: RotationSchema.parse(value.placement.rotation),
@@ -462,9 +497,17 @@ export function parseDraftingPropertyCode(
       next = changed.object;
     }
     const angles = value.geometry?.tangentAngles;
-    if (angles) {
-      if (angles.length !== baseline.geometry!.tangentAngles!.length)
-        throw new Error("Keep one tangent angle per existing segment");
+    if (
+      angles &&
+      JSON.stringify(angles) !==
+        JSON.stringify(baseline.geometry?.tangentAngles)
+    ) {
+      const geometry = resolveDraftingObjectGeometry(document, resolver, next);
+      if (
+        (geometry.kind !== "arrow" && geometry.kind !== "construction-line") ||
+        angles.length !== geometry.points.length - 1
+      )
+        throw new Error("Keep one tangent angle per segment");
       for (const [index, angle] of angles.entries()) {
         if (angle === baseline.geometry!.tangentAngles![index]) continue;
         const geometry = resolveDraftingObjectGeometry(
@@ -622,6 +665,12 @@ export function annotationPropertyAdapter<T>(
       description: "",
     },
     ...[
+      {
+        path: "geometry.closed",
+        label: "Closed path",
+        on: "Closed",
+        off: "Open",
+      },
       {
         path: "appearance.italic",
         label: "Italic",

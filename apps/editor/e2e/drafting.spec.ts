@@ -3129,3 +3129,182 @@ for (const shape of ["line", "outline"] as const) {
     });
   });
 }
+
+async function polylinePoints(page: Page): Promise<number[][]> {
+  const points = await page
+    .getByTestId(/^drafting-hit-arrow-/)
+    .getAttribute("points");
+  return points!
+    .trim()
+    .split(/\s+/)
+    .map((pair) => pair.split(",").map(Number));
+}
+
+async function selectPolyline(page: Page): Promise<void> {
+  const point = await page
+    .getByTestId(/^drafting-hit-arrow-/)
+    .evaluate((element) => {
+      const line = element as SVGPolylineElement;
+      const a = line.points.getItem(0),
+        b = line.points.getItem(1);
+      const p = new DOMPoint(
+        a.x + (b.x - a.x) * 0.25,
+        a.y + (b.y - a.y) * 0.25,
+      ).matrixTransform(line.getScreenCTM()!);
+      return { x: p.x, y: p.y };
+    });
+  await page.mouse.click(point.x, point.y);
+}
+
+async function drawPolyline(page: Page, close: boolean): Promise<void> {
+  await page.getByTestId("annotation-menu").locator("summary").click();
+  await page.getByTestId("annotation-shortcut-annotation-polyline").click();
+  const box = (await page.getByTestId("schematic-canvas").boundingBox())!;
+  const points = [
+    { x: 190, y: 180 },
+    { x: 190, y: 340 },
+    { x: 330, y: 340 },
+  ];
+  for (const point of points) {
+    await page.mouse.move(box.x + point.x, box.y + point.y);
+    await page.mouse.click(box.x + point.x, box.y + point.y);
+  }
+  if (close) {
+    await page.mouse.move(box.x + points[0]!.x, box.y + points[0]!.y);
+    await page.mouse.click(box.x + points[0]!.x, box.y + points[0]!.y);
+  } else await page.keyboard.press("Enter");
+  await expect(page.getByTestId(/^drafting-hit-arrow-/)).toHaveCount(1);
+  await expect(page.getByTestId("drafting-create-preview")).toHaveCount(0);
+}
+
+test("Polyline annotation draws a right angle, edits vertices, stretches and preserves both endpoint styles", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await drawPolyline(page, false);
+  const original = await polylinePoints(page);
+  expect(original).toHaveLength(3);
+  expect(original[0]![0]).toBe(original[1]![0]);
+  expect(original[1]![1]).toBe(original[2]![1]);
+  await expect(page.locator('[data-kind="draft-arrow"] > polygon')).toHaveCount(
+    0,
+  );
+  await selectPolyline(page);
+  const hit = page.getByTestId(/^drafting-hit-arrow-/);
+  await expect(hit).toHaveCSS("fill", "none");
+  const interiorHit = await hit.evaluate((element) => {
+    const line = element as SVGPolylineElement;
+    const points = [...line.points];
+    const point = new DOMPoint(
+      points.reduce((sum, p) => sum + p.x, 0) / points.length,
+      points.reduce((sum, p) => sum + p.y, 0) / points.length,
+    ).matrixTransform(line.getScreenCTM()!);
+    return document
+      .elementsFromPoint(point.x, point.y)
+      .some(
+        (node) =>
+          node.getAttribute("data-canvas-hit-id") ===
+          line.getAttribute("data-canvas-hit-id"),
+      );
+  });
+  expect(interiorHit).toBe(false);
+  await expect(page.getByTestId(/^draft-handle-path-corner-/)).toHaveCount(4);
+  await dragLocator(page.getByTestId(/^draft-handle-waypoint-0-/), {
+    x: -35,
+    y: 20,
+  });
+  const bent = await polylinePoints(page);
+  expect(bent[0]).toEqual(original[0]);
+  expect(bent[2]).toEqual(original[2]);
+  expect(bent[1]).not.toEqual(original[1]);
+  await dragLocator(page.getByTestId(/^draft-handle-path-corner-2-/), {
+    x: 55,
+    y: 25,
+  });
+  const stretched = await polylinePoints(page);
+  expect(stretched[2]).not.toEqual(bent[2]);
+  await page.keyboard.press("Control+z");
+  expect(await polylinePoints(page)).toEqual(bent);
+  await page.keyboard.press("Control+Shift+z");
+  expect(await polylinePoints(page)).toEqual(stretched);
+
+  await page.keyboard.press("q");
+  await editComponentPropertyCode(page, (code) => {
+    code.appearance.startStyle = "dot";
+    code.appearance.endStyle = "large-arrow";
+    code.appearance.strokeScale = 2;
+  });
+  await expect(page.locator('[data-kind="draft-arrow"] > circle')).toHaveCount(
+    1,
+  );
+  await expect(page.locator('[data-kind="draft-arrow"] > polygon')).toHaveCount(
+    1,
+  );
+  const exported = await downloadBytes(page, "File", "Export Project File…");
+  const project = parseSavedProject(exported.toString("utf8"));
+  expect(project.documents[0].instances).toEqual([]);
+  expect(project.documents[0].nets).toEqual([]);
+  expect(project.documents[0].drafting.objects[0].styleOverride).toMatchObject({
+    arrowStart: "dot",
+    arrowEnd: "large-arrow",
+  });
+  await page.locator('input[type="file"]').first().setInputFiles({
+    name: "polyline.icproj.json",
+    mimeType: "application/json",
+    buffer: exported,
+  });
+  await expect.poll(() => polylinePoints(page)).toEqual(stretched);
+  const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
+    "utf8",
+  );
+  expect(svg).toContain('data-kind="draft-arrow"');
+  const artwork = await page.evaluate((source) => {
+    const root = new DOMParser().parseFromString(source, "image/svg+xml");
+    const path = root.querySelector('[data-kind="draft-arrow"]')!;
+    const dot = path.querySelector("circle")!;
+    return {
+      heads: path.querySelectorAll("polygon").length,
+      dot: [Number(dot.getAttribute("cx")), Number(dot.getAttribute("cy"))],
+    };
+  }, svg);
+  expect(artwork).toEqual({ heads: 1, dot: stretched[0] });
+});
+
+test("Polyline polygon keeps a movable seam, can reopen through code, and cancels unfinished drawing", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await drawPolyline(page, true);
+  const closed = await polylinePoints(page);
+  expect(closed).toHaveLength(4);
+  expect(closed[0]).toEqual(closed.at(-1));
+  await selectPolyline(page);
+  await expect(page.getByTestId(/^draft-handle-to-/)).toHaveCount(0);
+  await dragLocator(page.getByTestId(/^draft-handle-from-/), {
+    x: -30,
+    y: -20,
+  });
+  const moved = await polylinePoints(page);
+  expect(moved[0]).toEqual(moved.at(-1));
+  expect(moved[0]).not.toEqual(closed[0]);
+  await page.keyboard.press("q");
+  await editComponentPropertyCode(page, (code) => {
+    code.geometry.closed = false;
+  });
+  expect(await polylinePoints(page)).toEqual(moved.slice(0, -1));
+  await page.getByTestId("schematic-canvas").focus();
+  await page.keyboard.press("Escape");
+  // The Library and toolbar use the same new drawing tool.
+  const toggle = page.getByTestId("library-toggle");
+  if ((await toggle.getAttribute("aria-expanded")) !== "true")
+    await toggle.click();
+  await page.getByTestId("shapes-chip-annotation-polyline").click();
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.click({ position: { x: 150, y: 200 } });
+  await expect(page.getByTestId("drafting-create-preview")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("drafting-create-preview")).toHaveCount(0);
+  await expect(page.getByTestId(/^drafting-hit-arrow-/)).toHaveCount(1);
+});

@@ -105,7 +105,7 @@ test("keeps Gallery Library Netlist and Project Code together on the left at ful
     ).toBeLessThanOrEqual(4);
     await summary.click();
     const palette = page.getByRole("group", { name: "Annotation tools" });
-    await expect(palette.getByRole("button")).toHaveCount(8);
+    await expect(palette.getByRole("button")).toHaveCount(9);
     const paletteBox = await palette.boundingBox();
     expect(paletteBox!.x).toBeGreaterThanOrEqual(0);
     expect(paletteBox!.x + paletteBox!.width).toBeLessThanOrEqual(width);

@@ -17,12 +17,23 @@ import {
   rotatePointByDegrees,
 } from "../../canvas/canvas-geometry";
 import { rectangleGridGeometry } from "./rectangle-grid-geometry";
+import {
+  isClosedPolyline,
+  resizePolyline,
+  POLYLINE_CORNER_DIRECTIONS,
+  POLYLINE_RESIZE_PADDING,
+} from "./drafting-polyline";
 
 export type DraftingHandle =
   | { kind: "from" | "to" | "outline-width" | "rotate" }
   | {
       kind:
-        "waypoint" | "vertex" | "curve" | "rectangle-corner" | "circle-radius";
+        | "waypoint"
+        | "vertex"
+        | "curve"
+        | "rectangle-corner"
+        | "circle-radius"
+        | "path-corner";
       index: number;
     };
 
@@ -197,6 +208,20 @@ export function applyDraftingHandle(
     };
   }
   if (object.kind === "arrow") {
+    if (handle.kind === "path-corner") {
+      const direction = POLYLINE_CORNER_DIRECTIONS[handle.index];
+      return direction
+        ? resizePolyline(
+            object,
+            handle.index,
+            {
+              x: point.x - direction.x * POLYLINE_RESIZE_PADDING,
+              y: point.y - direction.y * POLYLINE_RESIZE_PADDING,
+            },
+            grid,
+          )
+        : object;
+    }
     if (
       object.outline &&
       (handle.kind === "curve" || handle.kind === "waypoint")
@@ -236,8 +261,15 @@ export function applyDraftingHandle(
     const anchor = handle.kind === "from" ? object.from : object.to;
     if (anchor.kind !== "free") return object;
     const nextAnchor = { ...anchor, position: point };
+    if (isClosedPolyline(object))
+      return {
+        ...object,
+        anchor: nextAnchor,
+        from: nextAnchor,
+        to: nextAnchor,
+      };
     return handle.kind === "from"
-      ? { ...object, from: nextAnchor }
+      ? { ...object, anchor: nextAnchor, from: nextAnchor }
       : { ...object, to: nextAnchor };
   }
   if (object.kind === "construction-line" && handle.kind === "vertex") {

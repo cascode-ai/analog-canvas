@@ -340,3 +340,93 @@ describe("drafting create controller", () => {
     ]);
   });
 });
+
+describe("polyline creation", () => {
+  function setup(
+    overrides: Partial<
+      Parameters<typeof createDraftingCreateController>[0]
+    > = {},
+  ) {
+    const transact = vi.fn((_edits: SchematicEdit[]) => ({ ok: true }));
+    const setWaypoints = vi.fn();
+    const clear = vi.fn();
+    const controller = createDraftingCreateController({
+      document: createEmptyDocument("main", "Main"),
+      annotationGrid: 1,
+      angleMode: "orthogonal",
+      resolver: new InMemorySymbolResolver(builtInSymbols),
+      visibleEndpoints: [],
+      routeGeometryRecords: [],
+      tool: "polyline",
+      source: { x: 0, y: 0 },
+      hover: { x: 80, y: 60 },
+      waypoints: [{ x: 0, y: 60 }],
+      setSource: vi.fn(),
+      setHover: vi.fn(),
+      setWaypoints,
+      setSnapPoint: vi.fn(),
+      clear,
+      setTool: vi.fn(),
+      transact,
+      setStatus: vi.fn(),
+      nextId: () => "polyline-1",
+      ...overrides,
+    });
+    return { controller, transact, setWaypoints, clear };
+  }
+  it.each(["polyline", "arrow", "construction-line"] as const)(
+    "constrains each new %s leg from the preceding vertex for preview and commit",
+    (tool) => {
+      const { controller, setWaypoints } = setup({ tool });
+      const preview = controller.snapPoint({ x: 80, y: 65 }, true, false, {
+        x: 0,
+        y: 0,
+      });
+      expect(preview.point).toEqual({ x: 80, y: 60 });
+      controller.handleCanvasClick({ x: 80, y: 65 }, true, false, 1);
+      expect(setWaypoints.mock.calls[0]![0]([{ x: 0, y: 60 }])).toEqual([
+        { x: 0, y: 60 },
+        preview.point,
+      ]);
+    },
+  );
+  it("finishes a solid headless path and ignores repeated clicks on the last vertex", () => {
+    const { controller, transact, setWaypoints, clear } = setup();
+    controller.handleCanvasClick({ x: 0, y: 60 }, true, false, 1);
+    expect(setWaypoints).not.toHaveBeenCalled();
+    controller.finish();
+    expect(transact).toHaveBeenCalledOnce();
+    expect(transact.mock.calls[0]![0][0]).toMatchObject({
+      kind: "upsert_drafting_object",
+      object: {
+        kind: "arrow",
+        from: { position: { x: 0, y: 0 } },
+        waypoints: [{ x: 0, y: 60 }],
+        to: { position: { x: 80, y: 60 } },
+        styleOverride: { arrowHead: "none" },
+      },
+    });
+    expect(clear).toHaveBeenCalledOnce();
+  });
+  it("finishes a polygon by clicking the first vertex", () => {
+    const { controller, transact, clear } = setup({
+      angleMode: "free",
+      waypoints: [
+        { x: 0, y: 60 },
+        { x: 80, y: 60 },
+      ],
+    });
+    controller.handleCanvasClick({ x: 0, y: 0 }, true, false, 1);
+    expect(transact.mock.calls[0]![0][0]).toMatchObject({
+      object: {
+        from: { position: { x: 0, y: 0 } },
+        to: { position: { x: 0, y: 0 } },
+        waypoints: [
+          { x: 0, y: 60 },
+          { x: 80, y: 60 },
+        ],
+      },
+    });
+    expect(clear).toHaveBeenCalledOnce();
+  });
+});

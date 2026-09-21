@@ -39,7 +39,7 @@ import {
 type TransactionResult = { ok: boolean };
 type DraftingTool = Extract<
   EditorTool,
-  "arrow" | "construction-line" | "rectangle" | "circle"
+  "arrow" | "polyline" | "construction-line" | "rectangle" | "circle"
 >;
 
 export type DrawAngleMode = "free" | "45" | "orthogonal";
@@ -112,6 +112,7 @@ export function createDraftingCreateController({
 }) {
   const activeTool = (): DraftingTool | null =>
     tool === "arrow" ||
+    tool === "polyline" ||
     tool === "construction-line" ||
     tool === "rectangle" ||
     tool === "circle"
@@ -133,6 +134,10 @@ export function createDraftingCreateController({
     origin?: Point,
     tolerance = document.presentation.grid,
   ): { point: Point; snap: Point | null; guides: SnapGuideLine[] } => {
+    // Every new leg is constrained from its previous vertex, in both hover
+    // and commit. The gesture caller may still supply the original source.
+    if (tool === "arrow" || tool === "polyline" || tool === "construction-line")
+      origin = waypoints.at(-1) ?? origin;
     const rectanglePoint = (point: Point): Point =>
       tool !== "rectangle"
         ? point
@@ -269,16 +274,20 @@ export function createDraftingCreateController({
           ? { waypoints: snappedPoints.slice(1, -1) }
           : {}),
       },
-      arrowPreset,
+      tool === "polyline"
+        ? { ...DEFAULT_ARROW_PRESET, head: "none" }
+        : arrowPreset,
     );
     if (object && transact([{ kind: "upsert_drafting_object", object }]).ok) {
-      setStatus(`Added free arrow ${id}`);
+      setStatus(
+        tool === "polyline" ? `Added polyline ${id}` : `Added free arrow ${id}`,
+      );
       setTool("pointer");
     }
   };
 
   const commit = (
-    active: Exclude<DraftingTool, "arrow">,
+    active: Exclude<DraftingTool, "arrow" | "polyline">,
     start: Point,
     end: Point,
   ): void => {
@@ -396,8 +405,8 @@ export function createDraftingCreateController({
       setSnapPoint(resolved.snap);
       setWaypoints([]);
       setStatus(
-        active === "arrow"
-          ? "Arrow: click bends; double-click or Enter to finish (Esc cancels)"
+        active === "arrow" || active === "polyline"
+          ? `${active === "polyline" ? "Polyline" : "Arrow"}: click vertices; double-click or Enter to finish (Esc cancels)`
           : active === "rectangle"
             ? "Rectangle: click the opposite corner (Esc to cancel)"
             : active === "circle"
@@ -408,12 +417,24 @@ export function createDraftingCreateController({
       commit(active, source, resolved.point);
       clear();
     } else {
+      if (
+        active === "polyline" &&
+        waypoints.length >= 2 &&
+        resolved.point.x === source.x &&
+        resolved.point.y === source.y
+      ) {
+        commitArrow([source, ...waypoints, source]);
+        clear();
+        return;
+      }
+      const last = waypoints.at(-1) ?? source;
+      if (last.x === resolved.point.x && last.y === resolved.point.y) return;
       setWaypoints((current) => [...current, resolved.point]);
       setHover(resolved.point);
       setSnapPoint(resolved.snap);
       setStatus(
-        active === "arrow"
-          ? `Arrow: ${waypoints.length + 1} bend(s) · double-click or Enter to finish`
+        active === "arrow" || active === "polyline"
+          ? `${active === "polyline" ? "Polyline" : "Arrow"}: ${waypoints.length + 1} bend(s) · double-click or Enter to finish`
           : `Construction line: ${waypoints.length + 1} bend(s)`,
       );
     }
@@ -424,7 +445,7 @@ export function createDraftingCreateController({
     if (!active || source === null) return;
     if (active === "arrow" && arrowPreset.family === "outline") return;
     const end = hover ?? source;
-    if (active === "arrow") {
+    if (active === "arrow" || active === "polyline") {
       const points = [source, ...waypoints];
       if (
         end.x !== points[points.length - 1]!.x ||

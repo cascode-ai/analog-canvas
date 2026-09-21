@@ -598,6 +598,18 @@
   cursor: move;
 }
 
+/* Open and closed path annotations have strokes, not selectable filled
+   interiors. SVG closes polyline fills implicitly even for an open L shape. */
+.annotation-hit.drafting-path-hit,
+.annotation-hit.drafting-path-hit.selected {
+  fill: none;
+  pointer-events: stroke;
+}
+
+.schematic-canvas.drawing-mode .annotation-hit {
+  pointer-events: none;
+}
+
 /* A rectangle is an outline, not a translucent panel. Keep the same generous
    screen-space tolerance as other drafting strokes, but let its empty interior
    pass clicks through to the canvas and any components placed underneath. */

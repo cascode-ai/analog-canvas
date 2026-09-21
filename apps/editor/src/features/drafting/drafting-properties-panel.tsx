@@ -10,6 +10,7 @@ import {
   parseDraftingPropertyCode,
   serializeAnnotationPropertyCode,
 } from "../properties/annotation-property-code";
+import { isClosedPolyline } from "./drafting-polyline";
 import type { DraftingStackingTarget } from "./drafting-manipulation";
 
 export interface DraftingPropertiesPanelProps {
@@ -64,9 +65,13 @@ export function DraftingPropertiesPanel({
     object.kind === "text" &&
     (object.polarity === "positive" || object.polarity === "negative")
       ? "Polarity mark"
-      : object.kind
-          .replaceAll("-", " ")
-          .replace(/^./u, (letter) => letter.toUpperCase());
+      : object.kind === "arrow" && object.waypoints?.length
+        ? isClosedPolyline(object)
+          ? "Polygon"
+          : "Polyline"
+        : object.kind
+            .replaceAll("-", " ")
+            .replace(/^./u, (letter) => letter.toUpperCase());
   return (
     <section
       className="property-section"

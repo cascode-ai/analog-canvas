@@ -21,6 +21,12 @@ import type { SymbolResolver } from "@icm/symbols";
 import { type DraftingHandle } from "../features/drafting/drafting-manipulation";
 import { draftingGroupBounds } from "../features/drafting/drafting-group-scale";
 import {
+  isClosedPolyline,
+  polylineCorners,
+  POLYLINE_RESIZE_PADDING,
+  POLYLINE_CORNER_DIRECTIONS,
+} from "../features/drafting/drafting-polyline";
+import {
   draftingPathData,
   quadraticMidpoint,
 } from "../features/drafting/drafting-path";
@@ -83,6 +89,7 @@ export function EditorDraftingHitTargets({
     const drawingThroughScene =
       tool === "wire" ||
       tool === "arrow" ||
+      tool === "polyline" ||
       tool === "construction-line" ||
       tool === "rectangle" ||
       tool === "circle";
@@ -133,7 +140,7 @@ export function EditorDraftingHitTargets({
         <path
           key={object.id}
           {...common}
-          className={selectedClass}
+          className={`${selectedClass} drafting-path-hit`}
           fill="none"
           d={draftingPathData(geometry.points, geometry.curveControls)}
           onDoubleClick={doubleClick}
@@ -142,7 +149,7 @@ export function EditorDraftingHitTargets({
         <polyline
           key={object.id}
           {...common}
-          className={selectedClass}
+          className={`${selectedClass} drafting-path-hit`}
           fill="none"
           points={object.points
             .map((point) => `${point.x},${point.y}`)
@@ -195,7 +202,7 @@ export function EditorDraftingHitTargets({
             <path
               key={object.id}
               {...common}
-              className={selectedClass}
+              className={`${selectedClass} drafting-path-hit`}
               fill="none"
               d={draftingPathData(geometry.points, geometry.curveControls)}
               onDoubleClick={doubleClick}
@@ -204,7 +211,7 @@ export function EditorDraftingHitTargets({
             <polyline
               key={object.id}
               {...common}
-              className={selectedClass}
+              className={`${selectedClass} drafting-path-hit`}
               fill="none"
               points={geometry.points
                 .map((point) => `${point.x},${point.y}`)
@@ -423,8 +430,19 @@ export function EditorDraftingHandles({
     );
   };
   if (object.kind === "arrow" && geometry.kind === "arrow") {
-    const dx = geometry.to.x - geometry.from.x,
-      dy = geometry.to.y - geometry.from.y;
+    const closed = isClosedPolyline(object);
+    // Rotation edits the bearing of the first leg, not the endpoint chord.
+    const directionEnd = geometry.points[1]!;
+    const dx = directionEnd.x - geometry.from.x,
+      dy = directionEnd.y - geometry.from.y;
+    const corners = polylineCorners(object)?.map((point, index) => ({
+      x:
+        point.x +
+        POLYLINE_CORNER_DIRECTIONS[index]!.x * POLYLINE_RESIZE_PADDING,
+      y:
+        point.y +
+        POLYLINE_CORNER_DIRECTIONS[index]!.y * POLYLINE_RESIZE_PADDING,
+    }));
     const length = Math.hypot(dx, dy) || 1;
     const offset = object.outline ? object.outline.width / 2 + 18 : 25;
     const rotationHandle = {
@@ -437,6 +455,36 @@ export function EditorDraftingHandles({
     };
     return (
       <g data-testid={`drafting-handles-${object.id}`}>
+        {corners && (
+          <>
+            <rect
+              className="draft-group-bounds"
+              x={corners[0]!.x}
+              y={corners[0]!.y}
+              width={corners[2]!.x - corners[0]!.x}
+              height={corners[2]!.y - corners[0]!.y}
+              pointerEvents="none"
+            />
+            {corners.map((point, index) => (
+              <rect
+                key={`path-corner-${index}`}
+                className="draft-handle"
+                data-testid={`draft-handle-path-corner-${index}-${object.id}`}
+                aria-label={`Resize path corner ${index + 1}`}
+                x={point.x - 4}
+                y={point.y - 4}
+                width="8"
+                height="8"
+                onPointerDown={(event) =>
+                  onHandlePointerDown(event, object, {
+                    kind: "path-corner",
+                    index,
+                  })
+                }
+              />
+            ))}
+          </>
+        )}
         {object.from.kind === "free" && object.to.kind === "free" ? (
           <>
             <line
@@ -477,7 +525,8 @@ export function EditorDraftingHandles({
                 index,
               ),
             )}
-        {circle(geometry.to, `draft-handle-to-${object.id}`, { kind: "to" })}
+        {!closed &&
+          circle(geometry.to, `draft-handle-to-${object.id}`, { kind: "to" })}
       </g>
     );
   }

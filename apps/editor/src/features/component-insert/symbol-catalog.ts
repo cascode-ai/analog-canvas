@@ -264,6 +264,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "dac",
   "annotation-arrow",
   "annotation-line",
+  "annotation-polyline",
   "annotation-rectangle",
   "annotation-circle",
   "annotation-polarity-both",

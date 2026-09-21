@@ -306,6 +306,23 @@ Before that click, neither the document nor undo history changes; Escape or
 choosing another tool discards the preview. Fixed catalog text presets keep their
 existing placement behavior.
 
+**Annotation → Polyline**, also available in the Library, draws a solid open
+path with any number of vertices. Click each vertex, then double-click or press
+Enter to finish; Escape cancels the unfinished drawing. Click the first vertex
+after placing at least three distinct vertices to close a polygon. Drawing
+angle constraints apply to each leg from its preceding vertex.
+
+Select the path to drag its round vertex handles independently. The four square
+handles outside its bounding box stretch it horizontally and vertically with
+the opposite corner fixed. A closed path's first/last vertex moves as one seam.
+Double-click a segment to add another vertex. In Q Properties, `geometry.points`
+edits the ordered coordinates and `geometry.closed` adds/removes the closing
+edge. `appearance.startStyle` and `appearance.endStyle` independently select
+no head, small/medium/large arrow, open arrow, or dot; color, stroke and line
+style use the same Properties code. These are visual annotations and introduce
+no electrical instances or nets. Project files retain the existing free-arrow
+path representation, including an explicit final edge for a closed polygon.
+
 Drawn objects place on the annotation pitch (1, 5 or 10; Canvas settings, 5 by
 default), which is deliberately free of the Document's electrical grid so a
 label or an arrow head can sit where it is wanted. A rectangle is the

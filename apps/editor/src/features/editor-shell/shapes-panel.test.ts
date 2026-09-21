@@ -20,7 +20,7 @@ describe("shapes quick-place", () => {
       }),
     );
 
-    expect(symbols).toHaveLength(67);
+    expect(symbols).toHaveLength(68);
     expect(markup).toContain("All devices");
     expect(markup.match(/data-testid="shapes-chip-/g)).toHaveLength(
       symbols.length,
@@ -40,7 +40,7 @@ describe("shapes quick-place", () => {
       ["Analog Blocks", 8],
       ["Logic Gates", 12],
       ["Signal Flow", 6],
-      ["Annotations", 8],
+      ["Annotations", 9],
       ["Extended Devices", 11],
     ]);
     const categoryTestIds = [
@@ -152,6 +152,7 @@ describe("shapes quick-place", () => {
     for (const [symbolId, symbolName, tool] of [
       ["annotation-arrow", "Arrow", "arrow"],
       ["annotation-line", "Line", "construction-line"],
+      ["annotation-polyline", "Polyline", "polyline"],
       ["annotation-rectangle", "Rectangle", "rectangle"],
       ["annotation-circle", "Circle", "circle"],
     ] as const) {

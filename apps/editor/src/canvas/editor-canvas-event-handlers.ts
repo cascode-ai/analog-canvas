@@ -382,6 +382,7 @@ export function createEditorCanvasEventHandlers({
       );
       if (
         (tool === "arrow" ||
+          tool === "polyline" ||
           tool === "construction-line" ||
           tool === "rectangle" ||
           tool === "circle") &&
@@ -465,6 +466,7 @@ export function createEditorCanvasEventHandlers({
       }
       if (
         tool === "arrow" ||
+        tool === "polyline" ||
         tool === "construction-line" ||
         tool === "rectangle" ||
         tool === "circle"
@@ -525,6 +527,7 @@ export function createEditorCanvasEventHandlers({
       event.preventDefault();
       if (
         tool === "arrow" ||
+        tool === "polyline" ||
         tool === "construction-line" ||
         tool === "rectangle" ||
         tool === "circle"
