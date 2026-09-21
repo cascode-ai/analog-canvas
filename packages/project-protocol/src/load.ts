@@ -39,7 +39,6 @@ import {
   upgradeSchema48To49,
 } from "./previous-to-current.js";
 import { repairBoundFormatOverrides } from "./transforms/bound-format-override.js";
-import { repairLegacyReviewedExternalReferences } from "./transforms/reviewed-external-reference.js";
 import { OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION } from "./version.js";
 import { upgradeSchema49To50 } from "./transforms/simulation-folders.js";
 import { upgradeSchema50To51 } from "./transforms/drafting-shape-paint.js";
@@ -221,12 +220,7 @@ export function tryParseProjectWithMetadata(
   // overrides already written and published — restore the text instead of
   // refusing the Project, because a file that will not open is, to its
   // author, a file that is gone.
-  const reviewedReferenceRepair =
-    repairLegacyReviewedExternalReferences(current);
-  current = reviewedReferenceRepair.project;
-  // The reviewed-reference repair can rename a legacy external instance
-  // (M1 -> XM1). Reconcile bound presentation only after that semantic rename
-  // so its format override is rewritten to the final reference as well.
+  // SPICE invocation prefixes belong to export, never to file loading.
   current = repairBoundFormatOverrides(current);
   const diagnostics = invalidProjectDiagnostics(current);
   if (diagnostics.length > 0) return { ok: false, diagnostics };

@@ -601,3 +601,86 @@ test("subscript case changes the current circuit code and netlist with one undo"
   await expect(label(page)).toHaveText("Rload");
   await expect(setting).toHaveValue("preserve");
 });
+
+test("opening and reopening a PDK BJT adds X only to SPICE, never its canvas name", async ({
+  page,
+}) => {
+  const project = fixture();
+  const doc = project.documents[0]!;
+  doc.instances = [
+    {
+      id: "Q1",
+      reference: "Q1",
+      symbolId: "pnp",
+      placement: { position: { x: 250, y: 200 }, rotation: 0, mirror: "none" },
+      netlist: {
+        binding: { kind: "external-subcircuit", definitionId: "pdk-pnp" },
+        parameters: { m: "1" },
+      },
+    },
+  ];
+  doc.annotations = [
+    {
+      ...doc.annotations[0]!,
+      id: "label-Q1",
+      binding: { kind: "instance-reference", instanceId: "Q1" },
+      anchor: {
+        kind: "object",
+        objectId: "Q1",
+        localOffset: { x: 40, y: 0 },
+        fallbackPosition: { x: 290, y: 200 },
+      },
+    },
+  ];
+  doc.nets = ["C", "B", "E"].map((pinName) => ({
+    id: `net-${pinName}`,
+    terminals: [{ instanceId: "Q1", pinName }],
+  }));
+  project.externalSubcircuitDefinitions.push({
+    id: "pdk-pnp",
+    name: "sky130_fd_pr__pnp_05v5_W0p68L0p68",
+    terminals: ["C", "B", "E"].map((name) => ({
+      id: name,
+      name,
+      direction: "passive",
+    })),
+    formalParameters: [],
+    interfaceStatus: "declared",
+  });
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page
+    .getByTestId("project-file")
+    .setInputFiles({
+      name: "pnp.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(project)),
+    });
+  const canvasLabel = page.locator(
+    '[data-layer="annotations"] [data-object-id="label-Q1"]',
+  );
+  const code = page.getByLabel("Netlist code", { exact: true });
+  await expect(canvasLabel).toHaveText("Q1");
+  await page
+    .getByLabel("Netlist format", { exact: true })
+    .selectOption("spice");
+  await expect(code).toContainText("XQ1 ");
+  const saved = await downloadBytes(page, "File", "Export Project File…");
+  await page
+    .getByTestId("project-file")
+    .setInputFiles({
+      name: "pnp-reopen.icproj.json",
+      mimeType: "application/json",
+      buffer: saved,
+    });
+  await expect(canvasLabel).toHaveText("Q1");
+  await page
+    .getByLabel("Netlist format", { exact: true })
+    .selectOption("spectre");
+  await expect(code).toContainText("Q1 (");
+  await expect(code).not.toContainText("XQ1");
+  await page.getByTestId("annotation-hit-label-Q1").dblclick();
+  await expect(
+    page.getByRole("textbox", { name: "Canvas text editor" }),
+  ).toHaveText("Q1");
+});
