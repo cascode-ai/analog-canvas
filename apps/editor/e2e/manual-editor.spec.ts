@@ -831,19 +831,14 @@ test("constructs VDD as a drawn dotless power rail", async ({ page }) => {
   await expect(canvas.locator('[data-symbol-id="vdd"]')).toHaveCount(0);
   const powerLabel = canvas.locator('[data-kind="power-label"]');
   await expect(powerLabel).toHaveText("VDD");
-  await expect(powerLabel.locator('[data-text-run="subscript"]')).toHaveText(
-    "DD",
+  await expect(powerLabel.locator('[data-text-run="subscript"]')).toHaveCount(
+    0,
   );
   await expect(
     powerLabel.locator(
       '[data-text-run="span"][style*="font-style:italic"][style*="font-weight:700"]',
     ),
-  ).toHaveText("V");
-  await expect(
-    powerLabel.locator(
-      '[data-text-run="subscript"] [data-text-run="span"][style*="font-style:normal"][style*="font-weight:700"]',
-    ),
-  ).toHaveText("DD");
+  ).toHaveText("VDD");
   await expect(page.getByTestId("component-input-plane")).toHaveCount(0);
 
   await page.keyboard.press("Delete");
@@ -1242,19 +1237,17 @@ test("P shortcut starts Cell Pin placement", async ({ page }) => {
     inputLabel.locator(
       '[data-text-run="span"][style*="font-style:italic"][style*="font-weight:700"]',
     ),
-  ).toHaveText("V");
-  await expect(
-    inputLabel.locator(
-      '[data-text-run="subscript"] [data-text-run="span"][style*="font-style:normal"][style*="font-weight:700"]',
-    ),
-  ).toHaveText("inp");
+  ).toHaveText("Vinp");
+  await expect(inputLabel.locator('[data-text-run="subscript"]')).toHaveCount(
+    0,
+  );
 
   await canvas.click({ position: { x: 520, y: 180 } });
   await expect(page.getByTestId("status")).toContainText("Added Cell Pin Vinn");
   const outputLabel = page.locator('[data-object-id="instance-label-P2"]');
   await expect(outputLabel).toHaveText("Vinn");
-  await expect(outputLabel.locator('[data-text-run="subscript"]')).toHaveText(
-    "inn",
+  await expect(outputLabel.locator('[data-text-run="subscript"]')).toHaveCount(
+    0,
   );
   await page.keyboard.press("Escape");
 
@@ -1276,11 +1269,9 @@ test("P shortcut starts Cell Pin placement", async ({ page }) => {
   const secondBias = page.locator('[data-object-id="instance-label-P4"]');
   await expect(firstBias).toHaveText("VB1");
   await expect(secondBias).toHaveText("VB2");
-  await expect(firstBias.locator('[data-text-run="subscript"]')).toHaveText(
-    "B1",
-  );
-  await expect(secondBias.locator('[data-text-run="subscript"]')).toHaveText(
-    "B2",
+  await expect(firstBias.locator('[data-text-run="subscript"]')).toHaveCount(0);
+  await expect(secondBias.locator('[data-text-run="subscript"]')).toHaveCount(
+    0,
   );
   await openSelectionShelf(page);
   await expect(
@@ -3350,7 +3341,7 @@ test("edits instance, electrical Net, and free text with bounded label handles",
   expect(afterBox?.x).not.toBe(beforeBox.x);
 });
 
-test("formats a Net Label without changing its electrical Net name", async ({
+test("synchronizes a Net Label subscript with its electrical underscore name", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -3400,7 +3391,7 @@ test("formats a Net Label without changing its electrical Net name", async ({
   expect(saved.documents[0].connectivityEvidence).toContainEqual(
     expect.objectContaining({
       kind: "name-claim",
-      name: "VB",
+      name: "V_B",
       owner: {
         kind: "net-label",
         annotationId: "net-label-route-ui-1",
@@ -3411,7 +3402,7 @@ test("formats a Net Label without changing its electrical Net name", async ({
     saved.documents[0].annotations.find(
       (candidate: { id: string }) => candidate.id === "net-label-route-ui-1",
     ).formatOverride,
-  ).toBeDefined();
+  ).toBeUndefined();
 
   await page.getByTestId("project-file").setInputFiles({
     name: "rich-net-label.icproj.json",

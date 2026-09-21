@@ -649,13 +649,11 @@ test("opening and reopening a PDK BJT adds X only to SPICE, never its canvas nam
   });
   await page.goto("/editor");
   await awaitEditorReady(page);
-  await page
-    .getByTestId("project-file")
-    .setInputFiles({
-      name: "pnp.icproj.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(project)),
-    });
+  await page.getByTestId("project-file").setInputFiles({
+    name: "pnp.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
   const canvasLabel = page.locator(
     '[data-layer="annotations"] [data-object-id="label-Q1"]',
   );
@@ -666,13 +664,11 @@ test("opening and reopening a PDK BJT adds X only to SPICE, never its canvas nam
     .selectOption("spice");
   await expect(code).toContainText("XQ1 ");
   const saved = await downloadBytes(page, "File", "Export Project File…");
-  await page
-    .getByTestId("project-file")
-    .setInputFiles({
-      name: "pnp-reopen.icproj.json",
-      mimeType: "application/json",
-      buffer: saved,
-    });
+  await page.getByTestId("project-file").setInputFiles({
+    name: "pnp-reopen.icproj.json",
+    mimeType: "application/json",
+    buffer: saved,
+  });
   await expect(canvasLabel).toHaveText("Q1");
   await page
     .getByLabel("Netlist format", { exact: true })
