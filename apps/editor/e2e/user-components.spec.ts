@@ -1,4 +1,8 @@
-import { clickCommand, parseSavedProject } from "./editor-fixtures";
+import {
+  awaitEditorReady,
+  clickCommand,
+  parseSavedProject,
+} from "./editor-fixtures";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { DatabaseSync } from "node:sqlite";
 import { createEmptyProject, type CircuitProject } from "@icm/model";
@@ -83,7 +87,7 @@ function library() {
 
 async function openEditor(page: Page) {
   await page.goto("/editor?new=1");
-  await expect(page.getByTestId("schematic-canvas")).toBeVisible();
+  await awaitEditorReady(page);
   await expect(page.getByTestId("shapes-category-user-defined")).toHaveCount(0);
 }
 async function openUserComponents(page: Page) {
@@ -239,6 +243,9 @@ test("create, live preview, public sharing, standard insertion and administrator
   context,
   browser,
 }) => {
+  // Three isolated editor boots plus sharing, deletion and restoration can
+  // exceed a single-page journey's budget on the shared CI runner.
+  test.slow();
   const service = library();
   const second = await browser.newContext();
   const admin = await browser.newContext();
