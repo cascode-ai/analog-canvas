@@ -233,7 +233,10 @@ import {
   ShapesPanel,
 } from "../features/editor-shell/shapes-panel";
 import { ExamplesPanel } from "../features/editor-shell/examples-panel";
-import { createGalleryExampleCommands } from "../features/editor-shell/gallery-example-commands";
+import {
+  type GalleryEntryContext,
+  createGalleryExampleCommands,
+} from "../features/editor-shell/gallery-example-commands";
 import { createEditorNavigationController } from "../features/hierarchy/editor-navigation-controller";
 import { createProjectStructureCommands } from "../features/hierarchy/project-structure-commands";
 import { loadCloudProjectForCellImport } from "../features/hierarchy/cloud-cell-import";
@@ -241,6 +244,8 @@ import type { PublishGalleryDraft } from "../features/editor-shell/publish-galle
 import {
   publishProjectToGallery,
   updateGalleryEntry,
+  canUpdateGalleryPublication,
+  loadGalleryPublicationContext,
 } from "../features/editor-shell/gallery-publish";
 import {
   announceGalleryChange,
@@ -863,17 +868,16 @@ export function App({
     if (mutationAtStart !== cloudListMutationRef.current) return;
     setCloudProjects(outcome.projects);
   }, []);
-  const [galleryEntryContext, setGalleryEntryContext] = useState<{
-    id: string;
-    name: string;
-    /** The opened Project's id: the context is only valid while that
-     * exact Project is still the active one. */
-    projectId: string;
-    ownerUserId: string | null;
-    author: string;
-    description: string;
-    tags: readonly string[];
-  } | null>(null);
+  const [galleryEntryContext, setGalleryEntryContext] =
+    useState<GalleryEntryContext | null>(null);
+  const [publicationLinkLoading, setPublicationLinkLoading] = useState(false);
+  const [publicationLinkError, setPublicationLinkError] = useState<
+    string | null
+  >(null);
+  const [publicationLinkNotice, setPublicationLinkNotice] = useState<
+    string | null
+  >(null);
+  const [publicationLinkRetry, setPublicationLinkRetry] = useState(0);
   // The moment any OTHER Project replaces the opened gallery entry (new
   // circuit, bundled example, import, …), the update offer must vanish —
   // otherwise a later publish silently overwrites the stale entry.
@@ -1067,6 +1071,7 @@ export function App({
   };
   const {
     cloudBinding,
+    noteGalleryPublication,
     savedProjectBaseline,
     replaceGuard,
     replaceGuardSaving,
@@ -1101,6 +1106,12 @@ export function App({
     openCloudProjectById,
   } = useProjectFileLifecycle({
     restoreWorkingSession: agentStartupRecovery !== null,
+    galleryEntryId: canUpdateGalleryPublication(
+      galleryEntryContext,
+      publishSession,
+    )
+      ? galleryEntryContext!.id
+      : undefined,
     hasPendingEdits: () => simulationSourceBuffer.current?.dirty === true,
     beforeSnapshot: captureAuthoredProject,
     onRecoverBuffers: recoverSourceDrafts,
@@ -1111,6 +1122,11 @@ export function App({
     setStatus,
     projectStoreCopy: projectStore,
     onCloudProjectSaved: (saved) => {
+      if (
+        galleryEntryContext &&
+        saved.galleryEntryId !== galleryEntryContext.id
+      )
+        setGalleryEntryContext(null);
       cloudListMutationRef.current += 1;
       setCloudProjects((current) => [
         saved,
@@ -1150,6 +1166,77 @@ export function App({
       return nextDocument;
     },
   });
+  useEffect(() => {
+    let cancelled = false;
+    setPublicationLinkError(null);
+    setPublicationLinkNotice(null);
+    if (!cloudBinding || galleryEntryContext) {
+      setPublicationLinkLoading(false);
+      return;
+    }
+    setPublicationLinkLoading(true);
+    void (async () => {
+      try {
+        // Read current metadata even for recovery: another tab may have changed the source.
+        const listed = await listCloudProjects();
+        const saved =
+          listed.status === "listed"
+            ? listed.projects.find((item) => item.id === cloudBinding.id)
+            : null;
+        if (!saved)
+          throw new Error(
+            "Could not load the saved Project’s publication link. Retry before publishing.",
+          );
+        const entryId = saved.galleryEntryId ?? null;
+        const context = entryId
+          ? await loadGalleryPublicationContext(entryId, project.id)
+          : null;
+        if (cancelled) return;
+        noteGalleryPublication(entryId);
+        if (context) {
+          setGalleryEntryContext(context);
+        } else if (entryId) {
+          setPublicationLinkNotice(
+            "The original Gallery entry is unavailable. Publishing creates a new entry; the Shelf draft is preserved.",
+          );
+        }
+      } catch (error) {
+        if (!cancelled)
+          setPublicationLinkError(
+            error instanceof Error
+              ? error.message
+              : "Could not load the publication link.",
+          );
+      } finally {
+        if (!cancelled) setPublicationLinkLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    cloudBinding?.id,
+    projectSessionId,
+    galleryEntryContext,
+    publicationLinkRetry,
+  ]);
+
+  const linkExistingPublication = async (input: string): Promise<void> => {
+    const match = input
+      .trim()
+      .match(/^(?:https?:\/\/[^/]+)?\/g\/([^/?#]+)(?:[?#].*)?$/u);
+    const id = match?.[1] ?? input.trim();
+    if (!/^[a-zA-Z0-9-]+$/u.test(id))
+      throw new Error("Paste a Gallery link or entry id.");
+    const sessionId = editorDocumentController.projectSessionId;
+    const context = await loadGalleryPublicationContext(id, project.id);
+    if (!context || !canUpdateGalleryPublication(context, publishSession))
+      throw new Error("Choose a Gallery entry you own or may edit.");
+    if (sessionId !== editorDocumentController.projectSessionId)
+      throw new Error("The active Project changed. Reopen Publish.");
+    setGalleryEntryContext(context);
+  };
+
   const allowNextBrowserUnload = useUnsavedWorkGuard(hasUnsafeWork());
   const startupCloudRestoreAttemptedRef = useRef(false);
   const hasExplicitBootTarget =
@@ -5304,25 +5391,31 @@ export function App({
                 session: publishSession,
                 gateReport: publishGates,
                 topologyProject: galleryTopologyProject,
-                updateTarget:
-                  galleryEntryContext &&
-                  publishSession &&
-                  (publishSession.isAdmin ||
-                    publishSession.role === "moderator" ||
-                    (galleryEntryContext.ownerUserId !== null &&
-                      publishSession.id === galleryEntryContext.ownerUserId))
-                    ? {
-                        id: galleryEntryContext.id,
-                        name: galleryEntryContext.name,
-                      }
-                    : null,
+                publicationLinkLoading,
+                publicationLinkError,
+                publicationLinkNotice,
+                onRetryPublicationLink: () =>
+                  setPublicationLinkRetry((value) => value + 1),
+                ...(cloudBinding
+                  ? { onLinkExisting: linkExistingPublication }
+                  : {}),
+                updateTarget: canUpdateGalleryPublication(
+                  galleryEntryContext,
+                  publishSession,
+                )
+                  ? {
+                      id: galleryEntryContext!.id,
+                      name: galleryEntryContext!.name,
+                    }
+                  : null,
                 updateDefaults: galleryEntryContext
                   ? {
                       description: galleryEntryContext.description,
                       tags: galleryEntryContext.tags,
                     }
                   : null,
-                publish: (fields) => publishProjectToGallery(project, fields),
+                publish: (fields) =>
+                  publishProjectToGallery(project, fields, fetch, cloudBinding),
                 ...(galleryEntryContext
                   ? {
                       publishUpdate: (fields) =>
@@ -5330,6 +5423,8 @@ export function App({
                           galleryEntryContext.id,
                           project,
                           fields,
+                          fetch,
+                          cloudBinding,
                         ),
                     }
                   : {}),
@@ -5341,9 +5436,17 @@ export function App({
                   updated,
                   previewRevision,
                 }) => {
+                  if (
+                    editorDocumentController.projectSessionId !==
+                    projectSessionId
+                  ) {
+                    announceGalleryChange({ entryId: id });
+                    return;
+                  }
                   // The gallery now holds these exact bytes: leaving or
                   // refreshing loses nothing until the next edit.
                   noteProjectSnapshotSafe();
+                  noteGalleryPublication(id);
                   // Publishing establishes the same update-in-place binding
                   // as opening an existing Gallery entry. Keep it attached to
                   // this Project only; replacing the Project clears it above.

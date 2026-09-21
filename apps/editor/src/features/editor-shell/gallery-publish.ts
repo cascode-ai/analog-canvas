@@ -1,4 +1,6 @@
 import type { SubmissionGateFailure } from "@icm/derived";
+import type { GalleryEntryContext } from "./gallery-example-commands";
+import type { CloudProjectBinding } from "./cloud-projects";
 import type { CircuitProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 
@@ -14,6 +16,62 @@ export interface GalleryPublishFields {
   description: string;
   /** Category tags ("amplifier", "adc", …); the server normalizes. */
   tags: readonly string[];
+}
+
+export function galleryPublicationBinding(binding: CloudProjectBinding | null) {
+  return binding
+    ? {
+        cloudProjectId: binding.id,
+        expectedGalleryEntryId: binding.galleryEntryId ?? null,
+      }
+    : {};
+}
+
+export function canUpdateGalleryPublication(
+  context: GalleryEntryContext | null,
+  user: { id: string; isAdmin: boolean; role?: string } | null,
+): boolean {
+  return !!(
+    context &&
+    user &&
+    (user.isAdmin ||
+      user.role === "moderator" ||
+      context.ownerUserId === user.id)
+  );
+}
+
+export async function loadGalleryPublicationContext(
+  id: string,
+  projectId: string,
+  fetchLike: typeof fetch = fetch,
+): Promise<GalleryEntryContext | null> {
+  const response = await fetchLike(`/api/gallery/${encodeURIComponent(id)}`, {
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  if (response.status === 404) return null;
+  if (!response.ok)
+    throw new Error(
+      "Could not load the linked publication. Retry before publishing.",
+    );
+  const payload = (await response.json()) as {
+    entry: {
+      name: string;
+      author: string;
+      description?: string;
+      tags?: string[];
+    };
+    ownerUserId?: string | null;
+  };
+  return {
+    id,
+    projectId,
+    name: payload.entry.name,
+    ownerUserId: payload.ownerUserId ?? null,
+    author: payload.entry.author,
+    description: payload.entry.description ?? "",
+    tags: payload.entry.tags ?? [],
+  };
 }
 
 /** What the dialog needs to know about the signed-in user. */
@@ -40,6 +98,7 @@ async function sendGalleryProject(
   project: CircuitProject,
   fields: GalleryPublishFields,
   fetchLike: typeof fetch,
+  binding: CloudProjectBinding | null,
 ): Promise<GalleryPublishOutcome> {
   let response: Response;
   try {
@@ -53,6 +112,7 @@ async function sendGalleryProject(
         description: fields.description.trim(),
         tags: fields.tags,
         projectText: serializeProject(project),
+        ...galleryPublicationBinding(binding),
       }),
     });
   } catch (error) {
@@ -102,6 +162,7 @@ export function publishProjectToGallery(
   project: CircuitProject,
   fields: GalleryPublishFields,
   fetchLike: typeof fetch = fetch,
+  binding: CloudProjectBinding | null = null,
 ): Promise<GalleryPublishOutcome> {
   return sendGalleryProject(
     "/api/gallery/submissions",
@@ -109,6 +170,7 @@ export function publishProjectToGallery(
     project,
     fields,
     fetchLike,
+    binding,
   );
 }
 
@@ -118,6 +180,7 @@ export function updateGalleryEntry(
   project: CircuitProject,
   fields: GalleryPublishFields,
   fetchLike: typeof fetch = fetch,
+  binding: CloudProjectBinding | null = null,
 ): Promise<GalleryPublishOutcome> {
   return sendGalleryProject(
     `/api/gallery/${entryId}`,
@@ -125,6 +188,7 @@ export function updateGalleryEntry(
     project,
     fields,
     fetchLike,
+    binding,
   );
 }
 
@@ -142,13 +206,17 @@ export function describePublishOutcome(outcome: GalleryPublishOutcome): string {
     case "rate-limited":
       return "Daily publish limit reached — try again tomorrow";
     case "rejected":
-      return outcome.message === "invalid-fields"
-        ? "Check the fields: a name is required, and the description has a length cap"
-        : outcome.message === "invalid-project"
-          ? "The Project failed strict validation on the server"
-          : outcome.message === "forbidden"
-            ? "Only the entry's owner or a moderator can update it"
-            : `The gallery rejected the submission (${outcome.message})`;
+      return outcome.message === "publication-link-conflict"
+        ? "This Project’s publication link changed elsewhere. Reopen the saved Project before publishing."
+        : outcome.message === "cloud-project-not-found"
+          ? "This Shelf draft no longer exists or belongs to a different account. Your canvas has not been changed."
+          : outcome.message === "invalid-fields"
+            ? "Check the fields: a name is required, and the description has a length cap"
+            : outcome.message === "invalid-project"
+              ? "The Project failed strict validation on the server"
+              : outcome.message === "forbidden"
+                ? "Only the entry's owner or a moderator can update it"
+                : `The gallery rejected the submission (${outcome.message})`;
     case "unreachable":
       return `Could not reach the gallery: ${outcome.message}`;
   }

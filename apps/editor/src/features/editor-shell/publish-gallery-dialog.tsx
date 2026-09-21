@@ -15,6 +15,11 @@ import { GalleryTopologyCheck } from "./gallery-topology-check";
 
 export interface PublishGalleryDialogProps {
   defaultName: string;
+  publicationLinkLoading?: boolean;
+  publicationLinkError?: string | null;
+  publicationLinkNotice?: string | null;
+  onRetryPublicationLink?: () => void;
+  onLinkExisting?: (url: string) => Promise<void>;
   /** The signed-in user; null means there is nothing to publish with yet. */
   session?: PublishSessionUser | null;
   /** Quality-gate evaluation of the live Project. */
@@ -58,6 +63,7 @@ export interface PublishGalleryDraft {
   name: string;
   description: string;
   tags: readonly string[];
+  editedFields?: { name: boolean; description: boolean; tags: boolean };
 }
 
 /**
@@ -71,6 +77,11 @@ export interface PublishGalleryDraft {
  */
 export function PublishGalleryDialog({
   defaultName,
+  publicationLinkLoading = false,
+  publicationLinkError = null,
+  publicationLinkNotice = null,
+  onRetryPublicationLink,
+  onLinkExisting,
   session = null,
   gateReport = null,
   topologyProject = null,
@@ -91,10 +102,24 @@ export function PublishGalleryDialog({
   );
   const updating = canUpdate && mode === "update";
   const [name, setName] = useState(draft?.name ?? defaultName);
+  const [nameEdited, setNameEdited] = useState(
+    draft?.editedFields?.name ?? !!draft?.name,
+  );
+  useEffect(() => {
+    if (!nameEdited) setName(defaultName);
+  }, [defaultName, nameEdited]);
   const [description, setDescription] = useState(draft?.description ?? "");
+  const [descriptionEdited, setDescriptionEdited] = useState(
+    draft?.editedFields?.description ?? !!draft?.description,
+  );
   const [tags, setTags] = useState<string[]>([...(draft?.tags ?? [])]);
+  const [tagsEdited, setTagsEdited] = useState(
+    draft?.editedFields?.tags ?? !!draft?.tags.length,
+  );
   const [tagDraft, setTagDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [linkInput, setLinkInput] = useState("");
+  const [linkBusy, setLinkBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // The update permission arrives with the session; default to updating the
@@ -104,23 +129,41 @@ export function PublishGalleryDialog({
     if (canUpdate && !modeTouched) setMode("update");
   }, [canUpdate, modeTouched]);
 
-  // In update mode, prefill the entry's stored fields exactly once so
-  // "edit the tags any time" is open → adjust → save.
-  const [defaultsApplied, setDefaultsApplied] = useState(false);
+  // Follow the chosen publication, preserving fields the author explicitly edited.
   useEffect(() => {
-    if (!canUpdate || !updateDefaults || defaultsApplied) return;
-    setDefaultsApplied(true);
-    setDescription((previous) => previous || updateDefaults.description);
-    setTags((previous) =>
-      previous.length > 0 ? previous : [...updateDefaults.tags],
-    );
-  }, [canUpdate, updateDefaults, defaultsApplied]);
+    if (!canUpdate || !updateDefaults) return;
+    if (!descriptionEdited) setDescription(updateDefaults.description);
+    if (!tagsEdited)
+      setTags((previous) =>
+        previous.length === updateDefaults.tags.length &&
+        previous.every((tag, index) => tag === updateDefaults.tags[index])
+          ? previous
+          : [...updateDefaults.tags],
+      );
+  }, [canUpdate, updateDefaults, descriptionEdited, tagsEdited]);
 
   // Report the draft outward on every keystroke, so it survives whichever way
   // the dialog closes — backdrop, Escape, or Cancel.
   useEffect(() => {
-    onDraftChange?.({ name, description, tags });
-  }, [name, description, tags, onDraftChange]);
+    onDraftChange?.({
+      name,
+      description,
+      tags,
+      editedFields: {
+        name: nameEdited,
+        description: descriptionEdited,
+        tags: tagsEdited,
+      },
+    });
+  }, [
+    name,
+    description,
+    tags,
+    nameEdited,
+    descriptionEdited,
+    tagsEdited,
+    onDraftChange,
+  ]);
 
   const hasDraft =
     description.trim().length > 0 ||
@@ -131,6 +174,7 @@ export function PublishGalleryDialog({
   function addTag(raw: string): void {
     const tag = raw.replace(/\s+/gu, " ").trim().toLowerCase();
     if (!tag) return;
+    setTagsEdited(true);
     setTags((previous) =>
       previous.includes(tag) || previous.length >= 12
         ? previous
@@ -140,6 +184,7 @@ export function PublishGalleryDialog({
   }
 
   async function submit(): Promise<void> {
+    if (publicationLinkLoading || publicationLinkError || linkBusy) return;
     setBusy(true);
     setError(null);
     const send = updating ? (publishUpdate ?? publish) : publish;
@@ -212,6 +257,59 @@ export function PublishGalleryDialog({
           </div>
         ) : (
           <>
+            {publicationLinkLoading ? (
+              <p role="status">Loading linked publication…</p>
+            ) : null}
+            {publicationLinkError ? (
+              <p role="alert">
+                {publicationLinkError}{" "}
+                <button type="button" onClick={onRetryPublicationLink}>
+                  Retry
+                </button>
+              </p>
+            ) : null}
+            {publicationLinkNotice ? <p>{publicationLinkNotice}</p> : null}
+            {onLinkExisting &&
+            !publicationLinkLoading &&
+            !publicationLinkError ? (
+              <details className="publish-gallery-link-existing">
+                <summary>Use an existing Gallery publication…</summary>
+                <p>
+                  Paste its Gallery link to use this draft as the source.
+                  Updating keeps the public link, likes, author and history. The
+                  previous Shelf draft stays saved.
+                </p>
+                <input
+                  aria-label="Existing Gallery link"
+                  placeholder="/g/…"
+                  value={linkInput}
+                  onChange={(event) => setLinkInput(event.currentTarget.value)}
+                />
+                <button
+                  type="button"
+                  disabled={busy || linkBusy || !linkInput.trim()}
+                  onClick={() => {
+                    setLinkBusy(true);
+                    setError(null);
+                    void onLinkExisting(linkInput)
+                      .then(() => {
+                        setMode("update");
+                        setModeTouched(false);
+                      })
+                      .catch((cause: unknown) =>
+                        setError(
+                          cause instanceof Error
+                            ? cause.message
+                            : "Could not link this publication.",
+                        ),
+                      )
+                      .finally(() => setLinkBusy(false));
+                  }}
+                >
+                  {linkBusy ? "Loading…" : "Use this publication"}
+                </button>
+              </details>
+            ) : null}
             {canUpdate ? (
               <div className="publish-gallery-mode" data-testid="publish-mode">
                 <label>
@@ -261,7 +359,10 @@ export function PublishGalleryDialog({
                   value={name}
                   maxLength={120}
                   autoFocus
-                  onChange={(event) => setName(event.currentTarget.value)}
+                  onChange={(event) => {
+                    setNameEdited(true);
+                    setName(event.currentTarget.value);
+                  }}
                 />
               </label>
               <label>
@@ -275,9 +376,10 @@ export function PublishGalleryDialog({
                   value={description}
                   maxLength={300}
                   rows={3}
-                  onChange={(event) =>
-                    setDescription(event.currentTarget.value)
-                  }
+                  onChange={(event) => {
+                    setDescriptionEdited(true);
+                    setDescription(event.currentTarget.value);
+                  }}
                 />
               </label>
               <div className="publish-gallery-tags" data-testid="publish-tags">
@@ -294,11 +396,12 @@ export function PublishGalleryDialog({
                         className="publish-gallery-tag"
                         data-testid={`publish-tag-${tag}`}
                         title="Remove tag"
-                        onClick={() =>
+                        onClick={() => {
+                          setTagsEdited(true);
                           setTags((previous) =>
                             previous.filter((candidate) => candidate !== tag),
-                          )
-                        }
+                          );
+                        }}
                       >
                         {galleryTagLabel(tag)} ×
                       </button>
@@ -383,7 +486,13 @@ export function PublishGalleryDialog({
             <button
               type="button"
               className="publish-gallery-primary"
-              disabled={busy || name.trim() === ""}
+              disabled={
+                busy ||
+                linkBusy ||
+                publicationLinkLoading ||
+                !!publicationLinkError ||
+                name.trim() === ""
+              }
               onClick={() => void submit()}
             >
               {busy ? "Publishing…" : updating ? "Update entry" : "Publish"}

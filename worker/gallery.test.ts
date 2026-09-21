@@ -29,6 +29,7 @@ import { AuthDO, type AuthEnv } from "./auth";
 
 function sqliteState(queries?: string[]) {
   const db = new DatabaseSync(":memory:");
+  let transactionId = 0;
   return {
     storage: {
       sql: {
@@ -57,7 +58,17 @@ function sqliteState(queries?: string[]) {
         },
       },
       transactionSync<T>(callback: () => T): T {
-        return callback();
+        const savepoint = `test_transaction_${++transactionId}`;
+        db.exec(`SAVEPOINT ${savepoint}`);
+        try {
+          const result = callback();
+          db.exec(`RELEASE ${savepoint}`);
+          return result;
+        } catch (error) {
+          db.exec(`ROLLBACK TO ${savepoint}`);
+          db.exec(`RELEASE ${savepoint}`);
+          throw error;
+        }
       },
     },
   };
@@ -4695,5 +4706,332 @@ describe("Gallery visual curation", () => {
         )
         .one().curation_json,
     ).toBe(current);
+  });
+});
+
+describe("durable Shelf publication sources", () => {
+  async function request(
+    env: Harness,
+    cookie: string,
+    path: string,
+    method = "GET",
+    body?: unknown,
+    revision = 1,
+  ) {
+    return route(
+      env,
+      new Request(`${ORIGIN}${path}`, {
+        method,
+        headers: {
+          Origin: ORIGIN,
+          Cookie: cookie,
+          "content-type": "application/json",
+          "if-match": `revision-${revision}`,
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      }),
+    );
+  }
+  const content = (name: string) => ({
+    name,
+    description: "",
+    tags: [],
+    projectText: wiredProjectText(name),
+  });
+  async function draft(
+    env: Harness,
+    cookie: string,
+    name: string,
+    galleryEntryId?: string,
+  ) {
+    const response = await request(env, cookie, "/api/projects", "POST", {
+      ...content(name),
+      ...(galleryEntryId ? { galleryEntryId } : {}),
+    });
+    expect(response.status).toBe(201);
+    return (await response.json()).project;
+  }
+  async function open(env: Harness, cookie: string, id: string) {
+    return (await (await request(env, cookie, `/api/projects/${id}`)).json())
+      .project;
+  }
+
+  it("persists the link for both save/publish orders without changing private content", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    const saved = await draft(env, cookie, "Private draft");
+    const before = await open(env, cookie, saved.id);
+    const published = await request(
+      env,
+      cookie,
+      "/api/gallery/submissions",
+      "POST",
+      {
+        ...content("Public title"),
+        cloudProjectId: saved.id,
+        expectedGalleryEntryId: null,
+      },
+    );
+    expect(published.status).toBe(201);
+    const { id } = await published.json();
+    expect(await open(env, cookie, saved.id)).toEqual({
+      ...before,
+      galleryEntryId: id,
+    });
+    expect(
+      (await (await request(env, cookie, "/api/projects")).json()).projects[0]
+        .galleryEntryId,
+    ).toBe(id);
+    const update = await request(env, cookie, `/api/gallery/${id}`, "PUT", {
+      ...content("Public v2"),
+      cloudProjectId: saved.id,
+      expectedGalleryEntryId: id,
+    });
+    expect(update.status).toBe(200);
+    const stored = await request(
+      env,
+      cookie,
+      `/api/projects/${saved.id}`,
+      "PUT",
+      content("Private v2"),
+    );
+    expect(stored.status).toBe(200);
+    expect((await stored.json()).project.galleryEntryId).toBe(id);
+    const separate = await submitOne(env, "Publish first", { cookie });
+    expect(
+      (await draft(env, cookie, "Saved afterwards", separate)).galleryEntryId,
+    ).toBe(separate);
+    // Saving another private copy never silently takes over the public source.
+    expect(
+      (await draft(env, cookie, "Additional copy", separate)).galleryEntryId,
+    ).toBeNull();
+  });
+
+  it("changes source atomically while retaining both drafts, author, likes and history", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    const id = await submitOne(env, "Public", { cookie });
+    const first = await draft(env, cookie, "Original source", id);
+    const second = await draft(env, cookie, "Replacement source");
+    const firstBefore = await open(env, cookie, first.id);
+    const secondBefore = await open(env, cookie, second.id);
+    await request(env, cookie, `/api/gallery/${id}/like`, "POST");
+    const rowBefore = env.gallerySql
+      .exec<any>("SELECT * FROM gallery_entries WHERE id = ?", id)
+      .one();
+    const switched = await request(env, cookie, `/api/gallery/${id}`, "PUT", {
+      ...content("Updated public"),
+      cloudProjectId: second.id,
+      expectedGalleryEntryId: null,
+    });
+    expect(switched.status).toBe(200);
+    expect(await open(env, cookie, first.id)).toEqual({
+      ...firstBefore,
+      galleryEntryId: null,
+    });
+    expect(await open(env, cookie, second.id)).toEqual({
+      ...secondBefore,
+      galleryEntryId: id,
+    });
+    const rowAfter = env.gallerySql
+      .exec<any>("SELECT * FROM gallery_entries WHERE id = ?", id)
+      .one();
+    expect(rowAfter.owner_user_id).toBe(rowBefore.owner_user_id);
+    expect(rowAfter.author).toBe(rowBefore.author);
+    expect(
+      env.gallerySql
+        .exec<any>("SELECT * FROM gallery_likes WHERE entry_id = ?", id)
+        .toArray(),
+    ).toHaveLength(1);
+    expect(
+      env.gallerySql
+        .exec<any>(
+          "SELECT * FROM gallery_entry_versions WHERE entry_id = ?",
+          id,
+        )
+        .one().project_text,
+    ).toBe(rowBefore.project_text);
+    // A stale old-source tab cannot overwrite the new public revision or create a duplicate.
+    for (const [path, method] of [
+      [`/api/gallery/${id}`, "PUT"],
+      ["/api/gallery/submissions", "POST"],
+    ]) {
+      const stale = await request(env, cookie, path!, method!, {
+        ...content("Stale overwrite"),
+        cloudProjectId: first.id,
+        expectedGalleryEntryId: id,
+      });
+      expect(stale.status).toBe(409);
+      expect((await stale.json()).error).toBe("publication-link-conflict");
+    }
+    expect(
+      env.gallerySql.exec<any>("SELECT * FROM gallery_entries").toArray(),
+    ).toEqual([rowAfter]);
+    // Saving the old private draft is still allowed and does not reclaim publication.
+    const oldSave = await request(
+      env,
+      cookie,
+      `/api/projects/${first.id}`,
+      "PUT",
+      { ...content("Old draft edited"), galleryEntryId: id },
+    );
+    expect(oldSave.status).toBe(200);
+    expect((await oldSave.json()).project.galleryEntryId).toBeNull();
+    // Explicitly publishing as new moves only the current draft's link.
+    const fresh = await request(
+      env,
+      cookie,
+      "/api/gallery/submissions",
+      "POST",
+      {
+        ...content("New publication"),
+        cloudProjectId: second.id,
+        expectedGalleryEntryId: id,
+      },
+    );
+    expect(fresh.status).toBe(201);
+    const newId = (await fresh.json()).id;
+    expect(newId).not.toBe(id);
+    expect((await open(env, cookie, second.id)).galleryEntryId).toBe(newId);
+    expect(
+      env.gallerySql
+        .exec<any>("SELECT * FROM gallery_entries WHERE id = ?", id)
+        .one(),
+    ).toEqual(rowAfter);
+  });
+
+  it("cannot bind another account's draft or publication, even as administrator", async () => {
+    const env = environment();
+    const owner = await makerOf(env);
+    const stranger = await adminOf(env);
+    const saved = await draft(env, owner, "Private");
+    const before = await open(env, owner, saved.id);
+    const refused = await request(
+      env,
+      stranger,
+      "/api/gallery/submissions",
+      "POST",
+      {
+        ...content("Bad"),
+        cloudProjectId: saved.id,
+        expectedGalleryEntryId: null,
+      },
+    );
+    expect(refused.status).toBe(404);
+    expect(await open(env, owner, saved.id)).toEqual(before);
+    expect(
+      env.gallerySql.exec<any>("SELECT * FROM gallery_entries").toArray(),
+    ).toHaveLength(0);
+    const publicId = await submitOne(env, "Other author's work", {
+      cookie: stranger,
+    });
+    const badSave = await request(env, owner, "/api/projects", "POST", {
+      ...content("Private"),
+      galleryEntryId: publicId,
+    });
+    expect(badSave.status).toBe(403);
+    expect(
+      env.gallerySql.exec<any>("SELECT * FROM cloud_projects").toArray(),
+    ).toHaveLength(1);
+  });
+
+  it("rolls back publication and source changes together if storage fails", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    const id = await submitOne(env, "Stable public", { cookie });
+    const first = await draft(env, cookie, "Old source", id);
+    const second = await draft(env, cookie, "New source");
+    const originals = env.gallerySql
+      .exec<any>("SELECT * FROM cloud_projects ORDER BY id")
+      .toArray();
+    const publication = env.gallerySql
+      .exec<any>("SELECT * FROM gallery_entries WHERE id = ?", id)
+      .one();
+    // Fail after retiring the old source but before installing the new link.
+    const exec = env.gallerySql.exec.bind(env.gallerySql);
+    env.gallerySql.exec = ((query: string, ...bindings: unknown[]) => {
+      if (query.includes("UPDATE cloud_projects SET gallery_entry_id = ?"))
+        throw new Error("injected storage failure");
+      return exec(query, ...bindings);
+    }) as typeof env.gallerySql.exec;
+    await expect(
+      request(env, cookie, `/api/gallery/${id}`, "PUT", {
+        ...content("Must roll back"),
+        cloudProjectId: second.id,
+        expectedGalleryEntryId: null,
+      }),
+    ).rejects.toThrow("injected storage failure");
+    await expect(
+      request(env, cookie, "/api/gallery/submissions", "POST", {
+        ...content("Must not appear"),
+        cloudProjectId: first.id,
+        expectedGalleryEntryId: id,
+      }),
+    ).rejects.toThrow("injected storage failure");
+    expect(
+      exec<any>("SELECT * FROM cloud_projects ORDER BY id").toArray(),
+    ).toEqual(originals);
+    expect(exec<any>("SELECT * FROM gallery_entries").toArray()).toEqual([
+      publication,
+    ]);
+    expect(
+      exec<any>("SELECT * FROM gallery_entry_versions").toArray(),
+    ).toHaveLength(0);
+  });
+
+  it("preserves old rows in the additive migration and includes links in full backups", async () => {
+    const state = sqliteState();
+    const original = wiredProjectText("Legacy private");
+    state.storage.sql.exec(
+      "CREATE TABLE cloud_projects (id TEXT PRIMARY KEY, user_id TEXT, name TEXT, created_at TEXT, updated_at TEXT, revision INTEGER, schema_version INTEGER, project_text TEXT, preview_svg TEXT DEFAULT '')",
+    );
+    state.storage.sql.exec(
+      "INSERT INTO cloud_projects VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "old",
+      "owner",
+      "Legacy private",
+      "before",
+      "before",
+      7,
+      CURRENT_PROJECT_FILE_VERSION,
+      original,
+      "<svg/>",
+    );
+    const durable = new GalleryDO(state);
+    expect(
+      state.storage.sql
+        .exec<any>("SELECT * FROM cloud_projects WHERE id = 'old'")
+        .one(),
+    ).toMatchObject({
+      project_text: original,
+      revision: 7,
+      gallery_entry_id: null,
+      preview_svg: "<svg/>",
+    });
+    state.storage.sql.exec(
+      "UPDATE cloud_projects SET gallery_entry_id = 'old-public' WHERE id = 'old'",
+    );
+    const call = async (action: string, body: unknown) => {
+      const response = await durable.fetch(
+        new Request(`https://gallery.internal/${action}`, {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      );
+      expect(response.status).toBe(200);
+      return response.json();
+    };
+    const backup = await call("schema-backup", {});
+    expect(backup.tables.cloudProjects[0].gallery_entry_id).toBe("old-public");
+    await call("schema-restore", { backup });
+    expect(
+      state.storage.sql
+        .exec<any>("SELECT * FROM cloud_projects WHERE id = 'old'")
+        .one(),
+    ).toMatchObject({
+      project_text: original,
+      revision: 7,
+      gallery_entry_id: "old-public",
+    });
   });
 });

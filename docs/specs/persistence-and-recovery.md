@@ -77,6 +77,19 @@ GET  /api/projects/:id             open one Project
 DELETE /api/projects/:id           explicitly delete one Project
 ```
 
+Cloud summary/open responses also return nullable `galleryEntryId`. This is
+private publication metadata, separate from the portable Project document and
+from its content revision. The additive column leaves pre-existing rows unlinked
+and does not rewrite their drawings. Full schema backup/restore preserves the
+link; older backups without it restore as unlinked. The browser reloads current
+source metadata before presenting Publish, so recovery pointers are not authority.
+
+Save never republishes a drawing or takes over an existing publication's source.
+`POST /api/projects` may include an authorized `galleryEntryId` for a just-published
+unbound draft; an existing source remains in place. Changing a saved draft's
+publication source is an explicit Gallery Publish/Update transaction, not a
+side effect of `PUT /api/projects/:id`.
+
 Repeated Save updates the same id and does not consume another account slot.
 The first Save of an unbound New/imported/recovered Project creates a Cloud
 Project. The editor exposes no second Save command that silently creates a

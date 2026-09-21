@@ -182,6 +182,27 @@ function renderPreview(
   return renderDocumentSvg(topDocument, resolver);
 }
 
+function publicationBindingFields(body: {
+  cloudProjectId?: unknown;
+  expectedGalleryEntryId?: unknown;
+}): { cloudProjectId?: string; expectedGalleryEntryId?: string | null } | null {
+  if (body.cloudProjectId === undefined) return {};
+  if (
+    typeof body.cloudProjectId !== "string" ||
+    !body.cloudProjectId ||
+    !(
+      body.expectedGalleryEntryId === null ||
+      (typeof body.expectedGalleryEntryId === "string" &&
+        body.expectedGalleryEntryId.length > 0)
+    )
+  )
+    return null;
+  return {
+    cloudProjectId: body.cloudProjectId,
+    expectedGalleryEntryId: body.expectedGalleryEntryId,
+  };
+}
+
 /** Private, stable Cloud Projects. Save updates a bound Project in place. */
 async function handleCloudProjects(
   request: Request,
@@ -220,9 +241,16 @@ async function handleCloudProjects(
   const body = (await request.json().catch(() => null)) as {
     name?: unknown;
     projectText?: unknown;
+    galleryEntryId?: unknown;
   } | null;
   const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
   if (!body || !name || typeof body.projectText !== "string") {
+    return Response.json({ error: "invalid-fields" }, { status: 400 });
+  }
+  if (
+    body.galleryEntryId !== undefined &&
+    (typeof body.galleryEntryId !== "string" || !body.galleryEntryId)
+  ) {
     return Response.json({ error: "invalid-fields" }, { status: 400 });
   }
   if (
@@ -262,6 +290,12 @@ async function handleCloudProjects(
   }
   const { status, payload } = await callGallery(env, operation, {
     userId: user.id,
+    mayEditGallery: user.isAdmin === true || user.role === "moderator",
+    ...(body.galleryEntryId === undefined
+      ? {}
+      : {
+          galleryEntryId: body.galleryEntryId,
+        }),
     id: projectId ?? shortId(),
     name,
     updatedAt: new Date().toISOString(),
@@ -379,6 +413,8 @@ async function handleSubmission(
     description?: unknown;
     tags?: unknown;
     projectText?: unknown;
+    cloudProjectId?: unknown;
+    expectedGalleryEntryId?: unknown;
   } | null;
   const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
   // The byline is the signed-in account's display name. Reading it from the
@@ -391,6 +427,9 @@ async function handleSubmission(
   if (!body || !name || description === null) {
     return Response.json({ error: "invalid-fields" }, { status: 400 });
   }
+  const binding = publicationBindingFields(body);
+  if (!binding)
+    return Response.json({ error: "invalid-fields" }, { status: 400 });
   if (typeof body.projectText !== "string") {
     return Response.json({ error: "invalid-project" }, { status: 400 });
   }
@@ -413,6 +452,8 @@ async function handleSubmission(
     id?: string;
     previewRevision?: string;
   }>(env, "submit", {
+    ...binding,
+    userId: user.id,
     day: now.toISOString().slice(0, 10),
     enforceLimit: !privileged,
     entry: {
@@ -440,6 +481,7 @@ async function handleSubmission(
   if (status === 429) {
     return Response.json({ error: "rate-limited" }, { status: 429 });
   }
+  if (status !== 200) return Response.json(payload, { status });
   return Response.json(
     {
       id: payload.id,
@@ -489,6 +531,8 @@ async function handleEntryUpdate(
     description?: unknown;
     tags?: unknown;
     projectText?: unknown;
+    cloudProjectId?: unknown;
+    expectedGalleryEntryId?: unknown;
   } | null;
   const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
   // An update never re-attributes the entry, not even when a moderator
@@ -501,6 +545,9 @@ async function handleEntryUpdate(
   if (!body || !name || description === null) {
     return Response.json({ error: "invalid-fields" }, { status: 400 });
   }
+  const binding = publicationBindingFields(body);
+  if (!binding)
+    return Response.json({ error: "invalid-fields" }, { status: 400 });
   if (typeof body.projectText !== "string") {
     return Response.json({ error: "invalid-project" }, { status: 400 });
   }
@@ -522,6 +569,8 @@ async function handleEntryUpdate(
   // Every republication re-answers this; the badge follows the drawing.
   const netlistable = designExtractsNetlist(project) ? 1 : 0;
   const { status, payload } = await callGallery(env, "replace-entry", {
+    ...binding,
+    userId: user.id,
     id,
     at: new Date().toISOString(),
     name,

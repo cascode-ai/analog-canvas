@@ -146,6 +146,7 @@ export interface CloudProjectSummary {
   updatedAt: string;
   revision: number;
   schemaVersion: number;
+  galleryEntryId: string | null;
 }
 
 interface CloudProjectRow {
@@ -154,6 +155,7 @@ interface CloudProjectRow {
   updated_at: string;
   revision: number;
   schema_version: number;
+  gallery_entry_id: string | null;
 }
 
 interface StoredProjectRow {
@@ -592,6 +594,7 @@ export class GalleryDO {
       "ALTER TABLE gallery_entries ADD COLUMN preview_width REAL",
       "ALTER TABLE gallery_entries ADD COLUMN preview_height REAL",
       "ALTER TABLE cloud_projects ADD COLUMN preview_svg TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE cloud_projects ADD COLUMN gallery_entry_id TEXT",
     ]) {
       try {
         this.sql.exec(alteration);
@@ -866,7 +869,78 @@ export class GalleryDO {
     return crypto.randomUUID();
   }
 
+  /** Private publication metadata; never infer a link from names or circuit bytes. */
+  private publicationBindingError(
+    body: Record<string, unknown>,
+  ): Response | null {
+    if (body.cloudProjectId === undefined) return null;
+    const cloud = this.sql
+      .exec<{ gallery_entry_id: string | null }>(
+        "SELECT gallery_entry_id FROM cloud_projects WHERE id = ? AND user_id = ?",
+        String(body.cloudProjectId),
+        String(body.userId),
+      )
+      .toArray()[0];
+    if (!cloud)
+      return Response.json(
+        { error: "cloud-project-not-found" },
+        { status: 404 },
+      );
+    if (cloud.gallery_entry_id !== body.expectedGalleryEntryId) {
+      return Response.json(
+        { error: "publication-link-conflict" },
+        { status: 409 },
+      );
+    }
+    return null;
+  }
+
+  private bindPublication(
+    body: Record<string, unknown>,
+    entryId: string,
+  ): void {
+    if (body.cloudProjectId === undefined) return;
+    // Changing the source retires only this account's previous draft binding.
+    // Private drawings remain intact, and stale tabs fail the expected-link check.
+    this.sql.exec(
+      "UPDATE cloud_projects SET gallery_entry_id = NULL WHERE user_id = ? AND gallery_entry_id = ? AND id <> ?",
+      String(body.userId),
+      entryId,
+      String(body.cloudProjectId),
+    );
+    this.sql.exec(
+      "UPDATE cloud_projects SET gallery_entry_id = ? WHERE id = ? AND user_id = ?",
+      entryId,
+      String(body.cloudProjectId),
+      String(body.userId),
+    );
+  }
+
+  private cloudGalleryTargetError(
+    body: Record<string, unknown>,
+  ): Response | null {
+    if (body.galleryEntryId === undefined) return null;
+    const entry = this.sql
+      .exec<{ owner_user_id: string | null }>(
+        "SELECT owner_user_id FROM gallery_entries WHERE id = ?",
+        String(body.galleryEntryId),
+      )
+      .toArray()[0];
+    if (
+      !entry ||
+      (body.mayEditGallery !== true && entry.owner_user_id !== body.userId)
+    ) {
+      return Response.json(
+        { error: "gallery-link-forbidden" },
+        { status: 403 },
+      );
+    }
+    return null;
+  }
+
   private submit(body: Record<string, unknown>): Response {
+    const bindingError = this.publicationBindingError(body);
+    if (bindingError) return bindingError;
     const entry = body.entry as EntryRow;
     const previewRevision = sha256Hex(entry.svg_text);
     const previewDimensions = svgPreviewDimensions(entry.svg_text);
@@ -935,6 +1009,7 @@ export class GalleryDO {
         previewDimensions?.width ?? null,
         previewDimensions?.height ?? null,
       );
+      this.bindPublication(body, entry.id);
       this.sweepRecycledRows(entry.owner_user_id ?? "");
       return { status: "stored" as const };
     });
@@ -1182,6 +1257,8 @@ export class GalleryDO {
   }
 
   private replaceEntry(body: Record<string, unknown>): Response {
+    const bindingError = this.publicationBindingError(body);
+    if (bindingError) return bindingError;
     const row = this.sql
       .exec<EntryRow>(
         "SELECT * FROM gallery_entries WHERE id = ?",
@@ -1193,6 +1270,7 @@ export class GalleryDO {
     const previewRevision = sha256Hex(svgText);
     const previewDimensions = svgPreviewDimensions(svgText);
     this.state.storage.transactionSync(() => {
+      this.bindPublication(body, row.id);
       this.snapshotEntry(row, String(body.at ?? row.created_at));
       this.sql.exec(
         `UPDATE gallery_entries
@@ -1438,8 +1516,21 @@ export class GalleryDO {
   }
 
   private cloudProjectCreate(body: Record<string, unknown>): Response {
+    const linkError = this.cloudGalleryTargetError(body);
+    if (linkError) return linkError;
     const userId = String(body.userId);
     const id = String(body.id);
+    const galleryEntryId =
+      typeof body.galleryEntryId === "string" &&
+      !this.sql
+        .exec<{ id: string }>(
+          "SELECT id FROM cloud_projects WHERE user_id = ? AND gallery_entry_id = ? LIMIT 1",
+          userId,
+          body.galleryEntryId,
+        )
+        .toArray().length
+        ? body.galleryEntryId
+        : null;
     const count = this.sql
       .exec<{ count: number }>(
         "SELECT COUNT(*) AS count FROM cloud_projects WHERE user_id = ?",
@@ -1455,8 +1546,8 @@ export class GalleryDO {
     this.sql.exec(
       `INSERT INTO cloud_projects
          (id, user_id, name, created_at, updated_at, revision,
-          schema_version, project_text, preview_svg)
-       VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+          schema_version, project_text, preview_svg, gallery_entry_id)
+       VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
       id,
       userId,
       String(body.name),
@@ -1465,6 +1556,7 @@ export class GalleryDO {
       Number(body.schemaVersion),
       String(body.projectText),
       String(body.previewSvg ?? ""),
+      galleryEntryId,
     );
     return Response.json(
       { project: this.cloudProjectOpenPayload(userId, id) },
@@ -1478,7 +1570,7 @@ export class GalleryDO {
     const expectedRevision = Number(body.expectedRevision);
     const current = this.sql
       .exec<CloudProjectRow & { project_text: string }>(
-        `SELECT id, name, updated_at, revision, schema_version, project_text
+        `SELECT id, name, updated_at, revision, schema_version, project_text, gallery_entry_id
          FROM cloud_projects WHERE id = ? AND user_id = ?`,
         id,
         userId,
@@ -1533,13 +1625,14 @@ export class GalleryDO {
       updatedAt: row.updated_at,
       revision: row.revision,
       schemaVersion: row.schema_version,
+      galleryEntryId: row.gallery_entry_id ?? null,
     };
   }
 
   private cloudProjectRows(userId: string): CloudProjectSummary[] {
     return this.sql
       .exec<CloudProjectRow>(
-        `SELECT id, name, updated_at, revision, schema_version
+        `SELECT id, name, updated_at, revision, schema_version, gallery_entry_id
          FROM cloud_projects
          WHERE user_id = ? ORDER BY updated_at DESC, id DESC LIMIT ?`,
         userId,
@@ -1614,6 +1707,7 @@ export class GalleryDO {
       updatedAt: row.updated_at,
       revision: row.revision,
       schemaVersion: row.schema_version,
+      galleryEntryId: row.gallery_entry_id ?? null,
       projectText: row.project_text,
     };
   }
@@ -1839,8 +1933,8 @@ export class GalleryDO {
         this.sql.exec(
           `INSERT INTO cloud_projects
            (id, user_id, name, created_at, updated_at, revision,
-            schema_version, project_text)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            schema_version, project_text, gallery_entry_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           ...rowValues(row, [
             "id",
             "user_id",
@@ -1851,6 +1945,9 @@ export class GalleryDO {
             "schema_version",
             "project_text",
           ]),
+          typeof row.gallery_entry_id === "string"
+            ? row.gallery_entry_id
+            : null,
         );
       }
       return this.sql

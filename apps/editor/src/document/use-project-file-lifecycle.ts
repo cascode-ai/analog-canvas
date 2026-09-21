@@ -86,6 +86,7 @@ type RecoveryLifecycle = Pick<
 
 export interface UseProjectFileLifecycleOptions {
   restoreWorkingSession?: boolean;
+  galleryEntryId?: string | undefined;
   project: CircuitProject;
   projectSessionId: string;
   viewBox: GridRect;
@@ -108,6 +109,7 @@ export interface UseProjectFileLifecycleOptions {
 
 export function useProjectFileLifecycle({
   restoreWorkingSession = false,
+  galleryEntryId,
   project,
   projectSessionId,
   viewBox,
@@ -252,12 +254,18 @@ export function useProjectFileLifecycle({
     );
     recovery.stage(savedCandidate, { unsavedAtSnapshot: true, cloudBinding });
     await recovery.flushNow();
-    const outcome = await saveCloudProject(savedCandidate, cloudBinding);
+    const outcome = await saveCloudProject(
+      savedCandidate,
+      cloudBinding,
+      fetch,
+      galleryEntryId,
+    );
     if (liveSessionRef.current !== projectSessionId) return outcome;
     if (outcome.status === "saved") {
       const nextBinding = {
         id: outcome.project.id,
         revision: outcome.project.revision,
+        galleryEntryId: outcome.project.galleryEntryId ?? null,
       };
       setCloudBinding(nextBinding);
       rememberRecentCloudProject(nextBinding.id);
@@ -671,7 +679,11 @@ export function useProjectFileLifecycle({
       replaceActiveProject(staged.project, defaultViewBox, {
         source: "cloud-project",
         persistenceState: "clean",
-        cloudBinding: { id: cloud.id, revision: cloud.revision },
+        cloudBinding: {
+          id: cloud.id,
+          revision: cloud.revision,
+          galleryEntryId: cloud.galleryEntryId ?? null,
+        },
         savedBaseline: baseline,
       });
       setStatus(`Opened Cloud Project ${cloud.name}`);
@@ -781,6 +793,10 @@ export function useProjectFileLifecycle({
     startupRestoreReady,
     persistenceState,
     cloudBinding,
+    noteGalleryPublication: (id: string | null) =>
+      setCloudBinding((current) =>
+        current ? { ...current, galleryEntryId: id } : current,
+      ),
     savedProjectBaseline,
     replaceGuard,
     replaceGuardSaving,

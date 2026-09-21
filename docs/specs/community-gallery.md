@@ -182,8 +182,32 @@ name, and an update never re-attributes an entry.
 After a successful first publication, the editor associates the live Project
 with the returned entry id. Further edits followed by Publish default to
 `PUT /api/gallery/<id>` for that same item rather than creating duplicates.
-Replacing the active Project clears the association; deliberately choosing
-"Publish as a new entry" replaces it with the newly returned entry id.
+For a saved Shelf draft, this association is persisted as private Cloud Project
+metadata (`gallery_entry_id`) and is restored after reopening, including browser
+recovery. Loading this metadata never replaces private drawing content with the
+public snapshot. A transient lookup failure blocks publication and offers Retry,
+instead of falling back to a new entry. Replacing the active Project clears only
+the editor's old context; the replacement draft restores its own association.
+
+A bound Publish/Update sends `cloudProjectId` and `expectedGalleryEntryId` (null
+before the first link). The Durable Object scopes the draft to the signed-in
+account, rejects a changed link with 409, and commits the publication and source
+association in one transaction. Publication does not Save or rewrite the private
+draft. A first private Save after publishing may establish the link too, provided
+that account has not already assigned another draft to the publication.
+
+For historical drafts without a link, **Use an existing Gallery publication…**
+accepts a Gallery address the user may update. Selecting it previews the update
+target; **Update entry** commits the source change. This keeps the public id,
+byline, likes and bounded version history, retires this account's previous source
+association, and preserves both private drafts. Old tabs with a retired link
+cannot overwrite the publication. No matching by title, Project id or topology
+runs automatically. Source selection requires a saved Shelf draft.
+
+Deliberately choosing **Publish as a new entry** associates the current draft
+with the newly returned id and leaves the earlier public entry intact. Unbound
+Gallery editing remains possible under the existing ownership/moderator rules;
+it does not change another account's private source association.
 
 Every entry records the submitting account: `owner_user_id` plus the
 `submitter_email` and `submitter_provider` read from the session at

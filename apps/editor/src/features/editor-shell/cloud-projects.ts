@@ -10,11 +10,13 @@ export interface CloudProjectSummary {
   updatedAt: string;
   revision: number;
   schemaVersion: number;
+  galleryEntryId?: string | null;
 }
 
 export interface CloudProjectBinding {
   id: string;
   revision: number;
+  galleryEntryId?: string | null;
 }
 
 export type CloudProjectSaveOutcome =
@@ -69,6 +71,10 @@ function summaryOf(value: unknown): CloudProjectSummary | null {
         updatedAt: record.updatedAt,
         revision: record.revision,
         schemaVersion: record.schemaVersion,
+        galleryEntryId:
+          typeof record.galleryEntryId === "string"
+            ? record.galleryEntryId
+            : null,
       }
     : null;
 }
@@ -77,6 +83,7 @@ export async function saveCloudProject(
   project: CircuitProject,
   binding: CloudProjectBinding | null,
   fetchLike: typeof fetch = fetch,
+  galleryEntryId?: string,
 ): Promise<CloudProjectSaveOutcome> {
   let response: Response;
   try {
@@ -92,6 +99,7 @@ export async function saveCloudProject(
         body: JSON.stringify({
           name: project.name,
           projectText: serializeProject(project),
+          ...(!binding && galleryEntryId ? { galleryEntryId } : {}),
         }),
       },
     );

@@ -15,6 +15,7 @@ const summary = {
   updatedAt: "2026-08-28T10:00:00.000Z",
   revision: 1,
   schemaVersion: project.schemaVersion,
+  galleryEntryId: null,
 };
 
 function respondWith(status: number, body: unknown) {

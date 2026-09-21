@@ -77,7 +77,8 @@
 
 .publish-gallery-fields input,
 .publish-gallery-fields textarea,
-.publish-gallery-tags input {
+.publish-gallery-tags input,
+.publish-gallery-link-existing input {
   box-sizing: border-box;
   width: 100%;
   padding: 0.55rem 0.7rem;
@@ -323,4 +324,28 @@
 
 .publish-gallery-actions .publish-gallery-primary:hover:not(:disabled) {
   background: rgb(var(--icm-accent-rgb) / 88%);
+}
+
+.publish-gallery-link-existing {
+  font-size: 0.82rem;
+}
+
+.publish-gallery-link-existing summary {
+  color: var(--icm-accent);
+  cursor: pointer;
+}
+
+.publish-gallery-link-existing p {
+  color: var(--icm-text-muted);
+  line-height: 1.5;
+}
+
+.publish-gallery-link-existing button {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--icm-border);
+  border-radius: 6px;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  cursor: pointer;
 }
