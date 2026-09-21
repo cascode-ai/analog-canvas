@@ -153,7 +153,21 @@ export class AgentSessionDO {
     }
     if (request.method === "GET" && url.pathname === "/status") {
       const now = Date.now();
-      const auth = machine.authorizeStatus(bearerToken(request), now);
+      // Same status resource, two existing authorities. Neither probe renews
+      // the lease; the browser must not revoke from a stale local deadline.
+      const editorAuthorized = machine.authorizeEditor(editorSecret(request));
+      const status = machine.statusAt(now);
+      const auth = editorAuthorized
+        ? status === "expired" || status === "revoked"
+          ? {
+              ok: false as const,
+              code:
+                status === "expired"
+                  ? ("SESSION_EXPIRED" as const)
+                  : ("SESSION_REVOKED" as const),
+            }
+          : { ok: true as const }
+        : machine.authorizeStatus(bearerToken(request), now);
       if (!auth.ok)
         return jsonResponse(
           errorBody(auth.code, errorMessage(auth.code)),

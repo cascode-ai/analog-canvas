@@ -85,7 +85,7 @@ export function peekAgentSessionRecovery(
 
 /**
  * Reads a same-browser reconnect proof only when it belongs to the Project that is
- * currently open. Any malformed, expired, or Project-mismatched record is
+ * currently open. Any malformed or Project-mismatched record is
  * deleted before it can reach the relay.
  */
 export function readAgentSessionRecovery(
@@ -104,7 +104,6 @@ export function readAgentSessionRecovery(
   const record = parseRecord(candidate);
   if (
     record === null ||
-    record.expiresAt <= target.now ||
     record.projectId !== target.projectId ||
     record.projectSessionId !== target.projectSessionId
   ) {

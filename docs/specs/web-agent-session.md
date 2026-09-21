@@ -107,6 +107,27 @@ Project replacement invalidates the Claim, bearer, and connector together. The
 local MCP Helper may persist only the connector in its private user profile;
 browser recovery persists neither Agent credential.
 
+The Project's transport controller owns socket creation, liveness probes and
+reconnect timers independently of React rendering and active Cell selection.
+After a scheduling gap or browser wake it probes the existing socket before
+closing it; validated business traffic also establishes liveness. A fresh probe
+has a five-second response window. Reconnect uses bounded jittered backoff.
+Close diagnostics retain at most 16 local records with reason categories,
+timestamps and visibility, never credentials or message payloads.
+
+The browser may authenticate the existing status resource with its editor
+secret to verify an elapsed local deadline or a failed handshake. This read
+neither renews nor resumes the session. Local deadline snapshots cannot revoke
+authorization: only a server terminal response or an explicit local revoke/
+Project replacement clears the pairing. A failed network check preserves it.
+
+Circuit, File, Simulation and Project clients share request deduplication and
+exact-payload network recovery. An `EDITOR_OFFLINE` rejection precedes dispatch
+and gets up to three delayed retries (500/1000/2000 ms) under the same request ID.
+An `EDITOR_DISCONNECTED` response has an uncertain outcome and is surfaced for
+reconciliation, not automatically replayed. No normal request needs a separate
+status/readiness probe and no mutation is queued indefinitely while offline.
+
 ## Transport state machine
 
 The Session status resource authenticates the existing bearer (including while

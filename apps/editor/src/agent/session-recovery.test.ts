@@ -76,14 +76,17 @@ describe("Agent same-browser session recovery", () => {
     expect(hasAgentSessionRecovery(storage)).toBe(false);
   });
 
-  it("deletes a malformed, expired, or Project-mismatched record", () => {
+  it("deletes malformed or Project-mismatched records but lets the server verify stale deadlines", () => {
     const storage = new MemoryStorage();
     storage.setItem(AGENT_SESSION_RECOVERY_STORAGE_KEY, "not-json");
     expect(readAgentSessionRecovery(storage, target)).toBeNull();
     expect(storage.getItem(AGENT_SESSION_RECOVERY_STORAGE_KEY)).toBeNull();
 
     writeAgentSessionRecovery(storage, { ...record(), expiresAt: target.now });
-    expect(readAgentSessionRecovery(storage, target)).toBeNull();
+    expect(readAgentSessionRecovery(storage, target)).toEqual({
+      ...record(),
+      expiresAt: target.now,
+    });
 
     writeAgentSessionRecovery(storage, record());
     expect(

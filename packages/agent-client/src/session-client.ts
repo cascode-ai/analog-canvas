@@ -61,6 +61,9 @@ export interface AgentSessionClientOptions {
   newRequestId?: () => string;
   /** Automatic exact-payload retry attempts after a local network failure. */
   networkRetryAttempts?: number;
+  /** Bounded recovery of a relay rejection that guarantees no dispatch. */
+  offlineRetryDelaysMs?: readonly number[];
+  sleep?: (ms: number) => Promise<void>;
   tokenExpiryGraceMs?: number;
   connectorStore?: ConnectorStore;
 }
@@ -138,11 +141,13 @@ export class AgentSessionClient {
   private readonly now: () => number;
   private readonly newRequestId: () => string;
   private readonly networkRetryAttempts: number;
+  private readonly offlineRetryDelaysMs: readonly number[];
+  private readonly sleep: (ms: number) => Promise<void>;
   private readonly tokenExpiryGraceMs: number;
   private readonly connectorStore: ConnectorStore | undefined;
   private readonly inflight = new Map<
     string,
-    { payload: string; promise: Promise<AgentCircuitResponse> }
+    { payload: string; promise: Promise<unknown> }
   >();
   private session: ActiveSession | null = null;
   private observation: AgentSessionStatusResponse | null = null;
@@ -159,6 +164,12 @@ export class AgentSessionClient {
     this.newRequestId =
       options.newRequestId ?? (() => `req-${crypto.randomUUID()}`);
     this.networkRetryAttempts = options.networkRetryAttempts ?? 1;
+    this.offlineRetryDelaysMs = options.offlineRetryDelaysMs ?? [
+      500, 1000, 2000,
+    ];
+    this.sleep =
+      options.sleep ??
+      ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.tokenExpiryGraceMs = options.tokenExpiryGraceMs ?? 30_000;
     this.connectorStore = options.connectorStore;
     this.connection = new ConnectionTracker(this.now);
@@ -312,7 +323,8 @@ export class AgentSessionClient {
   async fileResource(
     request: AgentFileResourceRequest,
   ): Promise<AgentFileResourceResponse> {
-    return this.withAuthorization((session) =>
+    request = structuredClone(request);
+    return this.resourceRequest("files", request, (session) =>
       this.http.files(session.sessionId, session.agentToken, request),
     );
   }
@@ -375,7 +387,8 @@ export class AgentSessionClient {
   async simulationResource(
     request: AgentSimulationResourceRequest,
   ): Promise<AgentSimulationResourceResponse> {
-    return this.withAuthorization((session) =>
+    request = structuredClone(request);
+    return this.resourceRequest("simulation", request, (session) =>
       this.http.simulation(session.sessionId, session.agentToken, request),
     );
   }
@@ -384,7 +397,8 @@ export class AgentSessionClient {
   async projectResource(
     request: AgentProjectResourceRequest,
   ): Promise<AgentProjectResourceResponse> {
-    return this.withAuthorization((session) =>
+    request = structuredClone(request);
+    return this.resourceRequest("projects", request, (session) =>
       this.http.projects(session.sessionId, session.agentToken, request),
     );
   }
@@ -777,16 +791,27 @@ export class AgentSessionClient {
   private async send(
     request: AgentCircuitRequest,
   ): Promise<AgentCircuitResponse> {
+    request = structuredClone(request);
+    return this.resourceRequest("circuit", request, (session) =>
+      this.http.circuit(session.sessionId, session.agentToken, request),
+    );
+  }
+
+  private async resourceRequest<T>(
+    resource: string,
+    request: { requestId: string },
+    operation: (session: ActiveSession) => Promise<T>,
+  ): Promise<T> {
     const existing = this.inflight.get(request.requestId);
-    const payload = JSON.stringify(request);
+    const payload = JSON.stringify([resource, request]);
     if (existing) {
       if (existing.payload !== payload)
         throw new Error(
           "Request ID already in flight with a different payload",
         );
-      return existing.promise;
+      return existing.promise as Promise<T>;
     }
-    const pending = this.dispatch(request);
+    const pending = this.dispatch(operation);
     this.inflight.set(request.requestId, { payload, promise: pending });
     try {
       return await pending;
@@ -795,15 +820,27 @@ export class AgentSessionClient {
     }
   }
 
-  private async dispatch(
-    request: AgentCircuitRequest,
-  ): Promise<AgentCircuitResponse> {
+  private async dispatch<T>(
+    operation: (session: ActiveSession) => Promise<T>,
+  ): Promise<T> {
     let attempts = 0;
+    let offlineAttempts = 0;
+    let ownerSessionId: string | undefined;
     for (;;) {
       try {
-        const response = await this.withAuthorization((session) =>
-          this.http.circuit(session.sessionId, session.agentToken, request),
-        );
+        const response = await this.withAuthorization((session) => {
+          if (
+            ownerSessionId !== undefined &&
+            ownerSessionId !== session.sessionId
+          )
+            throw new AgentSessionError(
+              "SESSION_CHANGED",
+              "The request belongs to the previous pairing",
+              "request-rejected",
+            );
+          ownerSessionId = session.sessionId;
+          return operation(session);
+        });
         this.connection.apply("request-succeeded");
         return response;
       } catch (error) {
@@ -818,6 +855,13 @@ export class AgentSessionClient {
         }
         if (error.category === "editor-offline") {
           this.connection.apply("editor-detached", error.code);
+          // OFFLINE is rejected before forwarding; DISCONNECTED is uncertain.
+          // Never turn an uncertain mutation/start into a new request ID.
+          const delay = this.offlineRetryDelaysMs[offlineAttempts++];
+          if (error.code === "EDITOR_OFFLINE" && delay !== undefined) {
+            await this.sleep(delay);
+            continue;
+          }
           throw error;
         }
         if (error.category === "unrecoverable-credential") {

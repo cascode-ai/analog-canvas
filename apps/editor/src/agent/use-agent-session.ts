@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
-  AGENT_HEARTBEAT_INTERVAL_MS,
   AGENT_API_VERSION,
   AGENT_FILE_RESOURCE_MAX_BYTES,
   AGENT_SESSION_PROTOCOL_VERSION,
@@ -37,11 +36,11 @@ import {
   writeAgentSessionRecovery,
   type AgentSessionRecoveryRecord,
 } from "./session-recovery";
+import { createHeartbeat, isHeartbeatAck } from "./transport-liveness";
 import {
-  createHeartbeat,
-  isHeartbeatAck,
-  isTransportStale,
-} from "./transport-liveness";
+  SessionTransport,
+  type TransportDiagnostic,
+} from "./session-transport";
 
 interface CreatedSessionResponse {
   ok: true;
@@ -89,11 +88,7 @@ type LiveSession = {
   claimed: boolean;
   paused: boolean;
   allowReconnect: boolean;
-  reconnectAttempt: number;
-  reconnectTimer: number | null;
-  heartbeatTimer: number | null;
-  lastHeartbeatAckAt: number;
-  reconnect: () => void;
+  transport?: SessionTransport;
   requestCache: Map<
     string,
     { payloadHash: string; response: unknown; byteLength: number }
@@ -104,18 +99,11 @@ type LiveSession = {
 
 const BROWSER_CACHE_MAX_ENTRIES = 32;
 const BROWSER_CACHE_MAX_BYTES = 16_000_000;
-const RECONNECT_DELAYS_MS = [
-  500, 1_000, 2_000, 4_000, 8_000, 15_000, 30_000,
-] as const;
-
-function stopHeartbeat(live: LiveSession): void {
-  if (live.heartbeatTimer !== null) {
-    window.clearInterval(live.heartbeatTimer);
-    live.heartbeatTimer = null;
-  }
-}
-
-function sendHeartbeat(live: LiveSession, socket: WebSocket): void {
+function sendHeartbeat(
+  live: LiveSession,
+  socket: WebSocket,
+  nonce: string = crypto.randomUUID(),
+): void {
   if (socket.readyState !== WebSocket.OPEN) return;
   let documentIds: string[];
   try {
@@ -125,7 +113,7 @@ function sendHeartbeat(live: LiveSession, socket: WebSocket): void {
   } // A replaced Project invalidates the bound host; its effect closes the socket.
   socket.send(
     JSON.stringify({
-      ...createHeartbeat(live.sessionId, crypto.randomUUID()),
+      ...createHeartbeat(live.sessionId, nonce),
       projectId: live.projectId,
       documentIds,
     }),
@@ -134,11 +122,7 @@ function sendHeartbeat(live: LiveSession, socket: WebSocket): void {
 
 function stopReconnect(live: LiveSession): void {
   live.allowReconnect = false;
-  stopHeartbeat(live);
-  if (live.reconnectTimer !== null) {
-    window.clearTimeout(live.reconnectTimer);
-    live.reconnectTimer = null;
-  }
+  live.transport?.stop();
 }
 
 export interface AgentSessionViewModel {
@@ -186,6 +170,8 @@ export interface UseAgentSessionOptions {
 }
 
 export interface UseAgentSessionResult extends AgentSessionViewModel {
+  /** Bounded local diagnostics; no credentials, payloads or Project contents. */
+  transportDiagnostics: readonly TransportDiagnostic[];
   pause: () => Promise<void>;
   resume: () => Promise<void>;
   reconnect: () => void;
@@ -379,11 +365,6 @@ export function useAgentSession(
           claimed: recovery !== undefined,
           paused: false,
           allowReconnect: true,
-          reconnectAttempt: 0,
-          reconnectTimer: null,
-          heartbeatTimer: null,
-          lastHeartbeatAckAt: Date.now(),
-          reconnect: () => undefined,
           requestCache: new Map(),
           requestCacheBytes: 0,
           requestHashes: new Map(),
@@ -506,68 +487,8 @@ export function useAgentSession(
               }
             : {}),
         });
-        const connect = () => {
-          if (
-            liveRef.current !== live ||
-            !live.allowReconnect ||
-            Date.now() >= live.expiresAt
-          ) {
-            return;
-          }
-          if (
-            live.socket?.readyState === WebSocket.OPEN ||
-            live.socket?.readyState === WebSocket.CONNECTING
-          ) {
-            return;
-          }
-          if (live.reconnectTimer !== null) {
-            window.clearTimeout(live.reconnectTimer);
-            live.reconnectTimer = null;
-          }
-          const socket = new WebSocket(socketUrl(live.sessionId), [
-            "icm-agent-session",
-            live.editorSecret,
-          ]);
+        const bind = (socket: WebSocket) => {
           live.socket = socket;
-          socket.addEventListener("open", () => {
-            live.reconnectAttempt = 0;
-            live.reconnectTimer = null;
-            live.lastHeartbeatAckAt = Date.now();
-            stopHeartbeat(live);
-            sendHeartbeat(live, socket);
-            live.heartbeatTimer = window.setInterval(() => {
-              if (
-                liveRef.current !== live ||
-                live.socket !== socket ||
-                socket.readyState !== WebSocket.OPEN
-              ) {
-                stopHeartbeat(live);
-                return;
-              }
-              if (isTransportStale(live.lastHeartbeatAckAt, Date.now())) {
-                stopHeartbeat(live);
-                update({
-                  status: "reconnecting",
-                  error: "Agent relay heartbeat timed out",
-                });
-                socket.close(4000, "heartbeat timeout");
-                return;
-              }
-              sendHeartbeat(live, socket);
-            }, AGENT_HEARTBEAT_INTERVAL_MS);
-            update({
-              status: live.paused
-                ? "paused"
-                : live.claimed
-                  ? "connected"
-                  : "waiting-for-agent",
-              claimCode: live.claimCode,
-              claimExpiresAt: live.claimExpiresAt,
-              scopes,
-              expiresAt: live.expiresAt,
-              error: null,
-            });
-          });
           socket.addEventListener("message", (event) => {
             if (
               liveRef.current !== live ||
@@ -582,12 +503,13 @@ export function useAgentSession(
               return;
             }
             if (isHeartbeatAck(raw, live.sessionId)) {
-              live.lastHeartbeatAckAt = Date.now();
+              transport.received((raw as { nonce: string }).nonce);
               return;
             }
             const parsed = AgentSessionMessageSchema.safeParse(raw);
             if (!parsed.success || parsed.data.sessionId !== live.sessionId)
               return;
+            transport.received();
             if (parsed.data.kind === "event") {
               const sessionEvent = AgentSessionEventSchema.safeParse(
                 parsed.data.payload,
@@ -1008,35 +930,75 @@ export function useAgentSession(
             if (liveRef.current === live)
               update({ status: live.paused ? "paused" : "connected" });
           });
-          socket.addEventListener("close", () => {
-            if (live.socket !== socket) return;
-            live.socket = null;
-            stopHeartbeat(live);
-            if (liveRef.current !== live || !live.allowReconnect) return;
-            if (Date.now() >= live.expiresAt) {
-              update({ status: "offline" });
-              return;
-            }
-            const delay =
-              RECONNECT_DELAYS_MS[
-                Math.min(live.reconnectAttempt, RECONNECT_DELAYS_MS.length - 1)
-              ]!;
-            live.reconnectAttempt += 1;
-            update({ status: "reconnecting" });
-            live.reconnectTimer = window.setTimeout(connect, delay);
-          });
-          socket.addEventListener("error", () => {
-            if (liveRef.current === live && live.socket === socket) {
-              update({
-                status: "reconnecting",
-                error: "Agent relay connection failed",
-              });
-              socket.close();
-            }
-          });
         };
-        live.reconnect = connect;
-        connect();
+        const transport = new SessionTransport({
+          visibility: () => document.visibilityState,
+          createSocket: () =>
+            new WebSocket(socketUrl(live.sessionId), [
+              "icm-agent-session",
+              live.editorSecret,
+            ]),
+          sendHeartbeat: (socket, nonce) => sendHeartbeat(live, socket, nonce),
+          needsAuthorizationCheck: () => Date.now() >= live.expiresAt,
+          checkAuthorization: async () => {
+            const response = await fetch(
+              `/api/agent/sessions/${encodeURIComponent(live.sessionId)}/status`,
+              {
+                headers: { "x-editor-secret": live.editorSecret },
+                signal: AbortSignal.timeout(5_000),
+              },
+            );
+            const result = await response.json();
+            if (liveRef.current !== live || !live.allowReconnect) return false;
+            if (response.ok && result.ok && Number.isFinite(result.expiresAt)) {
+              live.paused = result.authorization === "paused";
+              syncDeadline(result.expiresAt);
+              return true;
+            }
+            if (
+              [
+                "SESSION_EXPIRED",
+                "SESSION_REVOKED",
+                "SESSION_NOT_FOUND",
+                "PROJECT_REPLACED",
+                "TOKEN_INVALID",
+              ].includes(result.error?.code)
+            ) {
+              stopReconnect(live);
+              clearAgentSessionRecovery(window.sessionStorage);
+              options.fileHost?.clear?.();
+              void options.simulationHost?.clear?.();
+              liveRef.current = null;
+              update({
+                status:
+                  result.error.code === "SESSION_EXPIRED"
+                    ? "expired"
+                    : "revoked",
+                claimCode: null,
+                claimExpiresAt: null,
+              });
+            }
+            return false;
+          },
+          reconnecting: () => update({ status: "reconnecting" }),
+          opened: () => {
+            update({
+              status: live.paused
+                ? "paused"
+                : live.claimed
+                  ? "connected"
+                  : "waiting-for-agent",
+              claimCode: live.claimCode,
+              claimExpiresAt: live.claimExpiresAt,
+              scopes,
+              expiresAt: live.expiresAt,
+              error: null,
+            });
+          },
+          bind,
+        });
+        live.transport = transport;
+        void transport.connect();
       } catch (error) {
         liveRef.current = null;
         // Setup/network failures are not proof of revocation. Authoritative
@@ -1121,55 +1083,26 @@ export function useAgentSession(
   const reconnect = useCallback(() => {
     if (!options.enabled) return;
     const live = liveRef.current;
-    if (!live || Date.now() >= live.expiresAt) return;
-    if (live.reconnectTimer !== null) {
-      window.clearTimeout(live.reconnectTimer);
-      live.reconnectTimer = null;
-    }
-    live.allowReconnect = true;
-    live.reconnectAttempt = 0;
-    update({ status: "reconnecting", error: null });
-    live.reconnect();
+    if (!live || !live.allowReconnect) return;
+    live.transport?.wake();
   }, [options.enabled, update]);
 
   useEffect(() => {
     if (!options.enabled) return;
     const wakeTransport = () => {
       const live = liveRef.current;
-      if (!live || !live.allowReconnect || Date.now() >= live.expiresAt) {
-        return;
-      }
-      const socket = live.socket;
-      if (socket?.readyState === WebSocket.OPEN) {
-        if (isTransportStale(live.lastHeartbeatAckAt, Date.now())) {
-          stopHeartbeat(live);
-          update({
-            status: "reconnecting",
-            error: "Agent relay connection became stale",
-          });
-          socket.close(4000, "stale after browser wake");
-        } else {
-          sendHeartbeat(live, socket);
-        }
-        return;
-      }
-      if (socket?.readyState === WebSocket.CONNECTING) return;
-      if (live.reconnectTimer !== null) {
-        window.clearTimeout(live.reconnectTimer);
-        live.reconnectTimer = null;
-      }
-      live.reconnectAttempt = 0;
-      update({ status: "reconnecting", error: null });
-      live.reconnect();
+      if (live?.allowReconnect) live.transport?.wake();
     };
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") wakeTransport();
     };
     window.addEventListener("online", wakeTransport);
     document.addEventListener("visibilitychange", onVisibilityChange);
+    document.addEventListener("resume", wakeTransport);
     return () => {
       window.removeEventListener("online", wakeTransport);
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      document.removeEventListener("resume", wakeTransport);
     };
   }, [options.enabled, update]);
 
@@ -1283,15 +1216,6 @@ export function useAgentSession(
         live.claimExpiresAt = null;
         update({ claimCode: null, claimExpiresAt });
       }
-      if (live && Date.now() >= live.expiresAt) {
-        stopReconnect(live);
-        clearAgentSessionRecovery(window.sessionStorage);
-        options.fileHost?.clear?.();
-        void options.simulationHost?.clear?.();
-        live.socket?.close(1000, "expired");
-        liveRef.current = null;
-        update({ status: "expired", claimCode: null, claimExpiresAt: null });
-      }
     }, 1_000);
     return () => window.clearInterval(timer);
   }, [options.enabled, options.fileHost, update]);
@@ -1318,5 +1242,13 @@ export function useAgentSession(
     [options.enabled, options.fileHost],
   );
 
-  return { ...view, pause, resume, reconnect, newConnection, revoke };
+  return {
+    ...view,
+    transportDiagnostics: liveRef.current?.transport?.diagnostics ?? [],
+    pause,
+    resume,
+    reconnect,
+    newConnection,
+    revoke,
+  };
 }
