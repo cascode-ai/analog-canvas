@@ -14,9 +14,9 @@ function shellUrls() {
   return [
     new URL("./", scope).toString(),
     new URL("manifest.webmanifest", scope).toString(),
-    new URL("icon.svg?v=nmos-2", scope).toString(),
-    new URL("icon-192.png?v=nmos-2", scope).toString(),
-    new URL("icon-512.png?v=nmos-2", scope).toString(),
+    new URL("icon.svg?v=nmos-3", scope).toString(),
+    new URL("icon-192.png?v=nmos-3", scope).toString(),
+    new URL("icon-512.png?v=nmos-3", scope).toString(),
   ];
 }
 

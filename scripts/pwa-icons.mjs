@@ -8,6 +8,11 @@ import { renderSymbolDefinitionBody } from "../packages/render-svg/dist/index.js
 const check = process.argv.includes("--check");
 const publicRoot = resolve("apps/editor/public");
 const iconPath = resolve(publicRoot, "icon.svg");
+const iconBackground = "#fff";
+const iconBorder = "#d9dde3";
+const iconForeground = "#000";
+const iconStrokeWidth = 2.2;
+const iconFillStrokeWidth = 0.6;
 const component = JSON.parse(
   await readFile(resolve("packages/components/definitions/nmos.json"), "utf8"),
 );
@@ -40,23 +45,44 @@ const artworkCenter = {
   y: (bounds.minY + bounds.maxY) / 2,
 };
 const formatCoordinate = (value) => Number(value.toFixed(6)).toString();
-const iconSymbolScale = 0.85;
+const iconSymbolScale = 0.75;
+// The source geometry's bounding box is centered above, but the drain/source
+// branches and arrow carry more visual weight on the right and slightly below
+// centre. Scale the measured full-size visual bias with the artwork so its
+// foreground-pixel centroid stays in the centre at any icon scale.
+const opticalCenterBias = { x: -2.87, y: -0.58 };
+const opticalCenterOffset = {
+  x: opticalCenterBias.x * iconSymbolScale,
+  y: opticalCenterBias.y * iconSymbolScale,
+};
 const body = renderSymbolDefinitionBody(
   symbol,
   variant.hiddenPrimitiveParts,
   variant.additionalPrimitives,
   razaviTextbookProfile,
-).replaceAll(razaviTextbookProfile.foreground, "#fff");
+)
+  .replaceAll(razaviTextbookProfile.foreground, iconForeground)
+  .replaceAll(
+    `stroke-width="${razaviTextbookProfile.strokes.symbol}"`,
+    `stroke-width="${iconStrokeWidth}"`,
+  )
+  .replaceAll(
+    'stroke="none"',
+    `stroke="${iconForeground}" stroke-width="${iconFillStrokeWidth}"`,
+  );
 const { x, y, width, height } = symbol.viewBox;
-const viewCenter = { x: x + width / 2, y: y + height / 2 };
+const viewCenter = {
+  x: x + width / 2 + opticalCenterOffset.x,
+  y: y + height / 2 + opticalCenterOffset.y,
+};
 const centerTransform =
   `translate(${formatCoordinate(viewCenter.x)} ${formatCoordinate(viewCenter.y)}) ` +
   `scale(${iconSymbolScale}) ` +
   `translate(${formatCoordinate(-artworkCenter.x)} ${formatCoordinate(-artworkCenter.y)})`;
 const svg =
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${width} ${height}">\n` +
-  `  <rect x="${x}" y="${y}" width="${width}" height="${height}" fill="#000"/>\n` +
-  `  <g transform="${centerTransform}" fill="none" stroke="#fff" stroke-width="${razaviTextbookProfile.strokes.symbol}" stroke-linecap="${razaviTextbookProfile.lineCap}" stroke-linejoin="${razaviTextbookProfile.lineJoin}" stroke-miterlimit="${razaviTextbookProfile.miterLimit}">${body}</g>\n` +
+  `  <rect x="${x + 0.75}" y="${y + 0.75}" width="${width - 1.5}" height="${height - 1.5}" rx="8" fill="${iconBackground}" stroke="${iconBorder}" stroke-width="1"/>\n` +
+  `  <g transform="${centerTransform}" fill="none" stroke="${iconForeground}" stroke-width="${iconStrokeWidth}" stroke-linecap="${razaviTextbookProfile.lineCap}" stroke-linejoin="${razaviTextbookProfile.lineJoin}" stroke-miterlimit="${razaviTextbookProfile.miterLimit}">${body}</g>\n` +
   `</svg>\n`;
 
 if (check) {

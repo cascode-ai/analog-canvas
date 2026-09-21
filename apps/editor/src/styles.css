@@ -231,8 +231,8 @@ body {
   height: 22px;
   flex: 0 0 auto;
   border-radius: 6px;
-  background: #2f3437 url("/icon.svg?v=nmos-2") center / cover no-repeat;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 8%);
+  background: #fff url("/icon.svg?v=nmos-3") center / cover no-repeat;
+  box-shadow: none;
 }
 
 /* The wordmark is the shared two-way gallery/editor switch. Keep this beside

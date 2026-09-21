@@ -4995,8 +4995,16 @@ test("keeps the production command surface compact and publishes PWA metadata", 
     display: "standalone",
     theme_color: "#2383e2",
     icons: [
-      { src: "./icon-192.png?v=nmos-2", sizes: "192x192" },
-      { src: "./icon-512.png?v=nmos-2", sizes: "512x512" },
+      {
+        src: "./icon-192.png?v=nmos-3",
+        sizes: "192x192",
+        purpose: "any",
+      },
+      {
+        src: "./icon-512.png?v=nmos-3",
+        sizes: "512x512",
+        purpose: "any",
+      },
     ],
   });
 });
