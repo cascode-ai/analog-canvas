@@ -332,8 +332,8 @@ describe("route interaction geometry", () => {
       defaultInstanceLabel(document, instance, resolver, profile),
     ).toMatchObject({
       anchor: {
-        localOffset: { x: -10, y: 40 },
-        fallbackPosition: { x: 90, y: 140 },
+        localOffset: { x: 0, y: 26 },
+        fallbackPosition: { x: 100, y: 126 },
       },
       alignment: "middle",
     });

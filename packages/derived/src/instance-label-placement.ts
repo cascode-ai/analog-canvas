@@ -230,14 +230,42 @@ function transformedSide(
   return world.y > 0 ? "bottom" : "top";
 }
 
+/** Unbounded absolute M/L/C paths (the coil) otherwise use the padded viewBox.
+ * Their control-point hull gives a conservative artwork envelope for label
+ * spacing without changing symbol geometry, pin coordinates or hit testing. */
+function compactLabelInkBounds(resolved: ResolvedSymbol): Rect {
+  const primitives = resolved.definition.primitives.map((primitive) => {
+    if (primitive.kind !== "path" || primitive.bounds) return primitive;
+    const commands = primitive.data.match(/[a-z]/gi) ?? [];
+    if (
+      !commands.length ||
+      commands.some((command) => !["M", "L", "C"].includes(command))
+    )
+      return primitive;
+    const coordinates = (
+      primitive.data.match(/[-+]?(?:\d*\.\d+|\d+)/g) ?? []
+    ).map(Number);
+    if (!coordinates.length || coordinates.length % 2) return primitive;
+    const xs = coordinates.filter((_, index) => index % 2 === 0);
+    const ys = coordinates.filter((_, index) => index % 2 === 1);
+    const x = Math.min(...xs),
+      y = Math.min(...ys);
+    return {
+      ...primitive,
+      bounds: { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y },
+    };
+  });
+  return visibleSymbolInkBounds({
+    ...resolved,
+    definition: { ...resolved.definition, primitives },
+  });
+}
+
 /**
- * Places horizontal SVG text around the active symbol variant. Vertical sides
- * convert one grid interval from the drawn edge to the upright glyph baseline
- * before returning it. Coordinates are then snapped once to the active grid.
- * Critically, this is nearest-grid snapping rather than outward snapping:
- * the 1-unit padded interaction envelope is excluded from the calculation, so
- * a label never gains a second grid cell merely because a symbol edge uses
- * finite calibrated coordinates.
+ * Places horizontal SVG text around the active symbol variant. Compact device
+ * labels use a five-unit gap and a centered glyph row at integer precision;
+ * other labels retain their existing grid-aligned spacing. Distances use the
+ * drawn artwork, excluding the padded interaction envelope.
  */
 export function placeUprightInstanceLabel(
   instance: SchematicDocument["instances"][number],
@@ -256,10 +284,13 @@ export function placeUprightInstanceLabel(
   horizontalSidesOnly = false,
 ): InstanceLabelPlacement | null {
   if (!instance.placement) return null;
-  const localBounds = visibleSymbolInkBounds(
-    resolved,
-    instance.signalFlowParameters,
-  );
+  const compact =
+    isMosSymbol(resolved) ||
+    isBjtSymbol(resolved) ||
+    SIDE_LABEL_SYMBOLS.has(instance.symbolId);
+  const localBounds = compact
+    ? compactLabelInkBounds(resolved)
+    : visibleSymbolInkBounds(resolved, instance.signalFlowParameters);
   const worldBounds = transformedBounds(localBounds, instance);
   const rotatedSide = transformedSide(localSide, instance);
   const worldSide =
@@ -276,15 +307,26 @@ export function placeUprightInstanceLabel(
   // side. Its previous distance from the edge is not a visual constraint:
   // retaining a reconstructed, snapped distance was the source of one-grid
   // outward drift on each repeated quarter turn.
-  const clearance = grid;
+  // Device text belongs to the artwork, not to the electrical connection grid.
+  // Rounding a five-unit gap to a ten-unit grid makes different families appear
+  // inconsistently spaced and pushes their visual centre below the body.
+  const clearance = compact ? 5 : grid;
   const fontSize = profile.typography.instanceFontSize * sizeScale;
-  const snap = (value: number) => Math.round(value / grid) * grid;
+  const snap = compact
+    ? Math.round
+    : (value: number) => Math.round(value / grid) * grid;
+  const centerX = compact
+    ? worldBounds.x + worldBounds.width / 2
+    : semanticPosition.x;
+  const centerBaseline = compact
+    ? worldBounds.y + worldBounds.height / 2 + fontSize * 0.35
+    : semanticPosition.y;
   switch (worldSide) {
     case "right":
       return {
         position: {
           x: snap(worldBounds.x + worldBounds.width + clearance),
-          y: snap(semanticPosition.y + rowOffset),
+          y: snap(centerBaseline + rowOffset),
         },
         alignment: "start",
       };
@@ -292,19 +334,19 @@ export function placeUprightInstanceLabel(
       return {
         position: {
           x: snap(worldBounds.x - clearance),
-          y: snap(semanticPosition.y + rowOffset),
+          y: snap(centerBaseline + rowOffset),
         },
         alignment: "end",
       };
     case "bottom":
       return {
         position: {
-          x: snap(semanticPosition.x),
+          x: snap(centerX),
           y: snap(
             worldBounds.y +
               worldBounds.height +
               clearance +
-              fontSize * 1.05 +
+              fontSize * (compact ? 0.7 : 1.05) +
               rowOffset,
           ),
         },
@@ -313,8 +355,13 @@ export function placeUprightInstanceLabel(
     case "top":
       return {
         position: {
-          x: snap(semanticPosition.x),
-          y: snap(worldBounds.y - clearance - fontSize * 0.3 + rowOffset),
+          x: snap(centerX),
+          y: snap(
+            worldBounds.y -
+              clearance -
+              (compact ? 0 : fontSize * 0.3) +
+              rowOffset,
+          ),
         },
         alignment: "middle",
       };
@@ -363,33 +410,16 @@ export function defaultInstanceLabelPlacement(
     );
   }
 
-  if (isMosSymbol(resolved) || isBjtSymbol(resolved)) {
-    const localPosition = {
-      x: localBounds.x + localBounds.width + compactSideGap,
-      y: middleY + profile.typography.instanceFontSize * 0.55,
-    };
+  if (
+    isMosSymbol(resolved) ||
+    isBjtSymbol(resolved) ||
+    SIDE_LABEL_SYMBOLS.has(instance.symbolId)
+  ) {
     return placeUprightInstanceLabel(
       instance,
       resolved,
       profile,
-      localPosition,
-      "right",
-      grid,
-      1,
-      rowOffset,
-    );
-  }
-
-  if (SIDE_LABEL_SYMBOLS.has(instance.symbolId)) {
-    const localPosition = {
-      x: localBounds.x + localBounds.width + compactSideGap,
-      y: middleY + baselineOffset,
-    };
-    return placeUprightInstanceLabel(
-      instance,
-      resolved,
-      profile,
-      localPosition,
+      { x: middleX, y: middleY },
       "right",
       grid,
       1,
