@@ -286,6 +286,9 @@ test("refresh restores every unsaved tab and active view without crossing browse
   page,
   context,
 }) => {
+  // Four complete circuit exports before and after reload, plus another
+  // browser window, are a longer journey than the single-edit checks.
+  test.slow();
   await page.goto("/editor?new=1");
   const expected: CircuitProject[] = [];
   const views: (string | null)[] = [];

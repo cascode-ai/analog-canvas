@@ -777,12 +777,10 @@ test("edits output configuration without creating another electrical authority",
   config.portCase = "lower";
   await code.fill(JSON.stringify(config, null, 2));
   await page.reload();
-  if (
-    (await page
-      .getByTestId("netlist-panel-toggle")
-      .getAttribute("aria-pressed")) !== "true"
-  )
-    await page.getByTestId("netlist-panel-toggle").click();
+  // The workspace restores the open configuration panel. Wait for that
+  // restoration before switching to the output panel.
+  await expect(panel).toBeVisible();
+  await page.getByTestId("netlist-panel-toggle").click();
   await expect(
     page.getByRole("combobox", { name: "Netlist format" }),
   ).toHaveValue("spectre");

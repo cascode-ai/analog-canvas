@@ -2840,12 +2840,8 @@ test("connects copied multi-pin groups through a manually bent wire", async ({
     .poll(() => recoveryProjectTexts(page))
     .toContain(`"revision": ${revision}`);
   await page.reload();
-  const fileMenu = await openMenu(page, "File");
-  await fileMenu.getByRole("button", { name: "Recover Unsaved Work…" }).click();
-  await page
-    .getByRole("dialog", { name: "Recover recent work" })
-    .getByRole("button", { name: "Restore" })
-    .click();
+  // Refresh restores this window's workspace without a second manual restore.
+  await awaitEditorReady(page);
   await expect(page.getByTestId("instance-count")).toHaveText("4");
 
   await clickDrawTool(page, "wire");
@@ -4826,12 +4822,8 @@ test("uses automatic recovery and guards shortcuts while typing", async ({
     .toContain('"revision": 1');
 
   await page.reload();
-  const fileMenu = await openMenu(page, "File");
-  await fileMenu.getByRole("button", { name: "Recover Unsaved Work…" }).click();
-  await page
-    .getByRole("dialog", { name: "Recover recent work" })
-    .getByRole("button", { name: "Restore" })
-    .click();
+  // Refresh restores this window's workspace without a second manual restore.
+  await awaitEditorReady(page);
   await expect(page.getByTestId("revision")).toHaveText("1");
 
   await page.keyboard.press("i");

@@ -80,12 +80,12 @@ async function seedRecoveryRecords(
   }, records);
 }
 
-test("startup recovery is visible after reload and restore forks a working copy", async ({
+test("startup recovery without a saved workspace restores into a new working copy", async ({
   page,
 }) => {
   await page.goto("/editor");
-  // One lone component is below the meaningful-content threshold: the
-  // reload must stay banner-free.
+  // A fresh navigation has no saved window workspace and can offer recovery.
+  // One lone component remains below the banner's meaningful-content threshold.
   await chooseComponent(page, "resistor");
   await page
     .getByTestId("schematic-canvas")
@@ -95,7 +95,7 @@ test("startup recovery is visible after reload and restore forks a working copy"
   await expect
     .poll(() => recoveryProjectTexts(page))
     .toContain('"revision": 1');
-  await page.reload();
+  await page.goto("/editor?recovery=small");
   const banner = page.getByTestId("startup-recovery-banner");
   await expect(page.getByTestId("schematic-canvas")).toBeVisible();
   await expect(banner).toHaveCount(0);
@@ -113,7 +113,7 @@ test("startup recovery is visible after reload and restore forks a working copy"
     .poll(() => recoveryProjectTexts(page))
     .toContain('"revision": 3');
 
-  await page.reload();
+  await page.goto("/editor?recovery=meaningful");
   await expect(banner).toBeVisible();
   await expect(banner).toContainText("New Circuit");
   await banner.getByRole("button", { name: "Restore" }).click();
@@ -174,7 +174,7 @@ test("a damaged latest copy restores the previous generation", async ({
     });
   }, target!.workingCopyId);
 
-  await page.reload();
+  await page.goto("/editor?recovery=damaged");
   await clickCommand(page, "File", "Recover Unsaved Work…");
   const dialog = page.getByRole("dialog", { name: "Recover recent work" });
   await expect(dialog).toBeVisible();
