@@ -29,6 +29,33 @@ async function freshClient(
 }
 
 describe("agent session client", () => {
+  it.each(["dirty", "other-project"])(
+    "does not submit a %s operation snapshot",
+    async (reason) => {
+      const { client, http } = await freshClient();
+      await client.connect("session-1.code");
+      const snapshot = structuredClone(await client.snapshot());
+      if (reason === "dirty") snapshot.dirty = true;
+      else snapshot.snapshot.project.id = "other-project";
+      http.circuitHandler = async ({ request }) => {
+        expect(request.operation).toBe("snapshot");
+        return snapshotResponse(request.requestId);
+      };
+      const report = await client.advancedTransact(
+        {
+          edits: [
+            {
+              kind: "set_instance_reference",
+              instanceId: "R1",
+              reference: "R2",
+            },
+          ],
+        },
+        { snapshot },
+      );
+      expect(report.ok).toBe(false);
+    },
+  );
   it("reuses a composed operation's snapshot and preserves its revision on conflicts", async () => {
     const { client, http } = await freshClient();
     await client.connect("session-1.code");

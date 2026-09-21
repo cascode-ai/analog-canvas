@@ -615,6 +615,14 @@ export class AgentSessionClient {
     const entry =
       options.snapshot ??
       (await this.snapshot(options.documentId, { refresh: true }));
+    if (
+      options.snapshot &&
+      (entry.dirty || entry.snapshot.project.id !== this.session?.projectId)
+    )
+      return this.stateChangedReport(
+        entry,
+        "Snapshot is stale or belongs to another Project",
+      );
     if (options.documentId && entry.documentId !== options.documentId)
       return this.stateChangedReport(
         entry,
