@@ -7,7 +7,6 @@ import {
   createEmptyDocument,
   createRoutePath,
   createEmptyProject,
-  CURRENT_PROJECT_SCHEMA_VERSION,
 } from "@icm/model";
 import {
   serializeProject,
@@ -2413,6 +2412,7 @@ test("the admin recycle bin restores a recycled entry", async ({ page }) => {
 
   await page.goto("/moderation");
   await expect(page.getByTestId("bin-card-bin-1")).toBeVisible();
+  await page.getByTestId("bin-menu-bin-1").locator("summary").click();
   await page.getByTestId("bin-restore-bin-1").click();
   await expect(page.getByTestId("bin-empty")).toBeVisible();
   expect(restored).toBe(1);
@@ -2487,23 +2487,33 @@ test("the Owner restores rejected work or moves it through the bin before deleti
     page.getByTestId("rejected-card-rejected-restore"),
   ).toContainText("Remove the loose wire");
   await expect(
-    page.getByTestId("rejected-edit-rejected-restore"),
+    page.getByTestId("rejected-open-rejected-restore"),
   ).toHaveAttribute("href", "/g/rejected-restore");
+  await page
+    .getByTestId("rejected-menu-rejected-restore")
+    .locator("summary")
+    .click();
   await page.getByTestId("rejected-restore-rejected-restore").click();
   await expect(page.getByTestId("rejected-card-rejected-restore")).toHaveCount(
     0,
   );
 
+  await page
+    .getByTestId("rejected-menu-rejected-delete")
+    .locator("summary")
+    .click();
   await page.getByTestId("rejected-recycle-rejected-delete").click();
   await expect(page.getByTestId("rejected-empty")).toBeVisible();
   await expect(page.getByTestId("bin-card-rejected-delete")).toBeVisible();
 
   page.once("dialog", (dialog) => void dialog.dismiss());
+  await page.getByTestId("bin-menu-rejected-delete").locator("summary").click();
   await page.getByTestId("bin-delete-rejected-delete").click();
   expect(deleted).toBe(0);
   await expect(page.getByTestId("bin-card-rejected-delete")).toBeVisible();
 
   page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByTestId("bin-menu-rejected-delete").locator("summary").click();
   await page.getByTestId("bin-delete-rejected-delete").click();
   await expect(page.getByTestId("bin-empty")).toBeVisible();
   expect(deleted).toBe(1);
@@ -3097,17 +3107,15 @@ test("the publish dialog resolves internal Cell instances from the open Project"
   await expect(dialog.getByRole("button", { name: "Publish" })).toBeEnabled();
 });
 
-test("post-publication moderation has rejected work but no approval queue", async ({
+test("post-publication moderation contains collections without operational maintenance forms", async ({
   page,
 }) => {
-  const convergenceCalls: boolean[] = [];
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({
       json: {
         user: {
           id: "u1",
-          displayName: "Token Zhang",
-          email: "owner@example.com",
+          displayName: "Owner",
           provider: "github",
           role: "user",
           isAdmin: true,
@@ -3121,61 +3129,174 @@ test("post-publication moderation has rejected work but no approval queue", asyn
   await page.route("**/api/gallery/rejected", (route) =>
     route.fulfill({ json: { entries: [] } }),
   );
-  await page.route(
-    "**/api/gallery/maintenance/schema-current",
-    async (route) => {
-      const body = route.request().postDataJSON() as { apply?: boolean };
-      convergenceCalls.push(body.apply === true);
-      await route.fulfill({
-        json: {
-          applied: body.apply === true,
-          targetSchemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-          inventory: {
-            gallery_entries: {
-              [String(CURRENT_PROJECT_SCHEMA_VERSION - 1)]: 3,
-            },
-            gallery_entry_versions: {
-              [String(CURRENT_PROJECT_SCHEMA_VERSION - 1)]: 1,
-            },
-            cloud_projects: {
-              [String(CURRENT_PROJECT_SCHEMA_VERSION - 1)]: 1,
-            },
-          },
-          records: 5,
-          ready: 5,
-          failures: [],
-        },
-      });
-    },
-  );
-
+  const maintenance: string[] = [];
+  page.on("request", (request) => {
+    if (/\/maintenance\/|\/auth\/users\/role/.test(request.url()))
+      maintenance.push(request.url());
+  });
   await page.goto("/moderation");
   await expect(page.getByTestId("moderation")).toBeVisible();
-  await page.getByTestId("owner-settings").locator("summary").click();
-  await expect(page.getByTestId("schema-backup-download")).toHaveAttribute(
-    "href",
-    "/api/gallery/maintenance/schema-backup",
-  );
-  await expect(page.getByTestId("schema-current-apply")).toBeDisabled();
-  await page.getByTestId("schema-current-dry-run").click();
-  await expect(page.getByTestId("schema-current-report")).toContainText(
-    `Validated: 5/5 records ready for schema ${CURRENT_PROJECT_SCHEMA_VERSION}; 0 failures.`,
-  );
-  await expect(page.getByTestId("schema-current-report")).toContainText(
-    `gallery_entries: v${CURRENT_PROJECT_SCHEMA_VERSION - 1}=3`,
-  );
-  await expect(page.getByTestId("schema-current-apply")).toBeDisabled();
-  await page.getByTestId("schema-current-backup-confirmed").check();
-  await page.getByTestId("schema-current-apply").click();
-  await expect(page.getByTestId("schema-current-report")).toContainText(
-    `Applied: 5/5 records ready for schema ${CURRENT_PROJECT_SCHEMA_VERSION}; 0 failures.`,
-  );
-  expect(convergenceCalls).toEqual([false, true]);
-  // Curation is post-publication: rejected work and a bin, never an inbox.
   await expect(page.getByTestId("rejected-empty")).toBeVisible();
   await expect(page.getByTestId("bin-empty")).toBeVisible();
+  await expect(page.getByTestId("owner-settings")).toHaveCount(0);
+  await expect(page.getByRole("textbox")).toHaveCount(0);
+  await expect(page.getByText("Project schema maintenance")).toHaveCount(0);
+  await expect(page.getByText("Netlist marks", { exact: true })).toHaveCount(0);
   await expect(page.getByTestId("review-empty")).toHaveCount(0);
-  await expect(page.getByText("Nothing waiting for review")).toHaveCount(0);
+  expect(maintenance).toEqual([]);
+});
+
+test("moderation uses full-width responsive masonry and keyboard-accessible card actions", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "u1",
+          displayName: "Owner",
+          provider: "github",
+          role: "user",
+          isAdmin: true,
+        },
+      },
+    }),
+  );
+  const entries = Array.from({ length: 12 }, (_, index) => ({
+    ...ENTRY,
+    id: `review-${index}`,
+    name: `Amplifier ${index}`,
+    rejectReason:
+      index % 2
+        ? "Check the output connection."
+        : "Two overlapping transistors near the output. Verify the intended topology before restoring this circuit.",
+    previewWidth: 400,
+    previewHeight: index % 3 ? 240 : 400,
+  }));
+  await page.route("**/api/gallery/rejected", (route) =>
+    route.fulfill({ json: { entries } }),
+  );
+  await page.route("**/api/gallery/recycled", (route) =>
+    route.fulfill({ json: { entries: [] } }),
+  );
+  await page.route("**/preview.svg*", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240"><path d="M20 120h80l20 -25 30 50 30 -50 30 50 20 -25h140" stroke="black" fill="none"/></svg>',
+    }),
+  );
+  await page.goto("/moderation");
+  const cards = page.locator('[data-testid^="rejected-card-"]');
+  await expect(cards).toHaveCount(12);
+  const masonry = page.getByLabel("Rejected circuits");
+  await expect
+    .poll(async () => (await masonry.boundingBox())!.width)
+    .toBeGreaterThan(1500);
+  const columns = () =>
+    cards.evaluateAll(
+      (nodes) =>
+        new Set(nodes.map((node) => Math.round(node.getBoundingClientRect().x)))
+          .size,
+    );
+  await expect.poll(columns).toBe(5);
+  await expect(page.getByText("Edit and replace", { exact: true })).toHaveCount(
+    0,
+  );
+  await expect(page.getByTestId("rejected-open-review-0")).toHaveAttribute(
+    "href",
+    "/g/review-0",
+  );
+  const menu = page.getByTestId("rejected-menu-review-0");
+  const trigger = menu.locator("summary");
+  await expect(page.getByTestId("rejected-restore-review-0")).toBeHidden();
+  await trigger.focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByTestId("rejected-restore-review-0")).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByTestId("rejected-recycle-review-0")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  await expect(page.getByTestId("rejected-restore-review-0")).toBeHidden();
+  await page.keyboard.press("ArrowUp");
+  await expect(page.getByTestId("rejected-recycle-review-0")).toBeFocused();
+  await page.keyboard.press("Home");
+  await expect(page.getByTestId("rejected-restore-review-0")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await trigger.click();
+  await page.getByRole("heading", { name: "Rejected entries" }).click();
+  await expect(page.getByTestId("rejected-restore-review-0")).toBeHidden();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(columns).toBe(1);
+  await trigger.click();
+  const popover = await menu.getByRole("menu").boundingBox();
+  expect(popover!.x).toBeGreaterThanOrEqual(0);
+  expect(popover!.x + popover!.width).toBeLessThanOrEqual(390);
+  await expect
+    .poll(() =>
+      page
+        .locator(".review-shell")
+        .evaluate((el) => el.scrollWidth <= el.clientWidth),
+    )
+    .toBe(true);
+});
+
+test("moderation keeps failed actions visible and retries collection loading", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "u1",
+          displayName: "Owner",
+          provider: "github",
+          role: "user",
+          isAdmin: true,
+        },
+      },
+    }),
+  );
+  let loadFailed = true;
+  let restoreFailed = true;
+  let restored = false;
+  await page.route("**/api/gallery/rejected", (route) =>
+    loadFailed
+      ? route.fulfill({ status: 503, json: {} })
+      : route.fulfill({
+          json: { entries: restored ? [] : [{ ...ENTRY, id: "retry-entry" }] },
+        }),
+  );
+  await page.route("**/api/gallery/recycled", (route) =>
+    route.fulfill({ json: { entries: [] } }),
+  );
+  await page.route("**/api/gallery/retry-entry/restore", (route) => {
+    if (restoreFailed) return route.fulfill({ status: 503, json: {} });
+    restored = true;
+    return route.fulfill({ json: { id: "retry-entry", status: "public" } });
+  });
+  await page.goto("/moderation");
+  await expect(page.getByRole("alert")).toContainText(
+    "Could not load rejected entries",
+  );
+  await expect(page.getByTestId("rejected-empty")).toHaveCount(0);
+  loadFailed = false;
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  const card = page.getByTestId("rejected-card-retry-entry");
+  await expect(card).toBeVisible();
+  await page
+    .getByTestId("rejected-menu-retry-entry")
+    .locator("summary")
+    .click();
+  await page.getByTestId("rejected-restore-retry-entry").click();
+  await expect(card.getByRole("alert")).toContainText("Please try again");
+  restoreFailed = false;
+  await page
+    .getByTestId("rejected-menu-retry-entry")
+    .locator("summary")
+    .click();
+  await page.getByTestId("rejected-restore-retry-entry").click();
+  await expect(page.getByTestId("rejected-empty")).toBeVisible();
 });
 
 test("an author deletes their own entry from My submissions", async ({

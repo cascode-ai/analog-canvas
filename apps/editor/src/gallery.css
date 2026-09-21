@@ -279,34 +279,6 @@
   background: var(--icm-surface);
 }
 
-.review-appoint {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 22px 0;
-}
-
-.review-appoint input {
-  box-sizing: border-box;
-  width: 20rem;
-  padding: 7px 10px;
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  font: inherit;
-  font-size: 13px;
-}
-
-.review-appoint button {
-  padding: 7px 12px;
-  border: 1px solid var(--icm-accent);
-  border-radius: var(--icm-radius-sm);
-  color: #fff;
-  background: var(--icm-accent);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
 .page-body {
   box-sizing: border-box;
   width: 100%;

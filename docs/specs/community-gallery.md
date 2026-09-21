@@ -267,10 +267,14 @@ Owner menu for Edit and replace and Withdraw.
 Reject opens a multi-select form with common reasons (`too ugly`,
 `circuit incorrect`, `too simple`, `duplicate`) and an independent optional
 note/other-reason field. The editor surfaces the full administration lifecycle
-at `/moderation` (rejected entries, recycle bin, plus admin-only moderator
-appointment) and the submitter's view at `/mine` (status chips, rejection
+at `/moderation` (full-width masonry for rejected entries and the recycle bin)
+and the submitter's view at `/mine` (status chips, rejection
 reason, owner-visible preview, open-in-editor). Every gallery page state wears
-the shared site chrome.
+the shared site chrome. Moderation cards open the circuit normally; their
+bottom ellipsis menu contains Restore to Gallery and Move to recycle bin
+(or confirmed Delete forever for recycled entries). Moderator appointment,
+schema convergence, and netlist-mark maintenance have no product forms;
+authorized operator scripts use the existing admin-only APIs.
 
 ## Owner editing
 

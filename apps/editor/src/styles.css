@@ -555,34 +555,3 @@ html.light .analytics-loading {
   color: #68738a;
   background: #ffffff;
 }
-
-/* Owner-only heavy tools live behind one collapsed disclosure so the
-   moderation page leads with the work lists. */
-.owner-settings {
-  margin: 4px 0 10px;
-  border: 1px solid var(--icm-border);
-  border-radius: 10px;
-  background: var(--icm-surface);
-}
-
-.owner-settings > summary {
-  padding: 10px 14px;
-  color: var(--icm-text-muted);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.owner-settings[open] > summary {
-  border-bottom: 1px solid var(--icm-border);
-  color: var(--icm-text);
-}
-
-.owner-settings > *:not(summary) {
-  padding-right: 14px;
-  padding-left: 14px;
-}
-
-.owner-settings > *:last-child {
-  padding-bottom: 12px;
-}

@@ -1,17 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "../styles/gallery-entry.css";
+import "../styles/moderation.css";
 
 import { announceGalleryChange, galleryPreviewUrl } from "../gallery-client";
 import { fetchSessionUser, type SessionUser } from "./account";
 import { GalleryChrome } from "./gallery-chrome";
+import { Masonry } from "./masonry";
+import { TilePreview } from "./tile-preview";
 
-/**
- * Moderation, the post-publication surface. Publishing is direct, so there
- * is nothing to approve in advance; what a curator needs is the ability to
- * take an entry down afterwards, explain a rejection, put it back, and finally
- * delete it. The super-admin also appoints moderators by email from here.
- */
-
+/** Post-publication curation. Operational maintenance belongs in scripts. */
 type ModerationState =
   | { status: "loading" }
   | { status: "denied" }
@@ -27,513 +24,312 @@ export async function loadModerationAccess(
   return { status: "ready", user };
 }
 
-async function appointModerator(
-  email: string,
-  role: "moderator" | "user",
-  fetchLike: typeof fetch = fetch,
-): Promise<string> {
-  try {
-    const response = await fetchLike("/api/auth/users/role", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, role }),
-    });
-    if (response.ok) {
-      return role === "moderator"
-        ? `${email} can now moderate the gallery.`
-        : `${email} is an ordinary user again.`;
-    }
-    if (response.status === 404) {
-      return "No account with that email has signed in yet.";
-    }
-    return "Could not change the role.";
-  } catch {
-    return "Could not change the role.";
-  }
-}
-
-interface RecycledEntry {
+type CollectionKind = "rejected" | "recycled";
+type EntryAction = "restore" | "recycle" | "delete";
+interface ModerationEntry {
   id: string;
   name: string;
   previewRevision?: string;
+  previewWidth?: number;
+  previewHeight?: number;
   recycledAt?: string | null;
-}
-
-interface RejectedEntry {
-  id: string;
-  name: string;
-  previewRevision?: string;
   rejectReason?: string | null;
   reviewedAt?: string | null;
 }
 
-interface SchemaConvergenceReport {
-  applied: boolean;
-  targetSchemaVersion: number;
-  inventory: Record<string, Record<string, number>>;
-  records: number;
-  ready: number;
-  failures: Array<{
-    table: string;
-    id: string;
-    storedSchemaVersion: number;
-    message: string;
-  }>;
-}
-
-function SchemaMaintenance() {
-  const [running, setRunning] = useState(false);
-  const [report, setReport] = useState<SchemaConvergenceReport | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [backupConfirmed, setBackupConfirmed] = useState(false);
-  const [validated, setValidated] = useState(false);
-
-  async function converge(apply: boolean): Promise<void> {
-    setRunning(true);
-    setError(null);
-    if (!apply) {
-      setValidated(false);
-      setBackupConfirmed(false);
-    }
-    try {
-      const response = await fetch("/api/gallery/maintenance/schema-current", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ apply }),
-      });
-      const payload = (await response.json()) as
-        SchemaConvergenceReport | { error?: string };
-      if (!response.ok || !("inventory" in payload)) {
-        throw new Error("error" in payload ? payload.error : undefined);
+function EntryMenu({
+  entry,
+  kind,
+  disabled,
+  onAction,
+}: {
+  entry: ModerationEntry;
+  kind: CollectionKind;
+  disabled: boolean;
+  onAction: (action: EntryAction) => void;
+}) {
+  const ref = useRef<HTMLDetailsElement>(null);
+  const [open, setOpen] = useState(false);
+  const prefix = kind === "rejected" ? "rejected" : "bin";
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => {
+      if (!ref.current?.contains(event.target as Node)) {
+        ref.current?.removeAttribute("open");
       }
-      setReport(payload);
-      if (!apply) {
-        setValidated(payload.failures.length === 0);
-      } else {
-        setValidated(false);
-        setBackupConfirmed(false);
-      }
-    } catch (cause) {
-      setError(
-        cause instanceof Error && cause.message
-          ? cause.message
-          : "Schema maintenance failed.",
-      );
-    } finally {
-      setRunning(false);
-    }
-  }
-
+    };
+    document.addEventListener("pointerdown", outside);
+    return () => document.removeEventListener("pointerdown", outside);
+  }, [open]);
+  const act = (action: EntryAction) => {
+    ref.current?.removeAttribute("open");
+    ref.current?.querySelector("summary")?.focus();
+    onAction(action);
+  };
   return (
-    <section className="review-bin" data-testid="schema-maintenance">
-      <h2>Project schema maintenance</h2>
-      <p className="review-card-meta">
-        Back up all stored Projects, validate the complete inventory, then apply
-        one transactional convergence to the current Project schema.
-      </p>
-      <div className="review-card-actions">
-        <a
-          href="/api/gallery/maintenance/schema-backup"
-          data-testid="schema-backup-download"
-        >
-          Download full backup
-        </a>
-        <button
-          type="button"
-          disabled={running}
-          data-testid="schema-current-dry-run"
-          onClick={() => void converge(false)}
-        >
-          Validate current schema
-        </button>
-        <button
-          type="button"
-          className="review-approve"
-          disabled={running || !validated || !backupConfirmed}
-          data-testid="schema-current-apply"
-          onClick={() => void converge(true)}
-        >
-          Apply current schema
-        </button>
-      </div>
-      <label className="review-card-meta">
-        <input
-          type="checkbox"
-          checked={backupConfirmed}
-          disabled={running || !validated}
-          data-testid="schema-current-backup-confirmed"
-          onChange={(event) => setBackupConfirmed(event.currentTarget.checked)}
-        />{" "}
-        I verified the full backup and the zero-failure validation report.
-      </label>
-      {error ? <p className="account-notice">{error}</p> : null}
-      {report ? (
-        <div className="gallery-status" data-testid="schema-current-report">
-          <p>
-            {report.applied ? "Applied" : "Validated"}: {report.ready}/
-            {report.records} records ready for schema{" "}
-            {report.targetSchemaVersion}; {report.failures.length} failures.
-          </p>
-          <ul>
-            {Object.entries(report.inventory).map(([table, versions]) => (
-              <li key={table}>
-                {table}:{" "}
-                {Object.entries(versions)
-                  .map(([version, count]) => `v${version}=${count}`)
-                  .join(", ") || "empty"}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-/**
- * Re-answer the netlist mark for stored circuits.
- *
- * Publishing, republishing and restoring all answer it, so the wall stays
- * current by itself. Circuits published before the current answer existed
- * keep the old one, and only a pass over stored Projects corrects that. The
- * pass is batched in the Durable Object; this button walks the batches.
- */
-function NetlistMarkMaintenance() {
-  const [running, setRunning] = useState(false);
-  const [report, setReport] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  async function refresh(): Promise<void> {
-    setRunning(true);
-    setError(null);
-    setReport(null);
-    let after = "";
-    let scanned = 0;
-    let changed = 0;
-    let unreadable = 0;
-    try {
-      for (let batch = 0; batch < 500; batch += 1) {
-        const response = await fetch(
-          "/api/gallery/maintenance/netlist-badges",
-          {
-            method: "POST",
-            credentials: "same-origin",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ limit: 25, ...(after ? { after } : {}) }),
-          },
-        );
-        const payload = (await response.json()) as {
-          scanned?: number;
-          changed?: number;
-          unreadable?: number;
-          cursor?: string;
-          remaining?: number;
-          error?: string;
-        };
-        if (!response.ok || payload.remaining === undefined) {
-          throw new Error(payload.error);
+    <details
+      ref={ref}
+      name="moderation-entry-actions"
+      className="moderation-entry-menu"
+      data-testid={`${prefix}-menu-${entry.id}`}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+      onKeyDown={(event) => {
+        const details = ref.current;
+        if (!details) return;
+        if (event.key === "Escape") {
+          details.open = false;
+          details.querySelector("summary")?.focus();
+          event.preventDefault();
+        } else if (
+          ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)
+        ) {
+          event.preventDefault();
+          details.open = true;
+          const buttons = [
+            ...details.querySelectorAll<HTMLButtonElement>(
+              "button:not(:disabled)",
+            ),
+          ];
+          const current = buttons.indexOf(
+            document.activeElement as HTMLButtonElement,
+          );
+          const next =
+            event.key === "Home"
+              ? 0
+              : event.key === "End"
+                ? buttons.length - 1
+                : current < 0
+                  ? event.key === "ArrowUp"
+                    ? buttons.length - 1
+                    : 0
+                  : (current +
+                      (event.key === "ArrowUp" ? -1 : 1) +
+                      buttons.length) %
+                    buttons.length;
+          buttons[next]?.focus();
         }
-        scanned += payload.scanned ?? 0;
-        changed += payload.changed ?? 0;
-        unreadable += payload.unreadable ?? 0;
-        after = payload.cursor ?? "";
-        setReport(
-          `Scanned ${scanned}, updated ${changed}, ${payload.remaining} to go.`,
-        );
-        if (payload.remaining === 0) break;
-      }
-      setReport(
-        `Scanned ${scanned} circuits, updated ${changed} mark${changed === 1 ? "" : "s"}${unreadable > 0 ? `, ${unreadable} unreadable` : ""}.`,
-      );
-    } catch (cause) {
-      setError(
-        cause instanceof Error && cause.message
-          ? cause.message
-          : "Netlist mark maintenance failed.",
-      );
-    } finally {
-      setRunning(false);
-    }
-  }
-
-  return (
-    <section className="review-bin" data-testid="netlist-mark-maintenance">
-      <h2>Netlist marks</h2>
-      <p className="review-card-meta">
-        Re-answer which stored circuits extract to a SPICE netlist. New and
-        edited circuits answer this on their own; this pass is for circuits
-        published before the current answer.
-      </p>
-      <div className="review-card-actions">
+      }}
+    >
+      <summary
+        aria-label={`Actions for ${entry.name}`}
+        title={`Actions for ${entry.name}`}
+        aria-haspopup="menu"
+      >
+        ⋯
+      </summary>
+      <div
+        className="moderation-entry-popover"
+        role="menu"
+        aria-label={`Actions for ${entry.name}`}
+      >
         <button
           type="button"
-          disabled={running}
-          data-testid="netlist-marks-refresh"
-          onClick={() => void refresh()}
+          role="menuitem"
+          disabled={disabled}
+          data-testid={`${prefix}-restore-${entry.id}`}
+          onClick={() => act("restore")}
         >
-          {running ? "Re-answering…" : "Re-answer stored marks"}
+          Restore to Gallery
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          disabled={disabled}
+          className={kind === "recycled" ? "moderation-delete" : undefined}
+          data-testid={`${prefix}-${kind === "rejected" ? "recycle" : "delete"}-${entry.id}`}
+          onClick={() => act(kind === "rejected" ? "recycle" : "delete")}
+        >
+          {kind === "rejected" ? "Move to recycle bin" : "Delete forever"}
         </button>
       </div>
-      {error ? <p className="account-notice">{error}</p> : null}
-      {report ? (
-        <div className="gallery-status" data-testid="netlist-marks-report">
-          <p>{report}</p>
-        </div>
-      ) : null}
-    </section>
+    </details>
   );
 }
 
-/** Owner decisions waiting for correction, restoration, or archival. */
-function RejectedList({
+function ModerationCollection({
+  kind,
   refreshVersion,
   onChanged,
 }: {
+  kind: CollectionKind;
   refreshVersion: number;
   onChanged: () => void;
 }) {
-  const [entries, setEntries] = useState<RejectedEntry[] | null>(null);
+  const [entries, setEntries] = useState<ModerationEntry[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [actionError, setActionError] = useState<{
+    id: string;
+    message: string;
+  } | null>(null);
+  const [retry, setRetry] = useState(0);
+  const rejected = kind === "rejected";
+  const prefix = rejected ? "rejected" : "bin";
 
   useEffect(() => {
     let cancelled = false;
+    setLoadError(false);
     void (async () => {
       try {
-        const response = await fetch("/api/gallery/rejected", {
+        const response = await fetch(`/api/gallery/${kind}`, {
           credentials: "same-origin",
         });
-        const payload = response.ok
-          ? ((await response.json()) as { entries?: RejectedEntry[] })
-          : { entries: [] };
-        if (!cancelled) setEntries(payload.entries ?? []);
+        if (!response.ok) throw new Error("Could not load entries");
+        const payload = (await response.json()) as {
+          entries: ModerationEntry[];
+        };
+        if (!cancelled) setEntries(payload.entries);
       } catch {
-        if (!cancelled) setEntries([]);
+        if (!cancelled) setLoadError(true);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [refreshVersion]);
+  }, [kind, refreshVersion, retry]);
 
-  async function act(id: string, action: "restore" | "recycle") {
+  async function act(id: string, action: EntryAction) {
+    if (busy) return;
+    if (
+      action === "delete" &&
+      !window.confirm("Delete this entry forever? This cannot be undone.")
+    )
+      return;
     setBusy(id);
+    setActionError(null);
     try {
-      const response = await fetch(`/api/gallery/${id}/${action}`, {
-        method: "POST",
-        credentials: "same-origin",
-      });
-      if (response.ok) {
-        announceGalleryChange({ entryId: id });
-        onChanged();
-      }
+      const response = await fetch(
+        action === "delete"
+          ? `/api/gallery/${id}`
+          : `/api/gallery/${id}/${action}`,
+        {
+          method: action === "delete" ? "DELETE" : "POST",
+          credentials: "same-origin",
+        },
+      );
+      if (!response.ok)
+        throw new Error("Could not update this entry. Please try again.");
+      setEntries(
+        (current) => current?.filter((entry) => entry.id !== id) ?? null,
+      );
+      announceGalleryChange({ entryId: id });
+      onChanged();
     } catch {
-      // Leave the row in place; it still reflects the last confirmed state.
+      setActionError({
+        id,
+        message: "Could not update this entry. Please try again.",
+      });
     } finally {
       setBusy(null);
     }
   }
 
-  if (entries === null) return null;
   return (
-    <section className="review-bin" data-testid="rejected-list">
-      <h2>Rejected entries</h2>
-      <p className="review-card-meta">
-        Restore a corrected circuit, or move it to the recycle bin before
-        permanent deletion.
-      </p>
-      {entries.length === 0 ? (
-        <p className="gallery-status" data-testid="rejected-empty">
-          No rejected entries.
+    <section
+      className="moderation-collection"
+      data-testid={rejected ? "rejected-list" : "review-bin"}
+      aria-labelledby={`${prefix}-heading`}
+    >
+      <header className="moderation-collection-heading">
+        <h2 id={`${prefix}-heading`}>
+          {rejected ? "Rejected entries" : "Recycle bin"}
+        </h2>
+        {entries ? (
+          <span className="moderation-count">{entries.length}</span>
+        ) : null}
+      </header>
+      {loadError ? (
+        <p className="moderation-load-error" role="alert">
+          Could not load {rejected ? "rejected entries" : "the recycle bin"}.{" "}
+          <button type="button" onClick={() => setRetry((value) => value + 1)}>
+            Retry
+          </button>
         </p>
-      ) : (
-        <div className="mine-list">
-          {entries.map((entry) => (
-            <article
-              key={entry.id}
-              className="mine-card"
-              data-testid={`rejected-card-${entry.id}`}
-            >
-              <a
-                className="mine-card-preview"
-                href={`/g/${entry.id}`}
-                title="Open in the editor"
-              >
-                <img
-                  src={galleryPreviewUrl(entry.id, entry.previewRevision)}
-                  alt={`Preview of ${entry.name}`}
-                  loading="lazy"
-                />
-              </a>
-              <div className="mine-card-copy">
-                <h2>{entry.name}</h2>
-                {entry.rejectReason ? (
-                  <p className="mine-reason">Reason: {entry.rejectReason}</p>
-                ) : null}
-                {entry.reviewedAt ? (
-                  <p className="review-card-meta">
-                    Rejected {new Date(entry.reviewedAt).toLocaleString()}
-                  </p>
-                ) : null}
-              </div>
-              <div className="review-card-actions">
-                <a
-                  className="account-link"
-                  href={`/g/${entry.id}`}
-                  data-testid={`rejected-edit-${entry.id}`}
-                >
-                  Edit and replace
-                </a>
-                <button
-                  type="button"
-                  disabled={busy === entry.id}
-                  data-testid={`rejected-recycle-${entry.id}`}
-                  onClick={() => void act(entry.id, "recycle")}
-                >
-                  Move to recycle bin
-                </button>
-                <button
-                  type="button"
-                  className="review-approve"
-                  disabled={busy === entry.id}
-                  data-testid={`rejected-restore-${entry.id}`}
-                  onClick={() => void act(entry.id, "restore")}
-                >
-                  Restore
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-/**
- * The recycle bin: the takedown surface. Restore returns an entry to the
- * public wall; Delete forever is the only hard deletion and asks for
- * confirmation first.
- */
-function RecycleBin({
-  refreshVersion,
-  onChanged,
-}: {
-  refreshVersion: number;
-  onChanged: () => void;
-}) {
-  const [entries, setEntries] = useState<RecycledEntry[] | null>(null);
-
-  async function refresh(): Promise<void> {
-    try {
-      const response = await fetch("/api/gallery/recycled", {
-        credentials: "same-origin",
-      });
-      if (!response.ok) {
-        setEntries([]);
-        return;
-      }
-      const payload = (await response.json()) as {
-        entries?: RecycledEntry[];
-      };
-      setEntries(payload.entries ?? []);
-    } catch {
-      setEntries([]);
-    }
-  }
-
-  useEffect(() => {
-    void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh is local
-  }, [refreshVersion]);
-
-  async function act(id: string, kind: "restore" | "delete"): Promise<void> {
-    if (
-      kind === "delete" &&
-      !window.confirm("Delete this entry forever? This cannot be undone.")
-    ) {
-      return;
-    }
-    try {
-      const response = await fetch(
-        kind === "restore"
-          ? `/api/gallery/${id}/restore`
-          : `/api/gallery/${id}`,
-        {
-          method: kind === "restore" ? "POST" : "DELETE",
-          credentials: "same-origin",
-        },
-      );
-      if (response.ok) announceGalleryChange({ entryId: id });
-    } catch {
-      // The refresh below shows the true state either way.
-    }
-    onChanged();
-  }
-
-  if (entries === null) return null;
-  return (
-    <section className="review-bin" data-testid="review-bin">
-      <h2>Recycle bin</h2>
-      {entries.length === 0 ? (
-        <p className="gallery-status" data-testid="bin-empty">
-          The bin is empty.
+      ) : null}
+      {entries === null && !loadError ? (
+        <p className="gallery-status" role="status">
+          Loading…
         </p>
-      ) : (
-        <div className="mine-list">
-          {entries.map((entry) => (
-            <article
-              key={entry.id}
-              className="mine-card"
-              data-testid={`bin-card-${entry.id}`}
-            >
-              <span className="mine-card-preview">
-                <img
-                  src={galleryPreviewUrl(entry.id, entry.previewRevision)}
-                  alt={`Preview of ${entry.name}`}
-                  loading="lazy"
-                />
-              </span>
-              <div className="mine-card-copy">
-                <h2>{entry.name}</h2>
-                {entry.recycledAt ? (
-                  <p className="review-card-meta">
-                    Recycled {new Date(entry.recycledAt).toLocaleString()}
-                  </p>
-                ) : null}
-              </div>
-              <div className="review-card-actions">
-                <button
-                  type="button"
-                  data-testid={`bin-delete-${entry.id}`}
-                  onClick={() => void act(entry.id, "delete")}
+      ) : null}
+      {entries?.length === 0 && !loadError ? (
+        <p className="gallery-status" data-testid={`${prefix}-empty`}>
+          {rejected ? "No rejected entries." : "The bin is empty."}
+        </p>
+      ) : null}
+      {entries?.length ? (
+        <Masonry
+          minColumnWidth={260}
+          gap={18}
+          aria-label={rejected ? "Rejected circuits" : "Recycled circuits"}
+          items={entries.map((entry) => {
+            const date = rejected ? entry.reviewedAt : entry.recycledAt;
+            return {
+              key: entry.id,
+              node: (
+                <article
+                  className="moderation-card"
+                  data-testid={`${prefix}-card-${entry.id}`}
+                  aria-busy={busy === entry.id}
                 >
-                  Delete forever
-                </button>
-                <button
-                  type="button"
-                  className="review-approve"
-                  data-testid={`bin-restore-${entry.id}`}
-                  onClick={() => void act(entry.id, "restore")}
-                >
-                  Restore
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
+                  <a
+                    className="moderation-card-open"
+                    href={`/g/${entry.id}`}
+                    data-testid={`${prefix}-open-${entry.id}`}
+                    title={`Open ${entry.name}`}
+                  >
+                    <TilePreview
+                      src={galleryPreviewUrl(entry.id, entry.previewRevision)}
+                      alt={`Preview of ${entry.name}`}
+                      {...(entry.previewWidth === undefined
+                        ? {}
+                        : { width: entry.previewWidth })}
+                      {...(entry.previewHeight === undefined
+                        ? {}
+                        : { height: entry.previewHeight })}
+                    />
+                    <h3>{entry.name}</h3>
+                  </a>
+                  {rejected && entry.rejectReason ? (
+                    <p className="moderation-card-reason">
+                      {entry.rejectReason}
+                    </p>
+                  ) : null}
+                  <footer className="moderation-card-footer">
+                    <span className="moderation-card-date">
+                      {date ? (
+                        <time
+                          dateTime={date}
+                          title={new Date(date).toLocaleString()}
+                        >
+                          {new Date(date).toLocaleDateString()}
+                        </time>
+                      ) : null}
+                    </span>
+                    <EntryMenu
+                      entry={entry}
+                      kind={kind}
+                      disabled={busy !== null}
+                      onAction={(action) => void act(entry.id, action)}
+                    />
+                  </footer>
+                  {actionError?.id === entry.id ? (
+                    <p className="moderation-card-error" role="alert">
+                      {actionError.message}
+                    </p>
+                  ) : null}
+                </article>
+              ),
+            };
+          })}
+        />
+      ) : null}
     </section>
   );
 }
 
 export function Moderation() {
   const [state, setState] = useState<ModerationState>({ status: "loading" });
-  const [email, setEmail] = useState("");
-  const [notice, setNotice] = useState<string | null>(null);
   const [inventoryVersion, setInventoryVersion] = useState(0);
-
   useEffect(() => {
     let cancelled = false;
     void loadModerationAccess().then((next) => {
@@ -543,66 +339,34 @@ export function Moderation() {
       cancelled = true;
     };
   }, []);
-
-  if (state.status !== "ready") {
-    return (
-      <main
-        className="review-shell"
-        data-testid={
-          state.status === "denied" ? "review-denied" : "review-page"
-        }
-      >
-        <GalleryChrome subtitle="Moderation" />
-        <div className="page-body">
+  return (
+    <main
+      className="review-shell"
+      data-testid={
+        state.status === "ready"
+          ? "moderation"
+          : state.status === "denied"
+            ? "review-denied"
+            : "review-page"
+      }
+    >
+      <GalleryChrome subtitle="Moderation" />
+      <div className="page-body moderation-body">
+        {state.status !== "ready" ? (
           <p className="gallery-status">
             {state.status === "loading"
               ? "Loading moderation…"
               : "Moderation is for the gallery owner and appointed moderators."}
           </p>
-        </div>
-      </main>
-    );
-  }
-
-  return (
-    <main className="review-shell" data-testid="moderation">
-      <GalleryChrome subtitle="Moderation" />
-      <div className="page-body">
-        {state.user.isAdmin ? (
-          <details className="owner-settings" data-testid="owner-settings">
-            <summary>Owner settings</summary>
-            <form
-              className="review-appoint"
-              data-testid="review-appoint"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (!email.trim()) return;
-                void appointModerator(email.trim(), "moderator").then(
-                  setNotice,
-                );
-              }}
-            >
-              <input
-                type="email"
-                aria-label="Moderator email"
-                placeholder="Appoint a moderator by email"
-                value={email}
-                onChange={(event) => setEmail(event.currentTarget.value)}
-              />
-              <button type="submit">Appoint</button>
-              {notice ? <span className="account-notice">{notice}</span> : null}
-            </form>
-            <SchemaMaintenance />
-            <NetlistMarkMaintenance />
-          </details>
-        ) : null}
-        {state.user.isAdmin ? (
+        ) : state.user.isAdmin ? (
           <>
-            <RejectedList
+            <ModerationCollection
+              kind="rejected"
               refreshVersion={inventoryVersion}
               onChanged={() => setInventoryVersion((version) => version + 1)}
             />
-            <RecycleBin
+            <ModerationCollection
+              kind="recycled"
               refreshVersion={inventoryVersion}
               onChanged={() => setInventoryVersion((version) => version + 1)}
             />
