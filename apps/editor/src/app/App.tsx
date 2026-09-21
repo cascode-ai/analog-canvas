@@ -245,7 +245,11 @@ import {
   quickPlaceRequest,
   ShapesPanel,
 } from "../features/editor-shell/shapes-panel";
-import { ExamplesPanel } from "../features/editor-shell/examples-panel";
+const ExamplesPanel = lazy(() =>
+  import("../features/editor-shell/examples-panel").then((module) => ({
+    default: module.ExamplesPanel,
+  })),
+);
 import {
   type GalleryEntryContext,
   createGalleryExampleCommands,
@@ -6134,11 +6138,15 @@ function WorkspaceEditor({
             }
           />
         ) : (
-          <ExamplesPanel
-            open={visibleLibraryPanelOpen}
-            onOpenGalleryExample={(id) => void insertGalleryEntryById(id)}
-            onOpenExample={openLibraryExample}
-          />
+          <Suspense
+            fallback={<aside className="shapes-panel" aria-label="Gallery" />}
+          >
+            <ExamplesPanel
+              open={visibleLibraryPanelOpen}
+              onOpenGalleryExample={(id) => void insertGalleryEntryById(id)}
+              onOpenExample={openLibraryExample}
+            />
+          </Suspense>
         )}
         {visibleLibraryPanelOpen ? (
           <div

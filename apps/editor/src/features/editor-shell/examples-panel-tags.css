@@ -1,0 +1,67 @@
+/* Measure the dock's usable width, not the browser window. Four 150px
+   cards plus three 8px gaps and 16px padding need 640px. */
+.examples-panel > .shapes-panel-body {
+  container: examples / inline-size;
+  overflow: hidden;
+}
+.examples-panel-browser {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 0 8px;
+  flex: 1;
+  min-height: 0;
+}
+.examples-panel-results,
+.examples-panel-tags {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
+}
+.examples-panel-results .shapes-example-list {
+  padding: 0;
+}
+.examples-panel-tags {
+  display: none;
+  padding-right: 8px;
+  border-right: 1px solid var(--icm-border);
+  --gallery-ui-font: inherit;
+}
+.examples-panel-tags h2 {
+  margin: 0 0 8px;
+  font: inherit;
+  font-size: var(--icm-font-xs);
+  font-weight: 650;
+}
+.examples-panel-tags .gallery-tag-group-select,
+.examples-panel-tags .gallery-sidebar-tag {
+  font-size: var(--icm-font-xs);
+}
+.examples-panel-tags .gallery-sidebar-tag {
+  padding: 4px;
+}
+.examples-panel-tags .gallery-tag-group-expand {
+  flex-basis: 18px;
+}
+.examples-panel-clear-tags {
+  border: 0;
+  background: var(--icm-accent-soft);
+  color: var(--icm-accent);
+  border-radius: var(--icm-radius-sm);
+  padding: 3px 6px;
+  font: inherit;
+  font-size: var(--icm-font-xs);
+}
+@container examples (min-width: 640px) {
+  .examples-panel-browser[data-tags-available="true"] {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+  .examples-panel-tags {
+    display: block;
+  }
+  .examples-panel-browser[data-tags-available="true"] .examples-panel-results {
+    grid-column: 2 / -1;
+  }
+}

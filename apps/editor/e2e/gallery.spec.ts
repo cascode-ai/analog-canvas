@@ -516,6 +516,10 @@ test("Editor Gallery gives tags one column only after widening beyond three circ
       { steps: 10 },
     );
     await page.mouse.up();
+    // The dock animates after pointer-up; settle before grabbing its next edge.
+    await expect
+      .poll(async () => Math.abs((await panel.boundingBox())!.width - width))
+      .toBeLessThan(2);
   };
   await expect(cards).toHaveCount(30);
   await resize(640);

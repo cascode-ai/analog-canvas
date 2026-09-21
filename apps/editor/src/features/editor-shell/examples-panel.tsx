@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { GalleryTagGroups } from "../../components/gallery-tag-groups";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import "./examples-panel.css";
 
 import { renderDocumentSvg } from "@icm/render-svg";
@@ -14,11 +13,15 @@ import {
   galleryEntryMatchesQuery,
   galleryPreviewUrl,
   loadGalleryFeed,
-  loadGalleryTagSummary,
-  type GalleryTagSummary,
   subscribeGalleryRefresh,
   type GalleryFeedEntry,
 } from "../../gallery-client";
+
+const ExamplesPanelTags = lazy(() =>
+  import("./examples-panel-tags").then((module) => ({
+    default: module.ExamplesPanelTags,
+  })),
+);
 
 export interface GalleryExampleSummary {
   id: string;
@@ -128,31 +131,6 @@ export function ExamplesPanel({
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshSignal, setRefreshSignal] = useState(0);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [tagSummary, setTagSummary] = useState<GalleryTagSummary>({
-    tags: [],
-    groups: [],
-  });
-  const [tagsLoading, setTagsLoading] = useState(false);
-  const groupCounts = useMemo(
-    () =>
-      Object.fromEntries(
-        tagSummary.groups.map((group) => [group.group, group.count]),
-      ),
-    [tagSummary],
-  );
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    setTagsLoading(true);
-    void loadGalleryTagSummary(fetcher).then((summary) => {
-      if (cancelled) return;
-      setTagSummary(summary);
-      setTagsLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, fetcher, refreshSignal]);
   const loadGenerationRef = useRef(0);
   const loadingMoreRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -298,13 +276,15 @@ export function ExamplesPanel({
               data-testid="examples-panel-tags"
             >
               <h2>Tags</h2>
-              <GalleryTagGroups
-                tags={tagSummary.tags}
-                groupCounts={groupCounts}
-                countsLoading={tagsLoading}
-                selected={selectedTags}
-                onChange={setSelectedTags}
-              />
+              <Suspense fallback={null}>
+                <ExamplesPanelTags
+                  fetcher={fetcher}
+                  open={open}
+                  refreshSignal={refreshSignal}
+                  selected={selectedTags}
+                  onChange={setSelectedTags}
+                />
+              </Suspense>
             </aside>
           ) : null}
           <div className="examples-panel-results">
