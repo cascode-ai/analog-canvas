@@ -554,10 +554,10 @@ test("the site lands on the full-screen gallery feed", async ({ page }) => {
   await expect(brand).toHaveCSS("text-decoration-line", "none");
   const brandMark = brand.locator(".app-brand-mark");
   await expect(brandMark).toBeVisible();
-  await expect(brandMark).toHaveCSS("background-image", /icon\.svg\?v=nmos-1/);
+  await expect(brandMark).toHaveCSS("background-image", /icon\.svg\?v=nmos-2/);
   await expect(page.locator('link[rel="icon"]')).toHaveAttribute(
     "href",
-    "/icon.svg?v=nmos-1",
+    "/icon.svg?v=nmos-2",
   );
 
   // With community entries present the wall shows them alone: the bundled
