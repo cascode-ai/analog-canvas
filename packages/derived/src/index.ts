@@ -35,6 +35,7 @@ export * from "./routing-affected-closure.js";
 export * from "./routing-guidance.js";
 export * from "./route-attachment.js";
 export * from "./rich-text-layout.js";
+export * from "./formula-artifacts.js";
 export * from "./schematic-font.js";
 export * from "./style-profile.js";
 export * from "./segment-geometry.js";

@@ -79,10 +79,10 @@ it("requests tag counts for the same netlist scope as the Gallery wall", async (
 describe("Gallery preview caching", () => {
   it("uses one immutable URL per preview revision", () => {
     expect(galleryPreviewUrl("entry-1", "revision 0")).toBe(
-      "/api/gallery/entry-1/preview.svg?v=revision%200",
+      "/api/gallery/entry-1/preview.svg?v=revision%200&render=formula-sans-v2",
     );
     expect(galleryPreviewUrl("entry-1", "revision-7")).toBe(
-      "/api/gallery/entry-1/preview.svg?v=revision-7",
+      "/api/gallery/entry-1/preview.svg?v=revision-7&render=formula-sans-v2",
     );
     expect(galleryPreviewUrl("entry-1")).toBe(
       "/api/gallery/entry-1/preview.svg",
@@ -102,7 +102,7 @@ describe("Gallery preview caching", () => {
     expect(fetchLike).toHaveBeenCalledTimes(2);
     expect(fetchLike).toHaveBeenNthCalledWith(
       1,
-      "/api/gallery/entry-1/preview.svg?v=revision-3",
+      "/api/gallery/entry-1/preview.svg?v=revision-3&render=formula-sans-v2",
       { credentials: "same-origin", cache: "reload" },
     );
   });

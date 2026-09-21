@@ -11,6 +11,9 @@ export interface FormulaRequest {
   latex: string;
   display: "inline" | "block";
   profileId: typeof ANALOG_CANVAS_MATH_PROFILE_ID;
+  /** Drawing text defaults: bold sans-serif, upright unless explicitly italic. */
+  bold?: boolean;
+  italic?: boolean;
 }
 
 export interface FormulaArtifact {
@@ -47,9 +50,14 @@ function fnv1a32(input: string, seed: number): string {
 }
 
 export function formulaSourceHash(request: FormulaRequest): string {
-  const source = [request.profileId, request.display, request.latex].join(
-    "\u0000",
-  );
+  const source = [
+    request.profileId,
+    "sans-v2",
+    request.display,
+    request.bold ?? true,
+    request.italic ?? false,
+    request.latex,
+  ].join("\u0000");
   return `${fnv1a32(source, 0x811c9dc5)}${fnv1a32(source, 0x9e3779b9)}`;
 }
 

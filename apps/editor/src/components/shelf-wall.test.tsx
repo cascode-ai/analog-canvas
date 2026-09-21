@@ -57,7 +57,7 @@ describe("shelf tile addressing", () => {
 
   it("names the thumbnail by revision so a saved change is seen at once", () => {
     expect(cloudProjectPreviewUrl("p1", 4)).toBe(
-      "/api/projects/p1/preview.svg?v=4",
+      "/api/projects/p1/preview.svg?v=4&render=formula-sans-v2",
     );
     expect(cloudProjectPreviewUrl("p1", 5)).not.toBe(
       cloudProjectPreviewUrl("p1", 4),

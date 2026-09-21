@@ -1,3 +1,4 @@
+import { prepareDocumentFormulaArtifacts } from "@icm/derived";
 import { createEmptyDocument } from "@icm/model";
 import type { RichTextRun } from "@icm/model";
 import {
@@ -243,6 +244,38 @@ describe("drafting layer rendering", () => {
       )?.[0],
     ).not.toContain("transform=");
   });
+
+  it.each([
+    ["bold", false, "1D5DF"],
+    ["normal", false, "1D5AB"],
+    ["bold", true, "1D647"],
+    ["normal", true, "1D613"],
+  ] as const)(
+    "uses %s/italic=%s formula glyphs for both cached preparation and rendering",
+    async (weight, italic, glyph) => {
+      const document = createEmptyDocument("doc", "Styled formula");
+      document.drafting!.objects.push({
+        id: "styled-formula",
+        kind: "text",
+        locked: false,
+        zIndex: 0,
+        anchor: { kind: "free", position: { x: 100, y: 100 } },
+        content: { runs: [{ kind: "math", latex: "L", display: "inline" }] },
+        alignment: "middle",
+        rotation: 0,
+        styleOverride: { weight, italic, color: "#123456" },
+      });
+      const prepared = await prepareDocumentFormulaArtifacts(document);
+      try {
+        const svg = renderDocumentSvg(document, resolver);
+        expect(svg).toContain(`data-c="${glyph}"`);
+        expect(svg).toContain('color="#123456"');
+        expect(svg).not.toContain('data-role="formula-pending"');
+      } finally {
+        prepared.release();
+      }
+    },
+  );
 
   it("keeps ordinary glyphs and fractions upright at nonzero rotation", () => {
     const document = createEmptyDocument("doc", "Upright drafting text");

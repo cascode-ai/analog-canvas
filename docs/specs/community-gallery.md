@@ -64,9 +64,16 @@ restrictive content-security-policy.
   contributors. Selecting an author retains the other active filters.
 - `GET /api/gallery/<id>` — one public entry with its canonical
   `projectText`.
-- `GET /api/gallery/<id>/preview.svg?v=<previewRevision>` — the
+- `GET /api/gallery/<id>/preview.svg?v=<previewRevision>&render=formula-sans-v2` — the
   server-rendered preview. A revision matching the stored SVG is immutable;
   unversioned, stale-revision, hidden, and missing responses are `no-store`.
+  The renderer variant bypasses browser caches of obsolete formula artwork.
+  Old formula placeholders and earlier formula typography are rendered from
+  their stored Project on read, without rewriting publication data, revisions,
+  or history. Hidden-entry authorization still applies, including on edge
+  cache hits. Ordinary previews retain their stored artwork and do not require
+  a Project read. Shelf and historical previews share formula preparation and
+  recovery while retaining their private access rules.
 - Which circuits a reader is looking at — the wall (`view`), the byline
   (`author`), the tags (`tags`), the text (`q`), and the two marks
   (`netlist`, `liked`) — is one preference and persists as one: it rides in

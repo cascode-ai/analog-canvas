@@ -614,6 +614,7 @@ test("authors one validated formula through the canonical text editor", async ({
     '[data-kind="draft-text"] [data-role="formula"]',
   );
   await expect(formula).toBeVisible();
+  await expect(formula).toHaveAttribute("data-formula-typography", "sans-v2");
   await expect(formula.locator("path").first()).toBeVisible();
   await expect(page.locator("foreignObject", { has: formula })).toHaveCount(0);
 

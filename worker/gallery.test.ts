@@ -1,3 +1,4 @@
+import { clearFormulaArtifactCacheForTests } from "../packages/math-typesetting/src/cache";
 import { CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
 import { CURRENT_PROJECT_FILE_VERSION } from "@icm/project-protocol";
 import { DatabaseSync } from "node:sqlite";
@@ -264,6 +265,29 @@ function submissionRequest(
 
 function projectText(name = "Fixture"): string {
   return serializeProject(createEmptyProject("gallery-fixture", name));
+}
+
+function formulaProjectText(): string {
+  const project = createEmptyProject("formula-fixture", "Formula circuit");
+  project.documents[0]!.drafting!.objects.push({
+    id: "formula-note",
+    kind: "text",
+    locked: false,
+    zIndex: 0,
+    anchor: { kind: "free", position: { x: 100, y: 100 } },
+    alignment: "middle",
+    rotation: 0,
+    content: {
+      runs: [
+        {
+          kind: "math",
+          latex: String.raw`\frac{1}{\sqrt{L_1C_1}}`,
+          display: "block",
+        },
+      ],
+    },
+  });
+  return serializeProject(project);
 }
 
 function previousVersionText(): string {
@@ -1451,6 +1475,53 @@ describe("private Cloud Projects", () => {
     expect(anonymous.status).toBe(401);
   });
 
+  it("renders saved and legacy Shelf formulas without exposing private projects", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    clearFormulaArtifactCacheForTests();
+    const created = await route(
+      env,
+      new Request(`${ORIGIN}/api/projects`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          Origin: ORIGIN,
+          Cookie: cookie,
+        },
+        body: JSON.stringify({
+          name: "Formula circuit",
+          projectText: formulaProjectText(),
+        }),
+      }),
+    );
+    expect(created.status).toBe(201);
+    const { project } = (await created.json()) as {
+      project: { id: string; revision: number };
+    };
+    const original = env.gallerySql
+      .exec<{ preview_svg: string }>(
+        "SELECT preview_svg FROM cloud_projects WHERE id=?",
+        project.id,
+      )
+      .one().preview_svg;
+    expect(original).toContain('data-role="formula"');
+    const legacy = '<svg><text data-role="formula-pending">latex</text></svg>';
+    env.gallerySql.exec(
+      "UPDATE cloud_projects SET preview_svg=? WHERE id=?",
+      legacy,
+      project.id,
+    );
+    clearFormulaArtifactCacheForTests();
+    const url = `${ORIGIN}/api/projects/${project.id}/preview.svg?v=${project.revision}&render=formula-sans-v2`;
+    const repaired = await route(
+      env,
+      new Request(url, { headers: cookieHeaders(cookie) }),
+    );
+    expect(await repaired.text()).toBe(original);
+    expect(repaired.headers.get("cache-control")).toContain("private");
+    expect((await route(env, new Request(url))).status).toBe(401);
+  });
+
   it("backfills a thumbnail for a shelf saved before previews existed", async () => {
     const env = environment();
     const cookie = await makerOf(env);
@@ -1722,6 +1793,75 @@ describe("private Cloud Projects", () => {
 });
 
 describe("gallery submissions", () => {
+  it("prepares formulas on cold publish and repairs legacy previews without changing publications", async () => {
+    const env = environment();
+    const cookie = await adminOf(env);
+    clearFormulaArtifactCacheForTests();
+    const id = await submitOne(env, "Formula circuit", {
+      cookie,
+      text: formulaProjectText(),
+    });
+    const stored = () =>
+      env.gallerySql
+        .exec<{
+          svg_text: string;
+          preview_revision: string;
+          project_text: string;
+        }>(
+          "SELECT svg_text, preview_revision, project_text FROM gallery_entries WHERE id=?",
+          id,
+        )
+        .one();
+    const current = stored();
+    expect(current.svg_text).toContain('data-role="formula"');
+    expect(current.svg_text).toContain('data-c="1D5DF"');
+    expect(current.svg_text).not.toContain('data-role="formula-pending"');
+    const legacy =
+      '<svg xmlns="http://www.w3.org/2000/svg"><text data-role="formula-pending">old latex</text></svg>';
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET svg_text=? WHERE id=?",
+      legacy,
+      id,
+    );
+    const before = stored();
+    const request = new Request(
+      `${ORIGIN}/api/gallery/${id}/preview.svg?v=${before.preview_revision}&render=formula-sans-v2`,
+    );
+    const cache = memoryPreviewCache();
+    await cache.put(request, new Response(legacy));
+    clearFormulaArtifactCacheForTests();
+    const repaired = await routeGalleryRequest(request, env, {
+      previewCache: cache,
+    });
+    expect(repaired!.status).toBe(200);
+    expect(await repaired!.text()).toBe(current.svg_text);
+    expect(stored()).toEqual(before);
+    expect(
+      env.gallerySql
+        .exec<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM gallery_entry_versions WHERE entry_id=?",
+          id,
+        )
+        .one().count,
+    ).toBe(0);
+    env.galleryQueries.length = 0;
+    const cached = await routeGalleryRequest(request, env, {
+      previewCache: cache,
+    });
+    expect(await cached!.text()).toBe(current.svg_text);
+    expect(env.galleryQueries.some((sql) => sql.includes("project_text"))).toBe(
+      false,
+    );
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET status='rejected' WHERE id=?",
+      id,
+    );
+    expect(
+      (await routeGalleryRequest(request, env, { previewCache: cache }))!
+        .status,
+    ).toBe(404);
+  });
+
   it("publishes immediately with canonical text and a server preview", async () => {
     const env = environment();
     const id = await submitOne(env, "Ring Oscillator");

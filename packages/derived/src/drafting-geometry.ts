@@ -284,6 +284,10 @@ function resolveText(
     profile,
     object.typographyToken,
     object.styleOverride?.sizeScale,
+    {
+      bold: object.styleOverride?.weight !== "normal",
+      italic: object.styleOverride?.italic === true,
+    },
   );
   const content = draftTextLayoutContent(document, object, metrics);
   const polarity = object.polarity
@@ -519,6 +523,10 @@ function resolveCallout(
       resolveDocumentStyleProfile(document.presentation),
       object.typographyToken,
       object.styleOverride?.sizeScale,
+      {
+        bold: object.styleOverride?.weight !== "normal",
+        italic: object.styleOverride?.italic === true,
+      },
     ),
   );
   const leaderBox = paddedBounds(

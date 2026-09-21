@@ -1,3 +1,4 @@
+import { formulaPreviewNeedsRefresh } from "./gallery-preview";
 import {
   readGalleryCuration,
   type GalleryAttention,
@@ -1202,6 +1203,16 @@ export class GalleryDO {
       ownerUserId: row.owner_user_id,
       previewRevision: row.preview_revision || "legacy",
       svgText: row.svg_text,
+      ...(formulaPreviewNeedsRefresh(row.svg_text)
+        ? {
+            projectText: this.sql
+              .exec<{ project_text: string }>(
+                "SELECT project_text FROM gallery_entries WHERE id = ?",
+                id,
+              )
+              .one().project_text,
+          }
+        : {}),
     });
   }
 

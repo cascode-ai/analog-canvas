@@ -1,7 +1,9 @@
+import { formulaPreviewNeedsRefresh } from "./gallery-preview";
 import { validGalleryAttention } from "./gallery-curation";
 // Public Gallery HTTP policy and rendering. Durable storage lives in
 // gallery-do.ts; this module only authenticates and maps API requests.
 
+import { prepareDocumentFormulaArtifacts } from "@icm/derived";
 import { designExtractsNetlist } from "@icm/netlist";
 import {
   CURRENT_PROJECT_FILE_VERSION,
@@ -172,14 +174,31 @@ function fieldText(value: unknown, maxLength: number): string | null {
   return trimmed.length <= maxLength ? trimmed : null;
 }
 
-function renderPreview(
+async function renderPreview(
   project: CircuitProject,
   resolver: SymbolResolver,
-): string {
+): Promise<string> {
   const topDocument = project.documents.find(
     (document) => document.id === project.topDocumentId,
   )!;
-  return renderDocumentSvg(topDocument, resolver);
+  const prepared = await prepareDocumentFormulaArtifacts(topDocument);
+  try {
+    return renderDocumentSvg(topDocument, resolver);
+  } finally {
+    prepared.release();
+  }
+}
+
+async function recoverFormulaPreview(
+  svg: string,
+  projectText?: string,
+): Promise<string> {
+  if (!projectText || !formulaPreviewNeedsRefresh(svg)) return svg;
+  const project = parseProject(projectText);
+  return renderPreview(
+    project,
+    createProjectSymbolResolver(project, builtInSymbols),
+  );
 }
 
 function publicationBindingFields(body: {
@@ -288,7 +307,7 @@ async function handleCloudProjects(
   // cannot handle still saves; the shelf draws a placeholder tile instead.
   let previewSvg = "";
   try {
-    previewSvg = renderPreview(
+    previewSvg = await renderPreview(
       project,
       createProjectSymbolResolver(project, builtInSymbols),
     );
@@ -353,9 +372,15 @@ async function handleCloudProjectHistory(
     version: { project_text: string; preview_svg: string; name: string };
   };
   if (request.method === "GET" && action === "preview.svg")
-    return new Response(payload.version.preview_svg, {
-      headers: { ...headers, "content-type": "image/svg+xml" },
-    });
+    return new Response(
+      await recoverFormulaPreview(
+        payload.version.preview_svg,
+        payload.version.project_text,
+      ),
+      {
+        headers: { ...headers, "content-type": "image/svg+xml" },
+      },
+    );
   if (request.method === "GET" && action === "project")
     return Response.json(
       { projectText: payload.version.project_text },
@@ -409,9 +434,10 @@ async function handleCloudProjectPreview(
       { status: 404, headers: { "cache-control": "no-store" } },
     );
   }
-  if (!payload.previewSvg) {
-    // Shelves saved before previews existed have empty thumbnails; render
-    // one from the stored Project now and keep it for next time.
+  const needsBackfill = !payload.previewSvg;
+  if (needsBackfill || formulaPreviewNeedsRefresh(payload.previewSvg!)) {
+    // Backfill empty legacy thumbnails. Existing formula previews are repaired
+    // only in the response; saved Projects, previews and history stay intact.
     const opened = await callGallery<{
       project?: { projectText?: string; revision?: number };
     }>(env, "cloud-project-open", { userId: user.id, id: projectId });
@@ -419,7 +445,7 @@ async function handleCloudProjectPreview(
     if (opened.status === 200 && typeof projectText === "string") {
       try {
         const project = parseProject(projectText);
-        const rendered = renderPreview(
+        const rendered = await renderPreview(
           project,
           createProjectSymbolResolver(project, builtInSymbols),
         );
@@ -429,12 +455,14 @@ async function handleCloudProjectPreview(
           if (typeof openedRevision === "number") {
             payload.revision = openedRevision;
           }
-          await callGallery(env, "cloud-project-preview-store", {
-            userId: user.id,
-            id: projectId,
-            revision: opened.payload.project?.revision,
-            previewSvg: rendered,
-          });
+          if (needsBackfill) {
+            await callGallery(env, "cloud-project-preview-store", {
+              userId: user.id,
+              id: projectId,
+              revision: opened.payload.project?.revision,
+              previewSvg: rendered,
+            });
+          }
         }
       } catch {
         // The renderer cannot draw this Project; the shelf shows its
@@ -546,7 +574,7 @@ async function handleSubmission(
       submitter_provider: user.provider,
       tags: wrapTags(sanitizeGalleryTags(body.tags)),
       project_text: serializeProject(project),
-      svg_text: renderPreview(project, projectResolver),
+      svg_text: await renderPreview(project, projectResolver),
     },
   });
   if (status === 429) {
@@ -648,7 +676,7 @@ async function handleEntryUpdate(
     author,
     description,
     projectText: serializeProject(project),
-    svgText: renderPreview(project, projectResolver),
+    svgText: await renderPreview(project, projectResolver),
     schemaVersion: CURRENT_PROJECT_FILE_VERSION,
     netlistable,
     status: nextStatus,
@@ -1039,22 +1067,24 @@ export async function routeGalleryRequest(
     if (!access.found || (!access.reviewer && !access.owner)) {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
-    const { status, payload } = await callGallery<{ svgText?: string }>(
-      env,
-      "version",
-      { entryId: segments[0], versionId: segments[2] },
-    );
+    const { status, payload } = await callGallery<{
+      svgText?: string;
+      projectText?: string;
+    }>(env, "version", { entryId: segments[0], versionId: segments[2] });
     if (status !== 200 || !payload.svgText) {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
-    return new Response(payload.svgText, {
-      headers: {
-        "content-type": "image/svg+xml",
-        "cache-control": "no-store",
-        "content-security-policy":
-          "default-src 'none'; style-src 'unsafe-inline'",
+    return new Response(
+      await recoverFormulaPreview(payload.svgText, payload.projectText),
+      {
+        headers: {
+          "content-type": "image/svg+xml",
+          "cache-control": "no-store",
+          "content-security-policy":
+            "default-src 'none'; style-src 'unsafe-inline'",
+        },
       },
-    });
+    );
   }
   if (
     segments.length === 4 &&
@@ -1088,7 +1118,7 @@ export async function routeGalleryRequest(
           : runtime.previewCache
         : null;
     const cached = await matchPreviewCache(previewCache, request);
-    if (cached) {
+    if (cached && !formulaPreviewNeedsRefresh(await cached.clone().text())) {
       // A content URL stays immutable, but publication status does not. Check
       // the tiny access row before serving an edge hit so recycle/reject/delete
       // and a newer current revision retain exactly their existing behavior.
@@ -1109,6 +1139,7 @@ export async function routeGalleryRequest(
       ownerUserId?: string | null;
       previewRevision?: string;
       svgText?: string;
+      projectText?: string;
     }>(env, "preview", { id: segments[0] });
     if (status !== 200 || !payload.svgText) {
       return Response.json(
@@ -1124,16 +1155,19 @@ export async function routeGalleryRequest(
       const immutable =
         typeof currentRevision === "string" &&
         requestedRevision === String(currentRevision);
-      const response = new Response(payload.svgText, {
-        headers: {
-          "content-type": "image/svg+xml",
-          "cache-control": immutable
-            ? "public, max-age=31536000, immutable"
-            : "no-store",
-          "content-security-policy":
-            "default-src 'none'; style-src 'unsafe-inline'",
+      const response = new Response(
+        await recoverFormulaPreview(payload.svgText, payload.projectText),
+        {
+          headers: {
+            "content-type": "image/svg+xml",
+            "cache-control": immutable
+              ? "public, max-age=31536000, immutable"
+              : "no-store",
+            "content-security-policy":
+              "default-src 'none'; style-src 'unsafe-inline'",
+          },
         },
-      });
+      );
       if (immutable) {
         await storePreviewCache(previewCache, request, response.clone());
       }
@@ -1149,14 +1183,17 @@ export async function routeGalleryRequest(
         { status: 404, headers: { "cache-control": "no-store" } },
       );
     }
-    return new Response(payload.svgText, {
-      headers: {
-        "content-type": "image/svg+xml",
-        "cache-control": "no-store",
-        "content-security-policy":
-          "default-src 'none'; style-src 'unsafe-inline'",
+    return new Response(
+      await recoverFormulaPreview(payload.svgText, payload.projectText),
+      {
+        headers: {
+          "content-type": "image/svg+xml",
+          "cache-control": "no-store",
+          "content-security-policy":
+            "default-src 'none'; style-src 'unsafe-inline'",
+        },
       },
-    });
+    );
   }
   if (segments.length === 1 && request.method === "GET") {
     const { status, payload } = await callGallery<{

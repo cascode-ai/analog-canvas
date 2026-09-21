@@ -55,7 +55,7 @@ export function cloudProjectPreviewUrl(
   revision: number,
 ): string {
   const id = encodeURIComponent(projectId);
-  return `${ENDPOINT}/${id}/preview.svg?v=${revision}`;
+  return `${ENDPOINT}/${id}/preview.svg?v=${revision}&render=formula-sans-v2`;
 }
 
 function summaryOf(value: unknown): CloudProjectSummary | null {

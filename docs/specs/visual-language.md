@@ -84,6 +84,12 @@ formal profile recognizes MathLive's `\differentialD` source as an upright
 differential operator, so source produced by the editor preview remains valid
 without rewriting the persisted LaTeX. The typesetter emits standalone
 path-only SVG with deterministic width, height, baseline, and source identity.
+Formula letters and numerals default to bold sans-serif, matching schematic
+text. Drafting text and callout weight/slant overrides also apply to formulas;
+explicit LaTeX font commands retain their meaning. This is rendering style,
+not a rewrite of the stored expression. Measurement and drawing use the same
+style-aware artifact, prepared before canvas, export, and server thumbnail
+rendering.
 Formula SVG is embedded into the same formal
 scene used by canvas, SVG, PNG, and vector PDF; it is never rasterized or
 persisted.

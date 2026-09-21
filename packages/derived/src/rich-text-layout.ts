@@ -16,6 +16,8 @@ export interface RichTextMetrics {
   subscriptHorizontalGapEm: number;
   /** Shared proportional geometry for a fraction and all its companions. */
   fractionText?: boolean;
+  bold?: boolean;
+  italic?: boolean;
 }
 
 export interface RichTextLayout {
@@ -107,8 +109,10 @@ export function richTextMetrics(
   profile: SchematicStyleProfile,
   token: "caption" | "body" | "label" = "body",
   sizeScale = 1,
+  style: { bold?: boolean; italic?: boolean } = {},
 ): RichTextMetrics {
   return {
+    ...style,
     fontSize: typographyFontSize(token, profile) * sizeScale,
     lineHeight: profile.typography.lineHeight,
     subscriptScale: profile.typography.subscriptScale,
@@ -422,6 +426,8 @@ function measureRun(run: RichTextRun, metrics: RichTextMetrics): Line[] {
       latex: run.latex,
       display: run.display,
       profileId: ANALOG_CANVAS_MATH_PROFILE_ID,
+      bold: metrics.bold ?? true,
+      italic: metrics.italic ?? false,
     });
     if (!result) {
       return [

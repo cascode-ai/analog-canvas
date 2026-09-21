@@ -74,8 +74,11 @@ describe("Analog Canvas formula typesetter", () => {
     expect(expression.artifact.width).toBeGreaterThan(prefix.artifact.width);
     expect(expression.artifact.svg).toContain('data-latex="="');
     expect(expression.artifact.svg).toContain('data-latex="4"');
-    expect(expression.artifact.svg).toContain('data-latex="k"');
-    expect(expression.artifact.svg).toContain('data-latex="t"');
+    // Sans typography groups adjacent letters in one math identifier; both
+    // vector glyphs must survive after the nested overbar SVG.
+    expect(expression.artifact.svg).toContain('data-latex="kt"');
+    expect(expression.artifact.svg).toContain('data-c="1D5F8"');
+    expect(expression.artifact.svg).toContain('data-c="1D601"');
     expect(countSvgTags(expression.artifact.svg)).toBe(
       countSvgTags(expression.artifact.svg, true),
     );
@@ -90,6 +93,34 @@ describe("Analog Canvas formula typesetter", () => {
     if (!result.ok) return;
     expect(result.artifact.svg).toContain('data-latex="+"');
     expect(result.artifact.svg).toContain('data-latex="y"');
+  });
+
+  it("matches drawing sans weight/slant without rewriting explicit formula styling", () => {
+    const typesetter = createFormulaTypesetter();
+    const glyphs = [
+      [{}, "1D5DF"],
+      [{ bold: false }, "1D5AB"],
+      [{ italic: true }, "1D647"],
+      [{ bold: false, italic: true }, "1D613"],
+    ] as const;
+    const keys = new Set<string>();
+    for (const [style, glyph] of glyphs) {
+      const result = typesetter.typesetSync({
+        ...baseRequest,
+        latex: "L",
+        ...style,
+      });
+      expect(result).toMatchObject({ ok: true });
+      if (!result.ok) continue;
+      expect(result.artifact.svg).toContain(`data-c="${glyph}"`);
+      keys.add(result.artifact.sourceHash);
+    }
+    expect(keys.size).toBe(4);
+    const explicit = typesetter.typesetSync({
+      ...baseRequest,
+      latex: String.raw`\mathrm{L}`,
+    });
+    expect(explicit.ok && explicit.artifact.svg).toContain('data-c="4C"');
   });
 
   it("produces deterministic markup, metrics, and source hashes", async () => {

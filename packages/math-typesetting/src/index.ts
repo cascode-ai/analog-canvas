@@ -5,6 +5,10 @@ import "@mathjax/src/js/input/tex/ams/AmsConfiguration.js";
 import "@mathjax/src/js/input/tex/cases/CasesConfiguration.js";
 import "@mathjax/src/js/input/tex/configmacros/ConfigMacrosConfiguration.js";
 import { mathjax } from "@mathjax/src/js/mathjax.js";
+// Bundle the existing font's sans glyphs with the lazy formula chunk. Worker
+// rendering cannot fetch MathJax font modules dynamically during conversion.
+import "@mathjax/mathjax-newcm-font/js/svg/dynamic/sans-serif.js";
+import { MathJaxNewcmFont } from "@mathjax/mathjax-newcm-font/js/svg.js";
 import { SVG } from "@mathjax/src/js/output/svg.js";
 import {
   CANONICAL_FORMULA_FONT_SIZE,
@@ -117,6 +121,13 @@ export interface FormulaTypesetter {
   typeset(request: FormulaRequest): Promise<FormulaTypesetResult>;
 }
 
+class SchematicFormulaFont extends MathJaxNewcmFont {
+  constructor() {
+    super();
+    SchematicFormulaFont.dynamicFiles["sans-serif"]!.setup(this);
+  }
+}
+
 export function createFormulaTypesetter(): FormulaTypesetter {
   const adaptor = liteAdaptor();
   RegisterHTMLHandler(adaptor);
@@ -132,6 +143,7 @@ export function createFormulaTypesetter(): FormulaTypesetter {
   // single drafting object, so keep the expression on one MathJax line and let
   // the editor's formula source panel handle horizontal overflow.
   const output = new SVG({
+    fontData: new SchematicFormulaFont(),
     fontCache: "none",
     linebreaks: { inline: false },
   });
@@ -145,7 +157,17 @@ export function createFormulaTypesetter(): FormulaTypesetter {
       if (diagnostic) return { ok: false, diagnostic };
 
       try {
-        const node = document.convert(request.latex, {
+        const command =
+          request.bold === false
+            ? request.italic
+              ? "mathsfit"
+              : "mathsf"
+            : request.italic
+              ? "mathbfsfit"
+              : "mathbfsf";
+        // A surrounding default keeps explicit \mathrm/\mathit/etc. authored
+        // inside the expression effective. Do not rewrite the stored LaTeX.
+        const node = document.convert(`\\${command}{${request.latex}}`, {
           display: request.display === "block",
           em: CANONICAL_FORMULA_FONT_SIZE,
           ex: CANONICAL_FORMULA_FONT_SIZE / 2,

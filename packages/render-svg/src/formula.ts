@@ -32,6 +32,8 @@ export function renderFormulaDocument(
     fontSize: number;
     alignment: "start" | "middle" | "end";
     color?: string;
+    bold?: boolean;
+    italic?: boolean;
   },
 ): string | null {
   const formula = soleRichTextMathRun(document);
@@ -40,6 +42,8 @@ export function renderFormulaDocument(
     latex: formula.latex,
     display: formula.display,
     profileId: ANALOG_CANVAS_MATH_PROFILE_ID,
+    bold: options.bold ?? true,
+    italic: options.italic ?? false,
   } as const;
   const result = cachedFormulaResult(request);
   if (!result) {
@@ -68,7 +72,7 @@ export function renderFormulaDocument(
       const retained = attributes
         .replace(/\s(?:x|y|width|height|overflow)="[^"]*"/g, "")
         .trim();
-      return `<svg ${retained} x="${number(left)}" y="${number(top)}" width="${number(width)}" height="${number(height)}" color="${color}" overflow="visible" data-role="formula">`;
+      return `<svg ${retained} x="${number(left)}" y="${number(top)}" width="${number(width)}" height="${number(height)}" color="${color}" overflow="visible" data-role="formula" data-formula-typography="sans-v2">`;
     },
   );
 }

@@ -1671,6 +1671,10 @@ function renderDraftText(
       profile,
       object.typographyToken,
       object.styleOverride?.sizeScale,
+      {
+        bold: object.styleOverride?.weight !== "normal",
+        italic: object.styleOverride?.italic === true,
+      },
     ),
   );
   // Object-anchored drafting text (e.g. a rectangle's centered label) paints
@@ -1703,6 +1707,8 @@ function renderDraftText(
     italic: italic === "italic",
   });
   const formula = renderFormulaDocument(content, profile, {
+    bold: weight === "bold",
+    italic: italic === "italic",
     x: textPosition.x,
     baselineY,
     fontSize,
@@ -1930,6 +1936,8 @@ function renderDraftCallout(
   const weight = object.styleOverride?.weight ?? "bold";
   const italic = object.styleOverride?.italic === true ? "italic" : "normal";
   const formula = renderFormulaDocument(object.content, profile, {
+    bold: weight === "bold",
+    italic: italic === "italic",
     x: textPosition.x,
     baselineY: textPosition.y,
     fontSize,
