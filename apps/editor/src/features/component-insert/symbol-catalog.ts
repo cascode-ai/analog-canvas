@@ -74,11 +74,13 @@ export function symbolCategory(symbolId: string): string {
       "adc",
       "dac",
       "opamp",
+      "opamp-wide",
       "opamp-lettered",
       "voltage-amplifier-lettered",
       "transconductance",
       "differential-transconductance",
       "opamp-differential",
+      "opamp-differential-wide",
       "opamp-differential-lettered",
       "opamp-differential-crossed",
       "opamp-differential-crossed-lettered",
@@ -158,6 +160,10 @@ const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
 
 /** One line saying what an entry does, where the name alone leaves a doubt. */
 const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
+  "opamp-wide":
+    "Op Amp with 40-unit input spacing; the same netlist interface as Op Amp",
+  "opamp-differential-wide":
+    "FD Amp with 40-unit input/output spacing; the same netlist interface as FD Amp",
   "d-flip-flop-reset":
     "Rising-edge D flip-flop with an active-high asynchronous reset",
   "voltage-controlled-switch":
@@ -255,7 +261,9 @@ const SYMBOL_ORDER: readonly string[] = [
   // is looking for the pair, so they sit together, after the amplifiers and
   // comparators an analog schematic reaches for far more often.
   "opamp",
+  "opamp-wide",
   "opamp-differential",
+  "opamp-differential-wide",
   "voltage-amplifier",
   "transconductance",
   "differential-transconductance",

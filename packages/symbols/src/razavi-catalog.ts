@@ -66,6 +66,7 @@ export interface RazaviSymbolCatalogEntry {
           | "derived-input-swap"
           | "derived-output-drop"
           | "derived-lettered-body"
+          | "derived-wide-amplifier"
           | "derived-reset-pin";
         sourceSymbolId: string;
         converterPath: string;

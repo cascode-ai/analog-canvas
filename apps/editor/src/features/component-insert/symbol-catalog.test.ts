@@ -358,7 +358,9 @@ describe("reach order inside a category", () => {
     // often, rather than leading the group as the letter A did.
     expect(blocks).toEqual([
       "opamp",
+      "opamp-wide",
       "opamp-differential",
+      "opamp-differential-wide",
       "voltage-amplifier",
       "transconductance",
       "differential-transconductance",

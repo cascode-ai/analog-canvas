@@ -1,0 +1,332 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "opamp-differential-wide-crossed-lettered-inputs-swapped",
+    "name": "FD Amp Wide (crossed outputs, lettered) (swapped inputs)",
+    "viewBox": {
+      "x": -44,
+      "y": -34,
+      "width": 88,
+      "height": 68
+    },
+    "pins": [
+      {
+        "name": "IN+",
+        "role": "non-inverting-input",
+        "at": {
+          "x": -40,
+          "y": -20
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "IN-",
+        "role": "inverting-input",
+        "at": {
+          "x": -40,
+          "y": 20
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "OUT+",
+        "role": "output",
+        "at": {
+          "x": 30,
+          "y": -20
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "OUT-",
+        "role": "output",
+        "at": {
+          "x": 30,
+          "y": 20
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "part": "input-lead",
+        "from": {
+          "x": -40,
+          "y": -20
+        },
+        "to": {
+          "x": -30,
+          "y": -20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "part": "input-lead",
+        "from": {
+          "x": -40,
+          "y": 20
+        },
+        "to": {
+          "x": -30,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "part": "output-lead",
+        "from": {
+          "x": -12.679492,
+          "y": -20
+        },
+        "to": {
+          "x": 30,
+          "y": -20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "part": "output-lead",
+        "from": {
+          "x": -12.679492,
+          "y": 20
+        },
+        "to": {
+          "x": 30,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "path",
+        "data": "M -30 -30 L -30 30 L 21.961524 0 Z",
+        "bounds": {
+          "x": -30,
+          "y": -30,
+          "width": 51.961524,
+          "height": 60
+        },
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter",
+          "miterLimit": 4
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -23.75,
+          "y": 11
+        },
+        "to": {
+          "x": -23.75,
+          "y": 17
+        },
+        "part": "input-polarity",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -26.75,
+          "y": 14
+        },
+        "to": {
+          "x": -20.75,
+          "y": 14
+        },
+        "part": "input-polarity",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -26.75,
+          "y": -14
+        },
+        "to": {
+          "x": -20.75,
+          "y": -14
+        },
+        "part": "upright-input-polarity-negative",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -13.538476,
+          "y": -11
+        },
+        "to": {
+          "x": -13.538476,
+          "y": -17
+        },
+        "part": "output-polarity",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -16.538476,
+          "y": -14
+        },
+        "to": {
+          "x": -10.538476,
+          "y": -14
+        },
+        "part": "output-polarity",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -16.538476,
+          "y": 14
+        },
+        "to": {
+          "x": -10.538476,
+          "y": 14
+        },
+        "part": "upright-output-polarity-negative",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      }
+    ],
+    "variants": [],
+    "formulaPresentation": {
+      "defaultFormula": "A",
+      "supportsCoefficient": false,
+      "center": {
+        "x": -12.68,
+        "y": 0
+      },
+      "fontSize": 16
+    }
+  },
+  "electrical": null,
+  "subcircuit": {
+    "id": "opamp-differential-wide-crossed-lettered-inputs-swapped",
+    "symbolId": "opamp-differential-wide-crossed-lettered-inputs-swapped",
+    "target": "opamp_differential",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "VIP",
+        "direction": "input",
+        "pinName": "IN+"
+      },
+      {
+        "name": "VIN",
+        "direction": "input",
+        "pinName": "IN-"
+      },
+      {
+        "name": "VOP",
+        "direction": "output",
+        "pinName": "OUT+"
+      },
+      {
+        "name": "VON",
+        "direction": "output",
+        "pinName": "OUT-"
+      }
+    ]
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "opamp-differential-wide-crossed-lettered-inputs-swapped",
+    "name": "FD Amp Wide (crossed outputs, lettered) (swapped inputs)",
+    "category": "analog-block",
+    "reviewStatus": "reviewed",
+    "pinOrder": ["IN+", "IN-", "OUT+", "OUT-"],
+    "palette": false,
+    "automaticMappings": [],
+    "manualOnlyReason": "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    "assetPath": "opamp-differential-wide-crossed-lettered-inputs-swapped.json",
+    "visualAuthority": {
+      "kind": "razavi-reference-v1",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePaths": [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-reference.png"
+      ],
+      "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/differential-opamp-geometry.json"
+    },
+    "generation": {
+      "kind": "derived-wide-amplifier",
+      "sourceSymbolId": "opamp-differential-crossed-lettered-inputs-swapped",
+      "converterPath": "scripts/generate-component-library.mjs",
+      "converterVersion": 1
+    }
+  }
+}

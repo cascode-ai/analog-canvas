@@ -193,20 +193,42 @@ describe("Razavi symbol catalog", () => {
       ["nor-gate", "reviewed", "razavi-reference-v1"],
       ["npn", "reviewed", "razavi-reference-v1"],
       ["opamp", "reviewed", "razavi-reference-v1"],
+      ["opamp-wide", "reviewed", "razavi-reference-v1"],
       ["opamp-lettered", "reviewed", "razavi-reference-v1"],
+      ["opamp-wide-lettered", "reviewed", "razavi-reference-v1"],
       ["opamp-lettered-inputs-swapped", "reviewed", "razavi-reference-v1"],
+      ["opamp-wide-lettered-inputs-swapped", "reviewed", "razavi-reference-v1"],
       ["opamp-inputs-swapped", "reviewed", "razavi-reference-v1"],
+      ["opamp-wide-inputs-swapped", "reviewed", "razavi-reference-v1"],
       ["opamp-differential", "reviewed", "razavi-reference-v1"],
+      ["opamp-differential-wide", "reviewed", "razavi-reference-v1"],
       ["opamp-differential-lettered", "reviewed", "razavi-reference-v1"],
+      ["opamp-differential-wide-lettered", "reviewed", "razavi-reference-v1"],
       [
         "opamp-differential-lettered-inputs-swapped",
         "reviewed",
         "razavi-reference-v1",
       ],
+      [
+        "opamp-differential-wide-lettered-inputs-swapped",
+        "reviewed",
+        "razavi-reference-v1",
+      ],
       ["opamp-differential-inputs-swapped", "reviewed", "razavi-reference-v1"],
+      [
+        "opamp-differential-wide-inputs-swapped",
+        "reviewed",
+        "razavi-reference-v1",
+      ],
       ["opamp-differential-crossed", "reviewed", "razavi-reference-v1"],
+      ["opamp-differential-wide-crossed", "reviewed", "razavi-reference-v1"],
       [
         "opamp-differential-crossed-lettered",
+        "reviewed",
+        "razavi-reference-v1",
+      ],
+      [
+        "opamp-differential-wide-crossed-lettered",
         "reviewed",
         "razavi-reference-v1",
       ],
@@ -216,7 +238,17 @@ describe("Razavi symbol catalog", () => {
         "razavi-reference-v1",
       ],
       [
+        "opamp-differential-wide-crossed-lettered-inputs-swapped",
+        "reviewed",
+        "razavi-reference-v1",
+      ],
+      [
         "opamp-differential-crossed-inputs-swapped",
+        "reviewed",
+        "razavi-reference-v1",
+      ],
+      [
+        "opamp-differential-wide-crossed-inputs-swapped",
         "reviewed",
         "razavi-reference-v1",
       ],
@@ -489,7 +521,7 @@ describe("Razavi symbol catalog", () => {
         symbol.id,
       ),
     );
-    expect(family).toHaveLength(20);
+    expect(family).toHaveLength(32);
     for (const symbol of family)
       for (const primitive of symbol.primitives) {
         if (primitive.kind !== "path") continue;
@@ -513,7 +545,7 @@ describe("Razavi symbol catalog", () => {
       }
   });
 
-  it("uses one equilateral triangle, pair spacing, and visible leads across Analog Blocks", () => {
+  it("uses one equilateral triangle and visible leads across both Analog Block spacings", () => {
     const opamp = requireRazaviCatalogSymbol("opamp");
     const opampTriangle = opamp.primitives.find(
       (primitive) =>
@@ -526,7 +558,7 @@ describe("Razavi symbol catalog", () => {
     const family = razaviCatalogSymbols.filter((symbol) =>
       /^(?:opamp|voltage-amplifier|comparator)(?:-|$)/u.test(symbol.id),
     );
-    expect(family).toHaveLength(18);
+    expect(family).toHaveLength(30);
     for (const { id: symbolId } of family) {
       const candidate = requireRazaviCatalogSymbol(symbolId);
       const triangle = candidate.primitives.find(
@@ -736,7 +768,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(70);
+    expect(razaviCatalogSymbols).toHaveLength(82);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -780,7 +812,9 @@ describe("Razavi symbol catalog", () => {
       "nor-gate",
       "npn",
       "opamp",
+      "opamp-wide",
       "opamp-differential",
+      "opamp-differential-wide",
       "or-gate",
       "pmos",
       "pnp",

@@ -40,10 +40,12 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   ndmos: "NDMOS",
   npn: "NPN",
   opamp: "OpAmp",
+  "opamp-wide": "OpAmp Wide",
   adc: "ADC",
   dac: "DAC",
   "opamp-lettered": "OpAmp A",
   "opamp-differential": "FD Amp",
+  "opamp-differential-wide": "FD Amp Wide",
   "opamp-differential-lettered": "FD Amp A",
   "opamp-differential-crossed": "FD Amp X",
   "and-gate": "AND",
@@ -247,6 +249,12 @@ export function ShapesPanel({
                         key={symbol.id}
                         type="button"
                         className="shapes-chip"
+                        data-wide-amplifier={
+                          symbol.id === "opamp-wide" ||
+                          symbol.id === "opamp-differential-wide"
+                            ? "true"
+                            : undefined
+                        }
                         data-testid={`shapes-chip-${symbol.id}`}
                         data-vdd-rail={symbol.id === "vdd" ? "true" : undefined}
                         aria-label={`Place ${libraryDisplayName(

@@ -151,6 +151,14 @@ The product set is exactly the reviewed, Reference-calibrated entries:
   past the apex. The shared construction lives in `scripts/lib/analog-triangle.mjs`,
   and the op-amp
   generator also projects the comparator bodies;
+- `opamp-wide` and `opamp-differential-wide` sit beside their compact versions
+  in Analog Blocks. Wide uses 40-unit input/output pairs in the same 60-unit
+  equilateral body, keeping six-unit polarity marks inward of the pin rows; the existing 20-unit versions keep all original geometry.
+  Input/output polarity swaps and internal body text have matching Wide states.
+  `scripts/lib/wide-amplifier.mjs` derives each complete definition from its
+  compact counterpart during `components:generate`/`components:check`, sharing
+  subcircuit targets, port order and all electrical configuration. Projects
+  retain the chosen Symbol ID; adding Wide never moves existing pins or routes;
 - the Analog Blocks library includes the reference-calibrated single-input
   `transconductance` symbol and its user-requested house companion
   `differential-transconductance`. Both display `g_m` without a default unary

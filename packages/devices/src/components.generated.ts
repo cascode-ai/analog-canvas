@@ -1665,8 +1665,32 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
       ],
     },
     {
+      id: "opamp-wide",
+      symbolId: "opamp-wide",
+      target: "opamp",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "VIP", direction: "input", pinName: "IN+" },
+        { name: "VIN", direction: "input", pinName: "IN-" },
+        { name: "VOUT", direction: "output", pinName: "OUT" },
+      ],
+    },
+    {
       id: "opamp-lettered",
       symbolId: "opamp-lettered",
+      target: "opamp",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "VIP", direction: "input", pinName: "IN+" },
+        { name: "VIN", direction: "input", pinName: "IN-" },
+        { name: "VOUT", direction: "output", pinName: "OUT" },
+      ],
+    },
+    {
+      id: "opamp-wide-lettered",
+      symbolId: "opamp-wide-lettered",
       target: "opamp",
       ports: [
         { name: "VDD", direction: "inout", supply: "VDD" },
@@ -1689,6 +1713,18 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
       ],
     },
     {
+      id: "opamp-wide-lettered-inputs-swapped",
+      symbolId: "opamp-wide-lettered-inputs-swapped",
+      target: "opamp",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "VIP", direction: "input", pinName: "IN+" },
+        { name: "VIN", direction: "input", pinName: "IN-" },
+        { name: "VOUT", direction: "output", pinName: "OUT" },
+      ],
+    },
+    {
       id: "opamp-inputs-swapped",
       symbolId: "opamp-inputs-swapped",
       target: "opamp",
@@ -1701,8 +1737,33 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
       ],
     },
     {
+      id: "opamp-wide-inputs-swapped",
+      symbolId: "opamp-wide-inputs-swapped",
+      target: "opamp",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "VIP", direction: "input", pinName: "IN+" },
+        { name: "VIN", direction: "input", pinName: "IN-" },
+        { name: "VOUT", direction: "output", pinName: "OUT" },
+      ],
+    },
+    {
       id: "opamp-differential",
       symbolId: "opamp-differential",
+      target: "opamp_differential",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "VIP", direction: "input", pinName: "IN+" },
+        { name: "VIN", direction: "input", pinName: "IN-" },
+        { name: "VOP", direction: "output", pinName: "OUT+" },
+        { name: "VON", direction: "output", pinName: "OUT-" },
+      ],
+    },
+    {
+      id: "opamp-differential-wide",
+      symbolId: "opamp-differential-wide",
       target: "opamp_differential",
       ports: [
         { name: "VDD", direction: "inout", supply: "VDD" },
@@ -1727,8 +1788,34 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
       ],
     },
     {
+      id: "opamp-differential-wide-lettered",
+      symbolId: "opamp-differential-wide-lettered",
+      target: "opamp_differential",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "VIP", direction: "input", pinName: "IN+" },
+        { name: "VIN", direction: "input", pinName: "IN-" },
+        { name: "VOP", direction: "output", pinName: "OUT+" },
+        { name: "VON", direction: "output", pinName: "OUT-" },
+      ],
+    },
+    {
       id: "opamp-differential-lettered-inputs-swapped",
       symbolId: "opamp-differential-lettered-inputs-swapped",
+      target: "opamp_differential",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "VIP", direction: "input", pinName: "IN+" },
+        { name: "VIN", direction: "input", pinName: "IN-" },
+        { name: "VOP", direction: "output", pinName: "OUT+" },
+        { name: "VON", direction: "output", pinName: "OUT-" },
+      ],
+    },
+    {
+      id: "opamp-differential-wide-lettered-inputs-swapped",
+      symbolId: "opamp-differential-wide-lettered-inputs-swapped",
       target: "opamp_differential",
       ports: [
         { name: "VDD", direction: "inout", supply: "VDD" },
@@ -1753,8 +1840,34 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
       ],
     },
     {
+      id: "opamp-differential-wide-inputs-swapped",
+      symbolId: "opamp-differential-wide-inputs-swapped",
+      target: "opamp_differential",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "VIP", direction: "input", pinName: "IN+" },
+        { name: "VIN", direction: "input", pinName: "IN-" },
+        { name: "VOP", direction: "output", pinName: "OUT+" },
+        { name: "VON", direction: "output", pinName: "OUT-" },
+      ],
+    },
+    {
       id: "opamp-differential-crossed",
       symbolId: "opamp-differential-crossed",
+      target: "opamp_differential",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "VIP", direction: "input", pinName: "IN+" },
+        { name: "VIN", direction: "input", pinName: "IN-" },
+        { name: "VOP", direction: "output", pinName: "OUT+" },
+        { name: "VON", direction: "output", pinName: "OUT-" },
+      ],
+    },
+    {
+      id: "opamp-differential-wide-crossed",
+      symbolId: "opamp-differential-wide-crossed",
       target: "opamp_differential",
       ports: [
         { name: "VDD", direction: "inout", supply: "VDD" },
@@ -1779,6 +1892,19 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
       ],
     },
     {
+      id: "opamp-differential-wide-crossed-lettered",
+      symbolId: "opamp-differential-wide-crossed-lettered",
+      target: "opamp_differential",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "VIP", direction: "input", pinName: "IN+" },
+        { name: "VIN", direction: "input", pinName: "IN-" },
+        { name: "VOP", direction: "output", pinName: "OUT+" },
+        { name: "VON", direction: "output", pinName: "OUT-" },
+      ],
+    },
+    {
       id: "opamp-differential-crossed-lettered-inputs-swapped",
       symbolId: "opamp-differential-crossed-lettered-inputs-swapped",
       target: "opamp_differential",
@@ -1792,8 +1918,34 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
       ],
     },
     {
+      id: "opamp-differential-wide-crossed-lettered-inputs-swapped",
+      symbolId: "opamp-differential-wide-crossed-lettered-inputs-swapped",
+      target: "opamp_differential",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "VIP", direction: "input", pinName: "IN+" },
+        { name: "VIN", direction: "input", pinName: "IN-" },
+        { name: "VOP", direction: "output", pinName: "OUT+" },
+        { name: "VON", direction: "output", pinName: "OUT-" },
+      ],
+    },
+    {
       id: "opamp-differential-crossed-inputs-swapped",
       symbolId: "opamp-differential-crossed-inputs-swapped",
+      target: "opamp_differential",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "VIP", direction: "input", pinName: "IN+" },
+        { name: "VIN", direction: "input", pinName: "IN-" },
+        { name: "VOP", direction: "output", pinName: "OUT+" },
+        { name: "VON", direction: "output", pinName: "OUT-" },
+      ],
+    },
+    {
+      id: "opamp-differential-wide-crossed-inputs-swapped",
+      symbolId: "opamp-differential-wide-crossed-inputs-swapped",
       target: "opamp_differential",
       ports: [
         { name: "VDD", direction: "inout", supply: "VDD" },

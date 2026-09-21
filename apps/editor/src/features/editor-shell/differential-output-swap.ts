@@ -23,5 +23,15 @@ const OUTPUT_SWAP_SIBLINGS: Readonly<Record<string, string>> = {
 export function differentialOutputSibling(
   symbolId: string,
 ): string | undefined {
+  if (symbolId.startsWith("opamp-differential-wide")) {
+    const compact = symbolId.replace(
+      "opamp-differential-wide",
+      "opamp-differential",
+    );
+    return OUTPUT_SWAP_SIBLINGS[compact]?.replace(
+      "opamp-differential",
+      "opamp-differential-wide",
+    );
+  }
   return OUTPUT_SWAP_SIBLINGS[symbolId];
 }

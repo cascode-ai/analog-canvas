@@ -25,6 +25,14 @@ for (const [plain, lettered] of BODY_MARK_PAIRS) {
   const pair = { plain, lettered };
   bodyMarkVariants.set(plain, pair);
   bodyMarkVariants.set(lettered, pair);
+  if (plain.startsWith("opamp")) {
+    const wide = {
+      plain: plain.replace(/^opamp(?:-differential)?/u, "$&-wide"),
+      lettered: lettered.replace(/^opamp(?:-differential)?/u, "$&-wide"),
+    };
+    bodyMarkVariants.set(wide.plain, wide);
+    bodyMarkVariants.set(wide.lettered, wide);
+  }
 }
 
 const POLARITY_PAIRS = [

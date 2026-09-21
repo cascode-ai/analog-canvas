@@ -6,74 +6,81 @@ import { planComponentPropertyCodeEdits } from "./component-property-code-edits"
 import { componentPropertyCodeValue } from "./component-property-code";
 
 describe("planComponentPropertyCodeEdits", () => {
-  it("composes both swap axes and custom marks into one symbol edit across all variants", () => {
-    const document = createEmptyDocument("main", "Main");
-    for (const sourceInputs of [false, true])
-      for (const sourceOutputs of [false, true])
-        for (const sourceMark of ["none", "A", "G"]) {
-          const source = {
-            id: "X1",
-            symbolId: `opamp-differential${sourceOutputs ? "-crossed" : ""}${sourceMark !== "none" ? "-lettered" : ""}${sourceInputs ? "-inputs-swapped" : ""}`,
-            placement: {
-              position: { x: 200, y: 200 },
-              rotation: 90 as const,
-              mirror: "horizontal" as const,
-            },
-            ...(sourceMark === "G"
-              ? { signalFlowParameters: { formula: "G" } }
-              : {}),
-          };
-          const baseline = componentPropertyCodeValue({
-            instance: source,
-            referenceVisible: null,
-            valueVisible: null,
-          });
-          expect(
-            planComponentPropertyCodeEdits(document, source, baseline),
-          ).toEqual([]);
-          for (const inputsSwapped of [false, true])
-            for (const outputsSwapped of [false, true])
-              for (const internalMark of ["none", "A", "G"]) {
-                const symbolId = `opamp-differential${outputsSwapped ? "-crossed" : ""}${internalMark !== "none" ? "-lettered" : ""}${inputsSwapped ? "-inputs-swapped" : ""}`;
-                const edits = planComponentPropertyCodeEdits(document, source, {
-                  ...baseline,
-                  appearance: {
-                    color: "auto",
-                    inputsSwapped,
-                    outputsSwapped,
-                    internalMark,
-                  },
-                });
-                expect(
-                  edits.filter((edit) => edit.kind === "set_instance_symbol"),
-                ).toEqual(
-                  symbolId === source.symbolId
-                    ? []
-                    : [
-                        {
-                          kind: "set_instance_symbol",
-                          instanceId: "X1",
-                          symbolId,
-                        },
-                      ],
-                );
-                expect(
-                  edits.every((edit) =>
-                    [
-                      "set_instance_symbol",
-                      "set_instance_signal_flow_parameters",
-                    ].includes(edit.kind),
-                  ),
-                ).toBe(true);
-                if (internalMark === "G" && sourceMark !== "G")
-                  expect(edits).toContainEqual({
-                    kind: "set_instance_signal_flow_parameters",
-                    instanceId: "X1",
-                    parameters: { formula: "G" },
-                  });
-              }
-        }
-  });
+  it.each(["opamp-differential", "opamp-differential-wide"])(
+    "composes both swap axes and custom marks for %s",
+    (family) => {
+      const document = createEmptyDocument("main", "Main");
+      for (const sourceInputs of [false, true])
+        for (const sourceOutputs of [false, true])
+          for (const sourceMark of ["none", "A", "G"]) {
+            const source = {
+              id: "X1",
+              symbolId: `${family}${sourceOutputs ? "-crossed" : ""}${sourceMark !== "none" ? "-lettered" : ""}${sourceInputs ? "-inputs-swapped" : ""}`,
+              placement: {
+                position: { x: 200, y: 200 },
+                rotation: 90 as const,
+                mirror: "horizontal" as const,
+              },
+              ...(sourceMark === "G"
+                ? { signalFlowParameters: { formula: "G" } }
+                : {}),
+            };
+            const baseline = componentPropertyCodeValue({
+              instance: source,
+              referenceVisible: null,
+              valueVisible: null,
+            });
+            expect(
+              planComponentPropertyCodeEdits(document, source, baseline),
+            ).toEqual([]);
+            for (const inputsSwapped of [false, true])
+              for (const outputsSwapped of [false, true])
+                for (const internalMark of ["none", "A", "G"]) {
+                  const symbolId = `${family}${outputsSwapped ? "-crossed" : ""}${internalMark !== "none" ? "-lettered" : ""}${inputsSwapped ? "-inputs-swapped" : ""}`;
+                  const edits = planComponentPropertyCodeEdits(
+                    document,
+                    source,
+                    {
+                      ...baseline,
+                      appearance: {
+                        color: "auto",
+                        inputsSwapped,
+                        outputsSwapped,
+                        internalMark,
+                      },
+                    },
+                  );
+                  expect(
+                    edits.filter((edit) => edit.kind === "set_instance_symbol"),
+                  ).toEqual(
+                    symbolId === source.symbolId
+                      ? []
+                      : [
+                          {
+                            kind: "set_instance_symbol",
+                            instanceId: "X1",
+                            symbolId,
+                          },
+                        ],
+                  );
+                  expect(
+                    edits.every((edit) =>
+                      [
+                        "set_instance_symbol",
+                        "set_instance_signal_flow_parameters",
+                      ].includes(edit.kind),
+                    ),
+                  ).toBe(true);
+                  if (internalMark === "G" && sourceMark !== "G")
+                    expect(edits).toContainEqual({
+                      kind: "set_instance_signal_flow_parameters",
+                      instanceId: "X1",
+                      parameters: { formula: "G" },
+                    });
+                }
+          }
+    },
+  );
 
   it("combines comparator mark visibility with input swapping in one edit", () => {
     const document = createEmptyDocument("main", "Main");

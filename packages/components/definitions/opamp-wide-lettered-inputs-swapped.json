@@ -1,0 +1,242 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "opamp-wide-lettered-inputs-swapped",
+    "name": "Op Amp Wide (lettered) (swapped inputs)",
+    "viewBox": {
+      "x": -44,
+      "y": -34,
+      "width": 88,
+      "height": 68
+    },
+    "pins": [
+      {
+        "name": "IN+",
+        "role": "non-inverting-input",
+        "at": {
+          "x": -40,
+          "y": -20
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "IN-",
+        "role": "inverting-input",
+        "at": {
+          "x": -40,
+          "y": 20
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "OUT",
+        "role": "output",
+        "at": {
+          "x": 30,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -40,
+          "y": -20
+        },
+        "to": {
+          "x": -30,
+          "y": -20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -40,
+          "y": 20
+        },
+        "to": {
+          "x": -30,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 21.961524,
+          "y": 0
+        },
+        "to": {
+          "x": 30,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "path",
+        "data": "M -30 -30 L -30 30 L 21.961524 0 Z",
+        "bounds": {
+          "x": -30,
+          "y": -30,
+          "width": 51.961524,
+          "height": 60
+        },
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter",
+          "miterLimit": 4
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -23.75,
+          "y": -11
+        },
+        "to": {
+          "x": -23.75,
+          "y": -17
+        },
+        "part": "input-polarity",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -26.75,
+          "y": -14
+        },
+        "to": {
+          "x": -20.75,
+          "y": -14
+        },
+        "part": "input-polarity",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -26.75,
+          "y": 14
+        },
+        "to": {
+          "x": -20.75,
+          "y": 14
+        },
+        "part": "upright-input-polarity-negative",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      }
+    ],
+    "variants": [],
+    "formulaPresentation": {
+      "defaultFormula": "A",
+      "supportsCoefficient": false,
+      "center": {
+        "x": -12.68,
+        "y": 0
+      },
+      "fontSize": 16
+    }
+  },
+  "electrical": null,
+  "subcircuit": {
+    "id": "opamp-wide-lettered-inputs-swapped",
+    "symbolId": "opamp-wide-lettered-inputs-swapped",
+    "target": "opamp",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "VIP",
+        "direction": "input",
+        "pinName": "IN+"
+      },
+      {
+        "name": "VIN",
+        "direction": "input",
+        "pinName": "IN-"
+      },
+      {
+        "name": "VOUT",
+        "direction": "output",
+        "pinName": "OUT"
+      }
+    ]
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "opamp-wide-lettered-inputs-swapped",
+    "name": "Op Amp Wide (lettered) (swapped inputs)",
+    "category": "analog-block",
+    "reviewStatus": "reviewed",
+    "pinOrder": ["IN+", "IN-", "OUT"],
+    "palette": false,
+    "automaticMappings": [],
+    "manualOnlyReason": "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    "assetPath": "opamp-wide-lettered-inputs-swapped.json",
+    "visualAuthority": {
+      "kind": "razavi-reference-v1",
+      "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      "referencePaths": [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/opamp-reference.png"
+      ],
+      "calibrationPath": "fixtures/visual-reference/razavi-reference-v1/opamp-geometry.json"
+    },
+    "generation": {
+      "kind": "derived-wide-amplifier",
+      "sourceSymbolId": "opamp-lettered-inputs-swapped",
+      "converterPath": "scripts/generate-component-library.mjs",
+      "converterVersion": 1
+    }
+  }
+}

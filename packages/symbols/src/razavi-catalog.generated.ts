@@ -1096,6 +1096,37 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "opamp-wide",
+    name: "Op Amp Wide",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "opamp-wide.json",
+    assetHash:
+      "bdd2a3bd55046a1fd0e5df8a4b9171968c929738b196d29a803e6da61227d1d9",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-wide-amplifier",
+      sourceSymbolId: "opamp",
+      converterPath: "scripts/generate-component-library.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
     symbolId: "opamp-lettered",
     name: "Operational Amplifier (lettered)",
     category: "analog-block",
@@ -1123,6 +1154,37 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       kind: "derived-lettered-body",
       sourceSymbolId: "opamp",
       converterPath: "scripts/generate-lettered-amplifiers.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
+    symbolId: "opamp-wide-lettered",
+    name: "Op Amp Wide (lettered)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "opamp-wide-lettered.json",
+    assetHash:
+      "b86b6795882ad3d3377fefc329f6c41331c397f6f08773b3b29035dcd64f6b6a",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-wide-amplifier",
+      sourceSymbolId: "opamp-lettered",
+      converterPath: "scripts/generate-component-library.mjs",
       converterVersion: 1,
     },
   },
@@ -1158,6 +1220,37 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "opamp-wide-lettered-inputs-swapped",
+    name: "Op Amp Wide (lettered) (swapped inputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "opamp-wide-lettered-inputs-swapped.json",
+    assetHash:
+      "7fc38ea248deaddebb84690410618f5449309e0bc5a69dfb174e638e805f383d",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-wide-amplifier",
+      sourceSymbolId: "opamp-lettered-inputs-swapped",
+      converterPath: "scripts/generate-component-library.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
     symbolId: "opamp-inputs-swapped",
     name: "Operational Amplifier (swapped inputs)",
     category: "analog-block",
@@ -1185,6 +1278,37 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       kind: "derived-input-swap",
       sourceSymbolId: "opamp",
       converterPath: "scripts/generate-input-swapped-amplifiers.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
+    symbolId: "opamp-wide-inputs-swapped",
+    name: "Op Amp Wide (swapped inputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Three-terminal textbook op-amp; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "opamp-wide-inputs-swapped.json",
+    assetHash:
+      "1f2d330938c20ee721069a8dc9976a92678f807c7f69fa4792f4d684fd6b719f",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-wide-amplifier",
+      sourceSymbolId: "opamp-inputs-swapped",
+      converterPath: "scripts/generate-component-library.mjs",
       converterVersion: 1,
     },
   },
@@ -1225,6 +1349,38 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "opamp-differential-wide",
+    name: "FD Amp Wide",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "opamp-differential-wide.json",
+    assetHash:
+      "07c560fddad4f6b852b2591d94a8fcb6161cb872201f975d71d89a584afddd95",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-wide-amplifier",
+      sourceSymbolId: "opamp-differential",
+      converterPath: "scripts/generate-component-library.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
     symbolId: "opamp-differential-lettered",
     name: "Differential Op Amp (lettered)",
     category: "analog-block",
@@ -1253,6 +1409,38 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       kind: "derived-lettered-body",
       sourceSymbolId: "opamp-differential",
       converterPath: "scripts/generate-lettered-amplifiers.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
+    symbolId: "opamp-differential-wide-lettered",
+    name: "FD Amp Wide (lettered)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "opamp-differential-wide-lettered.json",
+    assetHash:
+      "b761113eec3e29978fd31f0952fe7d3faaeb471b1e741b0f5869f4c654cbaee1",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-wide-amplifier",
+      sourceSymbolId: "opamp-differential-lettered",
+      converterPath: "scripts/generate-component-library.mjs",
       converterVersion: 1,
     },
   },
@@ -1289,6 +1477,38 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "opamp-differential-wide-lettered-inputs-swapped",
+    name: "FD Amp Wide (lettered) (swapped inputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "opamp-differential-wide-lettered-inputs-swapped.json",
+    assetHash:
+      "d290687d971123b563bb0bbd61b4ae275e71f834ea5b6580f8677c1afbb28794",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-wide-amplifier",
+      sourceSymbolId: "opamp-differential-lettered-inputs-swapped",
+      converterPath: "scripts/generate-component-library.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
     symbolId: "opamp-differential-inputs-swapped",
     name: "Differential Op Amp (swapped inputs)",
     category: "analog-block",
@@ -1317,6 +1537,38 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       kind: "derived-input-swap",
       sourceSymbolId: "opamp-differential",
       converterPath: "scripts/generate-input-swapped-amplifiers.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
+    symbolId: "opamp-differential-wide-inputs-swapped",
+    name: "FD Amp Wide (swapped inputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "opamp-differential-wide-inputs-swapped.json",
+    assetHash:
+      "d7f4c40145208ac9fdf6bbe1e495a80cf8d66efb2143e0a5605b87aafcf39020",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-wide-amplifier",
+      sourceSymbolId: "opamp-differential-inputs-swapped",
+      converterPath: "scripts/generate-component-library.mjs",
       converterVersion: 1,
     },
   },
@@ -1357,6 +1609,38 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "opamp-differential-wide-crossed",
+    name: "FD Amp Wide (crossed outputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "opamp-differential-wide-crossed.json",
+    assetHash:
+      "e90bebfb0a31ee06beca585a50f9e4549bbd16d4c66751fd491f406f7b245030",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-wide-amplifier",
+      sourceSymbolId: "opamp-differential-crossed",
+      converterPath: "scripts/generate-component-library.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
     symbolId: "opamp-differential-crossed-lettered",
     name: "Differential Op Amp (crossed outputs, lettered)",
     category: "analog-block",
@@ -1385,6 +1669,38 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       kind: "derived-lettered-body",
       sourceSymbolId: "opamp-differential-crossed",
       converterPath: "scripts/generate-lettered-amplifiers.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
+    symbolId: "opamp-differential-wide-crossed-lettered",
+    name: "FD Amp Wide (crossed outputs, lettered)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "opamp-differential-wide-crossed-lettered.json",
+    assetHash:
+      "04c1b6db68dcbfc9c2ad87d7d899b2c658e55ca9cd55aad389cd134a6104b0a7",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-wide-amplifier",
+      sourceSymbolId: "opamp-differential-crossed-lettered",
+      converterPath: "scripts/generate-component-library.mjs",
       converterVersion: 1,
     },
   },
@@ -1421,6 +1737,38 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "opamp-differential-wide-crossed-lettered-inputs-swapped",
+    name: "FD Amp Wide (crossed outputs, lettered) (swapped inputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "opamp-differential-wide-crossed-lettered-inputs-swapped.json",
+    assetHash:
+      "96df6ce11b5b3279202ca76f43c97c40f5cf3987e3809e77cf306c57d1ec01fc",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-wide-amplifier",
+      sourceSymbolId: "opamp-differential-crossed-lettered-inputs-swapped",
+      converterPath: "scripts/generate-component-library.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
     symbolId: "opamp-differential-crossed-inputs-swapped",
     name: "Differential Op Amp (crossed outputs) (swapped inputs)",
     category: "analog-block",
@@ -1449,6 +1797,38 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       kind: "derived-input-swap",
       sourceSymbolId: "opamp-differential-crossed",
       converterPath: "scripts/generate-input-swapped-amplifiers.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
+    symbolId: "opamp-differential-wide-crossed-inputs-swapped",
+    name: "FD Amp Wide (crossed outputs) (swapped inputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
+    assetPath: "opamp-differential-wide-crossed-inputs-swapped.json",
+    assetHash:
+      "3698c98649eb194b3a15b541147ee73c426ded326635bfb37b0be24527c44046",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/differential-opamp-geometry.json",
+    },
+    generation: {
+      kind: "derived-wide-amplifier",
+      sourceSymbolId: "opamp-differential-crossed-inputs-swapped",
+      converterPath: "scripts/generate-component-library.mjs",
       converterVersion: 1,
     },
   },
@@ -7253,6 +7633,176 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "opamp-wide",
+    name: "Op Amp Wide",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: -20,
+        },
+        to: {
+          x: -30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: 20,
+        },
+        to: {
+          x: -30,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 21.961524,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: 11,
+        },
+        to: {
+          x: -23.75,
+          y: 17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
     id: "opamp-lettered",
     name: "Operational Amplifier (lettered)",
     viewBox: {
@@ -7328,6 +7878,185 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -30,
           y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 21.961524,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: 11,
+        },
+        to: {
+          x: -23.75,
+          y: 17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+    ],
+    variants: [],
+    formulaPresentation: {
+      defaultFormula: "A",
+      supportsCoefficient: false,
+      center: {
+        x: -12.68,
+        y: 0,
+      },
+      fontSize: 16,
+    },
+  },
+  {
+    schemaVersion: 1,
+    id: "opamp-wide-lettered",
+    name: "Op Amp Wide (lettered)",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: -20,
+        },
+        to: {
+          x: -30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: 20,
+        },
+        to: {
+          x: -30,
+          y: 20,
         },
         style: {
           strokeRole: "normal",
@@ -7611,6 +8340,185 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "opamp-wide-lettered-inputs-swapped",
+    name: "Op Amp Wide (lettered) (swapped inputs)",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: -20,
+        },
+        to: {
+          x: -30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: 20,
+        },
+        to: {
+          x: -30,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 21.961524,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: -11,
+        },
+        to: {
+          x: -23.75,
+          y: -17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+    ],
+    variants: [],
+    formulaPresentation: {
+      defaultFormula: "A",
+      supportsCoefficient: false,
+      center: {
+        x: -12.68,
+        y: 0,
+      },
+      fontSize: 16,
+    },
+  },
+  {
+    schemaVersion: 1,
     id: "opamp-inputs-swapped",
     name: "Operational Amplifier (swapped inputs)",
     viewBox: {
@@ -7686,6 +8594,176 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -30,
           y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 21.961524,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: -11,
+        },
+        to: {
+          x: -23.75,
+          y: -17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "opamp-wide-inputs-swapped",
+    name: "Op Amp Wide (swapped inputs)",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: -20,
+        },
+        to: {
+          x: -30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: 20,
+        },
+        to: {
+          x: -30,
+          y: 20,
         },
         style: {
           strokeRole: "normal",
@@ -8035,6 +9113,260 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "opamp-differential-wide",
+    name: "FD Amp Wide",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 30,
+          y: 20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 30,
+          y: -20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: -20,
+        },
+        to: {
+          x: -30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: 20,
+        },
+        to: {
+          x: -30,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -12.679492,
+          y: -20,
+        },
+        to: {
+          x: 30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -12.679492,
+          y: 20,
+        },
+        to: {
+          x: 30,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: -11,
+        },
+        to: {
+          x: -23.75,
+          y: -17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -13.538476,
+          y: 11,
+        },
+        to: {
+          x: -13.538476,
+          y: 17,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: 14,
+        },
+        to: {
+          x: -10.538476,
+          y: 14,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: -14,
+        },
+        to: {
+          x: -10.538476,
+          y: -14,
+        },
+        part: "upright-output-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
     id: "opamp-differential-lettered",
     name: "Differential Op Amp (lettered)",
     viewBox: {
@@ -8159,6 +9491,269 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: 30,
           y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: -11,
+        },
+        to: {
+          x: -23.75,
+          y: -17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -13.538476,
+          y: 11,
+        },
+        to: {
+          x: -13.538476,
+          y: 17,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: 14,
+        },
+        to: {
+          x: -10.538476,
+          y: 14,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: -14,
+        },
+        to: {
+          x: -10.538476,
+          y: -14,
+        },
+        part: "upright-output-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+    ],
+    variants: [],
+    formulaPresentation: {
+      defaultFormula: "A",
+      supportsCoefficient: false,
+      center: {
+        x: -12.68,
+        y: 0,
+      },
+      fontSize: 16,
+    },
+  },
+  {
+    schemaVersion: 1,
+    id: "opamp-differential-wide-lettered",
+    name: "FD Amp Wide (lettered)",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 30,
+          y: 20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 30,
+          y: -20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: -20,
+        },
+        to: {
+          x: -30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: 20,
+        },
+        to: {
+          x: -30,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -12.679492,
+          y: -20,
+        },
+        to: {
+          x: 30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -12.679492,
+          y: 20,
+        },
+        to: {
+          x: 30,
+          y: 20,
         },
         style: {
           strokeRole: "normal",
@@ -8561,6 +10156,269 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "opamp-differential-wide-lettered-inputs-swapped",
+    name: "FD Amp Wide (lettered) (swapped inputs)",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 30,
+          y: 20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 30,
+          y: -20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: -20,
+        },
+        to: {
+          x: -30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: 20,
+        },
+        to: {
+          x: -30,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -12.679492,
+          y: -20,
+        },
+        to: {
+          x: 30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -12.679492,
+          y: 20,
+        },
+        to: {
+          x: 30,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: 11,
+        },
+        to: {
+          x: -23.75,
+          y: 17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -13.538476,
+          y: 11,
+        },
+        to: {
+          x: -13.538476,
+          y: 17,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: 14,
+        },
+        to: {
+          x: -10.538476,
+          y: 14,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: -14,
+        },
+        to: {
+          x: -10.538476,
+          y: -14,
+        },
+        part: "upright-output-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+    ],
+    variants: [],
+    formulaPresentation: {
+      defaultFormula: "A",
+      supportsCoefficient: false,
+      center: {
+        x: -12.68,
+        y: 0,
+      },
+      fontSize: 16,
+    },
+  },
+  {
+    schemaVersion: 1,
     id: "opamp-differential-inputs-swapped",
     name: "Differential Op Amp (swapped inputs)",
     viewBox: {
@@ -8685,6 +10543,260 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: 30,
           y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: 11,
+        },
+        to: {
+          x: -23.75,
+          y: 17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -13.538476,
+          y: 11,
+        },
+        to: {
+          x: -13.538476,
+          y: 17,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: 14,
+        },
+        to: {
+          x: -10.538476,
+          y: 14,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: -14,
+        },
+        to: {
+          x: -10.538476,
+          y: -14,
+        },
+        part: "upright-output-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "opamp-differential-wide-inputs-swapped",
+    name: "FD Amp Wide (swapped inputs)",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 30,
+          y: 20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 30,
+          y: -20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: -20,
+        },
+        to: {
+          x: -30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: 20,
+        },
+        to: {
+          x: -30,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -12.679492,
+          y: -20,
+        },
+        to: {
+          x: 30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -12.679492,
+          y: 20,
+        },
+        to: {
+          x: 30,
+          y: 20,
         },
         style: {
           strokeRole: "normal",
@@ -9069,6 +11181,260 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "opamp-differential-wide-crossed",
+    name: "FD Amp Wide (crossed outputs)",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 30,
+          y: -20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 30,
+          y: 20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: -20,
+        },
+        to: {
+          x: -30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: 20,
+        },
+        to: {
+          x: -30,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -12.679492,
+          y: -20,
+        },
+        to: {
+          x: 30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -12.679492,
+          y: 20,
+        },
+        to: {
+          x: 30,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: -11,
+        },
+        to: {
+          x: -23.75,
+          y: -17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -13.538476,
+          y: -11,
+        },
+        to: {
+          x: -13.538476,
+          y: -17,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: -14,
+        },
+        to: {
+          x: -10.538476,
+          y: -14,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: 14,
+        },
+        to: {
+          x: -10.538476,
+          y: 14,
+        },
+        part: "upright-output-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
     id: "opamp-differential-crossed-lettered",
     name: "Differential Op Amp (crossed outputs, lettered)",
     viewBox: {
@@ -9193,6 +11559,269 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: 30,
           y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: -11,
+        },
+        to: {
+          x: -23.75,
+          y: -17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -13.538476,
+          y: -11,
+        },
+        to: {
+          x: -13.538476,
+          y: -17,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: -14,
+        },
+        to: {
+          x: -10.538476,
+          y: -14,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: 14,
+        },
+        to: {
+          x: -10.538476,
+          y: 14,
+        },
+        part: "upright-output-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+    ],
+    variants: [],
+    formulaPresentation: {
+      defaultFormula: "A",
+      supportsCoefficient: false,
+      center: {
+        x: -12.68,
+        y: 0,
+      },
+      fontSize: 16,
+    },
+  },
+  {
+    schemaVersion: 1,
+    id: "opamp-differential-wide-crossed-lettered",
+    name: "FD Amp Wide (crossed outputs, lettered)",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 30,
+          y: -20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 30,
+          y: 20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: -20,
+        },
+        to: {
+          x: -30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: 20,
+        },
+        to: {
+          x: -30,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -12.679492,
+          y: -20,
+        },
+        to: {
+          x: 30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -12.679492,
+          y: 20,
+        },
+        to: {
+          x: 30,
+          y: 20,
         },
         style: {
           strokeRole: "normal",
@@ -9595,6 +12224,269 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "opamp-differential-wide-crossed-lettered-inputs-swapped",
+    name: "FD Amp Wide (crossed outputs, lettered) (swapped inputs)",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 30,
+          y: -20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 30,
+          y: 20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: -20,
+        },
+        to: {
+          x: -30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: 20,
+        },
+        to: {
+          x: -30,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -12.679492,
+          y: -20,
+        },
+        to: {
+          x: 30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -12.679492,
+          y: 20,
+        },
+        to: {
+          x: 30,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: 11,
+        },
+        to: {
+          x: -23.75,
+          y: 17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -13.538476,
+          y: -11,
+        },
+        to: {
+          x: -13.538476,
+          y: -17,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: -14,
+        },
+        to: {
+          x: -10.538476,
+          y: -14,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: 14,
+        },
+        to: {
+          x: -10.538476,
+          y: 14,
+        },
+        part: "upright-output-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+    ],
+    variants: [],
+    formulaPresentation: {
+      defaultFormula: "A",
+      supportsCoefficient: false,
+      center: {
+        x: -12.68,
+        y: 0,
+      },
+      fontSize: 16,
+    },
+  },
+  {
+    schemaVersion: 1,
     id: "opamp-differential-crossed-inputs-swapped",
     name: "Differential Op Amp (crossed outputs) (swapped inputs)",
     viewBox: {
@@ -9719,6 +12611,260 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: 30,
           y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: 11,
+        },
+        to: {
+          x: -23.75,
+          y: 17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -13.538476,
+          y: -11,
+        },
+        to: {
+          x: -13.538476,
+          y: -17,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: -14,
+        },
+        to: {
+          x: -10.538476,
+          y: -14,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: 14,
+        },
+        to: {
+          x: -10.538476,
+          y: 14,
+        },
+        part: "upright-output-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "opamp-differential-wide-crossed-inputs-swapped",
+    name: "FD Amp Wide (crossed outputs) (swapped inputs)",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 30,
+          y: -20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 30,
+          y: 20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: -20,
+        },
+        to: {
+          x: -30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: 20,
+        },
+        to: {
+          x: -30,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -12.679492,
+          y: -20,
+        },
+        to: {
+          x: 30,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: -12.679492,
+          y: 20,
+        },
+        to: {
+          x: 30,
+          y: 20,
         },
         style: {
           strokeRole: "normal",

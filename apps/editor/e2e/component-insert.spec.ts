@@ -1468,55 +1468,80 @@ test("ordinary source property code switches waveforms without erasing inactive 
     .toContain('"waveform": "pulse"');
 });
 
-test("merges amplifier body marks into one Library entry and property", async ({
-  page,
-}) => {
-  await page.goto("/editor");
-  await chooseComponent(page, "opamp-differential");
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 360, y: 230 } });
-  await page.keyboard.press("Escape");
-  await page.getByTestId("hit-X1").click();
-  await revealPropertiesShelf(page);
-  await page.getByTestId("selection-shelf").click();
+for (const family of [
+  "opamp",
+  "opamp-wide",
+  "opamp-differential",
+  "opamp-differential-wide",
+])
+  test(`merges ${family} body marks into one Library entry and property`, async ({
+    page,
+  }) => {
+    await page.goto("/editor");
+    await chooseComponent(page, `${family}`);
+    await page
+      .getByTestId("schematic-canvas")
+      .click({ position: { x: 360, y: 230 } });
+    await page.keyboard.press("Escape");
+    await page.getByTestId("hit-X1").click();
+    await revealPropertiesShelf(page);
+    await page.getByTestId("selection-shelf").click();
 
-  const amplifierActions = page.getByLabel("Amplifier placement actions");
-  await expect(amplifierActions).toHaveCount(0);
-  await expectComponentCodeField(page, "appearance.internalMark", "none");
-  await page.getByRole("button", { name: "Use A internal mark" }).click();
-  await expectComponentCodeField(page, "appearance.internalMark", "A");
-  await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
-    "data-symbol-id",
-    "opamp-differential-lettered",
-  );
-  await setComponentCodeField(page, "appearance.internalMark", "G");
-  await expect(
-    page.locator('[data-symbol-id="opamp-differential-lettered"] text', {
-      hasText: "G",
-    }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Remove internal mark" }).click();
-  await expectComponentCodeField(page, "appearance.internalMark", "none");
-  await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
-    "data-symbol-id",
-    "opamp-differential",
-  );
-  await expectComponentCodeField(page, "symbol", undefined);
-  await setComponentCodeField(page, "appearance.outputsSwapped", true);
-  await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
-    "data-symbol-id",
-    "opamp-differential-crossed",
-  );
-  await setComponentCodeField(page, "appearance.inputsSwapped", true);
-  await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
-    "data-symbol-id",
-    "opamp-differential-crossed-inputs-swapped",
-  );
-  await expect(
-    page.getByRole("button", { name: "Return component to Placement Tray" }),
-  ).toHaveCount(0);
-});
+    const amplifierActions = page.getByLabel("Amplifier placement actions");
+    await expect(amplifierActions).toHaveCount(0);
+    await expectComponentCodeField(page, "appearance.internalMark", "none");
+    await page.getByRole("button", { name: "Use A internal mark" }).click();
+    await expectComponentCodeField(page, "appearance.internalMark", "A");
+    await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
+      "data-symbol-id",
+      `${family}-lettered`,
+    );
+    await setComponentCodeField(page, "appearance.internalMark", "G");
+    await expect(
+      page.locator(`[data-symbol-id="${family}-lettered"] text`, {
+        hasText: "G",
+      }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Remove internal mark" }).click();
+    await expectComponentCodeField(page, "appearance.internalMark", "none");
+    await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
+      "data-symbol-id",
+      `${family}`,
+    );
+    await expectComponentCodeField(page, "symbol", undefined);
+    const swappedOutput = family.includes("differential")
+      ? `${family}-crossed`
+      : family;
+    if (family.includes("differential")) {
+      await setComponentCodeField(page, "appearance.outputsSwapped", true);
+      await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
+        "data-symbol-id",
+        `${family}-crossed`,
+      );
+    }
+    await setComponentCodeField(page, "appearance.inputsSwapped", true);
+    await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
+      "data-symbol-id",
+      `${swappedOutput}-inputs-swapped`,
+    );
+    await expect(
+      page.getByRole("button", { name: "Return component to Placement Tray" }),
+    ).toHaveCount(0);
+    const exported = await downloadBytes(page, "File", "Export Project File…");
+    const saved = parseSavedProject(exported.toString("utf8"));
+    expect(saved.documents[0].instances[0].symbolId).toBe(
+      `${swappedOutput}-inputs-swapped`,
+    );
+    await page.getByTestId("project-file").setInputFiles({
+      name: "amplifier.icproj.json",
+      mimeType: "application/json",
+      buffer: exported,
+    });
+    await expect(page.locator("[data-symbol-id]").first()).toHaveAttribute(
+      "data-symbol-id",
+      `${swappedOutput}-inputs-swapped`,
+    );
+  });
 
 test("keeps comparator polarity independent from input swapping", async ({
   page,

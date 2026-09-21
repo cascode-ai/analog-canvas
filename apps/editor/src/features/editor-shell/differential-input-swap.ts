@@ -22,6 +22,12 @@ const INPUT_SWAP_SOURCES = [
   "opamp-differential-lettered",
   "opamp-differential-crossed",
   "opamp-differential-crossed-lettered",
+  "opamp-wide",
+  "opamp-wide-lettered",
+  "opamp-differential-wide",
+  "opamp-differential-wide-lettered",
+  "opamp-differential-wide-crossed",
+  "opamp-differential-wide-crossed-lettered",
 ] as const;
 
 export function differentialInputSibling(symbolId: string): string | undefined {
