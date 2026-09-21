@@ -71,6 +71,7 @@ The private Cloud Project API owns one current revision per stable resource:
 ```text
 POST /api/projects                 create and bind revision 1
 PUT  /api/projects/:id             update the bound Project
+PATCH /api/projects/:id            set favorite metadata only
 If-Match: revision-N               reject stale writers
 GET  /api/projects                 list distinct Projects
 GET  /api/projects/:id             open one Project
@@ -96,6 +97,19 @@ Project. The editor exposes no second Save command that silently creates a
 duplicate Project. The server retains no implicit save history and never
 evicts another Project to make room. A revision mismatch or capacity limit
 blocks only that explicit Save; editing and local recovery continue.
+
+Shelf cards expose Duplicate, Rename, Export and Favorite through right-click,
+touch long-press or the visible actions button, plus Open in new tab. Duplicate
+creates an independent private Project with all serialized circuit/source data
+and a new Project identity; it never inherits a Gallery link. Rename loads the
+current document and uses revision-checked Save, preserving its other content
+and publication association. Export downloads the complete stored Project file.
+
+Favorite is account-scoped metadata (`favorite`, default false), included in
+summary/open and full backup/restore. Toggling it changes neither Project bytes
+nor the drawing revision or publication; starred cards sort first. Older backups
+without the field restore false. Card actions report capacity, permission and
+revision failures without deleting existing Projects or overwriting newer edits.
 
 The editor session owns only the transient Cloud binding (`id` and acknowledged
 revision), the saved content baseline, and its recovery working-copy id. No

@@ -3567,3 +3567,158 @@ test("publish tag suggestions remain clickable after filtering and save pending 
   await expect(dialog).toHaveCount(0);
   expect(submitted?.tags).toEqual(["amplifier", "custom label"]);
 });
+
+test("Shelf cards duplicate, rename, export and keep account favorites without entering the canvas", async ({
+  page,
+}) => {
+  const source = parseProject(
+    serializeProject(
+      parseProject(
+        readFileSync(
+          new URL(
+            "../src/examples/five-transistor-ota-sky130.icproj.json",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      ),
+    ),
+  );
+  type Saved = {
+    id: string;
+    name: string;
+    revision: number;
+    updatedAt: string;
+    schemaVersion: number;
+    projectText: string;
+    galleryEntryId: string | null;
+    favorite: boolean;
+  };
+  const original: Saved = {
+    id: "original",
+    name: source.name,
+    revision: 2,
+    updatedAt: "2026-09-21T08:00:00Z",
+    schemaVersion: CURRENT_PROJECT_FILE_VERSION,
+    projectText: serializeProject(source),
+    galleryEntryId: "public-original",
+    favorite: false,
+  };
+  const saved = new Map<string, Saved>([[original.id, original]]);
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "owner",
+          displayName: "Author",
+          isAdmin: false,
+          role: "user",
+        },
+      },
+    }),
+  );
+  await page.route("**/api/gallery**", (route) =>
+    route.fulfill({
+      json: { entries: [], tags: [], nextCursor: null, total: 0 },
+    }),
+  );
+  await page.route("**/api/projects**", async (route) => {
+    const req = route.request();
+    const url = new URL(req.url());
+    if (url.pathname.endsWith("/preview.svg"))
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 120"><path d="M20 60H90L95 50L105 70L115 50L125 70L130 60H220" fill="none" stroke="black" stroke-width="2"/></svg>',
+      });
+    const id = url.pathname.split("/")[3];
+    if (req.method() === "GET")
+      return route.fulfill({
+        json: id
+          ? { project: saved.get(id) }
+          : { projects: [...saved.values()] },
+      });
+    const fields = req.postDataJSON();
+    if (req.method() === "PATCH") {
+      saved.get(id!)!.favorite = fields.favorite;
+      return route.fulfill({ json: { project: saved.get(id!) } });
+    }
+    if (req.method() === "POST") {
+      expect(fields.galleryEntryId).toBeUndefined();
+      const copy = {
+        ...original,
+        ...fields,
+        id: "copy",
+        revision: 1,
+        galleryEntryId: null,
+        favorite: false,
+      };
+      saved.set(copy.id, copy);
+      return route.fulfill({ status: 201, json: { project: copy } });
+    }
+    expect(req.method()).toBe("PUT");
+    const previous = saved.get(id!)!;
+    expect(req.headers()["if-match"]).toBe(`revision-${previous.revision}`);
+    const updated = { ...previous, ...fields, revision: previous.revision + 1 };
+    saved.set(id!, updated);
+    return route.fulfill({ json: { project: updated } });
+  });
+  await page.goto("/?view=shelf");
+  const tile = page.getByTestId("shelf-tile-original");
+  await expect(tile).toBeVisible();
+  await tile.click({ button: "right" });
+  await expect(
+    page.getByRole("menuitem", { name: "Open in new tab" }),
+  ).toHaveAttribute("target", "_blank");
+  await page.getByRole("menuitem", { name: "Duplicate", exact: true }).click();
+  await expect(page.getByTestId("shelf-tile-copy")).toBeVisible();
+  const duplicate = parseProject(saved.get("copy")!.projectText);
+  expect(duplicate.id).not.toBe(source.id);
+  expect({ ...duplicate, id: source.id, name: source.name }).toEqual(source);
+  await page.getByTestId("shelf-actions-copy").click();
+  page.once("dialog", (dialog) => dialog.accept("Experiment B"));
+  await page.getByRole("menuitem", { name: "Rename", exact: true }).click();
+  await expect(page.getByTestId("shelf-tile-copy")).toContainText(
+    "Experiment B",
+  );
+  await page.getByTestId("shelf-actions-copy").click();
+  await page.getByRole("menuitem", { name: "Favorite", exact: true }).click();
+  await expect(
+    page.getByTestId("shelf-tile-copy").getByLabel("Favorite"),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByTestId("shelf-tile-copy").getByLabel("Favorite"),
+  ).toBeVisible();
+  await page.getByTestId("shelf-actions-copy").click();
+  await page.screenshot({ path: "plan/shelf-card-actions.png" });
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("menuitem", { name: "Export", exact: true }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("Experiment B.icproj.json");
+  expect(readFileSync((await download.path())!, "utf8")).toBe(
+    saved.get("copy")!.projectText,
+  );
+  expect(saved.get("original")).toEqual(original);
+  // Touch long-press opens the same menu; moving a finger cancels the gesture.
+  await tile.dispatchEvent("pointerdown", {
+    pointerType: "touch",
+    clientX: 120,
+    clientY: 220,
+  });
+  await expect(page.getByRole("menu")).toBeVisible();
+  await tile.dispatchEvent("pointerup", { pointerType: "touch" });
+  await page.keyboard.press("Escape");
+  await tile.dispatchEvent("pointerdown", {
+    pointerType: "touch",
+    clientX: 120,
+    clientY: 220,
+  });
+  await tile.dispatchEvent("pointermove", {
+    pointerType: "touch",
+    clientX: 120,
+    clientY: 270,
+  });
+  await page.waitForTimeout(550);
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(page).toHaveURL(/view=shelf/);
+});

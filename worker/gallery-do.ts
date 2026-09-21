@@ -147,6 +147,7 @@ export interface CloudProjectSummary {
   revision: number;
   schemaVersion: number;
   galleryEntryId: string | null;
+  favorite: boolean;
 }
 
 interface CloudProjectRow {
@@ -156,6 +157,7 @@ interface CloudProjectRow {
   revision: number;
   schema_version: number;
   gallery_entry_id: string | null;
+  favorite: number;
 }
 
 interface StoredProjectRow {
@@ -595,6 +597,7 @@ export class GalleryDO {
       "ALTER TABLE gallery_entries ADD COLUMN preview_height REAL",
       "ALTER TABLE cloud_projects ADD COLUMN preview_svg TEXT NOT NULL DEFAULT ''",
       "ALTER TABLE cloud_projects ADD COLUMN gallery_entry_id TEXT",
+      "ALTER TABLE cloud_projects ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0",
     ]) {
       try {
         this.sql.exec(alteration);
@@ -778,6 +781,8 @@ export class GalleryDO {
         );
       case "cloud-project-create":
         return this.cloudProjectCreate(body);
+      case "cloud-project-favorite":
+        return this.cloudProjectFavorite(body);
       case "cloud-project-update":
         return this.cloudProjectUpdate(body);
       case "cloud-project-list":
@@ -1564,13 +1569,35 @@ export class GalleryDO {
     );
   }
 
+  private cloudProjectFavorite(body: Record<string, unknown>): Response {
+    const id = String(body.id);
+    const userId = String(body.userId);
+    if (
+      !this.sql
+        .exec<{ id: string }>(
+          "SELECT id FROM cloud_projects WHERE id = ? AND user_id = ?",
+          id,
+          userId,
+        )
+        .toArray().length
+    )
+      return Response.json({ error: "not-found" }, { status: 404 });
+    this.sql.exec(
+      "UPDATE cloud_projects SET favorite = ? WHERE id = ? AND user_id = ?",
+      body.favorite === true ? 1 : 0,
+      id,
+      userId,
+    );
+    return Response.json({ project: this.cloudProjectOpenPayload(userId, id) });
+  }
+
   private cloudProjectUpdate(body: Record<string, unknown>): Response {
     const userId = String(body.userId);
     const id = String(body.id);
     const expectedRevision = Number(body.expectedRevision);
     const current = this.sql
       .exec<CloudProjectRow & { project_text: string }>(
-        `SELECT id, name, updated_at, revision, schema_version, project_text, gallery_entry_id
+        `SELECT id, name, updated_at, revision, schema_version, project_text, gallery_entry_id, favorite
          FROM cloud_projects WHERE id = ? AND user_id = ?`,
         id,
         userId,
@@ -1626,13 +1653,14 @@ export class GalleryDO {
       revision: row.revision,
       schemaVersion: row.schema_version,
       galleryEntryId: row.gallery_entry_id ?? null,
+      favorite: row.favorite === 1,
     };
   }
 
   private cloudProjectRows(userId: string): CloudProjectSummary[] {
     return this.sql
       .exec<CloudProjectRow>(
-        `SELECT id, name, updated_at, revision, schema_version, gallery_entry_id
+        `SELECT id, name, updated_at, revision, schema_version, gallery_entry_id, favorite
          FROM cloud_projects
          WHERE user_id = ? ORDER BY updated_at DESC, id DESC LIMIT ?`,
         userId,
@@ -1708,6 +1736,7 @@ export class GalleryDO {
       revision: row.revision,
       schemaVersion: row.schema_version,
       galleryEntryId: row.gallery_entry_id ?? null,
+      favorite: row.favorite === 1,
       projectText: row.project_text,
     };
   }
@@ -1933,8 +1962,8 @@ export class GalleryDO {
         this.sql.exec(
           `INSERT INTO cloud_projects
            (id, user_id, name, created_at, updated_at, revision,
-            schema_version, project_text, gallery_entry_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            schema_version, project_text, gallery_entry_id, favorite)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           ...rowValues(row, [
             "id",
             "user_id",
@@ -1948,6 +1977,7 @@ export class GalleryDO {
           typeof row.gallery_entry_id === "string"
             ? row.gallery_entry_id
             : null,
+          row.favorite === 1 ? 1 : 0,
         );
       }
       return this.sql

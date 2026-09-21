@@ -238,6 +238,24 @@ async function handleCloudProjects(
     return Response.json(payload, { status });
   }
 
+  if (request.method === "PATCH" && projectId) {
+    const fields = (await request.json().catch(() => null)) as {
+      favorite?: unknown;
+    } | null;
+    if (!fields || typeof fields.favorite !== "boolean")
+      return Response.json({ error: "invalid-fields" }, { status: 400 });
+    const { status, payload } = await callGallery(
+      env,
+      "cloud-project-favorite",
+      {
+        userId: user.id,
+        id: projectId,
+        favorite: fields.favorite,
+      },
+    );
+    return Response.json(payload, { status });
+  }
+
   const body = (await request.json().catch(() => null)) as {
     name?: unknown;
     projectText?: unknown;
@@ -626,6 +644,7 @@ export async function routeGalleryRequest(
     if (
       (request.method === "GET" ||
         request.method === "PUT" ||
+        request.method === "PATCH" ||
         request.method === "DELETE") &&
       projectId.length > 0
     ) {

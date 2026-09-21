@@ -4979,6 +4979,69 @@ describe("durable Shelf publication sources", () => {
     ).toHaveLength(0);
   });
 
+  it("favorites are account-scoped metadata, preserving drawing, publication, revisions and backup", async () => {
+    const env = environment();
+    const owner = await makerOf(env);
+    const stranger = await adminOf(env);
+    const publicId = await submitOne(env, "Public", { cookie: owner });
+    const saved = await draft(env, owner, "Private", publicId);
+    const before = await open(env, owner, saved.id);
+    expect(
+      (
+        await request(env, stranger, `/api/projects/${saved.id}`, "PATCH", {
+          favorite: true,
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await request(env, owner, `/api/projects/${saved.id}`, "PATCH", {
+          favorite: "true",
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await request(env, owner, `/api/projects/${saved.id}`, "PATCH", {
+          favorite: true,
+        })
+      ).status,
+    ).toBe(200);
+    expect(await open(env, owner, saved.id)).toEqual({
+      ...before,
+      favorite: true,
+    });
+    const backupResponse = await env.GALLERY.getByName("gallery").fetch(
+      "https://gallery/schema-backup",
+      { method: "POST", body: "{}" },
+    );
+    const backup = await backupResponse.json();
+    expect(backup.tables.cloudProjects[0].favorite).toBe(1);
+    await request(env, owner, `/api/projects/${saved.id}`, "PATCH", {
+      favorite: false,
+    });
+    await env.GALLERY.getByName("gallery").fetch(
+      "https://gallery/schema-restore",
+      { method: "POST", body: JSON.stringify({ backup }) },
+    );
+    expect(await open(env, owner, saved.id)).toEqual({
+      ...before,
+      favorite: true,
+    });
+    const renamed = await request(
+      env,
+      owner,
+      `/api/projects/${saved.id}`,
+      "PUT",
+      content("Renamed"),
+    );
+    expect(renamed.status).toBe(200);
+    expect((await renamed.json()).project).toMatchObject({
+      favorite: true,
+      galleryEntryId: publicId,
+    });
+  });
+
   it("preserves old rows in the additive migration and includes links in full backups", async () => {
     const state = sqliteState();
     const original = wiredProjectText("Legacy private");
@@ -5006,6 +5069,7 @@ describe("durable Shelf publication sources", () => {
       project_text: original,
       revision: 7,
       gallery_entry_id: null,
+      favorite: 0,
       preview_svg: "<svg/>",
     });
     state.storage.sql.exec(

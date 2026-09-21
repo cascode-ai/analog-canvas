@@ -1,4 +1,6 @@
 import { createEmptyProject } from "@icm/model";
+import { readFileSync } from "node:fs";
+import { parseProject, serializeProject } from "@icm/project-protocol";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -6,6 +8,8 @@ import {
   listCloudProjects,
   openCloudProject,
   saveCloudProject,
+  editShelfProject,
+  setShelfFavorite,
 } from "./cloud-projects";
 
 const project = createEmptyProject("portable-project", "Cloud Circuit");
@@ -16,6 +20,7 @@ const summary = {
   revision: 1,
   schemaVersion: project.schemaVersion,
   galleryEntryId: null,
+  favorite: false,
 };
 
 function respondWith(status: number, body: unknown) {
@@ -151,5 +156,98 @@ describe("Cloud Project client", () => {
       url: "/api/projects/cloud%201",
       init: { method: "DELETE", credentials: "same-origin" },
     });
+  });
+});
+
+describe("Shelf card operations", () => {
+  it("duplicates all Project data with an independent identity and no Gallery binding", async () => {
+    const source = parseProject(
+      serializeProject(
+        parseProject(
+          readFileSync(
+            new URL(
+              "../../examples/five-transistor-ota-sky130.icproj.json",
+              import.meta.url,
+            ),
+            "utf8",
+          ),
+        ),
+      ),
+    );
+    let sent: any;
+    const result = await editShelfProject(
+      "cloud-1",
+      { kind: "duplicate" },
+      async (_url, init) => {
+        if (init?.method !== "POST")
+          return new Response(
+            JSON.stringify({
+              project: {
+                ...summary,
+                galleryEntryId: "published",
+                favorite: true,
+                projectText: serializeProject(source),
+              },
+            }),
+          );
+        sent = JSON.parse(String(init.body));
+        return new Response(
+          JSON.stringify({ project: { ...summary, id: "copy" } }),
+          { status: 201 },
+        );
+      },
+    );
+    expect(result.status).toBe("saved");
+    const copied = parseProject(sent.projectText);
+    expect(copied.id).not.toBe(source.id);
+    expect({ ...copied, id: source.id, name: source.name }).toEqual(source);
+    expect(sent).not.toHaveProperty("galleryEntryId");
+    expect(sent).not.toHaveProperty("favorite");
+  });
+  it("renames the latest revision and surfaces conflicts without retrying over new edits", async () => {
+    const calls: RequestInit[] = [];
+    const result = await editShelfProject(
+      "cloud-1",
+      { kind: "rename", name: "New name" },
+      async (_url, init) => {
+        calls.push(init!);
+        if (init?.method !== "PUT")
+          return new Response(
+            JSON.stringify({
+              project: {
+                ...summary,
+                revision: 7,
+                projectText: serializeProject(project),
+              },
+            }),
+          );
+        expect(new Headers(init.headers).get("if-match")).toBe("revision-7");
+        const sent = JSON.parse(String(init.body));
+        const changed = parseProject(sent.projectText);
+        expect({ ...changed, name: project.name }).toEqual(project);
+        expect(changed.name).toBe("New name");
+        return new Response(
+          JSON.stringify({
+            error: "revision-conflict",
+            project: { ...summary, revision: 8 },
+          }),
+          { status: 409 },
+        );
+      },
+    );
+    expect(result.status).toBe("conflict");
+    expect(calls).toHaveLength(2);
+  });
+  it("changes only the favorite metadata and reports permission failures", async () => {
+    const saved = respondWith(200, { project: { ...summary, favorite: true } });
+    expect(
+      (await setShelfFavorite("cloud-1", true, saved.fetchLike)).favorite,
+    ).toBe(true);
+    expect(JSON.parse(String(saved.calls[0]!.init?.body))).toEqual({
+      favorite: true,
+    });
+    await expect(
+      setShelfFavorite("cloud-1", true, respondWith(403, {}).fetchLike),
+    ).rejects.toThrow("403");
   });
 });

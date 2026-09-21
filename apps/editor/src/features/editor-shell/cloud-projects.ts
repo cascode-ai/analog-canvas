@@ -1,5 +1,5 @@
 import type { CircuitProject } from "@icm/model";
-import { serializeProject } from "@icm/project-protocol";
+import { parseProject, serializeProject } from "@icm/project-protocol";
 
 /** Private formal Project storage. One id owns one mutable current revision. */
 export const CLOUD_PROJECT_LIMIT = 20;
@@ -11,6 +11,7 @@ export interface CloudProjectSummary {
   revision: number;
   schemaVersion: number;
   galleryEntryId?: string | null;
+  favorite?: boolean;
 }
 
 export interface CloudProjectBinding {
@@ -71,6 +72,7 @@ function summaryOf(value: unknown): CloudProjectSummary | null {
         updatedAt: record.updatedAt,
         revision: record.revision,
         schemaVersion: record.schemaVersion,
+        favorite: record.favorite === true,
         galleryEntryId:
           typeof record.galleryEntryId === "string"
             ? record.galleryEntryId
@@ -242,4 +244,56 @@ export async function deleteCloudProject(
       message: error instanceof Error ? error.message : "Network error",
     };
   }
+}
+
+/** Card actions load current content and use the same revision-checked Save API. */
+export async function editShelfProject(
+  id: string,
+  action: { kind: "rename"; name: string } | { kind: "duplicate" },
+  fetchLike: typeof fetch = fetch,
+): Promise<CloudProjectSaveOutcome> {
+  const loaded = await openCloudProject(id, fetchLike);
+  if (loaded.status !== "opened") return loaded;
+  try {
+    const project = parseProject(loaded.project.projectText);
+    if (action.kind === "duplicate") {
+      project.id = crypto.randomUUID();
+      project.name = `${loaded.project.name.slice(0, 113)} (copy)`;
+      // A copy is independent; it must never inherit the source's publication link.
+      return saveCloudProject(project, null, fetchLike);
+    }
+    const name = action.name.trim();
+    if (!name || name.length > 120)
+      return {
+        status: "rejected",
+        message: "Use a name between 1 and 120 characters",
+      };
+    project.name = name;
+    return saveCloudProject(project, loaded.project, fetchLike);
+  } catch (error) {
+    return {
+      status: "rejected",
+      message:
+        error instanceof Error ? error.message : "Could not read this Project",
+    };
+  }
+}
+
+export async function setShelfFavorite(
+  id: string,
+  favorite: boolean,
+  fetchLike: typeof fetch = fetch,
+): Promise<CloudProjectSummary> {
+  const response = await fetchLike(`${ENDPOINT}/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ favorite }),
+  });
+  if (!response.ok)
+    throw new Error(`Could not update favorite (${response.status})`);
+  const payload = (await response.json()) as { project?: unknown };
+  const project = summaryOf(payload.project);
+  if (!project) throw new Error("Invalid Shelf response");
+  return project;
 }
