@@ -548,18 +548,31 @@ export function GalleryFeed({
     }
   }, [filters]);
 
-  // The address follows a beat later, so typing in the search box does not
-  // push a history entry per keystroke. Losing the last one to a navigation
-  // costs nothing, because the store above already has it.
+  const previousUrlFilters = useRef(filters);
+  // Discrete choices must reach the URL immediately: on refresh an explicit
+  // URL filter takes precedence over the saved preference. Only search typing
+  // is debounced to avoid excessive browser history writes.
   useEffect(() => {
-    const handle = window.setTimeout(() => {
+    const previous = previousUrlFilters.current;
+    previousUrlFilters.current = filters;
+    const searchOnly =
+      filters.search !== previous.search &&
+      (Object.keys(filters) as Array<keyof GalleryFilterState>).every(
+        (key) => key === "search" || filters[key] === previous[key],
+      );
+    const updateAddress = () => {
       window.history.replaceState(
         null,
         "",
         window.location.pathname +
           galleryFilterSearch(window.location.search, filters),
       );
-    }, 150);
+    };
+    if (!searchOnly) {
+      updateAddress();
+      return;
+    }
+    const handle = window.setTimeout(updateAddress, 150);
     return () => window.clearTimeout(handle);
   }, [filters]);
 

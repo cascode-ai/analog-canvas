@@ -33,8 +33,21 @@ it("keeps every original tag and a removed tag from a saved filter reachable", (
     ).toHaveLength(2);
   expect(markup).toContain("Amplifiers");
   expect(markup).toContain("Buffers");
-  expect(markup).toContain("<summary>Buffers<span>23</span></summary>");
-  expect(markup).toContain("<summary>Amplifiers<span>5</span></summary>");
+  expect(markup).toContain(
+    'Buffers</span><span class="gallery-sidebar-count" aria-hidden="true">23</span>',
+  );
+  expect(markup).toContain(
+    'Amplifiers</span><span class="gallery-sidebar-count" aria-hidden="true">5</span>',
+  );
+  expect(markup).toContain(
+    'role="checkbox" aria-label="Bias &amp; references" aria-checked="mixed"',
+  );
+  expect(markup).toContain(
+    'role="checkbox" aria-label="Amplifiers" aria-checked="false"',
+  );
+  expect(markup).toContain(
+    'aria-label="Collapse Bias &amp; references" aria-expanded="true"',
+  );
   expect(markup).toContain("Conversion");
   expect(markup).toContain("Custom &amp; legacy");
   expect(markup).toContain("General Amplifier");

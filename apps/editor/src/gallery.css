@@ -1553,7 +1553,14 @@ div.gallery-contributor-status {
   margin-bottom: 4px;
 }
 
-.gallery-tag-group > summary {
+.gallery-tag-group-heading {
+  display: flex;
+  align-items: center;
+}
+
+.gallery-tag-group-select {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1565,27 +1572,45 @@ div.gallery-contributor-status {
   font-style: normal;
   letter-spacing: 0;
   line-height: 1.35;
-  list-style: none;
+  text-align: left;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
   cursor: pointer;
 }
 
-.gallery-tag-group > summary::-webkit-details-marker {
-  display: none;
+.gallery-tag-group-name {
+  overflow-wrap: anywhere;
 }
 
-.gallery-tag-group > summary::before {
-  content: "›";
-  width: 10px;
+.gallery-tag-group-expand {
+  flex: 0 0 24px;
+  align-self: stretch;
+  min-height: 28px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--icm-text-muted);
+  cursor: pointer;
   text-align: center;
+}
+
+.gallery-tag-group-expand > span {
+  display: inline-block;
   transition: transform 120ms;
 }
 
-.gallery-tag-group[open] > summary::before {
+.gallery-tag-group-expand[aria-expanded="true"] > span {
   transform: rotate(90deg);
 }
 
-.gallery-tag-group[open] > summary {
+.gallery-tag-group[data-open="true"] > .gallery-tag-group-heading {
   margin-bottom: 2px;
+}
+
+.gallery-tag-group-select:hover,
+.gallery-tag-group-expand:hover {
+  background: var(--icm-surface-hover);
 }
 
 .gallery-sidebar-tag + .gallery-sidebar-tag {
@@ -1601,8 +1626,7 @@ div.gallery-contributor-status {
   letter-spacing: 0;
 }
 
-.gallery-tag-group > summary > span {
-  margin-left: auto;
+.gallery-tag-group-select .gallery-sidebar-count {
   font-weight: 400;
 }
 
@@ -1617,7 +1641,9 @@ div.gallery-contributor-status {
   text-align: center;
 }
 
-.gallery-sidebar-tag[aria-pressed="true"] .gallery-tag-check {
+.gallery-sidebar-tag[aria-pressed="true"] .gallery-tag-check,
+.gallery-tag-group-select[aria-checked="true"] .gallery-tag-check,
+.gallery-tag-group-select[aria-checked="mixed"] .gallery-tag-check {
   border-color: var(--icm-accent);
   color: var(--icm-surface);
   background: var(--icm-accent);

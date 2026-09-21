@@ -189,52 +189,91 @@ export function GalleryTagSidebar({
             const circuitCount =
               groupCounts?.[name] ??
               group.reduce((total, option) => total + option.count, 0);
+            const groupTags = group.map(({ tag }) => tag);
+            const selectedCount = groupTags.filter((tag) =>
+              selected.includes(tag),
+            ).length;
+            const allSelected = selectedCount === groupTags.length;
+            const expanded = !(collapsed[name] ?? selectedCount === 0);
+            const groupId = `gallery-tag-group-${groups.indexOf(name)}`;
             return (
-              <details
+              <div
                 key={name}
                 className="gallery-tag-group"
-                open={
-                  collapsed[name] === false ||
-                  group.some(({ tag }) => selected.includes(tag))
-                }
-                onToggle={(event) => {
-                  const closed = !event.currentTarget.open;
-                  setCollapsed((previous) =>
-                    previous[name] === closed
-                      ? previous
-                      : { ...previous, [name]: closed },
-                  );
-                }}
+                data-open={expanded}
               >
-                <summary>
-                  {name}
-                  <span>{circuitCount}</span>
-                </summary>
-                {group.map(({ tag, count }) => (
+                <div className="gallery-tag-group-heading">
                   <button
-                    key={tag}
                     type="button"
-                    className="gallery-sidebar-option gallery-sidebar-tag"
-                    data-testid={`gallery-tag-option-${tag.replace(/\s/gu, "-")}`}
-                    aria-pressed={selected.includes(tag)}
-                    onClick={() =>
-                      onChange(
-                        selected.includes(tag)
-                          ? selected.filter((item) => item !== tag)
-                          : [...selected, tag],
-                      )
+                    role="checkbox"
+                    aria-label={name}
+                    aria-checked={
+                      allSelected ? true : selectedCount ? "mixed" : false
                     }
+                    className="gallery-tag-group-select"
+                    onClick={() => {
+                      onChange(
+                        allSelected
+                          ? selected.filter((tag) => !groupTags.includes(tag))
+                          : [...new Set([...selected, ...groupTags])],
+                      );
+                      setCollapsed((previous) => ({
+                        ...previous,
+                        [name]: false,
+                      }));
+                    }}
                   >
                     <span className="gallery-tag-check" aria-hidden="true">
-                      {selected.includes(tag) ? "✓" : ""}
+                      {allSelected ? "✓" : selectedCount ? "−" : ""}
                     </span>
-                    <span className="gallery-tag-name">
-                      {galleryTagLabel(tag)}
+                    <span className="gallery-tag-group-name">{name}</span>
+                    <span className="gallery-sidebar-count" aria-hidden="true">
+                      {circuitCount}
                     </span>
-                    <span className="gallery-sidebar-count">{count}</span>
                   </button>
-                ))}
-              </details>
+                  <button
+                    type="button"
+                    className="gallery-tag-group-expand"
+                    aria-label={`${expanded ? "Collapse" : "Expand"} ${name}`}
+                    aria-expanded={expanded}
+                    aria-controls={groupId}
+                    onClick={() =>
+                      setCollapsed((previous) => ({
+                        ...previous,
+                        [name]: expanded,
+                      }))
+                    }
+                  >
+                    <span aria-hidden="true">›</span>
+                  </button>
+                </div>
+                <div id={groupId} hidden={!expanded}>
+                  {group.map(({ tag, count }) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      className="gallery-sidebar-option gallery-sidebar-tag"
+                      data-testid={`gallery-tag-option-${tag.replace(/\s/gu, "-")}`}
+                      aria-pressed={selected.includes(tag)}
+                      onClick={() =>
+                        onChange(
+                          selected.includes(tag)
+                            ? selected.filter((item) => item !== tag)
+                            : [...selected, tag],
+                        )
+                      }
+                    >
+                      <span className="gallery-tag-check" aria-hidden="true">
+                        {selected.includes(tag) ? "✓" : ""}
+                      </span>
+                      <span className="gallery-tag-name">
+                        {galleryTagLabel(tag)}
+                      </span>
+                      <span className="gallery-sidebar-count">{count}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             );
           })}
           {!options.length ? (

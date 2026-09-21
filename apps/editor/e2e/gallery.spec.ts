@@ -1364,6 +1364,86 @@ test("the account chip sits on the header line and ellipsizes a long name", asyn
   expect(overflowing.display).not.toContain("flex");
 });
 
+test("tag categories select all children, retain other groups and expose mixed selection", async ({
+  page,
+}) => {
+  const queries: string[][] = [];
+  await page.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/gallery/tags")
+      return route.fulfill({
+        json: {
+          tags: [
+            { tag: "amplifier", count: 3 },
+            { tag: "op", count: 1 },
+            { tag: "buffer", count: 2 },
+          ],
+        },
+      });
+    if (url.pathname !== "/api/gallery") return route.fallback();
+    queries.push(
+      (url.searchParams.get("tags") ?? "").split(",").filter(Boolean),
+    );
+    return route.fulfill({ json: { entries: [], nextCursor: null } });
+  });
+  await page.goto("/?tags=buffer");
+  const sidebar = page.getByTestId("gallery-tag-sidebar");
+  const category = sidebar.getByRole("checkbox", {
+    name: "Amplifiers",
+    exact: true,
+  });
+  const buffer = sidebar.getByRole("checkbox", {
+    name: "Buffers",
+    exact: true,
+  });
+  const group = sidebar.locator(".gallery-tag-group").filter({
+    has: page.getByRole("checkbox", { name: "Amplifiers", exact: true }),
+  });
+  await expect(category).toHaveAttribute("aria-checked", "false");
+  await expect(buffer).toHaveAttribute("aria-checked", "true");
+  await category.click();
+  await expect(category).toHaveAttribute("aria-checked", "true");
+  const children = group.locator(".gallery-sidebar-tag");
+  expect(await children.count()).toBeGreaterThan(20);
+  await expect(
+    group.locator('.gallery-sidebar-tag[aria-pressed="true"]'),
+  ).toHaveCount(await children.count());
+  await expect
+    .poll(() => queries.at(-1))
+    .toEqual(
+      expect.arrayContaining([
+        "buffer",
+        "op",
+        "ota",
+        "amplifier",
+        "source degeneration",
+      ]),
+    );
+  await page.getByTestId("gallery-tag-option-ota").click();
+  await expect(category).toHaveAttribute("aria-checked", "mixed");
+  await category.press("Space");
+  await expect(category).toHaveAttribute("aria-checked", "true");
+  // Collapse is independent of selection, and selected groups can collapse.
+  await sidebar
+    .getByRole("button", { name: "Collapse Amplifiers", exact: true })
+    .click();
+  await expect(page.getByTestId("gallery-tag-option-ota")).toBeHidden();
+  await expect(category).toHaveAttribute("aria-checked", "true");
+  await page.reload();
+  await expect(category).toHaveAttribute("aria-checked", "true");
+  await category.press("Enter");
+  await expect(category).toHaveAttribute("aria-checked", "false");
+  await expect(buffer).toHaveAttribute("aria-checked", "true");
+  await expect.poll(() => queries.at(-1)).toEqual(["buffer"]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: /^Search & filters/ }).click();
+  await category.click();
+  await expect(category).toHaveAttribute("aria-checked", "true");
+  await category.click();
+  await expect(category).toHaveAttribute("aria-checked", "false");
+  await expect(buffer).toHaveAttribute("aria-checked", "true");
+});
+
 test("the left sidebar hosts overall search and grouped tags at desktop, half-screen and mobile widths", async ({
   page,
 }) => {
@@ -1437,10 +1517,8 @@ test("the left sidebar hosts overall search and grouped tags at desktop, half-sc
   );
   expect(
     await sidebar
-      .locator(".gallery-tag-group > summary")
-      .evaluateAll((items) =>
-        items.map((item) => item.firstChild?.textContent?.trim()),
-      ),
+      .locator(".gallery-tag-group-name")
+      .evaluateAll((items) => items.map((item) => item.textContent?.trim())),
   ).toEqual([
     "Amplifiers",
     "Bias & references",
@@ -1458,20 +1536,25 @@ test("the left sidebar hosts overall search and grouped tags at desktop, half-sc
     "Sampling",
     "Sensors",
   ]);
-  const amplifierGroup = sidebar
-    .locator("summary")
-    .filter({ hasText: "Amplifiers" });
+  const amplifierGroup = sidebar.getByRole("checkbox", {
+    name: "Amplifiers",
+    exact: true,
+  });
   await expect(
-    sidebar.locator("summary").filter({ hasText: "Buffers" }).locator("span"),
+    sidebar
+      .getByRole("checkbox", { name: "Buffers", exact: true })
+      .locator(".gallery-sidebar-count"),
   ).toHaveText("23");
   await expect(amplifierGroup).toBeVisible();
   await expect(amplifierGroup).toHaveCSS("font-weight", "600");
-  await amplifierGroup.click();
+  await sidebar
+    .getByRole("button", { name: "Expand Amplifiers", exact: true })
+    .click();
   const amplifier = page.getByTestId("gallery-tag-option-amplifier");
   await expect(amplifier).toContainText("General Amplifier");
   expect((await amplifier.boundingBox())!.height).toBeLessThanOrEqual(28);
   const sidebarRhythm = await amplifierGroup.evaluate((summary) => {
-    const group = summary.parentElement!;
+    const group = summary.closest(".gallery-tag-group")!;
     const items = [
       ...group.querySelectorAll<HTMLElement>(".gallery-sidebar-tag"),
     ];
@@ -1504,13 +1587,19 @@ test("the left sidebar hosts overall search and grouped tags at desktop, half-sc
   const search = page.getByTestId("gallery-search");
   await expect(search).toHaveCount(1);
   await expect(page.getByTestId("gallery-tag-search")).toHaveCount(0);
-  await sidebar.locator("summary").filter({ hasText: "Conversion" }).click();
+  await sidebar
+    .getByRole("button", { name: "Expand Conversion", exact: true })
+    .click();
   await expect(page.getByTestId("gallery-tag-option-adc")).toContainText("ADC");
-  const logicGroup = page.getByTestId("gallery-tag-option-and").locator("..");
-  await logicGroup.locator("summary").click();
+  const logicGroup = sidebar.locator(".gallery-tag-group").filter({
+    has: page.getByRole("checkbox", { name: "Logic & memory", exact: true }),
+  });
+  await logicGroup
+    .getByRole("button", { name: "Expand Logic & memory", exact: true })
+    .click();
   await expect(
     logicGroup
-      .locator(".gallery-tag-name")
+      .locator(".gallery-sidebar-tag .gallery-tag-name")
       .evaluateAll((items) => items.map((item) => item.textContent)),
   ).resolves.toEqual([
     "AND",
@@ -1534,8 +1623,7 @@ test("the left sidebar hosts overall search and grouped tags at desktop, half-sc
     "XOR",
   ]);
   await sidebar
-    .locator("summary")
-    .filter({ hasText: /^Power/ })
+    .getByRole("button", { name: "Expand Power", exact: true })
     .click();
   const ldo = page.getByTestId("gallery-tag-option-ldo");
   await expect(ldo).toHaveCount(1);
@@ -1992,8 +2080,12 @@ test("the tag menu multi-selects and tile tags join the selection", async ({
 
   // Multi-select two tags: OR union, URL carried.
   const sidebar = page.getByTestId("gallery-tag-sidebar");
-  await sidebar.locator("summary").filter({ hasText: "Amplifiers" }).click();
-  await sidebar.locator("summary").filter({ hasText: "Conversion" }).click();
+  await sidebar
+    .getByRole("button", { name: "Expand Amplifiers", exact: true })
+    .click();
+  await sidebar
+    .getByRole("button", { name: "Expand Conversion", exact: true })
+    .click();
   const search = page.getByTestId("gallery-search");
   await search.fill("amplifier");
   await page.getByTestId("gallery-tag-option-amplifier").click();
