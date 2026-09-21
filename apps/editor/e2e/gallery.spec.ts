@@ -3506,3 +3506,38 @@ test("Shelf publication survives reopening, preserves private edits and explicit
   );
   await page.screenshot({ path: "plan/shelf-publication-local.png" });
 });
+
+test("publish tag suggestions remain clickable after filtering and save pending tags", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "tag-author",
+          displayName: "Author",
+          isAdmin: false,
+          role: "user",
+        },
+      },
+    }),
+  );
+  await mockGallery(page, []);
+  let submitted: { tags: string[] } | undefined;
+  await page.route("**/api/gallery/submissions", (route) => {
+    submitted = route.request().postDataJSON();
+    return route.fulfill({ status: 201, json: { id: "tag-test" } });
+  });
+  await page.goto("/editor?new=1");
+  await awaitEditorReady(page);
+  await page.getByTestId("publish-gallery-button").click();
+  const dialog = page.getByTestId("publish-gallery-dialog");
+  await dialog.getByLabel("Add tag").fill("amp");
+  await dialog.getByTestId("publish-preset-amplifier").click();
+  await expect(dialog.getByTestId("publish-tag-amplifier")).toBeVisible();
+  await expect(dialog.getByTestId("publish-tag-amp")).toHaveCount(0);
+  await dialog.getByLabel("Add tag").fill("custom label");
+  await dialog.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(submitted?.tags).toEqual(["amplifier", "custom label"]);
+});

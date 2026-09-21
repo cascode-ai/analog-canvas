@@ -185,16 +185,24 @@ export function PublishGalleryDialog({
 
   async function submit(): Promise<void> {
     if (publicationLinkLoading || publicationLinkError || linkBusy) return;
+    const pendingTag = tagDraft.replace(/\s+/gu, " ").trim().toLowerCase();
+    const submittedTags =
+      pendingTag && !tags.includes(pendingTag) && tags.length < 12
+        ? [...tags, pendingTag]
+        : tags;
+    if (pendingTag) setTagsEdited(true);
+    setTags(submittedTags);
+    setTagDraft("");
     setBusy(true);
     setError(null);
     const send = updating ? (publishUpdate ?? publish) : publish;
-    const outcome = await send({ name, description, tags });
+    const outcome = await send({ name, description, tags: submittedTags });
     if (outcome.status === "published") {
       onPublished({
         id: outcome.id,
         name: name.trim(),
         description: description.trim(),
-        tags,
+        tags: submittedTags,
         updated: updating,
         ...(outcome.previewRevision === undefined
           ? {}
@@ -421,7 +429,6 @@ export function PublishGalleryDialog({
                       addTag(tagDraft);
                     }
                   }}
-                  onBlur={() => addTag(tagDraft)}
                 />
                 <div className="publish-gallery-tag-presets">
                   {[...new Set(Object.values(taxonomy.tagsByGroup).flat())]
