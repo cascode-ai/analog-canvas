@@ -5104,7 +5104,16 @@ test("durable duplicate check reconnects after reload and a closed browser page"
   );
   const originalText = job!.projectText;
   page.on("dialog", (dialog) => dialog.accept());
+  const resumed = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/topology-task" &&
+      response.request().method() === "GET",
+  );
   await page.reload();
+  await awaitEditorReady(page);
+  expect(await (await resumed).json()).toMatchObject({
+    job: { id: job!.id, report: { scanned: 1 } },
+  });
   await expect(page.getByTestId("gallery-topology-task-notice")).toContainText(
     "1 compared",
   );
@@ -5118,7 +5127,16 @@ test("durable duplicate check reconnects after reload and a closed browser page"
     report: { ...job!.report, scanned: 7, comparable: 7, complete: true },
   };
   const reopened = await context.newPage();
+  const restored = reopened.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/topology-task" &&
+      response.request().method() === "GET",
+  );
   await reopened.goto("/editor?new=1");
+  await awaitEditorReady(reopened);
+  expect(await (await restored).json()).toMatchObject({
+    job: { id: job!.id, running: false, report: { scanned: 7 } },
+  });
   await expect(
     reopened.getByTestId("gallery-topology-task-notice"),
   ).toContainText("Duplicate check finished");
