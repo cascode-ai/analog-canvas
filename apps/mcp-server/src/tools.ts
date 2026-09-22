@@ -48,6 +48,11 @@ import {
 import { editContract } from "./edit-contracts.js";
 import { focusedTools, FOCUSED_TOOLS } from "./focused-tools.js";
 import { declarationSchema } from "./declaration-schema.js";
+import {
+  inputContract,
+  inputIssues,
+  inputIssueDetails,
+} from "./input-contract.js";
 
 /**
  * The default MCP tool surface (Agent rationale) stays compact. The full
@@ -372,11 +377,7 @@ interface ToolEntry {
   handle: (args: unknown, session: ToolSessionState) => Promise<unknown>;
 }
 
-const jsonSchemaOf = (schema: z.ZodType): Record<string, unknown> =>
-  z.toJSONSchema(schema, { target: "draft-2020-12", reused: "ref" }) as Record<
-    string,
-    unknown
-  >;
+const jsonSchemaOf = inputContract;
 
 function textResult(value: unknown, isError = false): McpToolCallResult {
   return {
@@ -385,7 +386,10 @@ function textResult(value: unknown, isError = false): McpToolCallResult {
   };
 }
 
-export function toolErrorResponse(error: unknown): McpToolCallResult {
+export function toolErrorResponse(
+  error: unknown,
+  input?: unknown,
+): McpToolCallResult {
   if (error instanceof ContractQueryError)
     return textResult(
       {
@@ -406,11 +410,8 @@ export function toolErrorResponse(error: unknown): McpToolCallResult {
           code: "INVALID_TOOL_INPUT",
           message: "Tool arguments do not match the input contract.",
           recovery: "fix-input",
-          issues: error.issues.map(({ path, code, message }) => ({
-            path,
-            code,
-            message,
-          })),
+          issues: inputIssues(error.issues, input),
+          details: inputIssueDetails(error.issues),
         },
       },
       true,
@@ -1251,6 +1252,6 @@ export async function callTool(
       (result as { ok?: unknown }).ok === false;
     return textResult(result, failed);
   } catch (error) {
-    return toolErrorResponse(error);
+    return toolErrorResponse(error, args);
   }
 }

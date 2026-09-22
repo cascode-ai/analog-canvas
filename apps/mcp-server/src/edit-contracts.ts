@@ -2,7 +2,7 @@ import {
   AgentSchematicEditSchema,
   CELL_STRUCTURE_EDIT_KINDS,
 } from "@icm/agent-adapter";
-import { z } from "zod";
+import { inputContract } from "./input-contract.js";
 import { compactSchema } from "./compact-schema.js";
 import { ContractQueryError } from "./tool-contracts.js";
 
@@ -16,9 +16,7 @@ export function editContract(kind: string) {
       "Unknown canonical edit kind; use kinds from capabilities.",
     );
   return {
-    ...compactSchema(
-      z.toJSONSchema(option, { target: "draft-2020-12", reused: "ref" }),
-    ),
+    ...compactSchema(inputContract(option)),
     ...(CELL_STRUCTURE_EDIT_KINDS.some((value) => value === kind)
       ? {
           "x-transaction": {

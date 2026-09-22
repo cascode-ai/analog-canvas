@@ -32,8 +32,16 @@ const Panel = z.strictObject({
   yLabel: z.string().optional(),
   xScale: z.enum(["linear", "log"]).optional(),
   yScale: z.enum(["linear", "log"]).optional(),
-  xRange: z.tuple([z.number(), z.number()]).optional(),
-  yRange: z.tuple([z.number(), z.number()]).optional(),
+  xRange: z
+    .array(z.number())
+    .length(2)
+    .optional()
+    .describe("Exactly two numbers: [minimum, maximum]."),
+  yRange: z
+    .array(z.number())
+    .length(2)
+    .optional()
+    .describe("Exactly two numbers: [minimum, maximum]."),
   legend: z.boolean().optional(),
   cursors: Cursors.optional(),
 });

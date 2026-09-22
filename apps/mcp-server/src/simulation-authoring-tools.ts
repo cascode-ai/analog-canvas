@@ -1,5 +1,6 @@
 import { agentToolHelp } from "./guidance.generated.js";
 import { z } from "zod";
+import { inputContract } from "./input-contract.js";
 import {
   createSimulationFolder,
   readSimulationExperimentConfig,
@@ -140,7 +141,7 @@ function tool<T extends z.ZodType>(
       name,
       description,
       inputSchema: {
-        ...z.toJSONSchema(schema, { target: "draft-2020-12", reused: "ref" }),
+        ...inputContract(schema),
         type: "object",
       },
     },
