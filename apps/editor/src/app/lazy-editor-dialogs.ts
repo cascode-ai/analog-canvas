@@ -31,6 +31,12 @@ export const LazyCellManagerDialog = lazyChunk("dialog", () =>
   })),
 );
 
+export const LazyProjectCodePanel = lazyChunk("inline", () =>
+  import("../features/project-code/project-code-panel").then((module) => ({
+    default: module.ProjectCodePanel,
+  })),
+);
+
 export const LazySpiceSimulationSurface = lazyChunk("inline", () =>
   import("../features/simulation/spice-simulation-surface").then((module) => ({
     default: module.SpiceSimulationSurface,

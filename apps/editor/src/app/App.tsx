@@ -5,7 +5,6 @@ import {
   workspaceWindowId,
   type ProjectWorkspace,
 } from "../document/project-workspace";
-import { applyLabelSubscriptCase } from "../features/text-editing/label-subscript-case";
 import { resolveAnnotationName } from "@icm/derived";
 import {
   branchGalleryVersion,
@@ -38,7 +37,6 @@ import type { SharedComponent } from "../features/user-components/component-libr
 import { publishedDefinition } from "../features/user-components/component-library-contract";
 import {
   newComponentDefinition,
-  planComponentDefinitionEdit,
   sharedComponentInsertRequest,
 } from "../features/user-components/component-definition-edit";
 
@@ -179,7 +177,6 @@ import {
   type SpiceImportReport,
 } from "../features/editor-shell/editor-file-commands";
 import { EditorStatusbar } from "../features/editor-shell/editor-statusbar";
-import { documentSettingsCodeValue } from "../features/editor-shell/document-settings-code";
 import { normalizedStyleOverrides } from "../features/editor-shell/style-knobs";
 import {
   deriveSimulationProbeOptions,
@@ -231,11 +228,7 @@ import {
   type EditorProjectPanelMode,
 } from "./editor-project-dock";
 import { EditorPropertiesDock } from "./editor-properties-dock";
-import { ProjectCodePanel } from "../features/project-code/project-code-panel";
-import {
-  formatProjectCode,
-  planProjectCodeCommit,
-} from "../features/project-code/project-code";
+import { LazyProjectCodePanel as ProjectCodePanel } from "./lazy-editor-dialogs";
 import { LazySpiceSimulationSurface } from "./lazy-editor-dialogs";
 import { recoverSourceDrafts } from "../features/simulation/source-draft-cache";
 import { useProjectCheck } from "./use-project-check";
@@ -3892,7 +3885,10 @@ function WorkspaceEditor({
     }
   }
 
-  function componentEditPlan(definition: ComponentDefinition) {
+  function componentEditPlan(
+    definition: ComponentDefinition,
+    planComponentDefinitionEdit: typeof import("../features/user-components/component-definition-plan").planComponentDefinitionEdit,
+  ) {
     const target = componentEditor?.target;
     const live = definitionProjectRef.current;
     if (!target || live.projectSessionId !== target.projectSessionId)
@@ -6503,7 +6499,11 @@ function WorkspaceEditor({
                     key={projectSessionId}
                     onDirtyChange={noteCodeDraftDirty}
                     project={project}
-                    onApply={(source, baseline) => {
+                    onApply={(
+                      source,
+                      baseline,
+                      { formatProjectCode, planProjectCodeCommit },
+                    ) => {
                       if (formatProjectCode(project) !== baseline) {
                         return {
                           ok: false,
@@ -6588,13 +6588,7 @@ function WorkspaceEditor({
                         drawAngle: drawAngleMode,
                         scrollBehavior: wheelBehavior,
                       },
-                      onApply: (value) => {
-                        const current = documentSettingsCodeValue(document, {
-                          showGrid: gridDotsVisible,
-                          annotationGrid,
-                          drawAngle: drawAngleMode,
-                          scrollBehavior: wheelBehavior,
-                        });
+                      onApply: (value, current, applyLabelSubscriptCase) => {
                         const edits: SchematicEdit[] = [];
                         if (
                           JSON.stringify(value.appearance) !==
@@ -7986,17 +7980,18 @@ function WorkspaceEditor({
             definition={componentEditor.definition}
             mode={componentEditor.mode}
             {...(componentEditor.entry ? { entry: componentEditor.entry } : {})}
-            validateApply={(definition) => {
+            validateApply={(definition, planner) => {
               if (!componentEditor.target) return null;
               const plan = componentEditPlan(
                 publishedDefinition(definition, componentEditor.key, 1),
+                planner,
               );
               return plan.ok ? null : plan.message;
             }}
-            onSaved={(entry) => {
+            onSaved={(entry, planner) => {
               setComponentLibraryRefresh((value) => value + 1);
               if (componentEditor.target) {
-                const plan = componentEditPlan(entry.definition);
+                const plan = componentEditPlan(entry.definition, planner);
                 if (!plan.ok) return plan.message;
                 try {
                   commitProjectStructure(plan.project, plan.activeDocumentId);

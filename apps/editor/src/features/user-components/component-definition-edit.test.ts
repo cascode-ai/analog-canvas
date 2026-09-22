@@ -1,3 +1,4 @@
+import { planComponentDefinitionEdit } from "./component-definition-plan";
 import { describe, expect, it } from "vitest";
 import { createEmptyProject, type Instance } from "@icm/model";
 import { withProjectComponentDefinitions } from "@icm/symbols";
@@ -9,7 +10,6 @@ import {
   planProjectCopyPlacement,
 } from "../clipboard/project-copy";
 import {
-  planComponentDefinitionEdit,
   newComponentDefinition,
   sharedComponentNetlist,
 } from "./component-definition-edit";

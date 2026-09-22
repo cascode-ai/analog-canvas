@@ -1,6 +1,7 @@
 import {
   ComponentDefinitionSchema,
   type ComponentDefinition,
+  type Instance,
 } from "@icm/model";
 
 export type ComponentLibraryStatus = "shared" | "official" | "deleted";
@@ -64,4 +65,35 @@ export function publishedDefinition(
     copy.subcircuit.symbolId = symbolId;
   }
   return parseSharedDefinition(copy);
+}
+
+export function sharedComponentNetlist(
+  definition: ComponentDefinition,
+): Instance["netlist"] {
+  const electrical = definition.electrical;
+  if (!electrical && !definition.subcircuit) return undefined;
+  return {
+    ...(definition.subcircuit
+      ? {
+          binding: {
+            kind: "unresolved-subcircuit" as const,
+            name: definition.subcircuit.target,
+          },
+        }
+      : electrical?.targetPolicy === "builtin"
+        ? {
+            binding: {
+              kind: "primitive" as const,
+              deviceClass: electrical.deviceClass,
+            },
+          }
+        : {}),
+    parameters: Object.fromEntries(
+      (electrical?.parameters ?? []).flatMap((parameter) =>
+        parameter.defaultValue === undefined
+          ? []
+          : [[parameter.name, parameter.defaultValue]],
+      ),
+    ),
+  };
 }

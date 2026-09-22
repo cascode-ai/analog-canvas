@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 
 export type EditorProjectPanelMode =
   "netlist" | "netlist-configuration" | "instances" | "project-code";
@@ -20,7 +20,11 @@ export function EditorProjectDock({ children }: { children: ReactNode }) {
       role="complementary"
     >
       <section className="selection-shelf" aria-label="Project tools">
-        <div className="selection-panel">{children}</div>
+        <div className="selection-panel">
+          <Suspense fallback={<p role="status">Loading Project Code…</p>}>
+            {children}
+          </Suspense>
+        </div>
       </section>
     </aside>
   );

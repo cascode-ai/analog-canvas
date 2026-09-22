@@ -24,10 +24,6 @@ import {
   type CloudCellImportLoadResult,
 } from "../features/hierarchy/cloud-cell-import";
 import { loadGalleryFeed } from "../gallery-client";
-import {
-  formatProjectCode,
-  planProjectCodeCommit,
-} from "../features/project-code/project-code";
 import { planNetlistCodeEdit } from "../features/netlist-export/netlist-code-edit";
 
 export interface BrowserAgentProjectHostOptions {
@@ -64,6 +60,13 @@ export class BrowserAgentProjectHost {
   async handle(
     request: AgentProjectResourceRequest,
   ): Promise<AgentProjectResourceResponse> {
+    const projectCode =
+      request.operation === "read-project-code" ||
+      request.operation === "replace-project-code"
+        ? await import("../features/project-code/project-code")
+        : null;
+    // Load before checking session/revision, so a change during the deferred
+    // import cannot apply an old request to a replacement Project.
     if (request.operation === "workspace") {
       return this.options.workspace
         ? this.options.workspace(request)
@@ -118,7 +121,7 @@ export class BrowserAgentProjectHost {
         requestId: request.requestId,
         operation: request.operation,
         ok: true,
-        projectCode: formatProjectCode(project),
+        projectCode: projectCode!.formatProjectCode(project),
         structureRevision: project.structureRevision,
       };
     }
@@ -127,7 +130,7 @@ export class BrowserAgentProjectHost {
       if (current.structureRevision !== request.expectedStructureRevision) {
         return this.stale(request, current.structureRevision);
       }
-      const plan = planProjectCodeCommit(
+      const plan = projectCode!.planProjectCodeCommit(
         current,
         request.projectCode,
         this.options.getActiveDocumentId(),

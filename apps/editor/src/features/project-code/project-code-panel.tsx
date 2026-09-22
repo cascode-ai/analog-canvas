@@ -8,7 +8,11 @@ import {
 } from "react";
 import type { CircuitProject } from "@icm/model";
 
-import { formatProjectCode, validateProjectCode } from "./project-code";
+import {
+  formatProjectCode,
+  validateProjectCode,
+  planProjectCodeCommit,
+} from "./project-code";
 
 const ProjectTextEditor = lazy(() => import("./project-text-editor"));
 
@@ -25,7 +29,14 @@ export function ProjectCodePanel({
 }: {
   onDirtyChange?(dirty: boolean): void;
   project: CircuitProject;
-  onApply(source: string, baseline: string): ProjectCodeApplyOutcome;
+  onApply(
+    source: string,
+    baseline: string,
+    planners: {
+      formatProjectCode: typeof formatProjectCode;
+      planProjectCodeCommit: typeof planProjectCodeCommit;
+    },
+  ): ProjectCodeApplyOutcome;
 }) {
   const baseline = useMemo(() => formatProjectCode(project), [project]);
   const [draft, setDraft] = useState(baseline);
@@ -72,7 +83,10 @@ export function ProjectCodePanel({
       );
       return;
     }
-    const outcome = onApply(draft, editBaseline);
+    const outcome = onApply(draft, editBaseline, {
+      formatProjectCode,
+      planProjectCodeCommit,
+    });
     if (!outcome.ok) {
       setError(outcome.message ?? "The Project edit was rejected");
       return;

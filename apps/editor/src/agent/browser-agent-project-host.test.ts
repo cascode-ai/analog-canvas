@@ -8,6 +8,43 @@ import { serializeProject } from "@icm/project-protocol";
 import { BrowserAgentProjectHost } from "./browser-agent-project-host";
 
 describe("BrowserAgentProjectHost", () => {
+  it.each(["session", "revision"])(
+    "rechecks %s after loading the Project Code planner",
+    async (change) => {
+      const project = createEmptyProject("destination", "Before");
+      let session = "original";
+      const host = new BrowserAgentProjectHost({
+        getProjectSessionId: () => session,
+        getProject: () => project,
+        getActiveDocumentId: () => project.topDocumentId,
+        commitProjectStructure: () => {
+          throw new Error("must not commit");
+        },
+        dispatchProjectTransaction: () => {
+          throw new Error("must not dispatch");
+        },
+      });
+      const request = host.handle({
+        apiVersion: AGENT_API_VERSION,
+        requestId: "deferred-replace",
+        operation: "replace-project-code",
+        projectCode: serializeProject({ ...project, name: "After" }),
+        expectedStructureRevision: project.structureRevision,
+      });
+      if (change === "session") session = "replacement";
+      else project.structureRevision++;
+      await expect(request).resolves.toMatchObject({
+        ok: false,
+        error: {
+          code:
+            change === "session"
+              ? "PROJECT_REPLACED"
+              : "STALE_STRUCTURE_REVISION",
+        },
+      });
+      expect(project.name).toBe("Before");
+    },
+  );
   it("lists Cloud Cells and imports through one canonical Project transaction", async () => {
     let destination = createEmptyProject("destination", "Destination");
     const source = createEmptyProject("source", "Reusable OTA", "ota");

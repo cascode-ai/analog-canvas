@@ -1,3 +1,4 @@
+import { planComponentDefinitionEdit } from "./component-definition-plan";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentDefinition } from "@icm/model";
 import {
@@ -23,8 +24,14 @@ export interface ComponentDefinitionEditorProps {
   definition: ComponentDefinition;
   entry?: SharedComponent;
   mode: "new" | "instance" | "library";
-  validateApply?(definition: ComponentDefinition): string | null;
-  onSaved(entry: SharedComponent): string | null;
+  validateApply?(
+    definition: ComponentDefinition,
+    planner: typeof planComponentDefinitionEdit,
+  ): string | null;
+  onSaved(
+    entry: SharedComponent,
+    planner: typeof planComponentDefinitionEdit,
+  ): string | null;
   onManaged(): void;
   onClose(): void;
 }
@@ -98,7 +105,10 @@ export default function ComponentDefinitionEditor(
   async function save() {
     if (!parsed.definition || busy || !user || record?.status === "deleted")
       return;
-    const conflict = latest.current.validateApply?.(parsed.definition);
+    const conflict = latest.current.validateApply?.(
+      parsed.definition,
+      planComponentDefinitionEdit,
+    );
     if (conflict) {
       setNotice(conflict);
       return;
@@ -109,7 +119,7 @@ export default function ComponentDefinitionEditor(
       const saved = await saveSharedComponent(id, revision, parsed.definition);
       setRecord(saved);
       setBaseline(source);
-      const error = latest.current.onSaved(saved);
+      const error = latest.current.onSaved(saved, planComponentDefinitionEdit);
       setNotice(
         error ? `Saved publicly. ${error}` : "Saved to the public library.",
       );

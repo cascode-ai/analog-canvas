@@ -1,3 +1,4 @@
+import { applyLabelSubscriptCase } from "../text-editing/label-subscript-case";
 import {
   lazy,
   Suspense,
@@ -10,6 +11,7 @@ import type { SchematicDocument } from "@icm/model";
 import type { PropertyJsonEditorAdapter } from "../properties/component-property-json-editor";
 
 import {
+  documentSettingsCodeValue,
   defaultDocumentSettingsCode,
   formatDocumentSettingsCode,
   parseDocumentSettingsCode,
@@ -31,6 +33,8 @@ export interface DocumentSettingsSectionProps {
   canvas: CanvasPreferenceCodeValue;
   onApply(
     value: DocumentSettingsCodeValue,
+    current: DocumentSettingsCodeValue,
+    applyLabels: typeof applyLabelSubscriptCase,
   ): { ok: true } | { ok: false; message: string };
 }
 
@@ -87,7 +91,11 @@ export function DocumentSettingsSection({
     if (!next.ok) return;
     const normalized = serializeDocumentSettingsCode(next.value);
     if (normalized === baseline) return;
-    const result = onApply(next.value);
+    const result = onApply(
+      next.value,
+      documentSettingsCodeValue(document, canvas),
+      applyLabelSubscriptCase,
+    );
     if (!result.ok) {
       setMessage(result.message);
       setRejected(true);
