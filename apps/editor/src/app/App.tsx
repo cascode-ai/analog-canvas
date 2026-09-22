@@ -149,7 +149,7 @@ import {
 } from "../document/release-channel";
 import { resolveSimulationTransport } from "../features/simulation/deployment-transport";
 import { createCanvasHitController } from "../canvas/canvas-hit-controller";
-import { CellInterfaceConfirmationDialog } from "../features/hierarchy/cell-interface-confirmation";
+import { LazyCellInterfaceConfirmationDialog as CellInterfaceConfirmationDialog } from "./lazy-editor-dialogs";
 import type { CellInterfaceConfirmation } from "../features/hierarchy/project-structure-commands";
 import { applyConfirmedCellInterfaceEdit } from "../features/hierarchy/project-structure-commands";
 import { screenScaleHitRadius } from "../canvas/canvas-hit-resolver";
@@ -5338,26 +5338,28 @@ function WorkspaceEditor({
         onOpen={() => setPublishGalleryOpen(true)}
       />
       {interfaceConfirmation ? (
-        <CellInterfaceConfirmationDialog
-          request={interfaceConfirmation.request}
-          onCancel={() => setInterfaceConfirmation(null)}
-          onConfirm={() => {
-            setInterfaceConfirmation(null);
-            try {
-              applyConfirmedCellInterfaceEdit(
-                interfaceConfirmation.request,
-                interfaceConfirmation.snapshot,
-                project,
-              );
-            } catch (error) {
-              setStatus(
-                error instanceof Error
-                  ? error.message
-                  : "Could not update Cell interface",
-              );
-            }
-          }}
-        />
+        <Suspense fallback={null}>
+          <CellInterfaceConfirmationDialog
+            request={interfaceConfirmation.request}
+            onCancel={() => setInterfaceConfirmation(null)}
+            onConfirm={() => {
+              setInterfaceConfirmation(null);
+              try {
+                applyConfirmedCellInterfaceEdit(
+                  interfaceConfirmation.request,
+                  interfaceConfirmation.snapshot,
+                  project,
+                );
+              } catch (error) {
+                setStatus(
+                  error instanceof Error
+                    ? error.message
+                    : "Could not update Cell interface",
+                );
+              }
+            }}
+          />
+        </Suspense>
       ) : null}
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
       <EditorAppChrome

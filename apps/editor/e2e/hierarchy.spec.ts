@@ -1650,6 +1650,10 @@ test("confirms connected last-Port deletion and restores caller wires with Undo 
     name: "Delete connected Cell Ports?",
   });
   await expect(confirmation).toContainText("X1");
+  await expect(confirmation).toHaveJSProperty("open", true);
+  await expect(
+    confirmation.getByRole("button", { name: "Cancel", exact: true }),
+  ).toBeFocused();
   await confirmation
     .getByRole("button", { name: "Cancel", exact: true })
     .click();
