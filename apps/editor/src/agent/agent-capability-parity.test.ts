@@ -47,7 +47,7 @@ async function folder() {
     expect(result.ok, result.message).toBe(true);
     return controller.document.instances[0]!.id;
   }
-  return { controller, client, tool, add };
+  return { controller, client, tool, add, http };
 }
 
 describe("MCP → API → shared editor parity", () => {
@@ -101,7 +101,7 @@ describe("MCP → API → shared editor parity", () => {
   });
 
   it("batches labels atomically and undoes them together", async () => {
-    const { client, controller, add } = await folder();
+    const { client, controller, add, http } = await folder();
     await add();
     const placed = await client.applyActions([
       {
@@ -138,8 +138,14 @@ describe("MCP → API → shared editor parity", () => {
     const preview = await client.applyActions(actions, { dryRunOnly: true });
     expect(preview.ok, preview.message).toBe(true);
     expect(controller.project).toEqual(previewProject);
+    const callsBefore = http.circuitCalls.length;
     const labelled = await client.applyActions(actions);
     expect(labelled.ok, labelled.message).toBe(true);
+    expect(
+      http.circuitCalls
+        .slice(callsBefore)
+        .filter((call) => call.request.operation === "transact"),
+    ).toHaveLength(1);
     expect(
       controller.document.annotations.filter((a) => a.kind === "net-label"),
     ).toHaveLength(2);
