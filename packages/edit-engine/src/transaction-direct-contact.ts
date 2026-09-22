@@ -1,4 +1,9 @@
-import { createRoutePath, deriveStableId, routeEndpoints } from "@icm/model";
+import {
+  createRoutePath,
+  deriveStableId,
+  routeEnd,
+  routeEndpoints,
+} from "@icm/model";
 import type {
   Point,
   RouteBranch,
@@ -23,6 +28,7 @@ import { buildManualWirePath } from "./routing-planner.js";
 import {
   endpointOwnerNetId,
   netEndpointGroups,
+  routeIsProtected,
 } from "./transaction-routing.js";
 import type {
   ContactEvidenceHint,
@@ -172,6 +178,91 @@ function uniqueDerivedId(
 }
 
 /**
+ * A pin parked on a loose Route end is authored as an exact contact with the
+ * endpoint Junction. When the pin moves inward along that Route's first leg,
+ * keeping the Junction behind creates a visible wire tail even though the
+ * gesture is plainly shortening the wire. Carry only that degree-one endpoint
+ * with the pin; interior taps and shared Junctions remain stationary.
+ */
+function followRetractedDanglingRouteEndpoints(
+  draft: SchematicDocument,
+  resolver: SymbolResolver,
+  priorEvidence: DocumentContactEvidence,
+  explicitlyAuthoredRouteIds: ReadonlySet<string>,
+  changedObjectIds: Set<string>,
+): string[] {
+  const changedRouteIds: string[] = [];
+  for (const contact of priorEvidence.contacts) {
+    if (contact.endpoints.length !== 2) continue;
+    const terminal = contact.endpoints.find(
+      (endpoint) => endpoint.kind === "terminal",
+    );
+    const junctionEndpoint = contact.endpoints.find(
+      (endpoint) => endpoint.kind === "junction",
+    );
+    if (
+      terminal?.kind !== "terminal" ||
+      junctionEndpoint?.kind !== "junction" ||
+      endpointOwnerNetId(draft, terminal) !== contact.netId
+    ) {
+      continue;
+    }
+
+    const routeIncidents = contact.incidents.filter(
+      (incident) => incident.kind === "route",
+    );
+    if (routeIncidents.length !== 1) continue;
+    const routeId = routeIncidents[0]!.objectId;
+    const route = draft.routes.find((candidate) => candidate.id === routeId);
+    const junction = draft.junctions.find(
+      (candidate) => candidate.id === junctionEndpoint.junctionId,
+    );
+    if (
+      !route ||
+      !junction ||
+      junction.netId !== contact.netId ||
+      junction.position.x !== contact.point.x ||
+      junction.position.y !== contact.point.y ||
+      explicitlyAuthoredRouteIds.has(routeId) ||
+      routeIsProtected(route)
+    ) {
+      continue;
+    }
+
+    const end = routeEnd(route);
+    const side =
+      route.start.kind === "junction" && route.start.junctionId === junction.id
+        ? "start"
+        : end.kind === "junction" && end.junctionId === junction.id
+          ? "end"
+          : null;
+    if (!side) continue;
+
+    const path = resolveRouteEditPath(draft, resolver, route);
+    const connection = resolveEndpointConnection(draft, resolver, terminal);
+    if (!path || !connection || path.points.length < 2) continue;
+    const segmentIndex = side === "start" ? 0 : path.points.length - 2;
+    if (
+      path.segmentModes[segmentIndex] === "escape" ||
+      !pointOnSegment(
+        connection.contactPoint,
+        path.points[segmentIndex]!,
+        path.points[segmentIndex + 1]!,
+        { interior: true },
+      )
+    ) {
+      continue;
+    }
+
+    junction.position = { ...connection.contactPoint };
+    changedObjectIds.add(junction.id);
+    changedObjectIds.add(routeId);
+    changedRouteIds.push(routeId);
+  }
+  return changedRouteIds;
+}
+
+/**
  * Reconcile zero-length endpoint contacts once, after all transform edits have
  * reached their final projected positions.
  *
@@ -201,6 +292,13 @@ export function reconcileTransformDirectContacts(
     beforeContactEvidence?.document === before
       ? beforeContactEvidence.evidence
       : deriveDocumentContactEvidence(before, resolver);
+  const changedRouteIds = followRetractedDanglingRouteEndpoints(
+    draft,
+    resolver,
+    priorEvidence,
+    topologyContext.explicitlyAuthoredRouteIds,
+    changedObjectIds,
+  );
   const draftContactEvidence = deriveDocumentContactEvidence(draft, resolver);
   const delta = deriveDirectContactDelta(before, draft, resolver, {
     // Only an identity match is safe: the payload carries no revision of its
@@ -208,8 +306,7 @@ export function reconcileTransformDirectContacts(
     before: priorEvidence,
     after: draftContactEvidence,
   });
-  let geometryChanged = false;
-  const changedRouteIds: string[] = [];
+  let geometryChanged = changedRouteIds.length > 0;
 
   for (const pair of delta.lost) {
     const [left, right] = pair.endpoints;
