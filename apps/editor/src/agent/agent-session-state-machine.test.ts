@@ -27,4 +27,15 @@ describe("Agent session state machine", () => {
     expect(transitionAgentSession("idle", "working")).toBe("idle");
     expect(canTransitionAgentSession("revoked", "connected")).toBe(false);
   });
+
+  it("allows explicit replacement from active states and failed recovery to retry", () => {
+    for (const state of [
+      "connected",
+      "working",
+      "paused",
+      "waiting-for-agent",
+    ] as const)
+      expect(transitionAgentSession(state, "creating")).toBe("creating");
+    expect(transitionAgentSession("reconnecting", "idle")).toBe("idle");
+  });
 });

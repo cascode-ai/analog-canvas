@@ -2,6 +2,7 @@ import { renderAgentConnectionInstructions } from "./connection-guidance.generat
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import type { AgentSessionScope } from "@icm/agent-adapter";
+import type { ConnectionOperationKind } from "./connection-operation";
 
 /** Browser authorization hand-off and compact Properties status controls. */
 
@@ -18,6 +19,7 @@ export type AgentConnectionStatus =
   | "expired";
 
 export interface ConnectAgentPanelProps {
+  pendingOperation?: ConnectionOperationKind | null;
   open: boolean;
   status: AgentConnectionStatus;
   claimCode: string | null;
@@ -88,6 +90,7 @@ function ConnectionControls(
   props: Pick<
     ConnectAgentPanelProps,
     | "status"
+    | "pendingOperation"
     | "onPause"
     | "onResume"
     | "onReconnect"
@@ -95,10 +98,33 @@ function ConnectionControls(
     | "onRevoke"
   >,
 ): ReactNode {
+  if (props.pendingOperation === "creating" || props.status === "creating")
+    return (
+      <div className="agent-controls">
+        <span role="status">Preparing connection…</span>
+        <button
+          type="button"
+          data-testid="agent-revoke"
+          onClick={props.onRevoke}
+        >
+          Cancel connection
+        </button>
+      </div>
+    );
+  const progress = props.pendingOperation ? (
+    <span role="status">
+      {props.pendingOperation === "disconnecting"
+        ? "Disconnected locally; confirming with server…"
+        : props.pendingOperation === "pausing"
+          ? "Pausing…"
+          : "Resuming…"}
+    </span>
+  ) : null;
   const terminal = props.status === "revoked" || props.status === "expired";
   if (terminal) {
     return (
       <div className="agent-controls">
+        {progress}
         <button
           type="button"
           data-testid="agent-new-connection"
@@ -109,7 +135,6 @@ function ConnectionControls(
       </div>
     );
   }
-  if (props.status === "creating") return null;
   if (props.status === "idle") {
     return (
       <div className="agent-controls">
@@ -125,10 +150,16 @@ function ConnectionControls(
   }
   return (
     <div className="agent-controls">
+      {progress}
       {props.status === "connected" ||
       props.status === "waiting-for-agent" ||
       props.status === "working" ? (
-        <button type="button" data-testid="agent-pause" onClick={props.onPause}>
+        <button
+          type="button"
+          data-testid="agent-pause"
+          onClick={props.onPause}
+          disabled={Boolean(props.pendingOperation)}
+        >
           Pause
         </button>
       ) : null}
@@ -137,6 +168,7 @@ function ConnectionControls(
           type="button"
           data-testid="agent-resume"
           onClick={props.onResume}
+          disabled={Boolean(props.pendingOperation)}
         >
           Resume
         </button>
@@ -330,7 +362,8 @@ export function AgentPropertiesSection(
   props: AgentPropertiesSectionProps,
 ): ReactNode {
   const clock = useClock(true, Date.now());
-  if (props.status === "idle") return null;
+  if (props.status === "idle" && !props.error && !props.pendingOperation)
+    return null;
   const terminal = props.status === "revoked" || props.status === "expired";
   return (
     <section
@@ -351,6 +384,11 @@ export function AgentPropertiesSection(
         </div>
         <div className="agent-properties-actions">
           {!props.expanded &&
+          (props.pendingOperation || props.status === "idle") ? (
+            <ConnectionControls {...props} />
+          ) : null}
+          {!props.expanded &&
+          !props.pendingOperation &&
           (props.status === "connected" ||
             props.status === "waiting-for-agent" ||
             props.status === "working") ? (
@@ -362,7 +400,9 @@ export function AgentPropertiesSection(
               Pause
             </button>
           ) : null}
-          {!props.expanded && props.status === "paused" ? (
+          {!props.expanded &&
+          !props.pendingOperation &&
+          props.status === "paused" ? (
             <button
               type="button"
               data-testid="agent-resume"
@@ -372,6 +412,7 @@ export function AgentPropertiesSection(
             </button>
           ) : null}
           {!props.expanded &&
+          !props.pendingOperation &&
           (props.status === "offline" || props.status === "reconnecting") ? (
             <button
               type="button"
@@ -381,7 +422,7 @@ export function AgentPropertiesSection(
               Retry relay
             </button>
           ) : null}
-          {!props.expanded && terminal ? (
+          {!props.expanded && !props.pendingOperation && terminal ? (
             <button
               type="button"
               data-testid="agent-new-connection"
@@ -419,12 +460,12 @@ export function AgentPropertiesSection(
               </>
             }
           />
-          {props.error ? (
-            <p className="agent-panel-error" role="alert">
-              {props.error}
-            </p>
-          ) : null}
         </div>
+      ) : null}
+      {props.error ? (
+        <p className="agent-panel-error" role="alert">
+          {props.error}
+        </p>
       ) : null}
     </section>
   );

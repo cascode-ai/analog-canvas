@@ -6077,6 +6077,7 @@ function WorkspaceEditor({
             ? {
                 open: agentPanelOpen,
                 status: agentSession.status,
+                pendingOperation: agentSession.pendingOperation,
                 claimCode: agentSession.claimCode,
                 claimExpiresAt: agentSession.claimExpiresAt,
                 scopes: agentSession.scopes,
@@ -7383,7 +7384,8 @@ function WorkspaceEditor({
               }
               agent={
                 publicAgentUiEnabled &&
-                agentSession.status !== "idle" &&
+                (agentSession.status !== "idle" ||
+                  agentSession.error !== null) &&
                 !agentStatusDismissed
                   ? {
                       status: agentSession.status,
@@ -7396,6 +7398,7 @@ function WorkspaceEditor({
                       onResume: agentSession.resume,
                       onReconnect: agentSession.reconnect,
                       onNewConnection: agentSession.newConnection,
+                      pendingOperation: agentSession.pendingOperation,
                       onRevoke: agentSession.revoke,
                       expanded: agentDetailsOpen,
                       onToggleDetails: () =>

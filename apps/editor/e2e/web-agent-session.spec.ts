@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import type { WebSocketRoute } from "@playwright/test";
+import type { Page, Route, WebSocketRoute } from "@playwright/test";
 import { createHash } from "node:crypto";
 
 import { createEmptyProject } from "@icm/model";
@@ -20,6 +20,139 @@ import {
 // server. Keep this file in one worker while unrelated browser specs stay
 // fully parallel.
 test.describe.configure({ mode: "default" });
+
+async function controlledConnections(page: Page) {
+  const creates: Route[] = [];
+  const controls: Route[] = [];
+  const sockets: string[] = [];
+  await page.routeWebSocket("**/api/agent/sessions/*/editor", (socket) => {
+    sockets.push(socket.url());
+    socket.onMessage((message) => {
+      const parsed = JSON.parse(String(message));
+      if (parsed.kind === "heartbeat")
+        socket.send(JSON.stringify({ ...parsed, kind: "heartbeat-ack" }));
+    });
+  });
+  await page.route("**/api/agent/sessions**", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (request.method() === "POST" && path === "/api/agent/sessions")
+      creates.push(route);
+    else if (path.endsWith("/control")) controls.push(route);
+    else if (request.method() === "DELETE")
+      await route.fulfill({ status: 204 });
+    else await route.abort();
+  });
+  return {
+    creates,
+    controls,
+    sockets,
+    complete: (index: number) =>
+      creates[index]!.fulfill({
+        json: {
+          ok: true,
+          session: {
+            sessionId: `controlled-${index}`,
+            editorSecret: `secret-${index}`,
+            claimCode: `controlled-${index}.claim`,
+            claimExpiresAt: Date.now() + 300_000,
+            expiresAt: Date.now() + 1_800_000,
+          },
+        },
+      }),
+  };
+}
+
+test("connection controls recover across dialog and Properties while old requests are pending", async ({
+  page,
+}) => {
+  const relay = await controlledConnections(page);
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByRole("button", { name: "Agent", exact: true }).click();
+  const panel = page.getByTestId("connect-agent-panel");
+  await expect.poll(() => relay.creates.length).toBe(1);
+  await relay.complete(0);
+  await expect(panel.getByTestId("agent-status")).toHaveText(
+    "Waiting for Agent",
+  );
+  // Leave Pause and Revoke unanswered. Neither may mutate the replacement.
+  await panel.getByTestId("agent-pause").click();
+  await expect.poll(() => relay.controls.length).toBe(1);
+  await expect(panel.getByRole("status")).toHaveText("Pausing…");
+  await panel.getByTestId("agent-revoke").click();
+  await expect(panel.getByTestId("agent-status")).toHaveText("Disconnected");
+  await expect.poll(() => relay.controls.length).toBe(2);
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+  await revealPropertiesShelf(page);
+  await page.getByTestId("selection-shelf").click();
+  const properties = page.getByTestId("agent-properties");
+  await properties.getByTestId("agent-new-connection").click();
+  await expect.poll(() => relay.creates.length).toBe(2);
+  await relay.complete(1);
+  await expect(properties).toContainText("Waiting for Agent");
+  await relay.controls[0]!.fulfill({ json: { ok: true } }).catch(
+    () => undefined,
+  );
+  await relay.controls[1]!.fulfill({ json: { ok: true } });
+  await page.getByRole("button", { name: "Agent", exact: true }).click();
+  await expect(panel.getByTestId("agent-copy-text")).toHaveValue(
+    /controlled-1\.claim/,
+  );
+  await panel.getByTestId("agent-pause").click();
+  await expect.poll(() => relay.controls.length).toBe(3);
+  expect(relay.controls[2]!.request().url()).toContain("controlled-1/control");
+  await relay.controls[2]!.fulfill({ json: { ok: true } });
+  await expect(panel.getByTestId("agent-status")).toHaveText("Paused");
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+  await properties.getByRole("button", { name: "Manage", exact: true }).click();
+  await properties.getByTestId("agent-new-connection").click();
+  await expect.poll(() => relay.creates.length).toBe(3);
+  await relay.creates[2]!.fulfill({
+    status: 503,
+    json: { error: { message: "Relay unavailable" } },
+  });
+  await expect(properties.getByRole("alert")).toContainText(
+    "Relay unavailable",
+  );
+  await properties.getByTestId("agent-connect").click();
+  await expect.poll(() => relay.creates.length).toBe(4);
+  await relay.complete(3);
+  await expect(properties.getByTestId("agent-copy-text")).toHaveValue(
+    /controlled-3\.claim/,
+  );
+});
+
+test("new connection can be cancelled and retried after a hung create without refreshing", async ({
+  page,
+}) => {
+  await page.clock.install();
+  const relay = await controlledConnections(page);
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByRole("button", { name: "Agent", exact: true }).click();
+  const panel = page.getByTestId("connect-agent-panel");
+  await expect.poll(() => relay.creates.length).toBe(1);
+  await panel.getByRole("button", { name: "Cancel connection" }).click();
+  await expect(panel.getByTestId("agent-status")).toHaveText("Disconnected");
+  await panel.getByTestId("agent-new-connection").click();
+  await expect.poll(() => relay.creates.length).toBe(2);
+  await page.clock.fastForward(15_100);
+  await expect(panel.getByRole("alert")).toContainText("timed out");
+  await panel.getByTestId("agent-connect").click();
+  await expect.poll(() => relay.creates.length).toBe(3);
+  await relay.complete(2);
+  await expect(panel.getByTestId("agent-status")).toHaveText(
+    "Waiting for Agent",
+  );
+  await relay.complete(0).catch(() => undefined);
+  await relay.complete(1).catch(() => undefined);
+  await expect(panel.getByTestId("agent-copy-text")).toHaveValue(
+    /controlled-2\.claim/,
+  );
+  expect(relay.sockets).toHaveLength(1);
+  expect(relay.sockets[0]).toContain("controlled-2/editor");
+});
 
 test("real relay batches labels and moves bound text with shared undo", async ({
   page,

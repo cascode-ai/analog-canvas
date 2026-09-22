@@ -14,6 +14,7 @@ const transitions: Readonly<
     "idle",
   ],
   "waiting-for-agent": [
+    "creating",
     "connected",
     "paused",
     "reconnecting",
@@ -22,6 +23,7 @@ const transitions: Readonly<
     "expired",
   ],
   connected: [
+    "creating",
     "working",
     "paused",
     "reconnecting",
@@ -30,6 +32,7 @@ const transitions: Readonly<
     "expired",
   ],
   working: [
+    "creating",
     "connected",
     "paused",
     "reconnecting",
@@ -38,6 +41,7 @@ const transitions: Readonly<
     "expired",
   ],
   paused: [
+    "creating",
     "connected",
     "waiting-for-agent",
     "reconnecting",
@@ -45,6 +49,7 @@ const transitions: Readonly<
     "expired",
   ],
   reconnecting: [
+    "idle",
     "paused",
     "waiting-for-agent",
     "connected",
