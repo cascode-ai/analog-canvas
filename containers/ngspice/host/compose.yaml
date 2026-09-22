@@ -43,6 +43,8 @@ services:
       - node
       - /opt/harness/gateway.mjs
     environment:
+      SIMULATION_GATEWAY_MAX_RESPONSE_BYTES: "268435456"
+      SIMULATION_GATEWAY_MAX_REQUEST_BYTES: "8388608"
       SIMULATION_ACCESS_TOKEN: ${SIMULATION_ACCESS_TOKEN:?set SIMULATION_ACCESS_TOKEN in the host runtime env}
       SIMULATION_EXECUTOR_URL: http://executor:8080
     depends_on:

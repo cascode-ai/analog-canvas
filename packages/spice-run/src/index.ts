@@ -3,6 +3,7 @@ export * from "./contract.js";
 export * from "./deck.js";
 export * from "./metadata.js";
 export * from "./verdict.js";
+export * from "./ngspice-output.js";
 export * from "./rawfile.js";
 export * from "./result-schema.js";
 export * from "./result-data.js";

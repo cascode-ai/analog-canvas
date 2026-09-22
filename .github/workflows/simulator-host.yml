@@ -43,6 +43,9 @@ on:
     paths:
       - containers/ngspice/**
       - containers/simulation/**
+      - packages/spice-run/**
+      - packages/simulation-service/src/execution-receipt.ts
+      - scripts/package-ngspice-harness.mjs
       - .github/workflows/simulator-host.yml
 
 concurrency:
@@ -107,6 +110,19 @@ jobs:
     environment: cloudflare-preview
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Package the shared ngspice result runtime
+        if: github.event_name == 'push' || inputs.action != 'probe'
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @icm/simulation-service... build
+          node scripts/package-ngspice-harness.mjs
 
       - name: Reach the host over SSH
         env:

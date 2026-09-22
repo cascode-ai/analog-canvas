@@ -316,8 +316,9 @@ deadline.
 | Limit             | Value                    | Enforced by                                |
 | ----------------- | ------------------------ | ------------------------------------------ |
 | Deck size         | 2 MiB                    | rejected `413 deck-too-large`              |
-| Request body      | 4 MiB                    | connection closed, `413 request-too-large` |
-| Returned output   | 1 MiB per run            | truncation, reported                       |
+| Request envelope | 8 MiB | connection closed, `413 request-too-large`; deck content remains limited to 2 MiB |
+| Raw waveform collection | 64 MiB per run | incomplete collection is reported; never certified as complete |
+| Simulator logs | 1 MiB per run, independently | truncation, reported |
 | Default deadline  | 30 s                     | applied when the caller names none         |
 | Maximum deadline  | 120 s                    | a longer request is clamped to it          |
 | Lifecycle grace   | 10 s                     | hard lease watchdog after the run deadline |
@@ -325,12 +326,29 @@ deadline.
 | Processes         | 128 (`RLIMIT_NPROC`)     | image-set `ulimit` before `exec`           |
 | Written file size | 256 MiB (`RLIMIT_FSIZE`) | image-set `ulimit` before `exec`           |
 
-The returned-output cap is divided between the simulator's two streams, so a
+The independent log cap is divided between the simulator's two streams, so a
 flood of printed values on one cannot push the single line that explains the
 run off the end of the other. The two kernel limits are set by the image
 rather than defaulted by the harness, because `RLIMIT_NPROC` counts every
 process the account owns and a number chosen for a container that runs one
 simulator is wrong anywhere else.
+
+Ngspice defaults are shared in `packages/spice-run`: 64 MiB collected waveform
+and 1 MiB combined logs. `SIMULATION_MAX_OUTPUT_BYTES` configures only waveform
+collection; `SIMULATION_MAX_LOG_BYTES` configures logs. Capabilities use the running
+harness's `limits.outputBytes` when available, including during rolling upgrades.
+The numeric completeness check remains mandatory: a cut waveform cannot certify
+a complete result, even when the log contains successful scalar measurements.
+
+The ngspice executor now uses the same result assembler as the legacy Worker path.
+It parses numbers on the operator host and attaches the existing receipt-bound
+256 MiB transport envelope. The gateway streams that envelope with backpressure;
+the Worker checks run/input, configuration, executed files and measured runtime,
+then managed retention streams it to R2. The Worker does not materialize these
+large numerical arrays. Legacy replies remain bounded to 8 MiB; exceeding that
+limit is an explicit transport failure, not a silently shortened waveform.
+Raw, JSON and parsed representations share the transfer envelope, so a 64 MiB
+collector allowance is not a guarantee that every possible output fits in 256 MiB.
 
 **Added response fields.** A consumer that does not read these is unaffected.
 

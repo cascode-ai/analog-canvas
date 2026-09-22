@@ -17,8 +17,9 @@
 import {
   buildSimulationDeck,
   deckNeedsModelLibrary,
-  deckRequestsRawfile,
-  evaluateSimulationRun,
+  assembleNgspiceOutput,
+  NGSPICE_MAX_RAWFILE_BYTES,
+  SIMULATION_EXECUTOR_TRANSFER_HEADER,
   createSimulationInputMetadata,
   isSimulationInputRevision,
   resolveTimeoutMs,
@@ -27,8 +28,14 @@ import {
   simulationConfigurationMetadata,
   verifySimulationEnvironmentMetadata,
   type ModelLibrarySelection,
-  type SimulationResult,
 } from "@icm/spice-run";
+import {
+  readExecutionReceipt,
+  encodeExecutionReceipt,
+  EXECUTION_RECEIPT_HEADER,
+  boundExecutionStream,
+  sha256,
+} from "@icm/simulation-service";
 import hostedSky130Profile from "../containers/ngspice/hosted-sky130-profile.json";
 import { isSimulationInputPath } from "@icm/model";
 
@@ -66,7 +73,7 @@ export interface SimulationEnv {
 
 /** A deck this large is a mistake upstream, not a simulation worth waking for. */
 const MAX_INPUT_BYTES = 2 * 1024 * 1024;
-const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024;
+const DEFAULT_MAX_OUTPUT_BYTES = NGSPICE_MAX_RAWFILE_BYTES;
 
 function advertisedMaxOutputBytes(env: SimulationEnv): number {
   const configured = Number(env.SIMULATION_MAX_OUTPUT_BYTES);
@@ -301,6 +308,25 @@ export async function routeNgspiceSimulationRequest(
       { status: 503 },
     );
   if (body.operation === "capabilities") {
+    // The running collector is authoritative, including during a rolling deploy.
+    let outputBytes = advertisedMaxOutputBytes(env);
+    if (selected) {
+      try {
+        const health = await selected.runner.fetch("http://container/health", {
+          signal: AbortSignal.timeout(5000),
+        });
+        const facts = (await health.json()) as {
+          limits?: { outputBytes?: number };
+        };
+        if (
+          Number.isSafeInteger(facts.limits?.outputBytes) &&
+          facts.limits!.outputBytes! > 0
+        )
+          outputBytes = facts.limits!.outputBytes!;
+      } catch {
+        /* Keep the configured declaration when health is unavailable. */
+      }
+    }
     return Response.json({
       configured: !!selected,
       rawfileCollection: "declared-single-ascii",
@@ -328,7 +354,7 @@ export async function routeNgspiceSimulationRequest(
       },
       maxTimeoutMs: 120000,
       maxInputBytes: MAX_INPUT_BYTES,
-      maxOutputBytes: advertisedMaxOutputBytes(env),
+      maxOutputBytes: outputBytes,
       cancel: true,
     });
   }
@@ -520,9 +546,19 @@ export async function routeNgspiceSimulationRequest(
   try {
     containerResponse = await selected.runner.fetch("http://container/run", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        [SIMULATION_EXECUTOR_TRANSFER_HEADER]: "receipt-v1",
+      },
       body: JSON.stringify({
         deck,
+        outputContext: {
+          netlist,
+          testbench,
+          inputRevision,
+          modelLibrary,
+          execution,
+        },
         timeoutMs,
         files,
         dependencies,
@@ -566,134 +602,77 @@ export async function routeNgspiceSimulationRequest(
     );
   }
 
-  const raw = (await containerResponse.json()) as {
-    log?: unknown;
-    stdout?: unknown;
-    stderr?: unknown;
-    exitCode?: unknown;
-    signal?: unknown;
-    timedOut?: unknown;
-    cancelled?: unknown;
-    durationMs?: unknown;
-    environment?: unknown;
-    // Present once the harness reads back the file a deck wrote. Optional
-    // because a deck that never calls `write` leaves nothing to send.
-    rawfile?: unknown;
-    rawfileFormat?: unknown;
-    rawfileRequested?: unknown;
-    rawfileName?: unknown;
-    collection?: { rawfile?: unknown };
-    rawfileError?: unknown;
-    truncatedOutputs?: unknown;
-  };
-  const environment = await verifySimulationEnvironmentMetadata(
-    raw.environment,
-  );
-  if (!environment) {
-    return Response.json(
-      {
-        error: "simulator-protocol-invalid",
-        execution,
-        message: "The simulator did not identify its execution environment.",
-      },
-      { status: 502 },
+  try {
+    const receipt = readExecutionReceipt(
+      containerResponse.headers.get(EXECUTION_RECEIPT_HEADER),
     );
-  }
-  const log = typeof raw.log === "string" ? raw.log : "";
-  const rawfileExpected =
-    collection === undefined
-      ? deckRequestsRawfile(deck)
-      : collection.rawfile !== null;
-  if (
-    collection !== undefined &&
-    (raw.collection?.rawfile !== collection.rawfile ||
-      raw.rawfileRequested !== rawfileExpected ||
-      ((typeof raw.rawfile === "string" || raw.rawfileFormat === "binary") &&
-        (collection.rawfile === null ||
-          raw.rawfileName !== collection.rawfile)))
-  )
-    return Response.json(
-      {
-        error: "simulator-protocol-invalid",
-        execution,
-        message:
-          "The executor did not honor the declared output collection. Update the harness and prepare again.",
-      },
-      { status: 502 },
-    );
-  // New harnesses report the same fact they used when collecting artifacts.
-  // Accept an absent field during a rolling deployment, but never accept an
-  // explicit disagreement: one side would otherwise judge a different run
-  // contract from the other.
-  if (
-    typeof raw.rawfileRequested === "boolean" &&
-    raw.rawfileRequested !== rawfileExpected
-  ) {
-    return Response.json(
-      {
-        error: "simulator-protocol-invalid",
-        execution,
-        message:
-          "The simulator disagreed with the Worker about whether the deck requested a rawfile.",
-      },
-      { status: 502 },
-    );
-  }
-  const rawfile = typeof raw.rawfile === "string" ? raw.rawfile : null;
-  const truncatedOutputs = Array.isArray(raw.truncatedOutputs)
-    ? raw.truncatedOutputs
-    : [];
-  const evaluated = evaluateSimulationRun(
-    { rawfile: rawfileExpected ? "required" : "not-required" },
-    {
-      log,
-      ...(typeof raw.stdout === "string" ? { stdout: raw.stdout } : {}),
-      ...(typeof raw.stderr === "string" ? { stderr: raw.stderr } : {}),
-      exitCode: typeof raw.exitCode === "number" ? raw.exitCode : null,
-      signal: typeof raw.signal === "string" ? raw.signal : null,
-      timedOut: raw.timedOut === true,
-      durationMs: typeof raw.durationMs === "number" ? raw.durationMs : 0,
-      rawfile,
-      rawfileFormat:
-        raw.rawfileFormat === "ascii" || raw.rawfileFormat === "binary"
-          ? raw.rawfileFormat
-          : null,
-      rawfileTruncated: truncatedOutputs.includes("rawfile"),
-    },
-    { timeoutMs },
-  );
-  const result: SimulationResult & { execution: HostedExecutionMetadata } = {
-    execution,
-    outcome: evaluated.outcome,
-    diagnostics: evaluated.diagnostics,
-    log,
-    // Omitted rather than null when there is nothing to carry: the field's
-    // contract is that its presence means numbers were read.
-    ...(evaluated.data ? { data: evaluated.data } : {}),
-    durationMs: typeof raw.durationMs === "number" ? raw.durationMs : 0,
-    metadata: {
-      schemaVersion: 1,
-      input: await createSimulationInputMetadata({
-        ...(inputRevision ? { inputRevision } : {}),
+    if (receipt) {
+      const expected = await createSimulationInputMetadata({
         netlist,
         testbench,
         deck,
+        ...(inputRevision ? { inputRevision } : {}),
+      });
+      const actual = await verifySimulationEnvironmentMetadata(
+        receipt.metadata.environment,
+      );
+      const health = await selected.runner.fetch("http://container/health", {
+        signal: AbortSignal.timeout(5000),
+      });
+      const runtime = (await health.json()) as { environment?: unknown };
+      const measured = await verifySimulationEnvironmentMetadata(
+        runtime.environment,
+      );
+      if (
+        !containerResponse.body ||
+        receipt.runToken !== body.runToken ||
+        receipt.execution?.target !== target ||
+        !actual ||
+        !measured ||
+        actual.fingerprint !== measured.fingerprint ||
+        actual.simulator.name !== "ngspice" ||
+        Object.entries(expected).some(
+          ([key, value]) =>
+            receipt.metadata.input[key as keyof typeof expected] !== value,
+        ) ||
+        receipt.executedFilesSha256 !== (await sha256(JSON.stringify(files))) ||
+        JSON.stringify(receipt.metadata.configuration) !==
+          JSON.stringify(simulationConfigurationMetadata(modelLibrary))
+      )
+        throw new Error("Changed streaming input/runtime evidence");
+      return new Response(
+        boundExecutionStream(containerResponse.body, receipt.byteLength),
+        {
+          headers: {
+            "content-type": "application/json",
+            "cache-control": "no-store",
+            [EXECUTION_RECEIPT_HEADER]: encodeExecutionReceipt(receipt),
+          },
+        },
+      );
+    }
+    return Response.json(
+      await assembleNgspiceOutput(await containerResponse.json(), {
+        netlist,
+        testbench,
+        deck,
+        inputRevision,
+        timeoutMs,
+        modelLibrary,
+        collection,
+        execution,
+        runToken: body.runToken,
       }),
-      configuration: simulationConfigurationMetadata(modelLibrary),
-      environment,
-    },
-  };
-  return Response.json(
-    {
-      ...result,
-      ...(body.runToken
-        ? {
-            cancelled: raw.cancelled === true,
-            executedDeck: deck,
-            ...(rawfile !== null ? { rawfile } : {}),
-          }
-        : {}),
-    },
-    { status: 200 },
-  );
+    );
+  } catch (error) {
+    await containerResponse.body?.cancel().catch(() => undefined);
+    return Response.json(
+      {
+        error: "simulator-protocol-invalid",
+        execution,
+        message: error instanceof Error ? error.message : String(error),
+      },
+      { status: 502 },
+    );
+  }
 }

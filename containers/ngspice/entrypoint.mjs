@@ -36,6 +36,11 @@ import { join, relative, dirname } from "node:path";
 
 import { SimulationRunSupervisor } from "./run-supervisor.mjs";
 import { readDeclaredRawfile, validCollection } from "./rawfile-collector.mjs";
+import {
+  NGSPICE_MAX_RAWFILE_BYTES,
+  NGSPICE_MAX_LOG_BYTES,
+} from "@icm/spice-run";
+import { ngspiceResultResponse } from "./result-response.mjs";
 
 const MODEL_ROOT = process.env.SKY130_MODEL_ROOT ?? "/opt/sky130/sky130A";
 const PROFILE_PATH = process.env.SIMULATION_PROFILE_PATH?.trim() || null;
@@ -78,15 +83,17 @@ const RUN_ROOT = process.env.SIMULATION_RUN_ROOT ?? tmpdir();
 const MAX_DECK_BYTES = 2 * 1024 * 1024;
 
 /**
- * The ceiling on everything this container hands back for one run: the log
- * and, when the deck asked for one, the rawfile. A deck can print without
- * bound — a `.control` loop around `print` is three lines — and the answer to
- * that is a cap and a truthful `truncated`, never a quietly shortened result
- * that reads like the whole one.
+ * Waveform collection is independent of console output. A deck can print without
+ * bound, so logs retain a separate small cap. A cut rawfile remains explicitly
+ * incomplete; its numerical result is never promoted to a complete success.
  */
 const MAX_OUTPUT_BYTES = positiveEnv(
   "SIMULATION_MAX_OUTPUT_BYTES",
-  1024 * 1024,
+  NGSPICE_MAX_RAWFILE_BYTES,
+);
+const MAX_LOG_BYTES = positiveEnv(
+  "SIMULATION_MAX_LOG_BYTES",
+  NGSPICE_MAX_LOG_BYTES,
 );
 
 /** Requested when the caller names no deadline of its own. */
@@ -362,6 +369,7 @@ async function observeEnvironment(ngspiceBin) {
 const LIMITS = {
   deckBytes: MAX_DECK_BYTES,
   outputBytes: MAX_OUTPUT_BYTES,
+  logBytes: MAX_LOG_BYTES,
   ...runSupervisor.limits,
   maxProcesses: MAX_PROCESSES,
   maxFileBlocks: MAX_FILE_BLOCKS,
@@ -517,8 +525,8 @@ function simulatorCommand(binary) {
 function runNgspice(binary, directory, run, entryPath = DECK_NAME) {
   return new Promise((resolve) => {
     const startedAt = Date.now();
-    const stdout = createCappedSink(Math.ceil(MAX_OUTPUT_BYTES / 2));
-    const stderr = createCappedSink(Math.floor(MAX_OUTPUT_BYTES / 2));
+    const stdout = createCappedSink(Math.ceil(MAX_LOG_BYTES / 2));
+    const stderr = createCappedSink(Math.floor(MAX_LOG_BYTES / 2));
     const { command, args } = simulatorCommand(binary);
     args[args.length - 1] = `./${entryPath}`;
     let settled = false;
@@ -661,7 +669,7 @@ async function readRawfile(directory) {
 }
 
 const cancelledTokens = new Map();
-async function handleRun(body) {
+async function handleRun(body, streaming = false) {
   const deck = typeof body?.deck === "string" ? body.deck : null;
   if (!deck) return { status: 400, payload: { error: "missing-deck" } };
   const token = typeof body?.runToken === "string" ? body.runToken : undefined;
@@ -820,36 +828,40 @@ async function handleRun(body) {
         ];
         const log = `${result.stdout}${result.stderr}${
           result.truncated
-            ? `\n*** output truncated by the simulation harness at ${MAX_OUTPUT_BYTES} bytes ***\n`
+            ? `\n*** output truncated by the simulation harness at ${MAX_LOG_BYTES} bytes ***\n`
             : ""
         }`;
 
+        const payload = {
+          log,
+          // Keep the streams separate as execution facts. `log` remains
+          // during the rolling protocol transition and for human display.
+          stdout: result.stdout,
+          stderr: result.stderr,
+          exitCode: result.exitCode,
+          signal: result.signal,
+          timedOut: result.timedOut,
+          cancelled: run.cancelled,
+          durationMs: result.durationMs,
+          rawfileRequested,
+          ...(body.collection === undefined
+            ? {}
+            : { collection: body.collection }),
+          ...(raw.rawfileError ? { rawfileError: raw.rawfileError } : {}),
+          truncated: truncatedOutputs.length > 0,
+          truncatedOutputs,
+          rawfile: raw.rawfile,
+          rawfileName: raw.rawfileName,
+          rawfileFormat: raw.rawfileFormat,
+          limits: { ...LIMITS, timeoutMs: run.timeoutMs },
+          environment: observed.environment,
+        };
+        const response = await ngspiceResultResponse(body, payload, streaming);
         return {
-          status: 200,
-          payload: {
-            log,
-            // Keep the streams separate as execution facts. `log` remains
-            // during the rolling protocol transition and for human display.
-            stdout: result.stdout,
-            stderr: result.stderr,
-            exitCode: result.exitCode,
-            signal: result.signal,
-            timedOut: result.timedOut,
-            cancelled: run.cancelled,
-            durationMs: result.durationMs,
-            rawfileRequested,
-            ...(body.collection === undefined
-              ? {}
-              : { collection: body.collection }),
-            ...(raw.rawfileError ? { rawfileError: raw.rawfileError } : {}),
-            truncated: truncatedOutputs.length > 0,
-            truncatedOutputs,
-            rawfile: raw.rawfile,
-            rawfileName: raw.rawfileName,
-            rawfileFormat: raw.rawfileFormat,
-            limits: { ...LIMITS, timeoutMs: run.timeoutMs },
-            environment: observed.environment,
-          },
+          status: response.status,
+          payload: null,
+          headers: response.headers,
+          serialized: response.body,
         };
       } finally {
         run.phase("cleaning");
@@ -876,8 +888,8 @@ async function handleRun(body) {
 }
 
 const server = createServer((request, response) => {
-  const send = (status, payload, headers = {}) => {
-    const body = JSON.stringify(payload);
+  const send = (status, payload, headers = {}, serialized) => {
+    const body = serialized ?? JSON.stringify(payload);
     response.writeHead(status, {
       ...headers,
       "content-type": "application/json",
@@ -930,7 +942,7 @@ const server = createServer((request, response) => {
   let size = 0;
   request.on("data", (chunk) => {
     size += chunk.length;
-    if (size > MAX_DECK_BYTES * 2) {
+    if (size > MAX_DECK_BYTES * 4) {
       send(413, { error: "request-too-large" });
       request.destroy();
       return;
@@ -964,10 +976,16 @@ const server = createServer((request, response) => {
       send(200, { accepted: true });
       return;
     }
-    handleRun(body).then(
-      ({ status, payload, headers }) => send(status, payload, headers),
-      (error) => send(500, { error: String(error) }),
-    );
+    handleRun(
+      body,
+      request.headers["x-analog-execution-transfer"] === "receipt-v1",
+    )
+      .then(
+        ({ status, payload, headers, serialized }) =>
+          send(status, payload, headers, serialized),
+        (error) => send(500, { error: String(error) }),
+      )
+      .catch((error) => send(500, { error: String(error) }));
   });
 });
 

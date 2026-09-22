@@ -20,7 +20,9 @@ describe("the operator simulator host", () => {
     expect(sources.length).toBeGreaterThan(0);
     for (const source of sources) {
       const path = source.replaceAll("${HARNESS_DIR}", "containers/ngspice");
-      expect(existsSync(path), path).toBe(true);
+      if (path === "containers/ngspice/runtime/entrypoint.mjs") {
+        expect(workflow).toContain("node scripts/package-ngspice-harness.mjs");
+      } else expect(existsSync(path), path).toBe(true);
       expect(
         roots.some((root) => path === root || path.startsWith(`${root}/`)),
         path,

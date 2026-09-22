@@ -360,6 +360,24 @@ describeHarness("the deadline", () => {
 });
 
 describeHarness("the output cap", () => {
+  it("collects beyond 1 MiB while an independent log budget truncates only logs", async () => {
+    const { port } = await startHarness(
+      await simulator(
+        "large-wave-small-log.sh",
+        "head -c 2097153 /dev/zero | tr '\\000' '0' > out.raw\n" +
+          "head -c 1024 /dev/zero | tr '\\000' 'L'\n",
+      ),
+      { SIMULATION_MAX_LOG_BYTES: "64" },
+    );
+    const { payload } = await json(
+      await run(port, { deck: "* big\n.save v(out)\n.end\n" }),
+    );
+    expect(payload.rawfile.length).toBe(2097153);
+    expect(payload.rawfile.at(-1)).toBe("0");
+    expect(payload.truncatedOutputs).toEqual(["log"]);
+    expect(payload.limits.outputBytes).toBe(64 * 1024 * 1024);
+    expect(payload.limits.logBytes).toBe(64);
+  });
   it("truncates past the cap and says so, rather than shortening quietly", async () => {
     const { port } = await startHarness(
       await simulator(
@@ -371,7 +389,7 @@ describeHarness("the output cap", () => {
           "done\n" +
           "echo 'a diagnosis that must survive the flood' >&2\n",
       ),
-      { SIMULATION_MAX_OUTPUT_BYTES: "512" },
+      { SIMULATION_MAX_LOG_BYTES: "512" },
     );
 
     const { payload } = await json(await run(port, { deck: "* loud\n.end\n" }));

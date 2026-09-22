@@ -1,5 +1,8 @@
 import type { SimulationResultData } from "./result-data.js";
 
+export const NGSPICE_MAX_RAWFILE_BYTES = 64 * 1024 * 1024;
+export const NGSPICE_MAX_LOG_BYTES = 1024 * 1024;
+
 /** Bounded executor envelope (raw artifacts plus parsed results), not a GUI
  * receipt or an output-file budget. Shared by native HTTP, Worker and local
  * forwarding so a valid multi-analysis reply is not cut at an older 4 MiB hop. */

@@ -10,6 +10,9 @@ on:
   pull_request:
     paths:
       - "containers/ngspice/**"
+      - "packages/spice-run/**"
+      - "packages/simulation-service/src/execution-receipt.ts"
+      - "scripts/package-ngspice-harness.mjs"
       - ".github/workflows/container.yml"
       - ".dockerignore"
       - "scripts/simulation-source-native.test.mjs"
@@ -41,6 +44,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @icm/simulation-service... build
+      - run: node scripts/package-ngspice-harness.mjs
 
       - name: Validate the operator-host topology
         env:

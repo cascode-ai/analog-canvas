@@ -144,7 +144,15 @@ Only the gateway receives the bearer. The Tunnel connects the internal service
 to its public hostname without an inbound host port.
 
 The [Simulator host workflow](../.github/workflows/simulator-host.yml) deploys
-the tracked host configuration. Verify its selected image and the measured
+the tracked host configuration. It builds the shared ngspice result runtime with
+`node scripts/package-ngspice-harness.mjs` after building workspace dependencies,
+and ships the generated `containers/ngspice/runtime/entrypoint.mjs` with the image
+context. Run that packaging command before a manual ngspice Docker build too.
+Changes to the collector require this host deployment as well as Worker deployment;
+publishing the website alone does not change an already-running collector.
+Verify `/health` reports the intended `limits.outputBytes` and `limits.logBytes`,
+and verify public capabilities reflect that running waveform limit.
+Verify its selected image and the measured
 binary/model/startup identities against the
 [hosted Profile](../containers/ngspice/hosted-sky130-profile.json), not just a
 reachable health endpoint. The restart policy must recover a harness that exits
