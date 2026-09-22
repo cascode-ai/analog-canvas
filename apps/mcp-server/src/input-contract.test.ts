@@ -63,6 +63,7 @@ describe("caller input contracts", () => {
         expect.objectContaining({
           path: ["request", "panels", 0, "xRange"],
           code: "too_big",
+          message: "Expected exactly two numbers: [minimum, maximum].",
         }),
       );
       expect(failure.error.details).toBeDefined();

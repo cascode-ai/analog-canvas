@@ -774,6 +774,30 @@ try {
     field: "/request/patches",
   });
   assert.equal(patches.variants[0].required, false);
+  const invalidRange = await first.tool("simulation_plot", {
+    request: {
+      action: "prepare-plot",
+      runId: "run",
+      name: "invalid-range",
+      panels: [
+        {
+          analysisIndex: 0,
+          signals: [{ signal: "v(out)" }],
+          xRange: [0, 1, 2],
+        },
+      ],
+    },
+  });
+  assert.deepEqual(invalidRange.error.issues[0].path, [
+    "request",
+    "panels",
+    0,
+    "xRange",
+  ]);
+  assert.equal(
+    invalidRange.error.issues[0].message,
+    "Expected exactly two numbers: [minimum, maximum].",
+  );
   const plot = await first.tool("simulation_plot", {
     request: {
       action: "prepare-plot",

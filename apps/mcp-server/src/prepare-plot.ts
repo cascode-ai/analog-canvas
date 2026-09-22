@@ -34,12 +34,12 @@ const Panel = z.strictObject({
   yScale: z.enum(["linear", "log"]).optional(),
   xRange: z
     .array(z.number())
-    .length(2)
+    .length(2, "Expected exactly two numbers: [minimum, maximum].")
     .optional()
     .describe("Exactly two numbers: [minimum, maximum]."),
   yRange: z
     .array(z.number())
-    .length(2)
+    .length(2, "Expected exactly two numbers: [minimum, maximum].")
     .optional()
     .describe("Exactly two numbers: [minimum, maximum]."),
   legend: z.boolean().optional(),
