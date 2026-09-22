@@ -33,11 +33,11 @@ function editableValue(): DocumentSettingsCodeValue {
     },
     bulkDefaults: { nmosNet: null, pmosNet: null },
     labels: {
-      subscript_case: "preserve",
-      subscript_italic: true,
-      underscore_subscript: true,
-      subscript_after_first: false,
       first_letter_italic: true,
+      subscript_after_first: true,
+      subscript_case: "preserve",
+      subscript_italic: false,
+      underscore_subscript: true,
     },
     canvas: { ...canvas },
   };
@@ -203,10 +203,26 @@ describe("document Style code", () => {
       spans.find((span) => span.field.path === "labels.subscript_case")?.field
         .options,
     ).toEqual([
-      { value: "preserve", label: "Keep typed case" },
+      { value: "preserve", label: "Preserve typed case" },
       { value: "uppercase", label: "UPPERCASE" },
       { value: "lowercase", label: "lowercase" },
     ]);
+    expect(
+      spans
+        .filter((span) => span.field.path.startsWith("labels."))
+        .map((span) => span.field.path),
+    ).toEqual([
+      "labels.first_letter_italic",
+      "labels.subscript_after_first",
+      "labels.subscript_case",
+      "labels.subscript_italic",
+      "labels.underscore_subscript",
+    ]);
+    expect(
+      spans
+        .filter((span) => span.field.path.startsWith("labels."))
+        .every((span) => span.field.description === ""),
+    ).toBe(true);
 
     const changed = applyChanges(
       source,

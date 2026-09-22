@@ -3587,6 +3587,7 @@ function WorkspaceEditor({
 
   function openProperties(): void {
     setProjectPanel(null);
+    setDocumentSettingsOpen(false);
     setImportReviewOpen(false);
     setSelectionOpen(true);
     // Focus the header, not the first field: Q stays a pure toggle and
@@ -3603,8 +3604,10 @@ function WorkspaceEditor({
   function showProjectPanel(mode: EditorProjectPanelMode): void {
     exitCellSymbolLayout();
     if (projectPanel === null) {
-      propertiesOpenBeforeProjectPanelRef.current = selectionOpen;
+      propertiesOpenBeforeProjectPanelRef.current =
+        selectionOpen && !documentSettingsOpen;
     }
+    setDocumentSettingsOpen(false);
     setProjectPanel(mode);
     setSelectionOpen(false);
     setImportReviewOpen(false);
@@ -4200,7 +4203,7 @@ function WorkspaceEditor({
       hasMirrorableSelection,
       canTransformMove: canTransformCommandMove(),
       hasInspectableSelection,
-      propertiesOpen: selectionOpen,
+      propertiesOpen: selectionOpen && !documentSettingsOpen,
       canUndo,
       canRedo,
       canvasDragActive: canvasDragSessionRef.current !== null,
@@ -4527,7 +4530,7 @@ function WorkspaceEditor({
         hasRemovableWireWaypoint: Boolean(
           wireSource && wireDraftSteps.length > 0,
         ),
-        propertiesOpen: selectionOpen,
+        propertiesOpen: selectionOpen && !documentSettingsOpen,
         hasHierarchyEnterSelection,
         hasDefinitionSelection: Boolean(
           selectedInstance &&

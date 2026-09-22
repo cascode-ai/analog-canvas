@@ -23,6 +23,47 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
   ];
   return [
     {
+      path: "labels.first_letter_italic",
+      label: "First letter",
+      kind: "choice",
+      options: [
+        { value: true, label: "Italic" },
+        { value: false, label: "Upright" },
+      ],
+      description: "",
+    },
+    {
+      path: "labels.subscript_after_first",
+      label: "Text after first letter",
+      kind: "choice",
+      options: [
+        { value: true, label: "Use subscript · Vin → Vᵢₙ" },
+        { value: false, label: "Keep typed boundaries" },
+      ],
+      description: "",
+    },
+    {
+      path: "labels.subscript_case",
+      label: "Subscript case",
+      kind: "choice",
+      options: [
+        { value: "preserve", label: "Preserve typed case" },
+        { value: "uppercase", label: "UPPERCASE" },
+        { value: "lowercase", label: "lowercase" },
+      ],
+      description: "",
+    },
+    {
+      path: "labels.subscript_italic",
+      label: "Subscript style",
+      kind: "choice",
+      options: [
+        { value: false, label: "Upright" },
+        { value: true, label: "Italic" },
+      ],
+      description: "",
+    },
+    {
       path: "labels.underscore_subscript",
       label: "Underscores in names",
       kind: "choice",
@@ -30,50 +71,7 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
         { value: true, label: "Convert to subscript · A₁" },
         { value: false, label: "Keep underscore · A_1" },
       ],
-      description: "Updates labels and block text in this circuit immediately.",
-    },
-    {
-      path: "labels.subscript_after_first",
-      label: "Everything after the first letter",
-      kind: "choice",
-      options: [
-        { value: false, label: "Keep typed boundaries" },
-        { value: true, label: "Use subscript · Vin → Vᵢₙ" },
-      ],
-      description:
-        "Renames Vin to V_in throughout this circuit. Takes precedence over literal underscores; Undo restores earlier names.",
-    },
-    {
-      path: "labels.first_letter_italic",
-      label: "First letter in this circuit",
-      kind: "choice",
-      options: [
-        { value: true, label: "Italic" },
-        { value: false, label: "Upright" },
-      ],
-      description: "Display only; independent of subscript slant.",
-    },
-    {
-      path: "labels.subscript_case",
-      label: "Subscript case in this circuit (label + netlist)",
-      kind: "choice",
-      options: [
-        { value: "preserve", label: "Keep typed case" },
-        { value: "uppercase", label: "UPPERCASE" },
-        { value: "lowercase", label: "lowercase" },
-      ],
-      description:
-        "Renames subscript suffixes in this Cell; saved in Project Code.",
-    },
-    {
-      path: "labels.subscript_italic",
-      label: "Subscript italic in this circuit",
-      kind: "choice",
-      options: [
-        { value: true, label: "Italic" },
-        { value: false, label: "Upright" },
-      ],
-      description: "Display only; keeps electrical names unchanged.",
+      description: "",
     },
     ...STYLE_KNOBS.map((knob): CanvasPropertyField => ({
       path: `appearance.${knob.key}`,

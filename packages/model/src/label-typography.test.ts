@@ -10,11 +10,50 @@ import {
 import {
   formatLabelFirstLetter,
   formatLabelIdentifier,
+  labelTypography,
   labelTextDocument,
 } from "./label-typography.js";
 
-it("switches underscores between literal text and subscripts without changing the name", () => {
+it("gives new drawings italic initials and upright preserved-case subscripts", () => {
   const presentation = createEmptyDocument("a", "A").presentation;
+  expect(labelTypography(presentation)).toEqual({
+    underscoreSubscript: true,
+    subscriptAfterFirst: true,
+    subscriptCase: "preserve",
+    subscriptItalic: false,
+    firstLetterItalic: true,
+  });
+  expect(formatLabelIdentifier("VinP", labelTypography(presentation))).toBe(
+    "V_inP",
+  );
+  const content = labelTextDocument("V_inP", presentation);
+  expect(richTextIdentifier(content)).toBe("V_inP");
+  expect(JSON.stringify(content.runs[0])).toContain('"italic"');
+  expect(JSON.stringify(content.runs[1])).not.toContain('"italic"');
+});
+
+it("keeps the legacy typography fallback for saved drawings without explicit fields", () => {
+  expect(
+    labelTypography({
+      styleProfileId: "razavi-textbook-v1",
+      grid: 10,
+      compactness: "normal",
+    }),
+  ).toEqual({
+    underscoreSubscript: true,
+    subscriptAfterFirst: false,
+    subscriptCase: "preserve",
+    subscriptItalic: true,
+    firstLetterItalic: true,
+  });
+});
+
+it("switches underscores between literal text and subscripts without changing the name", () => {
+  const presentation = {
+    ...createEmptyDocument("a", "A").presentation,
+    labelSubscriptAfterFirst: false,
+    labelSubscriptItalic: true,
+  };
   for (const name of ["A_1", "V_in_cm", "Q_out_bar"]) {
     const scripted = labelTextDocument(name, presentation);
     const literal = labelTextDocument(name, {

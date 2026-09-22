@@ -5817,11 +5817,8 @@ test("docked Properties JSON is the only global configuration surface", async ({
   await expect(
     settings.getByLabel("PMOS bulk Net (usually VDD) options"),
   ).toBeVisible();
-  await expect(
-    settings.getByLabel(
-      "Subscript case in this circuit (label + netlist) options",
-    ),
-  ).toBeVisible();
+  await expect(settings.getByLabel("Subscript case options")).toBeVisible();
+  await expect(settings.locator(".cm-property-unit")).toHaveCount(0);
   await settings.getByLabel("Font size options").selectOption("1.5");
   await expect(label).toHaveAttribute("font-size", "22.674");
   await expect(page.getByTestId("status")).toContainText(
@@ -5832,11 +5829,11 @@ test("docked Properties JSON is the only global configuration surface", async ({
   const style = JSON.parse(styleSource);
   expect(style.bulkDefaults).toEqual({ nmosNet: null, pmosNet: null });
   expect(style.labels).toEqual({
-    subscript_case: "preserve",
-    subscript_italic: true,
-    underscore_subscript: true,
-    subscript_after_first: false,
     first_letter_italic: true,
+    subscript_after_first: true,
+    subscript_case: "preserve",
+    subscript_italic: false,
+    underscore_subscript: true,
   });
   expect(style.canvas).toEqual({
     showGrid: true,
@@ -5854,8 +5851,23 @@ test("docked Properties JSON is the only global configuration surface", async ({
   expect(
     JSON.parse(await readDocumentStyleCode(page)).appearance.fontScale,
   ).toBe(1);
-  await clickDrawTool(page, "document-style");
+
+  // Object Properties replace global document settings instead of stacking
+  // a second code editor below them.
+  await page.keyboard.press("q");
   await expect(settings).toHaveCount(0);
+  await expect(page.getByLabel("Editable Canvas property code")).toBeVisible();
+
+  // A project code panel owns the same right-side workspace and closes the
+  // global settings surface rather than restoring it under the Netlist.
+  await clickDrawTool(page, "document-style");
+  await expect(settings).toBeVisible();
+  await page.getByTestId("netlist-panel-toggle").click();
+  await expect(settings).toHaveCount(0);
+  await expect(propertiesButton).toHaveAttribute("aria-pressed", "false");
+  await expect(
+    page.getByRole("complementary", { name: "Properties" }),
+  ).toHaveCount(0);
 });
 
 test("middle-click steers which way the wire corner turns", async ({
