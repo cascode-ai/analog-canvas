@@ -42,6 +42,20 @@ export function createFormalExportSource(
   return { svg, bounds: { x, y, width, height } };
 }
 
+/** One measured source for browser SVG, PNG, PDF, clipboard and Agent files. */
+export async function createBrowserFormalExportSource(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  options: Parameters<typeof createFormalExportSource>[2] = {},
+): Promise<FormalExportSource> {
+  const source = createFormalExportSource(document, resolver, options);
+  const { measureFormalExportSource } = await import("./browser-bounds.js");
+  return measureFormalExportSource(
+    source,
+    options.margin ?? DEFAULT_FORMAL_EXPORT_MARGIN,
+  );
+}
+
 export function safeExportBaseName(name: string): string {
   const normalized = name
     .normalize("NFKD")

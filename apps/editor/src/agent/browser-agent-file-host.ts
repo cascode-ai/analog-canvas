@@ -15,7 +15,7 @@ import type {
   ProjectTransactionResult,
 } from "@icm/edit-engine";
 import { createSimulationProjectFileHost } from "../features/simulation/project-file-host";
-import { createFormalExportSource } from "@icm/exporters";
+import { createBrowserFormalExportSource } from "@icm/exporters";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
@@ -203,9 +203,9 @@ export class BrowserAgentFileHost {
           "Document is not present in this Project",
         );
       const prepared = await prepareDocumentFormulaArtifacts(document);
-      const source = (() => {
+      const source = await (async () => {
         try {
-          return createFormalExportSource(
+          return await createBrowserFormalExportSource(
             document,
             this.options.getResolver(),
             { title: this.options.getProject().name },

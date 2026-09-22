@@ -30,6 +30,144 @@ import {
   openSelectionShelf,
 } from "./manual-editor-fixtures.js";
 
+test("formal SVG and PNG contain wide rotated edge labels without clipping", async ({
+  page,
+}) => {
+  const project = createEmptyProject("export-ink", "Export ink");
+  const schematic = project.documents[0]!;
+  schematic.drafting = {
+    objects: [
+      {
+        id: "edge-circle",
+        kind: "circle",
+        locked: false,
+        zIndex: 0,
+        anchor: { kind: "free", position: { x: 400, y: 0 } },
+        center: { x: 0, y: 0 },
+        radius: 20,
+        lineStyle: "solid",
+        styleOverride: { strokeScale: 4 },
+      },
+    ],
+  };
+  for (const [index, rotation] of ([0, 90, 180, 270] as const).entries()) {
+    schematic.annotations.push({
+      id: `edge-${index}`,
+      kind: "instance-label",
+      locked: false,
+      content: {
+        runs: [
+          {
+            kind: "span",
+            style: "bold",
+            children: [
+              {
+                kind: "span",
+                style: "italic",
+                children: [{ kind: "text", value: "WWWWMMMM" }],
+              },
+            ],
+          },
+        ],
+      },
+      anchor: {
+        kind: "free",
+        position: { x: (index % 2) * 200, y: Math.floor(index / 2) * 200 },
+      },
+      alignment: "start",
+      rotation,
+    });
+  }
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "export-ink.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await expect(
+    page
+      .locator('[data-layer="annotations"] [data-object-id="edge-0"]')
+      .first(),
+  ).toBeAttached();
+  const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
+    "utf8",
+  );
+  const png = await downloadBytes(page, "File", "Export PNG");
+  const result = await page.evaluate(
+    async ({ svg, png }) => {
+      const frame = document.createElement("iframe");
+      document.body.append(frame);
+      try {
+        const doc = frame.contentDocument!;
+        doc.body.innerHTML = svg;
+        await doc.fonts.ready;
+        const root = doc.querySelector("svg")!;
+        const view = root.viewBox.baseVal;
+        const inverse = root.getCTM()!.inverse();
+        const overflows: string[] = [];
+        for (const text of root.querySelectorAll("text")) {
+          const box = text.getBBox();
+          const transform = inverse.multiply(text.getCTM()!);
+          for (const x of [box.x, box.x + box.width])
+            for (const y of [box.y, box.y + box.height]) {
+              const p = new DOMPoint(x, y).matrixTransform(transform);
+              if (
+                p.x < view.x ||
+                p.y < view.y ||
+                p.x > view.x + view.width ||
+                p.y > view.y + view.height
+              )
+                overflows.push(text.textContent ?? "");
+            }
+        }
+        const image = new Image();
+        image.src = png;
+        await image.decode();
+        const canvas = document.createElement("canvas");
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(image, 0, 0);
+        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        let borderInk = 0,
+          ink = 0;
+        for (let y = 0; y < canvas.height; y++)
+          for (let x = 0; x < canvas.width; x++) {
+            const offset = (y * canvas.width + x) * 4;
+            if (pixels[offset]! < 128 && pixels[offset + 3]! > 128) {
+              ink++;
+              if (
+                x < 2 ||
+                y < 2 ||
+                x >= canvas.width - 2 ||
+                y >= canvas.height - 2
+              )
+                borderInk++;
+            }
+          }
+        return {
+          overflows,
+          borderInk,
+          ink,
+          width: image.width,
+          expectedWidth: Math.round(view.width * 3),
+          textCount: root.querySelectorAll("text").length,
+        };
+      } finally {
+        frame.remove();
+      }
+    },
+    { svg, png: `data:image/png;base64,${png.toString("base64")}` },
+  );
+  expect(result.textCount).toBe(4);
+  expect(result.overflows).toEqual([]);
+  expect(result.ink).toBeGreaterThan(1000);
+  expect(result.borderInk).toBe(0);
+  expect(result.width).toBe(result.expectedWidth);
+  await expect(page.locator('iframe[aria-hidden="true"]')).toHaveCount(0);
+});
+
 async function clickRoute(
   page: Page,
   routeId: string,

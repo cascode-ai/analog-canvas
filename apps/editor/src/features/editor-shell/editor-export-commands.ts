@@ -1,4 +1,7 @@
-import { createFormalExportSource, safeExportBaseName } from "@icm/exporters";
+import {
+  createBrowserFormalExportSource,
+  safeExportBaseName,
+} from "@icm/exporters";
 import {
   createDesignNetlistExport,
   unfinishedDrawingDiagnostics,
@@ -31,7 +34,7 @@ async function preparedFormalExportSource(
 ) {
   const prepared = await prepareDocumentFormulaArtifacts(document);
   try {
-    return createFormalExportSource(document, resolver, {
+    return await createBrowserFormalExportSource(document, resolver, {
       title: projectName,
     });
   } finally {

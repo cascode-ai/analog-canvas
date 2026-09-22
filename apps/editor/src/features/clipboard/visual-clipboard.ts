@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { createFormalExportSource } from "@icm/exporters";
+import { createBrowserFormalExportSource } from "@icm/exporters";
 import { annotationOwningInstanceId } from "@icm/derived";
 import type { SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
@@ -71,7 +71,7 @@ export async function createSelectionClipboardBlob(
       : {}),
   });
   try {
-    const source = createFormalExportSource(document, resolver, {
+    const source = await createBrowserFormalExportSource(document, resolver, {
       title: document.name + " — selection",
       margin: 10,
       background: "transparent",
