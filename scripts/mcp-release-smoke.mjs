@@ -624,7 +624,7 @@ try {
       "Packaged MCP is missing independent parameter display controls",
     );
   if (
-    listed.tools.length !== 22 ||
+    listed.tools.length !== 36 ||
     ![
       "project_cells",
       "gallery_circuits",
@@ -636,11 +636,39 @@ try {
       "simulation_measurement",
       "simulation_device_operating_point",
       "simulation_files",
+      "describe_tool",
+      "simulation_source",
+      "simulation_edit",
+      "simulation_data",
+      "simulation_plot",
+      "simulation_results",
+      "simulation_run",
+      "simulation_batch",
+      "circuit_place",
+      "circuit_wire",
+      "circuit_transform",
+      "circuit_selection",
+      "circuit_text",
+      "circuit_properties",
     ].every((name) => listed.tools.some((tool) => tool.name === name))
   )
     throw new Error("Packaged MCP tool surface mismatch");
+  const formats = await first.tool("describe_tool", {
+    tool: "simulation_plot",
+    field: "/request/formats",
+  });
+  assert.equal(formats.contractVersion, mcpVersion);
+  assert.deepEqual(formats.variants[0].schema.items.enum, [
+    "png",
+    "svg",
+    "pdf",
+  ]);
+  const edits = await first.tool("describe_tool", {
+    editKind: "set_cell_symbol_presentation",
+  });
+  assert.equal(edits.inputSchema["x-transaction"].form, "structureEdits");
   await first.tool("connect", { claimCode: `${sessionId}.claim` });
-  const nativeCapabilities = await first.tool("simulation", {
+  const nativeCapabilities = await first.tool("simulation_run", {
     request: { operation: "capabilities" },
   });
   assert.equal(
@@ -657,7 +685,7 @@ try {
       .primitives[0].module,
     "sp_bsim4v8",
   );
-  const simulation = await first.tool("simulation", {
+  const simulation = await first.tool("simulation_run", {
     request: { operation: "read", runId: "spec-run" },
   });
   assert.equal(
@@ -713,7 +741,7 @@ try {
       },
     ],
   });
-  await first.tool("apply_actions", {
+  await first.tool("circuit_place", {
     actions: [
       {
         kind: "place-component",

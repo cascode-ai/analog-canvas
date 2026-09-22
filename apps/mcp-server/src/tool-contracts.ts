@@ -280,7 +280,10 @@ export class ToolContractRegistry {
       ? {
           ...identity,
           field: query.field,
-          variants: fieldContracts(selected, query.field),
+          variants: fieldContracts(selected, query.field).map((match) => ({
+            ...match,
+            schema: compactSchema(match.schema),
+          })),
         }
       : { ...identity, inputSchema: compactSchema(selected) };
     if (Buffer.byteLength(JSON.stringify(result)) > 96_000)

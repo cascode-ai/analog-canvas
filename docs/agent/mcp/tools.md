@@ -1,10 +1,38 @@
 # MCP editing and recovery tools
 
-Use the listed tool schema directly when its fields are sufficient. For an
-unfamiliar typed edit read `analog-canvas://contract/edits/{kind}`; for a tool's
-complete argument schema read `analog-canvas://contract/tools/{name}`. These
-are optional lookups, not steps required before every call. This guide covers
-semantics that field names alone cannot explain.
+Use the listed tool schema directly. `describe_tool` offers offline, versioned
+discovery from the same canonical definitions: no selectors lists tools and
+operations; `tool` + `operations` selects complete call envelopes; adding `field`
+returns argument fields and parent context. Array elements use `*`, for example
+`{"tool":"circuit_wire","operations":["connect"],"field":"/actions/*/from"}`.
+`editKind` selects a low-level edit, not a high-level action. Resource alternatives
+remain `analog-canvas://contract/edits/{kind}` and
+`analog-canvas://contract/tools/{name}`; the latter also accepts `operations`
+(comma-separated) and `field` query parameters. These are optional lookups, not
+steps required before calls. Unknown selectors fail explicitly; overly broad
+queries return a narrower-selection hint, never a silently truncated schema.
+
+Focused circuit tools retain the `{documentId?, actions:[...]}` call envelope:
+
+| Tool                 | Scope                                                             |
+| -------------------- | ----------------------------------------------------------------- |
+| `circuit_place`      | Built-in symbol, Cell and existing-instance placement; power rail |
+| `circuit_wire`       | Connect and disconnect                                            |
+| `circuit_transform`  | Individual move/rotate/mirror, arrange and detach-move            |
+| `circuit_selection`  | Selection transform, copy and align                               |
+| `circuit_text`       | Labels, annotations, text changes and annotation movement         |
+| `circuit_properties` | References, parameters, model selection and display flags         |
+
+Each is a projection and forwarding entry, not a separate edit engine. Existing
+batch compatibility and transaction boundaries still apply; membership in one
+tool does not make every combination atomic or supported. `apply_actions`
+retains all actions, including mixed families, Cell structure, reset and history.
+`advanced_transact` retains full editing authority. Neither is hidden dynamically.
+The focused text declaration keeps common fields and plain strings directly
+callable; recursive RichText details remain in its exact operation/field contract.
+Runtime validation is always complete, including constraints not expressible in
+JSON Schema. Native host conversion can still vary; an offline contract response
+is data, not another automatically converted tool declaration.
 
 ## Create and edit
 

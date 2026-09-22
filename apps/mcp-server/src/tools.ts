@@ -46,6 +46,8 @@ import {
   ToolContractRegistry,
 } from "./tool-contracts.js";
 import { editContract } from "./edit-contracts.js";
+import { focusedTools, FOCUSED_TOOLS } from "./focused-tools.js";
+import { declarationSchema } from "./declaration-schema.js";
 
 /**
  * The default MCP tool surface (Agent rationale) stays compact. The full
@@ -441,7 +443,7 @@ export function toolErrorResponse(error: unknown): McpToolCallResult {
   );
 }
 
-const TOOLS: readonly ToolEntry[] = [
+const ORIGINAL_TOOLS: readonly ToolEntry[] = [
   {
     definition: {
       name: "describe_tool",
@@ -1106,9 +1108,19 @@ const TOOLS: readonly ToolEntry[] = [
   },
 ];
 
+const TOOLS: readonly ToolEntry[] = [
+  ...ORIGINAL_TOOLS,
+  ...focusedTools(ORIGINAL_TOOLS, (name) => agentToolHelp[name]),
+];
+
 export function listToolDefinitions(): McpToolDefinition[] {
   return TOOLS.map(({ definition }) => {
     let schema = definition.inputSchema;
+    if (FOCUSED_TOOLS.some((tool) => tool.name === definition.name))
+      return {
+        ...definition,
+        inputSchema: declarationSchema(schema, definition.name),
+      };
     if (
       [
         "simulation",

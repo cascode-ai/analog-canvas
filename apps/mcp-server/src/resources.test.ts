@@ -8,6 +8,7 @@ import { z } from "zod";
 import { mcpResources } from "./resources.generated.js";
 import { agentToolHelp } from "./guidance.generated.js";
 import { callTool, listToolDefinitions } from "./tools.js";
+import { FOCUSED_TOOLS } from "./focused-tools.js";
 import {
   ADVANCED_EDITS_RESOURCE_URI,
   listResourceEntries,
@@ -81,7 +82,15 @@ describe("mcp resources single-source projection", () => {
   });
   it("bounds discovery size while retaining complete contracts and runtime validation", async () => {
     const tools = listToolDefinitions();
-    expect(Buffer.byteLength(JSON.stringify(tools))).toBeLessThan(100_000);
+    // Compatibility entries keep their existing budget. Focused additions have
+    // a stricter per-tool host-compaction budget in focused-tools.test.ts.
+    // Total directory bytes are no longer the host's per-tool context boundary.
+    const compatibility = tools.filter(
+      (t) => !FOCUSED_TOOLS.some((f) => f.name === t.name),
+    );
+    expect(Buffer.byteLength(JSON.stringify(compatibility))).toBeLessThan(
+      100_000,
+    );
     for (const tool of tools) {
       const complete = JSON.parse(
         readResourceContent(`analog-canvas://contract/tools/${tool.name}`).text,

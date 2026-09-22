@@ -259,6 +259,19 @@ describe("mcp tool surface", () => {
       "advanced_transact",
       "verify",
       "render",
+      "simulation_source",
+      "simulation_edit",
+      "simulation_data",
+      "simulation_plot",
+      "simulation_results",
+      "simulation_run",
+      "simulation_batch",
+      "circuit_place",
+      "circuit_wire",
+      "circuit_transform",
+      "circuit_selection",
+      "circuit_text",
+      "circuit_properties",
     ]);
     for (const tool of tools) {
       expect(tool.description.length).toBeGreaterThan(10);
@@ -898,75 +911,78 @@ describe("mcp tool surface", () => {
     expect(transacts).toEqual([]);
   });
 
-  it("creates visible wire geometry for a pin-to-pin connect", async () => {
-    const http = new FakeAgentHttp();
-    const { session } = await toolSession(http);
-    await callTool("connect", { claimCode: "session-1.code" }, session);
-    const transacts: Extract<
-      (typeof http.circuitCalls)[number]["request"],
-      { operation: "transact" }
-    >[] = [];
-    http.circuitHandler = async ({ request }) => {
-      switch (request.operation) {
-        case "transact":
-          transacts.push(request);
-          return transactSuccessResponse(
-            request.requestId,
-            request.expectedRevision,
-            ["route-new"],
-          );
-        case "snapshot": {
-          const after = testSnapshot();
-          after.document.revision = 6;
-          return snapshotResponse(request.requestId, after, 6);
+  it.each(["apply_actions", "circuit_wire"])(
+    "%s creates visible wire geometry for a pin-to-pin connect",
+    async (tool) => {
+      const http = new FakeAgentHttp();
+      const { session } = await toolSession(http);
+      await callTool("connect", { claimCode: "session-1.code" }, session);
+      const transacts: Extract<
+        (typeof http.circuitCalls)[number]["request"],
+        { operation: "transact" }
+      >[] = [];
+      http.circuitHandler = async ({ request }) => {
+        switch (request.operation) {
+          case "transact":
+            transacts.push(request);
+            return transactSuccessResponse(
+              request.requestId,
+              request.expectedRevision,
+              ["route-new"],
+            );
+          case "snapshot": {
+            const after = testSnapshot();
+            after.document.revision = 6;
+            return snapshotResponse(request.requestId, after, 6);
+          }
+          default:
+            return capabilitiesResponse(request.requestId);
         }
-        default:
-          return capabilitiesResponse(request.requestId);
+      };
+
+      const result = await callTool(
+        tool,
+        {
+          actions: [
+            {
+              kind: "connect",
+              from: { kind: "pin", instance: "M1", pin: "G" },
+              to: { kind: "pin", instance: "R1", pin: "2" },
+              via: [{ x: 360, y: 240 }],
+            },
+          ],
+        },
+        session,
+      );
+
+      expect(parseText(result)).toMatchObject({ ok: true, transactions: 1 });
+      // One relayed request: the commit carries the wireIntent and validates
+      // atomically, with no client-side dry-run pass ahead of it.
+      expect(transacts).toHaveLength(1);
+      for (const request of transacts) {
+        expect(request.edits).toBeUndefined();
+        expect(request.wireIntent).toMatchObject({
+          from: {
+            kind: "endpoint",
+            endpoint: {
+              kind: "terminal",
+              instanceId: "instance-1",
+              pinName: "G",
+            },
+          },
+          to: {
+            kind: "endpoint",
+            endpoint: {
+              kind: "terminal",
+              instanceId: "instance-2",
+              pinName: "2",
+            },
+          },
+          waypoints: [{ x: 360, y: 240 }],
+        });
       }
-    };
-
-    const result = await callTool(
-      "apply_actions",
-      {
-        actions: [
-          {
-            kind: "connect",
-            from: { kind: "pin", instance: "M1", pin: "G" },
-            to: { kind: "pin", instance: "R1", pin: "2" },
-            via: [{ x: 360, y: 240 }],
-          },
-        ],
-      },
-      session,
-    );
-
-    expect(parseText(result)).toMatchObject({ ok: true, transactions: 1 });
-    // One relayed request: the commit carries the wireIntent and validates
-    // atomically, with no client-side dry-run pass ahead of it.
-    expect(transacts).toHaveLength(1);
-    for (const request of transacts) {
-      expect(request.edits).toBeUndefined();
-      expect(request.wireIntent).toMatchObject({
-        from: {
-          kind: "endpoint",
-          endpoint: {
-            kind: "terminal",
-            instanceId: "instance-1",
-            pinName: "G",
-          },
-        },
-        to: {
-          kind: "endpoint",
-          endpoint: {
-            kind: "terminal",
-            instanceId: "instance-2",
-            pinName: "2",
-          },
-        },
-        waypoints: [{ x: 360, y: 240 }],
-      });
-    }
-  });
+    },
+  );
 
   it("apply_actions surfaces compile failures without sending", async () => {
     const { session, http } = await toolSession();

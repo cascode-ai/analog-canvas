@@ -18,6 +18,15 @@ revisions.
 
 Choose only the guidance needed for the task:
 
+Use a focused tool's displayed parameters directly. If a field is hidden by the
+host or unfamiliar, `describe_tool` returns exact contracts offline: omit
+selectors for the directory, select `tool` + `operations` for complete call
+envelopes, or add `field` (argument JSON Pointer; `*` for array items). For example,
+`{"tool":"simulation_plot","field":"/request/formats"}` returns only the format
+field and its context. Reuse it within the returned `contractVersion`; fetching
+a contract is optional, never a prerequisite. Use `editKind` for one low-level
+edit. Existing resource URIs and broad tool entry points remain available.
+
 - Circuit editing: [authoring](shared/authoring.md), then the built-in catalog
   before placing new symbols. [Tool details](mcp/tools.md) cover less common edits.
 - Simulation: [simulation calls](mcp/simulation.md). Start with its quick path

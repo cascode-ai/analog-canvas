@@ -2,7 +2,20 @@
 
 ## Quick path
 
-1. Discover `simulation` capabilities once and select the advertised Profile/engine.
+Use focused entries with the same `request` envelope and request identities:
+`simulation_source` lists/creates/reads/discards source workspaces;
+`simulation_edit` updates native code; `simulation_run` handles a single run;
+`simulation_batch` handles batches/sweeps; `simulation_results` catalogs/history/
+evidence export; `simulation_data` manages local workspace/sync/download/preview;
+`simulation_plot` prepares local plotting files. `simulation_folder` still owns
+saved experiments. The original `simulation` and `simulation_files` tools remain
+compatible and call the same handlers. No new HTTP route or execution semantics.
+
+If a parameter is unclear, query just the operation or field with `describe_tool`,
+for example `{"tool":"simulation_edit","field":"/request"}`. Do not load every
+tool contract or the full simulation reference before a normal run.
+
+1. Discover `simulation_run` capabilities once and select the advertised Profile/engine.
    MCP requests compact capabilities by default. Follow `discovery.fullRequest`
    (optionally selecting `profileId`) for devices, dependencies and model symbols.
    For a basic simulation, read `netlist_code` and the required Cell interface;
@@ -10,7 +23,7 @@
    For Canvas devices using the selected Profile's qualified model library,
    preparation adds the library load; do not duplicate it or guess host paths.
 2. Create a saved `simulation_folder` for results the user should keep. Read and
-   update native source with `simulation_files`; reuse successful update receipts'
+   update native source with `simulation_source` / `simulation_edit`; reuse successful update receipts'
    revisions/digests instead of rereading to confirm the save.
    Creation returns `source` with its owner, revision and file paths: write the
    intended source directly, or read just the file whose existing text you need.
@@ -26,7 +39,7 @@
    were saved. When those metrics are needed, use the mapping to explicitly
    `save` the required vectors before analysis (`save all` does not include
    every device parameter). Native code remains authoritative.
-4. On completion, `simulation_files` `sync` with `runId` obtains the directory
+4. On completion, `simulation_data` `sync` with `runId` obtains the directory
    and downloads results into a local Project base. It transfers at most two
    files concurrently and returns local paths, preserving completed files on
    partial failure. Read/analyze these local files. Separate `catalog`/`export`
@@ -68,7 +81,7 @@ needs no helper-reading gate. One hosted simulation slot means sequential starts
 or Batch. Check execution, collection, per-analysis diagnostics and requested
 measurements independently; completion is not proof of every requested result.
 
-For plots, `simulation_files` supports `prepare-plot`: supply `runId`, a new
+For plots, `simulation_plot` supports `prepare-plot`: supply `runId`, a new
 `name`, and `panels:[{analysisIndex:0,signals:[{signal:"v(out)"}]}]`.
 Alternatively supply `preset:{kind:"ac",analysisIndex:0,signals:[{signal:"v(out)"}]}`
 instead of `panels`. DC/TRAN default to linear axes, AC to log frequency and
