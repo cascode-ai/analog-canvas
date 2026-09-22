@@ -67,6 +67,24 @@ describe("document Style code", () => {
     );
   });
 
+  it("normalizes label field order without inventing a label edit", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    const baseline = documentSettingsCodeValue(document, canvas);
+    const reordered = {
+      ...baseline,
+      labels: Object.fromEntries(Object.entries(baseline.labels).reverse()),
+    };
+    const parsed = parseDocumentSettingsCode(
+      JSON.stringify(reordered),
+      document,
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(serializeDocumentSettingsCode(parsed.value)).toBe(
+      serializeDocumentSettingsCode(baseline),
+    );
+  });
+
   it("accepts supported values and a Net id present in the Cell", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.nets.push({ id: "net-ground", terminals: [] });

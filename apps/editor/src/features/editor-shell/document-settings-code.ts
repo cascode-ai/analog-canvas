@@ -271,13 +271,20 @@ export function parseDocumentSettingsCode(
       appearance,
       bulkDefaults,
       labels: {
+        subscript_case: labels.subscript_case,
+        subscript_italic: labels.subscript_italic,
         underscore_subscript:
-          document.presentation.labelUnderscoreSubscript ?? true,
+          labels.underscore_subscript ??
+          document.presentation.labelUnderscoreSubscript ??
+          true,
         subscript_after_first:
-          document.presentation.labelSubscriptAfterFirst ?? false,
+          labels.subscript_after_first ??
+          document.presentation.labelSubscriptAfterFirst ??
+          false,
         first_letter_italic:
-          document.presentation.labelFirstLetterItalic ?? true,
-        ...labels,
+          labels.first_letter_italic ??
+          document.presentation.labelFirstLetterItalic ??
+          true,
       } as DocumentSettingsCodeValue["labels"],
       canvas: raw.canvas as unknown as CanvasPreferenceCodeValue,
     },
