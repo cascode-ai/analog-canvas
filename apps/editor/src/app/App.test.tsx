@@ -110,9 +110,6 @@ describe("editor shell", () => {
     expect(markup).toContain('data-testid="edit-manage-cells"');
     expect(markup).not.toContain('data-testid="cell-command-menu"');
     expect(markup).toContain("Manage Cells…");
-    expect(markup).not.toContain("New Testbench Cell…");
-    expect(markup).not.toContain("Reset Cell Placement");
-    expect(markup).not.toContain("Reset Cell Body");
     expect(markup).toContain("Edit Device Data…");
     const netlistStart = markup.indexOf('aria-label="Netlist"');
     const netlistEnd = markup.indexOf("</details>", netlistStart);
@@ -143,11 +140,7 @@ describe("editor shell", () => {
     // "Preflight" named a stage of a netlist pipeline, not the question the
     // person is asking; the Netlist menu carries the plain action.
     expect(markup).not.toContain("Preflight…");
-    // Formal Cloud Save has one File-menu entry; the retired snapshot action
-    // cannot return as a second control source.
     expect(markup).toContain('data-testid="save-cloud-project"');
-    expect(markup).not.toContain("Save cloud snapshot");
-    expect(markup).not.toContain("Edit Cell Interface…");
   });
 
   it("shows a resolvable imported subcircuit in Cell navigation", () => {

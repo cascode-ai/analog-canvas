@@ -1,7 +1,7 @@
 import { parseSavedProject } from "./editor-fixtures";
 import type { SchematicDocument } from "@icm/model";
 import { razaviProductSymbols } from "@icm/symbols";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 import { createEmptyProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 import {
@@ -224,80 +224,96 @@ test("one live JSON edit combines model, dimensions and appearance in one undo b
   await expectComponentCodeField(page, "parameters.w", "5u");
 });
 
-for (const platform of ["native", "Win32", "Linux x86_64"])
-  test(`live typing preserves the caret, local undo and incomplete JSON (${platform})`, async ({
-    page,
-  }) => {
-    if (platform !== "native")
-      await page.addInitScript(
-        (name) =>
-          Object.defineProperty(navigator, "platform", { get: () => name }),
-        platform,
-      );
-    const modifier = platform === "native" ? "ControlOrMeta" : "Control";
-    await page.goto("/editor");
-    await placeComponent(page, "nmos", { x: 360, y: 220 });
-    await openSelectionShelf(page);
-    const code = page.getByLabel("Editable Canvas property code");
-    await editComponentPropertyCode(page, (value) => {
-      value.display.value = true;
+async function selectWidthValue(code: Locator) {
+  // Locate the width string through the actual editable DOM, then type normally.
+  await code
+    .locator(".cm-line")
+    .filter({ hasText: '"w":' })
+    .evaluate((line) => {
+      const token = line.querySelector(".cm-json-string")!;
+      const text = document
+        .createTreeWalker(token, NodeFilter.SHOW_TEXT)
+        .nextNode()!;
+      const range = document.createRange();
+      range.setStart(text, 1);
+      range.setEnd(text, 3);
+      const selection = window.getSelection()!;
+      selection.removeAllRanges();
+      selection.addRange(range);
+      (line.closest('[contenteditable="true"]') as HTMLElement).focus();
     });
-    // Locate the width string through the actual editable DOM, then type normally.
-    await code
-      .locator(".cm-line")
-      .filter({ hasText: '"w":' })
-      .evaluate((line) => {
-        const token = line.querySelector(".cm-json-string")!;
-        const text = document
-          .createTreeWalker(token, NodeFilter.SHOW_TEXT)
-          .nextNode()!;
-        const range = document.createRange();
-        range.setStart(text, 1);
-        range.setEnd(text, 3);
-        const selection = window.getSelection()!;
-        selection.removeAllRanges();
-        selection.addRange(range);
-        (line.closest('[contenteditable="true"]') as HTMLElement).focus();
-      });
-    // These keystrokes form one typing burst. Keep the transaction clock fixed
-    // so waiting for live rendering on a busy runner cannot split CodeMirror's
-    // 500 ms undo group between "EV" and "x". Browser timers still run normally.
-    await page.clock.setFixedTime(new Date());
-    await page.keyboard.type("EV", { delay: 80 });
-    const value = page.locator(
-      '[data-layer="formal"] [data-object-id="instance-value-M1"]',
-    );
-    await expect(value).toContainText("EV");
-    await page.keyboard.type("x", { delay: 80 });
-    await expect(value).toContainText("EVx");
-    await code.press(`${modifier}+z`);
-    await expect(value).toContainText("1u");
-    // Emit the actual shifted letter, not lowercase z with Shift held: the
-    // latter is a synthetic layout event that CodeMirror interprets as Undo.
-    await code.press(`${modifier}+Shift+Z`);
-    await expect(value).toContainText("EVx");
-    const raw = await readComponentPropertyCode(page);
-    const revision = await page.getByTestId("revision").textContent();
-    await code.fill(raw.slice(0, -1));
-    await expect(
-      page.getByText(/Canvas keeps the last valid edit/u),
-    ).toBeVisible();
-    await expect(value).toContainText("EVx");
-    await expect(page.getByTestId("revision")).toHaveText(revision!);
-    await code.press("Escape");
-    await expect(code).not.toBeFocused();
-    await expect(
-      page.getByText(/Canvas keeps the last valid edit/u),
-    ).toBeVisible();
-    await expect(page.getByTestId("revision")).toHaveText(revision!);
-    await code.press(`${modifier}+End`);
-    await code.press("}");
-    await expect(
-      page.getByText(/Canvas keeps the last valid edit/u),
-    ).toHaveCount(0);
-    await expect(page.getByText("Live", { exact: true })).toHaveCount(0);
-    await expect(page.getByTestId("revision")).toHaveText(revision!);
+}
+
+test("live typing preserves the caret, local undo and incomplete JSON", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "nmos", { x: 360, y: 220 });
+  await openSelectionShelf(page);
+  const code = page.getByLabel("Editable Canvas property code");
+  await editComponentPropertyCode(page, (value) => {
+    value.display.value = true;
   });
+  await selectWidthValue(code);
+  // These keystrokes form one typing burst. Keep the transaction clock fixed
+  // so waiting for live rendering on a busy runner cannot split CodeMirror's
+  // 500 ms undo group between "EV" and "x". Browser timers still run normally.
+  await page.clock.setFixedTime(new Date());
+  await page.keyboard.type("EV", { delay: 80 });
+  const value = page.locator(
+    '[data-layer="formal"] [data-object-id="instance-value-M1"]',
+  );
+  await expect(value).toContainText("EV");
+  await page.keyboard.type("x", { delay: 80 });
+  await expect(value).toContainText("EVx");
+  await code.press("ControlOrMeta+z");
+  await expect(value).toContainText("1u");
+  // Emit the actual shifted letter, not lowercase z with Shift held: the
+  // latter is a synthetic layout event that CodeMirror interprets as Undo.
+  await code.press("ControlOrMeta+Shift+Z");
+  await expect(value).toContainText("EVx");
+  const raw = await readComponentPropertyCode(page);
+  const revision = await page.getByTestId("revision").textContent();
+  await code.fill(raw.slice(0, -1));
+  await expect(
+    page.getByText(/Canvas keeps the last valid edit/u),
+  ).toBeVisible();
+  await expect(value).toContainText("EVx");
+  await expect(page.getByTestId("revision")).toHaveText(revision!);
+  await code.press("Escape");
+  await expect(code).not.toBeFocused();
+  await expect(
+    page.getByText(/Canvas keeps the last valid edit/u),
+  ).toBeVisible();
+  await expect(page.getByTestId("revision")).toHaveText(revision!);
+  await code.press("ControlOrMeta+End");
+  await code.press("}");
+  await expect(page.getByText(/Canvas keeps the last valid edit/u)).toHaveCount(
+    0,
+  );
+  await expect(page.getByText("Live", { exact: true })).toHaveCount(0);
+  await expect(page.getByTestId("revision")).toHaveText(revision!);
+});
+
+// Native Linux CI covers the full editing journey above. Exercise the Windows
+// CodeMirror keymap separately without repeating malformed JSON and focus flows.
+test("property code undo and redo use Control on Windows", async ({ page }) => {
+  await page.addInitScript(() =>
+    Object.defineProperty(navigator, "platform", { get: () => "Win32" }),
+  );
+  await page.goto("/editor");
+  await placeComponent(page, "nmos", { x: 360, y: 220 });
+  await openSelectionShelf(page);
+  const code = page.getByLabel("Editable Canvas property code");
+  await selectWidthValue(code);
+  await page.keyboard.insertText("5u");
+  await expectComponentCodeField(page, "parameters.w", "5u");
+  await code.press("Control+z");
+  await expectComponentCodeField(page, "parameters.w", "1u");
+  await code.press("Control+Shift+Z");
+  await expectComponentCodeField(page, "parameters.w", "5u");
+  await expect(page.getByTestId("hit-M1")).toHaveCount(1);
+});
 
 for (const width of [300, 540]) {
   test(`plain selectable property code and inline controls at ${width}px`, async ({

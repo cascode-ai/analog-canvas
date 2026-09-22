@@ -46,7 +46,6 @@ describe("large deterministic derived fixture", () => {
       project,
       resolver,
     ).documents.get(document.id)!;
-    expect(indexed.routingGeometry).toBe(indexed.routingGeometry);
     expect(indexed.spatialIndex.routeSegments.size).toBeGreaterThanOrEqual(
       document.routes.length,
     );
