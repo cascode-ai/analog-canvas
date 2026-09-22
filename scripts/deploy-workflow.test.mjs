@@ -223,15 +223,18 @@ describe("Cloudflare deploy workflow", () => {
     expect(verifySection).toContain("analog-canvas.tokenzhang.com/editor");
   });
 
-  it("requires public Gallery URLs to execute the Worker document route", () => {
+  it("verifies that public Gallery documents are suspended", () => {
     const verifySection = workflow.slice(
       workflow.indexOf("Verify production deployment"),
       workflow.indexOf("Roll back a failed deployment"),
     );
-    expect(verifySection).toContain('data-public-gallery-document="catalog"');
     expect(verifySection).toContain(
-      "Sitemap: https://analog-canvas.tokenzhang.com/sitemap.xml",
+      "if grep -q 'data-public-gallery-document=\"catalog\"'",
     );
+    expect(verifySection).toContain("Disallow: /g/");
+    expect(verifySection).toContain("g/7dgn5b2e74/project.icproj.json");
+    expect(verifySection).toContain("g/7dgn5b2e74/netlist.sp");
+    expect(verifySection).toContain('if [ "$status" != "404" ]');
   });
 
   it("verifies package integrity before deploy and the serving declaration afterwards", () => {

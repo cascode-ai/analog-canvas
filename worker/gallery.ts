@@ -80,6 +80,10 @@ export interface GalleryReadableDocument {
   bodyHtml: string;
 }
 
+// Temporarily suspend the server-readable Gallery documents. The interactive
+// Gallery still uses its existing paginated API.
+const PUBLIC_GALLERY_DOCUMENTS_ENABLED = false;
+
 async function publicGalleryCatalog(
   env: GalleryEnv,
 ): Promise<PublicGalleryCatalog | null> {
@@ -1009,6 +1013,7 @@ export async function galleryReadableDocument(
   request: Request,
   env: GalleryEnv,
 ): Promise<GalleryReadableDocument | null> {
+  if (!PUBLIC_GALLERY_DOCUMENTS_ENABLED) return null;
   if (request.method !== "GET") return null;
   const url = new URL(request.url);
   if (/^\/?$/u.test(url.pathname)) {
@@ -1048,6 +1053,12 @@ async function directGalleryResource(
       url.pathname,
     );
   if (!match) return null;
+  if (!PUBLIC_GALLERY_DOCUMENTS_ENABLED) {
+    return new Response(null, {
+      status: 404,
+      headers: { "cache-control": "no-store" },
+    });
+  }
   const id = match[1]!;
   const resource = match[2]!;
   const stored = await publicGalleryEntry(env, id);
@@ -1135,15 +1146,23 @@ export async function routeGalleryRequest(
   const directResource = await directGalleryResource(request, env, runtime);
   if (directResource) return directResource;
   if (request.method === "GET" && url.pathname === "/robots.txt") {
-    return new Response(
-      `User-agent: *\nAllow: /\nSitemap: ${url.origin}/sitemap.xml\n`,
-      { headers: { "content-type": "text/plain; charset=utf-8" } },
-    );
+    return new Response("User-agent: *\nDisallow: /g/\n", {
+      headers: {
+        "cache-control": "no-store",
+        "content-type": "text/plain; charset=utf-8",
+      },
+    });
   }
   if (
     request.method === "GET" &&
     (url.pathname === "/sitemap.xml" || url.pathname === "/llms.txt")
   ) {
+    if (!PUBLIC_GALLERY_DOCUMENTS_ENABLED) {
+      return new Response(null, {
+        status: 404,
+        headers: { "cache-control": "no-store" },
+      });
+    }
     const catalog = await publicGalleryCatalog(env);
     if (!catalog) return new Response("Gallery unavailable\n", { status: 503 });
     if (url.pathname === "/sitemap.xml") {

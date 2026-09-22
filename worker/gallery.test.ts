@@ -28,7 +28,7 @@ import {
   type GalleryPreviewCache,
 } from "./gallery";
 import { AuthDO, type AuthEnv } from "./auth";
-import workerEntry, { injectGalleryReadableDocument } from "./index";
+import workerEntry from "./index";
 
 function sqliteState(queries?: string[]) {
   const db = new DatabaseSync(":memory:");
@@ -389,114 +389,75 @@ describe("svgPreviewDimensions", () => {
   });
 });
 
-describe("directly readable public Gallery URLs", () => {
-  it("puts the complete catalog, filters and next-step links in the first HTML", async () => {
+describe("suspended public Gallery documents", () => {
+  it("serves the ordinary application shell without embedding the complete catalog", async () => {
     const env = environment();
     const id = await submitOne(env, "Five transistor OTA");
-    env.gallerySql.exec(
-      "UPDATE gallery_entries SET author = ?, description = ?, tags = ? WHERE id = ?",
-      "Magic Li",
-      "Compact five transistor amplifier",
-      ",amplifier,ota,",
-      id,
-    );
 
     const readable = await galleryReadableDocument(
       new Request(`${ORIGIN}/?q=transistor&tags=ota`),
       env,
     );
-    expect(readable).not.toBeNull();
-    expect(readable!.bodyHtml).toContain("1 public analog circuits");
-    expect(readable!.bodyHtml).toContain("Tags are the sole public");
-    expect(readable!.bodyHtml).toContain("Magic Li");
-    expect(readable!.bodyHtml).toContain(`/g/${id}`);
-    expect(readable!.bodyHtml).toContain("Five transistor OTA");
-
-    const html = injectGalleryReadableDocument(
-      '<!doctype html><html><head><title>Analog Canvas</title></head><body><div id="root"></div></body></html>',
-      readable!,
-    );
-    expect(html).toContain("Analog Canvas Community Gallery</title>");
-    expect(html).toContain('data-public-gallery-document="catalog"');
-    expect(html).toContain('type="application/ld+json"');
-
-    const served = await workerEntry.fetch(
-      new Request(`${ORIGIN}/?q=transistor&tags=ota`),
-      {
+    expect(readable).toBeNull();
+    const assets = {
+      fetch: async () =>
+        new Response(
+          '<!doctype html><html><head><title>Analog Canvas</title></head><body><div id="root"></div></body></html>',
+          { headers: { "content-type": "text/html; charset=utf-8" } },
+        ),
+    };
+    for (const path of ["/?q=transistor&tags=ota", `/g/${id}`]) {
+      const served = await workerEntry.fetch(new Request(`${ORIGIN}${path}`), {
         ...env,
-        ASSETS: {
-          fetch: async () =>
-            new Response(
-              '<!doctype html><html><head><title>Analog Canvas</title></head><body><div id="root"></div></body></html>',
-              { headers: { "content-type": "text/html; charset=utf-8" } },
-            ),
-        },
-      } as unknown as Parameters<typeof workerEntry.fetch>[1],
-    );
-    expect(served.status).toBe(200);
-    expect(await served.text()).toContain(
-      'data-public-gallery-document="catalog"',
-    );
+        ASSETS: assets,
+      } as unknown as Parameters<typeof workerEntry.fetch>[1]);
+      expect(served.status).toBe(200);
+      const html = await served.text();
+      expect(html).toContain('<div id="root"></div>');
+      expect(html).not.toContain("data-public-gallery-document");
+      expect(html).not.toContain("Five transistor OTA");
+    }
+
+    const list = await route(env, new Request(`${ORIGIN}/api/gallery`));
+    expect(list.status).toBe(200);
+    expect(await list.text()).toContain("Five transistor OTA");
   });
 
-  it("describes one circuit and serves its public Project Code and netlist result", async () => {
+  it("returns 404 for the former direct Project Code, netlist and preview URLs", async () => {
     const env = environment();
     const id = await submitOne(env, "Readable circuit");
     const readable = await galleryReadableDocument(
       new Request(`${ORIGIN}/g/${id}`),
       env,
     );
-    expect(readable).not.toBeNull();
-    expect(readable!.bodyHtml).toContain("Circuit overview");
-    expect(readable!.bodyHtml).toContain(`${id}/project.icproj.json`);
-    expect(readable!.bodyHtml).toContain(`${id}/netlist.sp`);
-    expect(readable!.bodyHtml).toContain(`${id}/netlist.scs`);
-    expect(readable!.bodyHtml).toContain("requires no account");
-
-    const projectResponse = await route(
-      env,
-      new Request(`${ORIGIN}/g/${id}/project.icproj.json`),
-    );
-    expect(projectResponse.status).toBe(200);
-    expect(projectResponse.headers.get("access-control-allow-origin")).toBe(
-      "*",
-    );
-    expect(parseProject(await projectResponse.text()).name).toBe(
-      "Readable circuit",
-    );
-
-    const netlistResponse = await route(
-      env,
-      new Request(`${ORIGIN}/g/${id}/netlist.sp`),
-    );
-    expect([200, 422]).toContain(netlistResponse.status);
-    expect(await netlistResponse.text()).not.toContain("TODO");
-
-    const previewResponse = await route(
-      env,
-      new Request(`${ORIGIN}/g/${id}/preview.svg`),
-    );
-    expect(previewResponse.status).toBe(200);
-    expect(previewResponse.headers.get("content-type")).toContain(
-      "image/svg+xml",
-    );
-    expect(previewResponse.headers.get("access-control-allow-origin")).toBe(
-      "*",
-    );
+    expect(readable).toBeNull();
+    for (const resource of [
+      "project.icproj.json",
+      "netlist.sp",
+      "netlist.scs",
+      "preview.svg",
+    ]) {
+      for (const method of ["GET", "HEAD"]) {
+        const response = await route(
+          env,
+          new Request(`${ORIGIN}/g/${id}/${resource}`, { method }),
+        );
+        expect(response.status).toBe(404);
+        expect(response.headers.get("cache-control")).toBe("no-store");
+        expect(await response.text()).toBe("");
+      }
+    }
   });
 
-  it("publishes crawler and Agent discovery documents without a session", async () => {
+  it("does not advertise or serve crawler and Agent discovery documents", async () => {
     const env = environment();
-    const id = await submitOne(env, "Discoverable circuit");
     const robots = await route(env, new Request(`${ORIGIN}/robots.txt`));
-    expect(await robots.text()).toContain(`${ORIGIN}/sitemap.xml`);
-    const sitemap = await route(env, new Request(`${ORIGIN}/sitemap.xml`));
-    expect(await sitemap.text()).toContain(`${ORIGIN}/g/${id}`);
-    const llms = await route(env, new Request(`${ORIGIN}/llms.txt`));
-    const guidance = await llms.text();
-    expect(guidance).toContain("No account");
-    expect(guidance).toContain("/g/{id}/project.icproj.json");
-    expect(guidance).toContain("Public circuits: 1");
+    expect(await robots.text()).toContain("Disallow: /g/");
+    for (const path of ["/sitemap.xml", "/llms.txt"]) {
+      const response = await route(env, new Request(`${ORIGIN}${path}`));
+      expect(response.status).toBe(404);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+    }
   });
 });
 
