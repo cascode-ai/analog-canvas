@@ -6,7 +6,6 @@ import type { CircuitProject } from "@icm/model";
 
 import {
   ProjectFormatError,
-  type ProjectDiagnostic,
   type ProjectLoadResult,
   type ProjectParseResult,
 } from "./diagnostics.js";
@@ -102,26 +101,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function invalidProjectDiagnostics(
-  input: unknown,
-): readonly ProjectDiagnostic[] {
-  const result = CircuitProjectSchema.safeParse(input);
-  if (result.success) return [];
-  return result.error.issues.map((issue) => ({
-    code: "INVALID_PROJECT" as const,
-    message: issue.message,
-    path: issue.path.map((segment) =>
-      typeof segment === "symbol" ? (segment.description ?? "symbol") : segment,
-    ),
-  }));
-}
-
 export function tryValidateProject(input: unknown): ProjectLoadResult {
-  const diagnostics = invalidProjectDiagnostics(input);
-  if (diagnostics.length > 0) return { ok: false, diagnostics };
+  const result = CircuitProjectSchema.safeParse(input);
+  if (!result.success)
+    return {
+      ok: false,
+      diagnostics: result.error.issues.map((issue) => ({
+        code: "INVALID_PROJECT" as const,
+        message: issue.message,
+        path: issue.path.map((segment) =>
+          typeof segment === "symbol"
+            ? (segment.description ?? "symbol")
+            : segment,
+        ),
+      })),
+    };
   return {
     ok: true,
-    project: CircuitProjectSchema.parse(input),
+    project: result.data,
     sourceSchemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
     migrated: false,
   };
@@ -222,9 +219,9 @@ export function tryParseProjectWithMetadata(
   // author, a file that is gone.
   // SPICE invocation prefixes belong to export, never to file loading.
   current = repairBoundFormatOverrides(current);
-  const diagnostics = invalidProjectDiagnostics(current);
-  if (diagnostics.length > 0) return { ok: false, diagnostics };
-  const project = CircuitProjectSchema.parse(current);
+  const validated = tryValidateProject(current);
+  if (!validated.ok) return validated;
+  const project = validated.project;
   if (project.componentDefinitions) {
     const definitions = new Map(
       project.componentDefinitions.map((definition) => [
