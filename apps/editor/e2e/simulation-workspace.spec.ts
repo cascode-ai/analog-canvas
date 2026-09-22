@@ -37,6 +37,12 @@ test("simulation Agent entry is passive and reuses the existing connection panel
     "**/api/agent/sessions/sim-guide/editor",
     (route) => {
       socket = route;
+      route.onMessage((message) => {
+        const control = JSON.parse(String(message));
+        if (control.kind === "heartbeat") {
+          route.send(JSON.stringify({ ...control, kind: "heartbeat-ack" }));
+        }
+      });
     },
   );
   await page.route("**/api/agent/sessions", async (route) => {
@@ -165,6 +171,7 @@ test("simulation examples confirm whole-Project replacement and protect existing
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(project)),
   });
+  await page.getByTestId("project-menu-toggle").click();
   await page
     .getByRole("textbox", { name: "Circuit name" })
     .fill("My unsaved circuit");
