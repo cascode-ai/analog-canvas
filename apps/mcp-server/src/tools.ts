@@ -685,6 +685,8 @@ const TOOLS: readonly ToolEntry[] = [
                 ...prepared,
                 projection: "summary",
                 detailsArtifact,
+                acquisition:
+                  "Mappings describe available vectors, not captured data. Native source controls save/write; check collected dataset signals.",
                 counts: {
                   vectors: vectors.length,
                   signalNames: Object.keys(signalNames ?? {}).length,

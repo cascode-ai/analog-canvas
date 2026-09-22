@@ -419,6 +419,8 @@ export function compileActions(
   parsed.data.forEach((action, index) => {
     switch (action.kind) {
       case "set-model":
+      case "move-annotation":
+      case "batch":
       case "place-components":
       case "set-instance-display":
       case "place-existing":
@@ -463,7 +465,24 @@ export function compileActions(
         compileDisconnect(index, action, document, pushEdit);
         break;
       case "move":
-        if (action.target.kind === "junction") {
+        if (action.target.kind === "annotation") {
+          const annotation = resolveByIdOrName(
+            index,
+            action.kind,
+            "annotation",
+            document.annotations.map((entry) => ({ id: String(entry.id) })),
+            action.target,
+          );
+          transactions.push({
+            form: "command",
+            actionKinds: [action.kind],
+            command: {
+              kind: "move-annotation",
+              annotationId: annotation.id,
+              position: action.position,
+            },
+          });
+        } else if (action.target.kind === "junction") {
           const junction = resolveByIdOrName(
             index,
             action.kind,

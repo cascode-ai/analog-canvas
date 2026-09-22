@@ -80,7 +80,9 @@ write out.raw all
 
 `V1` is an example source, not a discovered Project identity. `save all` alone
 does not request every internal device parameter. Add resolved device expressions
-explicitly. Write after each analysis that should be collected; the current
+explicitly for OP as well as sweeps. A preparation's device/vector mapping is
+discovery, not proof of acquisition; the collected dataset's signals show what
+was actually saved. Write after each analysis that should be collected; the current
 ngspice collector supports one literal relative path, with appendwrite for
 multiple plots. No write is valid for a log-only task. The executor does not
 silently insert capture commands. This fragment is not VACASK syntax.

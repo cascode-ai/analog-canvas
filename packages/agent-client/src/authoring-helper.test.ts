@@ -6,6 +6,8 @@ import {
 } from "./authoring-helper.js";
 import { testSnapshot } from "./test-support/snapshot-fixture.js";
 import type { AgentSessionSnapshot } from "@icm/agent-adapter";
+import { AuthoringActionSchema } from "./authoring-actions.js";
+import { z } from "zod";
 
 let idCounter = 0;
 const allocateId = (prefix: string) => `${prefix}-alloc-${(idCounter += 1)}`;
@@ -31,6 +33,29 @@ function expectCompileError(actions: unknown[], fragment: string): void {
 }
 
 describe("authoring helper compilation", () => {
+  it("advertises exact reference kinds instead of unrepresentable discriminator refinements", () => {
+    const schema = z.toJSONSchema(AuthoringActionSchema, {
+      target: "draft-2020-12",
+    }) as any;
+    const kinds = (action: string) => {
+      const target = schema.oneOf.find(
+        (item: any) => item.properties.kind.const === action,
+      ).properties.target;
+      return (target.anyOf ?? [target]).map(
+        (item: any) => item.properties.kind.const,
+      );
+    };
+    expect(kinds("move")).toEqual(["instance", "junction", "annotation"]);
+    expect(kinds("add-label")).toEqual(["net"]);
+    expect(kinds("edit-text")).toEqual(["annotation", "drafting"]);
+    expect(
+      AuthoringActionSchema.safeParse({
+        kind: "add-label",
+        target: { kind: "route", id: "r" },
+        text: "bad",
+      }).success,
+    ).toBe(false);
+  });
   it("connects and disconnects stable IDs without guessing a Reference", () => {
     const snapshot = testSnapshot();
     snapshot.document.instances[0]!.reference = null;

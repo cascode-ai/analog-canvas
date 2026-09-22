@@ -51,6 +51,196 @@ async function folder() {
 }
 
 describe("MCP → API → shared editor parity", () => {
+  it("moves attached annotations through both entry points without moving their owner", async () => {
+    const { client, controller, add } = await folder();
+    const instanceId = await add();
+    const original = controller.document.annotations.find(
+      (a) => a.anchor.kind === "object" && a.anchor.objectId === instanceId,
+    )!;
+    const before = structuredClone(controller.document.instances);
+    const moved = await client.applyActions([
+      {
+        kind: "move",
+        target: { kind: "annotation", id: original.id },
+        position: { x: 153, y: 47 },
+      },
+    ]);
+    expect(moved.ok, moved.message).toBe(true);
+    expect(
+      controller.document.annotations.find((a) => a.id === original.id)?.anchor,
+    ).toMatchObject({
+      kind: "object",
+      objectId: instanceId,
+      localOffset: { x: 53, y: -53 },
+    });
+    const translated = await client.applyActions([
+      {
+        kind: "transform",
+        selection: { annotationIds: [original.id] },
+        transform: { kind: "translate", delta: { x: 10, y: -10 } },
+      },
+    ]);
+    expect(translated.ok, translated.message).toBe(true);
+    expect(
+      controller.document.annotations.find((a) => a.id === original.id)?.anchor,
+    ).toMatchObject({ localOffset: { x: 63, y: -63 } });
+    expect(controller.document.instances).toEqual(before);
+    const unsupported = await client.applyActions([
+      {
+        kind: "transform",
+        selection: { annotationIds: [original.id] },
+        transform: { kind: "rotate", degrees: 90 },
+      },
+    ]);
+    expect(unsupported.ok).toBe(false);
+    expect(unsupported.message).toContain("translation");
+    expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+    expect(
+      controller.document.annotations.find((a) => a.id === original.id)?.anchor,
+    ).toMatchObject({ localOffset: { x: 53, y: -53 } });
+  });
+
+  it("batches labels atomically and undoes them together", async () => {
+    const { client, controller, add } = await folder();
+    await add();
+    const placed = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "nmos",
+        reference: "M2",
+        position: { x: 300, y: 100 },
+      },
+    ]);
+    expect(placed.ok).toBe(true);
+    expect(
+      (
+        await client.applyActions(
+          [0, 100].map((y) => ({
+            kind: "connect",
+            from: { kind: "point", x: 500, y },
+            to: { kind: "point", x: 580, y },
+          })),
+        )
+      ).ok,
+    ).toBe(true);
+    const nets = controller.document.routes.map((route) => ({
+      id: route.netId,
+    }));
+    const before = structuredClone(controller.document);
+    const actions = nets.slice(0, 2).map((net, index) => ({
+      kind: "add-label",
+      target: { kind: "net", id: net.id },
+      text: `LABEL${index}`,
+      position: { x: 100 + index * 200, y: 30 },
+    }));
+    expect(actions).toHaveLength(2);
+    const previewProject = structuredClone(controller.project);
+    const preview = await client.applyActions(actions, { dryRunOnly: true });
+    expect(preview.ok, preview.message).toBe(true);
+    expect(controller.project).toEqual(previewProject);
+    const labelled = await client.applyActions(actions);
+    expect(labelled.ok, labelled.message).toBe(true);
+    expect(
+      controller.document.annotations.filter((a) => a.kind === "net-label"),
+    ).toHaveLength(2);
+    expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+    expect(controller.document.annotations).toEqual(before.annotations);
+    expect((await client.applyActions([{ kind: "redo" }])).ok).toBe(true);
+    expect(
+      controller.document.annotations.filter((a) => a.kind === "net-label"),
+    ).toHaveLength(2);
+    const checkpoint = structuredClone(controller.project);
+    const failed = await client.applyActions([
+      {
+        kind: "set-net-label",
+        annotationId: "batch-first",
+        netId: nets[0]!.id,
+        text: { runs: [{ kind: "text", value: "LABEL0" }] },
+        position: { x: 0, y: 0 },
+      },
+      {
+        kind: "set-net-label",
+        annotationId: "batch-bad",
+        netId: "missing-net",
+        text: { runs: [{ kind: "text", value: "BAD" }] },
+        position: { x: 0, y: 0 },
+      },
+    ]);
+    expect(failed.ok).toBe(false);
+    expect(failed.message).toContain("Net not found");
+    expect(controller.project).toEqual(checkpoint);
+    const label = controller.document.annotations.find(
+      (a) => a.kind === "net-label",
+    )!;
+    const routes = structuredClone(controller.document.routes);
+    const moved = await client.applyActions([
+      {
+        kind: "move",
+        target: { kind: "annotation", id: label.id },
+        position: { x: 403, y: 73 },
+      },
+    ]);
+    expect(moved.ok, moved.message).toBe(true);
+    expect(
+      controller.document.annotations.find((a) => a.id === label.id),
+    ).toMatchObject({
+      netId: label.netId,
+      anchor: { kind: "free", position: { x: 403, y: 73 } },
+    });
+    expect(controller.document.routes).toEqual(routes);
+    const translated = await client.applyActions([
+      {
+        kind: "transform",
+        selection: { annotationIds: [label.id] },
+        transform: { kind: "translate", delta: { x: 3, y: 7 } },
+      },
+    ]);
+    expect(translated.ok, translated.message).toBe(true);
+    expect(
+      controller.document.annotations.find((a) => a.id === label.id)?.anchor,
+    ).toEqual({ kind: "free", position: { x: 406, y: 80 } });
+  });
+
+  it("batches reviewed model selection against accumulated definitions with one undo", async () => {
+    const { client, controller, add } = await folder();
+    const m1 = await add();
+    expect(
+      (
+        await client.applyActions([
+          {
+            kind: "place-component",
+            symbol: "nmos",
+            reference: "M2",
+            position: { x: 300, y: 100 },
+          },
+        ])
+      ).ok,
+    ).toBe(true);
+    const m2 = controller.document.instances.find(
+      (i) => i.reference === "M2",
+    )!.id;
+    const actions = [m1, m2].map((instanceId) => ({
+      kind: "set-model",
+      instanceId,
+      model: "sky130_fd_pr__nfet_01v8",
+    }));
+    const before = structuredClone(controller.project);
+    const result = await client.applyActions(actions);
+    expect(result.ok, result.message).toBe(true);
+    expect(controller.project.externalSubcircuitDefinitions).toHaveLength(1);
+    expect(
+      controller.document.instances.every(
+        (i) => i.netlist?.binding?.kind === "external-subcircuit",
+      ),
+    ).toBe(true);
+    expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+    expect(controller.document.instances).toEqual(
+      before.documents[0]!.instances,
+    );
+    expect(controller.project.externalSubcircuitDefinitions).toEqual(
+      before.externalSubcircuitDefinitions,
+    );
+  });
   it("places both Port styles with owned Cell terminals in one undoable batch", async () => {
     const { client, controller, tool } = await folder();
     const placed = await client.applyActions([

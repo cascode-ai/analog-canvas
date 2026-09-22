@@ -154,6 +154,18 @@ describe("mcp resources single-source projection", () => {
       }
     }
   });
+  it("discloses the required Cell edit envelope without reading the full contract", () => {
+    const schema = JSON.parse(
+      readResourceContent(
+        "analog-canvas://contract/edits/set_cell_symbol_presentation",
+      ).text,
+    );
+    expect(schema["x-transaction"]).toMatchObject({
+      form: "structureEdits",
+      example: { structureEdits: [{ kind: "transact_document" }] },
+    });
+    expect(schema.properties.kind.const).toBe("set_cell_symbol_presentation");
+  });
   it("resolves distributed links inside the actual resource and Kit namespaces", () => {
     for (const resource of mcpResources) {
       for (const [, uri] of resource.text.matchAll(

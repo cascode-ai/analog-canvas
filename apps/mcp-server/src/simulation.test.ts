@@ -390,6 +390,7 @@ describe("MCP / browser Simulation Resource parity", () => {
         requestId: "start-once",
       };
       expect(prepared.prepared.projection).toBe("summary");
+      expect(prepared.prepared.acquisition).toContain("not captured data");
       expect(prepared.prepared.vectors).toBeUndefined();
       expect(prepared.prepared.detailsArtifact.name).toBe("preparation.json");
       const started = await invoke("simulation", args);

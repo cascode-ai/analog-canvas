@@ -47,6 +47,8 @@ and current capabilities. Never send an MCP tool envelope to HTTP.
   `reference` names the new Cell terminal; its Port, Net and bound terminal
   display are created atomically. Refresh Snapshot before using its actual ID
   and pin positions. Ground and power markers are not named devices.
+  MOS dimensions are physical quantities: use `w:"10u", l:"1u"`, not bare
+  `10`/`1` assuming micrometres. Model-specific unit conversion is generated.
 - Displays: set electrical values first, then use `set-instance-display`
   with `showReference`, `showValue` or `showParameters`. Transformer keys
   are `k/lp/ls`; T-Coil keys are `k/l1/l2/cb`. Unsupported keys reject the
@@ -63,6 +65,19 @@ and current capabilities. Never send an MCP tool envelope to HTTP.
   annotation together. Supply `position` when creating a new label; use the
   published RichText `runs` shape (text runs use `value`, not `text`).
   A drafting text saying OUT does not name a Net.
+- Batching: MCP accepts multiple `add-label`, `set-model`, and annotation
+  `move` actions atomically. HTTP uses `command:{kind:"batch",commands:[...]}`
+  with `set-net-label`, `set-model`, or `move-annotation` items. Planning is
+  ordered; failure commits nothing, success has one undo. Keep unrelated
+  command forms separate; placement and multiple wires already have batches.
+- Annotation movement: `move` with an annotation target sets its absolute
+  drawing position; `transform` with annotation IDs supports translation.
+  Ownership/electrical binding is retained. Use explicit annotation edits for
+  rotation/anchor changes; these are not silently ignored.
+- Cell interface and symbol edits belong inside
+  `structureEdits:[{kind:"transact_document",documentId,expectedRevision,edits:[...]}]`,
+  not top-level `edits`. Use current Snapshot values. MCP's per-kind edit
+  resource includes this envelope when required.
 - Read, edit, refresh, render and inspect diagnostics. Use current revisions;
   on a conflict reconsider instead of overwriting human work.
 

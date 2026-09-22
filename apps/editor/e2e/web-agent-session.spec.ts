@@ -6,6 +6,7 @@ import { createEmptyProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 
 import { AgentHttpClient } from "../../../packages/agent-client/src/http-client.js";
+import { AgentSessionClient } from "../../../packages/agent-client/src/session-client.js";
 import {
   revealPropertiesShelf,
   awaitEditorReady,
@@ -19,6 +20,78 @@ import {
 // server. Keep this file in one worker while unrelated browser specs stay
 // fully parallel.
 test.describe.configure({ mode: "default" });
+
+test("real relay batches labels and moves bound text with shared undo", async ({
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(90000);
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByRole("button", { name: "Agent", exact: true }).click();
+  const message = page.getByTestId("agent-copy-text");
+  await expect(message).toHaveValue(/Claim: /, { timeout: 45000 });
+  const { claimCode } = JSON.parse(
+    /^Claim: (.+)$/mu.exec(await message.inputValue())![1]!,
+  );
+  const client = new AgentSessionClient({
+    http: new AgentHttpClient({ baseUrl: baseURL! }),
+  });
+  await client.connect(claimCode);
+  const wires = await client.applyActions(
+    [0, 100, 200].map((y) => ({
+      kind: "connect",
+      from: { kind: "point", x: 0, y },
+      to: { kind: "point", x: 100, y },
+    })),
+  );
+  expect(wires.ok, wires.message).toBe(true);
+  const before = await client.refreshSnapshot();
+  const netIds = before.snapshot.document.routes.map((route) => route.netId);
+  const labelled = await client.applyActions(
+    netIds.map((id, index) => ({
+      kind: "add-label",
+      target: { kind: "net", id },
+      text: `BUS${index}`,
+      position: { x: 50, y: index * 100 - 20 },
+    })),
+  );
+  expect(labelled.ok, labelled.message).toBe(true);
+  const snapshot = await client.refreshSnapshot();
+  expect(
+    snapshot.snapshot.document.annotations.filter(
+      (a) => a.kind === "net-label",
+    ),
+  ).toHaveLength(3);
+  const label = snapshot.snapshot.document.annotations.find(
+    (a) => a.kind === "net-label",
+  )!;
+  const moved = await client.applyActions([
+    {
+      kind: "move",
+      target: { kind: "annotation", id: label.id },
+      position: { x: 153, y: 43 },
+    },
+  ]);
+  expect(moved.ok, moved.message).toBe(true);
+  const updated = await client.refreshSnapshot();
+  expect(
+    updated.snapshot.document.annotations.find((a) => a.id === label.id),
+  ).toMatchObject({
+    netId: label.netId,
+    anchor: { kind: "free", position: { x: 153, y: 43 } },
+  });
+  expect(updated.snapshot.document.routes).toEqual(
+    snapshot.snapshot.document.routes,
+  );
+  expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+  expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+  expect(
+    (await client.refreshSnapshot()).snapshot.document.annotations.filter(
+      (a) => a.kind === "net-label",
+    ),
+  ).toHaveLength(0);
+});
 
 type SessionMessage = {
   kind: string;

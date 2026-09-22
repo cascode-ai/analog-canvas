@@ -68,8 +68,12 @@ export const ObjectRefSchema = z.union([
 ]);
 export type ObjectRef = z.infer<typeof ObjectRefSchema>;
 
-const NetRefSchema = NamedObjectRefSchema.refine((ref) => ref.kind === "net", {
-  message: "Expected a net reference",
+// Encode the discriminator structurally: JSON Schema cannot expose refinements.
+const NetRefSchema = NamedObjectRefSchema.safeExtend({
+  kind: z.literal("net"),
+});
+const AnnotationRefSchema = NamedObjectRefSchema.safeExtend({
+  kind: z.literal("annotation"),
 });
 
 const PinTargetSchema = z.strictObject({
@@ -151,9 +155,8 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("move"),
     target: z.union([
       InstanceRefSchema,
-      NamedObjectRefSchema.refine((ref) => ref.kind === "junction", {
-        message: "Expected a junction reference",
-      }),
+      NamedObjectRefSchema.safeExtend({ kind: z.literal("junction") }),
+      AnnotationRefSchema,
     ]),
     position: PointInputSchema,
   }),
@@ -187,12 +190,8 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("edit-text"),
     target: z.union([
-      NamedObjectRefSchema.refine((ref) => ref.kind === "annotation", {
-        message: "Expected an annotation reference",
-      }),
-      NamedObjectRefSchema.refine((ref) => ref.kind === "drafting", {
-        message: "Expected a drafting reference",
-      }),
+      AnnotationRefSchema,
+      NamedObjectRefSchema.safeExtend({ kind: z.literal("drafting") }),
     ]),
     text: TextInputSchema,
   }),

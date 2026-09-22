@@ -202,16 +202,17 @@ export const AgentSemanticIntentSchema = z.discriminatedUnion("kind", [
  * intentionally narrower than the internal Edit Engine union where product
  * policy forbids a removed asset or style.
  */
+export const CELL_STRUCTURE_EDIT_KINDS = [
+  "add_cell_terminal",
+  "update_cell_terminal",
+  "remove_cell_terminal",
+  "reorder_cell_terminals",
+  "set_cell_formal_parameters",
+  "set_cell_symbol_presentation",
+] as const;
 export const AgentSchematicEditSchema = SchematicEditSchema.superRefine(
   (edit, context) => {
-    if (
-      edit.kind === "add_cell_terminal" ||
-      edit.kind === "update_cell_terminal" ||
-      edit.kind === "remove_cell_terminal" ||
-      edit.kind === "reorder_cell_terminals" ||
-      edit.kind === "set_cell_formal_parameters" ||
-      edit.kind === "set_cell_symbol_presentation"
-    ) {
+    if (CELL_STRUCTURE_EDIT_KINDS.some((kind) => edit.kind === kind)) {
       context.addIssue({
         code: "custom",
         message:

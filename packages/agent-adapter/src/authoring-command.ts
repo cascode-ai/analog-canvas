@@ -15,7 +15,39 @@ const SelectionSchema = z.strictObject({
   annotationIds: z.array(StableIdSchema).max(256).default([]),
   draftingIds: z.array(StableIdSchema).max(256).default([]),
 });
+const BatchItemSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("set-net-label"),
+    annotationId: StableIdSchema,
+    netId: StableIdSchema,
+    text: RichTextDocumentSchema,
+    position: PointSchema.optional(),
+  }),
+  z.strictObject({
+    kind: z.literal("set-model"),
+    instanceId: StableIdSchema,
+    model: z.string().max(128),
+  }),
+  z.strictObject({
+    kind: z.literal("move-annotation"),
+    annotationId: StableIdSchema,
+    position: PointSchema.describe(
+      "Absolute drawing position; preserve electrical binding and object ownership.",
+    ),
+  }),
+]);
 export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
+  ...BatchItemSchema.options,
+  z.strictObject({
+    kind: z.literal("batch"),
+    commands: z
+      .array(BatchItemSchema)
+      .min(1)
+      .max(64)
+      .describe(
+        "Ordered atomic label, annotation-move or model commands; one undo, no partial commit.",
+      ),
+  }),
   z.strictObject({
     kind: z.literal("place-components"),
     instances: z.array(InstanceSchema).min(1).max(64),
@@ -47,18 +79,6 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     kind: z.literal("place-existing"),
     instanceId: StableIdSchema,
     placement: PlacementSchema,
-  }),
-  z.strictObject({
-    kind: z.literal("set-net-label"),
-    annotationId: StableIdSchema,
-    netId: StableIdSchema,
-    text: RichTextDocumentSchema,
-    position: PointSchema.optional(),
-  }),
-  z.strictObject({
-    kind: z.literal("set-model"),
-    instanceId: StableIdSchema,
-    model: z.string().max(128),
   }),
   z.strictObject({
     kind: z.literal("transform"),

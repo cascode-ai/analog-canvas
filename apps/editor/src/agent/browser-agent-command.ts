@@ -4,6 +4,8 @@ import type {
 } from "@icm/agent-adapter";
 import {
   planSetDeviceModelTarget,
+  executeProjectTransaction,
+  type ProjectStructureEdit,
   planRoutingTransform,
   planInstanceUnplacement,
   planCellReset,
@@ -37,7 +39,15 @@ import {
   resolveDocumentLogicalNets,
   magneticDisplayParameters,
 } from "@icm/derived";
-import type { SymbolResolver } from "@icm/symbols";
+import {
+  builtInSymbols,
+  createProjectSymbolResolver,
+  type SymbolResolver,
+} from "@icm/symbols";
+import {
+  annotationDragPosition,
+  draggedAnnotationAtPosition,
+} from "../features/text-editing/annotation-drag-model";
 import {
   captureProjectCopy,
   planProjectCopyPlacement,
@@ -67,6 +77,70 @@ export function planBrowserAgentCommand(
   if (!document) throw new Error("Document not found");
   const sequence = document.revision + 1;
   switch (command.kind) {
+    case "batch": {
+      // Plan each command against the preceding private result. Only the final
+      // ordinary Project transaction reaches the live controller/history.
+      let draft = project;
+      const edits: ProjectStructureEdit[] = [];
+      for (const [index, item] of command.commands.entries()) {
+        const current = draft.documents.find((d) => d.id === documentId)!;
+        const plan = planBrowserAgentCommand(
+          draft,
+          documentId,
+          createProjectSymbolResolver(draft, builtInSymbols),
+          item,
+        );
+        const next: ProjectStructureEdit[] =
+          "structureEdits" in plan
+            ? [...plan.structureEdits]
+            : plan.edits.length
+              ? [
+                  {
+                    kind: "transact_document",
+                    documentId,
+                    expectedRevision: current.revision,
+                    edits: [...plan.edits],
+                  },
+                ]
+              : [];
+        if (!next.length) continue;
+        const result = executeProjectTransaction(draft, {
+          transactionId: `agent-command-plan-${index}`,
+          projectId: draft.id,
+          expectedStructureRevision: draft.structureRevision,
+          actor: { kind: "agent", id: "command-planner" },
+          edits: next,
+        });
+        if (!result.ok)
+          throw new Error(`Batch command ${index}: ${result.error.message}`);
+        draft = result.project;
+        edits.push(...next);
+      }
+      return { structureEdits: edits };
+    }
+    case "move-annotation": {
+      const annotation = document.annotations.find(
+        (a) => a.id === command.annotationId,
+      );
+      if (!annotation) throw new Error("Annotation not found");
+      if (annotation.locked) throw new Error("Annotation is locked");
+      const routeGeometryRecords = document.routes.flatMap((route) => {
+        const geometry = resolveRouteGeometry(document, resolver, route);
+        return geometry ? [{ route, geometry }] : [];
+      });
+      return {
+        edits: [
+          {
+            kind: "upsert_schematic_annotation",
+            annotation: draggedAnnotationAtPosition(
+              { document, resolver, routeGeometryRecords, annotationGrid: 1 },
+              annotation,
+              command.position,
+            ),
+          },
+        ],
+      };
+    }
     case "place-components": {
       const edits: SchematicEdit[] = [];
       let changesInterface = false;
@@ -564,6 +638,14 @@ export function planBrowserAgentCommand(
       }
       const input = command.transform;
       if (
+        command.selection.annotationIds.length &&
+        input.kind !== "translate"
+      ) {
+        throw new Error(
+          "Selected annotations support translation here; use upsert_schematic_annotation for explicit rotation or anchor changes.",
+        );
+      }
+      if (
         command.selection.draftingIds.length &&
         !(input.kind === "rotate" && !input.center)
       ) {
@@ -620,7 +702,41 @@ export function planBrowserAgentCommand(
       );
       const error = plan.diagnostics.find((item) => item.severity === "error");
       if (error) throw new Error(error.message);
-      return { edits: plan.edits };
+      const annotationEdits: SchematicEdit[] = [];
+      if (input.kind === "translate") {
+        for (const id of new Set(command.selection.annotationIds)) {
+          const annotation = document.annotations.find((a) => a.id === id);
+          if (!annotation) throw new Error(`Annotation not found: ${id}`);
+          if (annotation.locked) throw new Error(`Annotation is locked: ${id}`);
+          // Attached displays already follow their selected owner exactly once.
+          if (
+            annotation.anchor.kind === "object" &&
+            (command.selection.instanceIds.includes(
+              annotation.anchor.objectId,
+            ) ||
+              command.selection.junctionIds.includes(
+                annotation.anchor.objectId,
+              ))
+          )
+            continue;
+          const geometryContext = {
+            document,
+            resolver,
+            routeGeometryRecords,
+            annotationGrid: 1,
+          };
+          const position = annotationDragPosition(geometryContext, annotation);
+          annotationEdits.push({
+            kind: "upsert_schematic_annotation",
+            annotation: draggedAnnotationAtPosition(
+              geometryContext,
+              annotation,
+              { x: position.x + input.delta.x, y: position.y + input.delta.y },
+            ),
+          });
+        }
+      }
+      return { edits: [...plan.edits, ...annotationEdits] };
     }
   }
 }

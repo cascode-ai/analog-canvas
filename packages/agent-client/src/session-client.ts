@@ -733,6 +733,26 @@ export class AgentSessionClient {
         },
       );
     }
+    const batchCommands = compiled.flatMap((item) =>
+      item.form === "command" &&
+      item.command &&
+      (item.command.kind === "set-net-label" ||
+        item.command.kind === "set-model" ||
+        item.command.kind === "move-annotation")
+        ? [item.command]
+        : [],
+    );
+    if (
+      compiled.length > 1 &&
+      compiled.length <= 64 &&
+      batchCommands.length === compiled.length
+    ) {
+      return this.submitTransaction(
+        entry,
+        { command: { kind: "batch", commands: batchCommands } },
+        { dryRun: options.dryRunOnly ?? false },
+      );
+    }
     if (compiled.length !== 1)
       return {
         ok: false,
