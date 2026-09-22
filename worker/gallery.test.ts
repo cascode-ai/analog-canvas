@@ -37,7 +37,7 @@ function sqliteState(queries?: string[]) {
         exec<T>(query: string, ...bindings: unknown[]) {
           queries?.push(query);
           const statement = db.prepare(query);
-          if (/^\s*(select|with|pragma)/iu.test(query)) {
+          if (/^\s*(select|with|pragma|explain)/iu.test(query)) {
             const rows = statement.all(
               ...(bindings as (string | number | null)[]),
             ) as T[];
@@ -697,6 +697,88 @@ describe("gallery data migrations", () => {
 });
 
 describe("newest-first gallery feed", () => {
+  it("covers feed statistics without changing paged, filtered or viewer-specific responses", async () => {
+    const env = environment();
+    const cookie = await adminOf(env);
+    const ids = await wallOf(env, 7);
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET tags = ',amplifier,' WHERE id = ?",
+      ids[0]!,
+    );
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET author = 'Other', netlistable = 1 WHERE id = ?",
+      ids[1]!,
+    );
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET status = 'pending' WHERE id = ?",
+      ids[2]!,
+    );
+    const createIndex = env.galleryQueries.find((q) =>
+      q.includes("CREATE INDEX IF NOT EXISTS idx_gallery_entries_feed_stats"),
+    )!;
+    expect(createIndex).toBeDefined();
+    const first = await galleryPage(env);
+    const variants = [
+      "",
+      "limit=1",
+      `limit=2&cursor=${encodeURIComponent(first.nextCursor!)}`,
+      "tags=amplifier",
+      "netlistable=1",
+      "author=Other",
+      "liked=1",
+      "attention=1",
+    ];
+    const read = async () => {
+      const results = [];
+      for (const query of variants) {
+        for (const signedIn of [false, true]) {
+          const response = await route(
+            env,
+            new Request(`${ORIGIN}/api/gallery?${query}`, {
+              headers: signedIn ? { cookie } : {},
+            }),
+          );
+          results.push({
+            status: response.status,
+            body: await response.json(),
+          });
+        }
+      }
+      return results;
+    };
+    env.gallerySql.exec("DROP INDEX idx_gallery_entries_feed_stats");
+    const before = await read();
+    env.gallerySql.exec(createIndex);
+    const after = await read();
+    expect(after).toEqual(before);
+    const queries = env.galleryQueries.filter(
+      (q) =>
+        q.includes("FROM gallery_entries e") &&
+        (q.includes("AS total") || q.includes("MAX(e.author)")),
+    );
+    for (const query of queries
+      .filter((q) => (q.match(/\?/g) ?? []).length <= 4)
+      .slice(0, 2)) {
+      const bindings = Array.from(
+        { length: (query.match(/\?/g) ?? []).length },
+        () => "",
+      );
+      const plan = env.gallerySql
+        .exec<{ detail: string }>(`EXPLAIN QUERY PLAN ${query}`, ...bindings)
+        .toArray();
+      expect(
+        plan.some((step) =>
+          step.detail.includes("COVERING INDEX idx_gallery_entries_feed_stats"),
+        ),
+      ).toBe(true);
+    }
+    // Metadata updates must be visible immediately; there is no statistics TTL.
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET status = 'public' WHERE id = ?",
+      ids[2]!,
+    );
+    expect((await galleryPage(env)).total).toBe(first.total + 1);
+  });
   async function galleryPage(
     env: Harness,
     cursor?: string,

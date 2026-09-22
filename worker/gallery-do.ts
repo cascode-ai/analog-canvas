@@ -620,6 +620,15 @@ export class GalleryDO {
         // Column already present.
       }
     }
+    // Counts and contributor roll-ups scan metadata across the filtered wall.
+    // Cover those reads without visiting wide rows containing Project/SVG text.
+    // Keep after the additive columns for existing databases. No query, cursor,
+    // permission, freshness or result ordering changes; SQLite maintains this
+    // index atomically with the same writes that update Gallery metadata.
+    this.sql.exec(`
+      CREATE INDEX IF NOT EXISTS idx_gallery_entries_feed_stats
+      ON gallery_entries(status, owner_user_id, author, netlistable, tags, curation_json)
+    `);
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS data_migrations (
         id TEXT PRIMARY KEY,
