@@ -1,5 +1,5 @@
-import { test, expect, beforeAll } from "vitest";
-import { execFileSync, execSync } from "node:child_process";
+import { test, expect } from "vitest";
+import { execFileSync } from "node:child_process";
 import {
   mkdtempSync,
   readFileSync,
@@ -15,17 +15,6 @@ import {
   canonicalConnectionIndexes,
 } from "../packages/project-protocol/src/index.js";
 import { compileSourceSimulation } from "../packages/netlist/src/simulation-source-compile.js";
-
-beforeAll(() => {
-  // Exercise the standalone CLI, including on a clean CI checkout without dist.
-  execSync(
-    "pnpm --filter @icm/agent-adapter... --filter @icm/exporters... build",
-    {
-      stdio: "pipe",
-      timeout: 180000,
-    },
-  );
-}, 190000);
 
 const run = (directory, args = []) =>
   execFileSync(

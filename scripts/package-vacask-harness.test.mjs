@@ -1,18 +1,11 @@
-import { it, expect, beforeAll } from "vitest";
+import { it, expect } from "vitest";
 import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { execFile, execSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createHash } from "node:crypto";
 import { packageVacaskHarness } from "./package-vacask-harness.mjs";
-
-beforeAll(() => {
-  execSync("pnpm --filter @icm/simulation-service... build", {
-    stdio: "pipe",
-    timeout: 180000,
-  });
-}, 190000);
 
 it("packages the real entrypoint and starts outside the workspace without node_modules", async () => {
   const root = await mkdtemp(join(tmpdir(), "vacask-package-"));
