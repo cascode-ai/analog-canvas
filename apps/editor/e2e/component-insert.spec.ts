@@ -1010,7 +1010,7 @@ test("places a vertical Power Rail from I and renames it on the canvas", async (
   };
   const document = saved.documents[0]!;
   const avddClaim = document.connectivityEvidence.find(
-    (evidence) => evidence.kind === "name-claim" && evidence.name === "AVDD",
+    (evidence) => evidence.kind === "name-claim" && evidence.name === "A_VDD",
   );
   expect(avddClaim).toMatchObject({ scope: "local", powerDomain: "vdd" });
   const avdd = document.nets.find((net) => net.id === avddClaim!.netId);

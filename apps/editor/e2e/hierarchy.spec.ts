@@ -1210,13 +1210,13 @@ test("declares and places a Cell Pin on a new local Net", async ({ page }) => {
   await nameEditor.fill("OUT");
   await page.getByRole("button", { name: "Apply text changes" }).click();
   await expect(page.getByTestId("status")).toContainText(
-    "Renamed Cell Pin to OUT",
+    "Renamed Cell Pin to O_UT",
   );
   await page.getByTestId("hit-P1").click();
   await expect(
     page.locator('[data-object-id="instance-label-P1"]'),
   ).toContainText("OUT");
-  await setCellTerminalDirection(page, "OUT", "input");
+  await setCellTerminalDirection(page, "O_UT", "input");
   await expect(page.getByTestId("status")).toContainText(
     "Updated Cell port direction",
   );
@@ -1236,7 +1236,7 @@ test("declares and places a Cell Pin on a new local Net", async ({ page }) => {
   await canvas.click({ position: { x: 420, y: 180 } });
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
-  await expect(canvas.locator('[data-pin-name="OUT"]')).toHaveCount(1);
+  await expect(canvas.locator('[data-pin-name="O_UT"]')).toHaveCount(1);
 
   await page.getByTestId("hit-X1").click();
   const layoutShelf = page.getByTestId("selection-shelf");
@@ -1250,7 +1250,7 @@ test("declares and places a Cell Pin on a new local Net", async ({ page }) => {
   await expect(page.getByTestId("status")).toContainText(
     "Resized ReusableStage",
   );
-  await layout.getByLabel("Cell symbol OUT pin side").selectOption("north");
+  await layout.getByLabel("Cell symbol O_UT pin side").selectOption("north");
   await expect(page.getByTestId("status")).toContainText(
     "Moved Cell symbol pin",
   );
@@ -1770,7 +1770,9 @@ test("allows distinct Cell Pins to expose one internal contact", async ({
   await canvas.click({ position: { x: 240, y: 200 } });
   // The existing Port is the visible current Net name, so a second Cell Pin
   // placed on the same contact adopts it while retaining independent identity.
-  await expect(page.getByTestId("status")).toContainText("Added Cell Pin Vin");
+  await expect(page.getByTestId("status")).toContainText(
+    "Added Cell Pin V_inp",
+  );
   await page.keyboard.press("Escape");
 
   await expect(page.getByTestId("hit-P1")).toBeVisible();
