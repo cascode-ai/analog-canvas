@@ -793,6 +793,44 @@ describe("CircuitProject schema", () => {
       AnnotationSchema.safeParse({ ...value, netId: "net-1" }).success,
     ).toBe(false);
   });
+  it("allows a named parameter label to hide its value only", () => {
+    const annotation = {
+      id: "instance-value-T1-l1",
+      kind: "instance-value" as const,
+      binding: {
+        kind: "instance-value" as const,
+        instanceId: "T1",
+        parameter: "l1",
+        showValue: false,
+      },
+      anchor: {
+        kind: "object" as const,
+        objectId: "T1",
+        localOffset: { x: 40, y: 0 },
+        fallbackPosition: { x: 140, y: 100 },
+      },
+      alignment: "start" as const,
+      rotation: 0 as const,
+      locked: false,
+    };
+    expect(AnnotationSchema.safeParse(annotation).success).toBe(true);
+    expect(
+      AnnotationSchema.safeParse({
+        ...annotation,
+        binding: { ...annotation.binding, showValue: true },
+      }).success,
+    ).toBe(false);
+    expect(
+      AnnotationSchema.safeParse({
+        ...annotation,
+        binding: {
+          kind: "instance-value",
+          instanceId: "T1",
+          showValue: false,
+        },
+      }).success,
+    ).toBe(false);
+  });
   it("accepts an optional presentation-only visible flag on annotations", () => {
     const project = createEmptyProject("project-visible", "Visible");
     const document = project.documents[0]!;

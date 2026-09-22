@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { displayableInstanceValue } from "./instance-value.js";
+import {
+  displayableInstanceParameter,
+  displayableInstanceValue,
+} from "./instance-value.js";
 
 function instance(
   symbolId: string,
@@ -36,6 +39,20 @@ const bold = (value: string) => ({
 });
 
 describe("displayableInstanceValue", () => {
+  it("can project a named magnetic parameter without exposing its value", () => {
+    const source = instance("tcoil", { l1: "L1" });
+    expect(displayableInstanceParameter(source, "l1")).toEqual({
+      kind: "displayable",
+      content: { runs: [bold("L1 = L1")] },
+    });
+    expect(
+      displayableInstanceParameter(source, "l1", { showValue: false }),
+    ).toEqual({
+      kind: "displayable",
+      content: { runs: [bold("L1")] },
+    });
+  });
+
   it("projects authored MOS dimensions without adding unit suffixes", () => {
     const result = displayableInstanceValue(
       instance("nmos", { w: "10u", l: "150n" }),

@@ -1714,17 +1714,46 @@ for (const symbol of ["xfmr", "tcoil"] as const) {
     await editor.press("Escape");
     await expect(editor).toHaveCount(0);
     await expect(label).toContainText(`${windingLabel} = 2.5n`);
+
     await hit.dblclick();
-    await editor.fill(`${windingLabel} =`);
-    await page.locator('[data-testid^="hit-"]').first().click();
-    await openSelectionShelf(page);
-    await editComponentPropertyCode(page, (code) => {
-      for (const key of Object.keys(code.display.parameters))
-        code.display.parameters[key] = false;
+    await editor.fill(windingLabel);
+    await editor.press("Enter");
+    await expect(editor).toHaveCount(0);
+    await expect(label).toHaveText(windingLabel);
+    const labelOnlySaved = parseSavedProject(
+      (await downloadBytes(page, "File", "Export Project File…")).toString(
+        "utf8",
+      ),
+    );
+    expect(
+      labelOnlySaved.documents[0].annotations.find(
+        (annotation: { id: string }) => annotation.id === id,
+      )?.binding,
+    ).toEqual({
+      kind: "instance-value",
+      instanceId: labelOnlySaved.documents[0].instances[0].id,
+      parameter: winding,
+      showValue: false,
+    });
+    expect(
+      labelOnlySaved.documents[0].instances[0].netlist.parameters[winding],
+    ).toBe("2.5n");
+
+    await hit.dblclick();
+    await editor.fill("");
+    await editor.press("Enter");
+    await expect(editor).toHaveCount(0);
+    await expect(label).toHaveCount(0);
+    await page.getByTestId("draw-tool-undo").click();
+    await expect(label).toHaveText(windingLabel);
+
+    await hit.dblclick();
+    await editor.fill("");
+    await page.getByTestId("schematic-canvas").click({
+      position: { x: 80, y: 80 },
     });
     await expect(label).toHaveCount(0);
     await expect(editor).toHaveCount(0);
-    await expectComponentCodeField(page, `parameters.${winding}`, "2.5n");
     const saved = parseSavedProject(
       (await downloadBytes(page, "File", "Export Project File…")).toString(
         "utf8",

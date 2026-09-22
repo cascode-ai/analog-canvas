@@ -74,6 +74,28 @@ describe("unified text editing", () => {
         },
       ],
     });
+    expect(edit("Value")).toMatchObject({
+      kind: "update",
+      beforeEdits: [
+        {
+          kind: "patch_instance_netlist_parameters",
+          instanceId: "R1",
+          set: { value: "Value" },
+        },
+      ],
+      edit: {
+        annotation: {
+          binding: { kind: "instance-value", instanceId: "R1" },
+        },
+      },
+    });
+    expect(edit("")).toMatchObject({
+      kind: "delete",
+      edit: {
+        kind: "remove_schematic_annotation",
+        annotationId: label.id,
+      },
+    });
     document.instances[0] = {
       id: "R1",
       symbolId: "nmos",

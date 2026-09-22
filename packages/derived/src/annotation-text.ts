@@ -55,7 +55,11 @@ export function resolveAnnotationText(
       );
       if (!instance) return EMPTY_TEXT;
       const display = binding.parameter
-        ? displayableInstanceParameter(instance, binding.parameter)
+        ? displayableInstanceParameter(
+            instance,
+            binding.parameter,
+            binding.showValue === false ? { showValue: false } : {},
+          )
         : displayableInstanceValue(instance);
       return display.kind === "displayable" ? display.content : EMPTY_TEXT;
     }

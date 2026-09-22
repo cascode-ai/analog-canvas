@@ -2,18 +2,20 @@
 
 Status: `accepted`
 
-Portable file schema: `60`; normalized editor model schema: `58`.
+Portable file schema: `61`; normalized editor model schema: `58`.
 
 Primary owner: `packages/project-protocol` (portable source and codec).
 `packages/model` validates the normalized editor indexes used by rendering,
 connectivity and transactions. The normalized indexes are decoded working data;
-serialization always writes the one schema-60 authoring representation.
+serialization always writes the one schema-61 authoring representation.
 
 An `.icproj.json` file contains a complete Project. The public `parseProject`
-boundary reads file schemas 24 through 60. Historical schemas pass through the
-existing explicit upgrades; schemas 59 and 60 decode through the owned-object codec. Schema 60 derives
-network membership from connection facts. Both return the same validated editor model. File/envelope metadata must
-use `CURRENT_PROJECT_FILE_VERSION`, not the internal model version.
+boundary reads file schemas 24 through 61. Historical schemas pass through the
+existing explicit upgrades; schemas 59 through 61 decode through the
+owned-object codec. Schema 60 introduced derived network membership from
+connection facts. Both return the same validated editor model. File/envelope
+metadata must use `CURRENT_PROJECT_FILE_VERSION`, not the internal model
+version.
 
 ## Instance-owned source
 
@@ -30,6 +32,9 @@ Attached name, value, parameter and literal labels live in that same instance's
 owner IDs. An anchor `{ "offset": [25, 0], "fallback": [225, 200] }` likewise
 inherits that owner. Unusual cross-object, free and route anchors stay explicit;
 conversion never guesses that a visual attachment changes a text binding.
+Named parameter bindings may set `"showValue": false` to draw only the live
+parameter label while retaining the electrical value. Omitting it draws the
+usual `label = value` presentation.
 Literal `text` and formatting `format` accept plain strings or complete RichText
 objects, retaining fractions, formulas, spans and line breaks. Every label has
 an `order` preserving the original annotation sequence across owned and free
@@ -119,7 +124,7 @@ atomic database snapshot. Separate local and private remote copies are retained.
 
 ## Included component definitions
 
-Schemas 58 through 60 save each referenced Symbol once in `componentDefinitions`.
+Schemas 58 through 61 save each referenced Symbol once in `componentDefinitions`.
 Portable `Instance.type` (decoded as `Instance.symbolId`) and drafting
 `floating-symbol.symbolId` reference these local classes. Each class contains
 the complete Symbol geometry, pins,
@@ -200,9 +205,9 @@ file codec preserves these contracts rather than redefining them.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project file schema 24 through 60
--> migrate old files or decode 59/60 -> strict model validation -> install unbound
-export -> validate -> encode file schema 60 -> readable canonical JSON -> download
+import text -> parse JSON -> require Project file schema 24 through 61
+-> migrate old files or decode 59/60/61 -> strict model validation -> install unbound
+export -> validate -> encode file schema 61 -> readable canonical JSON -> download
 ```
 
 An invalid candidate never replaces the current browser Project. File Resource
@@ -225,9 +230,9 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its `current` entries must all be
-already canonical Project file schema 60. Explicit `migrated` witnesses retain their
-source bytes and declared source version; loading and saving must produce a
-byte-stable current Project. The rejected corpus names expected validation
+already canonical Project file schema 61. Explicit `migrated` witnesses retain
+their source bytes and declared source version; loading and saving must produce
+a byte-stable current Project. The rejected corpus names expected validation
 failures. These are test inventory categories, not new Project fields.
 
 Viewport, selection, undo history, canvas overlays, Agent credentials,

@@ -105,7 +105,10 @@ function encodeLabel(
         ? "name"
         : binding.parameter === undefined
           ? "value"
-          : { parameter: binding.parameter };
+          : {
+              parameter: binding.parameter,
+              ...(binding.showValue === false ? { showValue: false } : {}),
+            };
   }
   return {
     ...rest,
@@ -130,6 +133,7 @@ function decodeLabel(
   defaults: ObjectValue,
   path: Path,
   owner?: unknown,
+  allowParameterShowValue = false,
 ): ObjectValue {
   const source = object(value, path);
   forbid(source, ["binding", "content", "formatOverride"], path);
@@ -153,13 +157,20 @@ function decodeLabel(
     Object.hasOwn(bind, "parameter")
   ) {
     const parameter = object(bind, [...path, "bind"]);
-    exactKeys(parameter, ["parameter"], [...path, "bind"]);
+    exactKeys(
+      parameter,
+      allowParameterShowValue ? ["parameter", "showValue"] : ["parameter"],
+      [...path, "bind"],
+    );
     if (typeof owner !== "string")
       fail([...path, "bind"], "A parameter label must belong to an instance");
+    if (parameter.showValue !== undefined && parameter.showValue !== false)
+      fail([...path, "bind", "showValue"], "showValue may only be false");
     binding = {
       kind: "instance-value",
       instanceId: owner,
       parameter: parameter.parameter,
+      ...(parameter.showValue === false ? { showValue: false } : {}),
     };
   }
   let anchor = object(rawAnchor, [...path, "anchor"]);
@@ -293,7 +304,10 @@ export function encodeProjectFile(project: CircuitProject): ObjectValue {
 }
 
 /** Decode once into the existing validated runtime model. Unknown fields stay errors. */
-export function decodeProjectFile(raw: ObjectValue): ObjectValue {
+export function decodeProjectFile(
+  raw: ObjectValue,
+  options: { allowParameterShowValue?: boolean } = {},
+): ObjectValue {
   if (raw.componentDefinitions !== undefined)
     array(raw.componentDefinitions, ["componentDefinitions"]);
   else if (
@@ -362,7 +376,13 @@ export function decodeProjectFile(raw: ObjectValue): ObjectValue {
         const labels: { order: number; label: ObjectValue }[] = [];
         const orders = new Set<number>();
         const addLabel = (value: unknown, labelPath: Path, owner?: unknown) => {
-          const label = decodeLabel(value, labelDefaults, labelPath, owner);
+          const label = decodeLabel(
+            value,
+            labelDefaults,
+            labelPath,
+            owner,
+            options.allowParameterShowValue === true,
+          );
           const order = object(value, labelPath).order as number;
           if (orders.has(order))
             fail(

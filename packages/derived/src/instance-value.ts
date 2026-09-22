@@ -79,10 +79,18 @@ export function magneticDisplayParameters(
 export function displayableInstanceParameter(
   instance: InstanceValueSource,
   name: string,
+  options: { showValue?: boolean } = {},
 ): InstanceValueDisplay {
   const parameter = deviceDescriptor(instance.symbolId)?.parameters.find(
     (candidate) => candidate.name.toLowerCase() === name.toLowerCase(),
   );
+  const label = parameter?.label ?? name;
+  if (options.showValue === false) {
+    return {
+      kind: "displayable",
+      content: boldDocument(label),
+    };
+  }
   const value = Object.entries(instance.netlist?.parameters ?? {})
     .find(([key]) => key.toLowerCase() === name.toLowerCase())?.[1]
     .trim();
@@ -90,7 +98,7 @@ export function displayableInstanceParameter(
     return { kind: "undisplayable", reason: `Parameter ${name} is empty` };
   return {
     kind: "displayable",
-    content: boldDocument(`${parameter?.label ?? name} = ${value}`),
+    content: boldDocument(`${label} = ${value}`),
   };
 }
 

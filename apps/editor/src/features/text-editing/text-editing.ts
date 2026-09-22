@@ -286,7 +286,15 @@ function proposeInstanceValueCommit(
     resolveAnnotationText(document, annotation),
   );
   const editedText = flattenRichText(session.content).trim();
+  if (session.contentEdited && !editedText) {
+    return {
+      kind: "delete",
+      edit: textDeletionEdit(session),
+      id: session.id,
+    };
+  }
   const beforeEdits: SchematicEdit[] = [];
+  let showValue = binding.showValue;
   if (session.contentEdited && editedText !== currentText.trim()) {
     if (!parameter)
       return {
@@ -294,13 +302,21 @@ function proposeInstanceValueCommit(
         message:
           "Edit compound component values in Properties. Escape cancels these text changes.",
       };
+    const label = definition?.label ?? parameter;
+    const labelOnly =
+      binding.parameter !== undefined &&
+      [parameter, label].some(
+        (name) => name?.toLowerCase() === editedText.toLowerCase(),
+      );
     let value = editedText;
     const assignment = /^([A-Za-z][A-Za-z0-9_]*)\s*=\s*(?![=])([\s\S]*)$/u.exec(
       value,
     );
-    if (assignment) {
+    if (labelOnly) {
+      showValue = false;
+    } else if (assignment) {
       if (
-        ![parameter, definition?.label].some(
+        ![parameter, label].some(
           (name) => name?.toLowerCase() === assignment[1]!.toLowerCase(),
         )
       )
@@ -309,25 +325,36 @@ function proposeInstanceValueCommit(
           message: `Edit ${definition?.label ?? parameter} using a value or ${definition?.label ?? parameter} = value. Escape cancels.`,
         };
       value = assignment[2]!.trim();
+      showValue = undefined;
+    } else {
+      showValue = undefined;
     }
-    if (!value)
+    if (!labelOnly && !value)
       return {
         kind: "blocked",
         message: "Enter a parameter value. Escape cancels these text changes.",
       };
-    const key =
-      Object.keys(instance.netlist.parameters).find(
-        (key) => key.toLowerCase() === parameter.toLowerCase(),
-      ) ?? parameter;
-    if (instance.netlist.parameters[key] !== value)
-      beforeEdits.push({
-        kind: "patch_instance_netlist_parameters",
-        instanceId: instance.id,
-        set: { [key]: value },
-      });
+    if (!labelOnly) {
+      const key =
+        Object.keys(instance.netlist.parameters).find(
+          (key) => key.toLowerCase() === parameter.toLowerCase(),
+        ) ?? parameter;
+      if (instance.netlist.parameters[key] !== value)
+        beforeEdits.push({
+          kind: "patch_instance_netlist_parameters",
+          instanceId: instance.id,
+          set: { [key]: value },
+        });
+    }
   }
+  const nextBinding = {
+    ...binding,
+    ...(showValue === false ? { showValue: false as const } : {}),
+  };
+  if (showValue !== false) delete nextBinding.showValue;
   if (
     !beforeEdits.length &&
+    JSON.stringify(binding) === JSON.stringify(nextBinding) &&
     (annotation.sizeScale ?? 1) === session.sizeScale &&
     annotation.alignment === session.alignment
   )
@@ -340,6 +367,7 @@ function proposeInstanceValueCommit(
       kind: "upsert_schematic_annotation",
       annotation: {
         ...annotation,
+        binding: nextBinding,
         sizeScale: session.sizeScale,
         alignment: session.alignment,
       },
