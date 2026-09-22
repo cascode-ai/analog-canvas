@@ -392,9 +392,19 @@ export class AgentSessionClient {
     request: AgentFileResourceRequest,
   ): Promise<AgentFileResourceResponse> {
     request = structuredClone(request);
-    return this.resourceRequest("files", request, (session) =>
-      this.http.files(session.sessionId, session.agentToken, request),
-    );
+    const changesProject =
+      request.operation === "simulation-input" &&
+      request.input.action === "update" &&
+      request.input.owner.kind === "project-folder";
+    try {
+      return await this.resourceRequest("files", request, (session) =>
+        this.http.files(session.sessionId, session.agentToken, request),
+      );
+    } finally {
+      // A lost response can still have committed source or circuit edits.
+      // Folder files share the Project revision used by cached Snapshots.
+      if (changesProject) this.cache.clear();
+    }
   }
 
   /** Publication progresses independently of short relay RPCs. Poll metadata only. */

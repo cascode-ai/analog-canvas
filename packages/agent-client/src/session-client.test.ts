@@ -31,6 +31,46 @@ async function freshClient(
 }
 
 describe("agent session client", () => {
+  it.each([false, true])(
+    "invalidates Project snapshots after file updates, uncertain=%s",
+    async (uncertain) => {
+      const { client, http } = await freshClient();
+      await client.connect("session-1.code");
+      await client.snapshot("main");
+      expect(client.cachedSnapshot("main")).not.toBeNull();
+      const files = vi.spyOn(http, "files");
+      if (uncertain) files.mockRejectedValueOnce(new Error("response lost"));
+      else files.mockResolvedValueOnce({ ok: true } as never);
+      const update = client.fileResource({
+        apiVersion: "3.0",
+        requestId: "update-source",
+        operation: "simulation-input",
+        input: {
+          action: "update",
+          owner: { kind: "project-folder", folderId: "folder" },
+          expectedRevision: 0,
+          writes: [{ path: "run.cir", text: "new" }],
+          removes: [],
+          patches: [],
+          circuitEdits: [],
+        },
+      });
+      if (uncertain) await expect(update).rejects.toThrow("response lost");
+      else await update;
+      expect(client.cachedSnapshot("main")).toBeNull();
+      const before = http.circuitCalls.length;
+      await client.snapshot("main");
+      expect(http.circuitCalls.length).toBe(before + 1);
+      files.mockResolvedValueOnce({ ok: true } as never);
+      await client.fileResource({
+        apiVersion: "3.0",
+        requestId: "list",
+        operation: "simulation-input",
+        input: { action: "list" },
+      });
+      expect(client.cachedSnapshot("main")).not.toBeNull();
+    },
+  );
   it("does not carry an offline request into a newly paired Project", async () => {
     const http = new FakeAgentHttp();
     const client = new AgentSessionClient({
