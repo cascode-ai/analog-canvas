@@ -329,6 +329,7 @@ function NameInput() {
       <input
         ref={input}
         aria-label={request.label}
+        autoComplete="off"
         value={value}
         aria-invalid={Boolean(error)}
         onChange={(e) => {

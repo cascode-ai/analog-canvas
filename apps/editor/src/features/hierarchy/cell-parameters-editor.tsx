@@ -48,6 +48,7 @@ function ParameterRow({
     <>
       <div className="cell-parameter-row" role="row">
         <input
+          autoComplete="off"
           aria-label={`Parameter ${parameter.name} name`}
           title={`${count} internal uses; ${overrides} instance overrides`}
           value={name}
@@ -60,6 +61,7 @@ function ParameterRow({
           }}
         />
         <input
+          autoComplete="off"
           aria-label={`Parameter ${parameter.name} default`}
           placeholder="No default"
           value={value}

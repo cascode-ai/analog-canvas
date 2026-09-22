@@ -174,6 +174,7 @@ export function AccountMenuView({
         {renaming ? (
           <input
             className="account-rename-input"
+            autoComplete="off"
             aria-label="Display name"
             data-testid="account-rename-input"
             value={draftName}

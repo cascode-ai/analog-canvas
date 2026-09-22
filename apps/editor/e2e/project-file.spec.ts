@@ -806,6 +806,7 @@ test("the circuit name drives Cloud Save and portable export", async ({
   await page.goto("/editor");
   await page.getByTestId("project-menu-toggle").click();
   const name = page.getByTestId("project-name-input");
+  await expect(name).toHaveAttribute("autocomplete", "off");
   await name.fill("Bandgap Reference");
   await name.press("Enter");
   const fileMenu = await openMenu(page, "File");

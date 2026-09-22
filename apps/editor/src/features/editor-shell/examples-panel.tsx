@@ -236,6 +236,7 @@ export function ExamplesPanel({
         {showGallery ? (
           <div className="examples-panel-controls">
             <input
+              autoComplete="off"
               type="search"
               className="examples-panel-search"
               value={searchQuery}

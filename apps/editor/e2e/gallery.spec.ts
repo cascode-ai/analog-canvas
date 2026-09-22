@@ -4717,6 +4717,13 @@ test("Shelf cards duplicate, rename, export and keep account favorites without e
   expect({ ...duplicate, id: source.id, name: source.name }).toEqual(source);
   await page.getByTestId("shelf-actions-copy").click();
   await page.getByRole("menuitem", { name: "Rename", exact: true }).click();
+  await expect(page.locator(".shelf-rename-form")).toHaveAttribute(
+    "autocomplete",
+    "off",
+  );
+  await expect(
+    page.getByRole("textbox", { name: "Project name", exact: true }),
+  ).toHaveAttribute("autocomplete", "off");
   await page
     .getByRole("textbox", { name: "Project name", exact: true })
     .fill("Experiment B");

@@ -28,6 +28,7 @@ function CellName({
   return (
     <input
       className="cell-manager-name"
+      autoComplete="off"
       aria-label="Cell name"
       value={draft}
       onChange={(event) => setDraft(event.currentTarget.value)}
@@ -685,6 +686,7 @@ export function CellManagerDialog({
               </section>
             ) : (
               <form
+                autoComplete="off"
                 className="editor-action-dialog"
                 role="dialog"
                 aria-modal="true"
@@ -705,6 +707,7 @@ export function CellManagerDialog({
                     <span>Cell name</span>
                     <input
                       id="cell-name-input"
+                      autoComplete="off"
                       autoFocus
                       value={draftName}
                       onChange={(event) =>

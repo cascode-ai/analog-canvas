@@ -70,6 +70,7 @@ export function SourceProbePicker({
         value={query}
         onChange={(e) => setQuery(e.currentTarget.value)}
         aria-label="Search signal"
+        autoComplete="off"
         placeholder="Search signal or enter an exact native vector…"
       />
       <div className="simulation-helper-options">

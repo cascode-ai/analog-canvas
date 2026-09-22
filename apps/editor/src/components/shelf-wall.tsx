@@ -374,6 +374,7 @@ export function ShelfWall() {
                 {renaming?.id === project.id ? (
                   <form
                     className="shelf-rename-form"
+                    autoComplete="off"
                     onSubmit={(event) => {
                       event.preventDefault();
                       void act(project, "rename", renaming.name);
@@ -388,6 +389,7 @@ export function ShelfWall() {
                   >
                     <input
                       aria-label="Project name"
+                      autoComplete="off"
                       autoFocus
                       maxLength={120}
                       value={renaming.name}

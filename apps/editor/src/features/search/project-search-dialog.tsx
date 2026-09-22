@@ -52,6 +52,7 @@ export function ProjectSearchDialog({
           ref={inputRef}
           data-testid="project-search-input"
           aria-label="Find in circuit"
+          autoComplete="off"
           value={query}
           placeholder="Instance, Net, port, property…"
           onChange={(event) => onQueryChange(event.currentTarget.value)}

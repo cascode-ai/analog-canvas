@@ -47,6 +47,7 @@ export function CellSymbolLayoutProperties({
           <input
             key={`${target.id}-${target.revision}-symbol-width`}
             aria-label="Cell symbol width"
+            autoComplete="off"
             defaultValue={String(bodySize?.width ?? 100)}
             inputMode="numeric"
             onBlur={(event) =>
@@ -62,6 +63,7 @@ export function CellSymbolLayoutProperties({
           <input
             key={`${target.id}-${target.revision}-symbol-height`}
             aria-label="Cell symbol height"
+            autoComplete="off"
             defaultValue={String(bodySize?.height ?? 60)}
             inputMode="numeric"
             onBlur={(event) =>
@@ -115,6 +117,7 @@ export function CellSymbolLayoutProperties({
                   <input
                     key={`${target.revision}-${terminal.id}-offset`}
                     aria-label={`Cell symbol ${terminal.name} pin offset`}
+                    autoComplete="off"
                     defaultValue={String(pinPlacement?.offset ?? 0)}
                     inputMode="numeric"
                     onBlur={(event) =>

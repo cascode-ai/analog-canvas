@@ -271,6 +271,7 @@ export function CanvasTextEditorOverlay({
           <input
             autoFocus
             className="inline-canvas-text-editor"
+            autoComplete="off"
             aria-label="Canvas text editor"
             data-editor-kind={session.plainTextKind}
             disabled={disabled}

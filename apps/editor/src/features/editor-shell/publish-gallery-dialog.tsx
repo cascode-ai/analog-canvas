@@ -289,6 +289,7 @@ export function PublishGalleryDialog({
                 </p>
                 <input
                   aria-label="Existing Gallery link"
+                  autoComplete="off"
                   placeholder="/g/…"
                   value={linkInput}
                   onChange={(event) => setLinkInput(event.currentTarget.value)}
@@ -364,6 +365,7 @@ export function PublishGalleryDialog({
                 <input
                   dir="auto"
                   aria-label="Circuit name"
+                  autoComplete="off"
                   value={name}
                   maxLength={120}
                   autoFocus
@@ -419,6 +421,7 @@ export function PublishGalleryDialog({
                 <input
                   dir="auto"
                   aria-label="Add tag"
+                  autoComplete="off"
                   placeholder="Type a tag and press Enter"
                   value={tagDraft}
                   maxLength={32}

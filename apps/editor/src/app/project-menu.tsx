@@ -92,6 +92,7 @@ export function ProjectMenu({
           <span>Circuit name</span>
           <input
             aria-label="Circuit name"
+            autoComplete="off"
             data-testid="project-name-input"
             value={nameDraft ?? name}
             onChange={(event) => onNameChange(event.currentTarget.value)}

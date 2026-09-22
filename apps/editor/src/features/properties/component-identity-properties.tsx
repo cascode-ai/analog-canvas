@@ -100,6 +100,7 @@ function ModelTargetControl({
             ref={customInput}
             dir="auto"
             aria-label="Custom model name"
+            autoComplete="off"
             value={customDraft}
             placeholder="Model name"
             onChange={(event) => setCustomDraft(event.currentTarget.value)}
@@ -223,6 +224,7 @@ export function ComponentIdentityProperties({
                     dir="auto"
                     key={`${instance.id}-${revision}-reference`}
                     aria-label="Netlist Reference"
+                    autoComplete="off"
                     defaultValue={reference}
                     onBlur={(event) =>
                       commitIdentityInput(event, reference, onReferenceChange)

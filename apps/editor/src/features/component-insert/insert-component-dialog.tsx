@@ -394,6 +394,7 @@ export function InsertComponentDialog({
         </header>
 
         <input
+          autoComplete="off"
           ref={inputRef}
           className="insert-quick-search"
           role="combobox"

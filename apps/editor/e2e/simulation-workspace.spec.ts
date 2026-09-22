@@ -2332,6 +2332,7 @@ test("inline naming commits once on blur, cancels on Escape, and deletion uses a
   const input = workspace.getByRole("textbox", {
     name: "New simulation folder name",
   });
+  await expect(input).toHaveAttribute("autocomplete", "off");
   await input.fill("Gamma");
   // Switching selection must not implicitly create an experiment.
   await workspace
@@ -2384,6 +2385,7 @@ test("inline naming commits once on blur, cancels on Escape, and deletion uses a
   const fileName = workspace.getByRole("textbox", {
     name: "Relative file path",
   });
+  await expect(fileName).toHaveAttribute("autocomplete", "off");
   await fileName.fill("run.cir");
   await fileName.press("Enter");
   await expect(fileName).toHaveAttribute("aria-invalid", "true");

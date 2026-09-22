@@ -94,6 +94,7 @@ export function GalleryTagSidebar({
       <div className="gallery-sidebar-search">
         <input
           className="gallery-search-input"
+          autoComplete="off"
           type="search"
           value={search}
           placeholder="Name, author, tag…"

@@ -137,6 +137,7 @@ export default function UserComponentsLibrary({
         <input
           ref={searchRef}
           aria-label="Search User Defined components"
+          autoComplete="off"
           className="user-components-search"
           placeholder="Find a component…"
           value={query}

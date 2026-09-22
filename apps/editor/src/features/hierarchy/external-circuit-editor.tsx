@@ -63,6 +63,7 @@ export function ExternalCircuitEditor({
           Target
           <input
             aria-label="External subcircuit target"
+            autoComplete="off"
             placeholder="amplifier"
             value={externalName}
             readOnly={Boolean(reviewed)}
@@ -73,6 +74,7 @@ export function ExternalCircuitEditor({
           Ordered terminals
           <input
             aria-label="External subcircuit terminals"
+            autoComplete="off"
             placeholder="INP, INN, OUT"
             value={externalTerminals}
             readOnly={Boolean(reviewed)}
@@ -85,6 +87,7 @@ export function ExternalCircuitEditor({
           Formal parameters
           <input
             aria-label="External subcircuit formal parameters"
+            autoComplete="off"
             placeholder="gain=10, bias"
             value={externalParameters}
             readOnly={Boolean(reviewed)}

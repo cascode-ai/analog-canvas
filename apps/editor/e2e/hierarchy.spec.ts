@@ -48,6 +48,11 @@ async function createCell(
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager.getByRole("button", { name: "New Cell" }).click();
   const editor = page.getByRole("dialog", { name: "New Cell" });
+  await expect(editor).toHaveAttribute("autocomplete", "off");
+  await expect(editor.getByLabel("Cell name")).toHaveAttribute(
+    "autocomplete",
+    "off",
+  );
   await editor.getByLabel("Cell name").fill(name);
   await editor.getByRole("button", { name: "Create" }).click();
 }
@@ -1141,6 +1146,9 @@ test("manages Cell rename and lists callers", async ({ page }) => {
     .getByRole("button", { name: /ReusableStage.*1 callers/u })
     .click();
   await expect(manager).toContainText("1 callers");
+  await expect(
+    manager.getByLabel("Cell name", { exact: true }),
+  ).toHaveAttribute("autocomplete", "off");
   await manager.getByLabel("Cell name", { exact: true }).fill("Cancelled");
   await manager.getByLabel("Cell name", { exact: true }).press("Escape");
   await expect(manager.getByLabel("Cell name", { exact: true })).toHaveValue(
