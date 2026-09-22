@@ -406,6 +406,99 @@ test("Gallery navigation uses the replacement decision without a second browser 
   await expect(page.getByTestId("hit-R1")).toHaveCount(0);
 });
 
+test("File deletion stays inline, bounded and retryable without native dialogs", async ({
+  page,
+}) => {
+  const name = "LongCircuitName".repeat(7);
+  const summary = {
+    id: "delete-target",
+    name,
+    revision: 1,
+    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+    updatedAt: "2026-09-22T00:00:00Z",
+  };
+  let deleted = false;
+  let attempts = 0;
+  let release!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const dialogs: string[] = [];
+  page.on("dialog", (dialog) => {
+    dialogs.push(dialog.type());
+    void dialog.dismiss();
+  });
+  await page.route("**/api/projects", (route) =>
+    route.fulfill({ json: { projects: deleted ? [] : [summary] } }),
+  );
+  await page.route("**/api/projects/delete-target", async (route) => {
+    attempts++;
+    if (attempts === 1) {
+      await waiting;
+      await route.fulfill({
+        status: 503,
+        json: { error: "Temporarily unavailable" },
+      });
+    } else {
+      deleted = true;
+      await route.fulfill({ json: { deleted: true } });
+    }
+  });
+  await page.setViewportSize({ width: 360, height: 500 });
+  await page.goto("/editor?new=1");
+  await openMenu(page, "File");
+  const trigger = page.getByRole("button", {
+    name: `Delete Cloud Project ${name}`,
+    exact: true,
+  });
+  await trigger.click();
+  await expect(
+    page.getByRole("button", { name: "Keep it", exact: true }),
+  ).toBeFocused();
+  expect(attempts).toBe(0);
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  for (const width of [360, 320]) {
+    await expect(page.locator(".inline-confirm-decision")).toHaveText(
+      "Really deleteKeep it",
+    );
+    await page.setViewportSize({ width, height: 400 });
+    await expect
+      .poll(async () =>
+        page.locator("[data-inline-confirm-menu]").evaluate((menu) => {
+          const rect = menu.getBoundingClientRect();
+          return (
+            rect.left >= 0 &&
+            rect.top >= 0 &&
+            rect.right <= innerWidth &&
+            rect.bottom <= innerHeight
+          );
+        }),
+      )
+      .toBe(true);
+  }
+  await page.screenshot({ path: "plan/inline-file-delete-narrow.png" });
+  await page
+    .getByRole("button", { name: "Really delete", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Working…", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Keep it", exact: true }),
+  ).toBeDisabled();
+  release();
+  await expect(page.locator(".inline-confirm [role=alert]")).toBeVisible();
+  expect(attempts).toBe(1);
+  await page
+    .getByRole("button", { name: "Really delete", exact: true })
+    .click();
+  await expect(trigger).toHaveCount(0);
+  expect(attempts).toBe(2);
+  expect(dialogs).toEqual([]);
+});
+
 test("imports and upgrades a portable Project before explicit export", async ({
   page,
 }) => {

@@ -1087,6 +1087,7 @@ test("the Owner rejects a Gallery entry with an author-visible reason", async ({
 test("the Owner withdraws a Gallery entry into the recycle bin", async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 360, height: 500 });
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({
       json: {
@@ -1113,8 +1114,25 @@ test("the Owner withdraws a Gallery entry into the recycle bin", async ({
     .getByTestId(`gallery-owner-menu-${ENTRY.id}`)
     .locator("summary")
     .click();
-  page.once("dialog", (dialog) => void dialog.accept());
   await page.getByTestId(`gallery-owner-withdraw-${ENTRY.id}`).click();
+  expect(withdrawn).toBe(0);
+  await expect
+    .poll(async () =>
+      page.locator(".gallery-owner-popover").evaluate((menu) => {
+        const rect = menu.getBoundingClientRect();
+        return (
+          rect.left >= 0 &&
+          rect.right <= innerWidth &&
+          rect.top >= 0 &&
+          rect.bottom <= innerHeight
+        );
+      }),
+    )
+    .toBe(true);
+  await page.screenshot({ path: "plan/inline-gallery-withdraw-narrow.png" });
+  await page
+    .getByRole("button", { name: "Really withdraw", exact: true })
+    .click();
 
   await expect(page.getByTestId(`gallery-tile-${ENTRY.id}`)).toHaveCount(0);
   await expect(page.getByTestId("gallery-owner-notice")).toContainText(
@@ -2789,15 +2807,16 @@ test("the Owner restores rejected work or moves it through the bin before deleti
   await expect(page.getByTestId("rejected-empty")).toBeVisible();
   await expect(page.getByTestId("bin-card-rejected-delete")).toBeVisible();
 
-  page.once("dialog", (dialog) => void dialog.dismiss());
   await page.getByTestId("bin-menu-rejected-delete").locator("summary").click();
   await page.getByTestId("bin-delete-rejected-delete").click();
+  await page.getByRole("button", { name: "Keep it", exact: true }).click();
   expect(deleted).toBe(0);
   await expect(page.getByTestId("bin-card-rejected-delete")).toBeVisible();
 
-  page.once("dialog", (dialog) => void dialog.accept());
-  await page.getByTestId("bin-menu-rejected-delete").locator("summary").click();
   await page.getByTestId("bin-delete-rejected-delete").click();
+  await page
+    .getByRole("button", { name: "Really delete", exact: true })
+    .click();
   await expect(page.getByTestId("bin-empty")).toBeVisible();
   expect(deleted).toBe(1);
 });
@@ -3630,13 +3649,15 @@ test("an author deletes their own entry from My submissions", async ({
   await expect(remove).toBeVisible();
 
   // Irreversible, so it asks first; declining leaves the entry alone.
-  page.once("dialog", (dialog) => void dialog.dismiss());
   await remove.click();
+  await page.getByRole("button", { name: "Keep it", exact: true }).click();
   expect(methods).toHaveLength(0);
   await expect(remove).toBeVisible();
 
-  page.once("dialog", (dialog) => void dialog.accept());
   await remove.click();
+  await page
+    .getByRole("button", { name: "Really delete", exact: true })
+    .click();
   await expect(page.getByTestId("mine-notice")).toContainText("Deleted");
   await expect(page.getByTestId("mine-delete-mine-9")).toHaveCount(0);
   expect(methods).toEqual(["DELETE"]);
@@ -4630,6 +4651,10 @@ test("Shelf cards duplicate, rename, export and keep account favorites without e
           ? { project: saved.get(id) }
           : { projects: [...saved.values()] },
       });
+    if (req.method() === "DELETE") {
+      saved.delete(id!);
+      return route.fulfill({ json: { deleted: true } });
+    }
     const fields = req.postDataJSON();
     if (req.method() === "PATCH") {
       saved.get(id!)!.favorite = fields.favorite;
@@ -4691,8 +4716,11 @@ test("Shelf cards duplicate, rename, export and keep account favorites without e
   expect(duplicate.id).not.toBe(source.id);
   expect({ ...duplicate, id: source.id, name: source.name }).toEqual(source);
   await page.getByTestId("shelf-actions-copy").click();
-  page.once("dialog", (dialog) => dialog.accept("Experiment B"));
   await page.getByRole("menuitem", { name: "Rename", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Project name", exact: true })
+    .fill("Experiment B");
+  await page.getByRole("button", { name: "Save name", exact: true }).click();
   await expect(page.getByTestId("shelf-tile-copy")).toContainText(
     "Experiment B",
   );
@@ -4725,6 +4753,32 @@ test("Shelf cards duplicate, rename, export and keep account favorites without e
   await tile.dispatchEvent("pointerup", { pointerType: "touch" });
   await expect(page.getByRole("menu")).toHaveCount(0);
   await expect(page).toHaveURL(/view=shelf/);
+  await page.setViewportSize({ width: 360, height: 600 });
+  await page.getByTestId("shelf-actions-copy").click();
+  await page.getByRole("menuitem", { name: "Rename", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Project name", exact: true })
+    .fill("VeryLongCircuitName".repeat(6));
+  expect(
+    await page
+      .locator(".shelf-rename-form")
+      .evaluate((form) => form.scrollWidth <= form.clientWidth),
+  ).toBe(true);
+  await page.screenshot({ path: "plan/inline-shelf-rename-narrow.png" });
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("shelf-actions-copy")).toBeFocused();
+  expect(saved.get("copy")!.name).toBe("Experiment B");
+  await page.getByTestId("shelf-delete-copy").click();
+  await page.getByRole("button", { name: "Keep it", exact: true }).click();
+  await expect(page.getByTestId("shelf-delete-copy")).toBeFocused();
+  expect(saved.has("copy")).toBe(true);
+  await page.getByTestId("shelf-delete-copy").click();
+  await page.screenshot({ path: "plan/inline-shelf-delete-narrow.png" });
+  await page
+    .getByRole("button", { name: "Really delete", exact: true })
+    .click();
+  await expect(page.getByTestId("shelf-tile-copy")).toHaveCount(0);
+  expect(saved.has("copy")).toBe(false);
 });
 
 test("Gallery history compares components and branches without changing the source publication", async ({

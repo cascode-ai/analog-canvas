@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { TilePreview } from "./tile-preview";
+import { InlineConfirm } from "./inline-confirm";
 import "../styles/gallery-entry.css";
 
 import {
@@ -87,7 +88,7 @@ function GalleryOwnerMenu({
 }: {
   entry: GalleryFeedEntry;
   busy: boolean;
-  onWithdraw: () => void;
+  onWithdraw: () => void | Promise<void>;
 }) {
   return (
     <details
@@ -100,21 +101,21 @@ function GalleryOwnerMenu({
       >
         ⋯
       </summary>
-      <div className="gallery-owner-popover">
+      <div className="gallery-owner-popover" data-inline-confirm-menu>
         <a
           href={`/g/${entry.id}`}
           data-testid={`gallery-owner-edit-${entry.id}`}
         >
           Edit and replace
         </a>
-        <button
-          type="button"
+        <InlineConfirm
           disabled={busy}
           data-testid={`gallery-owner-withdraw-${entry.id}`}
-          onClick={onWithdraw}
+          confirmLabel="Really withdraw"
+          onConfirm={onWithdraw}
         >
           Withdraw
-        </button>
+        </InlineConfirm>
       </div>
     </details>
   );
@@ -889,7 +890,6 @@ export function GalleryFeed({
   }
 
   async function withdrawEntry(entry: GalleryFeedEntry): Promise<void> {
-    if (!window.confirm(`Withdraw “${entry.name}” from the Gallery?`)) return;
     setOwnerBusy(entry.id);
     setOwnerNotice(null);
     try {
@@ -903,6 +903,7 @@ export function GalleryFeed({
       setOwnerNotice(`“${entry.name}” was moved to the recycle bin.`);
     } catch {
       setOwnerNotice(`Could not withdraw “${entry.name}”.`);
+      throw new Error("Could not withdraw this entry. Try again.");
     } finally {
       setOwnerBusy(null);
     }
@@ -1344,7 +1345,7 @@ export function GalleryFeed({
                               <GalleryOwnerMenu
                                 entry={entry}
                                 busy={ownerBusy === entry.id}
-                                onWithdraw={() => void withdrawEntry(entry)}
+                                onWithdraw={() => withdrawEntry(entry)}
                               />
                             </>
                           ) : null}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { InlineConfirm } from "./inline-confirm";
 import "../styles/gallery-entry.css";
 
 import {
@@ -162,20 +163,13 @@ export function MySubmissions() {
   }
 
   async function remove(entry: MineEntry): Promise<void> {
-    if (
-      !window.confirm(
-        `Delete "${entry.name}" permanently? This cannot be undone.`,
-      )
-    ) {
-      return;
-    }
     setBusy(entry.id);
     setNotice(null);
     const ok = await deleteMyEntry(entry.id);
     setBusy(null);
     if (!ok) {
       setNotice(`Could not delete "${entry.name}".`);
-      return;
+      throw new Error(`Could not delete "${entry.name}". Try again.`);
     }
     setNotice(`Deleted "${entry.name}".`);
     announceGalleryChange({ entryId: entry.id });
@@ -245,15 +239,14 @@ export function MySubmissions() {
                     {/* Withdrawing hides an entry and keeps it; deleting is
                         the author saying they are done with it, and returns
                         the day's publish slot. */}
-                    <button
-                      type="button"
+                    <InlineConfirm
                       className="account-link mine-card-delete"
                       data-testid={`mine-delete-${entry.id}`}
                       disabled={busy === entry.id}
-                      onClick={() => void remove(entry)}
+                      onConfirm={() => remove(entry)}
                     >
                       Delete
-                    </button>
+                    </InlineConfirm>
                     {entry.status === "recycled" && !entry.rejectReason ? (
                       <button
                         type="button"

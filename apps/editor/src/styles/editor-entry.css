@@ -3,6 +3,7 @@
  * React modules, so opening a dialog cannot change the cascade order.
  */
 @import "./editor-chrome.css";
+@import "../components/inline-confirm.css";
 @import "./editor-workspace.css";
 @import "./editor-inspection.css";
 @import "./editor-overlays.css";

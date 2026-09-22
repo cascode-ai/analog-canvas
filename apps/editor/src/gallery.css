@@ -1266,6 +1266,39 @@ div.gallery-contributor-status {
   opacity: 0.5;
   cursor: default;
 }
+.gallery-tile-wrap > .inline-confirm {
+  margin-top: 6px;
+}
+.shelf-rename-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-block: 8px;
+  min-width: 0;
+}
+.shelf-rename-form input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  border: 1px solid var(--icm-border);
+  border-radius: 4px;
+  font: inherit;
+}
+.shelf-rename-form button {
+  padding: 4px 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: 4px;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  cursor: pointer;
+}
+.gallery-owner-popover {
+  min-width: 0;
+  width: min(12rem, calc(100vw - 32px));
+}
 
 /* The Gallery has one search field for circuit names, authors and tags. */
 .gallery-search-input {

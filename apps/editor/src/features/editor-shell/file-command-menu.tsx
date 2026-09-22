@@ -10,6 +10,7 @@ import {
   CLOUD_PROJECT_LIMIT,
   type CloudProjectSummary,
 } from "./cloud-projects";
+import { InlineConfirm } from "../../components/inline-confirm";
 
 export interface FileCommandMenuProps {
   projectStoreLabel: "Cloud Projects" | "Preview Projects";
@@ -24,7 +25,7 @@ export interface FileCommandMenuProps {
   onSave: () => void;
   onRefreshCloudProjects: () => void;
   onOpenCloudProject: (project: CloudProjectSummary) => void;
-  onDeleteCloudProject: (project: CloudProjectSummary) => void;
+  onDeleteCloudProject: (project: CloudProjectSummary) => void | Promise<void>;
   onImportProject: (file: File | null) => void;
   onImportSpice: (
     files: FileList | null,
@@ -126,6 +127,7 @@ export function FileCommandMenu({
   onRevert,
   onOpenRecovery,
 }: FileCommandMenuProps) {
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [openSubmenu, setOpenSubmenu] = useState<"import" | "export" | null>(
     null,
   );
@@ -146,7 +148,7 @@ export function FileCommandMenu({
       }}
     >
       <summary>File</summary>
-      <div className="command-popover">
+      <div className="command-popover" data-inline-confirm-menu>
         <button type="button" onClick={onNewProject}>
           New Project
         </button>
@@ -183,15 +185,20 @@ export function FileCommandMenu({
                 })}
               </time>
             </button>
-            <button
-              type="button"
+            <InlineConfirm
               aria-label={`Delete ${projectStoreItemLabel} ${project.name}`}
               title={`Delete this ${projectStoreItemLabel}`}
               disabled={project.id === activeCloudProjectId}
-              onClick={() => onDeleteCloudProject(project)}
+              open={deletingId === project.id}
+              onOpenChange={(open) =>
+                setDeletingId((current) =>
+                  open ? project.id : current === project.id ? null : current,
+                )
+              }
+              onConfirm={() => onDeleteCloudProject(project)}
             >
               Delete
-            </button>
+            </InlineConfirm>
           </div>
         ))}
         <div>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { InlineConfirm } from "./inline-confirm";
 import "../styles/gallery-entry.css";
 import "../styles/moderation.css";
 
@@ -119,6 +120,7 @@ function EntryMenu({
       </summary>
       <div
         className="moderation-entry-popover"
+        data-inline-confirm-menu
         role="menu"
         aria-label={`Actions for ${entry.name}`}
       >
@@ -131,16 +133,27 @@ function EntryMenu({
         >
           Restore to Gallery
         </button>
-        <button
-          type="button"
-          role="menuitem"
-          disabled={disabled}
-          className={kind === "recycled" ? "moderation-delete" : undefined}
-          data-testid={`${prefix}-${kind === "rejected" ? "recycle" : "delete"}-${entry.id}`}
-          onClick={() => act(kind === "rejected" ? "recycle" : "delete")}
-        >
-          {kind === "rejected" ? "Move to recycle bin" : "Delete forever"}
-        </button>
+        {kind === "recycled" ? (
+          <InlineConfirm
+            role="menuitem"
+            disabled={disabled}
+            className="moderation-delete"
+            data-testid={`${prefix}-delete-${entry.id}`}
+            onConfirm={() => act("delete")}
+          >
+            Delete forever
+          </InlineConfirm>
+        ) : (
+          <button
+            type="button"
+            role="menuitem"
+            disabled={disabled}
+            data-testid={`${prefix}-recycle-${entry.id}`}
+            onClick={() => act("recycle")}
+          >
+            Move to recycle bin
+          </button>
+        )}
       </div>
     </details>
   );
@@ -190,11 +203,6 @@ function ModerationCollection({
 
   async function act(id: string, action: EntryAction) {
     if (busy) return;
-    if (
-      action === "delete" &&
-      !window.confirm("Delete this entry forever? This cannot be undone.")
-    )
-      return;
     setBusy(id);
     setActionError(null);
     try {

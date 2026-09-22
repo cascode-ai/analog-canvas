@@ -161,14 +161,7 @@ export function useProjectTabs<Session>(options: {
     },
     close: async (id: string, createEmpty: () => Session) => {
       if (transitioning.current) return;
-      const description = describe(id);
-      if (
-        description.dirty &&
-        !window.confirm(
-          `Close “${description.name}” without saving? Its browser recovery copy is retained.`,
-        )
-      )
-        return;
+      // The tab strip owns the inline user decision before invoking close.
       if (id !== active.current) {
         sessions.current.delete(id);
         setIds((previous) => previous.filter((candidate) => candidate !== id));

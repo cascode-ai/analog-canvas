@@ -6,6 +6,19 @@
   border-top: 1px solid var(--icm-border);
   background: var(--icm-surface-muted);
 }
+.project-tabs-workspace {
+  min-width: 0;
+  max-width: 100vw;
+}
+.project-tab-close-decision {
+  box-sizing: border-box;
+  max-width: 100vw;
+  white-space: normal;
+  padding: 6px 10px;
+  border-top: 1px solid var(--icm-border);
+  background: var(--icm-surface-muted);
+  min-width: 0;
+}
 .project-tabs [role="tablist"] {
   display: flex;
   flex: 1;

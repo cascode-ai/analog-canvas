@@ -1,0 +1,68 @@
+.inline-confirm {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: middle;
+}
+.inline-confirm > [hidden] {
+  display: none !important;
+}
+[data-inline-confirm-menu] > .inline-confirm {
+  width: 100%;
+}
+.inline-confirm-decision {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+.inline-confirm-error {
+  min-width: 0;
+  max-width: 100%;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.inline-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+.inline-confirm .inline-confirm-actions button {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+  padding: 4px 7px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.inline-confirm .inline-confirm-actions .inline-confirm-danger {
+  color: #b3443b;
+  background: rgb(179 68 59 / 7%);
+}
+.inline-confirm .inline-confirm-actions button:hover {
+  background: rgb(127 127 127 / 12%);
+}
+.inline-confirm .inline-confirm-actions button:focus-visible {
+  outline: 2px solid var(--icm-accent, #53778b);
+  outline-offset: 1px;
+}
+.inline-confirm .inline-confirm-actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}

@@ -777,6 +777,12 @@
   min-width: 0;
   max-width: 100%;
 }
+.cloud-project-command:has(.inline-confirm[data-expanded]) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.cloud-project-command > .inline-confirm {
+  align-self: center;
+}
 
 .command-popover .cloud-project-open {
   display: grid;

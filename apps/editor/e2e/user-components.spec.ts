@@ -320,9 +320,11 @@ test("create, live preview, public sharing, standard insertion and administrator
     await expect(
       administrator.getByText("Promoted to an official component."),
     ).toBeVisible();
-    administrator.once("dialog", (dialog) => dialog.accept());
     await administrator
       .getByRole("button", { name: "Delete component", exact: true })
+      .click();
+    await administrator
+      .getByRole("button", { name: "Really delete", exact: true })
       .click();
     await expect(
       administrator.getByText("Removed from the library."),
@@ -390,8 +392,15 @@ test("anonymous creation cannot save privately, and invalid code leaves the circ
     });
     await code.fill("{");
     await expect(page.getByRole("alert")).toBeVisible();
-    page.once("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: "Close component editor" }).click();
+    await page
+      .getByRole("button", { name: "Keep editing", exact: true })
+      .click();
+    await expect(code).toContainText("{");
+    await page.getByRole("button", { name: "Close component editor" }).click();
+    await page
+      .getByRole("button", { name: "Discard changes", exact: true })
+      .click();
     expect((await readProject(page)).documents[0]!.instances).toHaveLength(0);
   } finally {
     service.close();

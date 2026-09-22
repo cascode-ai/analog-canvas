@@ -57,6 +57,9 @@ export function useCircuitClipboard(options: Options) {
         owner.setStatus(
           "Circuit copied · click to place · R rotates · Esc cancels",
         );
+        // Direct C is an internal placement gesture, not a request to access
+        // the OS clipboard. Ctrl/Cmd+C remains the cross-window copy path.
+        return;
       }
       try {
         await navigator.clipboard.writeText(text);
@@ -85,16 +88,14 @@ export function useCircuitClipboard(options: Options) {
     if (!owner.enabled) return;
     try {
       let text: string;
-      if (localClipboard && !localClipboard.synced) text = localClipboard.text;
+      // Plain V/menu paste is an in-app operation. Native Ctrl/Cmd+V owns
+      // system clipboard imports, so internal Cell transfers need no permission.
+      if (localClipboard) text = localClipboard.text;
       else {
         try {
           text = await navigator.clipboard.readText();
         } catch {
-          if (!localClipboard)
-            throw new Error(
-              "Use Ctrl/Cmd+V to paste from the system clipboard",
-            );
-          text = localClipboard.text;
+          throw new Error("Use Ctrl/Cmd+V to paste from the system clipboard");
         }
       }
       // A permission prompt/read must not paste into a subsequently opened project.
@@ -171,6 +172,7 @@ export function useCircuitClipboard(options: Options) {
         const clipboard = decodeCircuitClipboard(text);
         if (!clipboard) return;
         event.preventDefault();
+        localClipboard = { text, synced: true };
         options.beginPaste(clipboard);
       } catch (error) {
         event.preventDefault();

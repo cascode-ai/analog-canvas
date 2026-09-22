@@ -4425,7 +4425,7 @@ function WorkspaceEditor({
       if (
         event.target instanceof Element &&
         event.target.closest(
-          ".simulation-code-workspace, [data-workspace-interaction]",
+          ".simulation-code-workspace, [data-workspace-interaction], .inline-confirm",
         )
       )
         return;
@@ -5453,14 +5453,7 @@ function WorkspaceEditor({
           onOpenCloudProject: (summary) =>
             void openCloudProjectById(summary.id),
           onDeleteCloudProject: (summary) => {
-            if (
-              !window.confirm(
-                `Delete ${projectStore.singular} "${summary.name}"?`,
-              )
-            ) {
-              return;
-            }
-            void deleteCloudProject(summary.id).then((outcome) => {
+            return deleteCloudProject(summary.id).then((outcome) => {
               if (outcome.status === "deleted") {
                 cloudListMutationRef.current += 1;
                 setCloudProjects(outcome.projects);
@@ -5470,6 +5463,7 @@ function WorkspaceEditor({
               setStatus(
                 `Could not delete ${projectStore.singular} (${outcome.message})`,
               );
+              throw new Error(outcome.message);
             });
           },
           onImportProject: (file) => void openProjectFile(file),

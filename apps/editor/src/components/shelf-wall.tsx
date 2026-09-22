@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TilePreview } from "./tile-preview";
+import { InlineConfirm } from "./inline-confirm";
 
 import {
   CLOUD_PROJECT_LIMIT,
@@ -61,6 +62,9 @@ export function ShelfWall() {
   const [state, setState] = useState<ShelfState>({ status: "loading" });
   const [history, setHistory] = useState<CloudProjectSummary | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(
+    null,
+  );
 
   const [error, setError] = useState<string | null>(null);
   const [menu, setMenu] = useState<{
@@ -175,12 +179,15 @@ export function ShelfWall() {
   async function act(
     project: CloudProjectSummary,
     action: "duplicate" | "rename" | "export" | "favorite",
+    renamed?: string,
   ) {
     setMenu(null);
     if (busyId) return;
-    const name =
-      action === "rename" ? window.prompt("Project name", project.name) : null;
-    if (action === "rename" && (name === null || name === project.name)) return;
+    const name = renamed?.trim();
+    if (action === "rename" && (!name || name === project.name)) {
+      setRenaming(null);
+      return;
+    }
     setBusyId(project.id);
     setError(null);
     try {
@@ -205,8 +212,12 @@ export function ShelfWall() {
             ? { kind: "rename", name: name! }
             : { kind: "duplicate" },
         );
-        if (result.status === "saved") replaceSummary(result.project);
-        else
+        if (result.status === "saved") {
+          replaceSummary(result.project);
+          setRenaming(null);
+          if (action === "rename")
+            requestAnimationFrame(() => menuButtonRef.current?.focus());
+        } else
           throw new Error(
             result.status === "conflict"
               ? "This Project changed in another tab. Refresh your shelf and try again; no changes were overwritten."
@@ -243,16 +254,15 @@ export function ShelfWall() {
 
   async function removeProject(project: CloudProjectSummary): Promise<void> {
     if (busyId) return;
-    const confirmed = window.confirm(
-      `Delete “${project.name}” from your shelf? This cannot be undone.`,
-    );
-    if (!confirmed) return;
     setBusyId(project.id);
     const outcome = await deleteCloudProject(project.id);
     setBusyId(null);
     if (outcome.status === "deleted") {
       setState({ status: "ready", projects: outcome.projects });
-    } else setError(outcome.message);
+    } else {
+      setError(outcome.message);
+      throw new Error(outcome.message);
+    }
   }
 
   if (state.status === "loading") {
@@ -361,16 +371,61 @@ export function ShelfWall() {
                 >
                   •••
                 </button>
-                <button
-                  type="button"
+                {renaming?.id === project.id ? (
+                  <form
+                    className="shelf-rename-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void act(project, "rename", renaming.name);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape" && busyId === null) {
+                        event.preventDefault();
+                        setRenaming(null);
+                        menuButtonRef.current?.focus();
+                      }
+                    }}
+                  >
+                    <input
+                      aria-label="Project name"
+                      autoFocus
+                      maxLength={120}
+                      value={renaming.name}
+                      disabled={busyId !== null}
+                      onChange={(event) =>
+                        setRenaming({
+                          id: project.id,
+                          name: event.target.value,
+                        })
+                      }
+                    />
+                    <button
+                      type="submit"
+                      disabled={busyId !== null || !renaming.name.trim()}
+                    >
+                      Save name
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busyId !== null}
+                      onClick={() => {
+                        setRenaming(null);
+                        menuButtonRef.current?.focus();
+                      }}
+                    >
+                      Keep it
+                    </button>
+                  </form>
+                ) : null}
+                <InlineConfirm
                   className="shelf-tile-delete"
                   data-testid={`shelf-delete-${project.id}`}
                   aria-label={`Delete ${project.name} from your shelf`}
                   disabled={busyId !== null}
-                  onClick={() => void removeProject(project)}
+                  onConfirm={() => removeProject(project)}
                 >
                   Delete
-                </button>
+                </InlineConfirm>
               </div>
             ),
           }))}
@@ -448,7 +503,10 @@ export function ShelfWall() {
             role="menuitem"
             type="button"
             disabled={busyId !== null}
-            onClick={() => void act(menu.project, "rename")}
+            onClick={() => {
+              setRenaming({ id: menu.project.id, name: menu.project.name });
+              setMenu(null);
+            }}
           >
             Rename
           </button>

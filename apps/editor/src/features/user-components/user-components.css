@@ -179,6 +179,7 @@
   gap: 12px;
 }
 .component-definition-actions {
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;
