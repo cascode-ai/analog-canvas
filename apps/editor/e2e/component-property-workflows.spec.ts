@@ -259,6 +259,10 @@ for (const platform of ["native", "Win32", "Linux x86_64"])
         selection.addRange(range);
         (line.closest('[contenteditable="true"]') as HTMLElement).focus();
       });
+    // These keystrokes form one typing burst. Keep the transaction clock fixed
+    // so waiting for live rendering on a busy runner cannot split CodeMirror's
+    // 500 ms undo group between "EV" and "x". Browser timers still run normally.
+    await page.clock.setFixedTime(new Date());
     await page.keyboard.type("EV", { delay: 80 });
     const value = page.locator(
       '[data-layer="formal"] [data-object-id="instance-value-M1"]',
