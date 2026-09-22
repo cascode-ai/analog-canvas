@@ -1,12 +1,11 @@
 import { agentServerInstructions } from "./guidance.generated.js";
-import { homedir } from "node:os";
 import { AGENT_MCP_VERSION } from "@icm/agent-adapter";
 import {
-  AgentHttpClient,
-  AgentSessionClient,
-  ConnectorStore,
-  defaultConnectorFilePath,
-} from "@icm/agent-client";
+  createOperationSession,
+  resolveConfig,
+  type RuntimeConfig,
+} from "./operation-session.js";
+export { resolveConfig } from "./operation-session.js";
 import {
   listResourceEntries,
   listResourceTemplates,
@@ -22,21 +21,7 @@ import type { McpServerHandler, McpServerInfo } from "./protocol.js";
 export const MCP_SERVER_NAME = "analog-canvas";
 export const MCP_SERVER_VERSION = AGENT_MCP_VERSION;
 
-export interface McpServerConfig {
-  apiBaseUrl: string;
-  connectorPath: string;
-}
-
-export function resolveConfig(
-  env: Record<string, string | undefined> = process.env,
-): McpServerConfig {
-  const apiBaseUrl =
-    env.ANALOG_CANVAS_API_URL ?? "https://analog-canvas.tokenzhang.com";
-  return {
-    apiBaseUrl,
-    connectorPath: defaultConnectorFilePath(homedir(), env, apiBaseUrl),
-  };
-}
+export type McpServerConfig = RuntimeConfig;
 
 export const MCP_SERVER_INFO: McpServerInfo = {
   name: MCP_SERVER_NAME,
@@ -52,12 +37,7 @@ export function assembleServer(config: McpServerConfig = resolveConfig()): {
   serverInfo: McpServerInfo;
   toolSession: ToolSessionState;
 } {
-  const http = new AgentHttpClient({ baseUrl: config.apiBaseUrl });
-  const client = new AgentSessionClient({
-    http,
-    connectorStore: new ConnectorStore(config.connectorPath),
-  });
-  const toolSession: ToolSessionState = { client };
+  const toolSession = createOperationSession(config);
   const handler: McpServerHandler = {
     listTools: listToolDefinitions,
     callTool: (name, args) => callTool(name, args, toolSession),

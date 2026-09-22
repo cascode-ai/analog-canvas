@@ -12,10 +12,20 @@ Use --http list-tools to discover argument schemas. Full per-tool contracts,
 including legacy expression details, are available through --http resource
 with `analog-canvas://contract/tools/{name}` on standard input. Use the same
 resource command for quickstart and task-selected references.
-This is a local entry into the same AgentSessionClient and tool handlers, not
+This is a local entry into the same AgentSessionClient and operation registry, not
 another network protocol. The package must be installed, but no MCP-host
 configuration or restart is required. Each invocation is a new process:
 persisted connector credentials survive, process-local context does not.
+CLI invokes operations directly, not through the MCP handler; its existing JSON
+content-block output and failure exit codes are retained for compatibility.
+Both entries use the same validation, error classification and download logic.
+Neither requires a source checkout, Git, pnpm or a local simulator. Node must
+meet the installed package's runtime requirement. Local plotting additionally
+needs Python >=3.10 and matplotlib; no dependencies are installed automatically.
+Local result bases use explicit `basePath`, a saved server/Project location,
+an explicitly configured `ANALOG_CANVAS_TASK_DIR`, then user application data.
+The process working directory does not select a base. Files survive disconnect;
+an explicit old base remains usable without migration or automatic overwrite.
 Set ANALOG_CANVAS_API_URL to this exact server. The default connector file is
 isolated by origin; ANALOG_CANVAS_MCP_CONNECTOR overrides a file path, never a token.
 For caller-managed exact retries, --http circuit accepts the published Circuit

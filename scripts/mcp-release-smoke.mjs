@@ -1,9 +1,16 @@
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import { once } from "node:events";
 import assert from "node:assert/strict";
 
@@ -15,7 +22,7 @@ const releaseRoot = resolve(
   `output/release/interactive-circuit-maker-v${version}`,
 );
 // Also verify the independently downloaded immutable release, not just a build.
-const executable = process.argv[2]
+const packagedExecutable = process.argv[2]
   ? resolve(process.argv[2])
   : resolve(
       releaseRoot,
@@ -24,6 +31,11 @@ const executable = process.argv[2]
     );
 const children = [];
 const temporary = await mkdtemp(join(tmpdir(), "analog-mcp-smoke-"));
+// The installed process gets neither a checkout nor workspace node_modules.
+const executable = join(temporary, "analog-canvas-mcp.mjs");
+await copyFile(packagedExecutable, executable);
+const cliCwd = join(temporary, "unrelated-startup");
+await mkdir(cliCwd);
 const connectorPath = join(temporary, "connector.json");
 const exportPath = join(temporary, "exported-project.json");
 const importPath = join(temporary, "import-project.json");
@@ -36,6 +48,44 @@ let resumeCount = 0;
 const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>', "utf8");
 const projectBytes = Buffer.from('{"release":true}\n', "utf8");
 const sha256 = (data) => createHash("sha256").update(data).digest("hex");
+const tableBytes = Buffer.from("time [s],v(out) [V]\n0,1\n1,2\n");
+const tableArtifact = {
+  id: "release-table",
+  fileId: "release-table",
+  name: "tran.csv",
+  role: "table",
+  mediaType: "text/csv",
+  byteLength: tableBytes.byteLength,
+  sha256: sha256(tableBytes),
+};
+const resultCatalog = {
+  schemaVersion: 1,
+  runId: "spec-run",
+  preparedId: "spec-prepared",
+  inputRevision: "spec-input",
+  execution: "completed",
+  collection: "complete",
+  files: [tableArtifact],
+  datasets: [
+    {
+      id: "tran-0",
+      analysisIndex: 0,
+      analysis: "tran",
+      plotName: "Transient",
+      pointCount: 2,
+      axis: { name: "time", unit: "s" },
+      signals: [{ name: "v(out)", unit: "V", quantity: "voltage" }],
+      representations: [
+        {
+          artifactId: tableArtifact.id,
+          fileId: tableArtifact.fileId,
+          selector: "",
+        },
+      ],
+    },
+  ],
+};
+let tableDownloads = 0;
 
 function credential(agentToken) {
   return {
@@ -270,7 +320,25 @@ async function requestBody(request) {
 const relay = createServer(async (request, response) => {
   const url = new URL(request.url ?? "/", "http://localhost");
   let result;
-  if (url.pathname === "/api/agent/claims") {
+  if (
+    url.pathname === `/api/agent/sessions/${sessionId}/artifacts/release-table`
+  ) {
+    tableDownloads++;
+    const offset = Number(
+      request.headers.range?.match(/^bytes=(\d+)-$/u)?.[1] ?? 0,
+    );
+    response.writeHead(offset ? 206 : 200, {
+      "content-type": "text/csv",
+      "content-length": tableBytes.byteLength - offset,
+      ...(offset
+        ? {
+            "content-range": `bytes ${offset}-${tableBytes.byteLength - 1}/${tableBytes.byteLength}`,
+          }
+        : {}),
+    });
+    response.end(tableBytes.subarray(offset));
+    return;
+  } else if (url.pathname === "/api/agent/claims") {
     result = json(credential("claim-bearer"));
   } else if (url.pathname === "/api/agent/connectors/resume") {
     const body = await requestBody(request);
@@ -300,97 +368,105 @@ const relay = createServer(async (request, response) => {
   } else if (url.pathname.endsWith("/simulation")) {
     const body = await requestBody(request);
     result =
-      body.operation === "capabilities"
+      body.operation === "catalog"
         ? json({
             apiVersion: "3.0",
             requestId: body.requestId,
-            operation: "capabilities",
+            operation: "catalog",
             ok: true,
-            capabilities: {
-              configured: true,
-              inputs: ["source"],
-              analyses: ["op", "ac"],
-              parsedAnalyses: ["op", "ac"],
-              rawfileCollection: "native-multi-ascii",
-              profiles: [
-                {
-                  id: "native-release-fixture",
-                  engine: "vacask",
-                  corners: ["tt"],
-                  dependencies: [
-                    { id: "fixture-models", sha256: "c".repeat(64) },
-                  ],
-                  modelSymbols: [
-                    {
+            catalog: resultCatalog,
+          })
+        : body.operation === "capabilities"
+          ? json({
+              apiVersion: "3.0",
+              requestId: body.requestId,
+              operation: "capabilities",
+              ok: true,
+              capabilities: {
+                configured: true,
+                inputs: ["source"],
+                analyses: ["op", "ac"],
+                parsedAnalyses: ["op", "ac"],
+                rawfileCollection: "native-multi-ascii",
+                profiles: [
+                  {
+                    id: "native-release-fixture",
+                    engine: "vacask",
+                    corners: ["tt"],
+                    dependencies: [
+                      { id: "fixture-models", sha256: "c".repeat(64) },
+                    ],
+                    modelSymbols: [
+                      {
+                        dependencyId: "fixture-models",
+                        sha256: "c".repeat(64),
+                        section: "tt",
+                        masters: [
+                          {
+                            name: "fixture_nfet",
+                            primitives: [
+                              { path: ["core"], module: "sp_bsim4v8" },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                    modelLibrary: {
                       dependencyId: "fixture-models",
-                      sha256: "c".repeat(64),
-                      section: "tt",
-                      masters: [
-                        {
-                          name: "fixture_nfet",
-                          primitives: [
-                            { path: ["core"], module: "sp_bsim4v8" },
-                          ],
-                        },
-                      ],
+                      defaultSection: "tt",
+                      defaultScale: 1e-6,
                     },
-                  ],
-                  modelLibrary: {
-                    dependencyId: "fixture-models",
-                    defaultSection: "tt",
-                    defaultScale: 1e-6,
+                  },
+                ],
+                maxInputBytes: 2097152,
+                maxTimeoutMs: 120000,
+                cancel: true,
+              },
+            })
+          : json({
+              apiVersion: "3.0",
+              requestId: body.requestId,
+              operation: "read",
+              ok: true,
+              run: {
+                id: "spec-run",
+                preparedId: "spec-prepared",
+                inputRevision: "spec-input",
+                state: "finished",
+                artifacts: [],
+                outputData: {
+                  schemaVersion: 1,
+                  analyses: [],
+                  diagnostics: [],
+                  specs: {
+                    schemaVersion: 1,
+                    runId: "spec-run",
+                    preparedId: "spec-prepared",
+                    inputDigest: "a".repeat(64),
+                    results: [
+                      {
+                        id: "run.cir:2:1",
+                        name: "peak",
+                        group: "Bias checks",
+                        occurrence: 1,
+                        source: {
+                          path: "run.cir",
+                          line: 2,
+                          text: "* @spec peak <= 1.8 unit=V",
+                        },
+                        unit: "V",
+                        expected: { kind: "limit", operator: "<=", value: 1.8 },
+                        value: 1.7,
+                        judgment: "pass",
+                        reason: "satisfied",
+                        detail: "Meets the authored specification.",
+                        logLine: 5,
+                      },
+                    ],
                   },
                 },
-              ],
-              maxInputBytes: 2097152,
-              maxTimeoutMs: 120000,
-              cancel: true,
-            },
-          })
-        : json({
-            apiVersion: "3.0",
-            requestId: body.requestId,
-            operation: "read",
-            ok: true,
-            run: {
-              id: "spec-run",
-              preparedId: "spec-prepared",
-              inputRevision: "spec-input",
-              state: "finished",
-              artifacts: [],
-              outputData: {
-                schemaVersion: 1,
-                analyses: [],
-                diagnostics: [],
-                specs: {
-                  schemaVersion: 1,
-                  runId: "spec-run",
-                  preparedId: "spec-prepared",
-                  inputDigest: "a".repeat(64),
-                  results: [
-                    {
-                      id: "run.cir:2:1",
-                      name: "peak",
-                      group: "Bias checks",
-                      occurrence: 1,
-                      source: {
-                        path: "run.cir",
-                        line: 2,
-                        text: "* @spec peak <= 1.8 unit=V",
-                      },
-                      unit: "V",
-                      expected: { kind: "limit", operator: "<=", value: 1.8 },
-                      value: 1.7,
-                      judgment: "pass",
-                      reason: "satisfied",
-                      detail: "Meets the authored specification.",
-                      logLine: 5,
-                    },
-                  ],
-                },
               },
-            },
-          });
+            });
   } else if (url.pathname.endsWith("/circuit")) {
     const body = await requestBody(request);
     if (body.operation === "capabilities") {
@@ -469,7 +545,24 @@ const relay = createServer(async (request, response) => {
     }
   } else if (url.pathname.endsWith("/files")) {
     const body = await requestBody(request);
-    if (body.operation === "download") {
+    if (
+      body.operation === "simulation-input" &&
+      body.input.action === "download"
+    ) {
+      result = json({
+        apiVersion: "3.0",
+        requestId: body.requestId,
+        operation: "simulation-input",
+        ok: true,
+        result: {
+          ok: true,
+          artifact: tableArtifact,
+          download: {
+            path: `/api/agent/sessions/${sessionId}/artifacts/release-table`,
+          },
+        },
+      });
+    } else if (body.operation === "download") {
       result = json({
         apiVersion: "3.0",
         requestId: body.requestId,
@@ -518,11 +611,15 @@ const apiBaseUrl = `http://127.0.0.1:${address.port}`;
 
 async function httpCommand(command, input = {}) {
   const child = spawn(process.execPath, [executable, "--http", command], {
+    cwd: cliCwd,
     stdio: ["pipe", "pipe", "pipe"],
     env: {
       ...process.env,
       ANALOG_CANVAS_API_URL: apiBaseUrl,
       ANALOG_CANVAS_MCP_CONNECTOR: connectorPath,
+      LOCALAPPDATA: join(temporary, "data"),
+      XDG_DATA_HOME: join(temporary, "data"),
+      ANALOG_CANVAS_TASK_DIR: join(temporary, "task"),
     },
     timeout: 30_000,
   });
@@ -545,11 +642,15 @@ async function httpCommand(command, input = {}) {
 
 function startMcp() {
   const child = spawn(process.execPath, [executable], {
+    cwd: temporary,
     stdio: ["pipe", "pipe", "pipe"],
     env: {
       ...process.env,
       ANALOG_CANVAS_API_URL: apiBaseUrl,
       ANALOG_CANVAS_MCP_CONNECTOR: connectorPath,
+      LOCALAPPDATA: join(temporary, "data"),
+      XDG_DATA_HOME: join(temporary, "data"),
+      ANALOG_CANVAS_TASK_DIR: join(temporary, "task"),
     },
   });
   children.push(child);
@@ -668,6 +769,33 @@ try {
   });
   assert.equal(edits.inputSchema["x-transaction"].form, "structureEdits");
   await first.tool("connect", { claimCode: `${sessionId}.claim` });
+  const patches = await first.tool("describe_tool", {
+    tool: "simulation_edit",
+    field: "/request/patches",
+  });
+  assert.equal(patches.variants[0].required, false);
+  const plot = await first.tool("simulation_plot", {
+    request: {
+      action: "prepare-plot",
+      runId: "spec-run",
+      name: "release-plot",
+      formats: ["png", "svg"],
+      panels: [
+        { analysisIndex: 0, signals: [{ signal: "v(out)" }], xRange: [0, 1] },
+      ],
+    },
+  });
+  assert.equal(plot.imageStatus, "not-generated");
+  assert.equal(plot.dataStatus, "complete");
+  assert(plot.directory.startsWith(join(temporary, "task", ".analog-canvas")));
+  const base = await first.tool("simulation_data", {
+    request: { action: "workspace" },
+  });
+  const sync = await first.tool("simulation_data", {
+    request: { action: "sync", runId: "spec-run" },
+  });
+  assert.equal(sync.transfer.reused, 1);
+  assert.equal(tableDownloads, 1);
   const nativeCapabilities = await first.tool("simulation_run", {
     request: { operation: "capabilities" },
   });
@@ -794,6 +922,20 @@ try {
     4,
     "A fresh get_context must resume without another claim",
   );
+  const cliSync = JSON.parse(
+    (
+      await httpCommand("simulation_data", {
+        request: { action: "sync", runId: "spec-run" },
+      })
+    ).content[0].text,
+  );
+  assert.equal(cliSync.basePath, base.basePath);
+  assert.equal(cliSync.transfer.reused, 1);
+  assert.equal(
+    tableDownloads,
+    1,
+    "Fresh CLI must reuse the installed MCP's data despite a different cwd",
+  );
   await restarted.tool("disconnect");
   await restarted.close();
   if ((await readFile(connectorPath).catch(() => null)) !== null) {
@@ -802,6 +944,46 @@ try {
   if ((await readFile(exportPath, "utf8")) !== projectBytes.toString("utf8")) {
     throw new Error("Packaged MCP export did not preserve file bytes");
   }
+  // No connector or network is needed to edit and execute the local plot copy.
+  await writeFile(
+    plot.scriptPath,
+    (await readFile(plot.scriptPath, "utf8")) +
+      "\n# Local user customization\n",
+  );
+  const offlineBase = JSON.parse(
+    (
+      await httpCommand("simulation_data", {
+        request: { action: "workspace" },
+        basePath: base.basePath,
+      })
+    ).content[0].text,
+  );
+  assert.equal(offlineBase.basePath, base.basePath);
+  const python = process.env.ANALOG_CANVAS_SMOKE_PYTHON;
+  if (python) {
+    execFileSync(python, plot.execution.check.args, {
+      cwd: cliCwd,
+      stdio: "pipe",
+    });
+    execFileSync(python, plot.execution.args, { cwd: cliCwd, stdio: "pipe" });
+    assert.equal(
+      (await readFile(join(plot.directory, "figure.png")))
+        .subarray(0, 8)
+        .toString("hex"),
+      "89504e470d0a1a0a",
+    );
+    assert(
+      (await readFile(join(plot.directory, "figure.svg"), "utf8")).includes(
+        "<svg",
+      ),
+    );
+    process.stdout.write(
+      "Installed-package offline PNG/SVG execution passed.\n",
+    );
+  } else
+    process.stdout.write(
+      "Plot files prepared; image execution not tested (set ANALOG_CANVAS_SMOKE_PYTHON).\n",
+    );
   process.stdout.write("Packaged MCP release smoke passed.\n");
 } finally {
   // A compatibility rejection must fail promptly, including when testing an

@@ -94,6 +94,9 @@ argument vector with an available Python >=3.10 / matplotlib environment, then
 inspect the image. MCP prepares files; it does not run Python or install packages.
 Check the chosen local Python's version and matplotlib availability once per
 working environment before plotting; a prepared script is not a rendered image.
+The response separates `dataStatus`, `scriptStatus` and `imageStatus`; use
+`execution.check` with your chosen Python for the one-time dependency check.
+It neither installs dependencies nor executes the plot automatically.
 Existing plot directories are never overwritten: edit the local config/script
 or use a new name. This also preserves customizations across MCP upgrades.
 

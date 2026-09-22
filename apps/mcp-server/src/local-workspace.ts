@@ -16,6 +16,7 @@ import {
   type ResultCatalog,
 } from "@icm/simulation-service/contract";
 import { downloadSimulationArtifact } from "./artifact-download.js";
+import { userWorkspaceRoot } from "./workspace-location.js";
 
 const IndexSchema = z.strictObject({
   kind: z.literal("analog-canvas-workspace"),
@@ -62,11 +63,10 @@ function filename(ref: ArtifactRef) {
 }
 export function defaultWorkspacePath(
   scope: WorkspaceScope,
-  cwd = process.cwd(),
+  root = userWorkspaceRoot(),
 ): string {
   return resolve(
-    cwd,
-    ".analog-canvas",
+    root,
     segment(new URL(scope.serverUrl).origin),
     segment(scope.projectId),
   );

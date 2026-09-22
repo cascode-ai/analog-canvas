@@ -57,7 +57,14 @@ it("prepares a local copy, selects one table, reuses data and preserves customiz
     });
     const fetch = vi.fn(async () => new Response(csv));
     const result = await preparePlot(workspace, catalog, request, fetch);
-    expect(result).toMatchObject({ ok: true, status: "prepared" });
+    expect(result).toMatchObject({
+      ok: true,
+      status: "prepared",
+      dataStatus: "complete",
+      scriptStatus: "prepared",
+      imageStatus: "not-generated",
+      execution: { check: { executable: "python", args: expect.any(Array) } },
+    });
     const path = join(root, "plots", "transient", "plot.py");
     expect(await readFile(path, "utf8")).toBe(plotTemplate);
     const config = JSON.parse(

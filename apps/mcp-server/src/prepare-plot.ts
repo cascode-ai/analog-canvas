@@ -32,8 +32,16 @@ const Panel = z.strictObject({
   yLabel: z.string().optional(),
   xScale: z.enum(["linear", "log"]).optional(),
   yScale: z.enum(["linear", "log"]).optional(),
-  xRange: z.tuple([z.number(), z.number()]).optional(),
-  yRange: z.tuple([z.number(), z.number()]).optional(),
+  xRange: z
+    .array(z.number())
+    .length(2)
+    .optional()
+    .describe("Exactly two numbers: [minimum, maximum]."),
+  yRange: z
+    .array(z.number())
+    .length(2)
+    .optional()
+    .describe("Exactly two numbers: [minimum, maximum]."),
   legend: z.boolean().optional(),
   cursors: Cursors.optional(),
 });
@@ -215,6 +223,9 @@ export async function preparePlot(
   return {
     ok: true,
     status: "prepared",
+    dataStatus: "complete",
+    scriptStatus: "prepared",
+    imageStatus: "not-generated",
     filesystem: "mcp-host",
     directory,
     scriptPath,
@@ -223,6 +234,13 @@ export async function preparePlot(
       executable: "python",
       args: [scriptPath, configPath],
       requirements: ["Python >=3.10", "matplotlib"],
+      check: {
+        executable: "python",
+        args: [
+          "-c",
+          "import sys; assert sys.version_info >= (3, 10), 'Python >=3.10 required'; import matplotlib; print('Plot environment ready')",
+        ],
+      },
     },
     next: "Run locally using an available Python environment, then inspect the image. Edit these copies for custom plots; the installed template is unchanged.",
   };

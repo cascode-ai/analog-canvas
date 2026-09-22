@@ -1,5 +1,6 @@
 import { agentToolHelp } from "./guidance.generated.js";
 import { z } from "zod";
+import { inputContract } from "./input-contract.js";
 import {
   createSimulationFolder,
   readSimulationExperimentConfig,
@@ -11,8 +12,8 @@ import {
   type ProjectSimulationFolder,
   type SimulationExperimentConfig,
 } from "@icm/model";
-import type { McpToolDefinition } from "./protocol.js";
-import type { ToolSessionState } from "./tools.js";
+import type { ContractTool } from "./tool-contracts.js";
+import type { OperationSession as ToolSessionState } from "./operation-session.js";
 import type { CachedSnapshot } from "@icm/agent-client";
 
 const Id = z.string().min(1).max(256);
@@ -122,7 +123,7 @@ const DeviceArgs = z.discriminatedUnion("action", [
   }),
 ]);
 interface Entry {
-  definition: McpToolDefinition;
+  definition: ContractTool;
   handle(args: unknown, session: ToolSessionState): Promise<unknown>;
 }
 const failure = (code: string, message: string) => ({
@@ -140,7 +141,7 @@ function tool<T extends z.ZodType>(
       name,
       description,
       inputSchema: {
-        ...z.toJSONSchema(schema, { target: "draft-2020-12", reused: "ref" }),
+        ...inputContract(schema),
         type: "object",
       },
     },

@@ -24,6 +24,7 @@ import {
 } from "../../../worker/simulation.test-fixture.js";
 import { callTool as dispatchTool } from "./tools.js";
 import { FOCUSED_TOOLS } from "./focused-tools.js";
+import { runHttpCommand } from "./http-cli.js";
 
 const source = readFileSync(
   new URL("../../../netlists/vacask-divider/divider.sim", import.meta.url),
@@ -64,7 +65,7 @@ async function nativeNumericReply(input: ExecutionInput) {
     cancelled: output.cancelled,
   });
 }
-describe.each(["compatibility", "focused"])(
+describe.each(["compatibility", "focused", "cli"])(
   "MCP / browser Simulation Resource parity (%s)",
   (surface) => {
     const callTool: typeof dispatchTool = (name, args, session) => {
@@ -80,6 +81,12 @@ describe.each(["compatibility", "focused"])(
                 (tool.operations as readonly string[]).includes(operation),
             )
           : undefined;
+      if (surface === "cli")
+        return runHttpCommand(
+          { toolSession: session },
+          name,
+          JSON.stringify(args),
+        ) as ReturnType<typeof dispatchTool>;
       return dispatchTool(entry?.name ?? name, args, session);
     };
     it("remembers custom bases per Project, never presents the last Project as the current one, and permits offline inspection", async () => {
@@ -93,7 +100,7 @@ describe.each(["compatibility", "focused"])(
         projectId,
         sessionId: projectId ? "new-session" : null,
       }));
-      const state = { client };
+      const state = { client, workspaceRoot: join(directory, "locations") };
       const invoke = async (basePath?: string) => {
         const reply = await callTool(
           "simulation_files",
@@ -342,7 +349,7 @@ describe.each(["compatibility", "focused"])(
       });
       const client = new AgentSessionClient({ http });
       await client.connect("session-1.code");
-      const toolState = { client };
+      const toolState = { client, workspaceRoot: join(directory, "locations") };
       const invoke = async (name: string, args: unknown) => {
         const reply = await callTool(name, args, toolState);
         return JSON.parse(reply.content[0]!.text!);
