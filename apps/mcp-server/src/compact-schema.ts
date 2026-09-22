@@ -12,7 +12,7 @@ export function compactSchema(
   const resolved = new Map<string, unknown>();
   const resolving = new Set<string>();
   let recursive = false;
-  const visit = (value: unknown, root = false): unknown => {
+  const visit = (value: unknown, root = false, intern = true): unknown => {
     if (typeof value !== "object" || value === null || Array.isArray(value))
       return value;
     const schema = { ...(value as Record<string, unknown>) };
@@ -22,9 +22,10 @@ export function compactSchema(
       const siblings = { ...schema };
       delete siblings.$ref;
       const withSiblings = (target: unknown) =>
-        Object.keys(siblings).length
-          ? { allOf: [target, visit(siblings)] }
-          : target;
+        withReferenceSiblings(
+          target,
+          visit(siblings, false, false) as Record<string, unknown>,
+        );
       if (resolved.has(name)) return withSiblings(resolved.get(name));
       if (resolving.has(name) || originalDefs[name] === undefined) {
         recursive = true;
@@ -65,7 +66,7 @@ export function compactSchema(
       if (schema[key] !== undefined) schema[key] = visit(schema[key]);
     }
     const serialized = JSON.stringify(schema);
-    if (root || serialized.length < 160) return schema;
+    if (root || !intern || serialized.length < 160) return schema;
     let name = interned.get(serialized);
     if (!name) {
       do {
@@ -128,8 +129,13 @@ export function compactSchema(
       typeof ref === "string" &&
       counts.get(ref) === 1 &&
       definitions[ref.slice(8)]
-    )
-      return inline(definitions[ref.slice(8)]);
+    ) {
+      const { $ref: _, ...siblings } = schema;
+      return withReferenceSiblings(
+        inline(definitions[ref.slice(8)]),
+        children(siblings, inline),
+      );
+    }
     return children(schema, inline);
   };
   const compacted = inline(result) as Record<string, unknown>;
@@ -140,4 +146,63 @@ export function compactSchema(
   );
   if (Object.keys(shared).length) compacted.$defs = shared;
   return compacted;
+}
+
+const annotations = new Set([
+  "title",
+  "description",
+  "default",
+  "examples",
+  "deprecated",
+  "readOnly",
+  "writeOnly",
+  "$comment",
+]);
+const scalarKeywords = new Set([
+  "type",
+  "const",
+  "enum",
+  "minLength",
+  "maxLength",
+  "pattern",
+  "format",
+  "minimum",
+  "maximum",
+  "exclusiveMinimum",
+  "exclusiveMaximum",
+  "multipleOf",
+]);
+
+/** Keep annotations on the typed node, not in an untyped allOf branch.
+ * Only independent scalar refinements can also merge. Object constraints stay
+ * separate: even disjoint keys can interact (for example,
+ * properties beside a reference to an object with additionalProperties:false).
+ * Kept in this dependency-free module, also consumed directly by doc generation.
+ */
+export function withReferenceSiblings(
+  target: unknown,
+  siblings: Record<string, unknown>,
+): unknown {
+  if (!Object.keys(siblings).length) return target;
+  if (target !== null && typeof target === "object" && !Array.isArray(target)) {
+    const base = target as Record<string, unknown>;
+    const metadataOnly = Object.keys(siblings).every((key) =>
+      annotations.has(key),
+    );
+    const scalar =
+      ["string", "number", "integer", "boolean", "null"].includes(
+        String(base.type),
+      ) &&
+      [...Object.keys(base), ...Object.keys(siblings)].every(
+        (key) => annotations.has(key) || scalarKeywords.has(key),
+      ) &&
+      Object.keys(siblings).every(
+        (key) =>
+          annotations.has(key) ||
+          !(key in base) ||
+          JSON.stringify(base[key]) === JSON.stringify(siblings[key]),
+      );
+    if (metadataOnly || scalar) return { ...base, ...siblings };
+  }
+  return { allOf: [target, siblings] };
 }

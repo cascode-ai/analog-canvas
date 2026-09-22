@@ -1,5 +1,5 @@
 {
-  "connect": "Pair with the live browser editor. Pass its claim code once; later MCP processes can omit it and resume the saved, revocable connector. After connecting, read analog-canvas://reference/quickstart.",
+  "connect": "Pair with the live browser editor. Pass its claim code once; later MCP processes can omit it and resume the saved, revocable connector. After connecting, read analog-canvas://reference/quickstart. Resource reads use the host's registered server alias (normally analog-canvas), not the normalized tool prefix analog_canvas. If unknown, discover the alias from the host resource list.",
   "disconnect": "Revoke the current browser Agent session and erase this MCP host's saved connector. A fresh editor claim code is required afterwards.",
   "connection_status": "Report runtime version, API origin and session observations. refresh:false is local-only. Attached means a browser socket exists, not verified execution readiness; unknown means the relay was not checked successfully.",
   "project_cells": "Cloud Cell discovery/import; workspace list/activate/open/save/copy. Live tabs include unsaved work; Cloud reads saved versions. Copy reuses GUI transactions and dependencies. Details: analog-canvas://reference/mcp-tools.",

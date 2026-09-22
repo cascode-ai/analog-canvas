@@ -121,7 +121,7 @@
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "ae9e53b4133be43a1cfb40316416dcbd7923ab40eb899fc015cae324325ca84f"
+      "sha256": "918512c728ade6f274056ad17b86ad810a70584f08f97671df2eda24f158ec24"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
@@ -629,7 +629,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/knowledge/patterns.md"
       ],
-      "sha256": "d24a7d08d9d5576cbc649f88b49130018701e97c4040a5055a0ecbf25eb3bf95"
+      "sha256": "3f184d69ae56349fa0472317ca98833a97e1d32eae02a4dc2994003a2cd070a6"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -675,7 +675,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "ba005c316f4111621cbbe94a532b5e5846b90d6a0cc4160fa0850b864819e4ea"
+      "sha256": "2f5ef57c415f1592254168d68d8859241bb3c3dba7483fdddb8455d1930f5edf"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",

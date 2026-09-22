@@ -41,7 +41,16 @@ const FolderArgs = z.discriminatedUnion("action", [
     profileId: Id,
     template: z.enum(["op", "ac", "tran"]).optional(),
     dut: z
-      .strictObject({ name: NativeName, ports: z.array(NativeName) })
+      .strictObject({
+        name: NativeName.describe(
+          "Exact exported subcircuit name, not the instance name XDUT. For .subckt dut IN OUT, use name:'dut'; the template creates XDUT IN OUT dut.",
+        ),
+        ports: z
+          .array(NativeName)
+          .describe(
+            "Port names in the exported subcircuit's exact order; the template uses these as testbench node names. Do not reorder power pins. Read the generated circuit interface when unknown.",
+          ),
+      })
       .optional(),
   }),
   z.strictObject({

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { inlineSchema } from "./inline-schema.js";
-import { listToolDefinitions } from "./tools.js";
+import { listToolDefinitions, toolInputSchema } from "./tools.js";
 
 describe("host-facing inline schemas", () => {
   it("retains constraints and metadata without metadata-only intersections", () => {
@@ -25,6 +25,37 @@ describe("host-facing inline schemas", () => {
   it("does not rewrite authored default values as schemas", () => {
     const schema = { type: "object", default: { $ref: "authored-value" } };
     expect(inlineSchema(schema)).toEqual(schema);
+  });
+  it("exposes simple inspect fields directly in discovery and the on-demand contract", () => {
+    const advertised = listToolDefinitions().find(
+      (tool) => tool.name === "inspect",
+    )!.inputSchema;
+    for (const schema of [advertised, toolInputSchema("inspect")!]) {
+      expect(schema.properties).toMatchObject({
+        refresh: { type: "boolean", description: expect.any(String) },
+        detail: { type: "string", enum: ["compact", "full"] },
+      });
+      expect(JSON.stringify(schema)).not.toContain('"allOf"');
+    }
+  });
+  it("discloses DUT subcircuit identity and port order where the caller supplies them", () => {
+    const schema = listToolDefinitions().find(
+      (tool) => tool.name === "simulation_folder",
+    )!.inputSchema as any;
+    const create = schema.oneOf.find(
+      (branch: any) => branch.properties.action.const === "create",
+    );
+    expect(create.properties.dut.properties).toMatchObject({
+      name: {
+        type: "string",
+        description: expect.stringContaining("not the instance name XDUT"),
+      },
+      ports: {
+        type: "array",
+        description: expect.stringContaining("exact order"),
+        items: { type: "string" },
+      },
+    });
   });
   it("exposes simulation operations and basic fields without reference resolution", () => {
     const tools = listToolDefinitions();

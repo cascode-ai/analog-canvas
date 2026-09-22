@@ -1,3 +1,5 @@
+import { withReferenceSiblings } from "./compact-schema.js";
+
 /** Host-facing schemas must not require a reference-expansion budget.
  * Complete resource contracts may still use compact local references.
  * This is representation only: constraints and runtime parsing stay intact. */
@@ -26,14 +28,7 @@ export function inlineSchema(
       delete schema.$ref;
       const base = resolved.get(ref) as Record<string, unknown>;
       const siblings = visit(schema) as Record<string, unknown>;
-      // Metadata does not constrain values. Keep it on the actual typed node,
-      // not a metadata-only allOf branch that hosts render as unknown.
-      const metadata = new Set(["description", "title", "default", "examples"]);
-      return Object.keys(siblings).every(
-        (key) => !(key in base) || metadata.has(key),
-      )
-        ? { ...base, ...siblings }
-        : { allOf: [base, siblings] };
+      return withReferenceSiblings(base, siblings);
     }
     for (const key of ["properties", "patternProperties", "dependentSchemas"]) {
       const children = schema[key];

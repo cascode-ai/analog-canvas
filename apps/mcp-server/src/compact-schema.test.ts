@@ -44,10 +44,10 @@ describe("schema compaction", () => {
       type: "object",
       properties: {
         value: {
-          allOf: [
-            { type: "string", maxLength: 20 },
-            { minLength: 3, description: "Required name" },
-          ],
+          type: "string",
+          maxLength: 20,
+          minLength: 3,
+          description: "Required name",
         },
       },
     });
