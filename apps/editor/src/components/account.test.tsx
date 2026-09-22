@@ -2,11 +2,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import {
-  AccountMenuView,
-  fetchSessionUser,
-  type AccountState,
-} from "./account";
+import { fetchSessionUser, type AccountState } from "./account";
+import AccountMenuView from "./account-menu-view";
 
 function markupFor(
   state: AccountState,
