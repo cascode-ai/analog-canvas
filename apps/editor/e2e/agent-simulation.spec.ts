@@ -145,11 +145,16 @@ test("HTTP Kit alone authors native objects and hands off a Project-folder run",
     const response = await request.post(
       `${baseURL}/api/agent/sessions/${session.sessionId}/${resource}`,
       {
-        headers: { Authorization: `Bearer ${session.agentToken}` },
+        headers: {
+          Authorization: `Bearer ${session.agentToken}`,
+          "x-agent-context": session.contextRevision,
+        },
         data: { apiVersion: "3.0", requestId: crypto.randomUUID(), ...payload },
       },
     );
     const result = await response.json();
+    if (payload.operation === "snapshot" && result.ok)
+      session.contextRevision = response.headers()["x-agent-context"];
     // Never log the claim or credentials, even on failure.
     expect(response.ok(), JSON.stringify(result.error)).toBe(true);
     expect(result.ok, JSON.stringify(result.error ?? result.diagnostics)).toBe(
@@ -454,6 +459,7 @@ test("HTTP Kit alone authors native objects and hands off a Project-folder run",
   await expect
     .poll(async () => {
       try {
+        await snapshot(); // Refresh the new page's context, preserving the session.
         const history = await send("simulation", { operation: "history" });
         return history.runs?.some(
           (item: { runId: string; storage: string }) =>
@@ -516,6 +522,7 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
     const id = "simulation-e2e",
       secret = "simulation-editor-secret";
     let socket: WebSocketRoute | undefined;
+    let contextRevision: string | undefined;
     const replies: Array<{ kind: string; requestId: string; payload: any }> =
       [];
     let executions = 0;
@@ -523,7 +530,14 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
     const hold = new Promise<void>((r) => (release = r));
     await page.routeWebSocket(`**/api/agent/sessions/${id}/editor`, (s) => {
       socket = s;
-      s.onMessage((m) => replies.push(JSON.parse(String(m))));
+      s.onMessage((m) => {
+        const frame = JSON.parse(String(m));
+        replies.push(frame);
+        if (frame.kind === "heartbeat") {
+          contextRevision = frame.contextRevision;
+          s.send(JSON.stringify({ ...frame, kind: "heartbeat-ack" }));
+        }
+      });
     });
     await page.route("**/api/agent/sessions**", async (route) => {
       if (
@@ -637,6 +651,7 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
     }
     await page.getByRole("button", { name: "Agent", exact: true }).click();
     await expect.poll(() => !!socket).toBe(true);
+    await expect.poll(() => !!contextRevision).toBe(true);
     const send = async (
       kind: "simulation" | "file",
       payload: Record<string, unknown>,
@@ -653,6 +668,7 @@ for (const sourceKind of ["workspace", "project-folder"] as const)
           requestId,
           sentAt: new Date().toISOString(),
           kind: `${kind}-request`,
+          contextRevision,
           payload: { apiVersion: "3.0", requestId, ...payload },
         }),
       );

@@ -15,7 +15,7 @@ import "./styles.css";
 import { hasAgentSessionRecovery } from "./agent/session-recovery-presence";
 
 const WorkspaceAgentProvider = lazy(() =>
-  import("./agent/workspace-agent").then((module) => ({
+  guardedRouteChunk(() => import("./app/App"))().then((module) => ({
     default: module.WorkspaceAgentProvider,
   })),
 );

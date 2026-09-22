@@ -107,14 +107,15 @@ activity may have extended it. Reusing a valid claim rotates the pairing and
 invalidates earlier credentials.
 
 - Invalid/expired bearer: try connector resume once, then retry the exact request.
-- Invalid/expired connector, revoked/expired session or replaced Project: stop
-  and obtain new authorization. Do not retarget another Project.
+- Invalid/expired connector or revoked/expired session: stop and obtain new
+  authorization. A Project switch only refreshes context, not authorization.
 - Offline editor: wait for the browser, then reconcile or retry the exact request.
 - Rate limit: bounded backoff; honor `Retry-After` when present.
 - Missing scope: ask for authority; do not use a second edit path.
 - Circuit failures: follow [response semantics](response-semantics.md).
 
 File staging never replaces the live Project. Inspect the candidate and request
-approval; only the browser human can confirm replacement, ending the old session.
+approval; only the browser human can confirm replacement. Then refresh context
+before further Project operations; pairing remains active.
 The browser must be online for operations. Closing connection details does not
 revoke it.

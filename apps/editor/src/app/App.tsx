@@ -323,8 +323,12 @@ import { BrowserSimulationSession } from "../features/simulation/browser-simulat
 import { ProjectRunHistory } from "../features/simulation/project-run-history";
 import { createAgentSemanticIntentHandler } from "../agent/agent-semantic-intent-handler";
 import { PUBLIC_AGENT_UI_ENABLED } from "../agent/public-agent-ui";
-import { useEditorAgentSession } from "../agent/workspace-agent";
+import {
+  useEditorAgentSession,
+  WorkspaceAgentProvider,
+} from "../agent/workspace-agent";
 import { peekAgentSessionRecovery } from "../agent/session-recovery";
+export { WorkspaceAgentProvider } from "../agent/workspace-agent";
 import type { AgentFileCandidateSummary } from "@icm/agent-adapter";
 import { referencedDocumentId } from "../document/editor-session";
 import { useInteractionState } from "../interaction/interaction-state";
@@ -513,11 +517,13 @@ export function App(props: AppProps) {
   }, []);
   if (!boot) return <div role="status">Restoring project tabs…</div>;
   return (
-    <WorkspaceEditor
-      {...props}
-      restoredWorkspace={boot.workspace}
-      workspaceError={boot.error ?? null}
-    />
+    <WorkspaceAgentProvider>
+      <WorkspaceEditor
+        {...props}
+        restoredWorkspace={boot.workspace}
+        workspaceError={boot.error ?? null}
+      />
+    </WorkspaceAgentProvider>
   );
 }
 
@@ -991,18 +997,26 @@ function WorkspaceEditor({
   // currently selected tab. Re-selecting a tab restores the same service.
   const agentProjectResources = useRef(
     new Map<
-      string,
-      {
-        files: BrowserAgentFileHost;
-        history: ProjectRunHistory;
-        simulation: BrowserAgentSimulationHost;
-      }
+      EditorDocumentController,
+      Map<
+        string,
+        {
+          files: BrowserAgentFileHost;
+          history: ProjectRunHistory;
+          simulation: BrowserAgentSimulationHost;
+        }
+      >
     >(),
   );
+  let resources = agentProjectResources.current.get(editorDocumentController);
+  if (!resources) {
+    resources = new Map();
+    agentProjectResources.current.set(editorDocumentController, resources);
+  }
   const resourceKey = `${projectSessionId}:${simulationTransport}`;
   const browserAgentFileHost = useMemo(
     () =>
-      agentProjectResources.current.get(resourceKey)?.files ??
+      resources.get(resourceKey)?.files ??
       new BrowserAgentFileHost({
         transport: simulationTransport,
         getProjectSessionId: () => editorDocumentController.projectSessionId,
@@ -1020,7 +1034,7 @@ function WorkspaceEditor({
   );
   const projectRunHistory = useMemo(
     () =>
-      agentProjectResources.current.get(resourceKey)?.history ??
+      resources.get(resourceKey)?.history ??
       new ProjectRunHistory(editorDocumentController.project.id),
     [editorDocumentController, resourceKey],
   );
@@ -1029,7 +1043,7 @@ function WorkspaceEditor({
   }, [projectRunHistory]);
   const browserAgentSimulationHost = useMemo(
     () =>
-      agentProjectResources.current.get(resourceKey)?.simulation ??
+      resources.get(resourceKey)?.simulation ??
       new BrowserAgentSimulationHost({
         runHistory: projectRunHistory,
         owner: "agent",
@@ -1046,15 +1060,15 @@ function WorkspaceEditor({
       simulationTransport,
     ],
   );
-  agentProjectResources.current.set(resourceKey, {
+  resources.set(resourceKey, {
     files: browserAgentFileHost,
     history: projectRunHistory,
     simulation: browserAgentSimulationHost,
   });
   useEffect(
     () => () => {
-      for (const resource of agentProjectResources.current.values())
-        resource.history.dispose();
+      for (const group of agentProjectResources.current.values())
+        for (const resource of group.values()) resource.history.dispose();
     },
     [],
   );
@@ -5057,6 +5071,9 @@ function WorkspaceEditor({
           );
         const session: TabSession = {
           ...saved,
+          // Cloud publication metadata may change while the page is closed.
+          // Keep the local draft, but resolve its current link before publishing.
+          publication: saved.file.cloudBinding ? null : saved.publication,
           controller,
           cellViews: new Map(saved.cellViews),
           fit: false,
@@ -5203,47 +5220,16 @@ function WorkspaceEditor({
     );
   agentWorkspaceRef.current = async (envelope) => {
     const request = envelope.request;
-    const fail = (
-      code: string,
-      message: string,
-    ): AgentProjectResourceResponse => ({
-      apiVersion: "3.0",
-      requestId: envelope.requestId,
-      operation: "workspace",
-      ok: false,
-      error: { code, message, recovery: "refresh" },
-    });
-    const success = (
-      result: Extract<
-        AgentProjectResourceResponse,
-        { operation: "workspace"; ok: true }
-      >["result"],
-    ): AgentProjectResourceResponse => ({
-      apiVersion: "3.0",
-      requestId: envelope.requestId,
-      operation: "workspace",
-      ok: true,
-      result,
-    });
+    const { copyWorkspaceCell, listWorkspaceProjects, workspaceResponses } =
+      await import("../agent/workspace-copy");
+    const { fail, success } = workspaceResponses(envelope.requestId);
     try {
       const entries = projectTabs.entries();
       if (request.action === "list")
         return success({
           action: "list",
           activeWorkspaceId: projectTabs.activeId,
-          projects: entries.map(({ id, session }) => ({
-            workspaceId: id,
-            projectId: session.controller.project.id,
-            name: session.controller.project.name,
-            cloudProjectId: session.file.cloudBinding?.id ?? null,
-            dirty: session.dirty,
-            structureRevision: session.controller.project.structureRevision,
-            cells: session.controller.project.documents.map((d) => ({
-              documentId: d.id,
-              name: d.name,
-              revision: d.revision,
-            })),
-          })),
+          projects: listWorkspaceProjects(entries),
         });
       if (request.action === "activate") {
         if (!entries.some((e) => e.id === request.workspaceId))
@@ -5289,78 +5275,20 @@ function WorkspaceEditor({
       const source = entries.find((e) => e.id === request.sourceWorkspaceId)
         ?.session.controller;
       const target = entries.find((e) => e.id === request.targetWorkspaceId);
-      const sourceDocument = source?.project.documents.find(
-        (d) => d.id === request.sourceDocumentId,
+      if (!target)
+        return fail("WORKSPACE_NOT_FOUND", "Target Project is no longer open");
+      const copied = copyWorkspaceCell(
+        request,
+        source,
+        target.session.controller,
+        {
+          captureProjectCopy,
+          planProjectCopyPlacement,
+          applyProjectCopyPlacement,
+        },
       );
-      const destination = target?.session.controller;
-      const targetDocument = destination?.project.documents.find(
-        (d) => d.id === request.targetDocumentId,
-      );
-      if (
-        !source ||
-        !sourceDocument ||
-        !target ||
-        !destination ||
-        !targetDocument
-      )
-        return fail(
-          "WORKSPACE_NOT_FOUND",
-          "Source or target Cell is no longer open",
-        );
-      if (
-        source.project.structureRevision !== request.sourceStructureRevision ||
-        sourceDocument.revision !== request.sourceRevision ||
-        targetDocument.revision !== request.expectedRevision ||
-        destination.project.structureRevision !==
-          request.expectedStructureRevision
-      )
-        return fail(
-          "PROJECT_CONTEXT_STALE",
-          "Source or target changed; inspect before copying",
-        );
-      if (request.selection) {
-        const available = {
-          instanceIds: sourceDocument.instances,
-          draftingIds: sourceDocument.drafting?.objects ?? [],
-          routeIds: sourceDocument.routes,
-          junctionIds: sourceDocument.junctions,
-          annotationIds: sourceDocument.annotations,
-        };
-        for (const key of Object.keys(
-          available,
-        ) as (keyof typeof available)[]) {
-          if (
-            request.selection[key].some(
-              (id) => !available[key].some((object) => object.id === id),
-            )
-          )
-            return fail(
-              "COPY_SELECTION_NOT_FOUND",
-              `A selected ${key} object is no longer present; no content copied`,
-            );
-        }
-      }
-      const clipboard = captureProjectCopy(
-        source.project,
-        sourceDocument,
-        request.selection,
-        true,
-      );
-      if (!clipboard)
-        return fail("COPY_EMPTY", "The requested selection is empty");
-      const before = destination.project;
-      const plan = planProjectCopyPlacement(
-        before,
-        targetDocument,
-        clipboard,
-        request.offset,
-        1,
-      );
-      const next = applyProjectCopyPlacement(plan, {
-        kind: "agent",
-        id: "workspace-copy",
-      });
-      destination.commitProjectStructure(next, destination.document.id);
+      if ("error" in copied)
+        return fail(copied.error.code, copied.error.message);
       if (target.id === projectTabs.activeId) {
         synchronizeExternalCommit();
         void flushRecovery();
@@ -5370,20 +5298,7 @@ function WorkspaceEditor({
         target.session.file.persistenceState = "dirty";
       }
       projectTabs.changed();
-      return success({
-        action: "copy",
-        structureRevision: next.structureRevision,
-        revision: next.documents.find((d) => d.id === targetDocument.id)!
-          .revision,
-        instanceIds: [...plan.instanceIds],
-        mapping: plan.mapping,
-        importedDocumentIds: next.documents
-          .filter((d) => !before.documents.some((old) => old.id === d.id))
-          .map((d) => d.id),
-        importedFileIds: next.source.files
-          .filter((f) => !before.source.files.some((old) => old.id === f.id))
-          .map((f) => f.id),
-      });
+      return success(copied.result);
     } catch (error) {
       return fail(
         "WORKSPACE_OPERATION_FAILED",

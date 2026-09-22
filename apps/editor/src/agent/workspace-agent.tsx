@@ -24,6 +24,14 @@ const WorkspaceAgent = createContext<{
 
 /** Connection owner above route-specific Editor hosts. No circuit is exposed in Gallery. */
 export function WorkspaceAgentProvider({ children }: { children: ReactNode }) {
+  return useContext(WorkspaceAgent) ? (
+    children
+  ) : (
+    <WorkspaceAgentOwner>{children}</WorkspaceAgentOwner>
+  );
+}
+
+function WorkspaceAgentOwner({ children }: { children: ReactNode }) {
   const [context, bind] = useState<UseAgentSessionOptions | null>(null);
   const [empty] = useState(() => {
     const project = createEmptyProject(

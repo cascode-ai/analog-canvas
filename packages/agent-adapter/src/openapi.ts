@@ -245,6 +245,12 @@ export const agentTransportErrorExamples = {
 function transportErrorResponse(
   example: (typeof agentTransportErrorExamples)[keyof typeof agentTransportErrorExamples],
 ) {
+  return { $ref: `#/components/responses/${example.error.code}` } as const;
+}
+
+function transportErrorDefinition(
+  example: (typeof agentTransportErrorExamples)[keyof typeof agentTransportErrorExamples],
+) {
   return {
     description: "Typed Agent session transport error",
     content: {
@@ -612,6 +618,12 @@ export const agentCircuitOpenApi = {
     },
   },
   components: {
+    responses: Object.fromEntries(
+      Object.values(agentTransportErrorExamples).map((example) => [
+        example.error.code,
+        transportErrorDefinition(example),
+      ]),
+    ),
     securitySchemes: {
       bearerAuth: { type: "http", scheme: "bearer" },
     },

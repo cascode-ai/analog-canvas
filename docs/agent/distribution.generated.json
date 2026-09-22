@@ -85,7 +85,7 @@
     },
     {
       "source": "docs/agent/api-usage.md",
-      "sha256": "bc56d70a9ce3bbb0e712e6a8952c25e94ecbec0d32754d18b67db70f12724d88"
+      "sha256": "48feb08b807721d853c2c1afb35e2bf8bbcbd0927851fc29fbab22b8b05ab7d1"
     },
     {
       "source": "docs/agent/examples.md",
@@ -658,7 +658,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/knowledge/patterns.md"
       ],
-      "sha256": "0b537c6818bc508f24b1c75c826d93dfa6e13ea233c6481dd2401cec38b63a48"
+      "sha256": "1090cb39782c68daf2433c3ce2d20fb5e900e32e5e38361bea21c27e3e6a4c16"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",
