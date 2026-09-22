@@ -843,6 +843,116 @@ test("keeps pairing across Project tabs, rejects old writes and copies through t
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
 });
 
+test("workspace Cloud operations reuse GUI open validation, save conflicts and Save As", async ({
+  page,
+  baseURL,
+}) => {
+  const project = createEmptyProject("cloud-project", "Cloud source");
+  const record = {
+    id: "cloud-source",
+    name: project.name,
+    revision: 1,
+    schemaVersion: project.schemaVersion,
+    updatedAt: "2026-09-22T00:00:00.000Z",
+    projectText: serializeProject(project),
+  };
+  const writes: string[] = [];
+  await page.route("**/api/projects", (route) => {
+    if (route.request().method() === "GET")
+      return route.fulfill({ json: { projects: [record] } });
+    writes.push("new");
+    return route.fulfill({
+      json: {
+        project: {
+          ...record,
+          id: "cloud-copy",
+          ...route.request().postDataJSON(),
+        },
+      },
+    });
+  });
+  await page.route("**/api/projects/cloud-source", (route) => {
+    if (route.request().method() === "GET")
+      return route.fulfill({ json: { project: record } });
+    writes.push("conflict");
+    expect(route.request().headers()["if-match"]).toBe("revision-1");
+    return route.fulfill({
+      status: 409,
+      json: { error: "revision-conflict", project: { ...record, revision: 2 } },
+    });
+  });
+  await page.route("**/api/projects/cloud-invalid", (route) =>
+    route.fulfill({
+      json: {
+        project: {
+          ...record,
+          id: "cloud-invalid",
+          projectText: "not a project",
+        },
+      },
+    }),
+  );
+  await page.goto("/editor?new=1");
+  await page.getByTestId("open-agent").click();
+  const panel = page.getByTestId("connect-agent-panel");
+  const handoff = await panel.getByTestId("agent-copy-text").inputValue();
+  const { claimCode } = JSON.parse(handoff.match(/Claim: (.+)/u)![1]!);
+  const client = new AgentHttpClient({ baseUrl: baseURL! });
+  const session = await client.claim(claimCode);
+  await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
+  let requestNumber = 0;
+  const workspace = (
+    request: Extract<
+      Parameters<AgentHttpClient["projects"]>[2],
+      { operation: "workspace" }
+    >["request"],
+  ) =>
+    client.projects(session.sessionId, session.agentToken, {
+      apiVersion: "3.0",
+      operation: "workspace",
+      requestId: `cloud-${++requestNumber}`,
+      request,
+    });
+  expect(
+    await workspace({ action: "open", cloudProjectId: "cloud-invalid" }),
+  ).toMatchObject({ ok: false });
+  await expect(page.getByRole("tab")).toHaveCount(1);
+  const oldContext = client.contextRevision;
+  expect(
+    await workspace({ action: "open", cloudProjectId: "cloud-source" }),
+  ).toMatchObject({ ok: true });
+  await expect(page.getByRole("tab")).toHaveCount(2);
+  await expect
+    .poll(
+      async () =>
+        (await client.status(session.sessionId, session.agentToken))
+          .contextRevision,
+    )
+    .not.toBe(oldContext);
+  expect(
+    await workspace({ action: "open", cloudProjectId: "cloud-source" }),
+  ).toMatchObject({ ok: true });
+  await expect(page.getByRole("tab")).toHaveCount(2);
+  expect(await workspace({ action: "save" })).toMatchObject({
+    ok: false,
+    error: { code: "CLOUD_SAVE_CONFLICT" },
+  });
+  expect(await workspace({ action: "save", asNew: true })).toMatchObject({
+    ok: true,
+    result: { project: { id: "cloud-copy" } },
+  });
+  expect(writes).toEqual(["conflict", "new"]);
+  const listed = await workspace({ action: "list" });
+  expect(listed).toMatchObject({
+    ok: true,
+    result: {
+      projects: expect.arrayContaining([
+        expect.objectContaining({ cloudProjectId: "cloud-copy" }),
+      ]),
+    },
+  });
+});
+
 test("keeps one Project session through Cell switches and preserves an acknowledged Agent edit across a render crash", async ({
   page,
   baseURL,

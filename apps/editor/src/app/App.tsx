@@ -5257,34 +5257,12 @@ function WorkspaceEditor({
             );
       }
       if (request.action === "open") {
-        const { openCloudProject } =
-          await import("../features/editor-shell/cloud-projects");
-        const loaded = await openCloudProject(request.cloudProjectId);
-        if (loaded.status !== "opened")
-          return fail("CLOUD_OPEN_FAILED", loaded.status);
-        const next = parseProject(loaded.project.projectText);
-        const applied = await projectTabs.open(
-          () =>
-            createTabSession(next, DEFAULT_VIEWBOX, {
-              source: "opened-file",
-              persistenceState: "clean",
-              cloudBinding: {
-                id: loaded.project.id,
-                revision: loaded.project.revision,
-                galleryEntryId: loaded.project.galleryEntryId ?? null,
-              },
-              savedBaseline: {
-                project: structuredClone(next),
-                viewBox: { ...DEFAULT_VIEWBOX },
-              },
-            }),
-          loaded.project.id,
-        );
-        return applied
-          ? success({ action: "open", applied })
+        const result = await openCloudProjectById(request.cloudProjectId, true);
+        return result.applied
+          ? success({ action: "open", applied: true })
           : fail(
-              "WORKSPACE_BUSY",
-              "Finish the current edit before opening a Project",
+              "CLOUD_OPEN_FAILED",
+              result.message ?? "Cloud Project was not opened",
             );
       }
       if (request.action === "save") {

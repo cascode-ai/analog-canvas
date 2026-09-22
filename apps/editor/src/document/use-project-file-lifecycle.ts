@@ -687,7 +687,7 @@ export function useProjectFileLifecycle({
   async function openCloudProjectById(
     projectId: string,
     inTab = false,
-  ): Promise<void> {
+  ): Promise<{ applied: boolean; message?: string }> {
     const fetched = await openCloudProject(projectId);
     if (fetched.status !== "opened") {
       if (fetched.status === "not-found") forgetRecentCloudProject();
@@ -698,7 +698,7 @@ export function useProjectFileLifecycle({
             ? "That Cloud Project no longer exists"
             : `Could not reach Cloud Projects (${fetched.message})`,
       );
-      return;
+      return { applied: false, message: `Cloud open ${fetched.status}` };
     }
     const cloud = fetched.project;
     const staged = await stageProjectFile(
@@ -712,8 +712,12 @@ export function useProjectFileLifecycle({
       setStatus(
         `Cloud Project not opened — ${formatProjectOpenDiagnostics(staged.diagnostics)}`,
       );
-      return;
+      return {
+        applied: false,
+        message: formatProjectOpenDiagnostics(staged.diagnostics),
+      };
     }
+    let applied = false;
     const install = async () => {
       const baseline = {
         project: structuredClone(staged.project),
@@ -735,6 +739,7 @@ export function useProjectFileLifecycle({
         )
           return;
       } else replaceActiveProject(staged.project, defaultViewBox, openOptions);
+      applied = true;
       setStatus(`Opened Cloud Project ${cloud.name}`);
     };
     if (
@@ -742,9 +747,15 @@ export function useProjectFileLifecycle({
       serializeProject(staged.project) === serializeProject(project)
     ) {
       await install();
-      return;
+      return {
+        applied,
+        ...(applied
+          ? {}
+          : { message: "Finish the current edit before opening a Project" }),
+      };
     }
     await guardDirtyReplacement(`Open Cloud Project ${cloud.name}`, install);
+    return { applied };
   }
 
   useEffect(() => {
