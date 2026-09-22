@@ -3,20 +3,22 @@ import {
   type McpResourceDocument,
 } from "./resources.generated.js";
 import { RpcMethodError } from "./protocol.js";
-import {
-  AgentSchematicEditSchema,
-  CELL_STRUCTURE_EDIT_KINDS,
-} from "@icm/agent-adapter";
-import { z } from "zod";
 import type { McpResourceContent, McpResourceEntry } from "./protocol.js";
-import { compactSchema } from "./compact-schema.js";
-import { toolInputSchema } from "./tools.js";
+import { describeToolContract, toolInputSchema } from "./tools.js";
+import { editContract } from "./edit-contracts.js";
 
 export const ADVANCED_EDITS_RESOURCE_URI =
   "analog-canvas://contract/advanced-edits";
 
 export function listResourceTemplates() {
   return [
+    {
+      uriTemplate: "analog-canvas://contract/tools/{name}{?operations,field}",
+      name: "Selected tool operation or field contract",
+      description:
+        "Comma-separated operations select canonical branches; field is an argument JSON Pointer. Same registry as describe_tool; no Project connection needed.",
+      mimeType: "application/json",
+    },
     {
       uriTemplate: "analog-canvas://contract/tools/{name}",
       name: "Complete tool input contract",
@@ -46,6 +48,41 @@ export function listResourceEntries(): McpResourceEntry[] {
 export function readResourceContent(uri: string): McpResourceContent {
   const toolPrefix = "analog-canvas://contract/tools/";
   if (uri.startsWith(toolPrefix)) {
+    const parsed = new URL(uri);
+    if (parsed.search) {
+      for (const key of parsed.searchParams.keys())
+        if (
+          !["operations", "field"].includes(key) ||
+          parsed.searchParams.getAll(key).length !== 1
+        )
+          throw new RpcMethodError(
+            -32602,
+            "Unknown or repeated contract selector",
+          );
+      try {
+        return {
+          uri,
+          mimeType: "application/json",
+          text: JSON.stringify(
+            describeToolContract({
+              tool: decodeURIComponent(parsed.pathname.slice("/tools/".length)),
+              ...(parsed.searchParams.has("operations")
+                ? {
+                    operations: parsed.searchParams
+                      .get("operations")!
+                      .split(","),
+                  }
+                : {}),
+              ...(parsed.searchParams.has("field")
+                ? { field: parsed.searchParams.get("field")! }
+                : {}),
+            }),
+          ),
+        };
+      } catch {
+        throw new RpcMethodError(-32602, "Invalid tool contract selector");
+      }
+    }
     const schema = toolInputSchema(uri.slice(toolPrefix.length));
     if (!schema) throw new RpcMethodError(-32602, "Unknown tool contract");
     return {
@@ -57,36 +94,16 @@ export function readResourceContent(uri: string): McpResourceContent {
   const prefix = "analog-canvas://contract/edits/";
   if (uri.startsWith(prefix)) {
     const kind = uri.slice(prefix.length);
-    const option = AgentSchematicEditSchema.options.find(
-      (entry) => entry.shape.kind.value === kind,
-    );
-    if (!option) throw new RpcMethodError(-32602, `Unknown edit kind: ${kind}`);
+    let schema;
+    try {
+      schema = editContract(kind);
+    } catch {
+      throw new RpcMethodError(-32602, `Unknown edit kind: ${kind}`);
+    }
     return {
       uri,
       mimeType: "application/schema+json",
-      text: JSON.stringify({
-        ...compactSchema(
-          z.toJSONSchema(option, { target: "draft-2020-12", reused: "ref" }),
-        ),
-        ...(CELL_STRUCTURE_EDIT_KINDS.some((value) => value === kind)
-          ? {
-              "x-transaction": {
-                form: "structureEdits",
-                note: "Wrap this edit in transact_document, not top-level edits. Use IDs/revisions from the current Snapshot; MCP supplies the outer structure revision.",
-                example: {
-                  structureEdits: [
-                    {
-                      kind: "transact_document",
-                      documentId: "<snapshot document ID>",
-                      expectedRevision: "<snapshot document revision>",
-                      edits: ["<edit matching this schema>"],
-                    },
-                  ],
-                },
-              },
-            }
-          : {}),
-      }),
+      text: JSON.stringify(schema),
     };
   }
   const resource = mcpResources.find(

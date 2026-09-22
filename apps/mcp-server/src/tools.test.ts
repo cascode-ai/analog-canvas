@@ -236,6 +236,7 @@ describe("mcp tool surface", () => {
   it("exposes compact Circuit, File and Simulation tools with JSON-schema inputs", () => {
     const tools = listToolDefinitions();
     expect(tools.map((tool) => tool.name)).toEqual([
+      "describe_tool",
       "connect",
       "disconnect",
       "connection_status",
