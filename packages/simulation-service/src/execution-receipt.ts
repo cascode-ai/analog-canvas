@@ -50,6 +50,23 @@ export function boundExecutionStream(
   body: ReadableStream<Uint8Array>,
   byteLength: number,
 ): ReadableStream<Uint8Array> {
+  // R2 rejects ordinary TransformStreams even when the receipt declares a
+  // length. Preserve the runtime's native known-length stream metadata.
+  const FixedLength = (
+    globalThis as typeof globalThis & {
+      FixedLengthStream?: new (length: number) => {
+        readable: ReadableStream<Uint8Array>;
+        writable: WritableStream<Uint8Array>;
+      };
+    }
+  ).FixedLengthStream;
+  if (FixedLength) {
+    const stream = new FixedLength(byteLength);
+    // pipeTo aborts the readable on failure and propagates downstream cancel.
+    // The consumer observes that error; do not leave a detached rejection.
+    void body.pipeTo(stream.writable).catch(() => {});
+    return stream.readable;
+  }
   let bytes = 0;
   return body.pipeThrough(
     new TransformStream<Uint8Array, Uint8Array>({
