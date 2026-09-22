@@ -16529,6 +16529,15 @@
               "labelSubscriptItalic": {
                 "type": "boolean"
               },
+              "labelUnderscoreSubscript": {
+                "type": "boolean"
+              },
+              "labelSubscriptAfterFirst": {
+                "type": "boolean"
+              },
+              "labelFirstLetterItalic": {
+                "type": "boolean"
+              },
               "flow": {
                 "type": "object",
                 "properties": {
@@ -17690,6 +17699,15 @@
                             ]
                           },
                           "labelSubscriptItalic": {
+                            "type": "boolean"
+                          },
+                          "labelUnderscoreSubscript": {
+                            "type": "boolean"
+                          },
+                          "labelSubscriptAfterFirst": {
+                            "type": "boolean"
+                          },
+                          "labelFirstLetterItalic": {
                             "type": "boolean"
                           },
                           "flow": {

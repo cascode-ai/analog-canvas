@@ -1,3 +1,4 @@
+import { labelIdentifierOptions } from "@icm/model";
 import { rewriteRichTextIdentifier } from "@icm/model";
 import {
   AnnotationSchema,
@@ -295,6 +296,7 @@ export function applyNetPowerEdit(
           annotation.formatOverride = rewriteRichTextIdentifier(
             annotation.formatOverride,
             evidence.name,
+            labelIdentifierOptions(draft.presentation),
           );
           changedObjectIds.add(annotation.id);
         }

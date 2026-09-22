@@ -6632,10 +6632,8 @@ function WorkspaceEditor({
                             ),
                           );
                         if (
-                          value.labels.subscript_case !==
-                            current.labels.subscript_case ||
-                          value.labels.subscript_italic !==
-                            current.labels.subscript_italic
+                          JSON.stringify(value.labels) !==
+                          JSON.stringify(current.labels)
                         ) {
                           try {
                             commitProjectStructure(
@@ -6646,6 +6644,14 @@ function WorkspaceEditor({
                                 resolver,
                                 edits,
                                 value.labels.subscript_italic,
+                                {
+                                  underscoreSubscript:
+                                    value.labels.underscore_subscript,
+                                  subscriptAfterFirst:
+                                    value.labels.subscript_after_first,
+                                  firstLetterItalic:
+                                    value.labels.first_letter_italic,
+                                },
                               ),
                               document.id,
                             );

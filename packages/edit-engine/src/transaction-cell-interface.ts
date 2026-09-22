@@ -1,3 +1,4 @@
+import { labelIdentifierOptions } from "@icm/model";
 import {
   richTextPresentsIdentifier,
   rewriteRichTextIdentifier,
@@ -202,6 +203,7 @@ function mutateCellInterface(
             annotation.formatOverride = rewriteRichTextIdentifier(
               annotation.formatOverride,
               edit.name,
+              labelIdentifierOptions(draft.presentation),
             );
             changedObjectIds.add(annotation.id);
           }

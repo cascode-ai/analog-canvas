@@ -8,7 +8,95 @@ import { parseProject, serializeProject } from "@icm/project-protocol";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { resolveDocumentLogicalNets } from "@icm/derived";
 import { applyLabelSubscriptCase } from "./label-subscript-case";
+import { flattenRichText, richTextIdentifier } from "@icm/model";
+import { resolveAnnotationText } from "@icm/derived";
 const resolver = new InMemorySymbolResolver(builtInSymbols);
+const layout = {
+  underscoreSubscript: true,
+  subscriptAfterFirst: false,
+  firstLetterItalic: true,
+};
+
+it("updates old formatted labels and module body names together, preserving color and unrelated content", () => {
+  const source = fixture(),
+    doc = source.documents[0]!;
+  doc.instances.push({
+    id: "amp",
+    reference: "X1",
+    symbolId: "opamp-lettered",
+    placement: { position: { x: 300, y: 100 }, rotation: 0, mirror: "none" },
+    signalFlowParameters: { formula: "A_gain" },
+  });
+  const literal = applyLabelSubscriptCase(
+    source,
+    doc.id,
+    "preserve",
+    resolver,
+    [],
+    false,
+    { ...layout, underscoreSubscript: false, firstLetterItalic: false },
+  );
+  expect(
+    flattenRichText(
+      resolveAnnotationText(
+        literal.documents[0]!,
+        literal.documents[0]!.annotations[0]!,
+      ),
+    ),
+  ).toBe("R_load");
+  expect(literal.documents[0]!.instances[0]!.reference).toBe("R_load");
+  expect(literal.documents[0]!.annotations[0]!.textColor).toBe("#ff0000");
+  const script = applyLabelSubscriptCase(
+    literal,
+    doc.id,
+    "uppercase",
+    resolver,
+    [],
+    true,
+    layout,
+  );
+  expect(
+    script.documents[0]!.instances.at(-1)!.signalFlowParameters!.formula,
+  ).toBe("A_GAIN");
+  expect(
+    richTextIdentifier(script.documents[0]!.annotations[0]!.formatOverride!),
+  ).toBe("R_LOAD");
+  expect(script.documents[1]).toEqual(source.documents[1]);
+  expect(
+    parseProject(serializeProject(script)).documents[0]!.presentation,
+  ).toMatchObject({
+    labelUnderscoreSubscript: true,
+    labelFirstLetterItalic: true,
+  });
+});
+
+it("applies first-letter subscripts to plain names and aliases as one consistent naming action", () => {
+  const source = fixture(),
+    doc = source.documents[0]!;
+  doc.instances[0]!.reference = "Rload";
+  delete doc.annotations[0]!.formatOverride;
+  doc.netlist!.terminals[0]!.name = "Vin";
+  const next = applyLabelSubscriptCase(
+    source,
+    doc.id,
+    "lowercase",
+    resolver,
+    [],
+    false,
+    { ...layout, subscriptAfterFirst: true },
+  );
+  expect(next.documents[0]!.instances[0]!.reference).toBe("R_load");
+  expect(next.documents[0]!.netlist!.terminals[0]!.name).toBe("V_in");
+  expect(next.documents[0]!.annotations[0]!.formatOverride).toBeUndefined();
+  expect(
+    richTextIdentifier(
+      resolveAnnotationText(
+        next.documents[0]!,
+        next.documents[0]!.annotations[0]!,
+      ),
+    ),
+  ).toBe("R_load");
+});
 function fixture() {
   const project = createEmptyProject("case", "Case");
   const document = project.documents[0]!;

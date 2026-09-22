@@ -23,6 +23,37 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
   ];
   return [
     {
+      path: "labels.underscore_subscript",
+      label: "Underscores in names",
+      kind: "choice",
+      options: [
+        { value: true, label: "Convert to subscript · A₁" },
+        { value: false, label: "Keep underscore · A_1" },
+      ],
+      description: "Updates labels and block text in this circuit immediately.",
+    },
+    {
+      path: "labels.subscript_after_first",
+      label: "Everything after the first letter",
+      kind: "choice",
+      options: [
+        { value: false, label: "Keep typed boundaries" },
+        { value: true, label: "Use subscript · Vin → Vᵢₙ" },
+      ],
+      description:
+        "Renames Vin to V_in throughout this circuit. Takes precedence over literal underscores; Undo restores earlier names.",
+    },
+    {
+      path: "labels.first_letter_italic",
+      label: "First letter in this circuit",
+      kind: "choice",
+      options: [
+        { value: true, label: "Italic" },
+        { value: false, label: "Upright" },
+      ],
+      description: "Display only; independent of subscript slant.",
+    },
+    {
       path: "labels.subscript_case",
       label: "Subscript case in this circuit (label + netlist)",
       kind: "choice",

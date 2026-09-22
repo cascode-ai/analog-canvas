@@ -53,10 +53,12 @@ An exact reviewed PDK interface is read-only in Manager: its target, ordered
 terminals and parameter declarations belong to the reviewed mapping. Set device
 parameter values on instances instead. Neither a generic declaration nor a
 reviewed mapping alone proves that a particular simulation has its model sources.
-Port names do not infer subscripts from spelling. Local Cell symbols inherit
-the representative Port annotation's explicit RichText formatting, including
-subscripts; generic External pin names remain whole by default. This does not
-change electrical names or the typography of device references such as M1.
+Local Cell symbols inherit the representative Port annotation's explicit
+RichText formatting. The current drawing's label settings can apply underscore,
+first-letter, case and slant conventions to visible pins as well as labels;
+see [label names and typography](getting-started.md#label-names-and-typography).
+Rendering pin names never changes a component's electrical pin identity or
+external model interface. Complement output bars are retained.
 
 Use **New Cell** in the Cell Manager to create a module. **Place Cell** in the
 hierarchy row, or **Edit → Place Cell from this Project…**, opens the Insert

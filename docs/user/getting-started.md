@@ -186,8 +186,8 @@ bold italic. Bold, italic, upright text, color and superscript remain
 independent of the electrical name; changing a name preserves those choices.
 `Use display alias` is off by default. Enable it only for a canvas-only name.
 
-An underscore introduces a subscript: `M_1` is displayed as M₁, while `M1`
-stays on the baseline. Applying or removing subscript in the text editor adds
+By default an underscore introduces a subscript: `M_1` is displayed as M₁,
+while `M1` stays on the baseline. Applying or removing subscript in the text editor adds
 or removes the underscore in the netlist name. Netlist edits update the label
 in the other direction. Historical explicit label formatting is preserved on
 open; editing that label's text adopts this naming convention.
@@ -199,15 +199,30 @@ removing that suffix when renaming the source removes the bar. Subscript case
 changes leave this reserved suffix as `_bar`. Free text and explicit display
 aliases remain presentation-only.
 
-In **Properties** code, `labels.subscript_case` accepts `preserve`, `uppercase`
-or `lowercase`. Valid edits apply immediately. Changing it renames existing underscore suffixes
-and historical explicit rich-text subscripts in both labels and the netlist for
-the current Cell, in one undoable change. Plain names without subscripts stay
-plain. `labels.subscript_italic` accepts `true` (italic) or `false` (upright),
-changes only the subscript slant, and preserves names, color and weight.
-Individual labels remain freely editable afterwards. The choice is
-stored in Project Code, not as a browser-wide preference. `preserve` leaves
-current spelling alone; use Undo to restore an earlier spelling. Same-name Nets
+Clear the selection and open **Properties** to change the current drawing's
+`labels` settings. Each field has a dropdown in the editable code. Valid changes
+refresh existing labels immediately, including pin labels and simple names
+inside analog blocks such as `A_1`. Real expressions such as `1/s` retain their
+formula formatting.
+
+- `underscore_subscript`: `true` displays `A_1` as A₁; `false` keeps `A_1`
+  literally, without renaming its electrical source.
+- `subscript_after_first`: `true` applies the leading-letter convention to
+  existing names, changing `Vin` to `V_in` in both the drawing and netlist.
+  This takes precedence over literal underscores. Turning it off keeps the
+  resulting names; use Undo to restore the earlier names.
+- `subscript_case`: `preserve`, `uppercase`, or `lowercase`. Changing case
+  updates existing underscore suffixes and historical explicit subscripts in
+  both the labels and netlist. `preserve` leaves current spelling alone.
+- `subscript_italic`: `true` for italic subscripts, `false` for upright.
+- `first_letter_italic`: `true` for an italic initial, `false` for upright,
+  independently of the subscript.
+
+Each change is undoable and stored in the current Cell's Project Code. Editing
+these presentation settings directly in Project Code also updates existing
+labels. Other drawings retain their own settings. Color and weight are
+preserved; individual labels remain freely editable afterwards. Style choices
+do not change electrical names. Same-name Nets
 and Pins denote one electrical connection. Instance names must remain unique:
 a collision keeps the draft open and suggests `Use display alias` in the status
 bar, without opening a blocking dialog.

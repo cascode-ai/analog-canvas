@@ -1,3 +1,4 @@
+import { labelIdentifierOptions } from "@icm/model";
 import type {
   Annotation,
   CellSymbolPresentation,
@@ -1332,6 +1333,7 @@ export function planRenameCellTerminal(
                     formatOverride: rewriteRichTextIdentifier(
                       annotation.formatOverride,
                       newName,
+                      labelIdentifierOptions(child.presentation),
                     ),
                   }
                 : {}),

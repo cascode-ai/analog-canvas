@@ -580,3 +580,41 @@ it("overbars rename bound instances while display aliases keep their electrical 
   expect(alias.kind).toBe("update");
   if (alias.kind === "update") expect(alias.beforeEdits ?? []).toEqual([]);
 });
+
+it("lets a manual text edit remove subscripts even after the drawing convention was applied", () => {
+  const document = createEmptyDocument("manual", "Manual");
+  document.presentation.labelSubscriptAfterFirst = true;
+  document.instances.push({
+    id: "M1",
+    reference: "M_load",
+    symbolId: "nmos",
+    placement: null,
+  });
+  const label: Annotation = {
+    ...annotation(),
+    kind: "instance-label",
+    netId: undefined,
+    content: undefined,
+    binding: { kind: "instance-reference", instanceId: "M1" },
+  };
+  document.annotations.push(label);
+  const session = createTextEditingSession(
+    { owner: "annotation", object: label },
+    document,
+  );
+  const content = { runs: [{ kind: "text" as const, value: "Mload" }] };
+  const proposal = proposeTextEditingCommit(
+    document,
+    updateTextEditingSession(session, { content }),
+  );
+  expect(proposal).toMatchObject({
+    kind: "update",
+    beforeEdits: [
+      { kind: "set_instance_reference", instanceId: "M1", reference: "Mload" },
+    ],
+    edit: {
+      kind: "upsert_schematic_annotation",
+      annotation: { formatOverride: content },
+    },
+  });
+});

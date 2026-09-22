@@ -666,6 +666,111 @@ test("subscript controls immediately update labels and names and survive reopen 
   await expect(code).toContainText("R_LOAD");
 });
 
+test("drawing label rules immediately update formatted names and amplifier body text", async ({
+  page,
+}, testInfo) => {
+  const project = fixture();
+  const document = project.documents[0]!;
+  document.instances[0]!.reference = "R_load";
+  document.annotations[0]!.formatOverride = semanticTextDocument(
+    "R_load",
+    "instance-label",
+  );
+  document.annotations[0]!.textColor = "#ff0000";
+  document.instances.push({
+    id: "amp",
+    reference: "X1",
+    symbolId: "opamp-lettered",
+    placement: { position: { x: 500, y: 350 }, rotation: 0, mirror: "none" },
+    signalFlowParameters: { formula: "A" },
+  });
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "label-rules.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  const body = page.locator(
+    '[data-layer="symbols"] [data-object-id="amp"] [data-role="formula-text"]',
+  );
+  await expect(body).toHaveText("A");
+  await page.getByTestId("hit-amp").dblclick();
+  await page
+    .getByRole("textbox", { name: "Canvas text editor" })
+    .fill("A_gain");
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  await page.keyboard.press("Escape");
+  await expect(body.locator('[data-text-run="subscript"]')).toHaveText("gain");
+  await page.getByTestId("draw-tool-document-style").click();
+  const underscore = page.getByLabel("Underscores in names options", {
+    exact: true,
+  });
+  await underscore.selectOption("false");
+  await expect(label(page)).toHaveText("R_load");
+  await expect(body).toHaveText("A_gain");
+  await expect(body.locator('[data-text-run="subscript"]')).toHaveCount(0);
+  await underscore.selectOption("true");
+  await page
+    .getByLabel("Subscript case in this circuit (label + netlist) options", {
+      exact: true,
+    })
+    .selectOption("uppercase");
+  await page
+    .getByLabel("Subscript italic in this circuit options", { exact: true })
+    .selectOption("false");
+  await page
+    .getByLabel("First letter in this circuit options", { exact: true })
+    .selectOption("false");
+  await expect(body).toHaveText("AGAIN");
+  await expect(label(page)).toHaveText("RLOAD");
+  for (const text of [label(page), body]) {
+    await expect
+      .poll(() =>
+        text
+          .locator("tspan")
+          .evaluateAll((spans) =>
+            spans.every(
+              (span) => getComputedStyle(span).fontStyle === "normal",
+            ),
+          ),
+      )
+      .toBe(true);
+  }
+  await page
+    .getByLabel("Everything after the first letter options", { exact: true })
+    .selectOption("true");
+  const second = page.locator(
+    '[data-layer="annotations"] [data-object-id="label-R2"]',
+  );
+  await expect(second.locator('[data-text-run="subscript"]')).toHaveText("2");
+  const saved = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(saved.documents[0]!.instances[1]!.reference).toBe("R_2");
+  expect(
+    saved.documents[0]!.instances.find(
+      (item: { id: string }) => item.id === "amp",
+    )!.signalFlowParameters!.formula,
+  ).toBe("A_GAIN");
+  expect(saved.documents[0]!.annotations[0]!.textColor).toBe("#ff0000");
+  await page.getByTestId("draw-tool-undo").click();
+  await expect(second.locator('[data-text-run="subscript"]')).toHaveCount(0);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "label-rules-reopened.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(saved)),
+  });
+  const discard = page.getByRole("button", {
+    name: "Continue without saving",
+    exact: true,
+  });
+  await discard.click();
+  await expect(body).toHaveText("AGAIN");
+  await expect(second.locator('[data-text-run="subscript"]')).toHaveText("2");
+  await page.screenshot({ path: testInfo.outputPath("label-typography.png") });
+});
+
 test("opening and reopening a PDK BJT adds X only to SPICE, never its canvas name", async ({
   page,
 }) => {

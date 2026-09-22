@@ -1,4 +1,10 @@
-import { richTextIdentifier, rewriteRichTextIdentifier } from "@icm/model";
+import {
+  richTextIdentifier,
+  rewriteRichTextIdentifier,
+  labelTypography,
+  labelTextDocument,
+  formatLabelIdentifier,
+} from "@icm/model";
 import { resolveAnnotationName } from "@icm/derived";
 import { useEffect, useRef, useState } from "react";
 
@@ -712,12 +718,19 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     formatOverride?: RichTextDocument;
   } => {
     const plainText = richTextIdentifier(placement.content);
-    const name = plainText.trim();
+    const typography = labelTypography(options.document.presentation);
+    const name = formatLabelIdentifier(plainText.trim(), typography);
     const content =
-      plainText === name
+      plainText === name && !plainText.includes("_")
         ? placement.content
-        : rewriteRichTextIdentifier(placement.content, name);
-    const semanticContent = semanticTextDocument(name, "net-label");
+        : rewriteRichTextIdentifier(placement.content, name, {
+            underscoreSubscript:
+              typography.subscriptAfterFirst || typography.underscoreSubscript,
+          });
+    const semanticContent = labelTextDocument(
+      name,
+      options.document.presentation,
+    );
     return {
       name,
       content,
@@ -903,13 +916,19 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       boundAnnotation.binding.kind !== "instance-reference" &&
       boundAnnotation.binding.kind !== "instance-value"
     ) {
+      const typography = labelTypography(options.document.presentation);
       const name =
         textEditing.contentEdited &&
         richTextIdentifier(textEditing.content) !==
           richTextIdentifier(
             resolveAnnotationText(options.document, boundAnnotation),
           )
-          ? richTextIdentifier(textEditing.content).trim()
+          ? textEditing.formatEdited
+            ? richTextIdentifier(textEditing.content).trim()
+            : formatLabelIdentifier(
+                richTextIdentifier(textEditing.content).trim(),
+                typography,
+              )
           : resolveAnnotationName(options.document, boundAnnotation);
       const currentName = resolveAnnotationName(
         options.document,
@@ -923,26 +942,21 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
         boundAnnotation.binding.kind === "cell-terminal-name";
       const { formatOverride: _currentOverride, ...annotationWithoutOverride } =
         boundAnnotation;
-      const semanticContent =
-        boundAnnotation.binding.kind === "cell-terminal-name"
-          ? semanticTextDocument(name, "formal-port")
-          : boundAnnotation.binding.kind === "net-name"
-            ? semanticTextDocument(
-                name,
-                boundAnnotation.kind === "power-label"
-                  ? "power-label"
-                  : "net-label",
-              )
-            : resolveAnnotationText(
-                options.document,
-                annotationWithoutOverride,
-              );
+      const semanticContent = labelTextDocument(
+        name,
+        options.document.presentation,
+      );
       const editedPresentation =
         boundAnnotation.binding.kind === "cell-terminal-name" &&
         !textEditing.formatEdited
           ? semanticContent
-          : flattenRichText(textEditing.content).includes("_")
-            ? rewriteRichTextIdentifier(textEditing.content, name)
+          : flattenRichText(textEditing.content).includes("_") ||
+              (typography.subscriptAfterFirst && !textEditing.formatEdited)
+            ? rewriteRichTextIdentifier(textEditing.content, name, {
+                underscoreSubscript:
+                  typography.subscriptAfterFirst ||
+                  typography.underscoreSubscript,
+              })
             : textEditing.content;
       const nextFormatOverride = formatOverrideAllowed
         ? JSON.stringify(semanticContent) === JSON.stringify(editedPresentation)

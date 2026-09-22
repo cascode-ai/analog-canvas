@@ -3,7 +3,11 @@ import {
   withProjectComponentDefinitions,
 } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
-import { createEmptyProject } from "@icm/model";
+import {
+  createEmptyProject,
+  identifierTextDocument,
+  flattenRichText,
+} from "@icm/model";
 import { createRoutingDemoProject } from "../../demos/routing-demo";
 import { EditorDocumentController } from "../../document/document-controller";
 
@@ -14,10 +18,81 @@ import {
 } from "./project-code";
 
 describe("Project Code", () => {
+  it("applies edited label settings to existing authored labels in the same undoable commit", () => {
+    const current = createEmptyProject("labels", "Labels");
+    const document = current.documents[0]!;
+    document.instances.push({
+      id: "R1",
+      reference: "R_load",
+      symbolId: "resistor",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+    });
+    document.annotations.push({
+      id: "name",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "R1" },
+      anchor: { kind: "free", position: { x: 120, y: 100 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+      formatOverride: identifierTextDocument("R_load"),
+    });
+    const candidate = structuredClone(current);
+    candidate.documents[0]!.presentation.labelUnderscoreSubscript = false;
+    const plan = planProjectCodeCommit(
+      current,
+      formatProjectCode(candidate),
+      document.id,
+    );
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(
+      flattenRichText(
+        plan.project.documents[0]!.annotations[0]!.formatOverride!,
+      ),
+    ).toBe("R_load");
+    expect(plan.project.documents[0]!.revision).toBe(document.revision + 1);
+    expect(plan.project.structureRevision).toBe(current.structureRevision + 1);
+    expect(
+      flattenRichText(current.documents[0]!.annotations[0]!.formatOverride!),
+    ).toBe("Rload");
+  });
   it("round-trips the complete canonical Project", () => {
     const project = createEmptyProject("project", "Project");
     expect(validateProjectCode(formatProjectCode(project), project.id)).toEqual(
       { ok: true, project },
+    );
+  });
+
+  it("preserves pasted manual typography when another Project reuses document IDs", () => {
+    const current = createEmptyProject("recipient", "Recipient");
+    const pasted = structuredClone(current);
+    pasted.id = "source";
+    const document = pasted.documents[0]!;
+    document.presentation.labelSubscriptAfterFirst = true;
+    document.presentation.labelFirstLetterItalic = false;
+    document.annotations.push({
+      id: "alias",
+      kind: "instance-label",
+      content: identifierTextDocument("Custom"),
+      anchor: { kind: "free", position: { x: 40, y: 40 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    const plan = planProjectCodeCommit(
+      current,
+      formatProjectCode(pasted),
+      current.topDocumentId,
+    );
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.project.id).toBe(current.id);
+    expect(plan.project.documents[0]!.annotations).toEqual(
+      document.annotations,
+    );
+    expect(plan.project.documents[0]!.presentation).toEqual(
+      document.presentation,
     );
   });
 

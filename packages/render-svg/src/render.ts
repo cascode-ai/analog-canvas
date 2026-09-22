@@ -7,6 +7,12 @@ import {
   mirrorScale,
   semanticTextDocument,
   transformPoint,
+  labelTypography,
+  formatLabelIdentifier,
+  rewriteRichTextIdentifier,
+  formatLabelSubscripts,
+  formatLabelFirstLetter,
+  richTextIdentifier,
 } from "@icm/model";
 import {
   contactRequiresJunctionDot,
@@ -669,6 +675,7 @@ export function renderVisiblePinNames(
   instance: SchematicDocument["instances"][number],
   profile: SchematicStyleProfile,
   foregroundOverride?: string,
+  presentation?: SchematicDocument["presentation"],
 ): string {
   const hierarchyVerticalPinNameInset = 10;
   const placement = instance.placement;
@@ -760,10 +767,40 @@ export function renderVisiblePinNames(
                   : mathSymbolRuns,
             }
           : { runs: [{ kind: "text" as const, value: displayName }] };
+      const typography = presentation && labelTypography(presentation);
+      // Preserve authored script boundaries and complement bars. A displayName
+      // such as Q deliberately omits the bar carried by the pin's role.
+      const pinIdentifier = richTextIdentifier(content);
+      const scripted =
+        typography &&
+        ((displayName.includes("_") &&
+          (!pin.presentation.nameContent ||
+            presentation.labelUnderscoreSubscript === true)) ||
+          typography.subscriptAfterFirst ||
+          presentation.labelUnderscoreSubscript === false)
+          ? rewriteRichTextIdentifier(
+              content,
+              formatLabelIdentifier(pinIdentifier, typography),
+              {
+                underscoreSubscript:
+                  typography.subscriptAfterFirst ||
+                  typography.underscoreSubscript,
+              },
+            )
+          : content;
+      const formatted = typography
+        ? formatLabelFirstLetter(
+            formatLabelSubscripts(scripted, {
+              case: presentation.labelSubscriptCase,
+              italic: presentation.labelSubscriptItalic,
+            }),
+            presentation.labelFirstLetterItalic,
+          )
+        : content;
       const colorStyle = foregroundOverride
         ? ` style="fill:${escapeXml(foregroundOverride)}"`
         : "";
-      return `<text data-pin-name="${escapeXml(pin.name)}" x="${x}" y="${y}" text-anchor="${alignment}"${sizeAttribute}${colorStyle}>${renderRichTextDocument(content, profile, { fontSize: schematicTextFontSize("pin-name", profile) })}</text>`;
+      return `<text data-pin-name="${escapeXml(pin.name)}" x="${x}" y="${y}" text-anchor="${alignment}"${sizeAttribute}${colorStyle}>${renderRichTextDocument(formatted, profile, { fontSize: schematicTextFontSize("pin-name", profile) })}</text>`;
     })
     .join("");
 }
@@ -1269,12 +1306,20 @@ export function buildSvgScene(
         instance,
         profile,
         foregroundOverride,
+        document.presentation,
       );
       const formula = renderUprightSignalFlowFormula(
         resolved.definition.formulaPresentation,
         instance.signalFlowParameters,
         instance.placement!,
-        { foreground: foregroundOverride ?? profile.foreground, profile },
+        {
+          foreground: foregroundOverride ?? profile.foreground,
+          profile,
+          ...(!resolved.definition.formulaPresentation?.supportsCoefficient &&
+          !resolved.definition.formulaPresentation?.adaptiveFrame
+            ? { labels: { presentation: document.presentation, profile } }
+            : {}),
+        },
       );
       const strokeColor = foregroundOverride ?? profile.foreground;
       // Background fill: drawn inside the instance transform using the

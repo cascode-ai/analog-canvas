@@ -22,6 +22,9 @@ export interface DocumentSettingsCodeValue {
   labels: {
     subscript_case: "preserve" | "uppercase" | "lowercase";
     subscript_italic: boolean;
+    underscore_subscript: boolean;
+    subscript_after_first: boolean;
+    first_letter_italic: boolean;
   };
   canvas: CanvasPreferenceCodeValue;
 }
@@ -65,6 +68,11 @@ export function documentSettingsCodeValue(
     labels: {
       subscript_case: document.presentation.labelSubscriptCase ?? "preserve",
       subscript_italic: document.presentation.labelSubscriptItalic ?? true,
+      underscore_subscript:
+        document.presentation.labelUnderscoreSubscript ?? true,
+      subscript_after_first:
+        document.presentation.labelSubscriptAfterFirst ?? false,
+      first_letter_italic: document.presentation.labelFirstLetterItalic ?? true,
     },
     canvas,
   };
@@ -95,7 +103,13 @@ export function defaultDocumentSettingsCode(
     appearance: Object.fromEntries(
       STYLE_KNOBS.map((knob) => [knob.key, 1]),
     ) as DocumentSettingsCodeValue["appearance"],
-    labels: { subscript_case: "preserve", subscript_italic: true },
+    labels: {
+      subscript_case: "preserve",
+      subscript_italic: true,
+      underscore_subscript: true,
+      subscript_after_first: false,
+      first_letter_italic: true,
+    },
   });
 }
 
@@ -180,12 +194,25 @@ export function parseDocumentSettingsCode(
   const labels = raw.labels ?? {
     subscript_case: document.presentation.labelSubscriptCase ?? "preserve",
     subscript_italic: document.presentation.labelSubscriptItalic ?? true,
+    underscore_subscript:
+      document.presentation.labelUnderscoreSubscript ?? true,
+    subscript_after_first:
+      document.presentation.labelSubscriptAfterFirst ?? false,
+    first_letter_italic: document.presentation.labelFirstLetterItalic ?? true,
   };
   if (!isRecord(labels))
     return { ok: false, message: "labels must be an object" };
   const labelError = exactKeys(
     labels,
-    ["subscript_case", "subscript_italic"],
+    [
+      "subscript_case",
+      "subscript_italic",
+      ...[
+        "underscore_subscript",
+        "subscript_after_first",
+        "first_letter_italic",
+      ].filter((key) => key in labels),
+    ],
     "labels",
   );
   if (labelError) return { ok: false, message: labelError };
@@ -205,6 +232,15 @@ export function parseDocumentSettingsCode(
       ok: false,
       message: "labels.subscript_italic must be true or false",
     };
+
+  for (const key of [
+    "underscore_subscript",
+    "subscript_after_first",
+    "first_letter_italic",
+  ] as const) {
+    if (labels[key] !== undefined && typeof labels[key] !== "boolean")
+      return { ok: false, message: `labels.${key} must be true or false` };
+  }
 
   if (!isRecord(raw.canvas))
     return { ok: false, message: "canvas must be an object" };
@@ -234,7 +270,15 @@ export function parseDocumentSettingsCode(
     value: {
       appearance,
       bulkDefaults,
-      labels: labels as DocumentSettingsCodeValue["labels"],
+      labels: {
+        underscore_subscript:
+          document.presentation.labelUnderscoreSubscript ?? true,
+        subscript_after_first:
+          document.presentation.labelSubscriptAfterFirst ?? false,
+        first_letter_italic:
+          document.presentation.labelFirstLetterItalic ?? true,
+        ...labels,
+      } as DocumentSettingsCodeValue["labels"],
       canvas: raw.canvas as unknown as CanvasPreferenceCodeValue,
     },
   };

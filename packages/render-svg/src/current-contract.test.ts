@@ -169,7 +169,7 @@ describe("current rendering contract", () => {
     expect(svg).toContain('data-pin-name="BOTTOM" x="100" y="110"');
   });
 
-  it("keeps non-hierarchical visible pin names on the plain-text path", () => {
+  it("applies drawing underscore rules to visible pin names without changing pin identities", () => {
     const namedPinSymbol = {
       schemaVersion: 1,
       id: "named-pin-test",
@@ -208,12 +208,21 @@ describe("current rendering contract", () => {
     );
 
     expect(svg).toContain('data-pin-name="V_in"');
-    expect(svg).toContain(">V_in</text>");
+    expect(svg).toContain('data-text-run="subscript"');
+    expect(svg).toContain(">in</tspan>");
     const pinText = svg.match(
       /<text data-pin-name="V_in"[^>]*>.*?<\/text>/u,
     )?.[0];
     expect(pinText).toBeDefined();
     expect(pinText).not.toContain("font-style:italic");
+    document.presentation.labelUnderscoreSubscript = false;
+    const literal = renderDocumentSvg(
+      document,
+      new InMemorySymbolResolver([...builtInSymbols, namedPinSymbol]),
+    );
+    expect(literal).toContain('data-pin-name="V_in"');
+    expect(literal).toContain(">V_in</text>");
+    expect(literal).not.toContain('data-text-run="subscript"');
   });
 
   it("renders an explicit pin display name without changing electrical identity", () => {
@@ -264,6 +273,20 @@ describe("current rendering contract", () => {
     expect(svg).not.toContain(">QBAR</text>");
     expect(svg).toContain("font-style:italic;font-weight:700");
     expect(svg).toContain('font-size="10.28"');
+    document.presentation.labelUnderscoreSubscript = false;
+    document.presentation.labelFirstLetterItalic = false;
+    const upright = renderDocumentSvg(
+      document,
+      new InMemorySymbolResolver([...builtInSymbols, namedPinSymbol]),
+    );
+    expect(upright).toContain('data-pin-name="QBAR"');
+    expect(upright).toContain('data-text-run="overbar"');
+    expect(upright).toContain(">Q</tspan>");
+    const uprightPin = upright.match(
+      /<text data-pin-name="QBAR"[^>]*>.*?<\/text>/u,
+    )?.[0];
+    expect(uprightPin).toBeDefined();
+    expect(uprightPin).not.toContain("font-style:italic");
   });
 
   it("renders both Port assets as symbols and labels only from annotations", () => {

@@ -64,16 +64,17 @@ Document style profile while their own `textColor` remains Auto.
 Net labels are formal electrical annotations tied to a logical Net; plain text
 has no electrical meaning.
 
-Under `razavi-textbook-v1`, instance identifiers and recognized voltage,
-current, power, and pin labels are composed into deterministic SVG
-`<tspan>` runs. The leading symbol is the base and the remaining identifier
-defaults to its subscript; trailing `+` and `-` signs remain upright. This is a
-style compiler, not an input grammar: underscores, braces, carets, backslashes,
-letter case, and every other authored character remain literal. Users change
-ordinary RichText formatting through the explicit toolbar, while only the
-explicit Formula editor interprets LaTeX syntax. The persisted semantic name
-and the flattened RichText projection therefore remain identical, and the same
-composed formal SVG scene feeds SVG, PNG, and PDF export.
+Under `razavi-textbook-v1`, bound names are composed into deterministic SVG
+`<tspan>` runs. By default `_` starts a subscript and a terminal `_bar` denotes
+an overbar. Each Document can keep underscores literal, apply the leading-letter
+subscript convention, and choose subscript case and independent initial/script
+slant. Explicit whole-drawing naming actions update electrical spelling along
+with the labels; slant is presentation only. RichText overrides remain editable,
+and case/slant actions preserve unrelated color, weight and bar decoration.
+Simple analog-block body names share these rules; mathematical expressions
+retain the formula renderer. Only the explicit Formula editor interprets LaTeX.
+Electrical readers use bound names rather than flattened visible text; the same
+composed formal SVG scene feeds canvas, Gallery thumbnails, SVG, PNG and PDF.
 
 An authored formula is the atomic alternative to ordinary styled RichText,
 not another text object type. Its persisted facts are bounded LaTeX source and

@@ -1,6 +1,11 @@
-import { withProjectComponentDefinitions } from "@icm/symbols";
+import {
+  withProjectComponentDefinitions,
+  createProjectSymbolResolver,
+  builtInSymbols,
+} from "@icm/symbols";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
-import { CircuitProjectSchema } from "@icm/model";
+import { CircuitProjectSchema, labelTypography } from "@icm/model";
+import { applyLabelSubscriptCase } from "../text-editing/label-subscript-case";
 import {
   serializeProject,
   tryParseProjectWithMetadata,
@@ -27,9 +32,8 @@ function diagnosticMessage(diagnostic: ProjectDiagnostic): string {
   return `${location}${diagnostic.message}`;
 }
 
-export function validateProjectCode(
+function readProjectCode(
   source: string,
-  projectId: string,
 ): { ok: true; project: CircuitProject } | { ok: false; message: string } {
   const parsed = tryParseProjectWithMetadata(source);
   if (!parsed.ok) {
@@ -38,16 +42,10 @@ export function validateProjectCode(
       message: diagnosticMessage(parsed.diagnostics[0]!),
     };
   }
-  // Pasted code owns the complete drawing, not the receiving editor session.
-  // Keep the recipient's Project identity so cross-Project paste uses the same
-  // undoable commit and connected Agent session. Drawing references stay intact.
   try {
     return {
       ok: true,
-      project: withProjectComponentDefinitions({
-        ...parsed.project,
-        id: projectId,
-      }),
+      project: withProjectComponentDefinitions(parsed.project),
     };
   } catch (error) {
     return {
@@ -55,6 +53,17 @@ export function validateProjectCode(
       message: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+export function validateProjectCode(
+  source: string,
+  projectId: string,
+): { ok: true; project: CircuitProject } | { ok: false; message: string } {
+  const result = readProjectCode(source);
+  // Pasted code owns the drawing; only the receiving session identity stays.
+  return result.ok
+    ? { ok: true, project: { ...result.project, id: projectId } }
+    : result;
 }
 
 function documentWithoutRevision(
@@ -95,9 +104,41 @@ export function planProjectCodeCommit(
   source: string,
   activeDocumentId: string,
 ): ProjectCodePlan {
-  const parsed = validateProjectCode(source, current.id);
+  const parsed = readProjectCode(source);
   if (!parsed.ok) return parsed;
-  const candidate = parsed.project;
+  let candidate = { ...parsed.project, id: current.id };
+  try {
+    for (const document of parsed.project.documents) {
+      // A complete drawing pasted from another Project carries its own manual
+      // overrides. It is not a request to batch-format the recipient's labels.
+      if (parsed.project.id !== current.id) break;
+      const previous = current.documents.find(
+        (item) => item.id === document.id,
+      );
+      if (!previous) continue;
+      const settings = labelTypography(document.presentation);
+      if (
+        JSON.stringify(settings) ===
+        JSON.stringify(labelTypography(previous.presentation))
+      )
+        continue;
+      candidate = applyLabelSubscriptCase(
+        candidate,
+        document.id,
+        settings.subscriptCase,
+        createProjectSymbolResolver(candidate, builtInSymbols),
+        [],
+        settings.subscriptItalic,
+        settings,
+        previous.presentation,
+      );
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
   if (sameAuthoredProject(current, candidate)) {
     return {
       ok: true,

@@ -57,10 +57,13 @@ function identifierParts(name: string): { body: string; overbar: boolean } {
 
 /** A terminal `_bar` becomes an overbar; the first remaining underscore
  * introduces the default subscript. No spelling is guessed from leading letters. */
-export function identifierTextDocument(name: string): RichTextDocument {
+export function identifierTextDocument(
+  name: string,
+  options: { underscoreSubscript?: boolean | undefined } = {},
+): RichTextDocument {
   if (!name) return { runs: [{ kind: "line-break" }] };
   const { body, overbar } = identifierParts(name);
-  const split = body.indexOf("_");
+  const split = options.underscoreSubscript === false ? -1 : body.indexOf("_");
   const styled = (value: string): RichTextRun => ({
     kind: "span",
     style: "italic",
@@ -89,11 +92,15 @@ export function identifierTextDocument(name: string): RichTextDocument {
 export function rewriteRichTextIdentifier(
   content: RichTextDocument,
   name: string,
+  options: { underscoreSubscript?: boolean | undefined } = {},
 ): RichTextDocument {
   const { body, overbar } = identifierParts(name);
-  const visible = body.replace(/(?<=.)_(?=.)/u, "");
+  const visible =
+    options.underscoreSubscript === false
+      ? body
+      : body.replace(/(?<=.)_(?=.)/u, "");
   const rewritten = rewriteRichTextPlainText(content, visible);
-  const split = body.indexOf("_");
+  const split = options.underscoreSubscript === false ? -1 : body.indexOf("_");
   const scriptStart =
     split > 0 && split < body.length - 1
       ? [...body.slice(0, split)].length
@@ -170,31 +177,38 @@ export function formatLabelSubscripts(
     (!options.case || options.case === "preserve")
   )
     return content;
-  const visit = (runs: RichTextRun[], subscript = false): RichTextRun[] =>
+  const overrideCase =
+    options.case !== undefined && options.case !== "preserve";
+  const visit = (
+    runs: RichTextRun[],
+    subscript = false,
+    uppercase = false,
+    lowercase = false,
+  ): RichTextRun[] =>
     runs.flatMap((run): RichTextRun[] => {
-      if (run.kind === "text" && subscript && options.case !== undefined)
+      if (run.kind === "text" && overrideCase)
         return [
           {
             ...run,
-            value:
-              options.case === "uppercase"
-                ? run.value.toUpperCase()
-                : options.case === "lowercase"
-                  ? run.value.toLowerCase()
-                  : run.value,
+            value: (subscript ? options.case === "uppercase" : uppercase)
+              ? run.value.toUpperCase()
+              : (subscript ? options.case === "lowercase" : lowercase)
+                ? run.value.toLowerCase()
+                : run.value,
           },
         ];
       if (run.kind !== "span") return [run];
       const children = visit(
         run.children,
         subscript || run.style === "subscript",
+        uppercase || run.style === "uppercase",
+        lowercase || run.style === "lowercase",
       );
       if (
-        subscript &&
-        ((run.style === "italic" && options.italic !== undefined) ||
-          (["uppercase", "lowercase"].includes(run.style) &&
-            options.case !== undefined &&
-            options.case !== "preserve"))
+        (subscript && run.style === "italic" && options.italic !== undefined) ||
+        // Materialize inherited case outside the script, so an enclosing
+        // uppercase span cannot defeat an explicit lowercase subscript action.
+        (overrideCase && ["uppercase", "lowercase"].includes(run.style))
       )
         return children;
       return [

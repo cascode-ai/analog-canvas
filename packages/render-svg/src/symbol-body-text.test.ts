@@ -35,6 +35,27 @@ function letters(svg: string): string[] {
 }
 
 describe("lettered amplifier body text", () => {
+  it("renders A_1 and all block-name typography settings immediately", () => {
+    const document = documentWithAmplifiers("opamp-lettered", ["A_gain"]);
+    const initial = renderDocumentSvg(document, resolver);
+    expect(initial).toContain('data-text-run="subscript"');
+    expect(letters(initial)).toEqual(["Again"]);
+    document.presentation.labelUnderscoreSubscript = false;
+    const literal = renderDocumentSvg(document, resolver);
+    expect(letters(literal)).toEqual(["A_gain"]);
+    expect(literal).not.toContain('data-text-run="subscript"');
+    document.presentation.labelUnderscoreSubscript = true;
+    document.presentation.labelSubscriptCase = "uppercase";
+    document.presentation.labelSubscriptItalic = false;
+    document.presentation.labelFirstLetterItalic = false;
+    const uppercase = renderDocumentSvg(document, resolver);
+    expect(letters(uppercase)).toEqual(["AGAIN"]);
+    const body = uppercase.match(
+      /<text data-role="formula-text"[^>]*>(.*?)<\/text>/u,
+    )![1]!;
+    expect(body).not.toContain("font-style:italic");
+    expect(body).toContain("font-weight:700");
+  });
   it("draws the default A and lets each Instance own its own letter", () => {
     // The point of the feature: one sheet with a gain stage, a buffer and an
     // unlabelled stage, all the same part.

@@ -1,3 +1,4 @@
+import { labelIdentifierOptions } from "@icm/model";
 import {
   inverseTransformPoint,
   mirrorScale,
@@ -235,6 +236,7 @@ export function refreshInstanceReferenceAnnotation(
       annotation.formatOverride = rewriteRichTextIdentifier(
         annotation.formatOverride,
         nextReference,
+        labelIdentifierOptions(draft.presentation),
       );
     }
     changedObjectIds.add(annotation.id);

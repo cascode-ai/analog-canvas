@@ -1,4 +1,10 @@
-import { richTextIdentifier, rewriteRichTextIdentifier } from "@icm/model";
+import {
+  richTextIdentifier,
+  rewriteRichTextIdentifier,
+  labelTypography,
+  labelTextDocument,
+  formatLabelIdentifier,
+} from "@icm/model";
 import type { SchematicEdit } from "@icm/edit-engine";
 import { flattenRichText, semanticTextDocument } from "@icm/model";
 import { resolveAnnotationText, resolveAnnotationName } from "@icm/derived";
@@ -434,11 +440,17 @@ export function proposeTextEditingCommit(
         ...rest
       } = annotation;
       const follows = !session.displayAlias;
+      const typography = labelTypography(document.presentation);
       const name =
         session.contentEdited &&
         richTextIdentifier(session.content) !==
           richTextIdentifier(resolveAnnotationText(document, annotation))
-          ? richTextIdentifier(session.content).trim()
+          ? session.formatEdited
+            ? richTextIdentifier(session.content).trim()
+            : formatLabelIdentifier(
+                richTextIdentifier(session.content).trim(),
+                typography,
+              )
           : reference;
       if (
         follows &&
@@ -462,10 +474,16 @@ export function proposeTextEditingCommit(
         follows && name !== reference
           ? [{ kind: "set_instance_reference", instanceId, reference: name }]
           : [];
-      const defaultContent = semanticTextDocument(name, "instance-label");
+      const defaultContent = labelTextDocument(name, document.presentation);
       const presentation =
-        session.contentEdited && flattenRichText(session.content).includes("_")
-          ? rewriteRichTextIdentifier(session.content, name)
+        session.contentEdited &&
+        (flattenRichText(session.content).includes("_") ||
+          (typography.subscriptAfterFirst && !session.formatEdited))
+          ? rewriteRichTextIdentifier(session.content, name, {
+              underscoreSubscript:
+                typography.subscriptAfterFirst ||
+                typography.underscoreSubscript,
+            })
           : session.content;
       const next: Annotation = {
         ...rest,

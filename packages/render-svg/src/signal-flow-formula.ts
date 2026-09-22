@@ -1,5 +1,11 @@
 import type { SchematicStyleProfile } from "@icm/derived";
-import { transformPoint } from "@icm/model";
+import {
+  transformPoint,
+  labelTextDocument,
+  formatLabelIdentifier,
+  labelTypography,
+} from "@icm/model";
+import { renderRichTextDocument } from "./rich-text.js";
 import type { SchematicDocument } from "@icm/model";
 import {
   normalizeSignalFlowFormula,
@@ -17,6 +23,11 @@ export type FormulaPresentation = NonNullable<
 >;
 
 export interface SignalFlowFormulaRenderOptions {
+  /** Plain block names share the drawing's label rules; expressions stay formulas. */
+  labels?: {
+    presentation: SchematicDocument["presentation"];
+    profile: SchematicStyleProfile;
+  };
   /** Instance foreground overrides apply to renderer-owned presentation too. */
   foreground: string;
   profile: {
@@ -112,9 +123,23 @@ export function renderSignalFlowFormula(
   if (!presentation || !layout) return "";
   const family = escapeXml(options.profile.typography.fontFamily);
   const common = `fill="${escapeXml(options.foreground)}" stroke="none" font-family="${family}" font-weight="${options.profile.typography.mathWeight}"`;
+  const inline =
+    options.labels && /^[\p{L}][\p{L}\p{N}_]*$/u.test(layout.formula)
+      ? renderRichTextDocument(
+          labelTextDocument(
+            formatLabelIdentifier(
+              layout.formula,
+              labelTypography(options.labels.presentation),
+            ),
+            options.labels.presentation,
+          ),
+          options.labels.profile,
+          { fontSize: layout.fontSize },
+        )
+      : renderSignalFlowInlineFormula(layout.formula);
   const body = layout.fraction
     ? `<g data-role="signal-flow-fraction"><text data-role="formula-numerator" x="${layout.formulaX}" y="${layout.numeratorBaseline}" text-anchor="middle" font-size="${layout.fontSize}">${renderSignalFlowInlineFormula(layout.fraction.numerator)}</text><line data-role="formula-fraction-bar" x1="${layout.formulaX - layout.formulaWidth / 2}" y1="${layout.fractionBarY}" x2="${layout.formulaX + layout.formulaWidth / 2}" y2="${layout.fractionBarY}" stroke="${escapeXml(options.foreground)}" stroke-width="${options.profile.strokes.annotation}"/><text data-role="formula-denominator" x="${layout.formulaX}" y="${layout.denominatorBaseline}" text-anchor="middle" font-size="${layout.fontSize}">${renderSignalFlowInlineFormula(layout.fraction.denominator)}</text></g>`
-    : `<text data-role="formula-text" x="${layout.formulaX}" y="${layout.inlineBaseline}" text-anchor="middle" font-size="${layout.fontSize}">${renderSignalFlowInlineFormula(layout.formula)}</text>`;
+    : `<text data-role="formula-text" x="${layout.formulaX}" y="${layout.inlineBaseline}" text-anchor="middle" font-size="${layout.fontSize}">${inline}</text>`;
   const coefficientMarkup = layout.coefficient
     ? `<text data-role="formula-coefficient" x="${layout.coefficientX}" y="${layout.inlineBaseline}" text-anchor="end" font-size="${layout.fontSize}">${renderSignalFlowInlineFormula(layout.coefficient)}·</text>`
     : "";

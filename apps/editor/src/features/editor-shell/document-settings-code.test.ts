@@ -32,7 +32,13 @@ function editableValue(): DocumentSettingsCodeValue {
       junctionRadiusScale: 1,
     },
     bulkDefaults: { nmosNet: null, pmosNet: null },
-    labels: { subscript_case: "preserve", subscript_italic: true },
+    labels: {
+      subscript_case: "preserve",
+      subscript_italic: true,
+      underscore_subscript: true,
+      subscript_after_first: false,
+      first_letter_italic: true,
+    },
     canvas: { ...canvas },
   };
 }
@@ -88,6 +94,9 @@ describe("document Style code", () => {
     ["labels.subscript_case", "titlecase", "preserve"],
     ["labels.subscript_italic", "false", "must be true or false"],
     ["labels.subscript_italic", 0, "must be true or false"],
+    ["labels.underscore_subscript", "true", "must be true or false"],
+    ["labels.subscript_after_first", 1, "must be true or false"],
+    ["labels.first_letter_italic", null, "must be true or false"],
   ])("rejects an unsupported %s value", (path, invalid, message) => {
     const document = createEmptyDocument("document-main", "Main");
     const value = editableValue() as unknown as Record<string, any>;
@@ -148,7 +157,7 @@ describe("document Style code", () => {
     const source = serializeDocumentSettingsCode(editableValue());
     const spans = documentSettingsCodeSpans(source, document);
 
-    expect(spans).toHaveLength(13);
+    expect(spans).toHaveLength(16);
     expect(
       spans.find((span) => span.field.path === "appearance.fontScale")?.field
         .options,

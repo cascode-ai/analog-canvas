@@ -2361,6 +2361,48 @@ describe("Edit Transaction envelope", () => {
     expect(presentation).toEqual(semanticTextDocument("M21", "instance-label"));
   });
 
+  it("keeps literal underscores and authored styles after renaming a bound reference", () => {
+    const document = documentWithInstance();
+    document.presentation.labelUnderscoreSubscript = false;
+    document.instances[0]!.reference = "M_left";
+    document.annotations.push({
+      id: "label",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "M1" },
+      formatOverride: {
+        runs: [
+          {
+            kind: "span",
+            style: "bold",
+            children: [{ kind: "text", value: "M_left" }],
+          },
+        ],
+      },
+      textColor: "#ff0000",
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    const result = executeTransaction(document, {
+      ...transaction(),
+      edits: [
+        {
+          kind: "set_instance_reference",
+          instanceId: "M1",
+          reference: "M_right",
+        },
+      ],
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const label = result.document.annotations[0]!;
+    expect(flattenRichText(label.formatOverride!)).toBe("M_right");
+    expect(JSON.stringify(label.formatOverride)).not.toContain('"subscript"');
+    expect(JSON.stringify(label.formatOverride)).toContain('"bold"');
+    expect(label.textColor).toBe("#ff0000");
+  });
+
   it("applies a bounded bulk netlist patch atomically", () => {
     const document = documentWithInstance();
     document.instances.push({
