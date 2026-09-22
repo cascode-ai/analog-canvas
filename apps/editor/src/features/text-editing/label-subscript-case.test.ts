@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 import {
   createEmptyProject,
   createEmptyDocument,
+  labelTypography,
   semanticTextDocument,
   type SchematicDocument,
 } from "@icm/model";
@@ -162,9 +163,9 @@ it("renames source names, keeps local style and persists only in this Cell", () 
   expect(restored.documents[0]!.presentation.labelSubscriptCase).toBe(
     "uppercase",
   );
-  expect(restored.documents[1]!.presentation.labelSubscriptCase).toBe(
-    "preserve",
-  );
+  expect(
+    labelTypography(restored.documents[1]!.presentation).subscriptCase,
+  ).toBe("preserve");
   const lower = applyLabelSubscriptCase(next, id, "lowercase", resolver);
   expect(lower.documents[0]!.instances[0]!.reference).toBe("R_load");
 });

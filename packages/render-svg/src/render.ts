@@ -796,7 +796,7 @@ export function renderVisiblePinNames(
                 case: presentation.labelSubscriptCase,
                 italic: presentation.labelSubscriptItalic,
               }),
-              presentation.labelFirstLetterItalic,
+              presentation.labelFirstLetterItalic ?? true,
             )
           : content;
       const colorStyle = foregroundOverride

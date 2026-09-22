@@ -107,14 +107,14 @@ export function nextCellPinName(
 ): string {
   const nameKey = (name: string): string =>
     name.trim().toLowerCase().replace(/^(.)_/, "$1");
-  const occupied = new Set(
-    (document.netlist?.terminals ?? []).map((terminal) =>
+  const unavailableNames = new Set([
+    ...(document.netlist?.terminals ?? []).map((terminal) =>
       nameKey(terminal.name),
     ),
-  );
-  const reserved = new Set(Array.from(reservedNames, nameKey));
+    ...Array.from(reservedNames, nameKey),
+  ]);
   const unavailable = (name: string): boolean =>
-    occupied.has(nameKey(name)) || reserved.has(nameKey(name));
+    unavailableNames.has(nameKey(name));
   if (appearance === "filled") {
     let ordinal = 1;
     while (unavailable(`VB${ordinal}`)) ordinal += 1;
