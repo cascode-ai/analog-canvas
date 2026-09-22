@@ -4934,7 +4934,18 @@ test("Gallery historical branch link creates an independent project and unavaila
     route.fulfill({ status: 404, json: { error: "not-found" } }),
   );
   page.on("dialog", (dialog) => dialog.accept());
+  // Navigation does not await the async workspace boot or its history fetch.
+  // Start the error-UI assertion only after the mocked failure was delivered;
+  // retain its normal timeout and assert the actual HTTP boundary as well.
+  const unavailable = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname ===
+      "/api/gallery/entry/versions/missing/project",
+  );
   await page.goto("/editor?history=entry&version=missing&versionNo=1");
+  const response = await unavailable;
+  expect(response.status()).toBe(404);
+  await response.finished();
   await expect(page.getByTestId("status")).toContainText(
     "snapshot is unavailable",
   );
