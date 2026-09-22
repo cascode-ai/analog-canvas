@@ -4961,7 +4961,8 @@ function WorkspaceEditor({
   type TabSession = ReturnType<typeof captureTabSession>;
   function restoreTabSession(session: TabSession) {
     resetInteractionState();
-    browserAgentFileHost.clear();
+    // The outgoing tab still owns its artifacts and expiring workspaces.
+    // Selection changes hide its UI, not its file service.
     setAgentFileCandidate(null);
     setImportReport(null);
     setImportReviewOpen(false);

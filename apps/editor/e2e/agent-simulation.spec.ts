@@ -454,6 +454,29 @@ test("HTTP Kit alone authors native objects and hands off a Project-folder run",
   expect(
     (await request.get(`${baseURL}${transfer.download.path}`)).status(),
   ).toBe(401);
+  // A tab switch must retain the originating host's in-memory files and runs.
+  await page
+    .getByRole("button", { name: "New project tab", exact: true })
+    .click();
+  await expect(page.getByRole("tab")).toHaveCount(2);
+  await page.getByRole("tab").first().click();
+  await expect
+    .poll(async () => {
+      try {
+        return (await snapshot()).ok;
+      } catch {
+        return false;
+      }
+    })
+    .toBe(true);
+  const retained = await send("files", {
+    operation: "simulation-input",
+    input: { action: "artifact", artifactId: raw.id },
+  });
+  expect(retained.result.text).toBe(rawfile);
+  expect(
+    (await send("simulation", { operation: "read", runId: run.id })).run.state,
+  ).toBe("finished");
   await page.reload();
   await awaitEditorReady(page);
   await expect
