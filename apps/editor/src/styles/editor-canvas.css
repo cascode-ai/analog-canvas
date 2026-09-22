@@ -819,7 +819,8 @@
 .rich-text-editable [data-rich-text-style="overbar"] {
   display: inline-block;
   box-sizing: content-box;
-  padding-top: 0.04em;
+  /* Keep the rule above the raised superscript on every platform font. */
+  padding-top: 0.12em;
   border-top: 1px solid currentcolor;
   line-height: 1;
   text-decoration: none;

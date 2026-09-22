@@ -58,6 +58,36 @@ function fixture() {
 const label = (page: import("@playwright/test").Page) =>
   page.locator('[data-layer="annotations"] [data-object-id="label-R1"]');
 
+async function choosePropertyPreview(
+  page: import("@playwright/test").Page,
+  label: string,
+  option: RegExp,
+): Promise<void> {
+  await page
+    .getByRole("button", { name: `Show ${label} previews`, exact: true })
+    .click();
+  await page
+    .getByRole("listbox", { name: `${label} previews`, exact: true })
+    .getByRole("option", { name: option })
+    .click();
+}
+
+async function expectPropertyPreviewSelected(
+  page: import("@playwright/test").Page,
+  label: string,
+  option: RegExp,
+): Promise<void> {
+  await page
+    .getByRole("button", { name: `Show ${label} previews`, exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole("listbox", { name: `${label} previews`, exact: true })
+      .getByRole("option", { name: option }),
+  ).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("Escape");
+}
+
 test("selects an export entry independently of saved Top and edits only that Cell", async ({
   page,
 }) => {
@@ -601,18 +631,18 @@ test("subscript controls immediately update labels and names and survive reopen 
     buffer: Buffer.from(JSON.stringify(source)),
   });
   await page.getByTestId("draw-tool-document-style").click();
-  const setting = page.getByLabel("Subscript case options", { exact: true });
-  const italic = page.getByLabel("Subscript style options", {
-    exact: true,
-  });
   const subscript = label(page).locator('[data-text-run="subscript"]');
   const slant = () =>
     subscript.evaluate(
       (el) => getComputedStyle(el.querySelector("tspan") ?? el).fontStyle,
     );
-  await setting.selectOption("uppercase");
+  await choosePropertyPreview(
+    page,
+    "Subscript case",
+    /^Make suffix uppercase/u,
+  );
   await expect(subscript).toHaveText("LOAD");
-  await italic.selectOption("false");
+  await choosePropertyPreview(page, "Subscript style", /^Upright subscript/u);
   await expect.poll(slant).toBe("normal");
   await expect(label(page)).toHaveText("RLOAD");
   const saved = parseSavedProject(
@@ -629,7 +659,11 @@ test("subscript controls immediately update labels and names and survive reopen 
   await expect(subscript).toHaveText("LOAD");
   await page.getByTestId("draw-tool-undo").click();
   await expect(subscript).toHaveText("load");
-  await expect(setting).toHaveValue("preserve");
+  await expectPropertyPreviewSelected(
+    page,
+    "Subscript case",
+    /Preserve typed case/u,
+  );
   await page.getByTestId("draw-tool-redo").click();
   await page.getByTestId("draw-tool-redo").click();
   await expect.poll(slant).toBe("normal");
@@ -705,23 +739,26 @@ test("drawing label rules immediately update formatted names and amplifier body 
   await page.keyboard.press("Escape");
   await expect(body.locator('[data-text-run="subscript"]')).toHaveText("gain");
   await page.getByTestId("draw-tool-document-style").click();
-  const underscore = page.getByLabel("Underscore subscript options", {
-    exact: true,
-  });
-  await underscore.selectOption("false");
+  await choosePropertyPreview(
+    page,
+    "Underscore subscript",
+    /^Keep the typed underscore/u,
+  );
   await expect(label(page)).toHaveText("R_load");
   await expect(body).toHaveText("A_gain");
   await expect(body.locator('[data-text-run="subscript"]')).toHaveCount(0);
-  await underscore.selectOption("true");
-  await page
-    .getByLabel("Subscript case options", { exact: true })
-    .selectOption("uppercase");
-  await page
-    .getByLabel("Subscript style options", { exact: true })
-    .selectOption("false");
-  await page
-    .getByLabel("First letter options", { exact: true })
-    .selectOption("false");
+  await choosePropertyPreview(
+    page,
+    "Underscore subscript",
+    /^Convert underscore suffix to subscript/u,
+  );
+  await choosePropertyPreview(
+    page,
+    "Subscript case",
+    /^Make suffix uppercase/u,
+  );
+  await choosePropertyPreview(page, "Subscript style", /^Upright subscript/u);
+  await choosePropertyPreview(page, "First letter", /^Upright first letter/u);
   await expect(body).toHaveText("AGAIN");
   await expect(label(page)).toHaveText("RLOAD");
   for (const text of [label(page), body]) {
@@ -737,9 +774,11 @@ test("drawing label rules immediately update formatted names and amplifier body 
       )
       .toBe(true);
   }
-  await page
-    .getByLabel("Subscript after first letter options", { exact: true })
-    .selectOption("true");
+  await choosePropertyPreview(
+    page,
+    "Subscript after first letter",
+    /^Subscript after the first letter/u,
+  );
   const second = page.locator(
     '[data-layer="annotations"] [data-object-id="label-R2"]',
   );
