@@ -774,20 +774,25 @@ try {
     field: "/request/patches",
   });
   assert.equal(patches.variants[0].required, false);
-  const invalidRange = await first.tool("simulation_plot", {
-    request: {
-      action: "prepare-plot",
-      runId: "run",
-      name: "invalid-range",
-      panels: [
-        {
-          analysisIndex: 0,
-          signals: [{ signal: "v(out)" }],
-          xRange: [0, 1, 2],
-        },
-      ],
+  const invalidRangeReply = await first.request("tools/call", {
+    name: "simulation_plot",
+    arguments: {
+      request: {
+        action: "prepare-plot",
+        runId: "run",
+        name: "invalid-range",
+        panels: [
+          {
+            analysisIndex: 0,
+            signals: [{ signal: "v(out)" }],
+            xRange: [0, 1, 2],
+          },
+        ],
+      },
     },
   });
+  assert.equal(invalidRangeReply.isError, true);
+  const invalidRange = JSON.parse(invalidRangeReply.content[0].text);
   assert.deepEqual(invalidRange.error.issues[0].path, [
     "request",
     "panels",
