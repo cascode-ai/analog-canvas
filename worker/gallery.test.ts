@@ -16,6 +16,7 @@ import { CLOUD_PROJECT_LIMIT as EDITOR_CLOUD_PROJECT_LIMIT } from "../apps/edito
 import { CLOUD_PROJECT_LIMIT } from "./gallery-do";
 import {
   GALLERY_DAILY_SUBMISSION_LIMIT,
+  galleryReadableDocument,
   refreshNetlistMarks,
   GALLERY_MAX_PROJECT_BYTES,
   GalleryDO,
@@ -27,6 +28,7 @@ import {
   type GalleryPreviewCache,
 } from "./gallery";
 import { AuthDO, type AuthEnv } from "./auth";
+import workerEntry, { injectGalleryReadableDocument } from "./index";
 
 function sqliteState(queries?: string[]) {
   const db = new DatabaseSync(":memory:");
@@ -384,6 +386,117 @@ describe("svgPreviewDimensions", () => {
     ).toEqual({ width: 640, height: 360 });
     expect(svgPreviewDimensions('<svg viewBox="0 0 20 0"></svg>')).toBeNull();
     expect(svgPreviewDimensions("<svg></svg>")).toBeNull();
+  });
+});
+
+describe("directly readable public Gallery URLs", () => {
+  it("puts the complete catalog, filters and next-step links in the first HTML", async () => {
+    const env = environment();
+    const id = await submitOne(env, "Five transistor OTA");
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET author = ?, description = ?, tags = ? WHERE id = ?",
+      "Magic Li",
+      "Compact five transistor amplifier",
+      ",amplifier,ota,",
+      id,
+    );
+
+    const readable = await galleryReadableDocument(
+      new Request(`${ORIGIN}/?q=transistor&tags=ota`),
+      env,
+    );
+    expect(readable).not.toBeNull();
+    expect(readable!.bodyHtml).toContain("1 public analog circuits");
+    expect(readable!.bodyHtml).toContain("Tags are the sole public");
+    expect(readable!.bodyHtml).toContain("Magic Li");
+    expect(readable!.bodyHtml).toContain(`/g/${id}`);
+    expect(readable!.bodyHtml).toContain("Five transistor OTA");
+
+    const html = injectGalleryReadableDocument(
+      '<!doctype html><html><head><title>Analog Canvas</title></head><body><div id="root"></div></body></html>',
+      readable!,
+    );
+    expect(html).toContain("Analog Canvas Community Gallery</title>");
+    expect(html).toContain('data-public-gallery-document="catalog"');
+    expect(html).toContain('type="application/ld+json"');
+
+    const served = await workerEntry.fetch(
+      new Request(`${ORIGIN}/?q=transistor&tags=ota`),
+      {
+        ...env,
+        ASSETS: {
+          fetch: async () =>
+            new Response(
+              '<!doctype html><html><head><title>Analog Canvas</title></head><body><div id="root"></div></body></html>',
+              { headers: { "content-type": "text/html; charset=utf-8" } },
+            ),
+        },
+      } as unknown as Parameters<typeof workerEntry.fetch>[1],
+    );
+    expect(served.status).toBe(200);
+    expect(await served.text()).toContain(
+      'data-public-gallery-document="catalog"',
+    );
+  });
+
+  it("describes one circuit and serves its public Project Code and netlist result", async () => {
+    const env = environment();
+    const id = await submitOne(env, "Readable circuit");
+    const readable = await galleryReadableDocument(
+      new Request(`${ORIGIN}/g/${id}`),
+      env,
+    );
+    expect(readable).not.toBeNull();
+    expect(readable!.bodyHtml).toContain("Circuit overview");
+    expect(readable!.bodyHtml).toContain(`${id}/project.icproj.json`);
+    expect(readable!.bodyHtml).toContain(`${id}/netlist.sp`);
+    expect(readable!.bodyHtml).toContain(`${id}/netlist.scs`);
+    expect(readable!.bodyHtml).toContain("requires no account");
+
+    const projectResponse = await route(
+      env,
+      new Request(`${ORIGIN}/g/${id}/project.icproj.json`),
+    );
+    expect(projectResponse.status).toBe(200);
+    expect(projectResponse.headers.get("access-control-allow-origin")).toBe(
+      "*",
+    );
+    expect(parseProject(await projectResponse.text()).name).toBe(
+      "Readable circuit",
+    );
+
+    const netlistResponse = await route(
+      env,
+      new Request(`${ORIGIN}/g/${id}/netlist.sp`),
+    );
+    expect([200, 422]).toContain(netlistResponse.status);
+    expect(await netlistResponse.text()).not.toContain("TODO");
+
+    const previewResponse = await route(
+      env,
+      new Request(`${ORIGIN}/g/${id}/preview.svg`),
+    );
+    expect(previewResponse.status).toBe(200);
+    expect(previewResponse.headers.get("content-type")).toContain(
+      "image/svg+xml",
+    );
+    expect(previewResponse.headers.get("access-control-allow-origin")).toBe(
+      "*",
+    );
+  });
+
+  it("publishes crawler and Agent discovery documents without a session", async () => {
+    const env = environment();
+    const id = await submitOne(env, "Discoverable circuit");
+    const robots = await route(env, new Request(`${ORIGIN}/robots.txt`));
+    expect(await robots.text()).toContain(`${ORIGIN}/sitemap.xml`);
+    const sitemap = await route(env, new Request(`${ORIGIN}/sitemap.xml`));
+    expect(await sitemap.text()).toContain(`${ORIGIN}/g/${id}`);
+    const llms = await route(env, new Request(`${ORIGIN}/llms.txt`));
+    const guidance = await llms.text();
+    expect(guidance).toContain("No account");
+    expect(guidance).toContain("/g/{id}/project.icproj.json");
+    expect(guidance).toContain("Public circuits: 1");
   });
 });
 

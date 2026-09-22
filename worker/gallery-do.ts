@@ -758,6 +758,8 @@ export class GalleryDO {
         });
       case "list":
         return this.list(body);
+      case "catalog":
+        return this.catalog();
       case "entry":
         return this.entry(String(body.id), "public");
       case "any-entry":
@@ -1177,6 +1179,43 @@ export class GalleryDO {
         netlistable: Number(counts.netlistable),
         liked: Number(counts.liked),
       },
+    });
+  }
+
+  /** Complete public metadata index for server-rendered, directly readable pages. */
+  private catalog(): Response {
+    const rows = this.sql
+      .exec<EntrySummaryRow & { likes: number }>(
+        `SELECT e.id, e.name, e.author, e.description, e.created_at,
+           e.owner_user_id, e.schema_version, e.tags, e.curation_json,
+           e.netlistable, e.preview_revision, e.preview_width, e.preview_height,
+           (SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id) AS likes
+         FROM gallery_entries e WHERE e.status = 'public'
+         ORDER BY e.name COLLATE NOCASE ASC, e.name ASC, e.id ASC`,
+      )
+      .toArray();
+    const entries = rows.map((row) => summaryOf(row));
+    const tagCounts = new Map<string, number>();
+    const groupCounts = new Map<string, number>();
+    for (const entry of entries) {
+      for (const tag of entry.tags) {
+        tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+      }
+      for (const group of new Set(entry.tags.map(galleryTagGroup))) {
+        groupCounts.set(group, (groupCounts.get(group) ?? 0) + 1);
+      }
+    }
+    return Response.json({
+      entries,
+      total: entries.length,
+      netlistable: entries.filter((entry) => entry.netlistable).length,
+      tags: [...tagCounts.entries()]
+        .sort((left, right) => left[0].localeCompare(right[0], "en"))
+        .map(([tag, count]) => ({ tag, count, group: galleryTagGroup(tag) })),
+      groups: [...groupCounts.entries()]
+        .sort((left, right) => left[0].localeCompare(right[0], "en"))
+        .map(([group, count]) => ({ group, count })),
+      authors: this.contributorCounts(["e.status = 'public'"], []),
     });
   }
 
