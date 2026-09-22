@@ -41,6 +41,7 @@ describe("lettered amplifier body text", () => {
     expect(initial).toContain('data-text-run="subscript"');
     expect(letters(initial)).toEqual(["Again"]);
     document.presentation.labelUnderscoreSubscript = false;
+    document.presentation.labelSubscriptAfterFirst = false;
     const literal = renderDocumentSvg(document, resolver);
     expect(letters(literal)).toEqual(["A_gain"]);
     expect(literal).not.toContain('data-text-run="subscript"');

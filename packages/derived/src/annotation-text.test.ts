@@ -3,6 +3,7 @@ import { resolveAnnotationName } from "./annotation-text.js";
 import {
   createEmptyDocument,
   flattenRichText,
+  labelTextDocument,
   semanticTextDocument,
   type Annotation,
 } from "@icm/model";
@@ -40,7 +41,7 @@ describe("bound annotation text", () => {
     };
 
     expect(resolveAnnotationText(document, annotation)).toEqual(
-      semanticTextDocument("M_INTERNAL", "instance-label"),
+      labelTextDocument("M_INTERNAL", document.presentation),
     );
     expect(
       resolveAnnotationText(document, {
@@ -72,7 +73,7 @@ describe("bound annotation text", () => {
       locked: false,
     };
     expect(resolveAnnotationText(document, annotation)).toEqual(
-      semanticTextDocument("R7", "instance-label"),
+      labelTextDocument("R7", document.presentation),
     );
     delete document.instances[0]!.reference;
     expect(resolveAnnotationText(document, annotation)).toEqual(
@@ -119,7 +120,7 @@ describe("bound annotation text", () => {
     };
 
     expect(resolveAnnotationText(document, annotation)).toEqual(
-      semanticTextDocument("Vout", "formal-port"),
+      labelTextDocument("Vout", document.presentation),
     );
     annotation.formatOverride = {
       runs: [

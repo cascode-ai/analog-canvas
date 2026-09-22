@@ -3,6 +3,7 @@ import {
   createEmptyProject,
   createEmptyDocument,
   semanticTextDocument,
+  type SchematicDocument,
 } from "@icm/model";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
@@ -16,6 +17,14 @@ const layout = {
   subscriptAfterFirst: false,
   firstLetterItalic: true,
 };
+
+function useLegacyLabelTypography(document: SchematicDocument): void {
+  delete document.presentation.labelFirstLetterItalic;
+  delete document.presentation.labelSubscriptAfterFirst;
+  delete document.presentation.labelSubscriptCase;
+  delete document.presentation.labelSubscriptItalic;
+  delete document.presentation.labelUnderscoreSubscript;
+}
 
 it("updates old formatted labels and module body names together, preserving color and unrelated content", () => {
   const source = fixture(),
@@ -153,9 +162,9 @@ it("renames source names, keeps local style and persists only in this Cell", () 
   expect(restored.documents[0]!.presentation.labelSubscriptCase).toBe(
     "uppercase",
   );
-  expect(
-    restored.documents[1]!.presentation.labelSubscriptCase,
-  ).toBeUndefined();
+  expect(restored.documents[1]!.presentation.labelSubscriptCase).toBe(
+    "preserve",
+  );
   const lower = applyLabelSubscriptCase(next, id, "lowercase", resolver);
   expect(lower.documents[0]!.instances[0]!.reference).toBe("R_load");
 });
@@ -200,6 +209,7 @@ it("allows same-name Nets to remain electrically merged", () => {
 it("updates historical explicit subscripts and the bound names without guessing plain names", () => {
   const source = fixture();
   const doc = source.documents[0]!;
+  useLegacyLabelTypography(doc);
   doc.instances[0]!.reference = "Rload";
   doc.netlist!.terminals[0]!.name = "Vin";
   doc.annotations.push({
@@ -228,6 +238,7 @@ it("updates historical explicit subscripts and the bound names without guessing 
 it("toggles only subscript slant, persists it and leaves source names and other Cells untouched", () => {
   const source = fixture(),
     doc = source.documents[0]!;
+  doc.presentation.labelSubscriptItalic = true;
   doc.instances[0]!.reference = "Rload"; // explicit historical subscript
   const upright = applyLabelSubscriptCase(
     source,
@@ -273,6 +284,7 @@ it("toggles only subscript slant, persists it and leaves source names and other 
 it("formats display aliases independently of their instance name", () => {
   const source = fixture(),
     doc = source.documents[0]!;
+  doc.presentation.labelSubscriptItalic = true;
   const alias = doc.annotations[0]!;
   delete alias.binding;
   alias.content = semanticTextDocument("R_alias", "instance-label");
@@ -321,6 +333,7 @@ it("applies appearance and label changes together without dropping either edit",
 it("renames a legacy power-label claim and keeps its authored upright subscript", () => {
   const source = fixture(),
     doc = source.documents[0]!;
+  useLegacyLabelTypography(doc);
   doc.annotations.push({
     ...doc.annotations[0]!,
     id: "rail",

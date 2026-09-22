@@ -39,6 +39,7 @@ describe("Project Code", () => {
     });
     const candidate = structuredClone(current);
     candidate.documents[0]!.presentation.labelUnderscoreSubscript = false;
+    candidate.documents[0]!.presentation.labelSubscriptAfterFirst = false;
     const plan = planProjectCodeCommit(
       current,
       formatProjectCode(candidate),

@@ -2364,6 +2364,7 @@ describe("Edit Transaction envelope", () => {
   it("keeps literal underscores and authored styles after renaming a bound reference", () => {
     const document = documentWithInstance();
     document.presentation.labelUnderscoreSubscript = false;
+    document.presentation.labelSubscriptAfterFirst = false;
     document.instances[0]!.reference = "M_left";
     document.annotations.push({
       id: "label",

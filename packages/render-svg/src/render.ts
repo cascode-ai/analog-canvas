@@ -788,15 +788,17 @@ export function renderVisiblePinNames(
               },
             )
           : content;
-      const formatted = typography
-        ? formatLabelFirstLetter(
-            formatLabelSubscripts(scripted, {
-              case: presentation.labelSubscriptCase,
-              italic: presentation.labelSubscriptItalic,
-            }),
-            presentation.labelFirstLetterItalic,
-          )
-        : content;
+      const formatted = pin.presentation.nameContent
+        ? content
+        : typography
+          ? formatLabelFirstLetter(
+              formatLabelSubscripts(scripted, {
+                case: presentation.labelSubscriptCase,
+                italic: presentation.labelSubscriptItalic,
+              }),
+              presentation.labelFirstLetterItalic,
+            )
+          : content;
       const colorStyle = foregroundOverride
         ? ` style="fill:${escapeXml(foregroundOverride)}"`
         : "";

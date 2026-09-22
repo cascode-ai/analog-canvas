@@ -7,7 +7,7 @@ import {
 import {
   createEmptyDocument,
   flattenRichText,
-  semanticTextDocument,
+  labelTextDocument,
   type Annotation,
   type RichTextDocument,
   type SchematicDocument,
@@ -102,7 +102,7 @@ describe("one visual annotation, one electrical authority", () => {
     );
     expect(session.displayAlias).toBe(false);
     const after = edit(before, text("R8"), false);
-    expect(after.instances[0]!.reference).toBe("R8");
+    expect(after.instances[0]!.reference).toBe("R_8");
     expect(after.annotations[0]!.binding).toEqual({
       kind: "instance-reference",
       instanceId: "device-1",
@@ -219,7 +219,7 @@ describe("one visual annotation, one electrical authority", () => {
         { owner: "annotation", object: custom.annotations[0]! },
         custom,
       ),
-      content: semanticTextDocument("R1", "instance-label"),
+      content: labelTextDocument("R_1", custom.presentation),
       displayAlias: false,
     };
     expect(session).toMatchObject({
@@ -236,7 +236,8 @@ describe("one visual annotation, one electrical authority", () => {
       binding: { kind: "instance-reference", instanceId: "device-1" },
     });
     expect(restored.annotations[0]).not.toHaveProperty("content");
-    expect(restored.annotations[0]).not.toHaveProperty("formatOverride");
+    expect(restored.annotations[0]!.formatOverride).toEqual(session.content);
+    expect(restored.instances[0]!.reference).toBe("R1");
     const formatted = updateTextEditingSession(session, {
       content: {
         runs: [

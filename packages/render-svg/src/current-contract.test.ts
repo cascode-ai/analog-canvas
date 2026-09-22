@@ -214,14 +214,17 @@ describe("current rendering contract", () => {
       /<text data-pin-name="V_in"[^>]*>.*?<\/text>/u,
     )?.[0];
     expect(pinText).toBeDefined();
-    expect(pinText).not.toContain("font-style:italic");
+    expect(pinText).toContain("font-style:italic");
+    expect(pinText).toContain('data-text-run="subscript"');
+    expect(pinText).toContain("font-style:normal");
     document.presentation.labelUnderscoreSubscript = false;
+    document.presentation.labelSubscriptAfterFirst = false;
     const literal = renderDocumentSvg(
       document,
       new InMemorySymbolResolver([...builtInSymbols, namedPinSymbol]),
     );
     expect(literal).toContain('data-pin-name="V_in"');
-    expect(literal).toContain(">V_in</text>");
+    expect(literal).toContain(">V</tspan>_in</text>");
     expect(literal).not.toContain('data-text-run="subscript"');
   });
 
