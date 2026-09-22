@@ -73,9 +73,10 @@ the same native contract. These are execution locations, not alternative
 engines; missing targets never cause fallback. Without a configured Profile
 and native executor, native capabilities remain unconfigured and editing
 remains usable.
-Existing ngspice deployment configuration is not a native registration. The
-[migration roadmap](../roadmap/vacask-migration.md) owns isolated cloud delivery;
-this route change does not qualify or modify existing hosted environments.
+An ngspice target alone does not register VACASK. [Deployment](../deployment.md)
+owns hosted registration and verification; the
+[qualification roadmap](../roadmap/vacask-migration.md) owns evidence required
+for runtime/model scope changes.
 
 Worker and harness share `validateNativeExecutionInput`: revision, entry bytes,
 portable disjoint file/dependency paths, registry digests and byte/count bounds.
@@ -112,9 +113,8 @@ are separately advertised by the accepted runtime configuration; a client must
 not override them. The local configuration example budgets 64 MiB for collected
 output, leaving envelope space for parsed representations and JSON escaping.
 
-The model-library and legacy container sections below describe the retained
-ngspice baseline, not this native route. Their replacement Profile/image remains
-a separate migration obligation; they must not be used to register VACASK.
+The model-library and container sections below describe the ngspice engine,
+not the VACASK route; one engine's configuration cannot register the other.
 
 ## Ngspice baseline model-library selection
 
@@ -209,57 +209,23 @@ configuration metadata then reports `modelLibrary: null`.
 
 ## Run metadata V1
 
-Every completed, failed, dropped-input, or timed-out simulator run carries one
-transient metadata envelope:
+Each run's transient metadata records input identity, model-library selection
+and observed execution environment. The executable
+[SimulationRunMetadata contract](../../packages/spice-run/src/contract.ts)
+owns the exact fields, including the `ngspice`/`vacask` engine identity;
+[metadata validation](../../packages/spice-run/src/metadata.ts) owns integrity
+and fingerprint checks.
 
-```ts
-interface SimulationRunMetadata {
-  schemaVersion: 1;
-  input: {
-    inputRevision: string | null;
-    netlistSha256: string;
-    testbenchSha256: string;
-    deckSha256: string;
-  };
-  configuration: {
-    modelLibrary:
-      | { directive: "include"; section: null }
-      | { directive: "lib"; section: string }
-      | null;
-  };
-  environment: {
-    fingerprint: string;
-    executor: "hosted-container" | "local-host";
-    reproducibility: "observed" | "pinned";
-    profileId: string | null;
-    platform: string;
-    simulator: {
-      name: "ngspice";
-      version: string;
-      binarySha256: string | null;
-    };
-    models: { id: string; contentSha256: string } | null;
-    startupSha256: string | null;
-  };
-}
-```
+Input digests identify the authored and executed bytes. `inputRevision` is
+opaque caller state for freshness, not a durable Project identity.
+Environment facts identify the simulator, platform, models, startup policy
+and Profile. A hosted executor reports `pinned` only after matching its
+qualified Profile; an explicitly configured local adapter reports its actual
+environment. Unconfigured execution supplies no fabricated metadata.
 
-The three input hashes cover the exact authored netlist, testbench, and final
-deck bytes separately. `inputRevision` is opaque caller state used to reject a
-stale result; it is not a durable Project identity. The model-library path is
-not returned because it may reveal a local directory, while the deck hash
-still covers its exact emitted spelling.
-
-An environment fingerprint is the SHA-256 of canonical environment facts. A
-consumer verifies that fingerprint before accepting a runner response. The
-hosted container reports `pinned` only after matching the Profile at startup;
-an explicitly configured local adapter must report its actual environment,
-using `observed` unless it satisfies a pinned Profile. The unconfigured local
-host produces no simulation metadata. Metadata plumbing alone never claims reproducibility.
-
-This envelope establishes provenance only. The numbers themselves are
-[Result data](simulation-results.md#result-data). Bindings from a probe back to circuit objects
-are produced at compile time and are not part of reading a rawfile.
+This envelope establishes provenance, not numerical correctness.
+[Result data](simulation-results.md#result-data) owns the numbers; probe-to-Canvas
+bindings come from compilation, not inference while reading a rawfile.
 
 ## Execution boundary
 
@@ -590,7 +556,7 @@ Deterministic acceptance is split by boundary: shared lifecycle tests, MCP ↔
 browser-host ↔ Worker tests using recorded numeric fixtures, browser WebSocket
 receipt/export tests, and Linux process cancellation tests. Recorded fixtures
 prove protocol/data handling, not a new electrical simulation or cloud deployment.
-Real Preview qualification must use the candidate commit and declared Profile;
+Real hosted qualification must use the candidate commit and declared Profile;
 local tests must not be reported as that cloud acceptance.
 
 Release availability and the operator-host gateway configuration follow
@@ -622,5 +588,5 @@ failure.
 - Container Profile/build tests verify actual simulator/model/startup identity
   against the pinned Profile. A locally available PDK or skipped local ngspice
   test is not hosted qualification.
-- [Deployment](../deployment.md) owns exact-candidate Preview evidence and
-  Production promotion. A green parser/unit test cannot stand in for that gate.
+- [Deployment](../deployment.md) owns Production verification and rollback.
+  A green parser/unit test cannot stand in for live execution evidence.

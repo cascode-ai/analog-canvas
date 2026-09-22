@@ -26,6 +26,9 @@ embedded in Project JSON or recovery records.
 
 ## Browser recovery records
 
+These bounded crash-recovery copies are distinct from the window workspace
+below. They do not limit the number of open project tabs.
+
 Recovery copies are complete canonical Project texts stored in IndexedDB under
 an application-specific database, keyed by a random `workingCopyId` plus a
 `latest`/`previous` generation, never by `projectId` alone. The executable
@@ -64,6 +67,24 @@ upgraded launch; the old key is removed only after the IndexedDB transaction
 commits. Unmigratable legacy data stays in localStorage for raw
 download/discard.
 
+## Browser-window workspace
+
+The editor persists its open project tabs, unsaved Project content, active tab,
+Cloud bindings and Cell views separately from bounded crash recovery. Refresh
+restores that window's workspace for the same route. The window identity is
+kept in sessionStorage, with snapshots in IndexedDB and a synchronous journal
+for immediate refresh. This state never changes a Cloud Project or enters
+portable Project JSON. See
+[workspace storage](../../apps/editor/src/document/project-workspace.ts).
+
+Inactive tabs retain live controllers and Undo histories during a session;
+refresh reconstructs controllers without Undo stacks or unfinished text-field
+edits. Workspace restoration does not make unsaved content formally saved.
+A closed project tab stays closed after refresh. Read/write failures leave
+earlier snapshots intact and report the need to export; clearing browser data
+can remove this origin-local state. Cloud Save and portable backups remain
+separate durability choices.
+
 ## Cloud Project and Save semantics
 
 The private Cloud Project API owns one current revision per stable resource:
@@ -94,13 +115,14 @@ side effect of `PUT /api/projects/:id`.
 Repeated Save updates the same id and does not consume another account slot.
 The first Save of an unbound New/imported/recovered Project creates a Cloud
 Project. The editor exposes no second Save command that silently creates a
-duplicate Project. The server retains no implicit save history and never
-evicts another Project to make room. A revision mismatch or capacity limit
-blocks only that explicit Save; editing and local recovery continue.
+duplicate Project. Changed saves retain bounded history as described below;
+the server never evicts another Project to make room. A revision mismatch or
+capacity limit blocks only that explicit Save; editing and local recovery continue.
 
-Shelf cards expose Duplicate, Rename, Export and Favorite through right-click,
-touch long-press or the visible actions button, plus Open in new tab. Duplicate
-creates an independent private Project with all serialized circuit/source data
+Shelf cards expose Duplicate, Rename, Export, Favorite and Version history
+through the visible actions button, plus Open in new tab. Right-click and
+long-press retain normal browser behavior. Duplicate creates an independent
+private Project with all serialized circuit/source data
 and a new Project identity; it never inherits a Gallery link. Rename loads the
 current document and uses revision-checked Save, preserving its other content
 and publication association. Export downloads the complete stored Project file.
@@ -110,6 +132,33 @@ summary/open and full backup/restore. Toggling it changes neither Project bytes
 nor the drawing revision or publication; starred cards sort first. Older backups
 without the field restore false. Card actions report capacity, permission and
 revision failures without deleting existing Projects or overwriting newer edits.
+
+### Private save history
+
+Each changed Save atomically snapshots the displaced revision and advances the
+current Cloud Project. The newest three earlier revisions are retained; the
+current revision is separate. Identical retries create neither another revision
+nor a history entry. Pruning does not recover previously discarded history.
+The account boundary and optimistic revision guard remain the same as Save.
+
+Shelf **Version history** lists saved revisions and offers component comparison,
+Restore and Branch. Restore goes through revision-checked Save, preserving the
+displaced current version within the same retention bound. It retains the
+Project's publication/favorite binding but never republishes to Gallery.
+Branch opens an independent Project without that binding; saving it creates a
+new private draft. Component comparison uses the same
+[snapshot comparison](community-gallery.md#version-history) as Gallery history.
+This is bounded save history, not named milestones or a merge graph.
+
+The owned routes are `GET /api/projects/:id/versions`, version-specific
+`project`/`preview.svg` reads, and `POST .../versions/:versionId/restore`.
+Responses are private and not cached. Full-store backup/restore includes these
+snapshots; [Gallery-only backups](../gallery-backup.md) intentionally do not.
+The executable storage/retention boundary is
+[Cloud Project storage](../../worker/gallery-do.ts); authorization and restore
+reuse live in [the HTTP handler](../../worker/gallery.ts).
+
+### Working-copy transitions
 
 The editor session owns only the transient Cloud binding (`id` and acknowledged
 revision), the saved content baseline, and its recovery working-copy id. No

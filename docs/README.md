@@ -14,7 +14,7 @@ archive of completed plans.
 | [Architecture decisions](adr/README.md)         | Optional rationale for consequential architectural choices              |
 | [Agent guide](agent/README.md)                  | Authorized workflows and on-demand knowledge                            |
 | [Roadmap](roadmap/README.md)                    | Remaining work and acceptance questions                                 |
-| [Deployment](deployment.md)                     | Preview, Production, qualification, promotion, and recovery             |
+| [Deployment](deployment.md)                     | Production delivery, verification, rollback, and retained storage      |
 | [Testing](testing/README.md)                    | Validation policy and contract ownership                                |
 | [Experience](experience/README.md)              | Human-requested, evidence-backed reusable lessons                       |
 

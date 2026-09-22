@@ -15,7 +15,7 @@ history. Start with the topic, then follow its Decision links to the contracts.
 | Agent                 | [Browser authority, transports and scoped resources](agent.md)                       |
 | Persistence           | [Save, recovery and file compatibility](persistence.md)                              |
 | Simulation            | [Authored experiment, execution and result boundaries](simulation.md)                |
-| Deployment            | [Channel isolation, routing and candidate promotion](deployment.md)                  |
+| Deployment            | [Production-only delivery and retained storage](deployment.md)                       |
 
 ## Retention test
 

@@ -98,15 +98,16 @@ restrictive content-security-policy.
 - The editor Publish dialog offers an on-demand **Check Duplicate**
   action. It compares the currently visible Cell (not
   unconditionally the Project's root Cell) against every public Gallery
-  entry in a Web Worker. Exact topology results ignore instance, Net, Cell and
+  entry through the [duplicate-task service](#current-cell-duplicate-tasks).
+  Exact topology results ignore instance, Net, Cell and
   external-port names; model and parameter values; top-level port order; and
   whether an external rail was represented as a Port or a global power Net.
   Device classes, recognizable MOS/BJT polarity, terminal roles and actual
   connectivity remain structural evidence. This topology-only contract is
   intentionally broader than the administrator's exact electrical duplicate
-  contract. Results retain all exact topology matches and at most five partial
-  matches, ranked by verified structural coverage and parameter/model closeness
-  as described in [Current-cell duplicate tasks](#current-cell-duplicate-tasks). The action is public and read-only: results
+  contract. Results are bounded and ranked by verified structural coverage and
+  parameter/model closeness as described in the task contract. The action is
+  public and does not mutate Gallery entries: results
   link to the existing Gallery entry and offer read-only snapshot comparison.
   No cleanup authority is exposed in the editor.
   The click captures the comparison Cell: subsequent edits, hiding the panel,
@@ -353,8 +354,8 @@ Branch opens a full independent Project, with a fresh Project identity and no
 Cloud/publication binding. In the editor it opens a new project tab; `/mine`
 opens an editor tab using the protected historical Project endpoint. Save creates
 an independent private draft; publishing it is a separate action. There is no
-merge graph, automatic publication, or private Shelf timeline. Expanding the cap
-from 2 to 3 does not recover versions already pruned under the old policy.
+merge graph or automatic publication. Private Cloud Project history follows
+the separate [save-history contract](persistence-and-recovery.md#private-save-history).
 
 ## Accounts and sessions
 
@@ -463,12 +464,24 @@ the account holder controls from the account menu.
 
 ## Current-cell duplicate tasks
 
-The editor's duplicate scan captures the current Cell when started. Its worker
-and results belong to the page session, independent of the Publish dialog.
-Closing the dialog, editing the canvas or changing browser focus leaves it
-running; a persistent notice exposes progress and completed results. Explicit
-Cancel, a new check, or closing/reloading the browser page ends the old task.
-This is not a server-persisted job and does not claim restart recovery.
+The duplicate scan captures the current Cell when started. On the hosted site,
+one private durable task belongs to the account or anonymous browser identity.
+Server alarms advance and checkpoint work; browser polling observes it.
+Closing the dialog, changing the drawing, refreshing or closing the page does
+not cancel it. Reopening resumes progress/results within the seven-day retention
+window. Explicit Cancel stops work. A second start while running is refused;
+request identity makes a lost start acknowledgement safe to retry.
+
+The hosted result retains the best 20 matches within an 8 MiB result budget;
+omissions and incomplete coverage remain explicit. Access does not expose another
+owner's snapshot. Storage, admission and limits are owned by
+[TopologyTaskDO](../../worker/topology-task.ts), and browser resumption by
+[the task client](../../apps/editor/src/features/editor-shell/gallery-topology-task.ts).
+
+Without the hosted endpoint, the local Web Worker fallback belongs to the page
+session. It survives closing the Publish dialog but ends on page close/reload.
+The UI distinguishes this fallback from durable execution; it is not a second
+promise of server recovery.
 
 Exact topology is confirmed using device classes, polarity, pin roles and
 connectivity. Full netlist equivalence, including models and parameters, is
@@ -489,8 +502,9 @@ side, with equal values scoring 1, missing values or different signs scoring 0.
 Symbolic expressions require literal equality. This contributes 80% of the
 parameter/model score, with 20% from matching model and invocation identity.
 Overall score is `structure × (0.85 + 0.15 × parameter/model score)`. Results
-sort by this score; only confirmed full netlist equality displays 100%. Keep
-all exact topology matches and at most five partial matches. A similarity
+sort by this score; only confirmed full netlist equality displays 100%. The local
+fallback retains all exact topology matches and at most five partial matches;
+hosted tasks apply the bounded retention above. A similarity
 percentage is not a simulation-equivalence guarantee.
 
 **Compare on canvas** renders frozen source and candidate Projects side by

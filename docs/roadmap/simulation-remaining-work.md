@@ -32,29 +32,20 @@ An extension needs capture-backed record association, repeated/reordered cases
 and numerical tolerances. Matching by title or guessing from order alone is not
 sufficient evidence. Other supported records must remain usable.
 
-## Production promotion predicate
-
-The Production workflow accepts any successful Deploy Preview run at the candidate
-SHA. It does not require the latest completed run or a separate Profile-bound
-receipt. Decide whether this is the intended guarantee before strengthening it
-or claiming more. [Deployment](../deployment.md) owns the actual promotion gate.
-
-Qualification still covers the actual image, binary, model tree, startup policy,
-isolation and named device/analysis/corner scope. A digest or a passing mocked
-test is not numerical qualification. Missing capability evidence must remain
-explicit and must not block unrelated editing or saving.
-
 ## Recurring candidate acceptance
 
-The hosted release workflows execute the dual-engine (ngspice/VACASK) smoke
-and source GUI, public Agent/MCP and cross-Project journeys. Their maintained
-scripts and retained receipts own the candidate evidence.
+The [Production delivery workflow](../deployment.md) owns the release route and
+live dual-engine smoke checks. GUI, public MCP and cross-Project acceptance
+require their own recorded evidence; do not infer that they ran from a successful
+deployment or the existence of a test script.
 
-At promotion, inspect the candidate's actual receipts for source and mapped edits,
+For affected releases, inspect the candidate's actual receipts for source and mapped edits,
 error/repair, authorized Cell closure import, execution, Specs/raw/CSV retrieval,
-Batch, save/reload and access boundaries. A missing check, failed numerical
-comparison or unsupported case remains a release issue even when these flows
-exist. Do not treat this document as evidence that an arbitrary SHA passed.
+Batch, save/reload and access boundaries. Missing required evidence, a failed
+declared acceptance criterion or an unsupported advertised capability remains
+a release issue. Cross-engine numerical equivalence is not a native VACASK
+release criterion; its [qualification boundary](vacask-migration.md) applies.
+Do not treat this document as evidence that an arbitrary SHA passed.
 
 Use existing qualified fixtures and the declared models, corner, analyses and
 tolerances. Broader lifecycle and security checks remain in the

@@ -588,8 +588,12 @@ does not replace the current Project.
 A transient copy capsule carries the selected objects, Cell parameter context,
 referenced external interfaces, child-Cell closure, symbol-library identity, and
 referenced source-file records. It is not persisted or added to the Agent API.
-Source-file records are provenance, not bundled PDK model contents. Simulation
-folders, simulator configuration, run results and unrelated Cells are not copied.
+Source-file records are provenance, not bundled PDK model contents. Complete
+Cell composition also carries source folders bound within that Cell closure,
+including authored files and dependency declarations; partial selections do
+not carry an entire testbench. Run results, external model bytes and unrelated
+Cells are not copied. Authored simulation text is preserved, so references
+affected by composition may require repair before preparation.
 
 Every placement allocates new canvas object IDs and collision-free component
 instance References. Net names and Cell Pin names remain exactly as authored on
@@ -741,16 +745,17 @@ this formula-only decision path.
 
 ## Project sessions
 
-New, Open, SPICE import, Gallery/built-in example open, and recovery restore are
-Project-session transitions rather than Document edits. A dirty current Project
-always requires an explicit discard or cancel decision before one of these
-transitions commits; a successful browser-recovery write is safety evidence,
-not authorization to replace the foreground Project. Candidate files and
-gallery/recovery payloads are parsed and validated before that decision.
+Opening an independent project tab, activating an existing tab and replacing
+the current Project are distinct session operations, not Document edits.
+Tab activation retains the other tabs' controllers, content and Undo histories;
+pending code edits must first be applied or discarded. Closing dirty work or
+replacing it requires an explicit decision. A successful recovery write is
+safety evidence, not permission to discard. Candidate files and Gallery/recovery
+payloads are parsed and validated before installation.
 
-The editor has no Previous Project stack: replacing a live session does not
-retain the outgoing Project in memory for a later swap, and the File menu
-offers no **Previous Project** command.
+The [persistence contract](persistence-and-recovery.md#browser-window-workspace)
+owns refresh restoration and its limits. Tabs are explicit open sessions, not
+a hidden Previous Project stack for a replaced Project.
 
 Project dirty detection covers `structureRevision` and every Document revision,
 not only the active Cell, and compares the content with the last acknowledged
@@ -789,12 +794,14 @@ planner before the transaction is submitted.
 
 ## Files, recovery, and replacement
 
-Open, example load, restore, and human-approved staged import replace the entire
-Project through one replacement boundary; they are not Edit Engine
-transactions. Replacement cancels pending recovery for the outgoing Project
-and terminates its Agent session. A complete Project covered by the schema
-24→57 upgrade chain may be upgraded at the read boundary and then enters the
-editor only as schema-58; migrated files are marked as needing save.
+When Open, example load, restore or human-approved staged import replaces the
+current tab, it uses one Project replacement boundary, not an Edit Engine
+transaction. Opening a separate tab does not discard the current one.
+Replacement cancels pending recovery for the outgoing Project and terminates
+its Agent session. A Project supported by the
+[file-format contract](project-file-format.md) is decoded/upgraded before
+installation into the normalized editor model; migrated files are marked as
+needing save.
 
 Selection, viewport, active tool, previews, Agent tokens, and approval UI are
 transient and never enter Project JSON. Recovery is scheduled only after a

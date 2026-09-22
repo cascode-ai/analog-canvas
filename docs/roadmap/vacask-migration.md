@@ -1,7 +1,6 @@
 # VACASK Qualification
 
-Status: accepted for hosted dual-engine release; broader model authoring remains
-separate work.
+Status: recurring qualification and proposed scope extensions.
 
 Owners: simulation integration and release owners.
 
@@ -9,10 +8,10 @@ Owners: simulation integration and release owners.
 
 VACASK is a second, Profile-selected engine beside ngspice, preserving the
 shared GUI/MCP source and result workflow. Source preparation dispatches by
-engine; both hosted channel configurations register
-`vacask-sky130-candidate`. Production release verification must discover and
-execute both engines through the public MCP and managed queue; configuration
-or a local successful run alone is not acceptance.
+engine; Production registers `vacask-sky130-candidate`. Qualification of an
+engine/runtime expansion includes discovery and execution through public MCP
+and the managed queue; configuration or a local successful run alone is not
+acceptance. Ordinary release checks remain owned by [deployment](../deployment.md).
 
 The current contracts belong to [simulation](../specs/simulation.md),
 [execution](../specs/simulation-execution.md) and
@@ -59,8 +58,8 @@ Do not tune model coefficients, solver settings or sampling solely to reproduce
 old results. Existing comparison reports remain research evidence; discrepancies
 alone are not release failures. A demonstrated native implementation defect is
 still a defect: retain regression protection for the module's chain-rule fix.
-This decision changes neither foundry coefficients nor the current hosted
-environment and does not authorize deployment.
+This qualification rule does not permit changing foundry coefficients or
+deploying an expanded environment without its own acceptance.
 
 Record the actual VACASK build, platform, binary digest, OpenVAF revision,
 OSDI ABI, compiled module digests, model source/digests/licenses, startup policy
@@ -88,7 +87,7 @@ substitute illustrative models, fill missing results or rewrite raw artifacts.
 Use analytical checks and basic circuit invariants to catch mapping/parser bugs;
 these are not a demand that different simulators produce identical numbers.
 Existing strict cross-simulator comparisons are optional research only and must
-not be part of the native release gate. Full GUI/MCP and isolated-cloud journeys
+not be part of the native release gate. Full GUI/MCP and isolated-executor journeys
 below remain required; local native runs do not by themselves authorize release.
 
 ## Functional acceptance inventory
@@ -142,8 +141,8 @@ resource-isolation evidence; otherwise use an independent host.
 Candidate acceptance binds app SHA, image digest, Profile and observed runtime
 identity. Follow [deployment](../deployment.md) for the actual channel and
 release route; this roadmap does not define another branch/deployment policy.
-A successful Preview deployment alone does not authorize enabling an
-unqualified simulator in Production.
+An existing successful deployment does not qualify a changed runtime or
+expanded model scope.
 
 ## External authorities
 

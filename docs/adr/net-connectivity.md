@@ -6,8 +6,10 @@ Owners: `packages/model`, `packages/derived`, `packages/edit-engine`, `packages/
 
 ## Decision
 
-Persist physical membership and authored owners; derive logical equivalence,
-readiness and occurrence-aware lookup. [Schematic model](../specs/schematic-model.md#electrical-authority)
+Persist connection facts and authored owners; derive physical membership,
+logical equivalence, readiness and occurrence-aware lookup.
+[Project file format](../specs/project-file-format.md#one-connection-source),
+[Schematic model](../specs/schematic-model.md#electrical-authority)
 and [connectivity](../specs/connectivity-and-routing.md) own these rules.
 [Editor interaction](../specs/editor-interaction.md) owns check/navigation
 lifecycle; [netlist export](../specs/netlist-export.md#net-rules) owns spelling.

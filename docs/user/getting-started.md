@@ -68,9 +68,11 @@ is defined.
   selections, undo histories, Cloud Save bindings and browser recovery copies.
   Copy selected objects, switch tabs, and paste to merge them into that circuit.
   Apply or discard pending code edits before switching. Closing an unsaved tab
-  asks first. Open tabs are an in-memory workspace, not a saved tab collection;
-  save your projects before leaving. Switching projects ends the previous
-  Agent connection and closes its simulation panel.
+  asks first. Refresh restores this browser window's tabs, unsaved circuits,
+  active tab and views, but not Undo stacks or unfinished text-field edits.
+  This browser-local workspace is not a Cloud backup: save or export work you
+  need to keep. Agent connections are scoped to their paired workspace; other
+  tabs remain independent.
 - Use **Wire** or press `W`, then choose two pins, Junctions, or route segments.
   Passing across a conductor remains a Crossing; ending on one creates a
   Junction automatically. An exact multi-route intersection is rejected as
@@ -580,4 +582,8 @@ previous state; older snapshots are pruned.
 
 History is available to the author and administrators/moderators. Previously
 pruned versions cannot be recovered by the new three-snapshot limit. This is a
-small publication history, not a full Git merge system or private Shelf timeline.
+small publication history, not a full Git merge system. Private saved projects
+have a separate **Version history** action in their Shelf card menu: compare,
+restore with revision protection, or branch into an independent draft. See
+[private save history](../specs/persistence-and-recovery.md#private-save-history)
+for retention and publication boundaries.

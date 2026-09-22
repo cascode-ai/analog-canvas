@@ -5,18 +5,16 @@ belongs in [specifications](../specs/README.md); implementation and delivery
 evidence belong in commits and pull requests. A file's existence or a module's
 unit tests do not establish end-to-end completion.
 
-- [Shelf management, cross-page reuse and version history](shelf-reuse-and-history.md): requested outcomes, implemented scope and remaining acceptance criteria.
-
 ## Active boundaries
 
 | Outcome                           | Remaining boundary                                                                                                                                  | Acceptance owner                                                                      |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Simulation capabilities           | Advanced legacy conversion, repeated Noise provenance, and promotion-predicate review                                                               | [Simulation remaining work](simulation-remaining-work.md)                             |
-| VACASK integration                | Hosted dual-engine release, preserved interaction and one-candidate human/Agent acceptance                                                          | [VACASK qualification](vacask-migration.md)                                           |
+| Simulation capabilities           | Advanced legacy conversion and repeated Noise provenance                                                                                           | [Simulation remaining work](simulation-remaining-work.md)                             |
+| VACASK qualification              | Evidence for engine/model scope expansions and recurring human/Agent acceptance                                                                    | [VACASK qualification](vacask-migration.md)                                           |
 | Accessible manual editing         | Semantic canvas navigation and keyboard alternatives to pointer-only operations                                                                     | Editor interaction; [current limits](../user/troubleshooting.md#accessibility-limits) |
 | Connectivity consumer closure     | Verify all production consumers use canonical read/geometry/location contracts; remove any reachable duplicate paths only with parity evidence      | Derived/Edit Engine/editor owners                                                     |
 | Named-Net/export closure          | Verify the complete lifecycle and dialect matrix together, not just isolated resolver success                                                       | Derived/netlist/import/editor owners                                                  |
-| Portable release human acceptance | Install the PWA from the packaged local host; import/place/wire/save/restart/restore/export an original circuit; record candidate and artifact hash | Release owner                                                                         |
+| Portable release human acceptance | Install the PWA from the packaged local host; import/place/wire/save/restart/restore/export an original circuit; record candidate and results       | Release owner                                                                         |
 | Hosted Agent delivery             | Confirm a deployed grant → edit → undo → revoke journey, credential isolation, and bounded resource access for the release candidate                | Agent/Worker/release owners                                                           |
 
 Connectivity/export, portable release and hosted Agent rows are recurring
@@ -58,6 +56,11 @@ automatic rerouter, or a requirement to restore retired APIs.
 
 ## Deferred contract questions
 
+- Private history extensions: decide whether saved notes, protected named
+  milestones and broader non-component diffs are needed beyond the implemented
+  [three-revision history](../specs/persistence-and-recovery.md#private-save-history).
+  Protected milestones would need an explicit quota/pruning policy; current
+  rolling snapshots do not promise indefinite retention.
 - Durable edit history: decide whether session-only Undo needs persistence,
   compaction or recovery integration. Any accepted extension must preserve
   revision/atomicity and the separate Save/recovery boundary; current

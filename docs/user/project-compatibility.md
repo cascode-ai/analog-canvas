@@ -1,124 +1,55 @@
 # Project File Compatibility
 
-The current portable Project schema version is `60`. Each instance owns its
-parameters, placement, paint and attached labels; the file includes referenced
-component definitions. The normalized editor model remains schema 58. It retains schematic-only
-hierarchy integrity, a Project structural revision, stable formal Cell ports,
-and definition-level Cell symbol presentation. It also has one typed Instance
-netlist authority, formal Cell parameters, and Project-local external
-subcircuit definitions with stable ordered terminal identities and directions.
-Every ordinary Instance has at most one authored `reference`; an emitting
-Instance requires it, displays it through a live `instance-reference`
-Annotation, and emits the same token. Descriptive attached RichText is an
-ordinary literal Annotation with no identity or emission authority. A
-Cell Pin is identified by its own stable terminal identity and displays its
-Port Name, such as `Vout`. The hollow `port` presents the ordinary Cell Pin;
-the solid `port-filled` presents a Bias Voltage Port. Both persist the same
-kind of independent interface declaration for compatibility.
-Its bound annotation may persist same-text RichText formatting but cannot store
-a divergent alias. Equal Port Names remain separate physical Base Nets in the
-saved drawing but resolve into the same Logical Net. Drafting
-text may also carry one of three polarity-label forms while its editable RichText
-content remains independent from the fixed vector marks. Annotations and
-drafting objects position at 1-unit integer precision, while Instance
-placements, route bends, and Junctions stay aligned to the Document grid. An
-Instance may carry an optional `styleOverride.foreground`; when absent,
-document style defaults remain authoritative. Historical instance background
-overrides remain readable for compatibility but are no longer editable.
-Each Annotation may independently carry an optional presentation-only
-`textColor`. An Instance Reference or value with Automatic text color inherits
-its owning Instance foreground; other annotations inherit the document
-foreground. Transformer and T-Coil parameter labels independently bind to
-K or a winding value; their visibility and positions survive save/reopen.
-Schema 54 adds the optional parameter selector and upgrades schema 53 without
-changing the drawing. Drafting text keeps its separate drawing-object color
-override.
-Rectangles and circles may additionally carry independent border and opaque
-fill colors plus a `background` or `foreground` drafting plane. Missing plane
-data preserves the historical foreground behavior.
-An Instance may also carry optional schematic-only `signalFlowParameters`
-(`formula`, `coefficient`, `bodyWidth`, `bodyHeight`) that are independent from
-netlist/SPICE parameters. Width and height are optional 10-unit-grid minimums:
-the shared Transfer Function renderer expands beyond them when 12-unit formula
-text, a fraction, or a coefficient needs more room, and never clips or shrinks
-the formula to satisfy an undersized request. A canonical v59 file can be
-opened, saved, reopened, and saved again without byte drift.
+The current portable Project schema is `60`; the normalized editor model is
+schema `58`. Supported files from schemas 24 through 60 enter through the same
+validated reader. Historical input is upgraded or decoded before installation;
+all current writers emit schema 60. See the
+[file-format contract](../specs/project-file-format.md) for the authoritative
+representation and compatibility boundary.
 
-Schemas v24 through v56 are accepted through the explicit chained upgrades.
-Schema v32 adds optional `Annotation.textColor`; schema v33 removes the
-ownerless `explicit-equivalence` record. A v32 file without that record changes
-only its version stamp. A file containing it is rejected at the exact evidence
-path because the editor cannot safely guess whether the intended replacement
-was a wire, Label, Alias, or hierarchy terminal. Schema v34 retires the hidden
-`explicit-net-property` naming owner. Source-backed local names become
-non-electrical round-trip hints, explicit SPICE globals retain declaration
-authority, and visible power objects become the owner where one already exists.
-Schema v35 unifies Instance References, and schema v36 restores Gallery-copied
-reference-shaped RichText labels as mapped Reference presentations while
-retaining descriptive attached text. Schema v37 adds the optional Project
-`simulation` setup, which records which Cell is the testbench, which analyses
-and outputs to run, and which simulator profile to use; simulation results are
-never saved, and a v36 file changes only its version stamp. Schema v38 adds
-structured TRAN parameters in seconds; a v37 file also changes only its stamp.
-Schema v39 adds the mutually exclusive raw simulation setup with bounded
-authored files and external dependency identity; a v38 file changes only its
-stamp. Schema v40 gives voltage probes concrete object anchors, schema v41 adds
-structured DC sweep, and schema v42 replaces the optional singleton setup with
-a named setup collection. Schema v43 replaces primitive probes with named,
-bounded output expressions while preserving every previous measurement target.
-Schema v44 makes terminal-current targets explicit, schema v45 adds saved
-scalar measurement rules, schema v46 adds structured Noise analysis intent,
-and schema v47 adds selected hierarchy-aware MOS operating-point details.
-Schema v48 adds design variables, v49 converts saved simulation intent to
-source files, and v50 names those collections simulation folders. Schema v51
-adds rectangle/circle fill and front/background drafting planes; a v50 Project
-is advanced without changing any authored object. Schema v52 converts the
-legacy local-X mirror to independent horizontal or vertical mirroring, and v53
-allows 45-degree rotation steps; a v52 file changes only its stamp.
-Schema v55 adds independent arrow start/end styles: small, medium, or large
-arrowheads, dots, no head, and legacy open arrowheads. Unset ends preserve the
-previous head style, placement, and scale; v54 content changes only its stamp.
-These additions do not invent intent while upgrading an older Project.
-The original file is never overwritten silently. Schemas older than v24 and
-versions newer than v59 are rejected by the project-file boundary.
+## Opening and saving
 
-The canonical-current corpus at
-[`fixtures/projects/compatibility-corpus.json`](../../fixtures/projects/compatibility-corpus.json)
-lists current and explicitly retained historical circuit fixtures. It distinguishes
-byte-stable current files, historical inputs tested through migration, and named
-rejected inputs. Synthetic regressions cover other previous-version transitions;
-the original OTA conversion witness remains unchanged for migration testing.
-Retired fields such as first-class
-`Document.ports`, `Net.ports`, `spice.*`, and `routeAttachment` are invalid.
+Use **Import Project File…** to open portable bytes, **File / Save** to save a
+private Cloud Project, and **Export Project File…** for a portable backup.
+Import/export does not silently overwrite the selected source file or establish
+a Cloud Save baseline. An upgraded import needs an explicit save/export.
 
-An incompatible Project is rejected before it can replace the current browser
-Project. Conversion, when needed, is an explicit external operation that must
-produce and validate a complete v59 candidate before a human chooses to load it.
+An unsupported, corrupt or ambiguous file is rejected before it replaces the
+live circuit. Versions below the supported floor or above the current version
+are not guessed into a usable shape. Some historical records also require a
+located refusal: an ownerless electrical equivalence cannot safely be guessed
+into a Wire, Label or interface. Keep the original file when reporting or
+repairing an import failure.
 
-Equal visible Label, Port, power-marker, and explicit global-declaration names
-resolve to one Logical Net without erasing their separate Base Net identities.
-Imported or legacy source-name hints never trigger that union, so composing two
-Documents cannot create an invisible connection merely because both sources
-used a local spelling such as `OUT`.
+## What travels with a Project
 
-Viewport, selection, canvas overlays, import compiler state, Agent session
-credentials, and recovery envelopes are not part of the Project file. Browser
-recovery is a non-authoritative safety copy kept in this browser's IndexedDB:
-at most two recent working copies, each with a current and a previous
-generation, each copy at most 4 MB and 12 MB in total. It does not survive
-explicitly clearing site data. Use **File / Save** for the formal Cloud Project
-and **Export Project File…** for portable bytes. A direct backup download is
-shown when recovery storage fails. These operations do not delete browser
-recovery copies.
+A Project carries its circuit topology, instances and parameters, referenced
+component definitions, Cell interfaces, authored labels/drawing styles and
+simulation source folders. Portable connection facts determine physical
+membership; equal scoped Net/Port names retain their logical meaning without
+physically merging independently drawn conductors. Import provenance alone
+does not join Nets.
 
-Schema 56 adds optional electrical Wire `styleOverride.lineStyle` (`solid`,
-`dashed`, or `dotted`). Styling does not change electrical connectivity or
-netlist output. The schema 55 upgrade preserves all existing Route data and
-changes only the version stamp. MOS bulk connections retain their dedicated
-dash pattern. Select a Wire and set `appearance.lineStyle` in its Properties
-code to change it.
+The authored device Reference is preserved. Netlist export can derive a
+dialect-specific name, such as `XM1` for a SPICE subcircuit called `M1` on the
+canvas; it does not rename the drawing. Text styling and literal display labels
+do not create a second electrical identity.
 
-Schema 57 makes a locally authored VDD Power Rail an explicit formal Cell Pin.
-Opening a schema-56 Project attaches a stable Cell terminal to each local
-Rail's existing visible label without changing its physical Net or geometry.
-Explicitly Global Rails remain global declarations without Cell Pins.
+Simulation source is not an embedded simulator or a guarantee of available
+models. Run processes, receipts and numeric results do not travel in the Project
+file; use the simulation result export for that evidence.
+
+## Recovery and durability
+
+Browser-local workspace restoration can reopen unsaved tabs and views after
+refresh; bounded crash-recovery copies provide a separate safety net. Neither
+replaces Cloud Save or a downloaded backup, and clearing site data can remove
+both. Undo history, unfinished text-field edits and Agent credentials are not
+portable Project content. See
+[persistence and recovery](../specs/persistence-and-recovery.md) for storage,
+history and failure boundaries.
+
+The [compatibility corpus](../../fixtures/projects/compatibility-corpus.json)
+protects current round trips, supported historical inputs and deliberate
+rejections. Version-by-version implementation history belongs to the reader,
+tests and Git, not a second user-facing schema definition.

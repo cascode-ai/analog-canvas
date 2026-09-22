@@ -38,8 +38,9 @@ them directly, use completion/hover help, or insert a template. The entry file
 is the Run target even while viewing another file. Invalid SPICE or JSON can
 be saved; preparation reports what needs repair rather than losing the draft.
 
-**New experiment** asks only for a name. It uses the current Canvas Cell and an
-OP starter. Helper offers analysis commands and argument hints without adding
+**New experiment** asks for a name and, when multiple Profiles are available,
+an environment. It uses the current Canvas Cell and an OP starter.
+Helper offers analysis commands and argument hints without adding
 text to the saved file until you explicitly insert or type it.
 
 The compact Save and Run icons share the toolbar with Explorer. **Save source**
@@ -51,8 +52,8 @@ covered by the Project's browser recovery, not a cloud backup. **File → Save**
 (or the project-level shortcut outside code) still saves the entire Project to
 the signed-in cloud account.
 
-New experiments use the hosted environment automatically; if several are
-offered, as on Preview, **New experiment** adds an **Environment** choice.
+Available environments come from the configured executor. Production offers
+ngspice and VACASK Profiles; each uses its own native source language.
 Their internal `experiment.json` is hidden from Source and file tabs, but
 retained in Project backups. Legacy or damaged configurations and pending
 configuration drafts stay visible for compatibility and repair; they are not a
@@ -123,23 +124,17 @@ Project-local copies, not live remote references.
 The bundled five-transistor SKY130 example contains ordinary DUT/Testbench
 Cells and saved OP/DC/AC/TRAN/Noise, bias-detail, corner and waveform experiments.
 They are authored native VACASK source for the `vacask-sky130-candidate`
-environment, which is currently configured only on Preview.
+environment offered by the hosted service. A local editor without that Profile
+can still open/edit the example but cannot execute it there.
 
 Open the repository's
 `apps/editor/src/examples/five-transistor-ota-sky130.icproj.json` with
 **File → Import Project File…**, or visit
-`/editor?example=five-transistor-ota-sky130`. The recorded ngspice 46/TT
-qualification of the separate ngspice acceptance Project,
-`netlists/ngspice-ota-qualification/source.icproj.json`, is approximately:
-
-- Vout: 0.75898 V
-- Ibias node: 0.60440 V
-- DUT tail: 0.28487 V
-- DUT left internal node: 0.75898 V
-
-Those are the existing fixture's reference values, not proof that a particular
-new Code Workspace build has passed Preview acceptance. Run the same-candidate
-qualification before making that claim.
+`/editor?example=five-transistor-ota-sky130`. For ngspice, use the separate
+`netlists/ngspice-ota-qualification/source.icproj.json` acceptance Project;
+changing only a Profile ID does not translate native source between engines.
+Reference results apply to their declared circuit, models and environment,
+not automatically to a modified example or another simulator.
 
 ## Prepare, run and recover
 
@@ -228,5 +223,6 @@ prepare, start/read/cancel, run a batch and export artifacts without a special
 GUI-only setup step.
 
 Browser regression tests use a controlled executor to verify interaction.
-They do not certify numerical correctness. Real Preview GUI and actual MCP
-journeys, at the same commit/Profile, remain separate acceptance evidence.
+They do not certify numerical correctness. Real GUI and public MCP journeys
+must identify the tested commit/Profile and actual results; deployment smoke
+checks alone do not establish that every interaction was tested.

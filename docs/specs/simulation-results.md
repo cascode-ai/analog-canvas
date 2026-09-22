@@ -176,7 +176,7 @@ failure, through an error diagnostic rather than through an exit code.
 
 The same evidence policy covers the absence of a file. One pure evaluator in
 `@icm/spice-run` owns the terminal verdict consumed by the Worker, Agent, GUI,
-and Preview checks:
+and hosted checks:
 
 - when the deck requested a rawfile, `completed` requires a readable file with
   at least one supported analysis and its vectors;
@@ -187,7 +187,7 @@ and Preview checks:
   requested results arrived, because supported ngspice builds disagree about
   the exit status of otherwise identical completed control-block runs.
 
-Preview qualification may additionally require a named environment, probes,
+Electrical qualification may additionally require a named environment, probes,
 and numeric tolerances. It does not reclassify the underlying run.
 
 ### Captured native scalars

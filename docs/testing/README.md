@@ -113,7 +113,7 @@ verification.
 
 This changes when delivery validation runs, not the required GitHub checks.
 The [deployment guide](../deployment.md#development-and-publication-cadence)
-owns the local, Preview, and Production handoffs.
+owns the local-to-Production handoff and rollback.
 
 ## Batch pull-request checks
 

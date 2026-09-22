@@ -4,7 +4,10 @@ Status: `accepted`
 
 Primary owners: `packages/model`, `packages/edit-engine`, `packages/derived`
 
-`Net.terminals` records Base-Net physical membership. Logical connectivity is
+In the normalized runtime model, `Net.terminals` indexes Base-Net physical
+membership. Portable source stores
+[connection facts](project-file-format.md#one-connection-source), not a second
+editable membership list. Logical connectivity is
 resolved from that membership, owner-addressed naming, scope, and interfaces. A terminal is an Instance pin; both
 `port` and `port-filled` participate through their ordinary pin `P`. Routes use
 the same terminal endpoint for those Instances and every other component.
@@ -56,7 +59,8 @@ Wire authoring submits endpoint identities and a path. It no longer needs to
 assign terminal membership or merge Base Nets before that path can be drawn.
 `set_route_path` and `route_orthogonal` validate geometry while staging; their
 `netId` is an identity hint, not an electrical connection. Committed Routes
-still carry the resolved Base-Net ID for existing readers and file formats.
+still carry the resolved Base-Net ID for runtime readers; portable serialization
+uses the connection-source contract instead.
 
 After the transaction's geometry and endpoint-follow edits are complete, the
 Edit Engine builds one transient connection graph from the surviving Routes
@@ -79,8 +83,9 @@ membership. `cut_connection` deliberately releases that Net's unrouted intent;
 Agent `connect_endpoints`/`merge_nets` remain logical authoring operations.
 Labels, power markers and Cell interfaces retain their separate logical role.
 
-This is an edit-commit boundary, not a passive read repair or a new persisted
-format. It does not remove legacy membership fields or rewrite Gallery files.
+This is an edit-commit boundary, not a passive read repair. File representation
+and compatibility belong to the Project protocol; an edit does not bulk-rewrite
+stored Gallery files.
 Undo restores the whole committed document, including the derived membership.
 
 ## Authoring rules

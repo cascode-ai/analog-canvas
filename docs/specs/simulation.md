@@ -366,8 +366,9 @@ and compatibility. Compiler tests protect reversible parameters, scaling,
 hierarchy, exact bytes and capture. Browser tests protect interaction, keyboard
 isolation and retained state. Rawfile/service tests protect evidence and Specs.
 
-The Preview workflow runs the real source GUI, public Agent/MCP and cross-Project
-journeys, retaining candidate-specific receipts. It separately qualifies the
-declared simulator, models, corner and numeric tolerances. Test existence or
-mocked success is not a claim that another candidate passed.
-See [deployment](../deployment.md) for these recurring acceptance obligations.
+Real GUI, public MCP and cross-Project journeys require candidate-specific
+evidence separate from mocked regression tests. Electrical acceptance names the
+simulator, models, corner and declared numerical criteria. Test existence or
+mocked success does not qualify another candidate. The
+[test contract matrix](../testing/contract-matrix.md) owns validation layers;
+[deployment](../deployment.md) owns the Production verification route.
