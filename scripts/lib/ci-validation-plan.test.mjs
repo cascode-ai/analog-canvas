@@ -335,6 +335,44 @@ describe("CI validation planning", () => {
     );
   });
 
+  it.each([
+    [
+      "apps/editor/e2e/component-property-workflows.spec.ts",
+      ["apps/editor/e2e/component-property-workflows.spec.ts"],
+    ],
+    ["worker/gallery.ts", ["apps/editor/e2e/gallery.spec.ts"]],
+    [
+      "apps/editor/src/lib/new-helper.ts",
+      [
+        "apps/editor/e2e/component-insert.spec.ts",
+        "apps/editor/e2e/runtime-crash-safety.spec.ts",
+      ],
+    ],
+  ])(
+    "does not let non-shipping tests widen browser impact for %s",
+    (path, specs) => {
+      expect(
+        ciPlan([
+          path,
+          "apps/editor/src/app/App.test.tsx",
+          "packages/derived/src/performance-parity.test.ts",
+          "packages/model/src/protocol-documentation.test.ts",
+          "apps/editor/package.json",
+        ]),
+      ).toMatchObject({ heavy: true, browser: true, e2eArgs: specs });
+    },
+  );
+
+  it("retains a production owner's browser coverage when its unit tests also change", () => {
+    const product = [
+      "apps/editor/src/app/App.tsx",
+      "apps/editor/e2e/component-property-workflows.spec.ts",
+    ];
+    expect(ciPlan([...product, "apps/editor/src/app/App.test.tsx"])).toEqual(
+      ciPlan(product),
+    );
+  });
+
   it("deduplicates fallback specs already selected by a mixed batch", () => {
     const plan = ciPlan([
       "apps/editor/e2e/component-insert.spec.ts",

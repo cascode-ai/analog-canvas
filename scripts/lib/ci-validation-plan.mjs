@@ -35,7 +35,15 @@ function browserImplementationPaths(plan) {
 }
 
 function browserSelectionGates(plan) {
-  return plan.selectedGates ?? plan.gates;
+  const browserPaths = new Set(browserImplementationPaths(plan));
+  // The gate plan also classifies unit tests under their production owners.
+  // In a mixed batch, only browser-impacting paths may activate those owners'
+  // browser contracts; Core still validates every implementation/test path.
+  return (plan.selectedGates ?? plan.gates).filter((gate) =>
+    (gate.groups ?? []).some((group) =>
+      (plan.groupPaths[group] ?? []).some((path) => browserPaths.has(path)),
+    ),
+  );
 }
 
 function e2eArgs(plan) {
