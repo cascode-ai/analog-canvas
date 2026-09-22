@@ -74,7 +74,9 @@ export async function prepareNgspiceExecutionInput(
     sourceCompilationProblem(diagnostics, folder);
   const compiled = compileNgspiceSourceSimulation(project, folder, variant);
   if (!compiled.ok) return compilationProblem(compiled.diagnostics);
-  const { config } = compiled;
+  // Profile resolution belongs to the execution receipt, not authored input
+  // identity. Keep compilation immutable so read compares the same inputs.
+  const config = structuredClone(compiled.config);
   const profile = caps.profiles.find(
     (item) => item.id === config.environment.profileId,
   );
