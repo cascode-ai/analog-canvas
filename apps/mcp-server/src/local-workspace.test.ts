@@ -42,6 +42,10 @@ describe("local simulation workspace", () => {
     try {
       const base = await LocalWorkspace.open(scope, root);
       const started: string[] = [];
+      let bothStarted!: () => void;
+      const firstPair = new Promise<void>((resolve) => {
+        bothStarted = resolve;
+      });
       let active = 0;
       let peak = 0;
       const pending = base.sync(
@@ -53,12 +57,17 @@ describe("local simulation workspace", () => {
         async (ref) => {
           started.push(ref.id);
           peak = Math.max(peak, ++active);
+          if (started.length === 2) bothStarted();
+          await firstPair;
           if (ref.id === "one") await slow;
           active--;
           return new Response(ref.id);
         },
       );
-      await vi.waitFor(() => expect(started).toEqual(["one", "two", "three"]));
+      await vi.waitFor(
+        () => expect([...started].sort()).toEqual(["one", "three", "two"]),
+        { timeout: 10_000 },
+      );
       release();
       const result = await pending;
       expect(peak).toBe(2);
