@@ -6,7 +6,7 @@
       "budget": {
         "files": 36,
         "rawKib": 2745,
-        "gzipKib": 691,
+        "gzipKib": 692,
         "brotliKib": 579
       },
       "measured": {
