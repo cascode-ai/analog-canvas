@@ -182,6 +182,22 @@ jobs:
             --retry 5 --retry-delay 2 --retry-all-errors \
             --max-time 20 \
             https://analog-canvas.tokenzhang.com/analytics >/dev/null
+          gallery_catalog="$(curl --fail --silent --show-error \
+            --retry 5 --retry-delay 2 --retry-all-errors \
+            --max-time 20 \
+            'https://analog-canvas.tokenzhang.com/?q=ota')"
+          if ! grep -q 'data-public-gallery-document="catalog"' <<<"$gallery_catalog"; then
+            echo "The public Gallery URL did not contain its server-readable catalog."
+            exit 1
+          fi
+          robots="$(curl --fail --silent --show-error \
+            --retry 5 --retry-delay 2 --retry-all-errors \
+            --max-time 20 \
+            https://analog-canvas.tokenzhang.com/robots.txt)"
+          if ! grep -q 'Sitemap: https://analog-canvas.tokenzhang.com/sitemap.xml' <<<"$robots"; then
+            echo "robots.txt did not reach the public Gallery document route."
+            exit 1
+          fi
           curl --fail --silent --show-error \
             --retry 5 --retry-delay 2 --retry-all-errors \
             --max-time 20 \

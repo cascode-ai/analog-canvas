@@ -223,6 +223,17 @@ describe("Cloudflare deploy workflow", () => {
     expect(verifySection).toContain("analog-canvas.tokenzhang.com/editor");
   });
 
+  it("requires public Gallery URLs to execute the Worker document route", () => {
+    const verifySection = workflow.slice(
+      workflow.indexOf("Verify production deployment"),
+      workflow.indexOf("Roll back a failed deployment"),
+    );
+    expect(verifySection).toContain('data-public-gallery-document="catalog"');
+    expect(verifySection).toContain(
+      "Sitemap: https://analog-canvas.tokenzhang.com/sitemap.xml",
+    );
+  });
+
   it("verifies package integrity before deploy and the serving declaration afterwards", () => {
     const precheck = step("Verify the pinned MCP release before deployment");
     expect(precheck).toContain(

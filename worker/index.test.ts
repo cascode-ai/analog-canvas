@@ -45,8 +45,19 @@ describe("assets binding wiring", () => {
     expect(assets.binding).toBe("ASSETS");
     expect(assets.run_worker_first).toContain("/assets/*");
     expect(assets.run_worker_first).toContain("/api/*");
-    // Client routes still get the shell from Cloudflare; the Worker only
-    // separates "a hashed file that is gone" from "a route with no file".
+    expect(assets.run_worker_first).toEqual(
+      expect.arrayContaining([
+        "/",
+        "/g/*",
+        "/robots.txt",
+        "/sitemap.xml",
+        "/llms.txt",
+      ]),
+    );
+    // The Gallery paths need the Worker to enrich the shell or return their
+    // direct document. Other client routes still get the shell from
+    // Cloudflare; the Worker also separates "a hashed file that is gone"
+    // from "a route with no file".
     expect(assets.not_found_handling).toBe("single-page-application");
   });
 });

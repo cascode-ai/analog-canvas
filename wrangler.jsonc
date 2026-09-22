@@ -38,7 +38,15 @@
     // because the asset layer alone answers both with the shell and a
     // browser expecting JavaScript gets HTML at status 200.
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/assets/*"],
+    "run_worker_first": [
+      "/api/*",
+      "/assets/*",
+      "/",
+      "/g/*",
+      "/robots.txt",
+      "/sitemap.xml",
+      "/llms.txt",
+    ],
   },
   "durable_objects": {
     "bindings": [
