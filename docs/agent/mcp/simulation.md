@@ -37,3 +37,21 @@ mapping, file editing, Batch, or recovery. Basic native OP/DC/AC/TRAN
 needs no helper-reading gate. One hosted simulation slot means sequential starts
 or Batch. Check execution, collection, per-analysis diagnostics and requested
 measurements independently; completion is not proof of every requested result.
+
+For plots, `simulation_files` supports `prepare-plot`: supply `runId`, a new
+`name`, and `panels:[{analysisIndex:0,signals:[{signal:"v(out)"}]}]`.
+It downloads only the selected tables and copies an editable Python template
+plus `plot.json` into the local base's `plots/<name>/`. Execute the returned
+argument vector with an available Python >=3.10 / matplotlib environment, then
+inspect the image. MCP prepares files; it does not run Python or install packages.
+Existing plot directories are never overwritten: edit the local config/script
+or use a new name. This also preserves customizations across MCP upgrades.
+
+Each panel can set `x`, axis labels/ranges/scales, title and legend; each signal
+can set `unit`, `label`, and explicit complex `component` (real, imag, magnitude,
+phase). PNG is default; `formats` also accepts SVG/PDF. Display conversion changes
+both values and units; incompatible units and invalid log points fail clearly.
+Use separate panels for different units/axes. For dB, gain ratios, normalization
+or other calculations edit the copied script, not the installed MCP package.
+The copied template also works standalone with CSV paths in its JSON config;
+no live connector is needed after preparation. Run samples never enter MCP output.
