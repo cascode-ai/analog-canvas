@@ -56,6 +56,11 @@ tool contract or the full simulation reference before a normal run.
 
 `sync.transfer` counts this request's selected, downloaded, reused and remaining
 files; `workspaceFileCount` counts files registered across local history.
+Each synced file includes `timing.elapsedMs` (local check through index save) and
+`timing.remoteWaitMs` (download preparation/publication wait and GET headers).
+The latter excludes streamed body transfer; the difference is not pure disk
+time. Reused files have zero remote wait. Two download slots refill independently;
+on failure, no new files start and already-started downloads settle before return.
 Argument validation failures return `INVALID_TOOL_INPUT` with field paths and
 `recovery:"fix-input"`; correct the arguments rather than reconnecting.
 

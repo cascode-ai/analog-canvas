@@ -170,19 +170,37 @@ export class LocalWorkspace {
     fetchArtifact: FetchArtifact,
     runId?: string,
   ) {
+    const started = performance.now();
+    let remoteWaitMs = 0;
     const directory = runId
       ? join(this.basePath, "runs", segment(runId))
       : join(this.basePath, "work", "downloads");
     const path = join(directory, filename(ref));
-    const result = await downloadSimulationArtifact(ref, path, (offset) =>
-      fetchArtifact(ref, offset),
+    const result = await downloadSimulationArtifact(
+      ref,
+      path,
+      async (offset) => {
+        const requested = performance.now();
+        try {
+          return await fetchArtifact(ref, offset);
+        } finally {
+          remoteWaitMs += performance.now() - requested;
+        }
+      },
     );
     const old = this.index.downloads.findIndex((item) => item.path === path);
     const record = { artifact: ref, path, ...(runId ? { runId } : {}) };
     if (old < 0) this.index.downloads.push(record);
     else this.index.downloads[old] = record;
     await this.save();
-    return result;
+    return {
+      ...result,
+      timing: {
+        elapsedMs: Math.round(performance.now() - started),
+        // Descriptor publication/wait and GET headers; excludes streamed body.
+        remoteWaitMs: Math.round(remoteWaitMs),
+      },
+    };
   }
   async sync(
     catalog: ResultCatalog,
@@ -234,43 +252,50 @@ export class LocalWorkspace {
       if (old < 0) this.index.runs.push(parsed);
       else this.index.runs[old] = parsed;
       await this.save();
-      const files = [];
-      for (let offset = 0; offset < selected.length; offset += 2) {
-        const batch = selected.slice(offset, offset + 2);
-        // Match the publisher's small bounded concurrency; settle in-flight
-        // downloads before reporting partial failure, preserving catalog order.
-        const results = await Promise.allSettled(
-          batch.map((file) => this.download(file, fetchArtifact, parsed.runId)),
-        );
-        for (const result of results)
-          if (result.status === "fulfilled") files.push(result.value);
-        const failed = results.findIndex(
-          (result) => result.status === "rejected",
-        );
-        if (failed !== -1) {
-          const error: unknown = (results[failed] as PromiseRejectedResult)
-            .reason;
-          return {
-            ...this.describe(),
-            ok: false,
-            runId: parsed.runId,
-            files,
-            transfer: {
-              selected: selected.length,
-              downloaded: files.filter((file) => !file.reused).length,
-              reused: files.filter((file) => file.reused).length,
-              remaining: selected.length - files.length,
-            },
-            error: {
-              code: "WORKSPACE_DOWNLOAD_INCOMPLETE",
-              fileId: batch[failed]!.fileId ?? batch[failed]!.id,
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "Download failed; complete files remain usable",
-            },
-          };
+      const results: Awaited<ReturnType<LocalWorkspace["download"]>>[] = [];
+      let next = 0;
+      let failure: { file: ArtifactRef; error: unknown } | undefined;
+      // Two rolling slots, not two-file barriers. Stop scheduling on failure,
+      // settle already-started writes and retain deterministic catalog order.
+      const worker = async () => {
+        while (!failure && next < selected.length) {
+          const index = next++;
+          const file = selected[index]!;
+          try {
+            results[index] = await this.download(
+              file,
+              fetchArtifact,
+              parsed.runId,
+            );
+          } catch (error) {
+            failure ??= { file, error };
+          }
         }
+      };
+      await Promise.all([worker(), worker()]);
+      const files = results.filter((file) => file !== undefined);
+      if (failure) {
+        const { error } = failure;
+        return {
+          ...this.describe(),
+          ok: false,
+          runId: parsed.runId,
+          files,
+          transfer: {
+            selected: selected.length,
+            downloaded: files.filter((file) => !file.reused).length,
+            reused: files.filter((file) => file.reused).length,
+            remaining: selected.length - files.length,
+          },
+          error: {
+            code: "WORKSPACE_DOWNLOAD_INCOMPLETE",
+            fileId: failure.file.fileId ?? failure.file.id,
+            message:
+              error instanceof Error
+                ? error.message
+                : "Download failed; complete files remain usable",
+          },
+        };
       }
       return {
         ...this.describe(),
