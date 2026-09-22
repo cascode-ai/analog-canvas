@@ -3,6 +3,7 @@ import { McpStdioServer } from "./protocol.js";
 import { assembleServer } from "./server.js";
 import { runHttpCommand } from "./http-cli.js";
 import { installMcp } from "./install.js";
+import { createOperationSession } from "./operation-session.js";
 
 if (process.argv[2] === "--install") {
   try {
@@ -16,8 +17,6 @@ if (process.argv[2] === "--install") {
     process.exitCode = 1;
   }
 } else {
-  const assembled = assembleServer();
-  const { handler, serverInfo } = assembled;
   if (process.argv[2] === "--http") {
     try {
       let input = "";
@@ -28,7 +27,7 @@ if (process.argv[2] === "--install") {
           throw new Error("Input too large");
       }
       const result = await runHttpCommand(
-        assembled,
+        { toolSession: createOperationSession() },
         process.argv[3] ?? "connection_status",
         input,
       );
@@ -47,6 +46,7 @@ if (process.argv[2] === "--install") {
       process.exitCode = 1;
     }
   } else {
+    const { handler, serverInfo } = assembleServer();
     const server = new McpStdioServer(handler, {
       serverInfo,
       log: (message) => {

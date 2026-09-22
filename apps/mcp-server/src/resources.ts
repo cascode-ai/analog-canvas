@@ -4,7 +4,7 @@ import {
 } from "./resources.generated.js";
 import { RpcMethodError } from "./protocol.js";
 import type { McpResourceContent, McpResourceEntry } from "./protocol.js";
-import { describeToolContract, toolInputSchema } from "./tools.js";
+import { describeToolContract, toolInputSchema } from "./operations.js";
 import { editContract } from "./edit-contracts.js";
 
 export const ADVANCED_EDITS_RESOURCE_URI =

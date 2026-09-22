@@ -25,6 +25,11 @@ export {
   ToolFailure,
   type ToolSessionState,
 } from "./tools.js";
+export { executeOperation, operationDefinitions } from "./operations.js";
+export {
+  createOperationSession,
+  type OperationSession,
+} from "./operation-session.js";
 export {
   ADVANCED_EDITS_RESOURCE_URI,
   listResourceEntries,
