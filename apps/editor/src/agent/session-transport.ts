@@ -1,6 +1,3 @@
-import { AGENT_HEARTBEAT_INTERVAL_MS } from "@icm/agent-adapter";
-import { isTransportStale } from "./transport-liveness";
-
 const RETRY_MS = [500, 1_000, 2_000, 4_000, 8_000, 15_000, 30_000];
 const PROBE_MS = 5_000;
 
@@ -33,6 +30,8 @@ export class SessionTransport {
 
   constructor(
     private readonly options: {
+      heartbeatIntervalMs: number;
+      heartbeatTimeoutMs: number;
       createSocket: () => WebSocket;
       bind: (socket: WebSocket) => void;
       sendHeartbeat: (socket: WebSocket, nonce: string) => void;
@@ -72,7 +71,10 @@ export class SessionTransport {
       nonce,
       timer: setTimeout(() => {
         this.probe = undefined;
-        if (Date.now() - this.lastTickAt > AGENT_HEARTBEAT_INTERVAL_MS * 2) {
+        if (
+          Date.now() - this.lastTickAt >
+          this.options.heartbeatIntervalMs * 2
+        ) {
           this.lastTickAt = Date.now();
           this.probeConnection();
           return;
@@ -100,11 +102,12 @@ export class SessionTransport {
     if (this.stopped) return;
     const now = Date.now();
     // A suspended event loop cannot prove a missed probe. Give it a fresh one.
-    if (now - this.lastTickAt > AGENT_HEARTBEAT_INTERVAL_MS * 2)
+    if (now - this.lastTickAt > this.options.heartbeatIntervalMs * 2)
       this.clearProbe();
     this.lastTickAt = now;
     if (this.options.needsAuthorizationCheck()) void this.checkAuthorization();
-    if (isTransportStale(this.lastReceivedAt, now)) this.probeConnection();
+    if (now - this.lastReceivedAt >= this.options.heartbeatTimeoutMs)
+      this.probeConnection();
     else if (!this.probe) this.send(crypto.randomUUID());
   }
 
@@ -148,7 +151,7 @@ export class SessionTransport {
         this.lastReceivedAt = this.lastTickAt = Date.now();
         this.heartbeat = setInterval(
           () => this.tick(),
-          AGENT_HEARTBEAT_INTERVAL_MS,
+          this.options.heartbeatIntervalMs,
         );
         this.send(crypto.randomUUID());
         this.options.opened();

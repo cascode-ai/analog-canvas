@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SessionTransport } from "./session-transport";
+import {
+  AGENT_HEARTBEAT_INTERVAL_MS,
+  AGENT_HEARTBEAT_TIMEOUT_MS,
+} from "@icm/agent-adapter";
 
 class Socket extends EventTarget {
   readyState = 0;
@@ -20,6 +24,8 @@ function fixture() {
   vi.stubGlobal("WebSocket", { OPEN: 1, CONNECTING: 0 });
   const sockets: Socket[] = [];
   const options = {
+    heartbeatIntervalMs: AGENT_HEARTBEAT_INTERVAL_MS,
+    heartbeatTimeoutMs: AGENT_HEARTBEAT_TIMEOUT_MS,
     createSocket: () => {
       const socket = new Socket();
       sockets.push(socket);

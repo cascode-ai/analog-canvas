@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   AGENT_API_VERSION,
+  AGENT_HEARTBEAT_INTERVAL_MS,
+  AGENT_HEARTBEAT_TIMEOUT_MS,
   AGENT_FILE_RESOURCE_MAX_BYTES,
   AGENT_SESSION_PROTOCOL_VERSION,
   AGENT_SIMULATION_MAX_TIMEOUT_MS,
@@ -41,9 +43,9 @@ import {
   type AgentSessionRecoveryRecord,
 } from "./session-recovery";
 import { createHeartbeat, isHeartbeatAck } from "./transport-liveness";
-import {
+import type {
   SessionTransport,
-  type TransportDiagnostic,
+  TransportDiagnostic,
 } from "./session-transport";
 
 interface CreatedSessionResponse {
@@ -391,6 +393,9 @@ export function useAgentSession(
         scopes,
       });
       try {
+        // Transport is only needed after an explicit connection or recovery.
+        const { SessionTransport } = await import("./session-transport");
+        operation.signal.throwIfAborted();
         let created: CreatedSessionResponse | null = null;
         if (!recovery) {
           const response = await fetch("/api/agent/sessions", {
@@ -1077,6 +1082,8 @@ export function useAgentSession(
           opened = resolve;
         });
         const transport = new SessionTransport({
+          heartbeatIntervalMs: AGENT_HEARTBEAT_INTERVAL_MS,
+          heartbeatTimeoutMs: AGENT_HEARTBEAT_TIMEOUT_MS,
           visibility: () => document.visibilityState,
           createSocket: () =>
             new WebSocket(socketUrl(live.sessionId), [
