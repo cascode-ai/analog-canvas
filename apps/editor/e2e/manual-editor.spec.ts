@@ -1374,17 +1374,17 @@ test("P shortcut starts Cell Pin placement", async ({ page }) => {
     inputLabel.locator(
       '[data-text-run="span"][style*="font-style:italic"][style*="font-weight:700"]',
     ),
-  ).toHaveText("Vinp");
-  await expect(inputLabel.locator('[data-text-run="subscript"]')).toHaveCount(
-    0,
+  ).toHaveText("V");
+  await expect(inputLabel.locator('[data-text-run="subscript"]')).toHaveText(
+    "inp",
   );
 
   await canvas.click({ position: { x: 520, y: 180 } });
   await expect(page.getByTestId("status")).toContainText("Added Cell Pin Vinn");
   const outputLabel = page.locator('[data-object-id="instance-label-P2"]');
   await expect(outputLabel).toHaveText("Vinn");
-  await expect(outputLabel.locator('[data-text-run="subscript"]')).toHaveCount(
-    0,
+  await expect(outputLabel.locator('[data-text-run="subscript"]')).toHaveText(
+    "inn",
   );
   await page.keyboard.press("Escape");
 
@@ -1406,9 +1406,11 @@ test("P shortcut starts Cell Pin placement", async ({ page }) => {
   const secondBias = page.locator('[data-object-id="instance-label-P4"]');
   await expect(firstBias).toHaveText("VB1");
   await expect(secondBias).toHaveText("VB2");
-  await expect(firstBias.locator('[data-text-run="subscript"]')).toHaveCount(0);
-  await expect(secondBias.locator('[data-text-run="subscript"]')).toHaveCount(
-    0,
+  await expect(firstBias.locator('[data-text-run="subscript"]')).toHaveText(
+    "B1",
+  );
+  await expect(secondBias.locator('[data-text-run="subscript"]')).toHaveText(
+    "B2",
   );
   await openSelectionShelf(page);
   await expect(
@@ -1467,7 +1469,7 @@ test("Cell Pin deletion releases its interface and Base Net lifecycle", async ({
   ]);
   expect(saved.documents[0]!.connectivityEvidence).toEqual([]);
   expect(saved.documents[0]!.netlist.terminals).toEqual([
-    expect.objectContaining({ name: "BUS", interfaceInstanceIds: ["P1"] }),
+    expect.objectContaining({ name: "B_US", interfaceInstanceIds: ["P1"] }),
   ]);
 
   await page.getByTestId("hit-P1").click();
@@ -3535,7 +3537,7 @@ test("synchronizes a Net Label subscript with its electrical underscore name", a
     saved.documents[0].annotations.find(
       (candidate: { id: string }) => candidate.id === "net-label-route-ui-1",
     ).formatOverride,
-  ).toBeUndefined();
+  ).toBeDefined();
 
   await page.getByTestId("project-file").setInputFiles({
     name: "rich-net-label.icproj.json",

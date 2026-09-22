@@ -27,7 +27,11 @@ import type {
   Point,
   SchematicDocument,
 } from "@icm/model";
-import { defaultDraftTextDocument } from "@icm/model";
+import {
+  defaultDraftTextDocument,
+  formatLabelIdentifier,
+  labelTypography,
+} from "@icm/model";
 import { hierarchicalSymbolId, type SymbolResolver } from "@icm/symbols";
 
 import type { ComponentInsertRequest } from "./component-insert-request";
@@ -469,7 +473,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       placementRequest.kind === "cell-pin"
         ? placementRequest.portName?.trim()
         : undefined;
-    const formalName =
+    const authoredName =
       requestedName ||
       connectedName ||
       (supply
@@ -479,6 +483,12 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
             new Set(),
             symbolId === "port-filled" ? "filled" : "hollow",
           ));
+    const formalName = supply
+      ? authoredName
+      : formatLabelIdentifier(
+          authoredName,
+          labelTypography(options.document.presentation),
+        );
     const baseNetId = `net-cell-pin-${id.toLowerCase()}`;
     let netId = contact.netId ?? baseNetId;
     let netSuffix = 2;
@@ -568,7 +578,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
         ? "Bias Voltage Port"
         : "Cell Pin";
     options.setStatus(
-      `Added ${placedKind} ${formalName} · click to place another · Esc exits`,
+      `Added ${placedKind} ${authoredName} · click to place another · Esc exits`,
     );
   };
 

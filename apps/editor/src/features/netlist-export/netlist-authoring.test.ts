@@ -84,6 +84,25 @@ describe("netlist authoring", () => {
     expect(nextCellPinName(document)).toBe("Vin2p");
     expect(nextCellPinName(document, new Set(), "filled")).toBe("VB1");
     expect(nextCellPinName(document, new Set(["vb1"]), "filled")).toBe("VB2");
+
+    document.netlist.terminals = [
+      {
+        id: "terminal-formatted-in",
+        name: "V_inp",
+        netId: "net-formatted-in",
+        direction: "input",
+        interfaceInstanceIds: ["P4"],
+      },
+      {
+        id: "terminal-formatted-bias",
+        name: "V_B1",
+        netId: "net-formatted-bias",
+        direction: "inout",
+        interfaceInstanceIds: ["P5"],
+      },
+    ];
+    expect(nextCellPinName(document)).toBe("Vinn");
+    expect(nextCellPinName(document, new Set(), "filled")).toBe("VB2");
   });
 
   it("creates typed netlist facts without duplicating Reference", () => {

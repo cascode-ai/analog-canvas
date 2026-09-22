@@ -34,7 +34,7 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
     },
     {
       path: "labels.subscript_after_first",
-      label: "Text after first letter",
+      label: "Subscript after first letter",
       kind: "choice",
       options: [
         { value: true, label: "Use subscript · Vin → Vᵢₙ" },
@@ -65,7 +65,7 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
     },
     {
       path: "labels.underscore_subscript",
-      label: "Underscores in names",
+      label: "Underscore subscript",
       kind: "choice",
       options: [
         { value: true, label: "Convert to subscript · A₁" },

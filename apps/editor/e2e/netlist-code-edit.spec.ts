@@ -13,6 +13,11 @@ import {
 function fixture() {
   const project = createEmptyProject("netlist-edit", "Editable netlist");
   const document = project.documents[0]!;
+  // This imported fixture represents a drawing saved before the new-label
+  // defaults existed. Tests that exercise the new defaults start in the
+  // Editor instead of importing this compatibility fixture.
+  delete document.presentation.labelSubscriptAfterFirst;
+  delete document.presentation.labelSubscriptItalic;
   for (const [index, id] of ["R1", "R2"].entries()) {
     document.instances.push({
       id,
@@ -596,11 +601,8 @@ test("subscript controls immediately update labels and names and survive reopen 
     buffer: Buffer.from(JSON.stringify(source)),
   });
   await page.getByTestId("draw-tool-document-style").click();
-  const setting = page.getByLabel(
-    "Subscript case in this circuit (label + netlist) options",
-    { exact: true },
-  );
-  const italic = page.getByLabel("Subscript italic in this circuit options", {
+  const setting = page.getByLabel("Subscript case options", { exact: true });
+  const italic = page.getByLabel("Subscript style options", {
     exact: true,
   });
   const subscript = label(page).locator('[data-text-run="subscript"]');
@@ -703,7 +705,7 @@ test("drawing label rules immediately update formatted names and amplifier body 
   await page.keyboard.press("Escape");
   await expect(body.locator('[data-text-run="subscript"]')).toHaveText("gain");
   await page.getByTestId("draw-tool-document-style").click();
-  const underscore = page.getByLabel("Underscores in names options", {
+  const underscore = page.getByLabel("Underscore subscript options", {
     exact: true,
   });
   await underscore.selectOption("false");
@@ -712,15 +714,13 @@ test("drawing label rules immediately update formatted names and amplifier body 
   await expect(body.locator('[data-text-run="subscript"]')).toHaveCount(0);
   await underscore.selectOption("true");
   await page
-    .getByLabel("Subscript case in this circuit (label + netlist) options", {
-      exact: true,
-    })
+    .getByLabel("Subscript case options", { exact: true })
     .selectOption("uppercase");
   await page
-    .getByLabel("Subscript italic in this circuit options", { exact: true })
+    .getByLabel("Subscript style options", { exact: true })
     .selectOption("false");
   await page
-    .getByLabel("First letter in this circuit options", { exact: true })
+    .getByLabel("First letter options", { exact: true })
     .selectOption("false");
   await expect(body).toHaveText("AGAIN");
   await expect(label(page)).toHaveText("RLOAD");
@@ -738,7 +738,7 @@ test("drawing label rules immediately update formatted names and amplifier body 
       .toBe(true);
   }
   await page
-    .getByLabel("Everything after the first letter options", { exact: true })
+    .getByLabel("Subscript after first letter options", { exact: true })
     .selectOption("true");
   const second = page.locator(
     '[data-layer="annotations"] [data-object-id="label-R2"]',
