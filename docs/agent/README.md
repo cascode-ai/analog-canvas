@@ -14,7 +14,7 @@ records source and output hashes; it is evidence, not another editable registry.
 | MCP circuit Agent | Inspect, author and render | [Quickstart](mcp-quickstart.md), [authoring](shared/authoring.md) | Workflow, recovery, knowledge | MCP resources and tool descriptions |
 | MCP simulation Agent | Save, run, measure, hand off | [Quickstart](mcp-quickstart.md), [simulation calls](mcp/simulation.md) | [Detailed contracts](mcp/simulation-reference.md), [Specs](simulation-specs.md), [handoff](simulation-result-handoff.md); authoring only when editing circuits | MCP resources |
 | Raw HTTP Agent / integrator | Claim, resume, request and retry | [Kit README](http-kit/README.md), [boundary](http-kit/AGENTS.md), [API lifecycle](api-usage.md), published OpenAPI | [Request examples](examples.md), common knowledge | `GET /api/agent/kit` |
-| Shared-client CLI Agent / script | Invoke tools without MCP host | [CLI lifecycle](http-cli.md), authoring | `--http list-tools`, `--http resource` | Same package and handlers as MCP |
+| Shared-client CLI Agent / script | Invoke tools without MCP host | [CLI lifecycle](http-cli.md), authoring | `--http list-tools`, `--http resource` | Same package and operation registry as MCP |
 | Repository circuit Agent | Read, place, route, review | [Skill source](repo-skill/SKILL.md), task-selected workflow | Generated reading map | `skills/circuit-layout/` |
 | Product maintainer | Change, verify and release guidance | [Maintenance](maintenance.md), root working rules | Code contracts and release docs | Repository only |
 

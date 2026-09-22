@@ -31,17 +31,20 @@ evidence details.
    `inputStatus` reports later edits without rewriting that run's evidence.
 6. Use `simulation_files` with `request:{action:"sync",runId}` to obtain the
    catalog and download complete files into a local base. No path question is
-   required: the default lives under the MCP process working directory's
-   `.analog-canvas/` and is isolated by server and Project within the MCP host's
-   working directory. Reconnection or MCP restart reuses that default Project
-   base; a changed authorization session does not move downloaded evidence.
-   Explicit `basePath` choices are remembered per Project while the MCP process
-   lives. Existing older session-named bases remain readable by supplying their
+   required: choose explicit `basePath`, then a remembered Project path, then
+   the host's explicitly configured absolute `ANALOG_CANVAS_TASK_DIR`, otherwise
+   the user's application-data directory. A task directory receives a scoped
+   `.analog-canvas/` child. The default never assumes the process working directory
+   is writable or appropriate. Bases are isolated by server and Project.
+   Successful choices are persisted across MCP/CLI processes, separately from
+   credentials; a changed authorization session does not move downloaded evidence.
+   An unusable selected path reports failure rather than silently changing location.
+   Existing older session-named or working-directory bases remain readable by supplying their
    path; nothing is moved or deleted automatically. The reply gives the
    absolute base/index/work paths and identifies the filesystem as `mcp-host`.
    That host must share a filesystem with the Agent's local analysis tools;
    a remote MCP path is not automatically accessible from the Agent runtime.
-   Optionally set `basePath` once; this MCP session remembers it.
+   Optionally set `basePath` once to select or reuse an existing base.
    Files are flat within each run directory, and `work/`
    is for scripts and plots. Use ordinary local tools for analysis afterwards.
    Set `fileIds` to select stable file IDs or current artifact IDs; `[]` updates

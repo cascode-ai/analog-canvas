@@ -100,7 +100,7 @@ describe.each(["compatibility", "focused", "cli"])(
         projectId,
         sessionId: projectId ? "new-session" : null,
       }));
-      const state = { client };
+      const state = { client, workspaceRoot: join(directory, "locations") };
       const invoke = async (basePath?: string) => {
         const reply = await callTool(
           "simulation_files",
@@ -349,7 +349,7 @@ describe.each(["compatibility", "focused", "cli"])(
       });
       const client = new AgentSessionClient({ http });
       await client.connect("session-1.code");
-      const toolState = { client };
+      const toolState = { client, workspaceRoot: join(directory, "locations") };
       const invoke = async (name: string, args: unknown) => {
         const reply = await callTool(name, args, toolState);
         return JSON.parse(reply.content[0]!.text!);

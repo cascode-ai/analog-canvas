@@ -223,6 +223,9 @@ export async function preparePlot(
   return {
     ok: true,
     status: "prepared",
+    dataStatus: "complete",
+    scriptStatus: "prepared",
+    imageStatus: "not-generated",
     filesystem: "mcp-host",
     directory,
     scriptPath,
@@ -231,6 +234,13 @@ export async function preparePlot(
       executable: "python",
       args: [scriptPath, configPath],
       requirements: ["Python >=3.10", "matplotlib"],
+      check: {
+        executable: "python",
+        args: [
+          "-c",
+          "import sys; assert sys.version_info >= (3, 10), 'Python >=3.10 required'; import matplotlib; print('Plot environment ready')",
+        ],
+      },
     },
     next: "Run locally using an available Python environment, then inspect the image. Edit these copies for custom plots; the installed template is unchanged.",
   };

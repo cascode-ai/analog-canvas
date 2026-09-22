@@ -2,6 +2,11 @@ import { agentToolHelp } from "./guidance.generated.js";
 import { z } from "zod";
 import { downloadSimulationArtifact } from "./artifact-download.js";
 import { LocalWorkspace, defaultWorkspacePath } from "./local-workspace.js";
+import {
+  savedWorkspacePath,
+  rememberWorkspacePath,
+} from "./workspace-location.js";
+import { join } from "node:path";
 import { simulationAuthoringTools } from "./simulation-authoring-tools.js";
 import { PreparePlotSchema, preparePlot } from "./prepare-plot.js";
 import {
@@ -189,10 +194,19 @@ async function localWorkspace(session: ToolSessionState, basePath?: string) {
     sessionId: status.sessionId,
   };
   const key = `${new URL(scope.serverUrl).origin}\0${scope.projectId}`;
-  const workspace = await LocalWorkspace.open(
-    scope,
-    basePath ?? session.workspaceBases?.get(key) ?? defaultWorkspacePath(scope),
-  );
+  const defaultPath = defaultWorkspacePath(scope, session.workspaceRoot);
+  const selectedPath =
+    basePath ??
+    session.workspaceBases?.get(key) ??
+    (await savedWorkspacePath(defaultPath)) ??
+    (session.taskDirectory
+      ? defaultWorkspacePath(
+          scope,
+          join(session.taskDirectory, ".analog-canvas"),
+        )
+      : defaultPath);
+  const workspace = await LocalWorkspace.open(scope, selectedPath);
+  await rememberWorkspacePath(defaultPath, workspace.basePath);
   session.workspaceBases ??= new Map();
   session.workspaceBases.set(key, workspace.basePath);
   session.workspaceBase = workspace.basePath;
