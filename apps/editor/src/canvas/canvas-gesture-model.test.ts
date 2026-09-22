@@ -68,4 +68,25 @@ describe("canvas gesture model", () => {
       viewBox: { x: -20, y: -10, width: 800, height: 400 },
     });
   });
+
+  it("pans both axes at pointer speed through a letterboxed viewBox", () => {
+    const preview: PanPreview = {
+      clientStart: { x: 0, y: 0 },
+      viewBoxStart: { x: 0, y: 0, width: 400, height: 800 },
+      pointerId: 1,
+      dragged: true,
+    };
+
+    expect(
+      updateCanvasPan(
+        preview,
+        { x: 120, y: 120 },
+        { width: 1200, height: 600 },
+        10,
+      ),
+    ).toEqual({
+      preview,
+      viewBox: { x: -160, y: -160, width: 400, height: 800 },
+    });
+  });
 });

@@ -38,6 +38,8 @@ import {
 } from "./canvas-gesture-model";
 import { normalizedRect } from "./canvas-geometry";
 import {
+  cameraAnchorFromScreen,
+  cameraDeltaFromScreen,
   fitCameraToBounds,
   fitCameraToVisibleBounds,
   panCameraByScreenPixels,
@@ -315,8 +317,12 @@ export function createCanvasGestureController({
   };
 
   const zoomViewAtCenter = (factor: number): void => {
+    const viewport = measureCanvasView?.()?.viewport ?? {
+      width: defaultViewBox.width,
+      height: defaultViewBox.height,
+    };
     setViewBox((current) =>
-      zoomCameraAtAnchor(current, factor, { x: 0.5, y: 0.5 }),
+      zoomCameraAtAnchor(current, factor, { x: 0.5, y: 0.5 }, viewport),
     );
   };
 
@@ -344,11 +350,14 @@ export function createCanvasGestureController({
   ): void => {
     const bounds = measureSurface(element);
     if (bounds.width <= 0 || bounds.height <= 0) return;
-    const anchor = {
-      x: (clientX - bounds.left) / bounds.width,
-      y: (clientY - bounds.top) / bounds.height,
-    };
-    scheduleViewBox((current) => zoomCameraAtAnchor(current, factor, anchor));
+    const viewport = { width: bounds.width, height: bounds.height };
+    const point = { x: clientX - bounds.left, y: clientY - bounds.top };
+    scheduleViewBox((current) => {
+      const anchor = cameraAnchorFromScreen(current, point, viewport);
+      return anchor
+        ? zoomCameraAtAnchor(current, factor, anchor, viewport)
+        : current;
+    });
   };
 
   // Wheel map by device. A trackpad two-finger scroll pans in every
@@ -390,10 +399,14 @@ export function createCanvasGestureController({
     if (!trackpad) {
       if (event.shiftKey) {
         if (deltaY === 0) return;
-        scheduleViewBox((current) => ({
-          ...current,
-          x: current.x + (deltaY * current.width) / bounds.width,
-        }));
+        scheduleViewBox((current) => {
+          const delta = cameraDeltaFromScreen(
+            current,
+            { x: deltaY, y: 0 },
+            { width: bounds.width, height: bounds.height },
+          );
+          return delta ? { ...current, x: current.x + delta.x } : current;
+        });
         return;
       }
       if (deltaY === 0) return;
@@ -408,11 +421,16 @@ export function createCanvasGestureController({
     const panX = event.shiftKey && deltaX === 0 ? deltaY : deltaX;
     const panY = event.shiftKey && deltaX === 0 ? 0 : deltaY;
     if (panX === 0 && panY === 0) return;
-    scheduleViewBox((current) => ({
-      ...current,
-      x: current.x + (panX * current.width) / bounds.width,
-      y: current.y + (panY * current.height) / bounds.height,
-    }));
+    scheduleViewBox((current) => {
+      const delta = cameraDeltaFromScreen(
+        current,
+        { x: panX, y: panY },
+        { width: bounds.width, height: bounds.height },
+      );
+      return delta
+        ? { ...current, x: current.x + delta.x, y: current.y + delta.y }
+        : current;
+    });
   };
 
   const begin = (event: ReactPointerEvent<SVGSVGElement>): void => {

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   CAMERA_ZOOM_LIMITS,
+  cameraAnchorFromScreen,
+  cameraDeltaFromScreen,
   canvasInsetsFromOverlays,
   fitCameraToBounds,
   fitCameraToVisibleBounds,
@@ -91,6 +93,69 @@ describe("zoomCameraAtAnchor", () => {
     expect(grown.height).toBe(CAMERA_ZOOM_LIMITS.maxHeight);
     expect(grown.width).toBeCloseTo((4000 * 7) / 6, 10);
   });
+
+  it("keeps maximum visual magnification stable for a letterboxed viewBox", () => {
+    const viewport = { width: 1200, height: 600 };
+    const portrait = zoomCameraAtAnchor(
+      { x: 0, y: 0, width: 400, height: 800 },
+      0.01,
+      { x: 0.5, y: 0.5 },
+      viewport,
+    );
+    const matching = zoomCameraAtAnchor(
+      { x: 0, y: 0, width: 1200, height: 600 },
+      0.01,
+      { x: 0.5, y: 0.5 },
+      viewport,
+    );
+
+    expect(portrait).toMatchObject({ width: 40, height: 80 });
+    expect(matching).toMatchObject({ width: 160, height: 80 });
+    expect(
+      Math.min(
+        viewport.width / portrait.width,
+        viewport.height / portrait.height,
+      ),
+    ).toBeCloseTo(
+      Math.min(
+        viewport.width / matching.width,
+        viewport.height / matching.height,
+      ),
+    );
+  });
+});
+
+describe("letterboxed screen mapping", () => {
+  const camera = { x: 0, y: 0, width: 400, height: 800 };
+  const viewport = { width: 1200, height: 600 };
+
+  it("uses the SVG's one uniform scale for both pan axes", () => {
+    expect(cameraDeltaFromScreen(camera, { x: 120, y: 120 }, viewport)).toEqual(
+      { x: 160, y: 160 },
+    );
+  });
+
+  it("accounts for centered letterboxing in cursor anchors", () => {
+    const point = { x: 510, y: 300 };
+    const anchor = cameraAnchorFromScreen(camera, point, viewport);
+    expect(anchor).toEqual({ x: 0.2, y: 0.5 });
+
+    const zoomed = zoomCameraAtAnchor(camera, 0.5, anchor!, viewport);
+    const zoomedScale = Math.min(
+      viewport.width / zoomed.width,
+      viewport.height / zoomed.height,
+    );
+    const offsetX = (viewport.width - zoomed.width * zoomedScale) / 2;
+    const offsetY = (viewport.height - zoomed.height * zoomedScale) / 2;
+    expect({
+      x:
+        (camera.x + camera.width * anchor!.x - zoomed.x) * zoomedScale +
+        offsetX,
+      y:
+        (camera.y + camera.height * anchor!.y - zoomed.y) * zoomedScale +
+        offsetY,
+    }).toEqual(point);
+  });
 });
 
 describe("panCameraByScreenPixels", () => {
@@ -124,6 +189,19 @@ describe("panCameraByScreenPixels", () => {
     expect(panCameraByScreenPixels(current, "up", 40, viewport)).toEqual({
       ...current,
       y: 160,
+    });
+  });
+
+  it("keeps the screen-space step stable for a letterboxed viewBox", () => {
+    const current = { x: 0, y: 0, width: 400, height: 800 };
+    const viewport = { width: 1200, height: 600 };
+    expect(panCameraByScreenPixels(current, "right", 48, viewport)).toEqual({
+      ...current,
+      x: 64,
+    });
+    expect(panCameraByScreenPixels(current, "down", 48, viewport)).toEqual({
+      ...current,
+      y: 64,
     });
   });
 });

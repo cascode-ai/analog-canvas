@@ -1,4 +1,4 @@
-import type { DerivedRect, GridRect } from "@icm/model";
+import type { DerivedRect, GridRect, Point } from "@icm/model";
 
 export interface CameraRectInput {
   x: number;
@@ -195,6 +195,78 @@ export const CAMERA_ZOOM_LIMITS: CameraZoomLimits = {
 
 export type CameraPanDirection = "left" | "right" | "up" | "down";
 
+interface CameraViewportMetrics {
+  scale: number;
+  offsetX: number;
+  offsetY: number;
+  visibleWidth: number;
+  visibleHeight: number;
+}
+
+/**
+ * Match the browser's default SVG `xMidYMid meet` transform. A saved or
+ * framed viewBox need not share the canvas aspect ratio, so separate X/Y
+ * ratios do not describe what one screen pixel means after letterboxing.
+ */
+function cameraViewportMetrics(
+  camera: GridRect,
+  viewport: { width: number; height: number },
+): CameraViewportMetrics | null {
+  if (
+    !Number.isFinite(viewport.width) ||
+    !Number.isFinite(viewport.height) ||
+    viewport.width <= 0 ||
+    viewport.height <= 0 ||
+    camera.width <= 0 ||
+    camera.height <= 0
+  ) {
+    return null;
+  }
+  const scale = Math.min(
+    viewport.width / camera.width,
+    viewport.height / camera.height,
+  );
+  if (!Number.isFinite(scale) || scale <= 0) return null;
+  const renderedWidth = camera.width * scale;
+  const renderedHeight = camera.height * scale;
+  return {
+    scale,
+    offsetX: (viewport.width - renderedWidth) / 2,
+    offsetY: (viewport.height - renderedHeight) / 2,
+    visibleWidth: viewport.width / scale,
+    visibleHeight: viewport.height / scale,
+  };
+}
+
+/** Convert a CSS-pixel delta through the SVG's uniform viewBox scale. */
+export function cameraDeltaFromScreen(
+  camera: GridRect,
+  delta: Point,
+  viewport: { width: number; height: number },
+): Point | null {
+  const metrics = cameraViewportMetrics(camera, viewport);
+  if (!metrics) return null;
+  return { x: delta.x / metrics.scale, y: delta.y / metrics.scale };
+}
+
+/**
+ * Express a viewport-relative CSS pixel as a normalized camera anchor.
+ * Anchors may sit outside 0..1 while the SVG is letterboxed; retaining that
+ * position keeps the world point under the pointer fixed during zoom.
+ */
+export function cameraAnchorFromScreen(
+  camera: GridRect,
+  point: Point,
+  viewport: { width: number; height: number },
+): Point | null {
+  const metrics = cameraViewportMetrics(camera, viewport);
+  if (!metrics) return null;
+  return {
+    x: (point.x - metrics.offsetX) / (camera.width * metrics.scale),
+    y: (point.y - metrics.offsetY) / (camera.height * metrics.scale),
+  };
+}
+
 /**
  * Moves the camera by a screen-space distance.
  *
@@ -219,17 +291,21 @@ export function panCameraByScreenPixels(
   ) {
     return current;
   }
-  const dx = (pixels * current.width) / viewport.width;
-  const dy = (pixels * current.height) / viewport.height;
+  const delta = cameraDeltaFromScreen(
+    current,
+    { x: pixels, y: pixels },
+    viewport,
+  );
+  if (!delta) return current;
   switch (direction) {
     case "left":
-      return { ...current, x: current.x - dx };
+      return { ...current, x: current.x - delta.x };
     case "right":
-      return { ...current, x: current.x + dx };
+      return { ...current, x: current.x + delta.x };
     case "up":
-      return { ...current, y: current.y - dy };
+      return { ...current, y: current.y - delta.y };
     case "down":
-      return { ...current, y: current.y + dy };
+      return { ...current, y: current.y + delta.y };
   }
 }
 
@@ -242,19 +318,27 @@ export function zoomCameraAtAnchor(
   current: GridRect,
   factor: number,
   anchor: { x: number; y: number },
+  viewport?: { width: number; height: number },
   limits: CameraZoomLimits = CAMERA_ZOOM_LIMITS,
 ): GridRect {
+  const metrics = viewport ? cameraViewportMetrics(current, viewport) : null;
+  // Limits describe what is visible, including letterboxed SVG space. This
+  // keeps maximum visual magnification stable even when the stored viewBox
+  // has an unusual aspect ratio. Callers without a viewport retain the
+  // historical extent-based behavior.
+  const visibleWidth = metrics?.visibleWidth ?? current.width;
+  const visibleHeight = metrics?.visibleHeight ?? current.height;
   // Clamp the scale once for both axes so hitting a limit never distorts
   // the aspect ratio, and keep everything continuous: rounding here made
   // the point under the cursor drift on every wheel step.
   const scale = Math.max(
     Math.min(
       factor,
-      limits.maxWidth / current.width,
-      limits.maxHeight / current.height,
+      limits.maxWidth / visibleWidth,
+      limits.maxHeight / visibleHeight,
     ),
-    limits.minWidth / current.width,
-    limits.minHeight / current.height,
+    limits.minWidth / visibleWidth,
+    limits.minHeight / visibleHeight,
   );
   const width = current.width * scale;
   const height = current.height * scale;
