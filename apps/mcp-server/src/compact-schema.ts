@@ -79,7 +79,65 @@ export function compactSchema(
   };
   const result = visit(input, true) as Record<string, unknown>;
   if (recursive) return input;
-  if (Object.keys(definitions).length)
-    result.$defs = { ...((result.$defs as object) ?? {}), ...definitions };
-  return result;
+  // A definition used once adds an indirection and bytes without deduplication.
+  // Count only generated references; authored examples/defaults are opaque.
+  const counts = new Map<string, number>();
+  const children = (
+    schema: Record<string, unknown>,
+    visitChild: (value: unknown) => unknown,
+  ) => {
+    for (const key of ["properties", "patternProperties", "dependentSchemas"])
+      if (schema[key] && typeof schema[key] === "object")
+        schema[key] = Object.fromEntries(
+          Object.entries(schema[key] as object).map(([k, v]) => [
+            k,
+            visitChild(v),
+          ]),
+        );
+    for (const key of ["anyOf", "oneOf", "allOf", "prefixItems"])
+      if (Array.isArray(schema[key])) schema[key] = schema[key].map(visitChild);
+    for (const key of [
+      "items",
+      "additionalProperties",
+      "contains",
+      "not",
+      "if",
+      "then",
+      "else",
+      "propertyNames",
+    ])
+      if (schema[key] !== undefined) schema[key] = visitChild(schema[key]);
+    return schema;
+  };
+  const count = (value: unknown): unknown => {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      return value;
+    const schema = value as Record<string, unknown>;
+    if (typeof schema.$ref === "string")
+      counts.set(schema.$ref, (counts.get(schema.$ref) ?? 0) + 1);
+    return children(schema, count);
+  };
+  count(result);
+  Object.values(definitions).forEach(count);
+  const inline = (value: unknown): unknown => {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      return value;
+    const schema = value as Record<string, unknown>;
+    const ref = schema.$ref;
+    if (
+      typeof ref === "string" &&
+      counts.get(ref) === 1 &&
+      definitions[ref.slice(8)]
+    )
+      return inline(definitions[ref.slice(8)]);
+    return children(schema, inline);
+  };
+  const compacted = inline(result) as Record<string, unknown>;
+  const shared = Object.fromEntries(
+    Object.entries(definitions)
+      .filter(([name]) => (counts.get(`#/$defs/${name}`) ?? 0) > 1)
+      .map(([name, schema]) => [name, inline(schema)]),
+  );
+  if (Object.keys(shared).length) compacted.$defs = shared;
+  return compacted;
 }
