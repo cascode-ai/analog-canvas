@@ -23,6 +23,10 @@ test("project tabs append a partial selection and retain independent history, ca
   page,
   context,
 }) => {
+  // This journey opens multiple Projects and verifies copy, export, undo and
+  // code editing. Keep per-action assertions bounded, but allow the complete
+  // workflow more than 30 seconds on the shared CI runner.
+  test.slow();
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/editor?new=1");
   const canvas = page.getByTestId("schematic-canvas");

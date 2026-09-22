@@ -731,6 +731,10 @@ test("native cross-page clipboard preserves an editable circuit and text-field s
   context,
   browser,
 }) => {
+  // This journey opens multiple Projects and verifies copy, export, undo and
+  // code editing. Keep per-action assertions bounded, but allow the complete
+  // workflow more than 30 seconds on the shared CI runner.
+  test.slow();
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const source = parseSavedProject(
     readFileSync(
