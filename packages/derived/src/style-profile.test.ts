@@ -20,7 +20,7 @@ describe("schematic style profiles", () => {
         "'ICM Round Period','DejaVu Sans',Arial,'Helvetica Neue',Helvetica,sans-serif",
       instanceFontSize: 15.116,
       subscriptScale: 0.76,
-      subscriptBaselineShiftEm: 0.28,
+      subscriptBaselineShiftEm: 0.44,
       subscriptHorizontalGapEm: 0.046,
     });
   });

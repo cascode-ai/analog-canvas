@@ -20,6 +20,29 @@ export const MIRROR_OPTIONS = [
 export const RGB_CHANNEL_MAX = 255;
 export const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/u;
 
+export type CanvasPropertyOptionPreview =
+  | {
+      kind: "label";
+      first: string;
+      suffix: string;
+      firstItalic: boolean;
+      suffixItalic: boolean;
+      subscript: boolean;
+    }
+  | {
+      kind: "scale";
+      target: "font" | "wire" | "symbol" | "drawing" | "junction";
+      factor: number;
+    }
+  | {
+      kind: "bulk";
+      device: "NMOS" | "PMOS";
+      rail: "VSS" | "VDD";
+    }
+  | { kind: "grid"; enabled: boolean; spacing: 1 | 5 | 10 }
+  | { kind: "angle"; mode: "free" | "45" | "orthogonal" }
+  | { kind: "scroll"; mode: "auto" | "zoom" | "pan" };
+
 export interface CanvasPropertyField {
   path: string;
   label: string;
@@ -34,6 +57,8 @@ export interface CanvasPropertyField {
   options?: readonly {
     value: string | number | boolean | null;
     label: string;
+    /** Optional rendered example for the expanded inline choice menu. */
+    preview?: CanvasPropertyOptionPreview;
   }[];
   description: string;
   /** Guidance metadata for callers that present help outside the code editor. */

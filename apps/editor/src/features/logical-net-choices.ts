@@ -54,3 +54,19 @@ export function logicalNetChoiceForNet(
     ? choices.find((choice) => choice.baseNetIds.includes(netId))
     : undefined;
 }
+
+/** Return the sole drawn supply choice for one power domain, when unambiguous. */
+export function logicalSupplyNetChoice(
+  document: SchematicDocument,
+  domain: "ground" | "vdd",
+): LogicalNetChoice | undefined {
+  const groups = resolveDocumentLogicalNets(document).groups.filter(
+    (group) => group.powerDomain === domain,
+  );
+  return groups.length === 1
+    ? logicalNetChoiceForNet(
+        logicalNetChoices(document),
+        groups[0]!.baseNetIds[0],
+      )
+    : undefined;
+}

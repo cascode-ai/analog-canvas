@@ -5,30 +5,79 @@ import {
   propertyCodeSpans,
   type PropertyCodeSpan,
 } from "../properties/component-property-code-assists";
-import type { CanvasPropertyField } from "../properties/component-property-fields";
-import { parseDocumentSettingsCode } from "./document-settings-code";
+import type {
+  CanvasPropertyField,
+  CanvasPropertyOptionPreview,
+} from "../properties/component-property-fields";
+import {
+  mosBulkDefaultNetIdFromCode,
+  parseDocumentSettingsCode,
+} from "./document-settings-code";
 import { STYLE_KNOBS, STYLE_SCALE_OPTIONS } from "./style-knobs";
 
 function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
+  const labelPreview = (
+    overrides: Partial<Extract<CanvasPropertyOptionPreview, { kind: "label" }>>,
+  ): CanvasPropertyOptionPreview => ({
+    kind: "label",
+    first: "V",
+    suffix: "in",
+    firstItalic: true,
+    suffixItalic: false,
+    subscript: true,
+    ...overrides,
+  });
+  const scaleTargets: Record<
+    (typeof STYLE_KNOBS)[number]["key"],
+    Extract<CanvasPropertyOptionPreview, { kind: "scale" }>["target"]
+  > = {
+    fontScale: "font",
+    wireStrokeScale: "wire",
+    symbolStrokeScale: "symbol",
+    annotationStrokeScale: "drawing",
+    junctionRadiusScale: "junction",
+  };
   const scaleOptions = STYLE_SCALE_OPTIONS.map((value) => ({
     value,
     label: value === 1 ? "Default · 1×" : `${value}×`,
   }));
-  const netOptions = (emptyLabel: string) => [
-    { value: null, label: emptyLabel },
-    ...logicalNetChoices(document).map((choice) => ({
-      value: choice.netId,
-      label: choice.label,
-    })),
-  ];
+  const netOptions = (
+    kind: "nmos" | "pmos",
+    device: "NMOS" | "PMOS",
+    rail: "VSS" | "VDD",
+  ) => {
+    const supplyNetId = mosBulkDefaultNetIdFromCode(document, kind, rail);
+    return [
+      {
+        value: rail,
+        label: rail,
+        preview: { kind: "bulk", device, rail } as const,
+      },
+      ...logicalNetChoices(document)
+        .filter((choice) => !choice.baseNetIds.includes(supplyNetId ?? ""))
+        .map((choice) => ({
+          value: choice.netId,
+          label: choice.label,
+          preview: { kind: "bulk", device, rail } as const,
+        })),
+    ];
+  };
   return [
     {
       path: "labels.first_letter_italic",
       label: "First letter",
       kind: "choice",
       options: [
-        { value: true, label: "Italic" },
-        { value: false, label: "Upright" },
+        {
+          value: true,
+          label: "Italic first letter",
+          preview: labelPreview({ firstItalic: true }),
+        },
+        {
+          value: false,
+          label: "Upright first letter",
+          preview: labelPreview({ firstItalic: false }),
+        },
       ],
       description: "",
     },
@@ -37,8 +86,16 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
       label: "Subscript after first letter",
       kind: "choice",
       options: [
-        { value: true, label: "Use subscript · Vin → Vᵢₙ" },
-        { value: false, label: "Keep typed boundaries" },
+        {
+          value: true,
+          label: "Subscript after the first letter",
+          preview: labelPreview({ subscript: true }),
+        },
+        {
+          value: false,
+          label: "Keep the suffix on the baseline",
+          preview: labelPreview({ subscript: false }),
+        },
       ],
       description: "",
     },
@@ -47,9 +104,21 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
       label: "Subscript case",
       kind: "choice",
       options: [
-        { value: "preserve", label: "Preserve typed case" },
-        { value: "uppercase", label: "UPPERCASE" },
-        { value: "lowercase", label: "lowercase" },
+        {
+          value: "preserve",
+          label: "Preserve typed case",
+          preview: labelPreview({ suffix: "inP" }),
+        },
+        {
+          value: "uppercase",
+          label: "Make suffix uppercase",
+          preview: labelPreview({ suffix: "INP" }),
+        },
+        {
+          value: "lowercase",
+          label: "Make suffix lowercase",
+          preview: labelPreview({ suffix: "inp" }),
+        },
       ],
       description: "",
     },
@@ -58,8 +127,16 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
       label: "Subscript style",
       kind: "choice",
       options: [
-        { value: false, label: "Upright" },
-        { value: true, label: "Italic" },
+        {
+          value: false,
+          label: "Upright subscript",
+          preview: labelPreview({ suffixItalic: false }),
+        },
+        {
+          value: true,
+          label: "Italic subscript",
+          preview: labelPreview({ suffixItalic: true }),
+        },
       ],
       description: "",
     },
@@ -68,8 +145,16 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
       label: "Underscore subscript",
       kind: "choice",
       options: [
-        { value: true, label: "Convert to subscript · A₁" },
-        { value: false, label: "Keep underscore · A_1" },
+        {
+          value: true,
+          label: "Convert underscore suffix to subscript",
+          preview: labelPreview({ suffix: "in", subscript: true }),
+        },
+        {
+          value: false,
+          label: "Keep the typed underscore",
+          preview: labelPreview({ suffix: "_in", subscript: false }),
+        },
       ],
       description: "",
     },
@@ -77,33 +162,48 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
       path: `appearance.${knob.key}`,
       label: knob.label,
       kind: "choice",
-      options: scaleOptions,
+      options: scaleOptions.map((option) => ({
+        ...option,
+        preview: {
+          kind: "scale",
+          target: scaleTargets[knob.key],
+          factor: option.value,
+        },
+      })),
       description: "",
       help: `${knob.label} scale from 0.5× to 2×`,
     })),
     {
-      path: "bulkDefaults.nmosNet",
-      label: "NMOS bulk Net (usually VSS)",
+      path: "bulkDefaults.nmos",
+      label: "NMOS",
       kind: "choice",
-      options: netOptions("Not set · choose after VSS exists"),
+      options: netOptions("nmos", "NMOS", "VSS"),
       description: "",
-      help: "Choose the lowest supply Net in this Cell; GND is correct only when it is also VSS",
+      help: "NMOS bulk defaults to VSS",
     },
     {
-      path: "bulkDefaults.pmosNet",
-      label: "PMOS bulk Net (usually VDD)",
+      path: "bulkDefaults.pmos",
+      label: "PMOS",
       kind: "choice",
-      options: netOptions("Not set · choose after VDD exists"),
+      options: netOptions("pmos", "PMOS", "VDD"),
       description: "",
-      help: "Choose the highest supply Net in this Cell, usually VDD",
+      help: "PMOS bulk defaults to VDD",
     },
     {
       path: "canvas.showGrid",
       label: "Canvas grid",
       kind: "choice",
       options: [
-        { value: true, label: "On" },
-        { value: false, label: "Off" },
+        {
+          value: true,
+          label: "Grid on",
+          preview: { kind: "grid", enabled: true, spacing: 5 },
+        },
+        {
+          value: false,
+          label: "Grid off",
+          preview: { kind: "grid", enabled: false, spacing: 5 },
+        },
       ],
       description: "",
     },
@@ -111,7 +211,11 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
       path: "canvas.annotationGrid",
       label: "Annotation grid",
       kind: "choice",
-      options: [1, 5, 10].map((value) => ({ value, label: String(value) })),
+      options: ([1, 5, 10] as const).map((value) => ({
+        value,
+        label: `${value} unit${value === 1 ? "" : "s"}`,
+        preview: { kind: "grid", enabled: true, spacing: value } as const,
+      })),
       description: "",
     },
     {
@@ -119,9 +223,21 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
       label: "Draw angle",
       kind: "choice",
       options: [
-        { value: "free", label: "Free" },
-        { value: "45", label: "45°" },
-        { value: "orthogonal", label: "Orthogonal" },
+        {
+          value: "free",
+          label: "Free angle",
+          preview: { kind: "angle", mode: "free" },
+        },
+        {
+          value: "45",
+          label: "45° increments",
+          preview: { kind: "angle", mode: "45" },
+        },
+        {
+          value: "orthogonal",
+          label: "Orthogonal only",
+          preview: { kind: "angle", mode: "orthogonal" },
+        },
       ],
       description: "",
     },
@@ -130,9 +246,21 @@ function fields(document: SchematicDocument): readonly CanvasPropertyField[] {
       label: "Scroll behavior",
       kind: "choice",
       options: [
-        { value: "auto", label: "Auto" },
-        { value: "zoom", label: "Zoom" },
-        { value: "pan", label: "Pan" },
+        {
+          value: "auto",
+          label: "Auto · trackpad pans, wheel zooms",
+          preview: { kind: "scroll", mode: "auto" },
+        },
+        {
+          value: "zoom",
+          label: "Always zoom",
+          preview: { kind: "scroll", mode: "zoom" },
+        },
+        {
+          value: "pan",
+          label: "Always pan",
+          preview: { kind: "scroll", mode: "pan" },
+        },
       ],
       description: "",
     },

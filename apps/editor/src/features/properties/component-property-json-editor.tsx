@@ -482,6 +482,8 @@ class PropertyUnit extends WidgetType {
 }
 
 class PropertyChoiceSelect extends WidgetType {
+  private closePreviewMenu: (() => void) | null = null;
+
   constructor(
     private readonly span: PropertyCodeSpan,
     private readonly enabled: boolean,
@@ -517,6 +519,50 @@ class PropertyChoiceSelect extends WidgetType {
     arrow.className = "cm-netlist-target-arrow";
     arrow.setAttribute("aria-hidden", "true");
 
+    const options = this.span.field.options ?? [];
+    const applyOption = (value: string): void => {
+      const option = options.find((item) => String(item.value) === value);
+      if (!option) return;
+      const changes = editorChanges(view.state.doc.toString(), this.read(), {
+        [this.span.field.path]: option.value,
+      });
+      if (changes.length)
+        view.dispatch({ changes, userEvent: "input.property-control" });
+    };
+    if (options.some((option) => option.preview)) {
+      const trigger = document.createElement("button");
+      trigger.type = "button";
+      trigger.className = "cm-netlist-target-select";
+      trigger.disabled = !this.enabled;
+      trigger.setAttribute("aria-label", `Show ${label} previews`);
+      trigger.setAttribute("aria-haspopup", "listbox");
+      trigger.setAttribute("aria-expanded", "false");
+      trigger.addEventListener("click", async () => {
+        if (this.closePreviewMenu) {
+          this.closePreviewMenu();
+          return;
+        }
+        const { showPropertyOptionPreviewMenu } =
+          await import("./property-option-preview-menu");
+        if (!trigger.isConnected) return;
+        trigger.setAttribute("aria-expanded", "true");
+        this.closePreviewMenu = showPropertyOptionPreviewMenu({
+          anchor: trigger,
+          label,
+          options,
+          optionEnabled: this.optionEnabled,
+          value: this.span.value,
+          onSelect: applyOption,
+          onClose: () => {
+            trigger.setAttribute("aria-expanded", "false");
+            this.closePreviewMenu = null;
+          },
+        });
+      });
+      picker.append(arrow, trigger);
+      return picker;
+    }
+
     const select = document.createElement("select");
     select.className = "cm-netlist-target-select";
     select.contentEditable = "false";
@@ -527,7 +573,6 @@ class PropertyChoiceSelect extends WidgetType {
         : `${label} options`,
     );
     select.disabled = !this.enabled;
-    const options = this.span.field.options ?? [];
     for (const [index, option] of options.entries()) {
       const element = document.createElement("option");
       element.value = String(option.value);
@@ -542,21 +587,16 @@ class PropertyChoiceSelect extends WidgetType {
       select.append(authored);
     }
     select.value = String(this.span.value);
-    select.addEventListener("change", () => {
-      const option = options.find(
-        (item) => String(item.value) === select.value,
-      );
-      if (!option) return;
-      const changes = editorChanges(view.state.doc.toString(), this.read(), {
-        [this.span.field.path]: option.value,
-      });
-      if (changes.length)
-        view.dispatch({ changes, userEvent: "input.property-control" });
-    });
+    select.addEventListener("change", () => applyOption(select.value));
     // The JSON already shows the name. Keep the native, keyboard-accessible
     // menu over a compact arrow instead of displaying its value a second time.
     picker.append(arrow, select);
     return picker;
+  }
+
+  override destroy(): void {
+    this.closePreviewMenu?.();
+    this.closePreviewMenu = null;
   }
 
   override ignoreEvent(): boolean {

@@ -440,7 +440,7 @@ describe("current rendering contract", () => {
       'style="font-style:italic;font-weight:700">V<tspan data-text-run="subscript"',
     );
     expect(svg).toContain(
-      'data-text-run="subscript" dx="0.528455" dy="3.216685" font-size="11.48816px" style="font-style:normal;font-weight:700">DD',
+      'data-text-run="subscript" dx="0.528455" dy="5.05479" font-size="11.48816px" style="font-style:normal;font-weight:700">DD',
     );
     expect(svg).not.toContain("baseline-shift");
   });

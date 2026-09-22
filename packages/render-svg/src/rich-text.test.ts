@@ -106,8 +106,8 @@ describe("renderRichTextDocument", () => {
     // Resolve relative typography before export so Office-class SVG
     // importers do not need to implement baseline-shift or percentage sizes.
     expect(svg).toContain('font-size="15.2px"');
-    expect(svg).toContain('dx="0.6992" dy="4.256"');
-    expect(svg).toContain('dy="-8.512"');
+    expect(svg).toContain('dx="0.6992" dy="6.688"');
+    expect(svg).toContain('dy="-13.376"');
     expect(svg).not.toContain("baseline-shift");
     expect(svg).not.toContain('font-size="76%"');
   });
@@ -140,7 +140,7 @@ describe("renderRichTextDocument", () => {
       { fontSize: 20 },
     );
     expect(svg).toContain(
-      'data-text-run="subscript" dx="0.6992" dy="4.256" font-size="15.2px" style="font-style:normal;font-weight:700">out</tspan>',
+      'data-text-run="subscript" dx="0.6992" dy="6.688" font-size="15.2px" style="font-style:normal;font-weight:700">out</tspan>',
     );
   });
 
@@ -162,7 +162,7 @@ describe("renderRichTextDocument", () => {
     );
 
     expect(svg).toContain(
-      '<tspan data-text-run="baseline-reset" dy="-4.256"> + V</tspan>',
+      '<tspan data-text-run="baseline-reset" dy="-6.688"> + V</tspan>',
     );
     expect(svg).not.toContain("baseline-shift");
   });

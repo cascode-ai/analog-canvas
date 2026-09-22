@@ -84,6 +84,7 @@ import {
   symbolCarriesReference,
   symbolSupportsValueAnnotation,
   resolveMosBulkConnection,
+  supplyDefaultMosBulkNet,
   resolveDocumentStyleProfile,
   summarizeProjectCells,
   resolveRouteAttachment,
@@ -331,7 +332,10 @@ import type {
 } from "../interaction/interaction-state";
 import { resolveTextEditingTarget } from "../features/text-editing/text-editing";
 import { planMosBulkDefaultUpdate } from "../features/component-insert/mos-bulk-defaults";
-import { logicalNetChoices } from "../features/logical-net-choices";
+import {
+  logicalNetChoiceForNet,
+  logicalNetChoices,
+} from "../features/logical-net-choices";
 import {
   CLOUD_PROJECT_LIMIT,
   deleteCloudProject,
@@ -518,6 +522,21 @@ export function App(props: AppProps) {
         workspaceError={boot.error ?? null}
       />
     </WorkspaceAgentProvider>
+  );
+}
+
+function propertiesMosBulkDefaultNetId(
+  document: SchematicDocument,
+  kind: "nmos" | "pmos",
+  value: string,
+): string | null {
+  const selectedId =
+    value === (kind === "nmos" ? "VSS" : "VDD")
+      ? supplyDefaultMosBulkNet(document, kind)?.id
+      : value;
+  return (
+    logicalNetChoiceForNet(logicalNetChoices(document), selectedId)?.netId ??
+    null
   );
 }
 
@@ -6613,25 +6632,31 @@ function WorkspaceEditor({
                           });
                         }
                         if (
-                          value.bulkDefaults.nmosNet !==
-                          current.bulkDefaults.nmosNet
+                          value.bulkDefaults.nmos !== current.bulkDefaults.nmos
                         )
                           edits.push(
                             ...planMosBulkDefaultUpdate(
                               document,
                               "nmos",
-                              value.bulkDefaults.nmosNet,
+                              propertiesMosBulkDefaultNetId(
+                                document,
+                                "nmos",
+                                value.bulkDefaults.nmos,
+                              ),
                             ),
                           );
                         if (
-                          value.bulkDefaults.pmosNet !==
-                          current.bulkDefaults.pmosNet
+                          value.bulkDefaults.pmos !== current.bulkDefaults.pmos
                         )
                           edits.push(
                             ...planMosBulkDefaultUpdate(
                               document,
                               "pmos",
-                              value.bulkDefaults.pmosNet,
+                              propertiesMosBulkDefaultNetId(
+                                document,
+                                "pmos",
+                                value.bulkDefaults.pmos,
+                              ),
                             ),
                           );
                         if (

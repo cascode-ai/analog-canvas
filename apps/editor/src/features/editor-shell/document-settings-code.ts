@@ -3,6 +3,7 @@ import { type SchematicDocument, type StyleOverrides } from "@icm/model";
 import {
   logicalNetChoiceForNet,
   logicalNetChoices,
+  logicalSupplyNetChoice,
 } from "../logical-net-choices";
 import { STYLE_KNOBS, styleOverrideDraft } from "./style-knobs";
 
@@ -16,8 +17,8 @@ export interface CanvasPreferenceCodeValue {
 export interface DocumentSettingsCodeValue {
   appearance: Record<keyof StyleOverrides, number>;
   bulkDefaults: {
-    nmosNet: string | null;
-    pmosNet: string | null;
+    nmos: string;
+    pmos: string;
   };
   labels: {
     first_letter_italic: boolean;
@@ -28,6 +29,11 @@ export interface DocumentSettingsCodeValue {
   };
   canvas: CanvasPreferenceCodeValue;
 }
+
+export const DEFAULT_MOS_BULK_RAIL = {
+  nmos: "VSS",
+  pmos: "VDD",
+} as const;
 
 export type DocumentSettingsCodeParseResult =
   | { ok: true; value: DocumentSettingsCodeValue }
@@ -55,15 +61,25 @@ export function documentSettingsCodeValue(
   canvas: CanvasPreferenceCodeValue,
 ): DocumentSettingsCodeValue {
   const netChoices = logicalNetChoices(document);
+  const bulkValue = (kind: "nmos" | "pmos"): string => {
+    const configuredId =
+      kind === "nmos"
+        ? document.mosBulkDefaults?.nmosNetId
+        : document.mosBulkDefaults?.pmosNetId;
+    const configured = logicalNetChoiceForNet(netChoices, configuredId);
+    const supply = logicalSupplyNetChoice(
+      document,
+      kind === "nmos" ? "ground" : "vdd",
+    );
+    return !configured || configured.netId === supply?.netId
+      ? DEFAULT_MOS_BULK_RAIL[kind]
+      : configured.netId;
+  };
   return {
     appearance: styleOverrideDraft(document.presentation.styleOverrides),
     bulkDefaults: {
-      nmosNet:
-        logicalNetChoiceForNet(netChoices, document.mosBulkDefaults?.nmosNetId)
-          ?.netId ?? null,
-      pmosNet:
-        logicalNetChoiceForNet(netChoices, document.mosBulkDefaults?.pmosNetId)
-          ?.netId ?? null,
+      nmos: bulkValue("nmos"),
+      pmos: bulkValue("pmos"),
     },
     labels: {
       first_letter_italic: document.presentation.labelFirstLetterItalic ?? true,
@@ -76,6 +92,23 @@ export function documentSettingsCodeValue(
     },
     canvas,
   };
+}
+
+/** Resolve the reader-facing VSS/VDD policy or one explicit custom Net. */
+export function mosBulkDefaultNetIdFromCode(
+  document: SchematicDocument,
+  kind: "nmos" | "pmos",
+  value: string,
+): string | null {
+  if (value === DEFAULT_MOS_BULK_RAIL[kind]) {
+    return (
+      logicalSupplyNetChoice(document, kind === "nmos" ? "ground" : "vdd")
+        ?.netId ?? null
+    );
+  }
+  return (
+    logicalNetChoiceForNet(logicalNetChoices(document), value)?.netId ?? null
+  );
 }
 
 export function serializeDocumentSettingsCode(
@@ -167,7 +200,7 @@ export function parseDocumentSettingsCode(
     return { ok: false, message: "bulkDefaults must be an object" };
   const bulkError = exactKeys(
     raw.bulkDefaults,
-    ["nmosNet", "pmosNet"],
+    ["nmos", "pmos"],
     "bulkDefaults",
   );
   if (bulkError) return { ok: false, message: bulkError };
@@ -176,19 +209,20 @@ export function parseDocumentSettingsCode(
   );
   const bulkDefaults = {} as DocumentSettingsCodeValue["bulkDefaults"];
   for (const [field, value] of Object.entries(raw.bulkDefaults)) {
-    if (value !== null && typeof value !== "string") {
+    const kind = field as "nmos" | "pmos";
+    if (typeof value !== "string") {
       return {
         ok: false,
-        message: `bulkDefaults.${field} must be a Net id or null`,
+        message: `bulkDefaults.${field} must be ${DEFAULT_MOS_BULK_RAIL[kind]} or a Net id`,
       };
     }
-    if (typeof value === "string" && !validNetIds.has(value)) {
+    if (value !== DEFAULT_MOS_BULK_RAIL[kind] && !validNetIds.has(value)) {
       return {
         ok: false,
-        message: `bulkDefaults.${field} does not name a Net in this Cell`,
+        message: `bulkDefaults.${field} must be ${DEFAULT_MOS_BULK_RAIL[kind]} or name a Net in this Cell`,
       };
     }
-    bulkDefaults[field as keyof typeof bulkDefaults] = value as string | null;
+    bulkDefaults[kind] = value;
   }
 
   const labels = raw.labels ?? {

@@ -5811,17 +5811,66 @@ test("docked Properties JSON is the only global configuration surface", async ({
   ).toHaveCount(0);
   await expect(page.getByTestId("hit-R1")).toBeVisible();
   await expect(settings.getByLabel("Editable Properties code")).toBeVisible();
-  await expect(settings.locator(".cm-netlist-target-select")).toHaveCount(16);
-  await expect(settings.getByLabel("Font size options")).toBeVisible();
+  await expect(settings.locator("select.cm-netlist-target-select")).toHaveCount(
+    0,
+  );
   await expect(
-    settings.getByLabel("NMOS bulk Net (usually VSS) options"),
+    settings.getByRole("button", { name: "Show Font size previews" }),
   ).toBeVisible();
   await expect(
-    settings.getByLabel("PMOS bulk Net (usually VDD) options"),
+    settings.getByRole("button", {
+      name: "Show NMOS previews",
+    }),
   ).toBeVisible();
-  await expect(settings.getByLabel("Subscript case options")).toBeVisible();
+  await expect(
+    settings.getByRole("button", {
+      name: "Show PMOS previews",
+    }),
+  ).toBeVisible();
+  await expect(
+    settings.getByRole("button", { name: /^Show .+ previews$/u }),
+  ).toHaveCount(16);
+  await settings
+    .getByRole("button", {
+      name: "Show Subscript after first letter previews",
+    })
+    .click();
+  const subscriptPreview = page.getByRole("listbox", {
+    name: "Subscript after first letter previews",
+  });
+  await expect(subscriptPreview).toBeVisible();
+  const subscriptOption = subscriptPreview.getByRole("option", {
+    name: /Subscript after the first letter/u,
+  });
+  const subscriptFirst = subscriptOption.locator(
+    ".cm-property-label-preview-first",
+  );
+  const subscriptSuffix = subscriptOption.locator(
+    ".cm-property-label-preview-suffix[data-subscript]",
+  );
+  await expect(subscriptSuffix).toHaveText("in");
+  const firstBox = await subscriptFirst.boundingBox();
+  const suffixBox = await subscriptSuffix.boundingBox();
+  expect(firstBox).not.toBeNull();
+  expect(suffixBox).not.toBeNull();
+  expect(suffixBox!.height).toBeGreaterThan(0);
+  expect(suffixBox!.y).toBeGreaterThan(firstBox!.y + 6);
+  await expect(subscriptOption).not.toContainText("ᵢₙ");
+  await page.keyboard.press("Escape");
+  await settings.getByRole("button", { name: "Show NMOS previews" }).click();
+  const bulkPreview = page.getByRole("listbox", {
+    name: "NMOS previews",
+  });
+  await expect(bulkPreview).toContainText("VSSNMOS→VSS");
+  await page.keyboard.press("Escape");
   await expect(settings.locator(".cm-property-unit")).toHaveCount(0);
-  await settings.getByLabel("Font size options").selectOption("1.5");
+  await settings
+    .getByRole("button", { name: "Show Font size previews" })
+    .click();
+  await page
+    .getByRole("listbox", { name: "Font size previews" })
+    .getByRole("option", { name: /^1\.5×/u })
+    .click();
   await expect(label).toHaveAttribute("font-size", "22.674");
   await expect(page.getByTestId("status")).toContainText(
     "Updated Properties code",
@@ -5829,7 +5878,7 @@ test("docked Properties JSON is the only global configuration surface", async ({
 
   const styleSource = await readDocumentStyleCode(page);
   const style = JSON.parse(styleSource);
-  expect(style.bulkDefaults).toEqual({ nmosNet: null, pmosNet: null });
+  expect(style.bulkDefaults).toEqual({ nmos: "VSS", pmos: "VDD" });
   expect(style.labels).toEqual({
     first_letter_italic: true,
     subscript_after_first: true,
