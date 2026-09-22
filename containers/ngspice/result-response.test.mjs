@@ -7,6 +7,7 @@ import {
 import {
   readExecutionReceipt,
   EXECUTION_RECEIPT_HEADER,
+  decodeHostedExecutionPayload,
 } from "@icm/simulation-service";
 import { ngspiceResultResponse } from "./result-response.mjs";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
@@ -18,7 +19,7 @@ import { routeNgspiceSimulationRequest } from "../../worker/simulation-ngspice.t
 const environment = await createSimulationEnvironmentMetadata({
   executor: "hosted-container",
   reproducibility: "observed",
-  profileId: null,
+  profileId: "protocol-fixture",
   platform: "linux/x64",
   simulator: { name: "ngspice", version: "46", binarySha256: "a".repeat(64) },
   models: { id: "protocol-fixture", contentSha256: "b".repeat(64) },
@@ -134,6 +135,22 @@ describe("large ngspice output handoff", () => {
       expect(receipt.collectionStatus).toBe("complete");
       expect(receipt.byteLength).toBe(Buffer.byteLength(response.body));
       const result = JSON.parse(response.body);
+      expect(
+        decodeHostedExecutionPayload(
+          {
+            mode: "raw",
+            netlist: "",
+            testbench: outputInput.deck,
+            preparedDeck: outputInput.deck,
+            inputRevision: "revision-large",
+            environment: { profileId: "protocol-fixture", corner: "tt" },
+            files: [],
+            dependencies: [],
+            collection: outputInput.collection,
+          },
+          result,
+        ).result.outcome.status,
+      ).toBe("completed");
       expect(result.outcome.status).toBe("completed");
       expect(result.rawfile).toBe(text);
       const ac = result.data.analyses[0];

@@ -53,7 +53,6 @@ export async function ngspiceResultResponse(input, raw, streaming) {
       : "complete";
   const body = JSON.stringify({
     ...payload,
-    executedFiles: input.files ?? [],
     collectionStatus,
   });
   const byteLength = Buffer.byteLength(body);
