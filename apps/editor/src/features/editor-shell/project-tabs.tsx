@@ -1,7 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import { InlineConfirm } from "../../components/inline-confirm";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { CloudProjectSummary } from "./cloud-projects";
 import "./project-tabs.css";
+
+const InlineConfirm = lazy(() =>
+  import("../../components/inline-confirm").then((module) => ({
+    default: module.InlineConfirm,
+  })),
+);
 
 export function ProjectTabs({
   tabs,
@@ -161,26 +166,28 @@ export function ProjectTabs({
           className="project-tab-close-decision"
           data-testid="project-tab-close-decision"
         >
-          <InlineConfirm
-            key={closeTarget.id}
-            open
-            disabled={busy}
-            aria-label={`Close tab ${closeTarget.name}`}
-            confirmLabel="Close without saving"
-            cancelLabel="Keep open"
-            onOpenChange={(next) => {
-              if (!next) {
+          <Suspense fallback={null}>
+            <InlineConfirm
+              key={closeTarget.id}
+              open
+              disabled={busy}
+              aria-label={`Close tab ${closeTarget.name}`}
+              confirmLabel="Close without saving"
+              cancelLabel="Keep open"
+              onOpenChange={(next) => {
+                if (!next) {
+                  setClosing(null);
+                  requestAnimationFrame(() => closeTrigger.current?.focus());
+                }
+              }}
+              onConfirm={() => {
+                onClose(closeTarget.id);
                 setClosing(null);
-                requestAnimationFrame(() => closeTrigger.current?.focus());
-              }
-            }}
-            onConfirm={() => {
-              onClose(closeTarget.id);
-              setClosing(null);
-            }}
-          >
-            Close tab
-          </InlineConfirm>
+              }}
+            >
+              Close tab
+            </InlineConfirm>
+          </Suspense>
         </div>
       ) : null}
     </div>

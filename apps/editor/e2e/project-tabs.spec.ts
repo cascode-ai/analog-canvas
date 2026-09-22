@@ -48,14 +48,15 @@ test("project tabs append a partial selection and retain independent history, ca
     { steps: 5 },
   );
   await page.mouse.up();
+  await page.evaluate(() => navigator.clipboard.writeText("external text"));
   await page.keyboard.press("c");
   await expect(page.getByTestId("status")).toContainText("Circuit copied");
-  const fragment = await page.evaluate(() => navigator.clipboard.readText());
-  expect(fragment).toContain("analog-canvas/clipboard");
-  expect(JSON.parse(fragment).project.documents[0].instances).toHaveLength(2);
-  expect(
-    JSON.parse(fragment).project.documents[0].routes.length,
-  ).toBeGreaterThan(0);
+  await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
+  // Plain C owns the internal fragment, leaving unrelated OS clipboard text
+  // alone. The placement below verifies its two devices and complete route.
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    "external text",
+  );
   const sourceView = await canvas.getAttribute("viewBox");
   const source = await saved(page);
   await page

@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -10,7 +12,11 @@ import {
   CLOUD_PROJECT_LIMIT,
   type CloudProjectSummary,
 } from "./cloud-projects";
-import { InlineConfirm } from "../../components/inline-confirm";
+const InlineConfirm = lazy(() =>
+  import("../../components/inline-confirm").then((module) => ({
+    default: module.InlineConfirm,
+  })),
+);
 
 export interface FileCommandMenuProps {
   projectStoreLabel: "Cloud Projects" | "Preview Projects";
@@ -185,20 +191,22 @@ export function FileCommandMenu({
                 })}
               </time>
             </button>
-            <InlineConfirm
-              aria-label={`Delete ${projectStoreItemLabel} ${project.name}`}
-              title={`Delete this ${projectStoreItemLabel}`}
-              disabled={project.id === activeCloudProjectId}
-              open={deletingId === project.id}
-              onOpenChange={(open) =>
-                setDeletingId((current) =>
-                  open ? project.id : current === project.id ? null : current,
-                )
-              }
-              onConfirm={() => onDeleteCloudProject(project)}
-            >
-              Delete
-            </InlineConfirm>
+            <Suspense fallback={<button disabled>Delete</button>}>
+              <InlineConfirm
+                aria-label={`Delete ${projectStoreItemLabel} ${project.name}`}
+                title={`Delete this ${projectStoreItemLabel}`}
+                disabled={project.id === activeCloudProjectId}
+                open={deletingId === project.id}
+                onOpenChange={(open) =>
+                  setDeletingId((current) =>
+                    open ? project.id : current === project.id ? null : current,
+                  )
+                }
+                onConfirm={() => onDeleteCloudProject(project)}
+              >
+                Delete
+              </InlineConfirm>
+            </Suspense>
           </div>
         ))}
         <div>

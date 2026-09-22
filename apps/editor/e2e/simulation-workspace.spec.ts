@@ -101,11 +101,13 @@ test("simulation Agent entry is passive and reuses the existing connection panel
   await expect(panel.getByTestId("agent-copy-text")).toHaveValue(
     /sim-guide.claim/,
   );
+  // The native dialog correctly removes the background guide from the
+  // accessibility tree. Inspect the passive guide after closing the dialog.
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
   await expect(
     guide.getByRole("button", { name: "View connection info", exact: true }),
   ).toBeVisible();
   expect(creates).toBe(1);
-  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
   await expect.poll(() => socket !== null).toBe(true);
   socket!.send(
     JSON.stringify({
