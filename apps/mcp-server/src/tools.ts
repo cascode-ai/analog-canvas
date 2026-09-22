@@ -12,6 +12,7 @@ import {
   AGENT_API_VERSION,
   AGENT_MCP_VERSION,
   AgentFileDownloadOptionsSchema,
+  AgentWorkspaceActionSchema,
 } from "@icm/agent-adapter";
 import {
   AgentAuthoringCommandSchema,
@@ -88,6 +89,10 @@ const SimulationArgs = z
       });
   });
 const ProjectCellsArgs = z.discriminatedUnion("action", [
+  z.strictObject({
+    action: z.literal("workspace"),
+    request: AgentWorkspaceActionSchema,
+  }),
   z.strictObject({ action: z.literal("list-projects") }),
   z.strictObject({
     action: z.literal("list-cells"),
@@ -439,6 +444,13 @@ const TOOLS: readonly ToolEntry[] = [
     },
     handle: async (args, session) => {
       const parsed = ProjectCellsArgs.parse(args);
+      if (parsed.action === "workspace")
+        return session.client.projectResource({
+          apiVersion: AGENT_API_VERSION,
+          requestId: crypto.randomUUID(),
+          operation: "workspace",
+          request: parsed.request,
+        });
       if (parsed.action === "list-projects") {
         return session.client.projectResource({
           apiVersion: AGENT_API_VERSION,

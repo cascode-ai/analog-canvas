@@ -83,6 +83,7 @@ export function relayHeaders(allowedOrigin: string | null): Headers {
   const headers = new Headers({
     "cache-control": "no-store",
     "content-type": "application/json; charset=utf-8",
+    "access-control-expose-headers": "x-agent-context",
   });
   if (allowedOrigin !== null) {
     headers.set("access-control-allow-origin", allowedOrigin);
@@ -164,7 +165,7 @@ export async function routeAgentSessionRequest(
     );
     headers.set(
       "access-control-allow-headers",
-      "authorization, content-type, x-editor-secret, x-artifact-ref, range, if-range",
+      "authorization, content-type, x-editor-secret, x-artifact-ref, x-agent-context, range, if-range",
     );
     return new Response(null, { status: 204, headers });
   }
@@ -481,6 +482,15 @@ export function projectOperationScopes(
   request: AgentProjectResourceRequest,
 ): AgentSessionScope[] {
   switch (request.operation) {
+    case "workspace":
+      return request.request.action === "list"
+        ? ["circuit.snapshot"]
+        : [
+            "project.import",
+            "circuit.edit.connectivity",
+            "circuit.edit.geometry",
+            "circuit.edit.presentation",
+          ];
     case "list-gallery":
     case "read-gallery-entry":
     case "read-gallery-entries":

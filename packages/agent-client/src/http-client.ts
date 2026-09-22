@@ -71,6 +71,7 @@ function responseIssueSummary(issues: readonly ResponseIssue[]): string {
 export const REQUEST_TIMEOUT_MS = 35_000;
 
 export interface ClaimSuccess {
+  contextRevision?: string | undefined;
   sessionId: string;
   /** Secret bearer. Stays inside the Helper; never returned to a model. */
   agentToken: string;
@@ -235,6 +236,9 @@ export class AgentHttpClient {
         `Circuit response failed schema validation: ${responseIssueSummary(parsed.error.issues)}. Check the server MCP manifest and reload a compatible adapter. Do not repeat a mutation blindly: it may already have committed. The connector remains valid unless the server revokes it.`,
       );
     }
+    if (parsed.data.ok && request.operation === "snapshot")
+      this.contextRevision =
+        response.headers.get("x-agent-context") ?? this.contextRevision;
     return parsed.data;
   }
 
@@ -351,6 +355,7 @@ export class AgentHttpClient {
     const parsed = AgentSessionStatusResponseSchema.safeParse(body);
     if (!parsed.success)
       throw invalidResponseFailure("Session status failed schema validation");
+    this.contextRevision = parsed.data.contextRevision;
     return parsed.data;
   }
 
@@ -359,6 +364,14 @@ export class AgentHttpClient {
     init: RequestInit,
     timeoutMs = this.timeoutMs,
   ): Promise<Response> {
+    if (
+      this.contextRevision &&
+      /\/(circuit|files|simulation|projects)$/.test(path)
+    ) {
+      const headers = new Headers(init.headers);
+      headers.set("x-agent-context", this.contextRevision);
+      init = { ...init, headers };
+    }
     for (let attempt = 0; ; attempt += 1) {
       let response: Response;
       try {
@@ -371,8 +384,9 @@ export class AgentHttpClient {
           error instanceof Error ? error.message : "Network request failed",
         );
       }
-      if (response.status !== 429 || attempt >= this.rateLimitRetryAttempts)
+      if (response.status !== 429 || attempt >= this.rateLimitRetryAttempts) {
         return response;
+      }
       const retryAfter = response.headers.get("retry-after");
       const seconds = retryAfter === null ? NaN : Number(retryAfter);
       const requestedDelay = Number.isFinite(seconds)
@@ -421,6 +435,9 @@ export class AgentHttpClient {
         `${source} response is missing required fields`,
       );
     }
+    this.contextRevision = parsed.data.contextRevision;
     return parsed.data;
   }
+
+  contextRevision: string | undefined;
 }

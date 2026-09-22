@@ -8,7 +8,7 @@ schemas, response envelopes and limits. The Kit does not replace that contract.
 
 1. Redeem the human's claim with `POST /api/agent/claims` and
    `{"claimCode":"<claim-code>"}`.
-2. Retain returned `sessionId`, `projectId` and authorized `documentIds`.
+2. Retain returned `sessionId`, current `projectId`, `documentIds` and `contextRevision`.
    Keep `agentToken` in memory; store `connectorToken` only in private
    credential storage. Never log credentials or put them in circuit files.
 3. Call Circuit `capabilities` for permissions, operations and limits.
@@ -33,6 +33,21 @@ current examples use API `3.0`.
 
 The four-operation restriction applies to **Circuit**, not sibling resources.
 These routes do not grant arbitrary host files or shell access.
+
+Pairing belongs to the browser workspace, not one Project. Send `x-agent-context`
+with Project-bound requests; obtain it from claim/resume/status or a successful
+snapshot response header. After `PROJECT_CONTEXT_STALE`, refresh current context
+and re-plan; never redirect an old mutation automatically. Gallery returns
+`NO_ACTIVE_PROJECT` without revoking the session. No per-operation status probe
+or full Snapshot is required.
+
+Project `operation:"workspace"` accepts `request.action` list/activate/open/save/copy.
+`list` discovers live working copies and revisions; `list-projects` and
+`list-cells` discover saved Cloud data. Copy uses explicit source/target workspace
+and Cell IDs, source/target revisions and an offset; omit selection for the
+whole Cell. It reuses GUI copy/dependency handling and commits once with undo.
+`save` with `asNew:true` uses Cloud Save As. Existing `import-cell` imports a
+reusable Cell closure, not scene contents. Cloud actions retain account checks.
 
 ## Transactions and request identity
 

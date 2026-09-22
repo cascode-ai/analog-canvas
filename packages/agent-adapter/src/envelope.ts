@@ -22,6 +22,7 @@ export const AgentSessionStatusResponseSchema = z.strictObject({
   ok: z.literal(true),
   sessionId: z.string().min(1),
   projectId: z.string().min(1),
+  contextRevision: z.string().min(1).optional(),
   documentIds: z.array(z.string().min(1)),
   authorization: z.enum(["active", "paused"]),
   editor: z.enum(["attached", "detached"]),
@@ -84,7 +85,8 @@ export const AgentConnectionCredentialResponseSchema = z.strictObject({
   connectorExpiresAt: z.number().int().nonnegative(),
   scopes: z.array(z.string().min(1)),
   projectId: OpaqueIdSchema,
-  documentIds: z.array(OpaqueIdSchema).min(1),
+  contextRevision: OpaqueIdSchema.optional(),
+  documentIds: z.array(OpaqueIdSchema),
 });
 export const AgentConnectionCredentialResponseJsonSchema = z.toJSONSchema(
   AgentConnectionCredentialResponseSchema,
@@ -102,6 +104,7 @@ export const AgentSessionMessageSchema = z.strictObject({
   messageId: OpaqueIdSchema,
   requestId: OpaqueIdSchema,
   sentAt: IsoTimestampSchema,
+  contextRevision: OpaqueIdSchema.optional(),
   kind: AgentSessionMessageKindSchema,
   payload: z.unknown(),
 });
@@ -114,7 +117,8 @@ export const AgentSessionControlMessageSchema = z.strictObject({
   nonce: OpaqueIdSchema,
   /** Current roster, supplied only by the authenticated editor of this Project. */
   projectId: OpaqueIdSchema.optional(),
-  documentIds: z.array(OpaqueIdSchema).min(1).max(1024).optional(),
+  contextRevision: OpaqueIdSchema.optional(),
+  documentIds: z.array(OpaqueIdSchema).max(1024).optional(),
 });
 
 /** Agent-facing event types. `document.replaced` terminates the session. */
@@ -211,6 +215,8 @@ export const AgentTransportErrorCodeSchema = z.enum([
   "SESSION_PAUSED",
   "SESSION_REVOKED",
   "PROJECT_REPLACED",
+  "PROJECT_CONTEXT_STALE",
+  "NO_ACTIVE_PROJECT",
   // Claim exchange
   "CLAIM_INVALID",
   "CLAIM_EXPIRED",

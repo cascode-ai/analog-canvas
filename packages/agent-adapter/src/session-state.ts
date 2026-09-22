@@ -122,6 +122,7 @@ interface PendingRequest {
 }
 
 interface SessionInternals {
+  contextRevision?: string;
   sessionId: string;
   editorSecretVerifier: string;
   projectSessionId: string;
@@ -153,6 +154,7 @@ function secretVerifier(secret: string): string {
 }
 
 export interface PersistedAgentSessionState {
+  contextRevision?: string;
   version: 1;
   limits: AgentSessionLimits;
   sessionId: string;
@@ -183,6 +185,20 @@ export interface CreateAgentSessionOptions {
 }
 
 export class AgentSessionMachine {
+  get contextRevision(): string | undefined {
+    return this.internals.contextRevision;
+  }
+
+  /** The authenticated browser supplies context; pairing survives Project changes. */
+  bindContext(
+    contextRevision: string,
+    projectId: string,
+    documentIds: readonly string[],
+  ): void {
+    this.internals.contextRevision = contextRevision;
+    this.internals.projectId = projectId;
+    this.internals.documentIds = new Set(documentIds);
+  }
   private readonly activeRequests = new Set<string>();
 
   private constructor(
@@ -297,6 +313,9 @@ export class AgentSessionMachine {
         editorSecretVerifier: state.editorSecretVerifier,
         projectSessionId: state.projectSessionId,
         projectId: state.projectId,
+        ...(state.contextRevision
+          ? { contextRevision: state.contextRevision }
+          : {}),
         documentIds: new Set(state.documentIds),
         scopes: [...state.scopes],
         status: state.status,
@@ -327,6 +346,9 @@ export class AgentSessionMachine {
       editorSecretVerifier: this.internals.editorSecretVerifier,
       projectSessionId: this.internals.projectSessionId,
       projectId: this.internals.projectId,
+      ...(this.contextRevision
+        ? { contextRevision: this.contextRevision }
+        : {}),
       documentIds: this.documentIds,
       scopes: this.scopes,
       status: this.internals.status,

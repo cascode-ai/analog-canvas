@@ -259,6 +259,13 @@ function transportErrorResponse(
 const circuitSessionResponses = {
   "200": {
     description: "Circuit API response",
+    headers: {
+      "x-agent-context": {
+        description:
+          "Browser context stamp; use a successful snapshot's value for subsequent Project-bound requests",
+        schema: { type: "string" },
+      },
+    },
     content: { "application/json": { schema: agentCircuitResponseRef } },
   },
   "400": {
@@ -494,6 +501,13 @@ export const agentCircuitOpenApi = {
         security: [{ bearerAuth: [] }],
         parameters: [
           {
+            name: "x-agent-context",
+            in: "header",
+            description:
+              "Required for Project-bound operations; snapshot/capabilities discover current context without it",
+            schema: { type: "string" },
+          },
+          {
             name: "sessionId",
             in: "path",
             required: true,
@@ -519,6 +533,12 @@ export const agentCircuitOpenApi = {
         security: [{ bearerAuth: [] }],
         parameters: [
           {
+            name: "x-agent-context",
+            in: "header",
+            required: true,
+            schema: { type: "string" },
+          },
+          {
             name: "sessionId",
             in: "path",
             required: true,
@@ -541,6 +561,12 @@ export const agentCircuitOpenApi = {
         security: [{ bearerAuth: [] }],
         parameters: [
           {
+            name: "x-agent-context",
+            in: "header",
+            required: true,
+            schema: { type: "string" },
+          },
+          {
             name: "sessionId",
             in: "path",
             required: true,
@@ -562,6 +588,12 @@ export const agentCircuitOpenApi = {
         description: agentApiHelp.agentSessionProjectResource,
         security: [{ bearerAuth: [] }],
         parameters: [
+          {
+            name: "x-agent-context",
+            in: "header",
+            required: true,
+            schema: { type: "string" },
+          },
           {
             name: "sessionId",
             in: "path",

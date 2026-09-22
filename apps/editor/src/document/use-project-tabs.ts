@@ -135,6 +135,18 @@ export function useProjectTabs<Session>(options: {
     tabs: ids.map((id) => ({ id, ...describe(id) })),
     hasUnsafeTabs: ids.some((id) => describe(id).unsafe),
     select,
+    entries: () =>
+      liveIds.current.map((id) => ({
+        id,
+        session:
+          id === active.current
+            ? current.current.capture()
+            : sessions.current.get(id)!,
+      })),
+    changed: () => {
+      setIds((previous) => [...previous]);
+      persistenceRef.current(false);
+    },
     open: (create: () => Session, cloudId?: string | null) => {
       const existing = cloudId
         ? ids.find((id) => describe(id).cloudId === cloudId)

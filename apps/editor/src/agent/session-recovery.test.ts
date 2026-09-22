@@ -76,7 +76,7 @@ describe("Agent same-browser session recovery", () => {
     expect(hasAgentSessionRecovery(storage)).toBe(false);
   });
 
-  it("deletes malformed or Project-mismatched records but lets the server verify stale deadlines", () => {
+  it("deletes malformed records and preserves pairing across Projects; the server verifies deadlines", () => {
     const storage = new MemoryStorage();
     storage.setItem(AGENT_SESSION_RECOVERY_STORAGE_KEY, "not-json");
     expect(readAgentSessionRecovery(storage, target)).toBeNull();
@@ -94,7 +94,7 @@ describe("Agent same-browser session recovery", () => {
         ...target,
         projectSessionId: "different-project:1",
       }),
-    ).toBeNull();
+    ).toEqual(record());
   });
 
   it("clears recovery only when a terminal lifecycle action requests it", () => {

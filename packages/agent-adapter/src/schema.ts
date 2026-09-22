@@ -112,6 +112,7 @@ export const AgentProjectResourceCapabilitySchema = z.strictObject({
   path: z.literal("/api/agent/sessions/{sessionId}/projects"),
   operations: z.tuple([
     z.literal("list-projects"),
+    z.literal("workspace"),
     z.literal("list-cells"),
     z.literal("import-cell"),
     z.literal("list-gallery"),

@@ -1,7 +1,6 @@
 import { AccountMenu } from "./account";
 import { BugReportLink } from "./bug-report-link";
 import { SITE_REPOSITORY_URL } from "./site-resource-links";
-import { hasAgentSessionRecovery } from "../agent/session-recovery-presence";
 
 /**
  * The one gallery site header, shared by the feed and every gallery
@@ -16,9 +15,6 @@ export function GalleryChrome({
   subtitle: string;
   visitStats?: { pv: number; uv: number } | null | undefined;
 }) {
-  const paired =
-    typeof window !== "undefined" &&
-    hasAgentSessionRecovery(window.sessionStorage);
   return (
     <header className="gallery-chrome">
       <div className="app-brand">
@@ -70,11 +66,6 @@ export function GalleryChrome({
         ) : null}
       </div>
       <nav className="gallery-actions">
-        {paired ? (
-          <a href="/editor" data-testid="gallery-agent-return">
-            Agent pairing saved · Return to editor to reconnect
-          </a>
-        ) : null}
         <AccountMenu />
         <BugReportLink testId="gallery-report-bug" surface={subtitle} />
         <a

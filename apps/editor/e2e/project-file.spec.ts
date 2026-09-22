@@ -356,7 +356,8 @@ test("paired refresh and Gallery return preserve the saved Cloud binding", async
   );
   await expect(page.getByTestId("project-unsaved-indicator")).toHaveCount(0);
   await page.getByRole("link", { name: "Back to the gallery" }).click();
-  const agentReturn = page.getByTestId("gallery-agent-return");
+  await expect(page.getByTestId("gallery-agent-return")).toHaveCount(0);
+  const agentReturn = page.getByTestId("gallery-editor-link");
   await expect(agentReturn).toBeVisible({ timeout: 15_000 });
   await agentReturn.click();
   await expect(page.getByTestId("active-instance-count")).toHaveText("2", {

@@ -84,13 +84,13 @@ export function peekAgentSessionRecovery(
 }
 
 /**
- * Reads a same-browser reconnect proof only when it belongs to the Project that is
- * currently open. Any malformed or Project-mismatched record is
- * deleted before it can reach the relay.
+ * Reads the same-tab reconnect proof. Project fields are historical metadata,
+ * not authorization boundaries; the current host publishes its context separately.
+ * Malformed records are removed before they can reach the relay.
  */
 export function readAgentSessionRecovery(
   storage: BrowserStorageLike,
-  target: RecoveryTarget,
+  _target: RecoveryTarget,
 ): AgentSessionRecoveryRecord | null {
   const raw = storage.getItem(AGENT_SESSION_RECOVERY_STORAGE_KEY);
   if (raw === null) return null;
@@ -102,11 +102,7 @@ export function readAgentSessionRecovery(
     return null;
   }
   const record = parseRecord(candidate);
-  if (
-    record === null ||
-    record.projectId !== target.projectId ||
-    record.projectSessionId !== target.projectSessionId
-  ) {
+  if (record === null) {
     clearAgentSessionRecovery(storage);
     return null;
   }

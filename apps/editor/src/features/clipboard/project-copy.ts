@@ -364,6 +364,10 @@ export function prepareProjectCopy(
   sourceClipboard: SchematicClipboard,
 ) {
   let clipboard = structuredClone(sourceClipboard);
+  const dependencyMapping = {
+    cells: {} as Record<string, string>,
+    files: {} as Record<string, string>,
+  };
   let prepared = project;
   const edits: ProjectStructureEdit[] = [];
   const install = (additional: readonly ProjectStructureEdit[]) => {
@@ -456,6 +460,10 @@ export function prepareProjectCopy(
       [{ ...clipboard, context: undefined }, context.documents],
     );
     install(dependencies.edits);
+    Object.assign(
+      dependencyMapping.files,
+      Object.fromEntries(dependencies.fileIds),
+    );
     clipboard = remapCopySourceFiles(clipboard, dependencies.fileIds);
     clipboard.instances = clipboard.instances.map((i) =>
       remapExternalCopyInstance(i, dependencies.externalIds),
@@ -538,6 +546,7 @@ export function prepareProjectCopy(
       );
     }
     childMap.set(clipboard.sourceDocumentId, document.id);
+    Object.assign(dependencyMapping.cells, Object.fromEntries(childMap));
     for (const sourceFolder of context.simulationFolders ?? []) {
       const folder = structuredClone(sourceFolder);
       for (const binding of folder.input.circuitBindings) {
@@ -604,6 +613,7 @@ export function prepareProjectCopy(
   if (preflight.errors.length) throw new Error(preflight.errors.join("; "));
   return {
     clipboard,
+    dependencyMapping,
     dependencyEdits: edits,
     resolver,
     baseProject: {
@@ -699,6 +709,10 @@ export function planProjectCopyPlacement(
   return {
     edits,
     instanceIds: proposal.instanceIds,
+    mapping: {
+      objects: { ...proposal.idRemap },
+      ...prepared.dependencyMapping,
+    },
     baseProject: prepared.baseProject,
   };
 }
@@ -706,13 +720,17 @@ export function planProjectCopyPlacement(
 /** Install dependencies and placement in one undoable Project revision. */
 export function applyProjectCopyPlacement(
   plan: ReturnType<typeof planProjectCopyPlacement>,
+  actor: { kind: "human" | "agent"; id: string } = {
+    kind: "human",
+    id: "clipboard",
+  },
 ): CircuitProject {
   const project = plan.baseProject;
   const result = executeProjectTransaction(project, {
     transactionId: "copy-placement",
     projectId: project.id,
     expectedStructureRevision: project.structureRevision,
-    actor: { kind: "human", id: "clipboard" },
+    actor,
     edits: plan.edits,
   });
   if (!result.ok)

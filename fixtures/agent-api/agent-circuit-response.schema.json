@@ -280,6 +280,10 @@
                         },
                         {
                           "type": "string",
+                          "const": "workspace"
+                        },
+                        {
+                          "type": "string",
                           "const": "list-cells"
                         },
                         {

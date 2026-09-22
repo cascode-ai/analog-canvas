@@ -179,6 +179,9 @@ export class AgentSessionDO {
           ok: true,
           sessionId: machine.sessionId,
           projectId: machine.projectId,
+          ...(machine.contextRevision
+            ? { contextRevision: machine.contextRevision }
+            : {}),
           documentIds: machine.documentIds,
           authorization: machine.statusAt(now),
           editor: (this.state.getWebSockets?.(EDITOR_SOCKET_TAG) ?? []).some(
@@ -193,8 +196,55 @@ export class AgentSessionDO {
         allowedOrigin,
       );
     }
+    if (
+      request.method === "POST" &&
+      ["/circuit", "/files", "/simulation", "/projects"].includes(
+        url.pathname,
+      ) &&
+      machine.contextRevision
+    ) {
+      const auth = machine.authorize(bearerToken(request), Date.now());
+      if (!auth.ok)
+        return jsonResponse(
+          errorBody(auth.code, errorMessage(auth.code)),
+          transportStatus(auth.code),
+          allowedOrigin,
+        );
+      const input = (await request
+        .clone()
+        .json()
+        .catch(() => null)) as { operation?: string } | null;
+      const discovery =
+        url.pathname === "/circuit" &&
+        ["snapshot", "capabilities"].includes(input?.operation ?? "");
+      if (machine.documentIds.length === 0)
+        return jsonResponse(
+          errorBody("NO_ACTIVE_PROJECT", errorMessage("NO_ACTIVE_PROJECT")),
+          409,
+          allowedOrigin,
+        );
+      if (
+        !discovery &&
+        request.headers.get("x-agent-context") !== machine.contextRevision
+      )
+        return jsonResponse(
+          {
+            ok: false,
+            error: {
+              code: "PROJECT_CONTEXT_STALE",
+              message:
+                "The browser context changed. Read current context before submitting a new request.",
+            },
+          },
+          409,
+          allowedOrigin,
+        );
+    }
     if (request.method === "POST" && url.pathname === "/circuit") {
-      return this.circuit(request, machine, allowedOrigin);
+      const context = machine.contextRevision;
+      const response = await this.circuit(request, machine, allowedOrigin);
+      if (context) response.headers.set("x-agent-context", context);
+      return response;
     }
     if (request.method === "POST" && url.pathname === "/files") {
       return this.files(request, machine, allowedOrigin);
@@ -221,6 +271,7 @@ export class AgentSessionDO {
     await this.ready;
     const machine = await this.loadMachine();
     if (!machine) return;
+    if (socket.readyState !== WebSocket.OPEN) return;
     const status = machine.statusAt(Date.now());
     if (status === "expired" || status === "revoked") return;
     const text =
@@ -251,6 +302,32 @@ export class AgentSessionDO {
       control.data.kind === "heartbeat"
     ) {
       if (
+        control.data.contextRevision &&
+        control.data.projectId &&
+        control.data.documentIds
+      ) {
+        const contextChanged =
+          machine.contextRevision !== control.data.contextRevision ||
+          machine.projectId !== control.data.projectId;
+        const rosterChanged =
+          machine.documentIds.length !== control.data.documentIds.length ||
+          control.data.documentIds.some(
+            (id) => !machine.documentIds.includes(id),
+          );
+        if (contextChanged || rosterChanged) {
+          machine.bindContext(
+            control.data.contextRevision,
+            control.data.projectId,
+            control.data.documentIds,
+          );
+          // Passive reconnect/refresh must not renew the idle lease. A structural
+          // change within an already-bound Project remains real user activity.
+          if (!contextChanged && rosterChanged)
+            machine.recordActivity(Date.now());
+          await this.persist();
+        }
+      }
+      if (
         control.data.projectId &&
         control.data.documentIds &&
         machine.updateEditorDocuments(
@@ -267,6 +344,9 @@ export class AgentSessionDO {
           sessionId: machine.sessionId,
           kind: "heartbeat-ack",
           nonce: control.data.nonce,
+          ...(machine.contextRevision
+            ? { contextRevision: machine.contextRevision }
+            : {}),
         }),
       );
       return;
@@ -282,7 +362,7 @@ export class AgentSessionDO {
       envelope.kind === "project-response"
     ) {
       const pending = this.pendingForwards.get(envelope.requestId);
-      if (!pending) return;
+      if (!pending || pending.socket !== socket) return;
       const response =
         envelope.kind === "circuit-response"
           ? AgentCircuitResponseSchema.safeParse(envelope.payload)
@@ -493,7 +573,13 @@ export class AgentSessionDO {
     this.emit({ type: "session.ready", sessionId: machine.sessionId });
     this.notifyEditor({ type: "session.ready", sessionId: machine.sessionId });
     return jsonResponse(
-      { ...result, sessionId: machine.sessionId },
+      {
+        ...result,
+        sessionId: machine.sessionId,
+        ...(machine.contextRevision
+          ? { contextRevision: machine.contextRevision }
+          : {}),
+      },
       200,
       allowedOrigin,
     );
@@ -534,6 +620,9 @@ export class AgentSessionDO {
         connectorExpiresAt: result.claim.connectorExpiresAt,
         scopes: [...result.claim.scopes],
         projectId: machine.projectId,
+        ...(machine.contextRevision
+          ? { contextRevision: machine.contextRevision }
+          : {}),
         documentIds: machine.documentIds,
       },
       200,
@@ -625,6 +714,7 @@ export class AgentSessionDO {
     machine: AgentSessionMachine,
     allowedOrigin: string | null,
   ): Promise<Response> {
+    const observedContext = machine.contextRevision;
     const raw = await request.text();
     const size = machine.checkSize(new TextEncoder().encode(raw).byteLength);
     if (!size.ok) {
@@ -712,7 +802,17 @@ export class AgentSessionDO {
       requestId: circuitRequest.requestId,
     });
     try {
-      const result = await this.forwardToEditor(machine, circuitRequest);
+      const discovery =
+        circuitRequest.operation === "snapshot" ||
+        circuitRequest.operation === "capabilities";
+      const result = await this.forwardToEditor(
+        machine,
+        circuitRequest,
+        "circuit-request",
+        discovery
+          ? observedContext
+          : (request.headers.get("x-agent-context") ?? undefined),
+      );
       machine.completeRequest(circuitRequest.requestId, result, Date.now());
       if (circuitRequest.operation !== "capabilities")
         machine.recordActivity(Date.now());
@@ -848,6 +948,7 @@ export class AgentSessionDO {
         machine,
         fileRequest,
         "file-request",
+        request.headers.get("x-agent-context") ?? undefined,
       );
       // Export blobs are explicitly one-shot: the DO retains only an unavailable
       // idempotency marker, never their bytes. Candidate summaries are safe to cache.
@@ -984,6 +1085,7 @@ export class AgentSessionDO {
         machine,
         simulationRequest,
         "simulation-request",
+        request.headers.get("x-agent-context") ?? undefined,
       );
       machine.completeRequest(simulationRequest.requestId, result, Date.now());
       if (
@@ -1112,6 +1214,7 @@ export class AgentSessionDO {
         machine,
         projectRequest,
         "project-request",
+        request.headers.get("x-agent-context") ?? undefined,
       );
       machine.completeRequest(projectRequest.requestId, result, Date.now());
       machine.recordActivity(Date.now());
@@ -1289,6 +1392,7 @@ export class AgentSessionDO {
       | "file-request"
       | "simulation-request"
       | "project-request" = "circuit-request",
+    contextRevision?: string,
   ): Promise<unknown> {
     const sockets = this.state.getWebSockets?.(EDITOR_SOCKET_TAG) ?? [];
     const socket = sockets.find(
@@ -1321,6 +1425,7 @@ export class AgentSessionDO {
         requestId,
         sentAt: new Date().toISOString(),
         kind,
+        ...(contextRevision ? { contextRevision } : {}),
         payload,
       }),
     );

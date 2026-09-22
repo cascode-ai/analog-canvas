@@ -7,7 +7,7 @@ export interface BrowserStorageLike {
   removeItem(key: string): void;
 }
 
-/** Lightweight Gallery-header hint; full scope validation stays in the Editor. */
+/** Lightweight runtime-loading hint; full validation stays in the Agent owner. */
 export function hasAgentSessionRecovery(storage: BrowserStorageLike): boolean {
   try {
     const value = JSON.parse(

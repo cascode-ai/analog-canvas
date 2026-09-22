@@ -944,7 +944,7 @@ describe("public Agent session routes", () => {
     );
     const send = vi.fn();
     await object.webSocketMessage(
-      { send } as unknown as WebSocket,
+      { send, readyState: WebSocket.OPEN } as unknown as WebSocket,
       JSON.stringify({
         protocolVersion: "1.0",
         sessionId: "session-heartbeat",
@@ -964,6 +964,38 @@ describe("public Agent session routes", () => {
       sessionId: "session-heartbeat",
       kind: "heartbeat-ack",
       nonce: "heartbeat-1",
+    });
+    const before = await storage.get<{ expiresAt: number }>(SESSION_STATE_KEY);
+    const heartbeat = {
+      protocolVersion: "1.0",
+      sessionId: "session-heartbeat",
+      kind: "heartbeat",
+      nonce: "context-2",
+      contextRevision: "gallery",
+      projectId: "no-active-project",
+      documentIds: [],
+    };
+    await object.webSocketMessage(
+      { send, readyState: WebSocket.OPEN } as unknown as WebSocket,
+      JSON.stringify(heartbeat),
+    );
+    expect(await storage.get(SESSION_STATE_KEY)).toMatchObject({
+      contextRevision: "gallery",
+      documentIds: [],
+      expiresAt: before!.expiresAt,
+    });
+    // A closing transport cannot resurrect its old Project roster.
+    await object.webSocketMessage(
+      { send, readyState: WebSocket.CLOSED } as unknown as WebSocket,
+      JSON.stringify({
+        ...heartbeat,
+        contextRevision: "old",
+        documentIds: ["old-cell"],
+      }),
+    );
+    expect(await storage.get(SESSION_STATE_KEY)).toMatchObject({
+      contextRevision: "gallery",
+      documentIds: [],
     });
   });
 

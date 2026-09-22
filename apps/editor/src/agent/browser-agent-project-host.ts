@@ -31,6 +31,9 @@ import {
 import { planNetlistCodeEdit } from "../features/netlist-export/netlist-code-edit";
 
 export interface BrowserAgentProjectHostOptions {
+  workspace?: (
+    request: Extract<AgentProjectResourceRequest, { operation: "workspace" }>,
+  ) => Promise<AgentProjectResourceResponse>;
   getProjectSessionId: () => string;
   getProject: () => CircuitProject;
   getActiveDocumentId: () => string;
@@ -61,6 +64,16 @@ export class BrowserAgentProjectHost {
   async handle(
     request: AgentProjectResourceRequest,
   ): Promise<AgentProjectResourceResponse> {
+    if (request.operation === "workspace") {
+      return this.options.workspace
+        ? this.options.workspace(request)
+        : this.error(
+            request,
+            "WORKSPACE_UNAVAILABLE",
+            "Open the Editor to access its workspace",
+            "retry",
+          );
+    }
     if (this.options.getProjectSessionId() !== this.boundProjectSessionId) {
       return this.error(
         request,

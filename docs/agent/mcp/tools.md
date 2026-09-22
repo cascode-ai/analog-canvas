@@ -56,6 +56,13 @@ it does not create a live cross-Project link. The helper refreshes the Project
 structure revision when the caller omits it. Sign-in, stale-revision, and
 library-compatibility failures are recoverable and do not revoke the session.
 
+`project_cells` with `action:"workspace"` exposes `request.action`:
+`list` live Project tabs and Cell revisions; `activate` a tab; `open` a saved
+Cloud Project; `save` (or `asNew:true`); `copy` a selection or whole Cell into
+an explicit live target and offset. Copy follows the same atomic, undoable GUI
+planner including dependencies. Live tab contents include unsaved work; the
+existing Cloud list/inspect/import actions read saved versions.
+
 Use `gallery_circuits` to traverse the complete public Gallery. `list` is
 cursor-paged; continue with `nextCursor` until it is `null`. `read` returns one
 entry's complete canonical Project Code and, by default, its generated SPICE
@@ -138,9 +145,10 @@ MCP process, not persistent history or other people's edits.
 cross-Cell/global-Net trace. Supply `hierarchyPath` for a particular reused
 Cell occurrence; do not infer cross-Cell connectivity from names yourself.
 
-`disconnect` revokes the session. A Project replacement invalidates the old
-binding. Newly created/deleted Cells are synchronized by the trusted browser,
-without requiring another claim exchange.
+`disconnect` revokes the workspace session. Project/Cell switching and Gallery
+navigation do not. `PROJECT_CONTEXT_STALE` requires refreshed context and a new
+plan, not another Claim; `NO_ACTIVE_PROJECT` means the browser is in Gallery.
+The client carries context stamps automatically and never redirects old writes.
 
 ## Files and boundaries
 

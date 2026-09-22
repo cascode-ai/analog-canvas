@@ -6,7 +6,7 @@ Primary owners: `worker/agent-session.ts`, `worker/agent-session-runtime.ts`,
 `worker/agent-session-do.ts`, and `apps/editor/src/agent`
 
 The browser Project is authoritative. Clicking **Agent** creates a
-session with full circuit editing, file and simulation access for that Project;
+tab/workspace session with full circuit editing, file and simulation access;
 there is no permission-tier picker. The relay returns a short-lived pairing
 code; claim redemption returns `sessionId`, authorized `documentIds`, a
 short-lived bearer, and a
@@ -17,14 +17,11 @@ stores only its verifier, and session revoke invalidates both credentials.
 
 ## Resources
 
-Browser reconnect credentials are scoped to the current tab's sessionStorage,
-using the existing durable recovery working-copy ID rather than a mount-local
-Project counter. Refresh and Gallery return restore that working copy before
-attaching the editor socket. An explicit new/import target does not auto-attach
-the old pairing. Gallery displays saved local pairing evidence, never online
-status; it does not execute Agent requests. Old localStorage credentials are
-not adopted across this identity boundary: existing sessions need one new
-pairing after upgrading. No Project content is duplicated in connector storage.
+Browser reconnect credentials are scoped to the current tab's sessionStorage.
+Refresh, opening or switching Projects, and Gallery return retain that pairing.
+Gallery silently maintains transport with an empty Document roster; circuit
+operations report `NO_ACTIVE_PROJECT`. No recovery banner or copied Project
+store is introduced. Returning to Editor registers fresh services and context.
 
 Manual pause remains authoritative across request completion, socket recovery,
 and connector bearer renewal. A transport failure does not revoke a pairing.
@@ -65,19 +62,31 @@ capability, not general shell access.
 
 ## Binding and authority
 
-A session binds one browser `projectSessionId`, one Project identity, an exact
-Document allowlist, scopes, expiry, and editor secret. The authenticated
-browser synchronizes the Cell roster of the same authorized Project in its
-existing heartbeat, immediately after structural changes. This allows new
-Cells without pairing again and removes deleted Cells. Agent requests cannot
-update this roster or switch the session to another Project. The Agent uses only the
-`sessionId` and `documentIds` returned by the latest successful claim. Switching
-the active browser Document never retargets a request.
+A session binds the browser workspace, scopes, expiry and editor secret. Project
+identity and the Cell roster are current context supplied by the authenticated
+browser heartbeat, not a second authorization lifecycle. `projectSessionId` in
+older persisted records is historical metadata, not an authorization boundary.
 
-Open, Import, Restore, or example replacement revokes the old session. File
-Resource staging is isolated and does not replace the Project. A valid staged
-candidate can replace it only after explicit human approval in the editor;
-replacement then revokes the session and requires a new authorization.
+Each Editor host registration publishes a `contextRevision`. Claim, resume and
+status report it; successful Circuit snapshot responses expose it in
+`x-agent-context`. Project-bound requests send that header. The relay and browser
+both reject stale context without revoking credentials. The original context
+travels with a request across asynchronous forwarding; never replay an old write
+against a newly selected Project. Cell switches do not change this context.
+Connection readiness waits for the matching heartbeat acknowledgement, not a
+full Snapshot. Refresh context on an explicit switch or stale-context failure,
+not before every operation.
+
+File staging and its existing human approval boundary remain unchanged.
+Simulation services, prepared inputs and results retain their originating
+controller across tab selection; selecting another Project cannot retarget them.
+
+The Project resource's `workspace` operation lists live tabs and their Cell
+revisions, activates a tab, opens a Cloud Project, saves/Save As, and copies a
+selection or whole Cell into a specified live target. Copy uses the GUI's
+dependency/placement planner and one undoable transaction. Cloud discovery and
+`import-cell` remain separate from live working-copy discovery; they read saved
+Cloud versions, not unsaved tab contents. No separate copy engine is introduced.
 
 ## Credential lifetimes and rotation
 
@@ -102,12 +111,12 @@ resume must ask the server even if that saved timestamp has passed.
 
 Every credential requires a live session, even before its own expiry.
 Redeeming a still-valid Claim rotates both the connector and bearer; connector resume rotates the bearer.
-Each rotation invalidates the previous credential. Session revoke, expiry, or
-Project replacement invalidates the Claim, bearer, and connector together. The
+Each rotation invalidates the previous credential. Session revoke or expiry
+invalidates the Claim, bearer, and connector together. The
 local MCP Helper may persist only the connector in its private user profile;
 browser recovery persists neither Agent credential.
 
-The Project's transport controller owns socket creation, liveness probes and
+The workspace's transport controller owns socket creation, liveness probes and
 reconnect timers independently of React rendering and active Cell selection.
 After a scheduling gap or browser wake it probes the existing socket before
 closing it; validated business traffic also establishes liveness. A fresh probe
@@ -118,8 +127,8 @@ timestamps and visibility, never credentials or message payloads.
 The browser may authenticate the existing status resource with its editor
 secret to verify an elapsed local deadline or a failed handshake. This read
 neither renews nor resumes the session. Local deadline snapshots cannot revoke
-authorization: only a server terminal response or an explicit local revoke/
-Project replacement clears the pairing. A failed network check preserves it.
+authorization: only a server terminal response or an explicit local revoke
+clears the pairing. A failed network check preserves it.
 
 Circuit, File, Simulation and Project clients share request deduplication and
 exact-payload network recovery. An `EDITOR_OFFLINE` rejection precedes dispatch

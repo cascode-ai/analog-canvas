@@ -76,6 +76,7 @@ function isCreatedSessionResponse(
 }
 
 type LiveSession = {
+  contextRevision: () => string;
   projectId: string;
   documentIds: () => string[];
   sessionId: string;
@@ -89,6 +90,8 @@ type LiveSession = {
   paused: boolean;
   allowReconnect: boolean;
   transport?: SessionTransport;
+  acknowledgedContext?: string | undefined;
+  publishArtifact?: (ref: ArtifactRef, text: string) => Promise<string>;
   requestCache: Map<
     string,
     { payloadHash: string; response: unknown; byteLength: number }
@@ -110,11 +113,12 @@ function sendHeartbeat(
     documentIds = live.documentIds();
   } catch {
     return;
-  } // A replaced Project invalidates the bound host; its effect closes the socket.
+  } // A host may be between teardown and registration; the next heartbeat retries.
   socket.send(
     JSON.stringify({
       ...createHeartbeat(live.sessionId, nonce),
       projectId: live.projectId,
+      contextRevision: live.contextRevision(),
       documentIds,
     }),
   );
@@ -135,6 +139,8 @@ export interface AgentSessionViewModel {
 }
 
 export interface UseAgentSessionOptions {
+  contextRevision: string;
+  contextReady?: boolean;
   /**
    * Disables all browser-side Agent lifecycle work.  This is deliberately a
    * UI/host switch, not an API gate: MCP and loopback deployments remain
@@ -205,8 +211,16 @@ function socketUrl(sessionId: string): string {
 }
 
 export function useAgentSession(
-  options: UseAgentSessionOptions,
+  input: UseAgentSessionOptions,
 ): UseAgentSessionResult {
+  const latest = useRef(input);
+  latest.current = input;
+  const [options] = useState(
+    () =>
+      new Proxy({} as UseAgentSessionOptions, {
+        get: (_target, key) => Reflect.get(latest.current, key),
+      }),
+  );
   const liveRef = useRef<LiveSession | null>(null);
   const creatingConnectionRef = useRef(false);
   const recoveryAttemptedForProjectRef = useRef<string | null>(null);
@@ -354,11 +368,14 @@ export function useAgentSession(
           created = payload;
         }
         const live: LiveSession = {
+          contextRevision: () => options.contextRevision,
           projectId: options.project.id,
           documentIds: () =>
-            (options.host.getProject?.() ?? options.project).documents.map(
-              (document) => document.id,
-            ),
+            options.contextReady === false
+              ? []
+              : (options.host.getProject?.() ?? options.project).documents.map(
+                  (document) => document.id,
+                ),
           sessionId: recovery?.sessionId ?? created!.session.sessionId,
           editorSecret: recovery?.editorSecret ?? created!.session.editorSecret,
           claimCode: recovery ? null : created!.session.claimCode,
@@ -374,7 +391,7 @@ export function useAgentSession(
           requestHashes: new Map(),
         };
         liveRef.current = live;
-        options.fileHost?.setArtifactPublisher?.(async (ref, text) => {
+        live.publishArtifact = async (ref, text) => {
           if (liveRef.current !== live) throw new Error("Session changed");
           const path = `/api/agent/sessions/${encodeURIComponent(live.sessionId)}/artifacts/${encodeURIComponent(ref.fileId ?? ref.id)}`;
           const response = await fetch(path, {
@@ -409,7 +426,8 @@ export function useAgentSession(
               "The download session changed",
             );
           return path;
-        });
+        };
+        options.fileHost?.setArtifactPublisher?.(live.publishArtifact);
 
         const syncDeadline = (expiresAt: number) => {
           live.expiresAt = expiresAt;
@@ -426,71 +444,79 @@ export function useAgentSession(
             });
           }
         };
-        const service = createAgentCircuitService({
-          agentId: `web-agent:${live.sessionId}`,
-          host: options.host,
-          permissions: permissionsFromScopes(scopes),
-          ...(options.fileHost
-            ? {
-                fileResource: {
-                  path: "/api/agent/sessions/{sessionId}/files" as const,
-                  operations: [
-                    "download",
-                    "stage",
-                    "inspect",
-                    "discard",
-                    "request-approval",
-                    "simulation-input",
-                  ] as const,
-                  maxBytes: AGENT_FILE_RESOURCE_MAX_BYTES,
-                  humanApprovalOperations: ["request-approval"] as const,
-                },
-                ...(options.simulationHost
-                  ? {
-                      simulationResource: {
-                        path: "/api/agent/sessions/{sessionId}/simulation" as const,
-                        operations: [
-                          "capabilities",
-                          "prepare",
-                          "start",
-                          "read",
-                          "cancel",
-                          "export",
-                          "prepare-batch",
-                          "start-batch",
-                          "read-batch",
-                          "cancel-batch",
-                          "prepare-sweep",
-                        ] as const,
-                        analyses: ["op", "dc", "ac", "tran", "noise"] as const,
-                        maxTimeoutMs: AGENT_SIMULATION_MAX_TIMEOUT_MS,
-                        synchronous: false as const,
-                      },
-                    }
-                  : {}),
-                ...(options.projectHost
-                  ? {
-                      projectResource: {
-                        path: "/api/agent/sessions/{sessionId}/projects" as const,
-                        operations: [
-                          "list-projects",
-                          "list-cells",
-                          "import-cell",
-                          "list-gallery",
-                          "read-gallery-entry",
-                          "read-gallery-entries",
-                          "read-project-code",
-                          "replace-project-code",
-                          "read-netlist",
-                          "replace-netlist",
-                        ] as const,
-                        importMode: "project-local-copy" as const,
-                      },
-                    }
-                  : {}),
-              }
-            : {}),
-        });
+        const service = () =>
+          createAgentCircuitService({
+            agentId: `web-agent:${live.sessionId}`,
+            host: options.host,
+            permissions: permissionsFromScopes(scopes),
+            ...(options.fileHost
+              ? {
+                  fileResource: {
+                    path: "/api/agent/sessions/{sessionId}/files" as const,
+                    operations: [
+                      "download",
+                      "stage",
+                      "inspect",
+                      "discard",
+                      "request-approval",
+                      "simulation-input",
+                    ] as const,
+                    maxBytes: AGENT_FILE_RESOURCE_MAX_BYTES,
+                    humanApprovalOperations: ["request-approval"] as const,
+                  },
+                  ...(options.simulationHost
+                    ? {
+                        simulationResource: {
+                          path: "/api/agent/sessions/{sessionId}/simulation" as const,
+                          operations: [
+                            "capabilities",
+                            "prepare",
+                            "start",
+                            "read",
+                            "cancel",
+                            "export",
+                            "prepare-batch",
+                            "start-batch",
+                            "read-batch",
+                            "cancel-batch",
+                            "prepare-sweep",
+                          ] as const,
+                          analyses: [
+                            "op",
+                            "dc",
+                            "ac",
+                            "tran",
+                            "noise",
+                          ] as const,
+                          maxTimeoutMs: AGENT_SIMULATION_MAX_TIMEOUT_MS,
+                          synchronous: false as const,
+                        },
+                      }
+                    : {}),
+                  ...(options.projectHost
+                    ? {
+                        projectResource: {
+                          path: "/api/agent/sessions/{sessionId}/projects" as const,
+                          operations: [
+                            "list-projects",
+                            "workspace",
+                            "list-cells",
+                            "import-cell",
+                            "list-gallery",
+                            "read-gallery-entry",
+                            "read-gallery-entries",
+                            "read-project-code",
+                            "replace-project-code",
+                            "read-netlist",
+                            "replace-netlist",
+                          ] as const,
+                          importMode: "project-local-copy" as const,
+                        },
+                      }
+                    : {}),
+                }
+              : {}),
+          });
         const bind = (socket: WebSocket) => {
           live.socket = socket;
           socket.addEventListener("message", (event) => {
@@ -508,6 +534,17 @@ export function useAgentSession(
             }
             if (isHeartbeatAck(raw, live.sessionId)) {
               transport.received((raw as { nonce: string }).nonce);
+              live.acknowledgedContext = (
+                raw as { contextRevision?: string }
+              ).contextRevision;
+              if (live.acknowledgedContext === options.contextRevision)
+                update({
+                  status: live.paused
+                    ? "paused"
+                    : live.claimed
+                      ? "connected"
+                      : "waiting-for-agent",
+                });
               return;
             }
             const parsed = AgentSessionMessageSchema.safeParse(raw);
@@ -529,7 +566,12 @@ export function useAgentSession(
                     ? Date.parse(sessionEvent.data.expiresAt)
                     : live.expiresAt,
                 );
-                update({ status: "connected" });
+                update({
+                  status:
+                    live.acknowledgedContext === options.contextRevision
+                      ? "connected"
+                      : "reconnecting",
+                });
               } else if (
                 sessionEvent.success &&
                 (sessionEvent.data.type === "session.renewed" ||
@@ -562,6 +604,43 @@ export function useAgentSession(
                 live.paused = true;
                 update({ status: "paused" });
               }
+              return;
+            }
+            if (
+              parsed.data.kind.endsWith("-request") &&
+              (parsed.data.contextRevision !== options.contextRevision ||
+                options.contextReady === false ||
+                !options.enabled)
+            ) {
+              const candidate = parsed.data.payload as { operation?: string };
+              const simulation = parsed.data.kind === "simulation-request";
+              const circuit = parsed.data.kind === "circuit-request";
+              const project = parsed.data.kind === "project-request";
+              socket.send(
+                JSON.stringify({
+                  ...parsed.data,
+                  kind: parsed.data.kind.replace("-request", "-response"),
+                  payload: {
+                    apiVersion: AGENT_API_VERSION,
+                    requestId: parsed.data.requestId,
+                    operation: candidate.operation ?? "error",
+                    ok: false,
+                    error: {
+                      code:
+                        options.contextReady === false
+                          ? "NO_ACTIVE_PROJECT"
+                          : "PROJECT_CONTEXT_STALE",
+                      message:
+                        "Read the current browser context before operating on a Project",
+                      ...(project ? { recovery: "refresh" } : {}),
+                      ...(simulation
+                        ? { stage: "input", recovery: "fix-input" }
+                        : {}),
+                    },
+                    ...(circuit ? { diagnostics: [] } : {}),
+                  },
+                }),
+              );
               return;
             }
             if (parsed.data.kind === "file-request") {
@@ -870,7 +949,7 @@ export function useAgentSession(
             // The relay already rejects malformed public payloads, but the
             // browser host repeats that same strict parse before it can touch
             // the live Project.
-            const result = service.handle(parsed.data.payload);
+            const result = service().handle(parsed.data.payload);
             const responseBytes = new TextEncoder().encode(
               JSON.stringify(result),
             ).byteLength;
@@ -987,11 +1066,7 @@ export function useAgentSession(
           reconnecting: () => update({ status: "reconnecting" }),
           opened: () => {
             update({
-              status: live.paused
-                ? "paused"
-                : live.claimed
-                  ? "connected"
-                  : "waiting-for-agent",
+              status: "reconnecting",
               claimCode: live.claimCode,
               claimExpiresAt: live.claimExpiresAt,
               scopes,
@@ -1028,6 +1103,7 @@ export function useAgentSession(
   useEffect(() => {
     if (options.recover === false) return;
     if (!options.enabled) return;
+    if (liveRef.current) return;
     if (recoveryAttemptedForProjectRef.current === options.projectSessionId) {
       return;
     }
@@ -1189,17 +1265,13 @@ export function useAgentSession(
     // against the restored identity in the recovery effect, without revoking it.
     if (firstBinding) return;
     recoveryAttemptedForProjectRef.current = options.projectSessionId;
-    clearAgentSessionRecovery(window.sessionStorage);
-    options.fileHost?.clear?.();
-    void options.simulationHost?.clear?.();
     const live = liveRef.current;
     if (!live) return;
-    stopReconnect(live);
-    void control("replace-project").finally(() => {
-      live.socket?.close(1000, "project replaced");
-      liveRef.current = null;
-      update({ status: "revoked", claimCode: null, claimExpiresAt: null });
-    });
+    live.projectId = options.project.id;
+    if (live.publishArtifact)
+      options.fileHost?.setArtifactPublisher?.(live.publishArtifact);
+    update({ status: live.paused ? "paused" : "reconnecting" });
+    if (live.socket) sendHeartbeat(live, live.socket);
   }, [
     control,
     options.enabled,
@@ -1208,6 +1280,11 @@ export function useAgentSession(
     options.projectSessionId,
     update,
   ]);
+
+  useEffect(() => {
+    const publisher = liveRef.current?.publishArtifact;
+    if (publisher) options.fileHost?.setArtifactPublisher?.(publisher);
+  }, [options.fileHost]);
 
   useEffect(() => {
     if (!options.enabled) return;
@@ -1247,7 +1324,7 @@ export function useAgentSession(
         live.socket?.close(1000, "tab closed");
       }
     },
-    [options.enabled, options.fileHost],
+    [],
   );
 
   return {

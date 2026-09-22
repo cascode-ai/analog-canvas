@@ -59,6 +59,17 @@ export const AGENT_TRANSPORT_ERRORS: Record<
     category: "unrecoverable-credential",
     message: "The browser opened a different Project",
   },
+  PROJECT_CONTEXT_STALE: {
+    status: 409,
+    category: "request-rejected",
+    message:
+      "The browser context changed; read current context and re-plan without reconnecting",
+  },
+  NO_ACTIVE_PROJECT: {
+    status: 409,
+    category: "request-rejected",
+    message: "The workspace is connected but no Editor Project is active",
+  },
   CLAIM_INVALID: {
     status: 401,
     category: "unrecoverable-credential",

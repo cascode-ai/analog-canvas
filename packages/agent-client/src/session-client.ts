@@ -231,6 +231,7 @@ export class AgentSessionClient {
     if (!stored) return null;
     this.connection.apply("resume-started");
     try {
+      await this.status({ refresh: true });
       return await this.establishContext(
         "resumed",
         startedAt,
@@ -331,13 +332,27 @@ export class AgentSessionClient {
   async status(options: { refresh?: boolean } = {}): Promise<StatusReport> {
     if (options.refresh && (this.session || this.connectorStore)) {
       try {
+        const previousContext = this.http.contextRevision;
         this.observation = await this.withAuthorization((session) =>
           this.http.status(session.sessionId, session.agentToken),
         );
         this.connection.observe(this.observation);
+        if (previousContext !== this.http.contextRevision) {
+          this.cache.clear();
+          this.capabilitiesCache = null;
+        }
+        if (this.session) this.session.projectId = this.observation.projectId;
         this.updateDocumentRoster(this.observation.documentIds);
       } catch (error) {
         if (!(error instanceof AgentSessionError)) throw error;
+        if (
+          error.code === "PROJECT_CONTEXT_STALE" ||
+          error.code === "NO_ACTIVE_PROJECT"
+        ) {
+          this.cache.clear();
+          this.connection.observe(null, error.code);
+          throw error;
+        }
         // A failed observation is not proof of a detached browser. Preserve
         // the last timestamped evidence and let only authorization failures
         // discard a pairing.
@@ -519,6 +534,8 @@ export class AgentSessionClient {
       );
     }
     const snapshotResponse = response;
+    if (this.session)
+      this.session.projectId = snapshotResponse.snapshot.project.id;
     this.updateDocumentRoster(
       snapshotResponse.snapshot.project.documents.map(
         (document) => document.id,
@@ -948,9 +965,19 @@ export class AgentSessionClient {
     let attempts = 0;
     let offlineAttempts = 0;
     let ownerSessionId: string | undefined;
+    let ownerContext = this.http.contextRevision;
     for (;;) {
       try {
         const response = await this.withAuthorization((session) => {
+          if (
+            ownerContext !== undefined &&
+            ownerContext !== this.http.contextRevision
+          )
+            throw new AgentSessionError(
+              "PROJECT_CONTEXT_STALE",
+              "The request belongs to a previous browser context",
+              "request-rejected",
+            );
           if (
             ownerSessionId !== undefined &&
             ownerSessionId !== session.sessionId
@@ -961,12 +988,38 @@ export class AgentSessionClient {
               "request-rejected",
             );
           ownerSessionId = session.sessionId;
+          ownerContext = this.http.contextRevision;
           return operation(session);
         });
-        this.connection.apply("request-succeeded");
+        const failure = response as { ok?: boolean; error?: { code?: string } };
+        if (ownerContext !== this.http.contextRevision) {
+          this.cache.clear();
+          this.capabilitiesCache = null;
+        }
+        if (
+          failure.ok === false &&
+          [
+            "PROJECT_CONTEXT_STALE",
+            "NO_ACTIVE_PROJECT",
+            "DOCUMENT_NOT_FOUND",
+          ].includes(failure.error?.code ?? "")
+        ) {
+          this.cache.clear();
+          this.connection.observe(null, failure.error?.code);
+          await this.status({ refresh: true }).catch(() => {});
+        } else this.connection.apply("request-succeeded");
         return response;
       } catch (error) {
         if (!(error instanceof AgentSessionError)) throw error;
+        if (
+          error.code === "PROJECT_CONTEXT_STALE" ||
+          error.code === "NO_ACTIVE_PROJECT"
+        ) {
+          this.cache.clear();
+          this.connection.observe(null, error.code);
+          await this.status({ refresh: true }).catch(() => {});
+          throw error;
+        }
         if (
           error.category === "network" &&
           attempts < this.networkRetryAttempts

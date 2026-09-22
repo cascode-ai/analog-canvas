@@ -260,6 +260,7 @@ export function useProjectFileLifecycle({
 
   async function performProjectSaveToCloud(
     candidate: CircuitProject,
+    asNew = false,
   ): Promise<CloudProjectSaveOutcome> {
     // Capture before the recovery/network awaits: save exactly the checked version.
     const savedCandidate = structuredClone(candidate);
@@ -272,7 +273,7 @@ export function useProjectFileLifecycle({
     await recovery.flushNow();
     const outcome = await saveCloudProject(
       savedCandidate,
-      cloudBinding,
+      asNew ? null : cloudBinding,
       fetch,
       galleryEntryId,
     );
@@ -340,9 +341,17 @@ export function useProjectFileLifecycle({
 
   function saveProjectToCloud(
     candidate?: CircuitProject,
+    asNew = false,
   ): Promise<CloudProjectSaveOutcome> {
     const inFlight = saveInFlightRef.current;
-    if (inFlight) return inFlight;
+    if (inFlight)
+      return asNew
+        ? Promise.resolve({
+            status: "rejected",
+            message:
+              "Another Cloud save is in progress; retry Save As after it completes",
+          })
+        : inFlight;
     const operation = (async (): Promise<CloudProjectSaveOutcome> => {
       const snapshot =
         candidate ??
@@ -352,7 +361,12 @@ export function useProjectFileLifecycle({
           status: "rejected",
           message: "Source edits need attention; no work was discarded",
         };
-      return performProjectSaveToCloud(snapshot);
+      if (liveSessionRef.current !== projectSessionId)
+        return {
+          status: "rejected",
+          message: "Project changed before Cloud save; no new save was started",
+        };
+      return performProjectSaveToCloud(snapshot, asNew);
     })().catch((error: unknown): CloudProjectSaveOutcome => {
       const message = error instanceof Error ? error.message : "Save failed";
       if (liveSessionRef.current === projectSessionId) {

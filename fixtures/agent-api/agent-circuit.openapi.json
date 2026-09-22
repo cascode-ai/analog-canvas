@@ -399,6 +399,14 @@
         ],
         "parameters": [
           {
+            "name": "x-agent-context",
+            "in": "header",
+            "description": "Required for Project-bound operations; snapshot/capabilities discover current context without it",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "sessionId",
             "in": "path",
             "required": true,
@@ -480,6 +488,14 @@
         "responses": {
           "200": {
             "description": "Circuit API response",
+            "headers": {
+              "x-agent-context": {
+                "description": "Browser context stamp; use a successful snapshot's value for subsequent Project-bound requests",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -671,6 +687,14 @@
           }
         ],
         "parameters": [
+          {
+            "name": "x-agent-context",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "sessionId",
             "in": "path",
@@ -869,6 +893,14 @@
         ],
         "parameters": [
           {
+            "name": "x-agent-context",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "sessionId",
             "in": "path",
             "required": true,
@@ -1065,6 +1097,14 @@
           }
         ],
         "parameters": [
+          {
+            "name": "x-agent-context",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "name": "sessionId",
             "in": "path",
@@ -1276,6 +1316,10 @@
             "type": "string",
             "minLength": 1
           },
+          "contextRevision": {
+            "type": "string",
+            "minLength": 1
+          },
           "documentIds": {
             "type": "array",
             "items": {
@@ -1373,6 +1417,8 @@
                   "SESSION_PAUSED",
                   "SESSION_REVOKED",
                   "PROJECT_REPLACED",
+                  "PROJECT_CONTEXT_STALE",
+                  "NO_ACTIVE_PROJECT",
                   "CLAIM_INVALID",
                   "CLAIM_EXPIRED",
                   "CLAIM_ALREADY_USED",
@@ -17534,6 +17580,10 @@
                               {
                                 "type": "string",
                                 "const": "list-projects"
+                              },
+                              {
+                                "type": "string",
+                                "const": "workspace"
                               },
                               {
                                 "type": "string",
@@ -39003,6 +39053,208 @@
               },
               "operation": {
                 "type": "string",
+                "const": "workspace"
+              },
+              "request": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "const": "list"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "const": "activate"
+                      },
+                      "workspaceId": {
+                        "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "workspaceId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "const": "open"
+                      },
+                      "cloudProjectId": {
+                        "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "cloudProjectId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "const": "save"
+                      },
+                      "asNew": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "action"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "const": "copy"
+                      },
+                      "sourceWorkspaceId": {
+                        "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+                      },
+                      "sourceDocumentId": {
+                        "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+                      },
+                      "sourceRevision": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "sourceStructureRevision": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "targetWorkspaceId": {
+                        "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+                      },
+                      "targetDocumentId": {
+                        "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+                      },
+                      "expectedStructureRevision": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "expectedRevision": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "offset": {
+                        "type": "object",
+                        "properties": {
+                          "x": {
+                            "type": "number"
+                          },
+                          "y": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "selection": {
+                        "type": "object",
+                        "properties": {
+                          "instanceIds": {
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+                            }
+                          },
+                          "draftingIds": {
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+                            }
+                          },
+                          "routeIds": {
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+                            }
+                          },
+                          "junctionIds": {
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+                            }
+                          },
+                          "annotationIds": {
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+                            }
+                          }
+                        },
+                        "required": [
+                          "instanceIds",
+                          "draftingIds",
+                          "routeIds",
+                          "junctionIds",
+                          "annotationIds"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "sourceWorkspaceId",
+                      "sourceDocumentId",
+                      "sourceRevision",
+                      "sourceStructureRevision",
+                      "targetWorkspaceId",
+                      "targetDocumentId",
+                      "expectedStructureRevision",
+                      "expectedRevision",
+                      "offset"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation",
+              "request"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
                 "const": "list-projects"
               }
             },
@@ -39370,6 +39622,253 @@
               },
               "operation": {
                 "type": "string",
+                "const": "workspace"
+              },
+              "ok": {
+                "type": "boolean",
+                "const": true
+              },
+              "result": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "const": "list"
+                      },
+                      "activeWorkspaceId": {
+                        "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+                      },
+                      "projects": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "workspaceId": {
+                              "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+                            },
+                            "projectId": {
+                              "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "cloudProjectId": {
+                              "anyOf": [
+                                {
+                                  "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "dirty": {
+                              "type": "boolean"
+                            },
+                            "structureRevision": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "cells": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "documentId": {
+                                    "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "revision": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  }
+                                },
+                                "required": [
+                                  "documentId",
+                                  "name",
+                                  "revision"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": [
+                            "workspaceId",
+                            "projectId",
+                            "name",
+                            "cloudProjectId",
+                            "dirty",
+                            "structureRevision",
+                            "cells"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "activeWorkspaceId",
+                      "projects"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "activate"
+                        ]
+                      },
+                      "applied": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "applied"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "const": "save"
+                      },
+                      "project": {
+                        "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema2"
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "project"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "const": "copy"
+                      },
+                      "structureRevision": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "instanceIds": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+                        }
+                      },
+                      "importedDocumentIds": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+                        }
+                      },
+                      "importedFileIds": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+                        }
+                      },
+                      "mapping": {
+                        "type": "object",
+                        "properties": {
+                          "objects": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "cells": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "type": "string"
+                            }
+                          },
+                          "files": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "objects",
+                          "cells",
+                          "files"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "structureRevision",
+                      "revision",
+                      "instanceIds",
+                      "importedDocumentIds",
+                      "importedFileIds",
+                      "mapping"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation",
+              "ok",
+              "result"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
                 "const": "list-projects"
               },
               "ok": {
@@ -39379,37 +39878,7 @@
               "projects": {
                 "type": "array",
                 "items": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
-                    },
-                    "name": {
-                      "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema2"
-                    },
-                    "revision": {
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 9007199254740991
-                    },
-                    "updatedAt": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "schemaVersion": {
-                      "type": "integer",
-                      "exclusiveMinimum": 0,
-                      "maximum": 9007199254740991
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "name",
-                    "revision",
-                    "updatedAt",
-                    "schemaVersion"
-                  ],
-                  "additionalProperties": false
+                  "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema2"
                 }
               }
             },
@@ -39446,7 +39915,7 @@
                     "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
                   },
                   "name": {
-                    "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema2"
+                    "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema3"
                   }
                 },
                 "required": [
@@ -39599,7 +40068,7 @@
               "entries": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema3"
+                  "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema4"
                 }
               },
               "nextCursor": {
@@ -39654,13 +40123,13 @@
                 "const": true
               },
               "entry": {
-                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema3"
-              },
-              "projectCode": {
                 "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema4"
               },
-              "netlist": {
+              "projectCode": {
                 "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema5"
+              },
+              "netlist": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema6"
               }
             },
             "required": [
@@ -39697,13 +40166,13 @@
                   "type": "object",
                   "properties": {
                     "entry": {
-                      "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema3"
-                    },
-                    "projectCode": {
                       "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema4"
                     },
-                    "netlist": {
+                    "projectCode": {
                       "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema5"
+                    },
+                    "netlist": {
+                      "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema6"
                     }
                   },
                   "required": [
@@ -39749,7 +40218,7 @@
                 "const": true
               },
               "projectCode": {
-                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema4"
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema5"
               },
               "structureRevision": {
                 "type": "integer",
@@ -39830,7 +40299,7 @@
                 "maximum": 9007199254740991
               },
               "netlist": {
-                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema6"
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema7"
               }
             },
             "required": [
@@ -39891,6 +40360,7 @@
               "operation": {
                 "type": "string",
                 "enum": [
+                  "workspace",
                   "list-projects",
                   "list-cells",
                   "import-cell",
@@ -39958,11 +40428,44 @@
             "maxLength": 256
           },
           "__schema2": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema1"
+              },
+              "name": {
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema3"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "updatedAt": {
+                "type": "string",
+                "minLength": 1
+              },
+              "schemaVersion": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "revision",
+              "updatedAt",
+              "schemaVersion"
+            ],
+            "additionalProperties": false
+          },
+          "__schema3": {
             "type": "string",
             "minLength": 1,
             "maxLength": 256
           },
-          "__schema3": {
+          "__schema4": {
             "type": "object",
             "properties": {
               "id": {
@@ -40012,21 +40515,21 @@
             ],
             "additionalProperties": false
           },
-          "__schema4": {
+          "__schema5": {
             "type": "string",
             "maxLength": 2200000
           },
-          "__schema5": {
+          "__schema6": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema6"
+                "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema7"
               },
               {
                 "type": "null"
               }
             ]
           },
-          "__schema6": {
+          "__schema7": {
             "type": "object",
             "properties": {
               "format": {
@@ -40137,8 +40640,10 @@
           "projectId": {
             "$ref": "#/components/schemas/agentClaimResponse/$defs/__schema0"
           },
+          "contextRevision": {
+            "$ref": "#/components/schemas/agentClaimResponse/$defs/__schema0"
+          },
           "documentIds": {
-            "minItems": 1,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/agentClaimResponse/$defs/__schema0"

@@ -12,6 +12,17 @@ import {
 import { GALLERY_FILTERS_KEY, resolveGalleryFilters } from "./gallery-filters";
 import "../analytics/analytics.css";
 import "./styles.css";
+import { hasAgentSessionRecovery } from "./agent/session-recovery-presence";
+
+const WorkspaceAgentProvider = lazy(() =>
+  import("./agent/workspace-agent").then((module) => ({
+    default: module.WorkspaceAgentProvider,
+  })),
+);
+// Unpaired Gallery visitors must not download the Editor/Agent runtime.
+const needsAgentWorkspace =
+  !/^\/(?:analytics|moderation|mine)?\/?$/.test(window.location.pathname) ||
+  hasAgentSessionRecovery(window.sessionStorage);
 
 const container = document.getElementById("root");
 
@@ -150,7 +161,17 @@ function Root() {
 createRoot(container).render(
   <StrictMode>
     <EditorErrorBoundary>
-      <Root />
+      {needsAgentWorkspace ? (
+        <Suspense
+          fallback={<div className="analytics-loading">Loading workspace…</div>}
+        >
+          <WorkspaceAgentProvider>
+            <Root />
+          </WorkspaceAgentProvider>
+        </Suspense>
+      ) : (
+        <Root />
+      )}
     </EditorErrorBoundary>
   </StrictMode>,
 );

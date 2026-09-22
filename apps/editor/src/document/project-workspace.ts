@@ -16,16 +16,8 @@ let identity: string | undefined;
 
 export function workspaceWindowId(): string {
   if (identity) return identity;
-  const reload = performance
-    .getEntriesByType("navigation")
-    .some((entry) =>
-      ["reload", "back_forward"].includes(
-        (entry as PerformanceNavigationTiming).type,
-      ),
-    );
   try {
-    identity =
-      (reload && sessionStorage.getItem(WINDOW_KEY)) || crypto.randomUUID();
+    identity = sessionStorage.getItem(WINDOW_KEY) || crypto.randomUUID();
     sessionStorage.setItem(WINDOW_KEY, identity);
   } catch {
     identity = undefined;

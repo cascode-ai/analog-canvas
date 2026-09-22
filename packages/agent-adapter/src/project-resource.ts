@@ -14,6 +14,38 @@ const NetlistFormatSchema = z.enum(["spice", "spectre"]);
 const NetlistNamingProfileSchema = z.enum(["native", "cadence-bang"]);
 const NetlistPortCaseSchema = z.enum(["lower", "upper"]);
 
+export const AgentWorkspaceActionSchema = z.discriminatedUnion("action", [
+  z.strictObject({ action: z.literal("list") }),
+  z.strictObject({
+    action: z.literal("activate"),
+    workspaceId: StableIdSchema,
+  }),
+  z.strictObject({ action: z.literal("open"), cloudProjectId: StableIdSchema }),
+  z.strictObject({ action: z.literal("save"), asNew: z.boolean().optional() }),
+  z.strictObject({
+    action: z.literal("copy"),
+    sourceWorkspaceId: StableIdSchema,
+    sourceDocumentId: StableIdSchema,
+    sourceRevision: z.number().int().nonnegative(),
+    sourceStructureRevision: z.number().int().nonnegative(),
+    targetWorkspaceId: StableIdSchema,
+    targetDocumentId: StableIdSchema,
+    expectedStructureRevision: z.number().int().nonnegative(),
+    expectedRevision: z.number().int().nonnegative(),
+    offset: z.strictObject({ x: z.number().finite(), y: z.number().finite() }),
+    selection: z
+      .strictObject({
+        instanceIds: z.array(StableIdSchema),
+        draftingIds: z.array(StableIdSchema),
+        routeIds: z.array(StableIdSchema),
+        junctionIds: z.array(StableIdSchema),
+        annotationIds: z.array(StableIdSchema),
+      })
+      .optional(),
+  }),
+]);
+export type AgentWorkspaceAction = z.infer<typeof AgentWorkspaceActionSchema>;
+
 /**
  * Cross-Project Cell reuse stays a sibling resource because its source is the
  * signed-in user's Cloud Project shelf, not the live Circuit snapshot. The
@@ -23,6 +55,10 @@ const NetlistPortCaseSchema = z.enum(["lower", "upper"]);
 export const AgentProjectResourceRequestSchema = z.discriminatedUnion(
   "operation",
   [
+    ProjectRequestBaseSchema.extend({
+      operation: z.literal("workspace"),
+      request: AgentWorkspaceActionSchema,
+    }),
     ProjectRequestBaseSchema.extend({
       operation: z.literal("list-projects"),
     }),
@@ -141,6 +177,54 @@ const ProjectResponseBaseSchema = z.strictObject({
 
 export const AgentProjectResourceResponseSchema = z.union([
   ProjectResponseBaseSchema.extend({
+    operation: z.literal("workspace"),
+    ok: z.literal(true),
+    result: z.union([
+      z.strictObject({
+        action: z.literal("list"),
+        activeWorkspaceId: StableIdSchema,
+        projects: z.array(
+          z.strictObject({
+            workspaceId: StableIdSchema,
+            projectId: StableIdSchema,
+            name: z.string(),
+            cloudProjectId: StableIdSchema.nullable(),
+            dirty: z.boolean(),
+            structureRevision: z.number().int(),
+            cells: z.array(
+              z.strictObject({
+                documentId: StableIdSchema,
+                name: z.string(),
+                revision: z.number().int(),
+              }),
+            ),
+          }),
+        ),
+      }),
+      z.strictObject({
+        action: z.enum(["open", "activate"]),
+        applied: z.boolean(),
+      }),
+      z.strictObject({
+        action: z.literal("save"),
+        project: AgentCloudProjectSummarySchema,
+      }),
+      z.strictObject({
+        action: z.literal("copy"),
+        structureRevision: z.number().int(),
+        revision: z.number().int(),
+        instanceIds: z.array(StableIdSchema),
+        importedDocumentIds: z.array(StableIdSchema),
+        importedFileIds: z.array(StableIdSchema),
+        mapping: z.strictObject({
+          objects: z.record(z.string(), z.record(z.string(), z.string())),
+          cells: z.record(z.string(), z.string()),
+          files: z.record(z.string(), z.string()),
+        }),
+      }),
+    ]),
+  }),
+  ProjectResponseBaseSchema.extend({
     operation: z.literal("list-projects"),
     ok: z.literal(true),
     projects: z.array(AgentCloudProjectSummarySchema),
@@ -207,6 +291,7 @@ export const AgentProjectResourceResponseSchema = z.union([
   }),
   ProjectResponseBaseSchema.extend({
     operation: z.enum([
+      "workspace",
       "list-projects",
       "list-cells",
       "import-cell",

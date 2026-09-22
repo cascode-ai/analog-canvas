@@ -44,6 +44,24 @@ function setup(overrides: Partial<AgentSessionLimits> = {}) {
 // exercised here with fake time. The machine never touches a Project or edit.
 
 describe("AgentSessionMachine", () => {
+  it("changes browser context without rotating authorization, including Gallery and restore", () => {
+    const { machine, session, now, random } = setup();
+    const claimed = machine.redeemClaim(session.claimCode, now());
+    if (!claimed.ok) throw new Error("claim failed");
+    machine.bindContext("context-b", "project-b", ["cell-b"]);
+    expect(machine.authorize(claimed.claim.agentToken, now()).ok).toBe(true);
+    expect(machine.documentIds).toEqual(["cell-b"]);
+    machine.bindContext("gallery", "no-active-project", []);
+    expect(machine.authorize(claimed.claim.agentToken, now()).ok).toBe(true);
+    const restored = AgentSessionMachine.restore(
+      machine.serialize(),
+      random,
+      now(),
+    );
+    expect(restored.contextRevision).toBe("gallery");
+    expect(restored.documentIds).toEqual([]);
+    expect(restored.authorize(claimed.claim.agentToken, now()).ok).toBe(true);
+  });
   it("creates a session, returns secrets once, and authenticates the editor", () => {
     const { machine, session, now } = setup();
     expect(session.sessionId).toMatch(/^rand-/u);
