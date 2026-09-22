@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { expect, it, vi } from "vitest";
 import { LocalWorkspace } from "./local-workspace.js";
-import { PreparePlotSchema, preparePlot } from "./prepare-plot.js";
+import { PreparePlotSchema, preparePlot, plotPanels } from "./prepare-plot.js";
 import { plotTemplate } from "./plot-template.js";
 import type { ResultCatalog } from "@icm/simulation-service/contract";
 
@@ -96,7 +96,72 @@ it("prepares a local copy, selects one table, reuses data and preserves customiz
   }
 });
 
-it("runs template unit/complex conversions without requiring matplotlib", async () => {
+it("expands four presets, groups units and shares AC cursors without inferring gain", () => {
+  for (const kind of ["dc", "ac", "tran", "noise"] as const) {
+    const catalog: ResultCatalog = {
+      schemaVersion: 1,
+      runId: "r",
+      preparedId: "p",
+      inputRevision: "1",
+      execution: "completed",
+      collection: "complete",
+      files: [],
+      datasets: [
+        {
+          id: "d",
+          analysisIndex: 0,
+          analysis: kind,
+          plotName: kind,
+          pointCount: 3,
+          axis: { name: "x", unit: kind === "tran" ? "s" : "Hz" },
+          signals: [
+            { name: "voltage", quantity: "voltage", unit: "V" },
+            { name: "current", quantity: "current", unit: "A" },
+          ],
+          representations: [],
+        },
+      ],
+    };
+    const request = PreparePlotSchema.parse({
+      action: "prepare-plot",
+      runId: "r",
+      name: kind,
+      preset: {
+        kind,
+        analysisIndex: 0,
+        signals: [{ signal: "voltage" }, { signal: "current" }],
+        cursors: { A: 10, B: 100 },
+      },
+    });
+    const panels = plotPanels(catalog, request);
+    expect(panels).toHaveLength(kind === "ac" ? 3 : 2);
+    expect(panels[0]?.signals).toHaveLength(1);
+    expect(panels.every((p) => p.cursors?.A === 10)).toBe(true);
+    expect(panels[0]?.xScale).toBe(
+      ["ac", "noise"].includes(kind) ? "log" : "linear",
+    );
+    expect(panels[0]?.yScale).toBe(kind === "noise" ? "log" : "linear");
+    if (kind === "ac") {
+      expect(panels[0]?.signals[0]?.component).toBe("magnitude");
+      expect(panels[0]?.signals[0]?.decibels).toBeUndefined();
+      expect(panels[2]?.signals.map((s) => [s.component, s.unit])).toEqual([
+        ["phase", "deg"],
+        ["phase", "deg"],
+      ]);
+    }
+    expect(PreparePlotSchema.safeParse({ ...request, panels }).success).toBe(
+      false,
+    );
+    expect(() =>
+      plotPanels(catalog, {
+        ...request,
+        preset: { ...request.preset!, analysisIndex: 99 },
+      }),
+    ).toThrow("PLOT_PRESET_ANALYSIS_MISMATCH");
+  }
+});
+
+it("runs unit, complex, dB and cursor contracts without requiring matplotlib", async () => {
   const root = await mkdtemp(join(tmpdir(), "plot-python-"));
   try {
     const script = join(root, "plot.py");
@@ -125,6 +190,20 @@ assert abs(v[0]-53.13010235415598)<1e-9 and u=='deg'
 try:
     m['vector'](d, {'signal':'v(out)'})
     raise AssertionError('accepted implicit complex')
+except ValueError: pass
+values,u = m['vector'](d, {'signal':'v(out)','component':'magnitude','decibels':{'factor':20,'reference':1000,'referenceUnit':'mV'}})
+assert abs(values[0]-20*math.log10(5))<1e-12 and u=='dB'
+try:
+    m['vector'](d, {'signal':'v(out)','component':'magnitude','decibels':{'factor':20,'reference':1,'referenceUnit':'A'}})
+    raise AssertionError('bad reference accepted')
+except (ValueError, KeyError): pass
+assert m['cursor_sample']([1,10,100],[2,4,8],40)['x']==10
+assert m['cursor_sample']([1,10,100],[2,4,8],40,True)['x']==100
+r = m['cursor_readings']([0,1,2],[0,3,6],{'A':1100,'B':1900,'unit':'ms'},'s','V')
+assert r['points']['A']['x']==1 and r['delta']=={'x':1,'y':3}
+try:
+    m['cursor_sample']([0,1],[1,2],2)
+    raise AssertionError('clamped outside domain')
 except ValueError: pass
 `;
     execFileSync(process.platform === "win32" ? "python" : "python3", [

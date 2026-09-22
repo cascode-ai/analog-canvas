@@ -9,36 +9,126 @@ const Vector = z.strictObject({
   signal: z.string().min(1),
   component: z.enum(["real", "imag", "magnitude", "phase"]).optional(),
   unit: z.string().min(1).optional(),
-});
-export const PreparePlotSchema = z.strictObject({
-  action: z.literal("prepare-plot"),
-  runId: z.string().min(1),
-  name: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/u),
-  title: z.string().optional(),
-  formats: z
-    .array(z.enum(["png", "svg", "pdf"]))
-    .min(1)
+  decibels: z
+    .strictObject({
+      factor: z.union([z.literal(10), z.literal(20)]),
+      reference: z.number().positive(),
+      referenceUnit: z.string().min(1),
+    })
     .optional(),
-  panels: z
-    .array(
-      z.strictObject({
-        analysisIndex: z.number().int().nonnegative(),
-        x: Vector.optional(),
-        signals: z
-          .array(Vector.extend({ label: z.string().optional() }))
-          .min(1),
-        title: z.string().optional(),
-        xLabel: z.string().optional(),
-        yLabel: z.string().optional(),
-        xScale: z.enum(["linear", "log"]).optional(),
-        yScale: z.enum(["linear", "log"]).optional(),
-        xRange: z.tuple([z.number(), z.number()]).optional(),
-        yRange: z.tuple([z.number(), z.number()]).optional(),
-        legend: z.boolean().optional(),
-      }),
-    )
-    .min(1),
 });
+const Signal = Vector.extend({ label: z.string().optional() });
+const Cursors = z.strictObject({
+  A: z.number(),
+  B: z.number().optional(),
+  unit: z.string().min(1).optional(),
+});
+const Panel = z.strictObject({
+  analysisIndex: z.number().int().nonnegative(),
+  x: Vector.optional(),
+  signals: z.array(Signal).min(1),
+  title: z.string().optional(),
+  xLabel: z.string().optional(),
+  yLabel: z.string().optional(),
+  xScale: z.enum(["linear", "log"]).optional(),
+  yScale: z.enum(["linear", "log"]).optional(),
+  xRange: z.tuple([z.number(), z.number()]).optional(),
+  yRange: z.tuple([z.number(), z.number()]).optional(),
+  legend: z.boolean().optional(),
+  cursors: Cursors.optional(),
+});
+export const PreparePlotSchema = z
+  .strictObject({
+    action: z.literal("prepare-plot"),
+    runId: z.string().min(1),
+    name: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/u),
+    title: z.string().optional(),
+    formats: z
+      .array(z.enum(["png", "svg", "pdf"]))
+      .min(1)
+      .optional(),
+    panels: z.array(Panel).min(1).optional(),
+    preset: z
+      .strictObject({
+        kind: z.enum(["dc", "ac", "tran", "noise"]),
+        analysisIndex: z.number().int().nonnegative(),
+        signals: z.array(Signal.omit({ component: true })).min(1),
+        xUnit: z.string().min(1).optional(),
+        cursors: Cursors.optional(),
+      })
+      .optional(),
+  })
+  .refine(
+    (r) => Boolean(r.panels) !== Boolean(r.preset),
+    "Supply panels or preset, not both",
+  );
+
+/** Four defaults share one renderer; the emitted JSON remains freely editable. */
+export function plotPanels(
+  catalog: ResultCatalog,
+  request: z.infer<typeof PreparePlotSchema>,
+): z.infer<typeof Panel>[] {
+  if (request.panels) return request.panels;
+  const preset = request.preset!;
+  const dataset = catalog.datasets.find(
+    (d) => d.analysisIndex === preset.analysisIndex,
+  );
+  if (!dataset?.axis || dataset.analysis !== preset.kind)
+    throw new Error("PLOT_PRESET_ANALYSIS_MISMATCH");
+  const groups = new Map<string, z.infer<typeof Signal>[]>();
+  for (const signal of preset.signals) {
+    const metadata = dataset.signals.find((s) => s.name === signal.signal);
+    if (!metadata)
+      throw new Error(`PLOT_SIGNAL_NOT_IN_DATASET: ${signal.signal}`);
+    const unit = signal.decibels ? "dB" : (signal.unit ?? metadata.unit);
+    // Unknown units are not assumed mutually compatible.
+    const key = unit ?? `unknown:${signal.signal}`;
+    const group = groups.get(key) ?? [];
+    group.push({
+      ...signal,
+      ...(preset.kind === "ac" ? { component: "magnitude" as const } : {}),
+    });
+    groups.set(key, group);
+  }
+  const common = {
+    analysisIndex: preset.analysisIndex,
+    x: {
+      signal: dataset.axis.name,
+      ...(preset.xUnit ? { unit: preset.xUnit } : {}),
+    },
+    xScale: (preset.kind === "ac" || preset.kind === "noise"
+      ? "log"
+      : "linear") as "log" | "linear",
+    ...(preset.cursors ? { cursors: preset.cursors } : {}),
+  };
+  const panels: z.infer<typeof Panel>[] = [...groups.values()].map(
+    (signals) => ({
+      ...common,
+      signals,
+      title: {
+        dc: "DC transfer",
+        tran: "Transient",
+        ac: "AC magnitude",
+        noise: "Noise density",
+      }[preset.kind],
+      yScale:
+        preset.kind === "noise" && !signals[0]!.decibels ? "log" : "linear",
+    }),
+  );
+  if (preset.kind === "ac")
+    panels.push({
+      ...common,
+      title: "AC phase",
+      yScale: "linear",
+      signals: preset.signals.map(({ signal, label }) => ({
+        signal,
+        ...(label ? { label } : {}),
+        component: "phase",
+        unit: "deg",
+      })),
+    });
+  return panels;
+}
 
 /** Preparation never executes Python or overwrites an existing customization. */
 export async function preparePlot(
@@ -47,7 +137,7 @@ export async function preparePlot(
   request: z.infer<typeof PreparePlotSchema>,
   fetchArtifact: Parameters<LocalWorkspace["sync"]>[1],
 ) {
-  const selections = request.panels.map((panel) => {
+  const selections = plotPanels(catalog, request).map((panel) => {
     const dataset = catalog.datasets.find(
       (d) => d.analysisIndex === panel.analysisIndex,
     );
