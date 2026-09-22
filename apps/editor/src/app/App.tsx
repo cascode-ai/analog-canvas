@@ -344,6 +344,7 @@ import {
   razaviHiddenBulkRisk,
 } from "../presentation/razavi-presentation";
 import { useRecoveryCoordinator } from "../document/recovery-coordinator";
+import { createProjectSnapshotSerializer } from "../document/project-snapshot-serializer";
 import { useSelectionController } from "../features/selection/selection-controller";
 import { SelectionFilterPopover } from "../features/selection/selection-filter-popover";
 import {
@@ -657,6 +658,9 @@ function WorkspaceEditor({
   // Feature name whose on-demand chunk vanished under a redeploy; the banner
   // offers the refresh that restores the current circuit.
   const [chunkLoadFailure, setChunkLoadFailure] = useState<string | null>(null);
+  const [snapshotSerializer] = useState(() =>
+    createProjectSnapshotSerializer(),
+  );
   const {
     captureWorkingSession: captureRecoverySession,
     resumeWorkingSession: resumeRecoverySession,
@@ -672,7 +676,9 @@ function WorkspaceEditor({
     discover: discoverRecovery,
     readSessionProject: readRecoveryProject,
     deleteSession: deleteRecoverySession,
-  } = useRecoveryCoordinator(setStatus);
+  } = useRecoveryCoordinator(setStatus, {
+    serializeProject: snapshotSerializer.serialize,
+  });
   const [agentStartupRecovery] = useState(() => {
     if (typeof window === "undefined" || restoredWorkspace) return null;
     const search = new URLSearchParams(window.location.search);
@@ -5118,12 +5124,15 @@ function WorkspaceEditor({
     )
       return;
     try {
+      snapshotSerializer.retain(
+        workspace.tabs.map(({ session }) => session.controller.project),
+      );
       const tabs = workspace.tabs.map(({ id, session }) => {
         const { controller, cellViews, ...rest } = session;
         const portable: PortableTab = {
           ...rest,
           cellViews: [...cellViews],
-          projectText: serializeProject(controller.project),
+          projectText: snapshotSerializer.serialize(controller.project),
           activeDocumentId: controller.document.id,
         };
         return { id, session: portable };

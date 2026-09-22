@@ -152,6 +152,8 @@ export interface RecoveryCoordinator {
 }
 
 export interface CreateRecoveryCoordinatorOptions {
+  /** Session-local serializer for immutable editor snapshots; timers and writes remain unchanged. */
+  serializeProject?: (project: CircuitProject) => string;
   store?: BrowserRecoveryStore;
   events?: RecoveryCoordinatorEvents;
   delayMs?: number;
@@ -306,7 +308,7 @@ export function createRecoveryCoordinator(
       documentRevisions,
       source: currentSource,
       updatedAt: now(),
-      projectText: serializeProject(project),
+      projectText: (options.serializeProject ?? serializeProject)(project),
       unsavedAtSnapshot: candidate.unsavedAtSnapshot,
       ...(candidate.cloudBinding === null
         ? {}
@@ -474,6 +476,7 @@ export function createRecoveryCoordinator(
 }
 
 export interface UseRecoveryCoordinatorOptions {
+  serializeProject?: (project: CircuitProject) => string;
   store?: BrowserRecoveryStore;
   delayMs?: number;
 }
@@ -515,6 +518,9 @@ export function useRecoveryCoordinator(
 
   const [coordinator] = useState(() =>
     createRecoveryCoordinator({
+      ...(options.serializeProject === undefined
+        ? {}
+        : { serializeProject: options.serializeProject }),
       ...(options.store === undefined ? {} : { store: options.store }),
       ...(options.delayMs === undefined ? {} : { delayMs: options.delayMs }),
       events: {
