@@ -7,7 +7,7 @@ export const agentToolHelp = {
   connection_status:
     "Report runtime version, API origin and session observations. refresh:false is local-only. Attached means a browser socket exists, not verified execution readiness; unknown means the relay was not checked successfully.",
   project_cells:
-    "Discover saved Cloud Cells or live workspace tabs. action:workspace supports list, activate, open Cloud Project, save/Save As, and atomic GUI-equivalent selection/whole-Cell copy to an explicit target. Existing import-cell imports reusable Cell dependencies. Cloud actions require account access; see analog-canvas://reference/mcp-tools.",
+    "Cloud Cell discovery/import; workspace list/activate/open/save/copy. Live tabs include unsaved work; Cloud reads saved versions. Copy reuses GUI transactions and dependencies. Details: analog-canvas://reference/mcp-tools.",
   gallery_circuits:
     "Page through every public Gallery circuit, then read one or up to 12 entries' complete Project Code and generated SPICE/Spectre netlist. Follow nextCursor until null and any remainingEntryIds until empty; pass netlistFormat:null when only Project Code is needed.",
   project_code:
@@ -17,9 +17,9 @@ export const agentToolHelp = {
   simulation:
     "Prepare/start/read/cancel and discover results. Run receipts never inline samples; run.details summarizes collection, diagnostics and Specs; catalog locates complete files. Capabilities default to summary; request detail:full for model facts. Prepare outer detail:full includes mappings otherwise available in preparation.json. start/read accept waitMs 0–20000; resume the same runId. Retry uncertain starts with the same requestId. One hosted run at a time or Batch. Use simulation_files sync for local results; export retries failed evidence saving without executing again.",
   simulation_files:
-    "Read/update native source; reuse returned revisions. sync downloads complete files: analysisIndex plus roles:[table] selects a CSV; fileIds selects exact files, [] directory only, omitted selectors all files. prepare-plot takes runId, name and panels or a dc/ac/tran/noise preset, with optional A/B cursors; copies editable Python/config and selected CSVs into the local base. Run locally with matplotlib. Existing plots are preserved. basePath is optional. download with artifactId saves locally; outputPath overrides it. artifact without outputPath previews. Details: analog-canvas://reference/mcp-simulation.",
+    "Edit native source using returned revisions; sync complete files to the local base. analysisIndex + roles:[table] selects CSV; fileIds:[] gets directory only, omitted selectors all files. prepare-plot creates editable Python/config from panels or dc/ac/tran/noise presets and optional A/B cursors; run locally with matplotlib. Never overwrites plots. download saves locally; artifact without outputPath previews. Details: analog-canvas://reference/mcp-simulation.",
   export_file:
-    "Export the browser Project or Canvas SVG/PNG/PDF to an explicit local path. Canvas exports require documentId. Simulation results use returned run artifact references (or simulation export when an inventory is needed), then simulation_files artifact with outputPath to save raw/CSV/Spec files after digest verification. simulation-plot is retired and returns SIMULATION_PLOT_RETIRED; plot externally from raw/CSV.",
+    "Export Project or Canvas SVG/PNG/PDF to outputPath; Canvas requires documentId. For simulation data use simulation_files sync/download. simulation-plot is retired; prepare local plots with simulation_files prepare-plot.",
   import_file:
     "Stage a local Analog Canvas project or structural SPICE bundle, inspect/discard the candidate, or request browser approval. Staging never replaces the open project by itself.",
   get_context:
