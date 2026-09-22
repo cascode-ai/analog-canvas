@@ -255,7 +255,12 @@ const DocumentArgs = z.strictObject({
 
 const InspectArgs = z.strictObject({
   documentId: z.string().min(1).optional(),
-  refresh: z.boolean().optional(),
+  refresh: z
+    .boolean()
+    .optional()
+    .describe(
+      "Default: reuse clean Snapshot. True: reread after external edits or to reconcile.",
+    ),
   target: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("document") }),
     z.strictObject({
@@ -280,7 +285,12 @@ const InspectArgs = z.strictObject({
       ...AgentSnapshotRequestSchema.shape.traceNet.unwrap().shape,
     }),
   ]),
-  detail: z.enum(["compact", "full"]).optional(),
+  detail: z
+    .enum(["compact", "full"])
+    .optional()
+    .describe(
+      "Document targets only: compact summary (default) or full Snapshot.",
+    ),
 });
 
 const SearchArgs = z.strictObject({
@@ -312,7 +322,14 @@ const ApplyActionsArgs = z.strictObject({
 
 const AdvancedTransactArgs = z.strictObject({
   documentId: z.string().min(1).optional(),
-  edits: z.array(z.unknown()).min(1).max(256).optional(),
+  edits: z
+    .array(z.unknown())
+    .min(1)
+    .max(256)
+    .optional()
+    .describe(
+      "Typed edits; exact fields: analog-canvas://contract/edits/{kind}.",
+    ),
   structureEdits: z.array(z.unknown()).min(1).max(256).optional(),
   wireIntent: z
     .union([
@@ -322,7 +339,10 @@ const AdvancedTransactArgs = z.strictObject({
     .optional(),
   semanticIntent: AgentSemanticIntentSchema.optional(),
   command: AgentAuthoringCommandSchema.optional(),
-  dryRun: z.boolean().optional(),
+  dryRun: z
+    .boolean()
+    .optional()
+    .describe("Validate/plan only; no commit or revision change."),
 });
 
 const RenderArgs = z.strictObject({

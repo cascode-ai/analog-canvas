@@ -23,15 +23,15 @@ export const agentToolHelp = {
   import_file:
     "Stage a local Analog Canvas project or structural SPICE bundle, inspect/discard the candidate, or request browser approval. Staging never replaces the open project by itself.",
   get_context:
-    "Compact context for one authorized document: identity, revision, instance/net counts, and error/warning totals. Reuses the clean Snapshot by default; set refresh:true only after a known external change or for explicit reconciliation. Connect already returns lightweight bootstrap context.",
+    "Compact document identity, revision, counts and diagnostic totals. Reuses the clean Snapshot; refresh:true reconciles external changes. Connect already returns bootstrap context; do not repeat this call just to confirm pairing.",
   inspect:
-    "Read a document, object, net connectivity, diagnostics, or recent MCP activity. Reuses the clean Snapshot by default; refresh:true forces reconciliation. detail:full returns the document Snapshot with appearance, formulas, interfaces, and project definitions.",
+    "Inspect document facts, objects, nets, connectivity, diagnostics, cross-Cell traces or current-process activity. Use returned IDs and resolved pins when planning edits.",
   search:
     "Case-insensitive search, including LaTeX, over one authorized document or scope:project. Results include documentId. Reuses clean Snapshots by default and loads authorized Project documents concurrently.",
   apply_actions:
-    "Apply one atomic batch, wire, GUI-planned command or focus operation. Client plans from the current clean Snapshot and supplies expected revisions; stale revisions refresh for reconciliation rather than overwriting human edits. Split create/wire phases only when resolved pins are newly required. Actions and native labels/displays: analog-canvas://reference/mcp-tools.",
+    "Apply one atomic action batch using existing planners and revision guards. Split create/wire only when new resolved pins are needed. Use the listed schema directly; native label/display semantics: analog-canvas://reference/mcp-tools.",
   advanced_transact:
-    "Submit exactly one of edits, structureEdits, wireIntent, semanticIntent or command. Client uses the current clean Snapshot and supplies revisions/IDs; dryRun is optional and stale revisions require reconciliation. Read analog-canvas://contract/edits/{kind} for one edit schema; full offline schema: analog-canvas://contract/advanced-edits. Reading is advisory.",
+    "Full transaction access, not a higher permission tier. Submit exactly one of edits, structureEdits, wireIntent, semanticIntent or command. Client supplies revisions/IDs from the clean Snapshot; stale revisions require reconciliation. Look up only unfamiliar edit kinds; reading is optional.",
   verify:
     "Force a fresh Snapshot and report revision, error/warning totals, and which object IDs changed since the cached full Snapshot. Use at a milestone, after a known external edit, or when a transaction reported STATE_CHANGED; not after every accepted edit.",
   render:

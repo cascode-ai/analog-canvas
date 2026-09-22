@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
 import prettier from "prettier";
+import { compactSchema } from "../apps/mcp-server/src/compact-schema.ts";
 
 export const root = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -134,6 +135,13 @@ export async function compile(registry, repoRoot = root) {
   }
   // Runtime guides must be self-contained in their versioned distribution.
   function project(d, surface) {
+    // Compact the MCP projection at generation time, not on every resource read.
+    // The canonical HTTP/Kit schema and runtime validators remain unchanged.
+    if (surface === "mcp" && d.mimeType === "application/schema+json") {
+      const original = docs.get(d.id);
+      const compact = JSON.stringify(compactSchema(JSON.parse(original)));
+      return compact.length < original.length ? compact : original;
+    }
     return docs
       .get(d.id)
       .replace(/\]\(([^\s)]+)([^)]*)\)/g, (whole, href, suffix) => {

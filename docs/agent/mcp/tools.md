@@ -1,5 +1,11 @@
 # MCP editing and recovery tools
 
+Use the listed tool schema directly when its fields are sufficient. For an
+unfamiliar typed edit read `analog-canvas://contract/edits/{kind}`; for a tool's
+complete argument schema read `analog-canvas://contract/tools/{name}`. These
+are optional lookups, not steps required before every call. This guide covers
+semantics that field names alone cannot explain.
+
 ## Create and edit
 
 Use `apply_actions` for one atomic edit batch, wire batch, planned command or focus
@@ -13,21 +19,15 @@ wiring. The existing `wireIntent` transaction field accepts one intent or an
 ordered array (up to 64); the combined generated edits still obey the session's
 edit limit. Mixed placement/wire/command calls still need separate phases.
 
-| Action                                        | Key arguments                                                                 |
-| --------------------------------------------- | ----------------------------------------------------------------------------- |
-| `set-model`                                   | `instanceId`, exact `model` target (empty clears it)                          |
-| `copy`                                        | `selection`, `offset:{x,y}`; internal wires and references follow GUI copy    |
-| `transform`                                   | `selection`, `transform:{kind:"rotate",degrees:90}`, mirror or translate      |
-| `align`                                       | `selection`, `mode:left/right/top/bottom/center-x/center-y`                   |
-| `detach-move`                                 | `instanceIds`, `delta`; wires stay behind                                     |
-| `unplace`                                     | `instanceIds`; retain electrical facts in Placement Tray                      |
-| `reset-cell`                                  | `mode:clear-drawing/reset-placement/reset-body`                               |
-| `create-cell` / `rename-cell` / `delete-cell` | Cell `id`, plus `name` for create/rename                                      |
-| `undo` / `redo`                               | Shared editor history, not a private Agent stack                              |
-| `focus`                                       | `intent`: select, highlight-net, activate-document, fit-document, clear-focus |
+`copy` follows GUI copy for internal wires and references. `detach-move` leaves
+wires behind; `unplace` retains electrical facts in the Placement Tray.
+`undo`/`redo` share Editor history, not a private Agent stack. Routine layout
+work should use move/transform/align rather than reset; choose a `reset-cell`
+mode deliberately when discarding drawing state.
 
 For reviewed targets, `set-model` uses the GUI's semantic planner and leaves
-binding and invocation generation to the netlist generator. Use raw binding
+binding and invocation generation to the netlist generator; an empty model
+target clears the binding. Use raw binding
 edits only for custom or unreviewed definitions.
 
 `selection` accepts `instanceIds`, `routeIds`, `junctionIds`,
@@ -41,13 +41,14 @@ partially transforming a mixed selection.
 and a `point`; the server owns splitting and Junction creation.
 Name Nets through labels/markers, never raw Base-Net fields.
 
-`advanced_transact` accepts exactly one of `edits`, `structureEdits`,
-`wireIntent`, `semanticIntent`, or `command`. The Helper supplies IDs and
-Document/Project revisions. Read `analog-canvas://contract/edits/{kind}`
-for one edit schema (for example `set_instance_style_override`), avoiding the
-large `analog-canvas://contract/advanced-edits` resource meant for offline tooling.
-Reading is advisory, not a permission gate.
+`advanced_transact` is the full transaction escape hatch for typed edits not
+covered by common actions, not a separate permission tier. It uses the same
+validation and revision guards. Its listed schema/help describes the exclusive
+payload forms; the Helper supplies IDs and Document/Project revisions.
 Nested `transact_document` entries use their target Document revisions.
+The complete `analog-canvas://contract/advanced-edits` resource is the HTTP
+request envelope for offline tooling, not the MCP tool's argument schema.
+Do not load it merely to perform one edit.
 
 Use `project_cells` to list the signed-in user's Cloud Projects, inspect their
 Cell interfaces, and import one Cell into the open Project. Import copies the

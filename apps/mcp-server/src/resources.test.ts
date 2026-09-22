@@ -16,6 +16,33 @@ import {
 
 const repoRoot = resolve(fileURLToPath(import.meta.url), "../../../..");
 
+/** Expand local refs to compare constraints, not generated definition names. */
+function expandSchema(
+  root: Record<string, unknown>,
+  value: unknown = root,
+): unknown {
+  if (Array.isArray(value))
+    return value.map((item) => expandSchema(root, item));
+  if (!value || typeof value !== "object") return value;
+  const object = value as Record<string, unknown>;
+  if (typeof object.$ref === "string") {
+    expect(object.$ref.startsWith("#/$defs/")).toBe(true);
+    const target = (root.$defs as Record<string, unknown>)[
+      object.$ref.slice(8)
+    ];
+    expect(target).toBeDefined();
+    const { $ref: _, ...siblings } = object;
+    return Object.keys(siblings).length
+      ? { allOf: [expandSchema(root, target), expandSchema(root, siblings)] }
+      : expandSchema(root, target);
+  }
+  return Object.fromEntries(
+    Object.entries(object)
+      .filter(([key]) => key !== "$defs")
+      .map(([key, child]) => [key, expandSchema(root, child)]),
+  );
+}
+
 interface ManifestResource {
   uri: string;
   name: string;
@@ -31,6 +58,27 @@ interface ManifestResource {
  * the registry declares, independently of the HTTP Kit projection.
  */
 describe("mcp resources single-source projection", () => {
+  it("ships a compact complete offline schema without changing the HTTP Kit source", () => {
+    const source = readFileSync(
+      resolve(repoRoot, "fixtures/agent-api/agent-circuit-request.schema.json"),
+      "utf8",
+    );
+    const resource = readResourceContent(ADVANCED_EDITS_RESOURCE_URI);
+    expect(Buffer.byteLength(resource.text)).toBeLessThan(
+      Buffer.byteLength(source) / 3,
+    );
+    expect(expandSchema(JSON.parse(resource.text))).toEqual(
+      expandSchema(JSON.parse(source)),
+    );
+    expect(
+      agentOperatingKit.files
+        .find(
+          (file) =>
+            file.path === "references/agent-circuit-request.schema.json",
+        )!
+        .content.trim(),
+    ).toBe(source.replaceAll("\r\n", "\n").trim());
+  });
   it("bounds discovery size while retaining complete contracts and runtime validation", async () => {
     const tools = listToolDefinitions();
     expect(Buffer.byteLength(JSON.stringify(tools))).toBeLessThan(100_000);
@@ -85,26 +133,7 @@ describe("mcp resources single-source projection", () => {
       `analog-canvas://contract/edits/${kind}`,
     ).text;
     const compact = JSON.parse(text);
-    const expand = (
-      root: Record<string, unknown>,
-      value: unknown = root,
-    ): unknown => {
-      if (Array.isArray(value)) return value.map((item) => expand(root, item));
-      if (!value || typeof value !== "object") return value;
-      const object = value as Record<string, unknown>;
-      if (typeof object.$ref === "string") {
-        const name = object.$ref.replace("#/$defs/", "");
-        const target = (root.$defs as Record<string, unknown>)[name];
-        expect(target).toBeDefined();
-        return expand(root, target);
-      }
-      return Object.fromEntries(
-        Object.entries(object)
-          .filter(([key]) => key !== "$defs")
-          .map(([key, child]) => [key, expand(root, child)]),
-      );
-    };
-    expect(expand(compact)).toEqual(expand(original));
+    expect(expandSchema(compact)).toEqual(expandSchema(original));
     expect(text.length).toBeLessThan(24000);
   });
   it("distributes exactly the help for the callable tool inventory", () => {
@@ -218,7 +247,10 @@ describe("mcp resources single-source projection", () => {
       });
       // Markdown links are deliberately rewritten for the resource namespace.
       // Full output/source integrity is checked by the generator contract suite.
-      expect(projected!.text.split("\n")[0]).toBe(expectedText!.split("\n")[0]);
+      if (entry.mimeType !== "application/schema+json")
+        expect(projected!.text.split("\n")[0]).toBe(
+          expectedText!.split("\n")[0],
+        );
     }
   });
 
