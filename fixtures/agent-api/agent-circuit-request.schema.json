@@ -12812,6 +12812,10 @@
             },
             "parameter": {
               "$ref": "#/$defs/__schema30"
+            },
+            "showValue": {
+              "type": "boolean",
+              "const": false
             }
           },
           "required": [

@@ -13758,6 +13758,10 @@
                   },
                   "parameter": {
                     "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema30"
+                  },
+                  "showValue": {
+                    "type": "boolean",
+                    "const": false
                   }
                 },
                 "required": [
@@ -30555,6 +30559,10 @@
                   },
                   "parameter": {
                     "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema17"
+                  },
+                  "showValue": {
+                    "type": "boolean",
+                    "const": false
                   }
                 },
                 "required": [

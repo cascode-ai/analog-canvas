@@ -13690,6 +13690,10 @@
             },
             "parameter": {
               "$ref": "#/$defs/__schema17"
+            },
+            "showValue": {
+              "type": "boolean",
+              "const": false
             }
           },
           "required": [
