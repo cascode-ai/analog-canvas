@@ -439,7 +439,7 @@ describe("MCP / browser Simulation Resource parity", () => {
       expect(synced).toMatchObject({
         ok: true,
         basePath,
-        downloadedFiles: finished.run.artifacts.length,
+        workspaceFileCount: finished.run.artifacts.length,
       });
       expect(synced.files).toHaveLength(finished.run.artifacts.length);
       expect(

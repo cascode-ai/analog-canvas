@@ -33,6 +33,28 @@ function parseText(result: {
 }
 
 describe("mcp tool surface", () => {
+  it("classifies invalid arguments without dispatching or echoing submitted values", async () => {
+    const { session, http } = await toolSession();
+    const result = await callTool(
+      "simulation",
+      {
+        request: { operation: "capabilities" },
+        waitMs: "private-invalid-value",
+      },
+      session,
+    );
+    expect(result.isError).toBe(true);
+    expect(parseText(result)).toMatchObject({
+      ok: false,
+      error: {
+        code: "INVALID_TOOL_INPUT",
+        recovery: "fix-input",
+        issues: [{ path: ["waitMs"], code: "invalid_type" }],
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain("private-invalid-value");
+    expect(http.circuitCalls).toHaveLength(0);
+  });
   it.each(["ngspice", "vacask"] as const)(
     "creates a %s template from the selected Profile",
     async (engine) => {

@@ -29,7 +29,7 @@ export const agentToolHelp = {
   search:
     "Case-insensitive search, including LaTeX, over one authorized document or scope:project. Results include documentId. Reuses clean Snapshots by default and loads authorized Project documents concurrently.",
   apply_actions:
-    "Apply one atomic action batch using existing planners and revision guards. Split create/wire only when new resolved pins are needed. Use the listed schema directly; native label/display semantics: analog-canvas://reference/mcp-tools.",
+    "Apply one atomic action batch using existing planners and revision guards. Split create/wire only when new resolved pins are needed. If the host hides action fields, their exact contract is analog-canvas://contract/tools/apply_actions. Native label/display semantics: analog-canvas://reference/mcp-tools.",
   advanced_transact:
     "Full transaction access, not a higher permission tier. Submit exactly one of edits, structureEdits, wireIntent, semanticIntent or command. Client supplies revisions/IDs from the clean Snapshot; stale revisions require reconciliation. Look up only unfamiliar edit kinds; reading is optional.",
   verify:

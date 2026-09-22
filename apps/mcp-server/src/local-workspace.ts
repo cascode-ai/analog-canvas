@@ -162,7 +162,7 @@ export class LocalWorkspace {
         collection: run.collection,
         files: run.files.length,
       })),
-      downloadedFiles: this.index.downloads.length,
+      workspaceFileCount: this.index.downloads.length,
     };
   }
   async download(
@@ -255,6 +255,12 @@ export class LocalWorkspace {
             ok: false,
             runId: parsed.runId,
             files,
+            transfer: {
+              selected: selected.length,
+              downloaded: files.filter((file) => !file.reused).length,
+              reused: files.filter((file) => file.reused).length,
+              remaining: selected.length - files.length,
+            },
             error: {
               code: "WORKSPACE_DOWNLOAD_INCOMPLETE",
               fileId: batch[failed]!.fileId ?? batch[failed]!.id,
@@ -266,7 +272,17 @@ export class LocalWorkspace {
           };
         }
       }
-      return { ...this.describe(), runId: parsed.runId, files };
+      return {
+        ...this.describe(),
+        runId: parsed.runId,
+        files,
+        transfer: {
+          selected: selected.length,
+          downloaded: files.filter((file) => !file.reused).length,
+          reused: files.filter((file) => file.reused).length,
+          remaining: 0,
+        },
+      };
     }
   }
   private async save() {

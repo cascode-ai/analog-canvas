@@ -64,6 +64,23 @@ describe("local simulation workspace", () => {
         roles: ["table"],
       });
       expect(reply.files).toHaveLength(1);
+      expect(reply.transfer).toEqual({
+        selected: 1,
+        downloaded: 1,
+        reused: 0,
+        remaining: 0,
+      });
+      const again = await base.sync(directory, fetch, undefined, {
+        analysisIndex: 1,
+        roles: ["table"],
+      });
+      expect(again.transfer).toEqual({
+        selected: 1,
+        downloaded: 0,
+        reused: 1,
+        remaining: 0,
+      });
+      expect(again.workspaceFileCount).toBe(1);
       expect(fetch.mock.calls).toHaveLength(1);
       expect(await readFile(reply.files[0]!.outputPath, "utf8")).toBe("b");
       expect(
@@ -100,9 +117,15 @@ describe("local simulation workspace", () => {
       expect(started.sort()).toEqual(["one", "two"]);
       expect(result).toMatchObject({ ok: false, error: { fileId: "one" } });
       expect(result.files).toHaveLength(1);
+      expect(result.transfer).toEqual({
+        selected: 3,
+        downloaded: 1,
+        reused: 0,
+        remaining: 2,
+      });
       expect(await readFile(result.files[0]!.outputPath, "utf8")).toBe("b");
       expect(await LocalWorkspace.inspect(root)).toMatchObject({
-        downloadedFiles: 1,
+        workspaceFileCount: 1,
       });
     } finally {
       release();
@@ -150,7 +173,7 @@ describe("local simulation workspace", () => {
       expect(offline).not.toHaveBeenCalled();
       expect(await LocalWorkspace.inspect(root)).toMatchObject({
         basePath: root,
-        downloadedFiles: 2,
+        workspaceFileCount: 2,
         runs: [{ runId: "run", files: 2 }],
       });
       expect(
@@ -208,7 +231,7 @@ describe("local simulation workspace", () => {
       const partial = await base.sync(catalog(files), fetch);
       expect(partial).toMatchObject({
         ok: false,
-        downloadedFiles: 1,
+        workspaceFileCount: 1,
         error: { fileId: "two" },
       });
       expect(await readFile(partial.files[0]!.outputPath, "utf8")).toBe("a");

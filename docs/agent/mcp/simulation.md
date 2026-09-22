@@ -32,6 +32,27 @@
    reports and diagnostics. If storage failed, `export` on the same run retries
    saving retained evidence without executing the simulation again.
 
+`sync.transfer` counts this request's selected, downloaded, reused and remaining
+files; `workspaceFileCount` counts files registered across local history.
+Argument validation failures return `INVALID_TOOL_INPUT` with field paths and
+`recovery:"fix-input"`; correct the arguments rather than reconnecting.
+
+For a single native ngspice Noise analysis in a fresh process, save both plots
+(the current plot after `noise` is the integral, not the spectrum):
+
+```spice
+set filetype=ascii
+set appendwrite
+noise v(out) Vinput dec 20 10 10Meg
+setplot noise1
+write out.raw all
+setplot noise2
+write out.raw all
+```
+
+Use your actual output node and input source. Multiple Noise analyses create
+additional plot pairs; select their actual names, not always `noise1/noise2`.
+
 Read [detailed contracts](simulation-reference.md) only when needed for device
 mapping, file editing, Batch, or recovery. Basic native OP/DC/AC/TRAN
 needs no helper-reading gate. One hosted simulation slot means sequential starts

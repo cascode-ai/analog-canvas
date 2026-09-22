@@ -38,6 +38,7 @@ import {
 } from "./results.js";
 import { exportFile, importFile } from "./file-operations.js";
 import { compactSchema } from "./compact-schema.js";
+import { inlineSchema } from "./inline-schema.js";
 import { waitForSimulation } from "./simulation-wait.js";
 
 /**
@@ -377,6 +378,24 @@ function textResult(value: unknown, isError = false): McpToolCallResult {
 }
 
 export function toolErrorResponse(error: unknown): McpToolCallResult {
+  if (error instanceof z.ZodError) {
+    return textResult(
+      {
+        ok: false,
+        error: {
+          code: "INVALID_TOOL_INPUT",
+          message: "Tool arguments do not match the input contract.",
+          recovery: "fix-input",
+          issues: error.issues.map(({ path, code, message }) => ({
+            path,
+            code,
+            message,
+          })),
+        },
+      },
+      true,
+    );
+  }
   if (error instanceof AgentSessionError) {
     return textResult(
       {
@@ -1053,6 +1072,15 @@ const TOOLS: readonly ToolEntry[] = [
 export function listToolDefinitions(): McpToolDefinition[] {
   return TOOLS.map(({ definition }) => {
     let schema = definition.inputSchema;
+    if (
+      [
+        "simulation",
+        "simulation_files",
+        "simulation_folder",
+        "connect",
+      ].includes(definition.name)
+    )
+      return { ...definition, inputSchema: inlineSchema(schema) };
     if (definition.name === "simulation_output") {
       // The legacy depth-bounded expression tree is large even with refs.
       // Keep its full contract discoverable without loading it for native runs.
@@ -1070,12 +1098,19 @@ export function listToolDefinitions(): McpToolDefinition[] {
       }
     }
     const compact = compactSchema(schema);
+    const advertised =
+      JSON.stringify(compact).length < JSON.stringify(schema).length
+        ? compact
+        : schema;
+    if (definition.name === "advanced_transact") {
+      const properties = advertised.properties as Record<string, unknown>;
+      properties.dryRun = (
+        inlineSchema(schema).properties as Record<string, unknown>
+      ).dryRun;
+    }
     return {
       ...definition,
-      inputSchema:
-        JSON.stringify(compact).length < JSON.stringify(schema).length
-          ? compact
-          : schema,
+      inputSchema: advertised,
     };
   });
 }
