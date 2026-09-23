@@ -10,6 +10,7 @@ export * from "./mcp-distribution.js";
 export * from "./openapi.js";
 export * from "./platform.js";
 export * from "./request-contract.js";
+export * from "./request-replay.js";
 export * from "./schema.js";
 export * from "./service.js";
 export * from "./session-state.js";

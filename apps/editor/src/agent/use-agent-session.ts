@@ -10,6 +10,10 @@ import {
   AgentSessionEventSchema,
   AgentSessionMessageSchema,
   AgentSessionScopeSchema,
+  isReadOnlyCircuitRequest,
+  isReadOnlyFileRequest,
+  isReadOnlySimulationRequest,
+  isReadOnlyProjectRequest,
   parseAgentFileResourceRequest,
   parseAgentSimulationResourceRequest,
   parseAgentProjectResourceRequest,
@@ -783,6 +787,8 @@ export function useAgentSession(
                   }),
                 )
                 .finally(() => {
+                  if (isReadOnlyFileRequest(fileRequest.data))
+                    live.requestHashes.delete(parsed.data.requestId);
                   if (liveRef.current === live)
                     update({ status: live.paused ? "paused" : "connected" });
                 });
@@ -867,6 +873,8 @@ export function useAgentSession(
                   }),
                 )
                 .finally(() => {
+                  if (isReadOnlySimulationRequest(simulationRequest.data))
+                    live.requestHashes.delete(parsed.data.requestId);
                   if (liveRef.current === live)
                     update({ status: live.paused ? "paused" : "connected" });
                 });
@@ -959,6 +967,8 @@ export function useAgentSession(
                   }),
                 )
                 .finally(() => {
+                  if (isReadOnlyProjectRequest(projectRequest.data))
+                    live.requestHashes.delete(parsed.data.requestId);
                   if (liveRef.current === live)
                     update({ status: live.paused ? "paused" : "connected" });
                 });
@@ -1065,6 +1075,11 @@ export function useAgentSession(
             )
               sendHeartbeat(live, socket);
             sendResponse(result);
+            if (
+              circuitRequest.success &&
+              isReadOnlyCircuitRequest(circuitRequest.data)
+            )
+              live.requestHashes.delete(parsed.data.requestId);
             if (
               result.ok &&
               result.operation === "transact" &&
