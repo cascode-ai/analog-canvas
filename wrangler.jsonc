@@ -15,6 +15,7 @@
     },
   ],
   "vars": {
+    "SIMULATION_DISPATCH": "alarm",
     "SIMULATION_UPSTREAM_URL": "https://sim-fra.analog-canvas.tokenzhang.com",
     "SIMULATION_DEFAULT_EXECUTOR": "operator-host",
     // The second engine is selected only by its Profile. It has its own

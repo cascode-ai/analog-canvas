@@ -30,6 +30,102 @@ function startRequest() {
 }
 
 describe("managed simulation operations", () => {
+  it("dispatches idle work from its durable alarm without Queue or a live start request", async () => {
+    const h = harness("alarm");
+    try {
+      const execute = vi.fn(async (_url: string, init?: RequestInit) =>
+        nativeStreamingReply(JSON.parse(String(init?.body)), false),
+      );
+      h.env.VACASK = nativeWorkerEnv(execute).VACASK;
+      const response = await routeManagedSimulationRequest(
+        startRequest(),
+        h.env,
+        h.runtime,
+      );
+      const id = (await response!.json()).run.id;
+      expect(h.jobs).toHaveLength(0);
+      expect(await h.state.storage.getAlarm()).toBe(101);
+      // No client request stays open while the alarm owns execution.
+      await h.control.alarm();
+      const run = await (
+        await h.control.fetch(new Request(`https://control/runs/${id}`))
+      ).json();
+      expect(run.run.state).toBe("succeeded");
+      expect(execute).toHaveBeenCalledOnce();
+      const result = await routeManagedSimulationRequest(
+        new Request(`https://canvas.test/api/simulation/runs/${id}/result`),
+        h.env,
+        h.runtime,
+      );
+      for (const metric of ["inputReadMs", "upstreamMs", "resultCommitMs"]) {
+        expect(result!.headers.has(`x-analog-canvas-${metric}`)).toBe(true);
+        expect(
+          Number(result!.headers.get(`x-analog-canvas-${metric}`)),
+        ).toBeGreaterThanOrEqual(0);
+      }
+      const oldDelivery = {
+        body: { schemaVersion: 1 as const, runId: id },
+        ack: vi.fn(),
+        retry: vi.fn(),
+      };
+      await consumeSimulationJobs(
+        { messages: [oldDelivery] },
+        h.env,
+        h.runtime,
+      );
+      expect(oldDelivery.ack).toHaveBeenCalledOnce();
+      expect(execute).toHaveBeenCalledOnce();
+    } finally {
+      h.close();
+    }
+  });
+  it("arbitrates the same global slot against a concurrent legacy delivery and then drains waiting work", async () => {
+    const h = harness("alarm");
+    try {
+      let release!: () => void;
+      const wait = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const execute = vi.fn(async (_url: string, init?: RequestInit) => {
+        await wait;
+        return nativeStreamingReply(JSON.parse(String(init?.body)), false);
+      });
+      h.env.VACASK = nativeWorkerEnv(execute).VACASK;
+      await routeManagedSimulationRequest(startRequest(), h.env, h.runtime);
+      const alarm = h.control.alarm();
+      await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce());
+      const other = {
+        ...h.runtime,
+        principalOf: async () => ({
+          ...(await h.runtime.principalOf())!,
+          id: "other-owner",
+        }),
+      };
+      const queued = await routeManagedSimulationRequest(
+        startRequest(),
+        h.env,
+        other,
+      );
+      const id = (await queued!.json()).run.id;
+      const racing = {
+        body: { schemaVersion: 1 as const, runId: id },
+        ack: vi.fn(),
+        retry: vi.fn(),
+      };
+      await consumeSimulationJobs({ messages: [racing] }, h.env, h.runtime);
+      expect(racing.retry).toHaveBeenCalledOnce();
+      expect(execute).toHaveBeenCalledOnce();
+      release();
+      await alarm;
+      expect(execute).toHaveBeenCalledTimes(2);
+      const run = await (
+        await h.control.fetch(new Request(`https://control/runs/${id}`))
+      ).json();
+      expect(run.run.state).toBe("succeeded");
+    } finally {
+      h.close();
+    }
+  });
   it("reuses completed admissions without sending another queue delivery", async () => {
     const { env, jobs, runtime, close } = harness();
     try {
