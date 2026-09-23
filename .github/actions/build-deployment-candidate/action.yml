@@ -25,7 +25,6 @@ runs:
       shell: bash
       run: pnpm --filter @icm/spice-run... --filter @icm/editor... --filter @icm/mcp-server... build
       env:
-        VITE_ICM_TIMING_UI: disabled
         # Both hosted channels expose the accepted Simulation/Agent surfaces,
         # and Production may deploy the bytes Preview accepted.
         VITE_ICM_SIMULATION_UI: enabled

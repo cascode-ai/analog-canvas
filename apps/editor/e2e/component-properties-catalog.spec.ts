@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { createEmptyProject } from "@icm/model";
 
 import {
   revealPropertiesShelf,
@@ -27,10 +28,35 @@ for (const symbolId of componentSymbolIds) {
     page,
   }) => {
     await page.goto("/editor");
-    await chooseComponent(page, symbolId);
-    const canvas = page.getByTestId("schematic-canvas");
-    await canvas.click({ position: { x: 520, y: 350 } });
-    await page.keyboard.press("Escape");
+    if (symbolId === "pulse-voltage-source") {
+      // Retired from insertion, but saved Projects must keep their clock
+      // component and its editable Properties surface.
+      const project = createEmptyProject("legacy-clock", "Legacy Clock");
+      project.documents[0]!.instances.push({
+        id: "CLK",
+        symbolId,
+        placement: {
+          position: { x: 520, y: 350 },
+          rotation: 0,
+          mirror: "none",
+        },
+        reference: "V1",
+        netlist: {
+          parameters: { period: "10ns", dutyCycle: "50", initial: "0" },
+        },
+      });
+      await revealPropertiesShelf(page);
+      await page.getByTestId("project-file").setInputFiles({
+        name: "legacy-clock.icproj.json",
+        mimeType: "application/json",
+        buffer: Buffer.from(JSON.stringify(project)),
+      });
+    } else {
+      await chooseComponent(page, symbolId);
+      const canvas = page.getByTestId("schematic-canvas");
+      await canvas.click({ position: { x: 520, y: 350 } });
+      await page.keyboard.press("Escape");
+    }
 
     const instance = page.locator('[data-canvas-hit-kind="instance"]');
     await expect(instance).toHaveCount(1);

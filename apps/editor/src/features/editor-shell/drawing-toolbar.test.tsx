@@ -16,7 +16,6 @@ describe("DrawingToolbar", () => {
         documentSettingsOpen
         undo={{ enabled: true, execute: vi.fn() }}
         redo={{ enabled: true, execute: vi.fn() }}
-        simulation={{ open: true, onToggle: vi.fn() }}
         onToggleExamples={vi.fn()}
         onToggleLibrary={vi.fn()}
         onToggleNetlist={vi.fn()}
@@ -43,8 +42,8 @@ describe("DrawingToolbar", () => {
     expect(markup).not.toContain('data-testid="draw-tool-circle"');
     expect(markup).toContain("Properties: Ports, canvas, and selected objects");
     expect(markup).toContain("Properties</span>");
-    expect(markup).toContain('data-testid="digital-simulation-toggle"');
-    expect(markup).toContain("Digital Simulation");
+    expect(markup).not.toContain('data-testid="digital-simulation-toggle"');
+    expect(markup).not.toContain("Digital Simulation");
     expect(markup).toContain('aria-label="Panels"');
     expect(markup).toContain('aria-label="Annotation tools"');
   });

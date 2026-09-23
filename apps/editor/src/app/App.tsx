@@ -54,7 +54,7 @@ interface ComponentEditorSession {
   entry?: SharedComponent;
   target?: { projectSessionId: string; documentId: string; instance: Instance };
 }
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties } from "react";
 import "../styles/editor-entry.css";
 import type {
   AgentHostSemanticIntentRequest,
@@ -98,11 +98,8 @@ import {
 import type {
   CircuitProject,
   DerivedPoint,
-  DraftingObject,
   GridRect,
-  LayoutGroup,
   Point,
-  Rect,
   Rotation,
   SchematicDocument,
 } from "@icm/model";
@@ -137,11 +134,7 @@ import {
   createCameraRuntime,
   type CameraRuntime,
 } from "../canvas/camera-runtime";
-import {
-  startCanvasDragSession,
-  type CanvasDragSession,
-} from "../canvas/canvas-drag-session";
-import { startCanvasDragVisual } from "../canvas/canvas-drag-visual";
+import type { CanvasDragSession } from "../canvas/canvas-drag-session";
 import { instanceVisibleHitBox } from "../canvas/instance-geometry";
 import {
   loadReleaseChannel,
@@ -187,13 +180,7 @@ import {
   sameSimulationOccurrence,
   terminalCurrentDirectionPartners,
 } from "../features/simulation/terminal-current-pick";
-import { TimingSimulationPanel } from "../features/simulation/timing-simulation-panel";
-import { TIMING_UI_ENABLED } from "../features/simulation/timing-ui";
 import { PUBLIC_SIMULATION_UI_ENABLED } from "../features/simulation/public-simulation-ui";
-import {
-  waveformDraftingObjects,
-  type TimingWaveformLayout,
-} from "../features/simulation/timing-waveform";
 import { useCellSymbolLayout } from "../features/hierarchy/use-cell-symbol-layout";
 import { selectedBlockSymbolTarget } from "../features/hierarchy/block-symbol-layout-target";
 import {
@@ -264,6 +251,7 @@ import {
 } from "../features/editor-shell/gallery-publish";
 import {
   announceGalleryChange,
+  localhostExamplesEnabled,
   primeGalleryPreview,
   subscribeGalleryRefresh,
 } from "../gallery-client";
@@ -275,10 +263,6 @@ import {
   type SubmissionGateReport,
 } from "@icm/derived";
 import {
-  createLibraryExampleProject,
-  libraryProjectExamples,
-} from "../examples/library-examples";
-import {
   EditorDocumentController,
   useDocumentController,
 } from "../document/document-controller";
@@ -288,11 +272,6 @@ import { ProjectTabs } from "../features/editor-shell/project-tabs";
 import type { ReplaceProjectOptions } from "../document/use-project-file-lifecycle";
 import { useUnsavedWorkGuard } from "../document/use-unsaved-work-guard";
 import { authoredObjectCount } from "../document/project-content";
-import { translateDraftingObject } from "../features/drafting/drafting-manipulation";
-import {
-  draftingGroupScaleRange,
-  scaleDraftingGroup,
-} from "../features/drafting/drafting-group-scale";
 import { createDraftingCommands } from "../features/drafting/drafting-commands";
 import {
   createDraftingCreateController,
@@ -410,12 +389,6 @@ import { buildSceneSnapTargetIndex } from "../snap/candidates";
 import { snapCoordinate } from "../snap/engine";
 import type { SnapGuideLine } from "../snap/engine";
 
-interface PendingWaveformPlacement {
-  groupId: string;
-  objects: DraftingObject[];
-  traceCount: number;
-}
-
 const DEFAULT_VIEWBOX: GridRect = { x: 0, y: 0, width: 960, height: 640 };
 const RECENT_COMPONENTS_STORAGE_KEY = "icm.recent-components.v1";
 const LIBRARY_PANEL_STORAGE_KEY = "icm.library-panel-open.v1";
@@ -470,8 +443,6 @@ export interface AppProps {
   publicAgentUiEnabled?: boolean;
   /** Override the deployment's analog Simulation UI capability in tests. */
   publicSimulationUiEnabled?: boolean;
-  /** Test/staging seam; production Cloudflare builds keep timing tools hidden. */
-  timingUiEnabled?: boolean;
   /** `/g/<id>` deep link: load this gallery entry after boot. */
   initialGalleryEntryId?: string | null;
 }
@@ -545,7 +516,6 @@ function WorkspaceEditor({
   visitStats,
   publicAgentUiEnabled = PUBLIC_AGENT_UI_ENABLED,
   publicSimulationUiEnabled = PUBLIC_SIMULATION_UI_ENABLED,
-  timingUiEnabled = TIMING_UI_ENABLED,
   initialGalleryEntryId = null,
   restoredWorkspace,
   workspaceError,
@@ -1621,7 +1591,6 @@ function WorkspaceEditor({
     useState<HighlightedNetOrigin | null>(null);
   const [codeNetPreview, setCodeNetPreview] =
     useState<HighlightedNetOrigin | null>(null);
-  const [simulationWindowOpen, setSimulationWindowOpen] = useState(false);
   const [simulationPickMode, setSimulationPickModeState] = useState<
     "net" | "terminal" | null
   >(null);
@@ -1631,9 +1600,6 @@ function WorkspaceEditor({
   const [simulationHoverNetId, setSimulationHoverNetId] = useState<
     string | null
   >(null);
-  const [simulationSavedNetIds, setSimulationSavedNetIds] = useState<
-    Set<string>
-  >(() => new Set());
   const [analogPickedNet, setAnalogPickedNet] = useState<{
     sequence: number;
     documentId: string;
@@ -1656,10 +1622,6 @@ function WorkspaceEditor({
       partnerPinNames: readonly string[];
       occurrence?: readonly string[];
     } | null>(null);
-  const [pendingWaveformPlacement, setPendingWaveformPlacement] =
-    useState<PendingWaveformPlacement | null>(null);
-  const [waveformPlacementPoint, setWaveformPlacementPoint] =
-    useState<Point | null>(null);
   useEffect(() => {
     // Net-pick is a hierarchy traversal mode: keep it armed while the author
     // enters a DUT Cell, so an internal Net can be picked with its occurrence
@@ -1667,9 +1629,6 @@ function WorkspaceEditor({
     if (!analogSimulationOpen) setSimulationPickModeState(null);
     setSimulationTerminalPickStart(null);
     setSimulationHoverNetId(null);
-    setSimulationSavedNetIds(new Set());
-    setPendingWaveformPlacement(null);
-    setWaveformPlacementPoint(null);
   }, [document.id]);
   useEffect(() => {
     setSimulationPickModeState(null);
@@ -1733,29 +1692,8 @@ function WorkspaceEditor({
         },
       };
     }
-    if (pendingWaveformPlacement && waveformPlacementPoint) {
-      const previewObjects = pendingWaveformPlacement.objects.map((object) =>
-        translateDraftingObject(
-          object,
-          waveformPlacementPoint,
-          document.presentation.grid,
-        ),
-      );
-      rendered = {
-        ...rendered,
-        drafting: {
-          objects: [...(rendered.drafting?.objects ?? []), ...previewObjects],
-        },
-      };
-    }
     return rendered;
-  }, [
-    document,
-    draftingHandlePreview,
-    pendingWaveformPlacement,
-    projectedMovePreviewDocument,
-    waveformPlacementPoint,
-  ]);
+  }, [document, draftingHandlePreview, projectedMovePreviewDocument]);
   const lastGoodSceneRef = useRef<ReturnType<typeof buildSvgScene> | null>(
     null,
   );
@@ -1992,22 +1930,6 @@ function WorkspaceEditor({
     bulkDrawInstanceId,
   });
   const netChoices = useMemo(() => logicalNetChoices(document), [document]);
-  useEffect(() => {
-    setSimulationSavedNetIds((current) => {
-      const canonical = new Set<string>();
-      for (const netId of current) {
-        const group = logicalNets.byBaseNetId.get(netId);
-        if (group) canonical.add(group.baseNetIds[0]!);
-      }
-      if (
-        canonical.size === current.size &&
-        [...canonical].every((netId) => current.has(netId))
-      ) {
-        return current;
-      }
-      return canonical;
-    });
-  }, [logicalNets]);
   const selectedNetNameAnnotation =
     selectedAnnotation?.binding?.kind === "net-name" &&
     (selectedAnnotation.kind === "net-label" ||
@@ -2232,31 +2154,21 @@ function WorkspaceEditor({
       ),
     [simulationCurrentTargetsInView],
   );
-  const toggleSimulationSavedNet = (netId: string): void => {
+  const pickAnalogSimulationNet = (netId: string): void => {
     const baseNetId = canonicalSimulationNetId(netId);
     if (!baseNetId) {
       setStatus(`Could not resolve Net ${netId}`);
       return;
     }
     const group = logicalNets.byBaseNetId.get(baseNetId);
-    if (analogSimulationOpen) {
-      const occurrence = activeSimulationPickOccurrence();
-      setAnalogPickedNet((current) => ({
-        sequence: (current?.sequence ?? 0) + 1,
-        documentId: document.id,
-        netId: baseNetId,
-        ...(occurrence === undefined ? {} : { occurrence }),
-      }));
-      setStatus(`Added voltage Output ${group?.name ?? baseNetId}`);
-      return;
-    }
-    setSimulationSavedNetIds((current) => {
-      const next = new Set(current);
-      if (next.has(baseNetId)) next.delete(baseNetId);
-      else next.add(baseNetId);
-      return next;
-    });
-    setStatus(`Toggled saved Net ${group?.name ?? baseNetId}`);
+    const occurrence = activeSimulationPickOccurrence();
+    setAnalogPickedNet((current) => ({
+      sequence: (current?.sequence ?? 0) + 1,
+      documentId: document.id,
+      netId: baseNetId,
+      ...(occurrence === undefined ? {} : { occurrence }),
+    }));
+    setStatus(`Added voltage Output ${group?.name ?? baseNetId}`);
   };
   const pickSimulationTerminal = (endpoint: WireSource): void => {
     if (endpoint.endpoint.kind !== "terminal" || !analogSimulationOpen) return;
@@ -3318,7 +3230,6 @@ function WorkspaceEditor({
         (pendingSymbolId && pendingComponentPlacement) ||
         vddRailMode ||
         copyPlacement !== null ||
-        pendingWaveformPlacement !== null ||
         netLabelPlacement?.phase === "placing",
       ),
       tool,
@@ -3365,7 +3276,7 @@ function WorkspaceEditor({
                 ? document.junctions.find((junction) => junction.id === id)
                     ?.netId
                 : undefined;
-        if (netId) toggleSimulationSavedNet(netId);
+        if (netId) pickAnalogSimulationNet(netId);
       },
       consumeArmedVerb: (kind, id) => {
         if (kind === "instance") return consumeArmedVerbOnInstance(id);
@@ -3459,12 +3370,6 @@ function WorkspaceEditor({
       setVddRailPreviewPoint,
       copyPlacementPending: copyPlacement !== null,
       setCopyPreviewPoint,
-      waveformPlacementPending: pendingWaveformPlacement !== null,
-      setWaveformPreviewPoint: (point) =>
-        setWaveformPlacementPoint({
-          x: snapCoordinate(point.x, document.presentation.grid),
-          y: snapCoordinate(point.y, document.presentation.grid),
-        }),
     },
     drafting: {
       tool,
@@ -3769,22 +3674,31 @@ function WorkspaceEditor({
       return;
     }
     if (exampleId) {
-      const exampleProject = createLibraryExampleProject(exampleId);
-      const example = libraryProjectExamples.find(
-        (candidate) => candidate.id === exampleId,
-      );
-      if (exampleProject && example) {
-        replaceActiveProject(
-          prepareNetlistExample(
-            exampleProject,
-            netlistPreferences.preferences.profiles[
-              netlistPreferences.selected
-            ],
-          ),
-          DEFAULT_VIEWBOX,
-        );
-        setStatus(`Opened example: ${example.name}`);
+      if (!localhostExamplesEnabled()) {
+        setStatus("Built-in examples are available only on localhost");
+        return;
       }
+      void import("../examples/library-examples")
+        .then(({ createLibraryExampleProject, libraryProjectExamples }) => {
+          const exampleProject = createLibraryExampleProject(exampleId);
+          const example = libraryProjectExamples.find(
+            (candidate) => candidate.id === exampleId,
+          );
+          if (!exampleProject || !example) return;
+          replaceActiveProject(
+            prepareNetlistExample(
+              exampleProject,
+              netlistPreferences.preferences.profiles[
+                netlistPreferences.selected
+              ],
+            ),
+            DEFAULT_VIEWBOX,
+          );
+          setStatus(`Opened example: ${example.name}`);
+        })
+        .catch(() => {
+          setStatus("Built-in example could not load");
+        });
     }
   }, [initialGalleryEntryId, restoreAfterRefresh]);
 
@@ -4472,13 +4386,6 @@ function WorkspaceEditor({
         setSimulationPickMode(null);
         return;
       }
-      if (event.key === "Escape" && pendingWaveformPlacement) {
-        event.preventDefault();
-        setPendingWaveformPlacement(null);
-        setWaveformPlacementPoint(null);
-        setStatus("Waveform placement cancelled");
-        return;
-      }
       if (event.key === "Escape" && searchOpen) {
         event.preventDefault();
         closeSearch();
@@ -4677,139 +4584,6 @@ function WorkspaceEditor({
     return () => window.removeEventListener("keydown", onKeyDown, true);
   });
 
-  const beginWaveformPlacement = (layout: TimingWaveformLayout): void => {
-    const objects = waveformDraftingObjects(
-      layout,
-      { x: 0, y: 0 },
-      (prefix) => {
-        uniqueSuffixCounter.current += 1;
-        return `${prefix}-${uniqueSuffixCounter.current}`;
-      },
-    );
-    uniqueSuffixCounter.current += 1;
-    const groupId = `waveform-group-${uniqueSuffixCounter.current}`;
-    setSimulationPickMode(null);
-    setPendingWaveformPlacement({
-      groupId,
-      objects,
-      traceCount: layout.rows.length,
-    });
-    const pointer = lastCanvasPointRef.current;
-    setWaveformPlacementPoint(
-      pointer
-        ? {
-            x: snapCoordinate(pointer.x, document.presentation.grid),
-            y: snapCoordinate(pointer.y, document.presentation.grid),
-          }
-        : null,
-    );
-    setStatus("Place waveform: move over the canvas and click · Esc cancels");
-  };
-
-  const commitWaveformPlacement = (point: Point): void => {
-    if (!pendingWaveformPlacement) return;
-    const snapped = {
-      x: snapCoordinate(point.x, document.presentation.grid),
-      y: snapCoordinate(point.y, document.presentation.grid),
-    };
-    const objects = pendingWaveformPlacement.objects.map((object) =>
-      translateDraftingObject(object, snapped, document.presentation.grid),
-    );
-    const placed = transact([
-      ...objects.map((object) => ({
-        kind: "upsert_drafting_object" as const,
-        object,
-      })),
-      {
-        kind: "set_layout_group" as const,
-        group: {
-          id: pendingWaveformPlacement.groupId,
-          kind: "custom" as const,
-          objectIds: objects.map((object) => object.id),
-          locked: false,
-        },
-      },
-    ]);
-    if (!placed.ok) return;
-    selectOnly(
-      "drafting",
-      objects.map((object) => object.id),
-    );
-    setPendingWaveformPlacement(null);
-    setWaveformPlacementPoint(null);
-    setStatus(
-      `Placed a grouped timing snapshot with ${pendingWaveformPlacement.traceCount} trace${pendingWaveformPlacement.traceCount === 1 ? "" : "s"}`,
-    );
-  };
-
-  const beginWaveformGroupScale = (
-    event: ReactPointerEvent<SVGElement>,
-    group: LayoutGroup,
-    bounds: Rect,
-  ): void => {
-    if (event.button !== 0 || group.locked) return;
-    event.preventDefault();
-    event.stopPropagation();
-    canvasDragSessionRef.current?.cancel();
-    const target = event.currentTarget;
-    const svg = target.ownerSVGElement!;
-    const pivot = { x: bounds.x, y: bounds.y };
-    const originalRadius = Math.max(1, Math.hypot(bounds.width, bounds.height));
-    const scaleRange = draftingGroupScaleRange(document, group.objectIds);
-    if (!scaleRange) {
-      setStatus("This waveform group cannot scale");
-      return;
-    }
-    const factorAt = (client: Point): number => {
-      const point = pointFromClient(client.x, client.y, svg, false);
-      return Math.min(
-        scaleRange.max,
-        Math.max(
-          scaleRange.min,
-          Math.hypot(point.x - pivot.x, point.y - pivot.y) / originalRadius,
-        ),
-      );
-    };
-    const visual = startCanvasDragVisual(svg, group.objectIds);
-    canvasDragSessionRef.current = startCanvasDragSession({
-      target,
-      pointerId: event.pointerId,
-      startClient: { x: event.clientX, y: event.clientY },
-      thresholdPx: DRAG_START_DISTANCE_PX,
-      onPreview: (client) => visual.scale(pivot, factorAt(client)),
-      onFinish: ({ client, dragged }) => {
-        canvasDragSessionRef.current = null;
-        visual.restore();
-        if (!dragged) return;
-        const factor = factorAt(client);
-        const objects = scaleDraftingGroup(
-          document,
-          group.objectIds,
-          pivot,
-          factor,
-        );
-        if (!objects) {
-          setStatus("This waveform group contains an object that cannot scale");
-          return;
-        }
-        if (
-          transact(
-            objects.map((object) => ({
-              kind: "upsert_drafting_object" as const,
-              object,
-            })),
-          ).ok
-        ) {
-          setStatus(`Scaled waveform to ${Math.round(factor * 100)}%`);
-        }
-      },
-      onCancel: () => {
-        canvasDragSessionRef.current = null;
-        visual.restore();
-      },
-    });
-  };
-
   const canvasEventHandlers = createEditorCanvasEventHandlers({
     model: { tool, document, resolver, selectionPolicy },
     session: {
@@ -4889,19 +4663,16 @@ function WorkspaceEditor({
       pendingSymbolId,
       pendingComponentPlacement: Boolean(pendingComponentPlacement),
       vddRailMode,
-      waveformPlacementActive: pendingWaveformPlacement !== null,
       snapPlacementPoint: (point, svg) =>
         resolvePendingPlacementPoint(point, svg).point,
       commitCopyPlacement: commitCopyPlacementFromSelection,
       commitPendingPlacement: commitPendingPlacementAtFromHook,
-      commitWaveformPlacement,
       clearComponentPreview: () => setComponentPreviewPoint(null),
       clearVddRailPreview: () => setVddRailPreviewPoint(null),
       clearCopyPreview: () => {
         setCopyPreviewPoint(null);
         paintSnapGuides([]);
       },
-      clearWaveformPreview: () => setWaveformPlacementPoint(null),
     },
     gesture: {
       begin: beginCanvasGesture,
@@ -5654,19 +5425,6 @@ function WorkspaceEditor({
             setProjectPanel(null);
             setSelectionOpen(true);
           },
-          ...(timingUiEnabled
-            ? {
-                simulation: {
-                  open: simulationWindowOpen,
-                  onToggle: () => {
-                    setSimulationWindowOpen((open) => {
-                      if (open) setSimulationPickMode(null);
-                      return !open;
-                    });
-                  },
-                },
-              }
-            : {}),
         }}
         hierarchyToolbar={{
           documents: project.documents,
@@ -7452,7 +7210,6 @@ function WorkspaceEditor({
             pendingSymbolId || vddRailMode || copyPlacement
               ? "component-mode"
               : "",
-            pendingWaveformPlacement ? "waveform-placement-active" : "",
             tool === "arrow" ||
             tool === "polyline" ||
             tool === "construction-line" ||
@@ -7660,7 +7417,7 @@ function WorkspaceEditor({
                     const route = document.routes.find(
                       (candidate) => candidate.id === routeId,
                     );
-                    if (route) toggleSimulationSavedNet(route.netId);
+                    if (route) pickAnalogSimulationNet(route.netId);
                   }
                   return;
                 }
@@ -7766,7 +7523,7 @@ function WorkspaceEditor({
               onJunctionSelect: (candidate) => {
                 if (simulationPickActive) {
                   if (simulationPickNetsActive && candidate.netId)
-                    toggleSimulationSavedNet(candidate.netId);
+                    pickAnalogSimulationNet(candidate.netId);
                   return;
                 }
                 if (
@@ -7788,7 +7545,7 @@ function WorkspaceEditor({
                   if (simulationPickTerminalsActive)
                     pickSimulationTerminal(candidate);
                   else if (candidate.netId)
-                    toggleSimulationSavedNet(candidate.netId);
+                    pickAnalogSimulationNet(candidate.netId);
                   return;
                 }
                 // Middle press over an endpoint cycles the wire corner just
@@ -7862,26 +7619,9 @@ function WorkspaceEditor({
               selectionPolicy.allowsDrafting(selectedDrafting, "handle")
                 ? selectedDraftingId
                 : null,
-            selectedDraftingIds:
-              selectionPolicy.retainSelection(visualSelection).draftingIds,
             onHandlePointerDown: (event, object, handle) => {
               if (!selectionPolicy.allowsDrafting(object, "handle")) return;
               beginDraftingHandleDrag(event, object, handle);
-            },
-            onGroupScalePointerDown: (event, group, bounds) => {
-              if (
-                !group.objectIds.every((id) => {
-                  const object = document.drafting?.objects.find(
-                    (candidate) => candidate.id === id,
-                  );
-                  return (
-                    object !== undefined &&
-                    selectionPolicy.allowsDrafting(object, "handle")
-                  );
-                })
-              )
-                return;
-              beginWaveformGroupScale(event, group, bounds);
             },
             onDeleteVertex: deleteConstructionVertex,
           }}
@@ -7992,24 +7732,6 @@ function WorkspaceEditor({
           />
         ) : null}
       </div>
-      {timingUiEnabled ? (
-        <TimingSimulationPanel
-          key={document.id}
-          document={document}
-          open={simulationWindowOpen}
-          savedNetIds={simulationSavedNetIds}
-          pickNetsActive={simulationPickNetsActive}
-          onOpenChange={(open) => {
-            setSimulationWindowOpen(open);
-            if (!open) setSimulationPickMode(null);
-          }}
-          onPickNetsChange={setSimulationNetPickMode}
-          onToggleSavedNet={toggleSimulationSavedNet}
-          onSetSavedNets={(netIds) => setSimulationSavedNetIds(new Set(netIds))}
-          onStatus={setStatus}
-          onPlaceOnCanvas={beginWaveformPlacement}
-        />
-      ) : null}
       {componentEditor ? (
         <Suspense fallback={null}>
           <ComponentDefinitionEditor

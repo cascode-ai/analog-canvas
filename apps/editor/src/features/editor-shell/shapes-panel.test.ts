@@ -20,7 +20,7 @@ describe("shapes quick-place", () => {
       }),
     );
 
-    expect(symbols).toHaveLength(70);
+    expect(symbols).toHaveLength(69);
     expect(markup).toContain("All devices");
     expect(markup.match(/data-testid="shapes-chip-/g)).toHaveLength(
       symbols.length,
@@ -35,7 +35,7 @@ describe("shapes quick-place", () => {
       ["Transistors", 4],
       ["Passives", 4],
       ["Power and Ports", 5],
-      ["Sources", 3],
+      ["Sources", 2],
       ["Switches", 6],
       ["Analog Blocks", 10],
       ["Logic Gates", 12],
@@ -69,7 +69,7 @@ describe("shapes quick-place", () => {
     expect(markup.match(/class="shapes-category" open=""/g)).toHaveLength(10);
     expect(markup.match(/class="shapes-category-header"/g)).toHaveLength(10);
     expect(markup).toContain('aria-label="Place Independent Voltage Source"');
-    expect(markup).toContain('aria-label="Place Digital Clock"');
+    expect(markup).not.toContain('aria-label="Place Digital Clock"');
     expect(markup).toContain('title="Place Capacitor"');
     expect(markup).toContain('aria-label="Place T-Coil"');
     expect(markup).toContain('aria-label="Place XFMR"');
@@ -96,7 +96,7 @@ describe("shapes quick-place", () => {
     );
     expect(markup).not.toContain("High-voltage devices");
     expect(markup).toContain(">V Src</span>");
-    expect(markup).toContain(">Clock</span>");
+    expect(markup).not.toContain(">Clock</span>");
     expect(markup).toContain(">Cap</span>");
     expect(markup).toContain(">Var Res</span>");
     expect(markup).toContain(">Inv</span>");

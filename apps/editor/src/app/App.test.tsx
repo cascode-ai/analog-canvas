@@ -256,18 +256,12 @@ describe("editor shell", () => {
     expect(project.simulationFolders).toEqual(persistedSimulation);
   });
 
-  it("keeps the timing surface behind its deployment flag", () => {
+  it("does not expose the retired Digital Timing surface", () => {
     const project = createEmptyProject("timing-flag", "Timing Flag");
-    const localMarkup = renderToStaticMarkup(
-      <App project={project} timingUiEnabled />,
-    );
-    const productionMarkup = renderToStaticMarkup(
-      <App project={project} timingUiEnabled={false} />,
-    );
+    const markup = renderToStaticMarkup(<App project={project} />);
 
-    expect(localMarkup).toContain('title="Digital Simulation"');
-    expect(productionMarkup).not.toContain('title="Digital Simulation"');
-    expect(localMarkup).not.toContain('data-testid="timing-simulation-panel"');
+    expect(markup).not.toContain('title="Digital Simulation"');
+    expect(markup).not.toContain('data-testid="timing-simulation-panel"');
   });
 
   it("links to first-party visitor analytics without crowding editor commands", () => {

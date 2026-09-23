@@ -121,7 +121,7 @@ describe("EditorDraftingHitTargets", () => {
 });
 
 describe("EditorDraftingHandles", () => {
-  it("shows one uniform scale handle for a selected waveform group", () => {
+  it("treats a historical waveform group as ordinary drafting geometry", () => {
     const document = createEmptyDocument("main", "Waveform");
     document.drafting = {
       objects: [
@@ -164,20 +164,13 @@ describe("EditorDraftingHandles", () => {
           document={document}
           resolver={resolver}
           selectedDraftingId="wave-b"
-          selectedDraftingIds={["wave-a", "wave-b"]}
           onHandlePointerDown={vi.fn()}
-          onGroupScalePointerDown={vi.fn()}
           onDeleteVertex={vi.fn()}
         />
       </svg>,
     );
 
-    expect(markup).toContain(
-      'data-testid="drafting-group-handles-waveform-group-1"',
-    );
-    expect(markup).toContain(
-      'data-testid="draft-group-scale-waveform-group-1"',
-    );
-    expect(markup).not.toContain("draft-handle-vx-");
+    expect(markup).toContain('data-testid="drafting-handles-wave-b"');
+    expect(markup).not.toContain("draft-group-scale-");
   });
 });
