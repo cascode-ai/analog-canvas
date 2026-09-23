@@ -45,9 +45,9 @@ export async function vectorizeFormalSvgInBrowser(
     precision: 16,
   });
   pdf.setProperties({
-    title: "Interactive Circuit Maker schematic",
-    author: "Interactive Circuit Maker",
-    creator: `Interactive Circuit Maker exporter ${EXPORT_VERSION}`,
+    title: "Analog Canvas schematic",
+    author: "Analog Canvas",
+    creator: `Analog Canvas exporter ${EXPORT_VERSION}`,
   });
   pdf.setCreationDate(new Date("2000-01-01T00:00:00.000Z"));
 

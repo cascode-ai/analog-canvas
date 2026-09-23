@@ -3,12 +3,10 @@ import { resolve } from "node:path";
 
 const { version } = JSON.parse(await readFile(resolve("package.json"), "utf8"));
 const { startLocalHost } = await import(
-  `../output/release/interactive-circuit-maker-v${version}/host/index.js`
+  `../output/release/analog-canvas-v${version}/host/index.js`
 );
 
-const releaseRoot = resolve(
-  `output/release/interactive-circuit-maker-v${version}`,
-);
+const releaseRoot = resolve(`output/release/analog-canvas-v${version}`);
 const metadata = JSON.parse(
   await readFile(resolve(releaseRoot, "release.json"), "utf8"),
 );

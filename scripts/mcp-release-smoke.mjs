@@ -18,9 +18,7 @@ const { version } = JSON.parse(await readFile(resolve("package.json"), "utf8"));
 const { version: mcpVersion } = JSON.parse(
   await readFile(resolve("config/agent-mcp-distribution.json"), "utf8"),
 );
-const releaseRoot = resolve(
-  `output/release/interactive-circuit-maker-v${version}`,
-);
+const releaseRoot = resolve(`output/release/analog-canvas-v${version}`);
 // Also verify the independently downloaded immutable release, not just a build.
 const packagedExecutable = process.argv[2]
   ? resolve(process.argv[2])

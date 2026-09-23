@@ -10,10 +10,7 @@ const mcpDistribution = JSON.parse(
 const { version } = JSON.parse(
   await readFile(resolve(root, "package.json"), "utf8"),
 );
-const output = resolve(
-  root,
-  `output/release/interactive-circuit-maker-v${version}`,
-);
+const output = resolve(root, `output/release/analog-canvas-v${version}`);
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 await cp(resolve(root, "apps/editor/dist"), resolve(output, "editor"), {
@@ -27,7 +24,7 @@ await cp(resolve(root, "output/mcp"), resolve(output, "mcp"), {
 });
 await writeFile(
   resolve(output, "start.mjs"),
-  `import { resolve } from "node:path";\nimport { startLocalHost } from "./host/index.js";\nconst running = await startLocalHost({ editorRoot: resolve(import.meta.dirname, "editor"), port: 4173 });\nprocess.stdout.write(\`Interactive Circuit Maker v${version}: \${running.origin}\\n\`);\n`,
+  `import { resolve } from "node:path";\nimport { startLocalHost } from "./host/index.js";\nconst running = await startLocalHost({ editorRoot: resolve(import.meta.dirname, "editor"), port: 4173 });\nprocess.stdout.write(\`Analog Canvas v${version}: \${running.origin}\\n\`);\n`,
 );
 const manifest = JSON.parse(
   await readFile(
@@ -39,7 +36,7 @@ await writeFile(
   resolve(output, "release.json"),
   `${JSON.stringify(
     {
-      name: "interactive-circuit-maker",
+      name: "analog-canvas",
       version,
       node: mcpDistribution.node,
       pwa: manifest.name,
