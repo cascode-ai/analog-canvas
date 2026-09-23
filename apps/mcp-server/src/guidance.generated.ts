@@ -3,7 +3,7 @@ export const agentToolHelp = {
   simulation_source:
     "List/create/read/discard native source workspaces. Use simulation_folder for saved experiments; simulation_edit for atomic code changes. Requests and revisions match simulation_files.",
   simulation_edit:
-    "Atomically write or patch native source files using their returned revision. Reuses simulation_files update validation and commit path; no local download is needed to edit code.",
+    "Atomically write or patch native source files. For project-folder, returned source.revision is Project.structureRevision: pass it directly to the next update.expectedRevision or simulation_run prepare.source.expectedStructureRevision. No reread after success. Reuses simulation_files validation and commit path.",
   simulation_data:
     "Sync/download complete registered files to the local workspace; artifact without outputPath is only a preview. analysisIndex + roles:[table] selects CSV; fileIds:[] syncs directory only. Reuse downloaded data. Find files with simulation_results catalog.",
   simulation_plot:
@@ -11,7 +11,7 @@ export const agentToolHelp = {
   simulation_results:
     "Discover run catalogs/history or retry evidence export without rerunning. Use simulation_data to download complete registered files, not repeated read previews. Receipts never inline samples.",
   simulation_run:
-    "Discover capabilities/help; prepare/start/read/cancel one run. start/read may waitMs 0–20000 and resume the same runId. One hosted slot; use simulation_batch for a batch. Retry uncertain starts with the same requestId. Details summarize analyses, collection and Specs; files are registered separately.",
+    "Discover capabilities/help; prepare/start/read/cancel one run. For project-folder prepare, use the latest simulation_edit source.revision as expectedStructureRevision. A stale prepare returns currentRevision; reconcile changes before retry. start/read may waitMs 0–20000 and resume the same runId. One hosted slot; use simulation_batch for a batch. Retry uncertain starts with the same requestId. Details summarize analyses, collection and Specs; files are registered separately.",
   simulation_batch:
     "Prepare explicit batches or sweeps, then start/read/cancel the same batch. Uses the existing serialized executor and original request/revision checks. Use simulation_results for registered results and simulation_data for local files.",
   circuit_place:

@@ -1351,6 +1351,7 @@ describe("shared simulation lifecycle", () => {
       error: {
         code: "PROJECT_STRUCTURE_REVISION_CONFLICT",
         recovery: "reprepare",
+        currentRevision: f.project.structureRevision,
       },
     });
   });

@@ -13,6 +13,7 @@ const scope = {
   serverUrl: "https://canvas.test",
   sessionId: "session",
   projectId: "project",
+  projectIdentity: "cloud:project-cloud",
 };
 const file = (id: string, text: string): ArtifactRef => ({
   id,
@@ -198,9 +199,14 @@ describe("local simulation workspace", () => {
     expect(first).not.toBe(
       defaultWorkspacePath({ ...scope, serverUrl: "https://preview.test" }),
     );
+    expect(first).not.toBe(
+      defaultWorkspacePath({ ...scope, projectIdentity: "cloud:other" }),
+    );
+    expect(first).not.toBe(
+      defaultWorkspacePath({ ...scope, projectIdentity: "draft:tab-a" }),
+    );
     const projectId = "11111111-2222-3333-4444-555555555555";
-    expect(defaultWorkspacePath({ ...scope, projectId })).toContain(projectId);
-    expect(defaultWorkspacePath({ ...scope, projectId })).not.toBe(first);
+    expect(defaultWorkspacePath({ ...scope, projectId })).toBe(first);
   });
   it("syncs same-named files, preserves stable paths after remote locator changes, and is readable offline", async () => {
     const root = await mkdtemp(join(tmpdir(), "icm-base-"));
@@ -244,7 +250,13 @@ describe("local simulation workspace", () => {
         expect.arrayContaining(["index.json", "runs", "work"]),
       );
       await expect(
-        LocalWorkspace.open({ ...scope, projectId: "other" }, root),
+        LocalWorkspace.open({ ...scope, projectIdentity: "cloud:other" }, root),
+      ).rejects.toThrow("WORKSPACE_PROJECT_MISMATCH");
+      await expect(
+        LocalWorkspace.open(
+          { ...scope, projectIdentity: "cloud:another-project" },
+          root,
+        ),
       ).rejects.toThrow("WORKSPACE_PROJECT_MISMATCH");
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -312,6 +324,33 @@ describe("local simulation workspace", () => {
       expect(await readFile(join(root, "index.json"), "utf8")).toBe(
         "user file",
       );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+  it("keeps an older Project-ID-only index inspectable without attaching a new identity", async () => {
+    const root = await mkdtemp(join(tmpdir(), "icm-legacy-base-"));
+    try {
+      const legacy = {
+        kind: "analog-canvas-workspace",
+        schemaVersion: 1,
+        serverUrl: "https://canvas.test",
+        projectId: scope.projectId,
+        sessions: ["old-session"],
+        runs: [],
+        downloads: [],
+      };
+      await writeFile(join(root, "index.json"), JSON.stringify(legacy));
+      expect(await LocalWorkspace.inspect(root)).toMatchObject({
+        projectId: scope.projectId,
+        projectIdentity: null,
+      });
+      await expect(LocalWorkspace.open(scope, root)).rejects.toThrow(
+        "WORKSPACE_LEGACY_INDEX_READ_ONLY",
+      );
+      expect(
+        JSON.parse(await readFile(join(root, "index.json"), "utf8")),
+      ).toEqual(legacy);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

@@ -13,6 +13,57 @@ import { executeOperation } from "./operations.js";
 import { userWorkspaceRoot } from "./workspace-location.js";
 
 describe("workspace location policy", () => {
+  it("separates browser copies with the same Project.id and reuses saved Cloud identity", async () => {
+    const root = await mkdtemp(join(tmpdir(), "icm-workspace-identity-"));
+    const client = new AgentSessionClient({ http: new FakeAgentHttp() });
+    await client.connect("session-1.code");
+    let workspaceId = "tab-a";
+    let cloudProjectId: string | null = null;
+    vi.spyOn(client, "projectResource").mockImplementation(async (request) => ({
+      apiVersion: "3.0",
+      requestId: request.requestId,
+      operation: "workspace",
+      ok: true,
+      result: {
+        action: "list",
+        activeWorkspaceId: workspaceId,
+        projects: [
+          {
+            workspaceId,
+            projectId: "project-main",
+            name: "New Circuit",
+            cloudProjectId,
+            dirty: false,
+            structureRevision: 0,
+            cells: [],
+          },
+        ],
+      },
+    }));
+    const session: OperationSession = { client, workspaceRoot: root };
+    const inspect = () =>
+      executeOperation(
+        "simulation_data",
+        {
+          request: { action: "workspace" },
+        },
+        session,
+      ) as Promise<any>;
+    try {
+      const draftA = await inspect();
+      workspaceId = "tab-b";
+      const draftB = await inspect();
+      expect(draftB.basePath).not.toBe(draftA.basePath);
+      cloudProjectId = "cloud-saved";
+      const saved = await inspect();
+      expect(saved.basePath).not.toBe(draftB.basePath);
+      workspaceId = "tab-reopened";
+      expect((await inspect()).basePath).toBe(saved.basePath);
+      expect(await readFile(draftA.indexPath, "utf8")).toContain("draft:tab-a");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it("uses platform user data without trusting cwd or a relative environment path", () => {
     const root = userWorkspaceRoot();
     expect(isAbsolute(root)).toBe(true);
@@ -51,6 +102,27 @@ describe("workspace location policy", () => {
     vi.spyOn(client, "status").mockImplementation(async () => ({
       ...status,
       projectId,
+    }));
+    vi.spyOn(client, "projectResource").mockImplementation(async (request) => ({
+      apiVersion: "3.0",
+      requestId: request.requestId,
+      operation: "workspace",
+      ok: true,
+      result: {
+        action: "list",
+        activeWorkspaceId: `tab-${projectId}`,
+        projects: [
+          {
+            workspaceId: `tab-${projectId}`,
+            projectId,
+            name: projectId,
+            cloudProjectId: `cloud-${projectId}`,
+            dirty: false,
+            structureRevision: 0,
+            cells: [],
+          },
+        ],
+      },
     }));
     const session = (taskDirectory?: string): OperationSession => ({
       client,
@@ -92,7 +164,12 @@ describe("workspace location policy", () => {
       expect((await invoke(session(), badPath)).ok).toBe(false);
       expect((await invoke(session())).basePath).toBe(task.basePath);
       const pointer = defaultWorkspacePath(
-        { serverUrl: client.apiBaseUrl, projectId, sessionId: "ignored" },
+        {
+          serverUrl: client.apiBaseUrl,
+          projectId,
+          projectIdentity: `cloud:cloud-${projectId}`,
+          sessionId: "ignored",
+        },
         join(root, "data"),
       );
       expect(

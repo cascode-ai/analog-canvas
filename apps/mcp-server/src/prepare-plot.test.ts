@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { expect, it, vi } from "vitest";
 import { LocalWorkspace } from "./local-workspace.js";
@@ -13,7 +13,12 @@ it("prepares a local copy, selects one table, reuses data and preserves customiz
   const root = await mkdtemp(join(tmpdir(), "plot-test-"));
   try {
     const workspace = await LocalWorkspace.open(
-      { serverUrl: "https://test.example", projectId: "p", sessionId: "s" },
+      {
+        serverUrl: "https://test.example",
+        projectId: "p",
+        projectIdentity: "cloud:p",
+        sessionId: "s",
+      },
       root,
     );
     const csv = "time [s],v(out) [V]\n0,1\n1,2\n";
@@ -71,7 +76,11 @@ it("prepares a local copy, selects one table, reuses data and preserves customiz
       await readFile(join(root, "plots", "transient", "plot.json"), "utf8"),
     );
     expect(config.panels[0].curves[0].y.unit).toBe("mV");
-    expect(await readFile(config.panels[0].curves[0].csv, "utf8")).toBe(csv);
+    const csvPath = config.panels[0].curves[0].csv;
+    expect(isAbsolute(csvPath)).toBe(false);
+    expect(await readFile(resolve(result.directory, csvPath), "utf8")).toBe(
+      csv,
+    );
     await writeFile(path, "# custom");
     expect(await preparePlot(workspace, catalog, request, fetch)).toMatchObject(
       { ok: false, error: { code: "PLOT_ALREADY_EXISTS" } },

@@ -91,10 +91,34 @@ describe.each(["compatibility", "focused", "cli"])(
     };
     it("remembers custom bases per Project, never presents the last Project as the current one, and permits offline inspection", async () => {
       const directory = await mkdtemp(join(tmpdir(), "icm-workspace-scope-"));
-      const client = new AgentSessionClient({ http: new FakeAgentHttp() });
+      let projectId: string | null = "project-a";
+      const client = new AgentSessionClient({
+        http: new FakeAgentHttp({
+          projects: (request) => ({
+            apiVersion: "3.0",
+            requestId: request.requestId,
+            operation: "workspace",
+            ok: true,
+            result: {
+              action: "list",
+              activeWorkspaceId: `tab-${projectId}`,
+              projects: [
+                {
+                  workspaceId: `tab-${projectId}`,
+                  projectId: projectId ?? "project-a",
+                  name: "Test",
+                  cloudProjectId: `cloud-${projectId}`,
+                  dirty: false,
+                  structureRevision: 0,
+                  cells: [],
+                },
+              ],
+            },
+          }),
+        }),
+      });
       await client.connect("session-1.code");
       const initial = await client.status();
-      let projectId: string | null = "project-a";
       vi.spyOn(client, "status").mockImplementation(async () => ({
         ...initial,
         projectId,
@@ -330,6 +354,27 @@ describe.each(["compatibility", "focused", "cli"])(
         }
       }
       const http = new Relay({
+        projects: (request) => ({
+          apiVersion: "3.0",
+          requestId: request.requestId,
+          operation: "workspace",
+          ok: true,
+          result: {
+            action: "list",
+            activeWorkspaceId: "tab-p",
+            projects: [
+              {
+                workspaceId: "tab-p",
+                projectId: project.id,
+                name: project.name,
+                cloudProjectId: null,
+                dirty: true,
+                structureRevision: project.structureRevision,
+                cells: [],
+              },
+            ],
+          },
+        }),
         files: async (request) =>
           request.operation === "simulation-input"
             ? {
