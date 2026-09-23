@@ -91,6 +91,9 @@ function rowMetrics(row: BreakdownRow): BreakdownTotal {
 
 export function AnalyticsPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [registeredAccounts, setRegisteredAccounts] = useState<number | null>(
+    null,
+  );
   const [error, setError] = useState(false);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -116,6 +119,31 @@ export function AnalyticsPage() {
       if (previousRobots == null) robots?.remove();
       else if (robots) robots.content = previousRobots;
     };
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/auth/admin/stats", {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return response.json() as Promise<{ registeredAccounts?: unknown }>;
+      })
+      .then((data) => {
+        if (
+          typeof data?.registeredAccounts === "number" &&
+          Number.isSafeInteger(data.registeredAccounts) &&
+          data.registeredAccounts >= 0
+        ) {
+          setRegisteredAccounts(data.registeredAccounts);
+        }
+      })
+      .catch(() => {
+        // The admin-only count is optional for other Analytics viewers.
+      });
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -241,6 +269,9 @@ export function AnalyticsPage() {
             <Metric label="Page views" value={summary?.totals.pv} />
             <Metric label="Visitors today" value={summary?.today.uv} />
             <Metric label="Views today" value={summary?.today.pv} />
+            {registeredAccounts !== null && (
+              <Metric label="Registered accounts" value={registeredAccounts} />
+            )}
           </dl>
 
           <section

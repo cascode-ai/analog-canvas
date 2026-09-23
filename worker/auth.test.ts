@@ -647,6 +647,34 @@ describe("moderator appointment", () => {
   });
 });
 
+describe("administrator account statistics", () => {
+  it("counts stored accounts without exposing the count to other visitors", async () => {
+    const auth = harness({
+      RESEND_API_KEY: "rk",
+      ADMIN_EMAILS: "owner@example.com",
+    });
+    const adminCookie = await emailSignIn(auth, "owner@example.com");
+    const memberCookie = await emailSignIn(auth, "member@example.com");
+
+    for (const cookie of [undefined, memberCookie]) {
+      const denied = await auth.call(
+        "/api/auth/admin/stats",
+        cookie ? { cookie } : {},
+      );
+      expect(denied.status).toBe(401);
+      expect(denied.headers.get("cache-control")).toBe("no-store");
+      expect(await denied.json()).toEqual({ error: "unauthorized" });
+    }
+
+    const result = await auth.call("/api/auth/admin/stats", {
+      cookie: adminCookie,
+    });
+    expect(result.status).toBe(200);
+    expect(result.headers.get("cache-control")).toBe("no-store");
+    expect(await result.json()).toEqual({ registeredAccounts: 2 });
+  });
+});
+
 describe("sessionUserOf (module seam for the gallery)", () => {
   it("resolves the signed-in user through the binding and null otherwise", async () => {
     const auth = harness({ RESEND_API_KEY: "rk", ADMIN_EMAILS: "b@e.co" });

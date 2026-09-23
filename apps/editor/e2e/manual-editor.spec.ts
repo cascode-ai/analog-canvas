@@ -4948,6 +4948,12 @@ test("shows first-party visitor analytics without tracking the dashboard itself"
   page,
 }) => {
   await page.addInitScript(() => localStorage.setItem("theme", "dark"));
+  await page.route("**/api/auth/admin/stats", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ registeredAccounts: 42 }),
+    });
+  });
   let dashboardTracked = false;
   await page.route("**/api/track", async (route) => {
     dashboardTracked = true;
@@ -4993,6 +4999,8 @@ test("shows first-party visitor analytics without tracking the dashboard itself"
 
   await page.goto("/analytics");
   await expect(page.getByRole("heading", { name: "Analytics" })).toBeVisible();
+  await expect(page.getByText("Registered accounts")).toBeVisible();
+  await expect(page.getByText("42", { exact: true })).toBeVisible();
   await expect(page).toHaveTitle("Analytics — Analog Canvas");
   await expect(
     page.getByRole("link", { name: "Back to editor" }),
