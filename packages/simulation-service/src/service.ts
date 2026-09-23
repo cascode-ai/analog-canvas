@@ -1229,7 +1229,23 @@ export class SimulationService {
         resultMaterializationMs,
         catalogSaveMs,
         totalMs: performance.now() - totalStarted,
-        ...(managedTiming ? { managed: managedTiming.managed } : {}),
+        ...(managedTiming?.managed.queueMs === undefined
+          ? {}
+          : { serverQueueMs: managedTiming.managed.queueMs }),
+        ...(managedTiming?.managed.executionMs === undefined
+          ? {}
+          : { serverExecutionMs: managedTiming.managed.executionMs }),
+        ...(managedTiming?.managed.runTotalMs === undefined
+          ? {}
+          : { serverRunTotalMs: managedTiming.managed.runTotalMs }),
+        ...(managedTiming
+          ? {
+              resultFetchMs: managedTiming.managed.resultFetchMs,
+              clientWaitMs: managedTiming.managed.clientWaitMs,
+              pollCount: managedTiming.managed.pollCount,
+              pollSleepMs: managedTiming.managed.pollSleepMs,
+            }
+          : {}),
       },
     };
     if (epoch !== this.epoch) return;

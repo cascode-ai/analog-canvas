@@ -167,8 +167,9 @@ failure, no new files start and already-started downloads settle before return.
 
 Terminal `run.details.timing` separates `executionWaitMs`,
 `resultMaterializationMs`, `catalogSaveMs` and `totalMs`. For managed runs,
-`managed` further reports server `queueMs`, `executionMs`, `runTotalMs`, result
-fetch time, poll count and polling sleep. `result.durationMs` covers the spawned
+managed runs additionally report `serverQueueMs`, `serverExecutionMs`,
+`serverRunTotalMs`, `resultFetchMs`, `clientWaitMs`, `pollCount` and
+`pollSleepMs`. `result.durationMs` covers the spawned
 simulator process only; compare it with these stages instead of calling the
 difference simulation time.
 Argument validation failures return `INVALID_TOOL_INPUT` with field paths and
