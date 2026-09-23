@@ -616,20 +616,22 @@ export async function routeNgspiceSimulationRequest(
       const actual = await verifySimulationEnvironmentMetadata(
         receipt.metadata.environment,
       );
-      const health = await selected.runner.fetch("http://container/health", {
-        signal: AbortSignal.timeout(5000),
-      });
-      const runtime = (await health.json()) as { environment?: unknown };
-      const measured = await verifySimulationEnvironmentMetadata(
-        runtime.environment,
-      );
       if (
         !containerResponse.body ||
         receipt.runToken !== body.runToken ||
         receipt.execution?.target !== target ||
         !actual ||
-        !measured ||
-        actual.fingerprint !== measured.fingerprint ||
+        actual.executor !== "hosted-container" ||
+        actual.reproducibility !== "pinned" ||
+        actual.profileId !== hostedSky130Profile.id ||
+        actual.platform !== hostedSky130Profile.platform ||
+        actual.simulator.version !== hostedSky130Profile.simulator.version ||
+        actual.simulator.binarySha256 !==
+          hostedSky130Profile.simulator.binarySha256 ||
+        actual.models?.id !== hostedSky130Profile.models.id ||
+        actual.models?.contentSha256 !==
+          hostedSky130Profile.models.contentSha256 ||
+        actual.startupSha256 !== hostedSky130Profile.startup.contentSha256 ||
         actual.simulator.name !== "ngspice" ||
         Object.entries(expected).some(
           ([key, value]) =>

@@ -11,6 +11,7 @@
   "preview_urls": false,
   "routes": [],
   "vars": {
+    "SIMULATION_DISPATCH": "alarm",
     "ICM_CHANNEL": "preview",
     "ICM_GALLERY_UPSTREAM": "https://analog-canvas.tokenzhang.com",
     "SIMULATION_UPSTREAM_URL": "https://sim-fra.analog-canvas.tokenzhang.com",

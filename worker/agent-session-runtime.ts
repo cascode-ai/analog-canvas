@@ -463,6 +463,7 @@ export function simulationOperationScopes(
     case "authoring-help":
       return [];
     case "prepare":
+    case "run":
     case "start":
     case "read":
     case "catalog":

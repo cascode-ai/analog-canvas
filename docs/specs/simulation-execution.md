@@ -95,7 +95,12 @@ It contains no waveforms and is not a second Run/Dataset/File catalog. The
 existing JSON response body and authenticated endpoints remain unchanged.
 The producer validates result/file relationships before emitting the receipt;
 the Worker checks its admission identity, input evidence and measured runtime
-before forwarding the length-bounded body stream. The managed queue writes
+before forwarding the length-bounded body stream. ngspice receipts match the
+bundled approved Profile facts directly, without a post-run `/health` request.
+Native VACASK capability facts are scoped to executor binding/URL, credential
+and Profile and reused for at most 30 seconds; explicit discovery refreshes,
+and execution/protocol failures invalidate that cache. Every result still
+matches its selected environment identity. The managed dispatcher writes
 that stream directly to R2 with its expected SHA-256, so corruption fails the
 write before the run can advertise retained results. This digest is transfer
 integrity, not an extra deployment-provenance check. The operator gateway
@@ -313,18 +318,18 @@ deadline.
 
 **Limits.**
 
-| Limit             | Value                    | Enforced by                                |
-| ----------------- | ------------------------ | ------------------------------------------ |
-| Deck size         | 2 MiB                    | rejected `413 deck-too-large`              |
-| Request envelope | 8 MiB | connection closed, `413 request-too-large`; deck content remains limited to 2 MiB |
-| Raw waveform collection | 64 MiB per run | incomplete collection is reported; never certified as complete |
-| Simulator logs | 1 MiB per run, independently | truncation, reported |
-| Default deadline  | 30 s                     | applied when the caller names none         |
-| Maximum deadline  | 120 s                    | a longer request is clamped to it          |
-| Lifecycle grace   | 10 s                     | hard lease watchdog after the run deadline |
-| Identity probe    | 5 s                      | given up on, not waited for                |
-| Processes         | 128 (`RLIMIT_NPROC`)     | image-set `ulimit` before `exec`           |
-| Written file size | 256 MiB (`RLIMIT_FSIZE`) | image-set `ulimit` before `exec`           |
+| Limit                   | Value                        | Enforced by                                                                       |
+| ----------------------- | ---------------------------- | --------------------------------------------------------------------------------- |
+| Deck size               | 2 MiB                        | rejected `413 deck-too-large`                                                     |
+| Request envelope        | 8 MiB                        | connection closed, `413 request-too-large`; deck content remains limited to 2 MiB |
+| Raw waveform collection | 64 MiB per run               | incomplete collection is reported; never certified as complete                    |
+| Simulator logs          | 1 MiB per run, independently | truncation, reported                                                              |
+| Default deadline        | 30 s                         | applied when the caller names none                                                |
+| Maximum deadline        | 120 s                        | a longer request is clamped to it                                                 |
+| Lifecycle grace         | 10 s                         | hard lease watchdog after the run deadline                                        |
+| Identity probe          | 5 s                          | given up on, not waited for                                                       |
+| Processes               | 128 (`RLIMIT_NPROC`)         | image-set `ulimit` before `exec`                                                  |
+| Written file size       | 256 MiB (`RLIMIT_FSIZE`)     | image-set `ulimit` before `exec`                                                  |
 
 The independent log cap is divided between the simulator's two streams, so a
 flood of printed values on one cannot push the single line that explains the
@@ -494,9 +499,28 @@ it returns revision/entry/expiry metadata, not file bodies.
 The browser owns its presentation receipts, not execution authority. On the
 managed hosted transport, tab loss does not stop an admitted run: the owner can
 list its server records, and bounded immutable input/result evidence remains in
-the artifact store for one day. The queue admits at most 50 waiting runs, one
+the artifact store for one day. The controller admits at most 50 waiting runs, one
 queued and one active per owner, waits at most five minutes, and dispatches only
-the operator host's one declared slot. On direct/local transport, the earlier
+the operator host's one declared slot. In `SIMULATION_DISPATCH=alarm` deployments,
+admission durably schedules an immediate control-DO alarm. The alarm owns execution
+independently of the submitting HTTP request and drains up to four runs before
+rearming. Busy work waits in existing Run records; the control transaction grants
+only one global lease, also fencing legacy Queue deliveries during rollout.
+Queue dispatch remains an explicit rollback setting, not an additional normal
+execution path. Drain admitted alarm-mode work before switching back to Queue;
+changing the setting does not manufacture Queue messages for existing records.
+Readiness and terminal-result persistence retain their existing
+authority; uncertain leases are not automatically re-executed.
+Normal Agent submissions use `run` with the revisioned source. It captures the
+input before capability waits, queries only the selected Profile, and retains
+one request identity across compilation and admission. Explicit `prepare/start`
+remains available for inspection/reuse. Input browsing artifacts publish with
+the results rather than blocking direct submission; the managed executor still
+persists immutable execution input before admission.
+Timing distinguishes controller wait, input read, upstream request through
+validated response headers, and result stream commit through terminal timestamp.
+The upstream phase is not pure simulation time; result commit includes body
+transfer/storage and may include recovery delay. On direct/local transport, the earlier
 session deadline and 15-minute File Resource retention remain unchanged.
 Revoking a live browser session requests cancellation of active work and clears
 its local drafts/evidence. One active session run, eight raw workspaces (24 files

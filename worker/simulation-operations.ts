@@ -54,6 +54,8 @@ export interface SimulationOperationsEnv
   SIMULATION_CONTROL?: SimulationControlNamespaceLike;
   SIMULATION_JOBS?: SimulationJobQueue;
   SIMULATION_ARTIFACTS?: SimulationArtifactBucket;
+  /** Alarm-owned durable dispatch; Queue remains a rolling-upgrade fallback. */
+  SIMULATION_DISPATCH?: "alarm" | "queue";
 }
 
 export interface SimulationJobMessage {
@@ -124,7 +126,7 @@ function control(env: SimulationOperationsEnv) {
 function configured(env: SimulationOperationsEnv): boolean {
   return !!(
     env.SIMULATION_CONTROL &&
-    env.SIMULATION_JOBS &&
+    (env.SIMULATION_DISPATCH === "alarm" || env.SIMULATION_JOBS) &&
     env.SIMULATION_ARTIFACTS
   );
 }
@@ -370,7 +372,7 @@ export async function routeManagedSimulationRequest(
     try {
       // Re-enqueue a queued idempotent admission to recover a failed send,
       // but never manufacture deliveries for an already active/finished run.
-      if (result.run.state === "queued")
+      if (result.run.state === "queued" && env.SIMULATION_DISPATCH !== "alarm")
         await env.SIMULATION_JOBS!.send({
           schemaVersion: 1,
           runId: result.run.id,
@@ -509,6 +511,17 @@ export async function routeManagedSimulationRequest(
       headers.set("x-analog-canvas-run-started-at", String(run.startedAt));
     if (run.finishedAt !== undefined)
       headers.set("x-analog-canvas-run-finished-at", String(run.finishedAt));
+    for (const phase of ["inputReadMs", "upstreamMs"] as const) {
+      const value = Number(object.customMetadata?.[phase]);
+      if (Number.isFinite(value) && value >= 0)
+        headers.set(`x-analog-canvas-${phase}`, String(value));
+    }
+    const commitStart = Number(object.customMetadata?.resultCommitStartedAt);
+    if (Number.isFinite(commitStart) && run.finishedAt !== undefined)
+      headers.set(
+        "x-analog-canvas-resultCommitMs",
+        String(Math.max(0, run.finishedAt - commitStart)),
+      );
     return new Response(object.body, { headers });
   }
   if (request.method !== "POST")
@@ -665,6 +678,7 @@ export async function consumeSimulationJobs(
         continue;
       }
       ownedLeaseId = leased.lease?.id;
+      const inputReadStarted = runtime.now();
       // Queue messages carry identity, not storage authority. The immutable
       // input key comes from the admitted run, so a stale or malformed queue
       // delivery cannot make the consumer execute another owner's object.
@@ -694,6 +708,8 @@ export async function consumeSimulationJobs(
         await inputObject.text(),
       ) as SimulationRequestBody;
       input.runToken = queued.id;
+      const inputReadMs = Math.max(0, runtime.now() - inputReadStarted);
+      const upstreamStarted = runtime.now();
       dispatched = true;
       const response = await routeSimulationRequest(
         new Request("https://simulation/api/simulate", {
@@ -704,6 +720,7 @@ export async function consumeSimulationJobs(
         env,
       );
       if (!response) throw new Error("simulation route unavailable");
+      const upstreamMs = Math.max(0, runtime.now() - upstreamStarted);
       const receipt = readExecutionReceipt(
         response.headers.get(EXECUTION_RECEIPT_HEADER),
       );
@@ -827,7 +844,12 @@ export async function consumeSimulationJobs(
         receipt ? response.body! : responseText!,
         {
           httpMetadata: { contentType: "application/json" },
-          customMetadata: { completion: JSON.stringify(recoveryCompletion) },
+          customMetadata: {
+            completion: JSON.stringify(recoveryCompletion),
+            inputReadMs: String(inputReadMs),
+            upstreamMs: String(upstreamMs),
+            resultCommitStartedAt: String(runtime.now()),
+          },
           // This is the existing producer/stream integrity check, not a second
           // payload hash. Recovery metadata commits atomically with the bytes.
           ...(receipt ? { sha256: receipt.sha256 } : {}),

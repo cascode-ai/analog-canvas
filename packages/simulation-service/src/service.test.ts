@@ -322,6 +322,200 @@ async function prepareRaw(f: ReturnType<typeof fixture>, source = deck) {
   return { prepared, workspaceId: created.workspace.id };
 }
 describe("shared simulation lifecycle", () => {
+  it("retains failed direct-run input and retries only evidence publication", async () => {
+    const f = fixture();
+    saveSource(f.project, {
+      entry: "run.sim",
+      files: [{ path: "run.sim", text: deck }],
+      dependencies: [],
+    });
+    vi.mocked(f.executor.execute).mockRejectedValue(
+      new ExecutionFailure(
+        {
+          code: "NETWORK_UNKNOWN",
+          message: "Unknown acceptance",
+          stage: "start",
+          recovery: "retry-after",
+        },
+        true,
+      ),
+    );
+    const put = f.files.putMany.bind(f.files);
+    let unavailable = true;
+    vi.spyOn(f.files, "putMany").mockImplementation(async (entries) => {
+      if (unavailable) throw Error("ARTIFACT_STORAGE_UNAVAILABLE");
+      return put(entries);
+    });
+    const run = unwrap(
+      await f.service.handle(
+        {
+          operation: "run",
+          source: {
+            kind: "project-folder",
+            folderId: SETUP_ID,
+            expectedStructureRevision: f.project.structureRevision,
+          },
+        },
+        "failed-once",
+      ),
+      "run",
+    );
+    await f.service.handle({ operation: "read", runId: run.id }, "wait", {
+      waitMs: 1000,
+    });
+    unavailable = false;
+    const exported = await f.service.handle(
+      { operation: "export", runId: run.id },
+      "export",
+    );
+    expect(exported).toMatchObject({
+      ok: true,
+      artifacts: expect.arrayContaining([
+        expect.objectContaining({ name: "prepared.cir", role: "prepared" }),
+      ]),
+    });
+    expect(f.executor.execute).toHaveBeenCalledOnce();
+    expect(
+      unwrap(
+        await f.service.handle({ operation: "read", runId: run.id }, "read"),
+        "run",
+      ),
+    ).toMatchObject({
+      state: "lost",
+      error: { code: "NETWORK_UNKNOWN" },
+    });
+  });
+  it("reports invalid authored configuration without probing unrelated runtimes", async () => {
+    const f = fixture();
+    saveSource(f.project, {
+      entry: "run.sim",
+      files: [{ path: "run.sim", text: deck }],
+      dependencies: [],
+    });
+    f.project.simulationFolders[0]!.input.files.find(
+      (file) => file.path === "experiment.json",
+    )!.text = "{";
+    const discovery = vi.spyOn(f.executor, "capabilities");
+    expect(
+      await f.service.handle(
+        {
+          operation: "run",
+          source: {
+            kind: "project-folder",
+            folderId: SETUP_ID,
+            expectedStructureRevision: f.project.structureRevision,
+          },
+        },
+        "invalid-config",
+      ),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "SIMULATION_COMPILE_REFUSED", recovery: "fix-input" },
+    });
+    expect(discovery).not.toHaveBeenCalled();
+    expect(f.executor.execute).not.toHaveBeenCalled();
+  });
+  it("submits once, captures before discovery, and publishes evidence only after dispatch", async () => {
+    const f = fixture("ngspice");
+    const original = "RC\nV1 in 0 1\nR1 in 0 1k\n.control\nop\n.endc\n.end\n";
+    saveSource(f.project, {
+      entry: "run.cir",
+      files: [{ path: "run.cir", text: original }],
+      dependencies: [],
+    });
+    let ready!: () => void;
+    const wait = new Promise<void>((resolve) => {
+      ready = resolve;
+    });
+    const discovery = vi
+      .spyOn(f.executor, "capabilities")
+      .mockImplementation(async () => {
+        await wait;
+        return { ...caps, rawfileCollection: "declared-single-ascii" };
+      });
+    vi.mocked(f.executor.execute).mockImplementation(async (input) => {
+      expect(publish).not.toHaveBeenCalled();
+      return { result: await ngspiceResult(input) };
+    });
+    const publish = vi.spyOn(f.files, "putMany");
+    const request = {
+      operation: "run",
+      source: {
+        kind: "project-folder",
+        folderId: SETUP_ID,
+        expectedStructureRevision: f.project.structureRevision,
+      },
+    };
+    const first = f.service.handle(request, "submit");
+    const repeated = f.service.handle(request, "submit");
+    expect(
+      await f.service.handle(
+        {
+          operation: "start",
+          preparedId: "another-preparation",
+          digest: "a".repeat(64),
+        },
+        "submit",
+      ),
+    ).toMatchObject({ ok: false, error: { code: "REQUEST_ID_REUSED" } });
+    f.project.simulationFolders[0]!.input.files.find(
+      (file) => file.path === "run.cir",
+    )!.text = "changed after submit";
+    ready();
+    const a = unwrap(await first, "run");
+    expect(unwrap(await repeated, "run").id).toBe(a.id);
+    expect(discovery).toHaveBeenCalledExactlyOnceWith("test");
+    expect(f.executor.execute).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(f.executor.execute).mock.calls[0]![0].testbench).toBe(
+      original,
+    );
+    await f.service.handle({ operation: "read", runId: a.id }, "wait", {
+      waitMs: 1000,
+    });
+    const catalog = await f.files.catalog(a.id);
+    expect(catalog?.files.some((file) => file.name === "prepared.cir")).toBe(
+      true,
+    );
+    expect(unwrap(await f.service.handle(request, "submit"), "run").id).toBe(
+      a.id,
+    );
+    expect(
+      await f.service.handle({ ...request, timeoutMs: 12 }, "submit"),
+    ).toMatchObject({ ok: false, error: { code: "REQUEST_ID_REUSED" } });
+  });
+  it("does not submit a captured input into a replacement session", async () => {
+    const f = fixture();
+    saveSource(f.project, {
+      entry: "run.sim",
+      files: [{ path: "run.sim", text: deck }],
+      dependencies: [],
+    });
+    let ready!: () => void;
+    vi.spyOn(f.executor, "capabilities").mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          ready = () => resolve(caps);
+        }),
+    );
+    const pending = f.service.handle(
+      {
+        operation: "run",
+        source: {
+          kind: "project-folder",
+          folderId: SETUP_ID,
+          expectedStructureRevision: f.project.structureRevision,
+        },
+      },
+      "switch",
+    );
+    await f.service.clear();
+    ready();
+    expect(await pending).toMatchObject({
+      ok: false,
+      error: { code: "SESSION_CHANGED" },
+    });
+    expect(f.executor.execute).not.toHaveBeenCalled();
+  });
   it("waits inside one bounded read without starting or polling another run", async () => {
     const f = fixture();
     const { prepared } = await prepareRaw(f);

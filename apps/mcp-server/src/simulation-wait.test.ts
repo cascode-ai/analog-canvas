@@ -23,64 +23,73 @@ function reply(
   };
 }
 describe("bounded simulation waiting", () => {
-  it("retains an accepted run when the internal wait loses transport", async () => {
-    vi.useFakeTimers();
-    try {
-      const session = {
-        client: new AgentSessionClient({ http: new FakeAgentHttp() }),
-      };
-      const send = vi
-        .spyOn(session.client, "simulationResource")
-        .mockResolvedValueOnce({
-          apiVersion: "3.0",
-          requestId: "start-once",
-          operation: "start",
-          ok: true,
-          run: {
-            id: "accepted",
-            preparedId: "prepared",
-            inputRevision: "revision",
-            state: "running",
-            artifacts: [],
-          },
-        })
-        .mockRejectedValueOnce(
-          new AgentSessionError(
-            "HTTP_ERROR",
-            "HTTP 502",
-            "request-rejected",
-            502,
-          ),
-        );
-      const pending = callTool(
-        "simulation",
-        {
-          requestId: "start-once",
-          waitMs: 1000,
-          request: {
+  it.each(["run", "start"] as const)(
+    "retains an accepted %s when the internal wait loses transport",
+    async (operation) => {
+      vi.useFakeTimers();
+      try {
+        const session = {
+          client: new AgentSessionClient({ http: new FakeAgentHttp() }),
+        };
+        const send = vi
+          .spyOn(session.client, "simulationResource")
+          .mockResolvedValueOnce({
+            apiVersion: "3.0",
+            requestId: "start-once",
             operation: "start",
-            preparedId: "prepared",
-            digest: "a".repeat(64),
+            ok: true,
+            run: {
+              id: "accepted",
+              preparedId: "prepared",
+              inputRevision: "revision",
+              state: "running",
+              artifacts: [],
+            },
+          })
+          .mockRejectedValueOnce(
+            new AgentSessionError(
+              "HTTP_ERROR",
+              "HTTP 502",
+              "request-rejected",
+              502,
+            ),
+          );
+        const pending = callTool(
+          "simulation_run",
+          {
+            requestId: "start-once",
+            waitMs: 1000,
+            request:
+              operation === "run"
+                ? {
+                    operation,
+                    source: {
+                      kind: "project-folder",
+                      folderId: "folder",
+                      expectedStructureRevision: 0,
+                    },
+                  }
+                : { operation, preparedId: "prepared", digest: "a".repeat(64) },
           },
-        },
-        session,
-      );
-      await vi.runAllTimersAsync();
-      expect(JSON.parse((await pending).content[0]!.text!)).toMatchObject({
-        ok: false,
-        runId: "accepted",
-        nextRequest: { operation: "read", runId: "accepted" },
-        error: { stage: "read", recovery: "read-run" },
-      });
-      expect(send.mock.calls.map(([r]) => r.operation)).toEqual([
-        "start",
-        "read",
-      ]);
-      expect(send.mock.calls[1]![0].requestId).not.toBe("start-once");
-    } finally {
-      vi.useRealTimers();
-    }
-  });
+          session,
+        );
+        await vi.runAllTimersAsync();
+        expect(JSON.parse((await pending).content[0]!.text!)).toMatchObject({
+          ok: false,
+          runId: "accepted",
+          nextRequest: { operation: "read", runId: "accepted" },
+          error: { stage: "read", recovery: "read-run" },
+        });
+        expect(send.mock.calls.map(([r]) => r.operation)).toEqual([
+          operation,
+          "read",
+        ]);
+        expect(send.mock.calls[1]![0].requestId).not.toBe("start-once");
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
   it("waits for one run in a single bounded Agent read", async () => {
     const read = vi.fn().mockResolvedValueOnce(reply("finished"));
     const client = {

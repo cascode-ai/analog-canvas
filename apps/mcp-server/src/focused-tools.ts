@@ -38,6 +38,7 @@ export const FOCUSED_TOOLS = [
     operations: [
       "capabilities",
       "authoring-help",
+      "run",
       "prepare",
       "start",
       "read",

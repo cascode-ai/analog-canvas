@@ -27,7 +27,7 @@ current examples use API `3.0`.
 | --------------------------------------------- | -------------------------------------------------------------------------- |
 | `POST /circuit`                               | Four Circuit operations: capabilities, snapshot, transact, render          |
 | `POST /files`                                 | Project exports/import candidates, simulation source and artifacts         |
-| `POST /simulation`                            | Capabilities, authoring help, prepare/start/read/cancel/export and batches |
+| `POST /simulation`                            | Capabilities, authoring help, run/prepare/start/read/cancel/export and batches |
 | `POST /projects`                              | Public Gallery, active Project Code/Netlist, reusable Cloud Cells          |
 | `GET /status`                                 | Session observations; attached is not execution readiness                  |
 
@@ -78,13 +78,14 @@ cached response is gone: reconcile current state, do not replay the mutation.
    structure objects; File `create` creates an expiring workspace, not a folder.
    Project-folder updates use the Project structure revision. Preserve
    generated files; reported editable circuit fields have a separate mapping.
-3. Send Simulation `operation:"prepare"` with
+3. Send Simulation `operation:"run"` with
    `source:{kind:"project-folder",folderId,expectedStructureRevision}` or
    `source:{kind:"workspace",workspaceId,expectedRevision}`.
    Fields are at the HTTP body's root, not inside MCP's `request` wrapper.
-4. On successful preparation, `start` with returned `preparedId` and `digest`.
-   Inspect prepared input artifacts only when needed to investigate the input.
-   Retain the entire request before sending. Retry an uncertain start unchanged.
+4. The response identifies the submitted run. Optional `prepare` followed by
+   `start` with `preparedId`/`digest` is for explicit input inspection or reuse.
+   Retain the entire request before sending. Retry an uncertain submission unchanged,
+   including its request identity while preparation is still in progress.
    Each new `read` poll uses a new request ID and returned `runId`.
 5. Use `catalog` to select registered files, then File simulation-input
    `input:{action:"download",artifactId}` for a download descriptor. Download

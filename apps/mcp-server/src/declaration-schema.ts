@@ -66,5 +66,9 @@ export function declarationSchema(input: Schema, tool?: string): Schema {
       if (schema[key] !== undefined) schema[key] = visit(schema[key]);
     return schema;
   };
-  return visit(inlineSchema(input)) as Schema;
+  const result = visit(inlineSchema(input)) as Schema;
+  // The MCP envelope already specifies JSON Schema. The standalone dialect
+  // marker is useful in downloadable contracts, not repeated tool declarations.
+  if (tool) delete result.$schema;
+  return result;
 }

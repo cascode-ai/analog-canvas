@@ -301,6 +301,9 @@ describe("managed hosted executor", () => {
               headers: {
                 "x-analog-canvas-run-started-at": "2",
                 "x-analog-canvas-run-finished-at": "3",
+                "x-analog-canvas-inputReadMs": "0",
+                "x-analog-canvas-upstreamMs": "5",
+                "x-analog-canvas-resultCommitMs": "2",
               },
             });
       }
@@ -323,6 +326,9 @@ describe("managed hosted executor", () => {
           executionMs: 1,
           runTotalMs: 2,
           pollCount: 2,
+          inputReadMs: 0,
+          upstreamMs: 5,
+          resultCommitMs: 2,
         },
       },
     });

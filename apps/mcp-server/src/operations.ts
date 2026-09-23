@@ -93,15 +93,18 @@ const SimulationArgs = z
       .max(20_000)
       .optional()
       .describe(
-        "For start/read only: wait on the same run through one bounded Agent read before returning its latest receipt. A running receipt can be resumed with read. Older editor contracts fall back to polling; in-flight network calls retain their transport timeout.",
+        "For run/start/read: wait on the same run through one bounded Agent read before returning its latest receipt. Resume a running receipt with read, never another submission.",
       ),
   })
   .superRefine((value, context) => {
-    if (value.waitMs && !["start", "read"].includes(value.request.operation))
+    if (
+      value.waitMs &&
+      !["run", "start", "read"].includes(value.request.operation)
+    )
       context.addIssue({
         code: "custom",
         path: ["waitMs"],
-        message: "waitMs is supported by start/read only",
+        message: "waitMs is supported by run/start/read only",
       });
   });
 const ProjectCellsArgs = z.discriminatedUnion("action", [

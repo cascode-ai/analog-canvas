@@ -11,7 +11,7 @@ export const agentToolHelp = {
   simulation_results:
     "Discover run catalogs/history or retry evidence export without rerunning. Use simulation_data to download complete registered files, not repeated read previews. Receipts never inline samples.",
   simulation_run:
-    "Discover capabilities/help; prepare/start/read/cancel one run. For project-folder prepare, use the latest simulation_edit source.revision as expectedStructureRevision. A stale prepare returns currentRevision; reconcile changes before retry. start/read may waitMs 0–20000 and resume the same runId. One hosted slot; use simulation_batch for a batch. Retry uncertain starts with the same requestId. Details summarize analyses, collection and Specs; files are registered separately.",
+    "Normally submit run with a revisioned source; preparation is internal. For project-folder use the latest simulation_edit source.revision as expectedStructureRevision. Optional prepare/start supports inspection or frozen-input reuse. run/start/read accept waitMs 0–20000; resume via read with the same runId. One hosted slot. Retry uncertain submissions with the same requestId and payload. Results summarize collection and diagnostics; files are registered separately.",
   simulation_batch:
     "Prepare explicit batches or sweeps, then start/read/cancel the same batch. Uses the existing serialized executor and original request/revision checks. Use simulation_results for registered results and simulation_data for local files.",
   circuit_place:
@@ -43,7 +43,7 @@ export const agentToolHelp = {
   netlist_code:
     "Read the open Project's generated SPICE/Spectre netlist or replace its editable device names, models and values through the same planner as the Netlist panel. Use Project Code or structured circuit edits for topology and connectivity changes.",
   simulation:
-    "Prepare/start/read/cancel and discover results. Run receipts never inline samples; run.details summarizes collection, diagnostics and Specs; catalog locates complete files. Capabilities default to summary; request detail:full for model facts. Prepare outer detail:full includes mappings otherwise available in preparation.json. start/read accept waitMs 0–20000; resume the same runId. Retry uncertain starts with the same requestId. One hosted run at a time or Batch. Use simulation_files sync for local results; export retries failed evidence saving without executing again.",
+    "Submit with run; prepare/start are optional. run/start/read accept waitMs 0–20000. Retry uncertain submissions with the same requestId; resume by runId. run.details has Specs/collection; catalog indexes full files. export retries saving, not execution. One active run or Batch.",
   simulation_files:
     "Edit native source using returned revisions; sync complete files to the local base. analysisIndex + roles:[table] selects CSV; fileIds:[] gets directory only, omitted selectors all files. prepare-plot creates editable Python/config from panels or dc/ac/tran/noise presets and optional A/B cursors; run locally with matplotlib. Never overwrites plots. download saves locally; artifact without outputPath previews. Details: analog-canvas://reference/mcp-simulation.",
   export_file:
