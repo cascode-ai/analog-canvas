@@ -165,7 +165,7 @@ async function readRun(
   runId: string,
 ): Promise<ManagedRunRecord | null> {
   const stub = control(env);
-  if (!stub) return null;
+  if (!stub) throw new Error("SIMULATION_CONTROL_UNAVAILABLE");
   const response = await stub.fetch(runPath(runId));
   if (response.status === 404) return null;
   if (!response.ok) throw new Error("SIMULATION_CONTROL_UNAVAILABLE");
