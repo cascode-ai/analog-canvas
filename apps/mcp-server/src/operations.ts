@@ -199,14 +199,36 @@ const SimulationFilesArgs = z.strictObject({
 
 async function localWorkspace(session: ToolSessionState, basePath?: string) {
   const status = await session.client.status();
-  if (!status.sessionId || !status.projectId)
+  if (!status.sessionId)
     throw new Error("Connect before creating or syncing a local workspace");
+  // Project.id is not an open-workspace identity: new projects may all use
+  // project-main. Resolve the browser's active copy before selecting a disk base.
+  const response = await session.client.projectResource({
+    apiVersion: AGENT_API_VERSION,
+    requestId: crypto.randomUUID(),
+    operation: "workspace",
+    request: { action: "list" },
+  });
+  if (!response.ok || response.operation !== "workspace")
+    throw new Error(
+      response.ok ? "WORKSPACE_IDENTITY_UNAVAILABLE" : response.error.code,
+    );
+  if (response.result.action !== "list")
+    throw new Error("WORKSPACE_IDENTITY_UNAVAILABLE");
+  const { activeWorkspaceId, projects } = response.result;
+  const active = projects.find(
+    (project) => project.workspaceId === activeWorkspaceId,
+  );
+  if (!active) throw new Error("WORKSPACE_IDENTITY_UNAVAILABLE");
   const scope = {
     serverUrl: session.client.apiBaseUrl,
-    projectId: status.projectId,
+    projectId: active.projectId,
+    projectIdentity: active.cloudProjectId
+      ? `cloud:${active.cloudProjectId}`
+      : `draft:${active.workspaceId}`,
     sessionId: status.sessionId,
   };
-  const key = `${new URL(scope.serverUrl).origin}\0${scope.projectId}`;
+  const key = `${new URL(scope.serverUrl).origin}\0${scope.projectIdentity}`;
   const defaultPath = defaultWorkspacePath(scope, session.workspaceRoot);
   const selectedPath =
     basePath ??
@@ -782,8 +804,23 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       if (request.action === "workspace") {
         // status() is a cached local observation, not a network lease refresh.
         const status = await session.client.status();
-        if (status.sessionId && status.projectId)
-          return (await localWorkspace(session, basePath)).describe();
+        if (status.sessionId && status.projectId) {
+          try {
+            return (await localWorkspace(session, basePath)).describe();
+          } catch (error) {
+            // Explicit old indexes are still inspectable, never writable or
+            // silently attached to an identity they did not record.
+            if (
+              !basePath ||
+              !(error instanceof Error) ||
+              error.message !== "WORKSPACE_LEGACY_INDEX_READ_ONLY"
+            )
+              throw error;
+            const legacy = await LocalWorkspace.inspect(basePath);
+            if (legacy.projectIdentity !== null) throw error;
+            return { ...legacy, legacyReadOnly: true };
+          }
+        }
         const path = basePath ?? session.workspaceBase;
         if (path) {
           try {

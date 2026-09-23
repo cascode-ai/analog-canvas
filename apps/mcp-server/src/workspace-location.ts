@@ -25,7 +25,7 @@ const Location = z.strictObject({
   basePath: z.string().refine(isAbsolute),
 });
 
-/** One small pointer per server/Project. No credentials, global scans or migration. */
+/** One small pointer per server/active Project identity. No credentials or migration. */
 export async function savedWorkspacePath(
   defaultPath: string,
 ): Promise<string | undefined> {

@@ -20,9 +20,10 @@ import { userWorkspaceRoot } from "./workspace-location.js";
 
 const IndexSchema = z.strictObject({
   kind: z.literal("analog-canvas-workspace"),
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   serverUrl: z.string(),
   projectId: z.string(),
+  projectIdentity: z.string(),
   sessions: z.array(z.string()),
   runs: z.array(ResultCatalogSchema),
   downloads: z.array(
@@ -33,10 +34,16 @@ const IndexSchema = z.strictObject({
     }),
   ),
 });
+const LegacyIndexSchema = IndexSchema.omit({ projectIdentity: true }).extend({
+  schemaVersion: z.literal(1),
+});
 type Index = z.infer<typeof IndexSchema>;
+type ReadableIndex = Index | z.infer<typeof LegacyIndexSchema>;
 export type WorkspaceScope = {
   serverUrl: string;
   projectId: string;
+  /** Cloud identity survives reopening; unsaved drafts use their browser workspace identity. */
+  projectIdentity: string;
   sessionId: string;
 };
 export type FetchArtifact = ((
@@ -74,14 +81,16 @@ export function defaultWorkspacePath(
   return resolve(
     root,
     segment(new URL(scope.serverUrl).origin),
-    segment(scope.projectId),
+    segment(scope.projectIdentity),
   );
 }
-async function readIndex(path: string): Promise<Index | null> {
+async function readIndex(path: string): Promise<ReadableIndex | null> {
   try {
     if ((await stat(path)).size > 16 * 1024 * 1024)
       throw new Error("WORKSPACE_INDEX_TOO_LARGE");
-    return IndexSchema.parse(JSON.parse(await readFile(path, "utf8")));
+    return z
+      .union([IndexSchema, LegacyIndexSchema])
+      .parse(JSON.parse(await readFile(path, "utf8")));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw new Error("WORKSPACE_INDEX_INVALID", { cause: error });
@@ -93,7 +102,7 @@ export class LocalWorkspace {
   private writes: Promise<void> = Promise.resolve();
   private constructor(
     readonly basePath: string,
-    private index: Index,
+    private index: ReadableIndex,
   ) {}
   get indexPath() {
     return join(this.basePath, "index.json");
@@ -112,13 +121,20 @@ export class LocalWorkspace {
       });
     }
     const workspace = await pending;
+    if (workspace.index.schemaVersion === 1)
+      throw new Error("WORKSPACE_LEGACY_INDEX_READ_ONLY");
     if (
       workspace.index.serverUrl !== new URL(scope.serverUrl).origin ||
-      workspace.index.projectId !== scope.projectId
+      workspace.index.projectIdentity !== scope.projectIdentity
     )
       throw new Error("WORKSPACE_PROJECT_MISMATCH");
-    if (!workspace.index.sessions.includes(scope.sessionId)) {
+    if (
+      workspace.index.projectId !== scope.projectId ||
+      !workspace.index.sessions.includes(scope.sessionId)
+    ) {
+      workspace.index.projectId = scope.projectId;
       workspace.index.sessions.push(scope.sessionId);
+      workspace.index.sessions = [...new Set(workspace.index.sessions)];
       await workspace.save();
     }
     return workspace;
@@ -131,15 +147,22 @@ export class LocalWorkspace {
     const indexPath = join(basePath, "index.json");
     const index = (await readIndex(indexPath)) ?? {
       kind: "analog-canvas-workspace" as const,
-      schemaVersion: 1 as const,
+      schemaVersion: 2 as const,
       serverUrl,
       projectId: scope.projectId,
+      projectIdentity: scope.projectIdentity,
       sessions: [],
       runs: [],
       downloads: [],
     };
-    if (index.serverUrl !== serverUrl || index.projectId !== scope.projectId)
+    if (index.schemaVersion === 1)
+      throw new Error("WORKSPACE_LEGACY_INDEX_READ_ONLY");
+    if (
+      index.serverUrl !== serverUrl ||
+      index.projectIdentity !== scope.projectIdentity
+    )
       throw new Error("WORKSPACE_PROJECT_MISMATCH");
+    index.projectId = scope.projectId;
     if (!index.sessions.includes(scope.sessionId))
       index.sessions.push(scope.sessionId);
     await mkdir(join(basePath, "work"), { recursive: true });
@@ -162,6 +185,8 @@ export class LocalWorkspace {
       workPath: join(this.basePath, "work"),
       serverUrl: this.index.serverUrl,
       projectId: this.index.projectId,
+      projectIdentity:
+        this.index.schemaVersion === 2 ? this.index.projectIdentity : null,
       runs: this.index.runs.map((run) => ({
         runId: run.runId,
         execution: run.execution,

@@ -35,12 +35,17 @@ evidence details.
    the host's explicitly configured absolute `ANALOG_CANVAS_TASK_DIR`, otherwise
    the user's application-data directory. A task directory receives a scoped
    `.analog-canvas/` child. The default never assumes the process working directory
-   is writable or appropriate. Bases are isolated by server and Project.
+   is writable or appropriate. Bases are isolated by server and active Project
+   copy: a saved Project uses its Cloud ID; an unsaved draft uses its browser
+   workspace ID. The display/structural `Project.id` alone is not unique.
    Successful choices are persisted across MCP/CLI processes, separately from
    credentials; a changed authorization session does not move downloaded evidence.
    An unusable selected path reports failure rather than silently changing location.
-   Existing older session-named or working-directory bases remain readable by supplying their
-   path; nothing is moved or deleted automatically. The reply gives the
+   Older local indexes remain inspectable by supplying their path; they are not
+   silently merged into a newly scoped Project base. Saving a draft gives it a
+   new Cloud identity and hence a new default base; its draft files remain at
+   their previous absolute path. Nothing is moved or deleted automatically.
+   The reply gives the
    absolute base/index/work paths and identifies the filesystem as `mcp-host`.
    That host must share a filesystem with the Agent's local analysis tools;
    a remote MCP path is not automatically accessible from the Agent runtime.
@@ -103,7 +108,13 @@ Each nonempty `oldText` must match exactly once in the original file, including
 whitespace and line endings. Multiple replacements use the same original text,
 not each other's output. Zero/multiple matches, stale digests and overlapping
 edits reject the whole batch. Full writes and UTF-16 patches remain available.
-The returned `source.revision` is ready for the next update or prepare; `update`
+For `project-folder`, the returned `source.revision` is the Project
+`structureRevision`: pass it directly as the next update's `expectedRevision`
+or prepare's `source.expectedStructureRevision`. It is not the folder's
+`version` or a Cell/document revision. A stale prepare returns
+`currentRevision`; compare the intervening Project changes before retrying.
+For `session-workspace`, pass `source.revision` as `expectedRevision`.
+`update`
 reports `changed`, actual created/updated/removed files and their new digests and
 byte lengths (removed files have no digest). `mappedCircuitPaths` separately
 reports generated paths involved in parameter changes. Entry/config/draft-only
@@ -204,5 +215,8 @@ crossings or clamp outside the domain. The graph marks sampled points and local
 `cursors.json` records requested/actual positions, sample indices, units and
 B−A deltas. Empty cursor reports overwrite stale reports on rerender. All
 readouts use the displayed projection, including dB/phase when selected.
-The copied template also works standalone with CSV paths in its JSON config;
+The copied template also works standalone with CSV paths in its JSON config.
+Newly prepared configs use paths relative to the plot directory, so moving the
+whole local base keeps data links intact; existing absolute-path configs still
+work in place.
 no live connector is needed after preparation. Run samples never enter MCP output.

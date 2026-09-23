@@ -94,6 +94,7 @@ describe("workspace batch preparation", () => {
           serverUrl: "https://canvas.test",
           sessionId: "session-1",
           projectId: "p",
+          projectIdentity: "cloud:p",
         },
         root,
       );

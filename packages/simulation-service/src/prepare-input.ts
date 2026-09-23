@@ -30,13 +30,21 @@ export async function prepareExecutionInput(
   }
   const source = op.source;
   if (source.kind === "project-folder") {
-    if (project.structureRevision !== source.expectedStructureRevision)
-      return problem(
+    if (project.structureRevision !== source.expectedStructureRevision) {
+      const failure = problem(
         "PROJECT_STRUCTURE_REVISION_CONFLICT",
-        "Read the current Project revision and prepare again",
+        "Project structure changed; reconcile the source before preparing again",
         "prepare",
         "reprepare",
       );
+      return {
+        ...failure,
+        error: {
+          ...failure.error,
+          currentRevision: project.structureRevision,
+        },
+      };
+    }
     const folder = project.simulationFolders.find(
       (folder) => folder.id === source.folderId,
     );

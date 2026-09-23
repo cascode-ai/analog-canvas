@@ -1,5 +1,5 @@
 import { mkdir, rmdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { z } from "zod";
 import type { ResultCatalog } from "@icm/simulation-service/contract";
 import { LocalWorkspace } from "./local-workspace.js";
@@ -206,7 +206,7 @@ export async function preparePlot(
       return {
         ...style,
         curves: signals.map(({ label, ...y }) => ({
-          csv: downloaded.outputPath,
+          csv: relative(directory, downloaded.outputPath),
           x,
           y,
           ...(label === undefined ? {} : { label }),
