@@ -171,6 +171,7 @@ test("public MCP connects to the real local relay and executes native source", a
         async () => {
           const read = await child!.tool("simulation", {
             request: { operation: "read", runId: started.run.id },
+            detail: "full",
           });
           expect(read.ok, JSON.stringify(read)).toBe(true);
           finished = read.run;

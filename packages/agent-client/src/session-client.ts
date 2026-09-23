@@ -163,6 +163,39 @@ export class AgentSessionClient {
   private observation: AgentSessionStatusResponse | null = null;
   private capabilitiesCache: AgentCapabilitiesResponse | null = null;
   private resumePromise: Promise<ActiveSession | null> | null = null;
+  private simulationMetadata = new Map<
+    string,
+    {
+      at: number;
+      response: AgentSimulationResourceResponse;
+    }
+  >();
+
+  private metadataKey(request: AgentSimulationResourceRequest): string {
+    const { requestId: _id, ...selection } = request;
+    return JSON.stringify([
+      this.session?.sessionId,
+      this.session?.projectId,
+      this.http.contextRevision,
+      Object.entries(selection).sort(([a], [b]) => a.localeCompare(b)),
+    ]);
+  }
+
+  /** Internal convenience reads only. Explicit resource calls always refresh.
+   * Short reuse never turns availability, execution or input status into authority. */
+  async simulationMetadataResource(
+    request: AgentSimulationResourceRequest,
+    options: { refresh?: boolean | undefined } = {},
+  ): Promise<AgentSimulationResourceResponse> {
+    await this.ensureSession();
+    const cached = this.simulationMetadata.get(this.metadataKey(request));
+    if (!options.refresh && cached && this.now() - cached.at < 30_000)
+      return {
+        ...structuredClone(cached.response),
+        requestId: request.requestId,
+      };
+    return this.simulationResource(request);
+  }
 
   get apiBaseUrl(): string {
     return this.http.baseUrl;
@@ -209,6 +242,7 @@ export class AgentSessionClient {
       this.cache.clear();
       this.receipts.length = 0;
       this.capabilitiesCache = null;
+      this.simulationMetadata.clear();
       this.observation = null;
       this.session = this.activeSession(claim);
       await this.persistConnector(claim);
@@ -466,9 +500,35 @@ export class AgentSessionClient {
     request: AgentSimulationResourceRequest,
   ): Promise<AgentSimulationResourceResponse> {
     request = structuredClone(request);
-    return this.resourceRequest("simulation", request, (session) =>
-      this.http.simulation(session.sessionId, session.agentToken, request),
+    const key = this.metadataKey(request);
+    this.simulationMetadata.delete(key);
+    // Export can repair publication; do not keep a prior directory after it.
+    if (request.operation === "export") this.simulationMetadata.clear();
+    const response = await this.resourceRequest(
+      "simulation",
+      request,
+      (session) =>
+        this.http.simulation(session.sessionId, session.agentToken, request),
     );
+    const reusable =
+      response.ok &&
+      ((request.operation === "capabilities" && "capabilities" in response) ||
+        (request.operation === "catalog" &&
+          "catalog" in response &&
+          response.catalog.execution !== "pending" &&
+          response.catalog.collection === "complete"));
+    this.simulationMetadata.delete(key);
+    if (reusable && key === this.metadataKey(request)) {
+      if (this.simulationMetadata.size >= 32)
+        this.simulationMetadata.delete(
+          this.simulationMetadata.keys().next().value!,
+        );
+      this.simulationMetadata.set(key, {
+        at: this.now(),
+        response: structuredClone(response),
+      });
+    }
+    return response;
   }
 
   /** Discover and import reusable Cells through the browser's Cloud authority. */
@@ -1082,6 +1142,7 @@ export class AgentSessionClient {
     this.observation = null;
     this.connection.apply("credential-revoked", code);
     this.session = null;
+    this.simulationMetadata.clear();
     this.capabilitiesCache = null;
     this.cache.clear();
     this.receipts.length = 0;

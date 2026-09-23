@@ -2,6 +2,7 @@ import { agentToolHelp } from "./guidance.generated.js";
 import { z } from "zod";
 import { downloadSimulationArtifact } from "./artifact-download.js";
 import { LocalWorkspace, defaultWorkspacePath } from "./local-workspace.js";
+import { workspaceTransfer } from "./workspace-transfer.js";
 import {
   savedWorkspacePath,
   rememberWorkspacePath,
@@ -82,7 +83,7 @@ const SimulationArgs = z
       .enum(["summary", "full"])
       .optional()
       .describe(
-        "Prepare response only: summary returns launch fields and the complete preparation file; full includes vector and device mappings. Run samples always use files.",
+        "Summary keeps launch/status/diagnostics and directory references. Full includes preparation mappings and run file metadata. Run samples always use files.",
       ),
     waitMs: z
       .number()
@@ -182,6 +183,18 @@ const SimulationFilesArgs = z.strictObject({
   requestId: z.string().min(1).optional(),
   outputPath: z.string().min(1).optional(),
   basePath: z.string().min(1).optional(),
+  detail: z
+    .enum(["summary", "full"])
+    .optional()
+    .describe(
+      "Sync defaults to paths/counts/timing; full includes each file identity. The local index always retains complete metadata.",
+    ),
+  refresh: z
+    .boolean()
+    .optional()
+    .describe(
+      "Refresh the result directory instead of reusing a complete directory fetched within 30 seconds.",
+    ),
 });
 
 async function localWorkspace(session: ToolSessionState, basePath?: string) {
@@ -212,26 +225,6 @@ async function localWorkspace(session: ToolSessionState, basePath?: string) {
   session.workspaceBase = workspace.basePath;
   return workspace;
 }
-async function fetchWorkspaceArtifact(
-  session: ToolSessionState,
-  artifactId: string,
-  offset: number,
-) {
-  const response = await session.client.prepareArtifactDownload(artifactId);
-  if (
-    !response.ok ||
-    response.operation !== "simulation-input" ||
-    !response.result.ok ||
-    !("download" in response.result)
-  )
-    throw new Error(JSON.stringify(response));
-  return session.client.downloadArtifact(
-    response.result.download.path,
-    offset,
-    response.result.artifact.sha256,
-  );
-}
-
 const ExportFileArgs = AgentFileDownloadOptionsSchema.safeExtend({
   outputPath: z.string().min(1),
 });
@@ -722,6 +715,24 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
               },
             };
         }
+        if (
+          detail === "summary" &&
+          result.ok &&
+          "run" in result &&
+          result.run.details?.collection === "complete"
+        ) {
+          const { artifacts, catalog: _catalog, ...run } = result.run;
+          return {
+            ...result,
+            runId,
+            run: {
+              ...run,
+              projection: "summary",
+              artifactCount: artifacts.length,
+              fileMetadata: { operation: "catalog", runId: run.id },
+            },
+          };
+        }
         return { ...result, ...(runId ? { runId } : {}) };
       } catch (error) {
         if (!(error instanceof AgentSessionError)) throw error;
@@ -766,7 +777,7 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       inputSchema: jsonSchemaOf(SimulationFilesArgs),
     },
     handle: async (args, session) => {
-      const { request, requestId, outputPath, basePath } =
+      const { request, requestId, outputPath, basePath, detail, refresh } =
         SimulationFilesArgs.parse(args);
       if (request.action === "workspace") {
         // status() is a cached local observation, not a network lease refresh.
@@ -790,12 +801,15 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
         return (await localWorkspace(session, basePath)).describe();
       }
       if (request.action === "sync" || request.action === "prepare-plot") {
-        const response = await session.client.simulationResource({
-          apiVersion: AGENT_API_VERSION,
-          requestId: requestId ?? crypto.randomUUID(),
-          operation: "catalog",
-          runId: request.runId,
-        });
+        const response = await session.client.simulationMetadataResource(
+          {
+            apiVersion: AGENT_API_VERSION,
+            requestId: requestId ?? crypto.randomUUID(),
+            operation: "catalog",
+            runId: request.runId,
+          },
+          { refresh },
+        );
         if (!response.ok || !("catalog" in response)) return response;
         const workspace = await localWorkspace(session, basePath);
         if (request.action === "prepare-plot")
@@ -803,14 +817,26 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
             workspace,
             response.catalog,
             request,
-            (ref, offset) => fetchWorkspaceArtifact(session, ref.id, offset),
+            workspaceTransfer(session.client),
           );
-        return workspace.sync(
+        const result = await workspace.sync(
           response.catalog,
-          (ref, offset) => fetchWorkspaceArtifact(session, ref.id, offset),
+          workspaceTransfer(session.client),
           request.fileIds,
           { analysisIndex: request.analysisIndex, roles: request.roles },
         );
+        if (detail === "full") return result;
+        return {
+          ...result,
+          files: result.files.map(({ id, outputPath, reused, timing }) => ({
+            id,
+            outputPath,
+            reused,
+            timing,
+          })),
+          projection: "summary",
+          fileMetadata: { indexPath: result.indexPath, runId: request.runId },
+        };
       }
       if (
         outputPath &&

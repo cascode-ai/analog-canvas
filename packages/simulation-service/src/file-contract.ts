@@ -3,7 +3,7 @@ import {
   SimulationInputPathSchema,
   SimulationSourceDraftSchema,
 } from "@icm/model";
-import { Id, Digest, ArtifactRefSchema } from "./contract.js";
+import { Id, Digest, ArtifactRefSchema, ProblemSchema } from "./contract.js";
 import {
   SimulationSourceChangesSchema,
   SourceUpdateReceiptSchema,
@@ -73,6 +73,10 @@ export const SimulationFileOperationSchema = z.discriminatedUnion("action", [
     artifactId: Id,
   }),
   z.strictObject({
+    action: z.literal("downloads"),
+    artifactIds: z.array(Id).min(1).max(32),
+  }),
+  z.strictObject({
     action: z.literal("artifact"),
     artifactId: Id,
     offset: Revision.default(0),
@@ -97,17 +101,32 @@ export const SimulationSourceListingSchema = z.strictObject({
     }),
   ),
 });
+export const ArtifactDownloadResultSchema = z.strictObject({
+  ok: z.literal(true),
+  artifact: ArtifactRefSchema,
+  download: z.strictObject({
+    path: z
+      .string()
+      .regex(
+        /^\/api\/agent\/sessions\/[^/]+\/artifacts\/[a-zA-Z0-9_-]{1,128}$/u,
+      ),
+  }),
+});
 export const SimulationFileResultSchema = z.union([
+  ArtifactDownloadResultSchema,
   z.strictObject({
     ok: z.literal(true),
-    artifact: ArtifactRefSchema,
-    download: z.strictObject({
-      path: z
-        .string()
-        .regex(
-          /^\/api\/agent\/sessions\/[^/]+\/artifacts\/[a-zA-Z0-9_-]{1,128}$/u,
-        ),
-    }),
+    downloads: z
+      .array(
+        z.strictObject({
+          artifactId: Id,
+          result: z.union([
+            ArtifactDownloadResultSchema,
+            z.strictObject({ ok: z.literal(false), error: ProblemSchema }),
+          ]),
+        }),
+      )
+      .max(32),
   }),
   z.strictObject({
     ok: z.literal(true),

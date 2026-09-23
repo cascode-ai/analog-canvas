@@ -5,6 +5,7 @@ import {
 } from "./source-files.js";
 import {
   SimulationFileOperationSchema,
+  ArtifactDownloadResultSchema,
   type SimulationFileResult,
   type Workspace,
   type SimulationFileOwner,
@@ -130,6 +131,31 @@ export class SimulationFiles {
         "input",
       );
     const op = parsed.data;
+    if (op.action === "downloads") {
+      const epoch = this.epoch;
+      const publicationEpoch = this.publicationEpoch;
+      const downloads = [];
+      // Restoring cold evidence can read large bodies. Do not materialize 32
+      // files concurrently merely to obtain their small descriptors.
+      for (const artifactId of op.artifactIds) {
+        const result = await this.handle({ action: "download", artifactId });
+        downloads.push({
+          artifactId,
+          result: result.ok
+            ? ArtifactDownloadResultSchema.parse(result)
+            : result,
+        });
+      }
+      if (epoch !== this.epoch || publicationEpoch !== this.publicationEpoch)
+        return problem(
+          "SESSION_CHANGED",
+          "The file session changed",
+          "export",
+          "reauthorize",
+        );
+      // Each entry reports ready/pending/failure independently; never wait for uploads here.
+      return { ok: true, downloads };
+    }
     if (
       (op.action === "list" ||
         op.action === "read" ||

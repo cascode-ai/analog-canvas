@@ -1,126 +1,72 @@
 # MCP simulation tools
 
-## Quick path
+## Normal task
 
-Use focused entries with the same `request` envelope and request identities:
-`simulation_source` lists/creates/reads/discards source workspaces;
-`simulation_edit` updates native code; `simulation_run` handles a single run;
-`simulation_batch` handles batches/sweeps; `simulation_results` catalogs/history/
-evidence export; `simulation_data` manages local workspace/sync/download/preview;
-`simulation_plot` prepares local plotting files. `simulation_folder` still owns
-saved experiments. The original `simulation` and `simulation_files` tools remain
-compatible and call the same handlers. No new HTTP route or execution semantics.
+Use the focused tool's displayed arguments directly. Query `describe_tool` for
+an unfamiliar field only; no full-contract or authoring-help prerequisite.
 
-If a parameter is unclear, query just the operation or field with `describe_tool`,
-for example `{"tool":"simulation_edit","field":"/request"}`. Do not load every
-tool contract or the full simulation reference before a normal run.
+1. Discover `simulation_run` capabilities once; choose an advertised Profile
+   and its engine. Read `netlist_code`/the relevant Cell interface for a drawn DUT,
+   not the entire drawing. Profile-managed model loads need no duplicate `.lib`.
+   Full capabilities (optionally `profileId`) are for detailed model facts.
+2. Create a saved `simulation_folder`, or reuse the current folder.
+   Creation returns its source owner, revision and paths. Use `simulation_edit`
+   for native code; `simulation_source` reads only text you need to preserve.
+   Reuse successful update revisions/digests without a confirmation reread.
+3. `simulation_run` `prepare` freezes the input. On success, `start` with
+   the returned prepared ID/digest and optional outer `waitMs:20000`.
+   Continue a running result with `read` and the same run ID, never another start.
+   Preserve an uncertain start's request ID. One hosted slot means sequential
+   starts or `simulation_batch`.
+4. For a graph, call `simulation_plot` `prepare-plot` directly with `runId`,
+   a new `name`, and `panels:[{analysisIndex:0,signals:[{signal:"v(out)"}]}]`
+   or a DC/AC/TRAN/Noise preset. It fetches the selected tables itself:
+   **no preceding sync is needed**. Check Python >=3.10 and matplotlib once per
+   local environment, execute the returned argument vector, and inspect the image.
+   `dataStatus`, `scriptStatus`, `imageStatus` distinguish downloaded data,
+   prepared code and actual rendering. Nothing installs or executes automatically.
+5. For custom analysis use `simulation_data` `sync`, selecting `analysisIndex`
+   and `roles:["table"]` if appropriate. Omit selectors for complete final
+   handoff; `fileIds:[]` updates only the directory. Local files are reused.
+   The default receipt keeps paths/counts/timing; outer `detail:"full"` adds file identities.
+   Full identities, units and dataset mapping remain in the returned local index.
+   `simulation_results` `catalog` is the explicit full remote directory, not
+   a mandatory extra step. Read data locally rather than paging waveform previews.
 
-1. Discover `simulation_run` capabilities once and select the advertised Profile/engine.
-   MCP requests compact capabilities by default. Follow `discovery.fullRequest`
-   (optionally selecting `profileId`) for devices, dependencies and model symbols.
-   For a basic simulation, read `netlist_code` and the required Cell interface;
-   a full drawing Snapshot and all authoring help are unnecessary.
-   For Canvas devices using the selected Profile's qualified model library,
-   preparation adds the library load; do not duplicate it or guess host paths.
-2. Create a saved `simulation_folder` for results the user should keep. Read and
-   update native source with `simulation_source` / `simulation_edit`; reuse successful update receipts'
-   revisions/digests instead of rereading to confirm the save.
-   Creation returns `source` with its owner, revision and file paths: write the
-   intended source directly, or read just the file whose existing text you need.
-3. `prepare` freezes that source. On success, `start` directly with its ID/digest
-   and optional outer `waitMs:20000`. MCP polls the same run internally with
-   fresh read IDs. A still-running receipt can continue with `read` and `waitMs`.
-   The budget bounds polling; an in-flight request retains its network timeout.
-   Preserve the start request ID on an uncertain start; when a run ID is known,
-   resume reading that run. Waiting never repeats execution.
-   Prepare defaults to a compact MCP response with a complete `preparation.json`
-   artifact; outer `detail:"full"` exposes the original complete mapping inline.
-   Device OP mappings describe available native vectors, not evidence that they
-   were saved. When those metrics are needed, use the mapping to explicitly
-   `save` the required vectors before analysis (`save all` does not include
-   every device parameter). Native code remains authoritative.
-4. On completion, `simulation_data` `sync` with `runId` obtains the directory
-   and downloads results into a local Project base. It transfers at most two
-   files concurrently and returns local paths, preserving completed files on
-   partial failure. Read/analyze these local files. Separate `catalog`/`export`
-   calls are needed only to select or investigate particular evidence.
-   For one plot, set `analysisIndex` and `roles:["table"]` on `sync`; the tool
-   resolves file IDs internally. Omit selectors for all files, or use `fileIds:[]`
-   for directory only. Waveform arrays and logs are never inlined by run reads.
-   `run.details` reports collection and Spec counts; the catalog locates complete
-   reports and diagnostics. If storage failed, `export` on the same run retries
-   saving retained evidence without executing the simulation again.
-   During iteration sync only needed roles/analyses; sync all files for final
-   handoff. Existing local files are reused. No successful step requires an
-   extra get-context, catalog, export, or source reread just to confirm success.
+Iteration: edit → prepare → start/wait → plot or selected sync. Do not repeat
+connection, discovery, folder creation, environment checks or full archive
+downloads when their inputs have not changed. Final sync archives all files.
 
-`sync.transfer` counts this request's selected, downloaded, reused and remaining
-files; `workspaceFileCount` counts files registered across local history.
-Each synced file includes `timing.elapsedMs` (local check through index save) and
-`timing.remoteWaitMs` (download preparation/publication wait and GET headers).
-The latter excludes streamed body transfer; the difference is not pure disk
-time. Reused files have zero remote wait. Two download slots refill independently;
-on failure, no new files start and already-started downloads settle before return.
-Argument validation failures return `INVALID_TOOL_INPUT` with field paths and
-`recovery:"fix-input"`; correct the arguments rather than reconnecting.
+## Results and freshness
 
-For a single native ngspice Noise analysis in a fresh process, save both plots
-(the current plot after `noise` is the integral, not the spectrum):
+Check execution, collection, per-analysis diagnostics and requested measurements
+independently; completion does not prove every analysis produced data.
+`run.details` summarizes collection/Specs; registered files hold complete evidence.
+Run summaries reference the catalog instead of repeating its file list; outer
+`detail:"full"` retains the complete run metadata response.
+`export` retries failed evidence saving on the same run without executing again.
 
-```spice
-set filetype=ascii
-set appendwrite
-noise v(out) Vinput dec 20 10 10Meg
-setplot noise1
-write out.raw all
-setplot noise2
-write out.raw all
-```
+Internal folder creation reuses matching capability discovery for at most
+30 seconds. Sync/plot reuse only complete, finished directories for that window;
+pending/partial directories are fetched again. Explicit capabilities/catalog calls
+always refresh; outer `refresh:true` on sync/plot bypasses directory reuse, and
+folder `refresh:true` refreshes discovery too. Pairing/Project-context changes
+invalidate reuse. A cached directory does not assert remote file availability:
+actual downloads retain authorization, publication and integrity checks.
 
-Use your actual output node and input source. Multiple Noise analyses create
-additional plot pairs; select their actual names, not always `noise1/noise2`.
+Download preparation batches up to 32 selected descriptors, independently
+reporting ready/pending/failed files. Bytes use two rolling slots; local reuse
+does not request descriptors. Partial failures preserve completed files and the
+local index. `transfer` counts selected/downloaded/reused/remaining files in
+this sync; `workspaceFileCount` covers local history. Detailed timing definitions
+and advanced features are in [detailed contracts](simulation-reference.md).
 
-Read [detailed contracts](simulation-reference.md) only when needed for device
-mapping, file editing, Batch, or recovery. Basic native OP/DC/AC/TRAN
-needs no helper-reading gate. One hosted simulation slot means sequential starts
-or Batch. Check execution, collection, per-analysis diagnostics and requested
-measurements independently; completion is not proof of every requested result.
+Prepare's default summary points to complete `preparation.json`; outer
+`detail:"full"` exposes it inline. OP mappings describe available vectors, not
+captured values; explicitly save needed device parameters (`save all` is not
+every parameter). Native source remains authoritative.
 
-For plots, `simulation_plot` supports `prepare-plot`: supply `runId`, a new
-`name`, and `panels:[{analysisIndex:0,signals:[{signal:"v(out)"}]}]`.
-Alternatively supply `preset:{kind:"ac",analysisIndex:0,signals:[{signal:"v(out)"}]}`
-instead of `panels`. DC/TRAN default to linear axes, AC to log frequency and
-separate magnitude/phase panels, Noise to log frequency/density. Compatible
-display units group together; unknown units stay separate. All four presets use
-the same template, not four independent scripts.
-It downloads only the selected tables and copies an editable Python template
-plus `plot.json` into the local base's `plots/<name>/`. Execute the returned
-argument vector with an available Python >=3.10 / matplotlib environment, then
-inspect the image. MCP prepares files; it does not run Python or install packages.
-Check the chosen local Python's version and matplotlib availability once per
-working environment before plotting; a prepared script is not a rendered image.
-The response separates `dataStatus`, `scriptStatus` and `imageStatus`; use
-`execution.check` with your chosen Python for the one-time dependency check.
-It neither installs dependencies nor executes the plot automatically.
-Existing plot directories are never overwritten: edit the local config/script
-or use a new name. This also preserves customizations across MCP upgrades.
-
-Each panel can set `x`, axis labels/ranges/scales, title and legend; each signal
-can set `unit`, `label`, and explicit complex `component` (real, imag, magnitude,
-phase). PNG is default; `formats` also accepts SVG/PDF. Display conversion changes
-both values and units; incompatible units and invalid log points fail clearly.
-Use separate panels for different units/axes. Optional signal
-`decibels:{factor:20,reference:1,referenceUnit:"V"}` explicitly projects amplitude
-relative to 1 V; factor 10 is for positive power. This is not automatically gain.
-For gain ratios, normalization or other calculations edit the copied script,
-not the installed MCP package.
-
-Set `cursors:{A:1000,B:10000,unit:"Hz"}` on a panel or preset for shared A/B
-markers. Values use the displayed x unit when `unit` is omitted. Cursors snap to
-actual nearest samples (log-distance on a log x axis); they do not interpolate
-crossings or clamp outside the domain. The graph marks sampled points and local
-`cursors.json` records requested/actual positions, sample indices, units and
-B−A deltas. Empty cursor reports overwrite stale reports on rerender. All
-readouts use the displayed projection, including dB/phase when selected.
-The copied template also works standalone with CSV paths in its JSON config;
-no live connector is needed after preparation. Run samples never enter MCP output.
+Read [detailed contracts](simulation-reference.md) only for native Noise capture,
+OP mappings, patch semantics, Batch, plot units/cursors or recovery.
+`simulation` and `simulation_files` remain compatible broad entries sharing
+the same implementation. There is no new protocol or permission gate.

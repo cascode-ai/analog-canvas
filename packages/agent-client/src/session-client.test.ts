@@ -31,6 +31,91 @@ async function freshClient(
 }
 
 describe("agent session client", () => {
+  it("reuses exact recent metadata only internally, with explicit refresh, TTL and context isolation", async () => {
+    let now = 1000;
+    const { client, http } = await freshClient({ now: () => now });
+    await client.connect("session-1.code");
+    const simulation = vi.spyOn(http, "simulation").mockImplementation(
+      async (_s, _t, request) =>
+        ({
+          apiVersion: "3.0",
+          requestId: request.requestId,
+          operation: request.operation,
+          ok: true,
+          capabilities: { profiles: [] },
+        }) as never,
+    );
+    const request = {
+      apiVersion: "3.0",
+      requestId: "discovery",
+      operation: "capabilities",
+      detail: "summary",
+    } as const;
+    await client.simulationResource(request);
+    expect(
+      await client.simulationMetadataResource({
+        requestId: "create",
+        detail: "summary",
+        operation: "capabilities",
+        apiVersion: "3.0",
+      }),
+    ).toMatchObject({ requestId: "create" });
+    expect(simulation).toHaveBeenCalledTimes(1);
+    await client.simulationMetadataResource({ ...request, detail: "full" });
+    expect(simulation).toHaveBeenCalledTimes(2);
+    await client.simulationResource(request);
+    await client.simulationMetadataResource(request, { refresh: true });
+    expect(simulation).toHaveBeenCalledTimes(4);
+    now += 30_000;
+    await client.simulationMetadataResource(request);
+    expect(simulation).toHaveBeenCalledTimes(5);
+    http.contextRevision = "next-project";
+    await client.simulationMetadataResource(request);
+    expect(simulation).toHaveBeenCalledTimes(6);
+    await client.connect("session-1.code");
+    await client.simulationMetadataResource(request);
+    expect(simulation).toHaveBeenCalledTimes(7);
+  });
+  it("does not reuse pending/partial catalogs and invalidates a complete one after export or failed refresh", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    let collection = "pending";
+    const simulation = vi.spyOn(http, "simulation").mockImplementation(
+      async (_s, _t, request) =>
+        ({
+          apiVersion: "3.0",
+          requestId: request.requestId,
+          operation: request.operation,
+          ok: true,
+          catalog: { execution: "completed", collection },
+        }) as never,
+    );
+    const request = {
+      apiVersion: "3.0",
+      requestId: "catalog",
+      operation: "catalog",
+      runId: "run",
+    } as const;
+    await client.simulationMetadataResource(request);
+    await client.simulationMetadataResource(request);
+    collection = "partial";
+    await client.simulationMetadataResource(request);
+    await client.simulationMetadataResource(request);
+    expect(simulation).toHaveBeenCalledTimes(4);
+    collection = "complete";
+    await client.simulationMetadataResource(request);
+    await client.simulationMetadataResource(request);
+    expect(simulation).toHaveBeenCalledTimes(5);
+    await client.simulationResource({ ...request, operation: "export" });
+    await client.simulationMetadataResource(request);
+    expect(simulation).toHaveBeenCalledTimes(7);
+    simulation.mockRejectedValueOnce(new Error("refresh failed"));
+    await expect(client.simulationResource(request)).rejects.toThrow(
+      "refresh failed",
+    );
+    await client.simulationMetadataResource(request);
+    expect(simulation).toHaveBeenCalledTimes(9);
+  });
   it.each([false, true])(
     "invalidates Project snapshots after file updates, uncertain=%s",
     async (uncertain) => {

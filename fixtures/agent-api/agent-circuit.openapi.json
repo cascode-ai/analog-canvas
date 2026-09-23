@@ -8,7 +8,7 @@
     "/api/agent/sessions/{sessionId}/artifacts/{fileId}": {
       "get": {
         "operationId": "agentSessionArtifactDownload",
-        "description": "Download immutable simulation bytes with the existing simulation.run bearer. Obtain the path from File simulation-input action download; ARTIFACT_TRANSFER_PENDING means publication continues in the background: wait retryAfterMs, then query with a new request ID, never restart the simulation. Text action artifact remains a preview. Stream to local disk; Range and If-Range support byte-resume. No browser Cookie or bearer in URLs. A registered transfer remains downloadable while its session is authorized even if the browser is temporarily offline. Session transfer replicas are removed on revocation or expiry; downloaded local files are independent.",
+        "description": "Stream immutable bytes using the simulation.run bearer. Get paths via File simulation-input download or downloads (1–32 IDs); each batch entry independently reports ready/pending/error. Retry pending descriptors with fresh IDs after retryAfterMs, never restart execution. Range/If-Range support resume. No cookies or tokens in URLs. Authorized published transfers survive temporary browser offline; local files survive revocation.",
         "security": [
           {
             "bearerAuth": []
@@ -400,7 +400,7 @@
     "/api/agent/sessions/{sessionId}/files": {
       "post": {
         "operationId": "agentSessionFileResource",
-        "description": "Export Project/SVG/PNG/PDF; stage and inspect import candidates; read/update simulation source or retrieve immutable run artifacts. Staging alone never replaces the Project: browser-human confirmation is required. Source updates use their owner's revision. replacements accepts path/textDigest/oldText/newText, requires one exact match against original text, and commits atomically with writes/removes/patches. Success returns source.revision and update with changed files, new digests and byte lengths; no-op saves do not advance revision. Listings advertise editing modes; fileEdit errors locate rejected edits with applied:false. Artifact access does not grant arbitrary host files.",
+        "description": "Export Project/Canvas files, stage imports, or access simulation source/evidence. Staging requires browser-human confirmation before replacement. Source updates are atomic and revisioned; receipts report paths/digests, and fileEdit locates rejected edits. Artifact access never grants arbitrary host files.",
         "security": [
           {
             "bearerAuth": []
@@ -479,7 +479,7 @@
     "/api/agent/sessions/{sessionId}/simulation": {
       "post": {
         "operationId": "agentSessionSimulationResource",
-        "description": "Discover Profiles and native authoring help; prepare saved Project-folder or session-workspace source, then start/read/catalog/cancel/export runs and batches. history lists retained completed runs with limit/cursor pagination and storage status; reconnect to the same Project then read catalog or download its files, without restarting. Catalog returns file roles, datasets, axes, units and representation selectors without samples. Exact start request-ID and payload retries do not execute twice. Download full artifacts for local analysis. Input/execution failures do not revoke the session; this is not a durable job queue.",
+        "description": "Discover Profiles/help; prepare, start/read/cancel or catalog/export runs and batches. history discovers retained runs; catalog maps roles, axes, units and selectors without samples. Reconnect to the same Project to retrieve evidence without rerunning. Preserve request ID/payload for uncertain starts. Execution failure does not revoke authorization.",
         "security": [
           {
             "bearerAuth": []
@@ -31833,6 +31833,28 @@
                     "properties": {
                       "action": {
                         "type": "string",
+                        "const": "downloads"
+                      },
+                      "artifactIds": {
+                        "minItems": 1,
+                        "maxItems": 32,
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema4"
+                        }
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "artifactIds"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
                         "const": "artifact"
                       },
                       "artifactId": {
@@ -32337,33 +32359,26 @@
                   {
                     "anyOf": [
                       {
+                        "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema2"
+                      },
+                      {
                         "type": "object",
                         "properties": {
                           "ok": {
                             "type": "boolean",
                             "const": true
                           },
-                          "artifact": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema2"
-                          },
-                          "download": {
-                            "type": "object",
-                            "properties": {
-                              "path": {
-                                "type": "string",
-                                "pattern": "^\\/api\\/agent\\/sessions\\/[^/]+\\/artifacts\\/[a-zA-Z0-9_-]{1,128}$"
-                              }
-                            },
-                            "required": [
-                              "path"
-                            ],
-                            "additionalProperties": false
+                          "downloads": {
+                            "maxItems": 32,
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema6"
+                            }
                           }
                         },
                         "required": [
                           "ok",
-                          "artifact",
-                          "download"
+                          "downloads"
                         ],
                         "additionalProperties": false
                       },
@@ -32380,19 +32395,19 @@
                               "type": "object",
                               "properties": {
                                 "id": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
                                 },
                                 "revision": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema5"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
                                 },
                                 "entry": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema6"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema13"
                                 },
                                 "configPath": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
                                 },
                                 "expiresAt": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema15"
                                 }
                               },
                               "required": [
@@ -32423,16 +32438,16 @@
                             "type": "object",
                             "properties": {
                               "id": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
                               },
                               "revision": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema5"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
                               },
                               "entry": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema6"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema13"
                               },
                               "configPath": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
                               },
                               "files": {
                                 "type": "array",
@@ -32454,7 +32469,7 @@
                                 }
                               },
                               "expiresAt": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema15"
                               }
                             },
                             "required": [
@@ -32485,15 +32500,15 @@
                             "type": "object",
                             "properties": {
                               "owner": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema17"
                               },
                               "revision": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema18"
                               },
                               "entry": {
                                 "anyOf": [
                                   {
-                                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
+                                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
                                   },
                                   {
                                     "type": "null"
@@ -32501,7 +32516,7 @@
                                 ]
                               },
                               "configPath": {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
                               },
                               "drafts": {
                                 "type": "array",
@@ -32509,7 +32524,7 @@
                                   "type": "object",
                                   "properties": {
                                     "path": {
-                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
+                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
                                     },
                                     "base": {
                                       "type": "string"
@@ -32521,13 +32536,13 @@
                                       "type": "object",
                                       "properties": {
                                         "id": {
-                                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
+                                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
                                         },
                                         "path": {
-                                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
+                                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
                                         },
                                         "documentId": {
-                                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
+                                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
                                         },
                                         "emission": {
                                           "type": "string",
@@ -32560,7 +32575,7 @@
                                   "type": "object",
                                   "properties": {
                                     "path": {
-                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
+                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
                                     },
                                     "kind": {
                                       "type": "string",
@@ -32579,7 +32594,7 @@
                                       ]
                                     },
                                     "byteLength": {
-                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema18"
                                     }
                                   },
                                   "required": [
@@ -32607,7 +32622,7 @@
                               "mappedCircuitPaths": {
                                 "type": "array",
                                 "items": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
                                 }
                               },
                               "files": {
@@ -32616,7 +32631,7 @@
                                   "type": "object",
                                   "properties": {
                                     "path": {
-                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
+                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
                                     },
                                     "action": {
                                       "type": "string",
@@ -32682,27 +32697,27 @@
                             "const": true
                           },
                           "owner": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema17"
                           },
                           "revision": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema18"
                           },
                           "path": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
                           },
                           "textDigest": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema5"
                           },
                           "text": {
                             "type": "string"
                           },
                           "offset": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema18"
                           },
                           "nextOffset": {
                             "anyOf": [
                               {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema18"
                               },
                               {
                                 "type": "null"
@@ -32715,16 +32730,16 @@
                               "type": "object",
                               "properties": {
                                 "documentId": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
                                 },
                                 "instanceId": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
                                 },
                                 "startOffset": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema18"
                                 },
                                 "endOffset": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema18"
                                 }
                               },
                               "required": [
@@ -32742,19 +32757,19 @@
                               "type": "object",
                               "properties": {
                                 "from": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema18"
                                 },
                                 "to": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema18"
                                 },
                                 "label": {
                                   "type": "string"
                                 },
                                 "documentId": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
                                 },
                                 "instanceId": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
                                 },
                                 "parameter": {
                                   "type": "string"
@@ -32792,18 +32807,18 @@
                             "const": true
                           },
                           "artifact": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema2"
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
                           },
                           "text": {
                             "type": "string"
                           },
                           "offset": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema18"
                           },
                           "nextOffset": {
                             "anyOf": [
                               {
-                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
+                                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema18"
                               },
                               {
                                 "type": "null"
@@ -32830,266 +32845,7 @@
                         "const": false
                       },
                       "error": {
-                        "type": "object",
-                        "properties": {
-                          "code": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
-                          },
-                          "message": {
-                            "type": "string"
-                          },
-                          "stage": {
-                            "type": "string",
-                            "enum": [
-                              "input",
-                              "prepare",
-                              "start",
-                              "read",
-                              "cancel",
-                              "export"
-                            ]
-                          },
-                          "recovery": {
-                            "type": "string",
-                            "enum": [
-                              "fix-input",
-                              "reprepare",
-                              "retry-same-request",
-                              "retry-after",
-                              "reauthorize",
-                              "not-retryable"
-                            ]
-                          },
-                          "retryAfterMs": {
-                            "type": "number",
-                            "minimum": 0
-                          },
-                          "correlationId": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
-                          },
-                          "currentRevision": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "fileEdit": {
-                            "type": "object",
-                            "properties": {
-                              "applied": {
-                                "type": "boolean",
-                                "const": false
-                              },
-                              "path": {
-                                "type": "string"
-                              },
-                              "operationIndex": {
-                                "type": "integer",
-                                "minimum": 0,
-                                "maximum": 9007199254740991
-                              },
-                              "operation": {
-                                "type": "string",
-                                "enum": [
-                                  "replace",
-                                  "patch",
-                                  "write",
-                                  "remove"
-                                ]
-                              },
-                              "matchCount": {
-                                "type": "integer",
-                                "minimum": 0,
-                                "maximum": 9007199254740991
-                              },
-                              "expectedRevision": {
-                                "type": "integer",
-                                "minimum": 0,
-                                "maximum": 9007199254740991
-                              }
-                            },
-                            "required": [
-                              "applied"
-                            ],
-                            "additionalProperties": false
-                          },
-                          "diagnostics": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "code": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
-                                },
-                                "message": {
-                                  "type": "string"
-                                },
-                                "severity": {
-                                  "type": "string",
-                                  "enum": [
-                                    "error",
-                                    "warning",
-                                    "info"
-                                  ]
-                                },
-                                "primary": {
-                                  "type": "object",
-                                  "properties": {
-                                    "documentId": {
-                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
-                                    },
-                                    "hierarchyPath": {
-                                      "maxItems": 32,
-                                      "type": "array",
-                                      "items": {
-                                        "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema13"
-                                      }
-                                    },
-                                    "kind": {
-                                      "type": "string",
-                                      "enum": [
-                                        "document",
-                                        "instance",
-                                        "net",
-                                        "route",
-                                        "junction",
-                                        "terminal",
-                                        "annotation",
-                                        "no-connect"
-                                      ]
-                                    },
-                                    "objectId": {
-                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
-                                    },
-                                    "endpoint": {
-                                      "oneOf": [
-                                        {
-                                          "type": "object",
-                                          "properties": {
-                                            "kind": {
-                                              "type": "string",
-                                              "const": "terminal"
-                                            },
-                                            "instanceId": {
-                                              "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
-                                            },
-                                            "pinName": {
-                                              "type": "string",
-                                              "minLength": 1
-                                            }
-                                          },
-                                          "required": [
-                                            "kind",
-                                            "instanceId",
-                                            "pinName"
-                                          ],
-                                          "additionalProperties": false
-                                        },
-                                        {
-                                          "type": "object",
-                                          "properties": {
-                                            "kind": {
-                                              "type": "string",
-                                              "const": "junction"
-                                            },
-                                            "junctionId": {
-                                              "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
-                                            }
-                                          },
-                                          "required": [
-                                            "kind",
-                                            "junctionId"
-                                          ],
-                                          "additionalProperties": false
-                                        }
-                                      ]
-                                    },
-                                    "sourceRef": {
-                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
-                                    }
-                                  },
-                                  "required": [
-                                    "documentId",
-                                    "hierarchyPath",
-                                    "kind",
-                                    "objectId"
-                                  ],
-                                  "additionalProperties": false
-                                },
-                                "field": {
-                                  "type": "string"
-                                },
-                                "path": {
-                                  "type": "string"
-                                },
-                                "sourceRef": {
-                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema14"
-                                },
-                                "source": {
-                                  "type": "object",
-                                  "properties": {
-                                    "scope": {
-                                      "type": "string",
-                                      "enum": [
-                                        "authored",
-                                        "generated",
-                                        "prepared"
-                                      ]
-                                    },
-                                    "path": {
-                                      "type": "string"
-                                    },
-                                    "textDigest": {
-                                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
-                                    },
-                                    "startOffset": {
-                                      "type": "integer",
-                                      "minimum": 0,
-                                      "maximum": 9007199254740991
-                                    },
-                                    "endOffset": {
-                                      "type": "integer",
-                                      "minimum": 0,
-                                      "maximum": 9007199254740991
-                                    },
-                                    "line": {
-                                      "type": "integer",
-                                      "exclusiveMinimum": 0,
-                                      "maximum": 9007199254740991
-                                    },
-                                    "column": {
-                                      "type": "integer",
-                                      "exclusiveMinimum": 0,
-                                      "maximum": 9007199254740991
-                                    }
-                                  },
-                                  "required": [
-                                    "scope",
-                                    "path",
-                                    "textDigest",
-                                    "startOffset",
-                                    "endOffset",
-                                    "line",
-                                    "column"
-                                  ],
-                                  "additionalProperties": false
-                                }
-                              },
-                              "required": [
-                                "code",
-                                "message",
-                                "severity"
-                              ],
-                              "additionalProperties": false
-                            }
-                          }
-                        },
-                        "required": [
-                          "code",
-                          "message",
-                          "stage",
-                          "recovery"
-                        ],
-                        "additionalProperties": false
+                        "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
                       }
                     },
                     "required": [
@@ -33199,7 +32955,7 @@
                 "const": true
               },
               "candidate": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema16"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema19"
               }
             },
             "required": [
@@ -33260,7 +33016,7 @@
                 "const": true
               },
               "candidate": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema16"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema19"
               },
               "approval": {
                 "type": "string",
@@ -33344,11 +33100,42 @@
           "__schema2": {
             "type": "object",
             "properties": {
-              "id": {
+              "ok": {
+                "type": "boolean",
+                "const": true
+              },
+              "artifact": {
                 "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
               },
+              "download": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^\\/api\\/agent\\/sessions\\/[^/]+\\/artifacts\\/[a-zA-Z0-9_-]{1,128}$"
+                  }
+                },
+                "required": [
+                  "path"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "ok",
+              "artifact",
+              "download"
+            ],
+            "additionalProperties": false
+          },
+          "__schema3": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
+              },
               "fileId": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
               },
               "name": {
                 "type": "string"
@@ -33362,7 +33149,7 @@
                 "maximum": 9007199254740991
               },
               "sha256": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema5"
               },
               "role": {
                 "type": "string",
@@ -33399,106 +33186,330 @@
             ],
             "additionalProperties": false
           },
-          "__schema3": {
+          "__schema4": {
             "type": "string",
             "minLength": 1,
             "maxLength": 256
           },
-          "__schema4": {
+          "__schema5": {
             "type": "string",
             "pattern": "^[a-f0-9]{64}$"
           },
-          "__schema5": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 9007199254740991
-          },
           "__schema6": {
-            "anyOf": [
-              {
-                "type": "string"
+            "type": "object",
+            "properties": {
+              "artifactId": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
               },
-              {
-                "type": "null"
+              "result": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema2"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "ok": {
+                        "type": "boolean",
+                        "const": false
+                      },
+                      "error": {
+                        "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema7"
+                      }
+                    },
+                    "required": [
+                      "ok",
+                      "error"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
               }
-            ]
+            },
+            "required": [
+              "artifactId",
+              "result"
+            ],
+            "additionalProperties": false
           },
           "__schema7": {
-            "type": "string"
+            "type": "object",
+            "properties": {
+              "code": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
+              },
+              "message": {
+                "type": "string"
+              },
+              "stage": {
+                "type": "string",
+                "enum": [
+                  "input",
+                  "prepare",
+                  "start",
+                  "read",
+                  "cancel",
+                  "export"
+                ]
+              },
+              "recovery": {
+                "type": "string",
+                "enum": [
+                  "fix-input",
+                  "reprepare",
+                  "retry-same-request",
+                  "retry-after",
+                  "reauthorize",
+                  "not-retryable"
+                ]
+              },
+              "retryAfterMs": {
+                "type": "number",
+                "minimum": 0
+              },
+              "correlationId": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
+              },
+              "currentRevision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "fileEdit": {
+                "type": "object",
+                "properties": {
+                  "applied": {
+                    "type": "boolean",
+                    "const": false
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "operationIndex": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "replace",
+                      "patch",
+                      "write",
+                      "remove"
+                    ]
+                  },
+                  "matchCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "applied"
+                ],
+                "additionalProperties": false
+              },
+              "diagnostics": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "error",
+                        "warning",
+                        "info"
+                      ]
+                    },
+                    "primary": {
+                      "type": "object",
+                      "properties": {
+                        "documentId": {
+                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
+                        },
+                        "hierarchyPath": {
+                          "maxItems": 32,
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema9"
+                          }
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "document",
+                            "instance",
+                            "net",
+                            "route",
+                            "junction",
+                            "terminal",
+                            "annotation",
+                            "no-connect"
+                          ]
+                        },
+                        "objectId": {
+                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
+                        },
+                        "endpoint": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "const": "terminal"
+                                },
+                                "instanceId": {
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
+                                },
+                                "pinName": {
+                                  "type": "string",
+                                  "minLength": 1
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "instanceId",
+                                "pinName"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "const": "junction"
+                                },
+                                "junctionId": {
+                                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "junctionId"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "sourceRef": {
+                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
+                        }
+                      },
+                      "required": [
+                        "documentId",
+                        "hierarchyPath",
+                        "kind",
+                        "objectId"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "field": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "sourceRef": {
+                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema10"
+                    },
+                    "source": {
+                      "type": "object",
+                      "properties": {
+                        "scope": {
+                          "type": "string",
+                          "enum": [
+                            "authored",
+                            "generated",
+                            "prepared"
+                          ]
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "textDigest": {
+                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema5"
+                        },
+                        "startOffset": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "endOffset": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "line": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "column": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "scope",
+                        "path",
+                        "textDigest",
+                        "startOffset",
+                        "endOffset",
+                        "line",
+                        "column"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "severity"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "stage",
+              "recovery"
+            ],
+            "additionalProperties": false
           },
           "__schema8": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema9"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Null means retained until explicit discard or host teardown; not an authorization lease."
-          },
-          "__schema9": {
-            "type": "number"
-          },
-          "__schema10": {
-            "oneOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "session-workspace"
-                  },
-                  "workspaceId": {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
-                  }
-                },
-                "required": [
-                  "kind",
-                  "workspaceId"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "project-folder"
-                  },
-                  "folderId": {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema3"
-                  }
-                },
-                "required": [
-                  "kind",
-                  "folderId"
-                ],
-                "additionalProperties": false
-              }
-            ]
-          },
-          "__schema11": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 9007199254740991
-          },
-          "__schema12": {
             "type": "string",
             "minLength": 1,
             "maxLength": 256
           },
-          "__schema13": {
+          "__schema9": {
             "type": "object",
             "properties": {
               "parentDocumentId": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
               },
               "instanceId": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
               },
               "childDocumentId": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
               }
             },
             "required": [
@@ -33508,17 +33519,17 @@
             ],
             "additionalProperties": false
           },
-          "__schema14": {
+          "__schema10": {
             "type": "object",
             "properties": {
               "fileId": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema12"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema8"
               },
               "start": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema15"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
               },
               "end": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema15"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema11"
               }
             },
             "required": [
@@ -33528,7 +33539,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema15": {
+          "__schema11": {
             "type": "object",
             "properties": {
               "offset": {
@@ -33554,7 +33565,82 @@
             ],
             "additionalProperties": false
           },
+          "__schema12": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "__schema13": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "__schema14": {
+            "type": "string"
+          },
+          "__schema15": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema16"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null means retained until explicit discard or host teardown; not an authorization lease."
+          },
           "__schema16": {
+            "type": "number"
+          },
+          "__schema17": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "session-workspace"
+                  },
+                  "workspaceId": {
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "workspaceId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "project-folder"
+                  },
+                  "folderId": {
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema4"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "folderId"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "__schema18": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "__schema19": {
             "type": "object",
             "properties": {
               "candidateId": {

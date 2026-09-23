@@ -39,7 +39,13 @@ export type WorkspaceScope = {
   projectId: string;
   sessionId: string;
 };
-type FetchArtifact = (ref: ArtifactRef, offset: number) => Promise<Response>;
+export type FetchArtifact = ((
+  ref: ArtifactRef,
+  offset: number,
+) => Promise<Response>) & {
+  /** Selection only: do not publish/download until a missing local file requests bytes. */
+  select?: (refs: ArtifactRef[]) => void;
+};
 const workspaces = new Map<string, Promise<LocalWorkspace>>();
 function segment(value: string): string {
   if (
@@ -253,6 +259,7 @@ export class LocalWorkspace {
       else this.index.runs[old] = parsed;
       await this.save();
       const results: Awaited<ReturnType<LocalWorkspace["download"]>>[] = [];
+      fetchArtifact.select?.(selected);
       let next = 0;
       let failure: { file: ArtifactRef; error: unknown } | undefined;
       // Two rolling slots, not two-file barriers. Stop scheduling on failure,
