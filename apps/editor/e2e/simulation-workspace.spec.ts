@@ -175,9 +175,9 @@ test("simulation examples confirm whole-Project replacement and protect existing
   });
   await page.getByTestId("project-menu-toggle").click();
   await page
-    .getByRole("textbox", { name: "Circuit name" })
+    .getByRole("textbox", { name: "Project name" })
     .fill("My unsaved circuit");
-  await page.getByRole("textbox", { name: "Circuit name" }).press("Enter");
+  await page.getByRole("textbox", { name: "Project name" }).press("Enter");
   await page.getByTestId("open-analog-simulation").click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
   const cards = panel.getByRole("group", { name: "Simulation examples" });
@@ -628,16 +628,24 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
   expect((await editor.innerText()).trim()).toBe(generated.source.text.trim());
 
   // The next default follows Canvas, not the existing experiment's root.
-  await page.getByTestId("document-selector").selectOption(dut.id);
+  await page.getByTestId("hierarchy-entry").click();
+  let manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager
+    .locator(".cell-manager-list-item")
+    .filter({ hasText: dut.name })
+    .dblclick();
   await page
     .getByRole("button", { name: "+ New experiment", exact: true })
     .click();
   await expect(cell).toHaveValue(dut.id);
   await cell.press("Escape");
   await expect(name).toHaveCount(0);
-  await page
-    .getByTestId("document-selector")
-    .selectOption(project.topDocumentId);
+  await page.getByTestId("hierarchy-entry").click();
+  manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager
+    .locator(".cell-manager-list-item")
+    .filter({ hasText: /Top/u })
+    .dblclick();
   await page
     .getByRole("button", { name: "+ New experiment", exact: true })
     .click();
@@ -1730,11 +1738,7 @@ test("Simulation defaults a new experiment to an ordinary authored Cell", async 
   page,
 }) => {
   await page.goto("/editor");
-  await page
-    .locator(".command-menu > summary")
-    .filter({ hasText: "Edit" })
-    .click();
-  await page.getByRole("button", { name: "Manage Cells…" }).click();
+  await page.getByTestId("hierarchy-entry").click();
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager.getByRole("button", { name: "New Cell" }).click();
   const newCell = page.getByRole("dialog", { name: "New Cell" });

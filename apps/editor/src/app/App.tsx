@@ -5501,6 +5501,7 @@ function WorkspaceEditor({
         }}
         searchOpen={searchOpen}
         selectionFilterOpen={selectionFilterOpen}
+        cellManagerOpen={cellManagerOpen}
         onManageCells={() => setCellManagerOpen(true)}
         userComponentsOpen={userComponentsOpen}
         onOpenUserComponents={() => {

@@ -23,28 +23,20 @@ import { placeComponent } from "./manual-editor-fixtures.js";
 
 async function runCellCommand(
   page: import("@playwright/test").Page,
-  name: "Manage Cells…" | "Place Cell",
+  name: "Hierarchy" | "Place Cell",
 ): Promise<void> {
-  // The hierarchy row only appears once there is a hierarchy to navigate, so
-  // the first Cell is created from Edit.
-  if (name === "Manage Cells…") {
-    const row = page.getByTestId("cell-command-menu");
-    if ((await row.count()) === 0) {
-      await clickCommand(page, "Edit", "Manage Cells…");
-      return;
-    }
+  if (name === "Hierarchy") {
+    await page.getByTestId("hierarchy-entry").click();
+    return;
   }
-  await page
-    .getByTestId("cell-command-menu")
-    .getByRole("button", { name, exact: true })
-    .click();
+  await clickCommand(page, "Edit", "Place Cell from this Project…");
 }
 
 async function createCell(
   page: import("@playwright/test").Page,
   name: string,
 ): Promise<void> {
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager.getByRole("button", { name: "New Cell" }).click();
   const editor = page.getByRole("dialog", { name: "New Cell" });
@@ -55,6 +47,25 @@ async function createCell(
   );
   await editor.getByLabel("Cell name").fill(name);
   await editor.getByRole("button", { name: "Create" }).click();
+}
+
+async function openCellDefinition(
+  page: import("@playwright/test").Page,
+  name: string | RegExp,
+): Promise<void> {
+  await runCellCommand(page, "Hierarchy");
+  const manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager
+    .locator(".cell-manager-list-item")
+    .filter({ hasText: name })
+    .first()
+    .dblclick();
+}
+
+async function openTopCell(
+  page: import("@playwright/test").Page,
+): Promise<void> {
+  await openCellDefinition(page, /Top/u);
 }
 
 async function placeCellPin(
@@ -80,7 +91,7 @@ async function placeCellPin(
     .fill(options.name);
   await page.getByRole("button", { name: "Apply text changes" }).click();
   if (options.direction) {
-    await runCellCommand(page, "Manage Cells…");
+    await runCellCommand(page, "Hierarchy");
     const manager = page.getByRole("dialog", { name: "Cell Manager" });
     await manager
       .getByRole("table", { name: "Formal port order" })
@@ -109,7 +120,7 @@ async function setCellTerminalDirection(
   name: string,
   direction: "input" | "output" | "inout" | "passive",
 ): Promise<void> {
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
     .getByLabel(`Formal port ${name} direction`)
@@ -169,7 +180,7 @@ test("edits Cell parameter references as plain device JSON with Undo", async ({
   expect(child(await save()).instances[0].netlist.parameters.value).toBe(
     "{Rbase}",
   );
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await expect(
     manager.getByRole("button", { name: "Remove parameter Rbase" }),
@@ -186,7 +197,7 @@ test("edits Cell parameter references as plain device JSON with Undo", async ({
   expect(renameUndone.netlist.formalParameters[0].name).toBe("Rbase");
   expect(renameUndone.instances[0].netlist.parameters.value).toBe("{Rbase}");
   await page.keyboard.press("Control+Shift+z");
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   await manager.getByLabel("Parameter Resistance default").fill("3k");
   await manager.getByLabel("Parameter Resistance default").press("Enter");
   await expect(page.getByTestId("status")).toContainText(
@@ -327,7 +338,7 @@ test("edits independent parent parameter overrides and follows definition rename
   await expect(page.getByText("// Default: 1k", { exact: true })).toBeVisible();
   await setComponentParameter(page, "Rbase", "4k");
   await expectComponentCodeField(page, "parameters.Rbase", "4k");
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager.getByRole("button", { name: /Resistors.*2 callers/u }).click();
   await manager.getByLabel("Parameter Rbase name").fill("Resistance");
@@ -414,7 +425,7 @@ test("keeps a chosen simulation Cell independent of later default Top changes", 
   expect(before.simulationFolders[0]!.input.circuitBindings).toContainEqual(
     expect.objectContaining({ documentId: "resistors" }),
   );
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
     .getByRole("complementary", { name: "Cells", exact: true })
@@ -437,7 +448,7 @@ test("sets a Cell as default Top without changing its circuit and supports Undo"
   const originalTop = await page.getByTestId("active-document-id").innerText();
   await createCell(page, "NewTop");
   const childId = await page.getByTestId("active-document-id").innerText();
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await expect(manager.locator(".cell-manager-list-heading")).toHaveCount(0);
   expect(
@@ -486,7 +497,7 @@ test("saves ordinary Cell order without changing Top and restores it with Undo",
       (await downloadBytes(page, "File", "Export Project File…")).toString(),
     );
   const normalized = await snapshot();
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
     .locator(".cell-manager-list-item")
@@ -536,7 +547,7 @@ test("opens distinct structural occurrences while keeping one stable definition 
     buffer: Buffer.from(JSON.stringify(project)),
   });
   for (const instance of ["X1", "X2"]) {
-    await runCellCommand(page, "Manage Cells…");
+    await runCellCommand(page, "Hierarchy");
     const manager = page.getByRole("dialog", { name: "Cell Manager" });
     await expect(
       manager
@@ -569,7 +580,7 @@ test("protects reviewed External interfaces and navigates their callers", async 
 }) => {
   const reviewed = reviewedExternalBindingForMaster("sky130_fd_pr__nfet_01v8")!;
   await page.goto("/editor");
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
     .getByRole("group", { name: "Definition type" })
@@ -599,7 +610,7 @@ test("protects reviewed External interfaces and navigates their callers", async 
     .getByTestId("schematic-canvas")
     .click({ position: { x: 260, y: 200 } });
   await page.keyboard.press("Escape");
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   await manager
     .getByRole("group", { name: "Definition type" })
     .getByRole("button", { name: "External Circuit Defs", exact: true })
@@ -618,7 +629,7 @@ test("manages external declarations independently of local Cell interfaces", asy
   page,
 }) => {
   await page.goto("/editor");
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   const types = manager.getByRole("group", { name: "Definition type" });
   await expect(
@@ -677,7 +688,7 @@ test("manages external declarations independently of local Cell interfaces", asy
   ).toHaveValue("gain=20");
   await manager.getByLabel("Close Cell Manager").click();
   await page.keyboard.press("Control+z");
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   await types
     .getByRole("button", { name: "External Circuit Defs", exact: true })
     .click();
@@ -703,7 +714,7 @@ test("manages external declarations independently of local Cell interfaces", asy
   ).toHaveCount(0);
   await manager.getByLabel("Close Cell Manager").click();
   await page.keyboard.press("Control+z");
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   await types
     .getByRole("button", { name: "External Circuit Defs", exact: true })
     .click();
@@ -713,7 +724,7 @@ test("manages external declarations independently of local Cell interfaces", asy
   ).toHaveValue("gain=10");
   await manager.getByLabel("Close Cell Manager").click();
   await page.keyboard.press("Control+Shift+z");
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   await types
     .getByRole("button", { name: "External Circuit Defs", exact: true })
     .click();
@@ -726,7 +737,7 @@ test("creates and places an external interface with connected netlist semantics"
   page,
 }) => {
   await page.goto("/editor");
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
     .getByRole("group", { name: "Definition type" })
@@ -925,10 +936,7 @@ test("inherits explicit Port subscripts without guessing from pin names", async 
   await expect(
     internalLabel.locator('[data-text-run="subscript"]'),
   ).toHaveCount(0);
-  await page
-    .getByTestId("cell-navigation")
-    .getByRole("button", { name: "Top", exact: true })
-    .click();
+  await openTopCell(page);
   await runCellCommand(page, "Place Cell");
   await page
     .getByRole("dialog", { name: "Place Hierarchical Cell" })
@@ -952,10 +960,7 @@ test("inherits explicit Port subscripts without guessing from pin names", async 
   await expect(internalLabel.locator('[data-text-run="subscript"]')).toHaveText(
     "out",
   );
-  await page
-    .getByTestId("cell-navigation")
-    .getByRole("button", { name: "Top", exact: true })
-    .click();
+  await openTopCell(page);
   const renamedParentPin = page.locator('[data-pin-name="V_out"]');
   await expect(renamedParentPin).toHaveText("Vout");
   await expect(
@@ -1044,34 +1049,32 @@ test("places an unreferenced top Cell in an ordinary new Cell", async ({
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
 });
 
-test("shows the hierarchy row only once there is a hierarchy", async ({
+test("keeps Hierarchy discoverable and restores the operation row on demand", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 420, height: 700 });
   await page.goto("/editor");
 
-  // A flat Project has nothing to navigate, so the row stays out of the way
-  // and the first Cell is created from Edit.
+  const entry = page.getByTestId("hierarchy-entry");
   const toolbar = page.locator('.toolbar-row[aria-label="Document hierarchy"]');
-  // A negative count can succeed before the code-split editor route mounts.
-  // Use the always-present Edit command as the positive startup anchor first.
-  await expect(page.getByTestId("edit-manage-cells")).toHaveCount(1, {
-    timeout: 15_000,
-  });
+  await expect(entry).toBeVisible({ timeout: 15_000 });
+  await expect(entry).toHaveText("Hierarchy");
   await expect(toolbar).toHaveCount(0);
+  await expect(entry).toHaveAttribute("aria-expanded", "false");
 
   await createCell(page, "FirstStage");
-  await expect(toolbar).toHaveCount(1);
-  await expect(page.getByRole("button", { name: "Place Cell" })).toBeVisible();
+  await expect(toolbar).toBeVisible();
   await expect(
-    toolbar.getByRole("button", { name: "Edit Cell Interface…" }),
-  ).toHaveCount(0);
-  await expect(toolbar.getByRole("button", { name: /Preflight/u })).toHaveCount(
-    0,
-  );
-  expect(
-    await toolbar.evaluate((element) => element.getBoundingClientRect().height),
-  ).toBeLessThan(90);
+    toolbar.getByRole("button", { name: "Manage Cells…" }),
+  ).toBeVisible();
+  await expect(
+    toolbar.getByRole("button", { name: "Place Cell" }),
+  ).toBeEnabled();
+  await expect(entry).toBeVisible();
+  await toolbar.getByRole("button", { name: "Place Cell" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Place Hierarchical Cell" }),
+  ).toBeVisible();
 });
 
 test("creates and deletes an unreferenced reusable Cell", async ({ page }) => {
@@ -1079,12 +1082,14 @@ test("creates and deletes an unreferenced reusable Cell", async ({ page }) => {
   await createCell(page, "ReusableStage");
 
   await expect(page.getByTestId("document-count")).toHaveText("2");
-  await expect(page.getByTestId("document-selector")).toHaveValue(/document-/u);
+  await expect(page.getByTestId("active-document-id")).not.toHaveText(
+    "document-main",
+  );
   await expect(page.getByTestId("status")).toContainText(
     "Created Cell ReusableStage",
   );
 
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await expect(manager.locator(".cell-row-menu")).toHaveCount(0);
   await manager
@@ -1113,11 +1118,8 @@ test("keeps Manager free of reset actions and opens definitions by double click"
   await createCell(page, "Child");
   const childId = await page.getByTestId("active-document-id").innerText();
   await placeComponent(page, "resistor", { x: 320, y: 200 });
-  await page
-    .getByTestId("cell-navigation")
-    .getByRole("button", { name: "Top", exact: true })
-    .click();
-  await runCellCommand(page, "Manage Cells…");
+  await openTopCell(page);
+  await runCellCommand(page, "Hierarchy");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await expect(manager).not.toContainText("Reset Cell");
   await expect(manager).not.toContainText("Project hierarchy");
@@ -1134,10 +1136,7 @@ test("keeps Manager free of reset actions and opens definitions by double click"
 test("manages Cell rename and lists callers", async ({ page }) => {
   await page.goto("/editor");
   await createCell(page, "ReusableStage");
-  await page
-    .getByTestId("cell-navigation")
-    .getByRole("button", { name: "Top", exact: true })
-    .click();
+  await openTopCell(page);
   await runCellCommand(page, "Place Cell");
   const insert = page.getByRole("dialog", { name: "Place Hierarchical Cell" });
   await insert.getByRole("option", { name: /ReusableStage/u }).click();
@@ -1146,7 +1145,7 @@ test("manages Cell rename and lists callers", async ({ page }) => {
     .click({ position: { x: 320, y: 180 } });
   await page.keyboard.press("Escape");
 
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
     .getByRole("button", { name: /ReusableStage.*1 callers/u })
@@ -1221,14 +1220,8 @@ test("declares and places a Cell Pin on a new local Net", async ({ page }) => {
     "Updated Cell port direction",
   );
 
-  await page
-    .getByTestId("cell-navigation")
-    .getByRole("button", { name: "Top", exact: true })
-    .click();
-  await page
-    .getByTestId("cell-command-menu")
-    .getByRole("button", { name: "Place Cell" })
-    .click();
+  await openTopCell(page);
+  await runCellCommand(page, "Place Cell");
   const insertDialog = page.getByRole("dialog", {
     name: "Place Hierarchical Cell",
   });
@@ -1558,7 +1551,7 @@ test("hides empty parameters and does not expose a second declaration workflow",
     position: { x: 300, y: 180 },
   });
 
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   const dialog = page.getByRole("dialog", { name: "Cell Manager" });
   await expect(dialog.getByLabel("Formal port V_out direction")).toHaveValue(
     "passive",
@@ -1634,7 +1627,7 @@ test("confirms connected last-Port deletion and restores caller wires with Undo 
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(project)),
   });
-  await page.getByTestId("document-selector").selectOption(child.id);
+  await openCellDefinition(page, child.name);
   const snapshot = async (): Promise<CircuitProject> =>
     parseSavedProject(
       (await downloadBytes(page, "File", "Export Project File…")).toString(),
@@ -1696,10 +1689,7 @@ test("places an existing Cell and blocks deleting its shared definition", async 
 }) => {
   await page.goto("/editor");
   await createCell(page, "ReusableStage");
-  await page
-    .getByTestId("cell-navigation")
-    .getByRole("button", { name: "Top", exact: true })
-    .click();
+  await openTopCell(page);
 
   await runCellCommand(page, "Place Cell");
   const dialog = page.getByRole("dialog", { name: "Place Hierarchical Cell" });
@@ -1752,7 +1742,7 @@ test("places an existing Cell and blocks deleting its shared definition", async 
   await expect(canvas.locator('[data-kind="instance-label"]')).toHaveCount(0);
   await page.keyboard.press("Escape");
 
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await expect(
     manager.getByRole("button", { name: "Delete", exact: true }),
@@ -1853,7 +1843,7 @@ test("same-name Cell Pins stay independent while the final interface groups them
       .locator('[data-object-id="instance-label-P2"]')
       .locator('[data-text-run="subscript"]'),
   ).toHaveText("in");
-  await runCellCommand(page, "Manage Cells…");
+  await runCellCommand(page, "Hierarchy");
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await expect(
     manager.getByRole("table", { name: "Formal port order" }).getByRole("row"),

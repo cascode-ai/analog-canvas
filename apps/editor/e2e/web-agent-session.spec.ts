@@ -10,7 +10,6 @@ import { AgentSessionClient } from "../../../packages/agent-client/src/session-c
 import {
   revealPropertiesShelf,
   awaitEditorReady,
-  clickCommand,
   clickDrawTool,
   readComponentPropertyCode,
   setComponentParameter,
@@ -1174,7 +1173,7 @@ test("keeps one Project session through Cell switches and preserves an acknowled
   await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
   await panel.getByRole("button", { name: "Close Agent dialog" }).click();
 
-  await clickCommand(page, "Edit", "Manage Cells…");
+  await page.getByTestId("hierarchy-entry").click();
   let manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager.getByRole("button", { name: "New Cell" }).click();
   const cellEditor = page.getByRole("dialog", { name: "New Cell" });
@@ -1185,14 +1184,13 @@ test("keeps one Project session through Cell switches and preserves an acknowled
     .innerText();
   expect(childDocumentId).not.toBe(topDocumentId);
 
-  await page
-    .getByTestId("cell-navigation")
-    .getByRole("button", { name: "Top", exact: true })
-    .click();
-  await page
-    .getByTestId("cell-command-menu")
-    .getByRole("button", { name: "Manage Cells…", exact: true })
-    .click();
+  await page.getByTestId("hierarchy-entry").click();
+  manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager
+    .locator(".cell-manager-list-item")
+    .filter({ hasText: /Top/u })
+    .dblclick();
+  await page.getByTestId("hierarchy-entry").click();
   manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
     .locator(".cell-manager-list-item")
@@ -1216,10 +1214,12 @@ test("keeps one Project session through Cell switches and preserves an acknowled
     }),
   ).toMatchObject({ ok: true, revision: 0 });
 
-  await page
-    .getByTestId("cell-navigation")
-    .getByRole("button", { name: "Top", exact: true })
-    .click();
+  await page.getByTestId("hierarchy-entry").click();
+  manager = page.getByRole("dialog", { name: "Cell Manager" });
+  await manager
+    .locator(".cell-manager-list-item")
+    .filter({ hasText: /Top/u })
+    .dblclick();
   expect(
     await client.circuit(session.sessionId, session.agentToken, {
       apiVersion: "3.0",

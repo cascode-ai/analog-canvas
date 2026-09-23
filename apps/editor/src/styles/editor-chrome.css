@@ -1107,7 +1107,8 @@
 /* Project titles are variable-length content, never menubar layout inputs. */
 .app-chrome-main .app-brand,
 .app-chrome-main .gallery-home-link,
-.project-menu {
+.project-menu,
+.hierarchy-entry {
   flex: 0 0 auto;
 }
 

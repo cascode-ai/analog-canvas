@@ -61,11 +61,15 @@ function ImmediatePanelButton({
     (tooltipElement: HTMLSpanElement | null): void => {
       if (!tooltipElement || typeof window === "undefined") return;
       const margin = 8;
+      // The measured box and CSS translate can round to opposite subpixels in
+      // Chromium. Keep a fractional guard so the rendered edge stays inside
+      // the promised viewport margin after both calculations are applied.
+      const transformRoundingGuard = 0.5;
       const halfWidth = tooltipElement.getBoundingClientRect().width / 2;
-      const minimumLeft = margin + halfWidth;
+      const minimumLeft = margin + halfWidth + transformRoundingGuard;
       const maximumLeft = Math.max(
         minimumLeft,
-        window.innerWidth - margin - halfWidth,
+        window.innerWidth - margin - halfWidth - transformRoundingGuard,
       );
       setPosition((current) => {
         if (!current) return current;

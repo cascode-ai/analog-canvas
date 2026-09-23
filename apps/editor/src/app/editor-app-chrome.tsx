@@ -48,6 +48,7 @@ export interface EditorAppChromeProps {
   onInsertComponent: () => void;
   userComponentsOpen: boolean;
   onOpenUserComponents: () => void;
+  cellManagerOpen: boolean;
   onManageCells: () => void;
   placeProjectCell: CommandAction;
   selectionFilterOpen: boolean;
@@ -109,6 +110,7 @@ export function EditorAppChrome({
   onInsertComponent,
   userComponentsOpen,
   onOpenUserComponents,
+  cellManagerOpen,
   onManageCells,
   placeProjectCell,
   selectionFilterOpen,
@@ -185,6 +187,16 @@ export function EditorAppChrome({
             onNameCancel={onProjectNameCancel}
             {...(projectChoices ? { projects: projectChoices } : {})}
           />
+          <button
+            type="button"
+            className="toolbar-button hierarchy-entry"
+            data-testid="hierarchy-entry"
+            aria-haspopup="dialog"
+            aria-expanded={cellManagerOpen}
+            onClick={onManageCells}
+          >
+            Hierarchy
+          </button>
         </div>
         <nav
           className="app-command-surface"
@@ -214,13 +226,6 @@ export function EditorAppChrome({
                   onClick={onOpenUserComponents}
                 >
                   User Components…
-                </button>
-                <button
-                  type="button"
-                  data-testid="edit-manage-cells"
-                  onClick={onManageCells}
-                >
-                  Manage Cells…
                 </button>
                 {placeProjectCell.enabled ? (
                   <button type="button" onClick={placeProjectCell.execute}>

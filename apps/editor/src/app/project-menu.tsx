@@ -89,9 +89,9 @@ export function ProjectMenu({
         aria-label="Project details"
       >
         <label className="project-menu-name">
-          <span>Circuit name</span>
+          <span>Project name</span>
           <input
-            aria-label="Circuit name"
+            aria-label="Project name"
             autoComplete="off"
             data-testid="project-name-input"
             value={nameDraft ?? name}
@@ -117,7 +117,7 @@ export function ProjectMenu({
         </label>
         <dl className="project-menu-metadata">
           <div>
-            <dt>Cell</dt>
+            <dt>Current Cell</dt>
             <dd data-testid="active-document-name">{documentName}</dd>
           </div>
         </dl>

@@ -5174,7 +5174,7 @@ test("does not expose destructive Cell reset actions in Manager", async ({
 }) => {
   await page.goto("/editor");
   await placeComponent(page, "resistor", { x: 320, y: 240 });
-  await clickCommand(page, "Edit", "Manage Cells…");
+  await page.getByTestId("hierarchy-entry").click();
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   for (const name of [
     "Reset Cell",
