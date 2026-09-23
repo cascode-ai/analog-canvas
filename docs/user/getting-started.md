@@ -540,7 +540,7 @@ Build the versioned bundle and start it with Node 24:
 
 ```powershell
 pnpm release:package
-node output/release/interactive-circuit-maker-v0.9.2/start.mjs
+node output/release/analog-canvas-v0.9.2/start.mjs
 ```
 
 Open `http://127.0.0.1:4173`. Chromium can install the app from its browser

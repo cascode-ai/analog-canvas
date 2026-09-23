@@ -383,7 +383,7 @@ const claimResponses = {
 export const agentCircuitOpenApi = {
   openapi: "3.1.0",
   info: {
-    title: "Interactive Circuit Maker Agent Circuit API",
+    title: "Analog Canvas Agent Circuit API",
     version: AGENT_API_VERSION,
   },
   paths: {

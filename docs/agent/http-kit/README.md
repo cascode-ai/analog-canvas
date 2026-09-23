@@ -1,4 +1,4 @@
-# Interactive Circuit Maker Agent Kit
+# Analog Canvas Agent Kit
 
 This private working folder is operating material for one browser-authorized
 session. It is not a checkout of the editor and contains no Project data,

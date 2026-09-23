@@ -15,7 +15,7 @@ diagnosed. Humans and authorized Agents share the typed Edit Engine.
 [Product architecture](docs/overall-product-plan.md) owns the complete boundary;
 [simulation](docs/specs/simulation.md) owns saved intent and execution contracts.
 
-- pnpm workspace: `apps/*` and `packages/*` (21 projects, all scoped `@icm/*`). The private root package `interactive-circuit-maker` carries the product version; [CHANGELOG.md](CHANGELOG.md) records user-facing changes per release.
+- pnpm workspace: `apps/*` and `packages/*` (21 projects, all scoped `@icm/*`). The private root package `analog-canvas` carries the product version; [CHANGELOG.md](CHANGELOG.md) records user-facing changes per release.
 - Node >= 24, pnpm >= 11.16 (`packageManager: pnpm@11.16.0`), ESM only. Pinned toolchain: TypeScript 7, Vite 8, Vitest 4, Playwright 1.62, Prettier 3.
 - License: AGPL-3.0-only ([LICENSE.md](LICENSE.md)).
 
@@ -125,7 +125,7 @@ Dependencies flow strictly downward and pnpm's topological order is the only bui
 - `@icm/agent-routing` — Agent-local transient RouteGraph → typed-edit expander. Agent rationale: these types never enter the API schema or persisted model; Agent-side scaffolding with no in-repo importers.
 - `@icm/platform-node` — Node filesystem storage/recovery adapters; no in-repo importers.
 - `apps/editor` — the React/SVG editor and installable PWA, plus the Gallery, account, and moderation surfaces. `analytics/` is the self-contained first-party analytics module; `dev/` holds the Vite dev-server plugins (local Agent relay, netlist conversion, local simulation).
-- `apps/local-host` — loopback-only static host for `apps/editor/dist` with a local simulation transport seam (`bin: interactive-circuit-maker`; its only dependency is `@icm/spice-run`).
+- `apps/local-host` — loopback-only static host for `apps/editor/dist` with a local simulation transport seam (`bin: analog-canvas`; its only dependency is `@icm/spice-run`).
 - `apps/mcp-server` — stdio MCP server (`bin: analog-canvas-mcp`) over `agent-client`, with generated doc resources. Release packaging (`scripts/package-mcp.mjs`) bundles it with Vite and takes the version from `config/agent-mcp-distribution.json`, not from its `package.json`.
 - `worker/` — Cloudflare Worker (`worker/index.ts`) serving `apps/editor/dist` and `/api/*`: Durable Objects `AnalyticsDO` (from `apps/editor/analytics`), `AgentSessionDO`, `GalleryDO`, `AuthDO`, and `SimulationControlDO`, plus the `SIMULATION_JOBS` queue and `SIMULATION_ARTIFACTS` R2 bucket behind hosted simulation (`simulation-ngspice.ts`, `simulation-vacask.ts`). `.github/workflows/cloudflare.yml` builds and deploys every non-documentation merge directly to Production (`wrangler.jsonc`); tags and manual dispatches may release only commits already on `main`. The retired Preview Worker remains route-free through `wrangler.preview.jsonc` solely to preserve its isolated data. Markdown/`docs/`-only merges deploy nothing.
 

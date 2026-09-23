@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "bin": {
-    "interactive-circuit-maker": "./dist/cli.js"
+    "analog-canvas": "./dist/cli.js"
   },
   "exports": {
     ".": {

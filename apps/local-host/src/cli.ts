@@ -26,4 +26,4 @@ const running = await startLocalHost({
     ? { simulationHandler: createLocalSimulationHandler(simulationUrl) }
     : {}),
 });
-process.stdout.write(`Interactive Circuit Maker v0.9.2: ${running.origin}\n`);
+process.stdout.write(`Analog Canvas v0.9.2: ${running.origin}\n`);
