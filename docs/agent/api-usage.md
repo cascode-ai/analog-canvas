@@ -27,7 +27,7 @@ current examples use API `3.0`.
 | --------------------------------------------- | -------------------------------------------------------------------------- |
 | `POST /circuit`                               | Four Circuit operations: capabilities, snapshot, transact, render          |
 | `POST /files`                                 | Project exports/import candidates, simulation source and artifacts         |
-| `POST /simulation`                            | Capabilities, authoring help, prepare/start/read/cancel/export and batches |
+| `POST /simulation`                            | Capabilities, authoring help, run/prepare/start/read/cancel/export and batches |
 | `POST /projects`                              | Public Gallery, active Project Code/Netlist, reusable Cloud Cells          |
 | `GET /status`                                 | Session observations; attached is not execution readiness                  |
 

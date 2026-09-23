@@ -4,7 +4,7 @@ Circuit operations are exactly `capabilities`, `snapshot`, `transact`,
 and `render`. Inside transact, use exactly one of edits, structureEdits,
 wireIntent, semanticIntent, or a browser-planned command. Commands reuse GUI
 planners and the same Edit Engine. Simulation is a sibling resource with
-capabilities/prepare/start/read/cancel/export; files remain in File Resource.
+capabilities/run/prepare/start/read/cancel/export; files remain in File Resource.
 Neither expands the four Circuit operations. The Kit's static
 authoring catalog is not Project state and is not a Circuit operation.
 
