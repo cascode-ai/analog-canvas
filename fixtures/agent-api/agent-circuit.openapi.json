@@ -34944,7 +34944,8 @@
                           "unconstrained"
                         ],
                         "additionalProperties": false
-                      }
+                      },
+                      "timing": {}
                     },
                     "required": [
                       "operation",
