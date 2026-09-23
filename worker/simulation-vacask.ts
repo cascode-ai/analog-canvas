@@ -66,6 +66,33 @@ const unavailable = {
   cancel: false,
 };
 const MAX_BODY_BYTES = 8 * 1024 * 1024;
+type RuntimeFacts = { expiresAt: number; health: Record<string, unknown> };
+const boundFacts = new WeakMap<object, Map<string, RuntimeFacts>>();
+const remoteFacts = new Map<string, RuntimeFacts>();
+function factsCache(
+  env: SimulationEnv,
+  target: SimulationExecutorTarget,
+  profile: string,
+  runnerKey?: string,
+) {
+  if (target === "cloudflare-container" && env.VACASK) {
+    let entries = boundFacts.get(env.VACASK);
+    if (!entries) {
+      entries = new Map();
+      boundFacts.set(env.VACASK, entries);
+    }
+    return { entries, key: JSON.stringify([profile, runnerKey]) };
+  }
+  // Credentials only scope this private in-memory cache; never log the key.
+  return {
+    entries: remoteFacts,
+    key: JSON.stringify([
+      env.SIMULATION_UPSTREAM_URL,
+      env.SIMULATION_UPSTREAM_TOKEN,
+      profile,
+    ]),
+  };
+}
 const json = (body: unknown, status = 200, headers?: HeadersInit) =>
   Response.json(body, { status, ...(headers ? { headers } : {}) });
 async function boundedText(
@@ -250,28 +277,42 @@ export async function routeVacaskSimulationRequest(
     }
   }
   let health: Record<string, unknown>;
+  const facts = factsCache(env, target, profileId, runnerKey);
+  const cached = facts.entries.get(facts.key);
+  const reuse =
+    body.operation !== "capabilities" &&
+    cached &&
+    cached.expiresAt > Date.now();
   try {
-    const r = await runner.fetch("http://container/health", {
-      method: "GET",
-      signal: AbortSignal.timeout(10000),
-    });
-    if (r.status === 401 || r.status === 403)
-      return json(
-        {
-          error: "simulator-unauthorized",
-          execution,
-          message: "The simulator refused this deployment's credentials.",
-        },
-        502,
-      );
-    if (!r.ok)
-      return body.operation === "capabilities"
-        ? json(unavailable)
-        : json(
-            { error: "simulator-not-ready", execution, ...(await refusal(r)) },
-            503,
-          );
-    health = JSON.parse(await boundedText(r, 131072));
+    if (reuse) health = cached.health;
+    else {
+      facts.entries.delete(facts.key);
+      const r = await runner.fetch("http://container/health", {
+        method: "GET",
+        signal: AbortSignal.timeout(10000),
+      });
+      if (r.status === 401 || r.status === 403)
+        return json(
+          {
+            error: "simulator-unauthorized",
+            execution,
+            message: "The simulator refused this deployment's credentials.",
+          },
+          502,
+        );
+      if (!r.ok)
+        return body.operation === "capabilities"
+          ? json(unavailable)
+          : json(
+              {
+                error: "simulator-not-ready",
+                execution,
+                ...(await refusal(r)),
+              },
+              503,
+            );
+      health = JSON.parse(await boundedText(r, 131072));
+    }
   } catch (error) {
     return body.operation === "capabilities"
       ? json(unavailable)
@@ -329,6 +370,11 @@ export async function routeVacaskSimulationRequest(
           503,
         );
   const caps = capability.data;
+  if (!reuse) {
+    if (facts.entries.size >= 64)
+      facts.entries.delete(facts.entries.keys().next().value!);
+    facts.entries.set(facts.key, { expiresAt: Date.now() + 30_000, health });
+  }
   if (body.operation === "capabilities") return json(caps);
   const profile = caps.profiles[0]!;
   if (
@@ -377,6 +423,7 @@ export async function routeVacaskSimulationRequest(
       signal: AbortSignal.timeout(150000),
     });
   } catch {
+    facts.entries.delete(facts.key);
     return json(
       {
         error: "simulator-unreachable",
@@ -387,7 +434,8 @@ export async function routeVacaskSimulationRequest(
       502,
     );
   }
-  if (response.status === 401 || response.status === 403)
+  if (response.status === 401 || response.status === 403) {
+    facts.entries.delete(facts.key);
     return json(
       {
         error: "simulator-unauthorized",
@@ -396,7 +444,9 @@ export async function routeVacaskSimulationRequest(
       },
       502,
     );
-  if (!response.ok)
+  }
+  if (!response.ok) {
+    facts.entries.delete(facts.key);
     return json(
       {
         error: "simulator-refused",
@@ -409,6 +459,7 @@ export async function routeVacaskSimulationRequest(
         ? { "retry-after": response.headers.get("retry-after")! }
         : undefined,
     );
+  }
   try {
     const receipt = readExecutionReceipt(
       response.headers.get(EXECUTION_RECEIPT_HEADER),
@@ -490,6 +541,7 @@ export async function routeVacaskSimulationRequest(
       cancelled: output.cancelled,
     });
   } catch {
+    facts.entries.delete(facts.key);
     await response.body?.cancel().catch(() => {});
     return json(
       {

@@ -15,15 +15,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readDeclaredRawfile } from "./rawfile-collector.mjs";
 import { routeNgspiceSimulationRequest } from "../../worker/simulation-ngspice.ts";
+import profile from "./hosted-sky130-profile.json" with { type: "json" };
 
 const environment = await createSimulationEnvironmentMetadata({
   executor: "hosted-container",
-  reproducibility: "observed",
-  profileId: "protocol-fixture",
+  reproducibility: "pinned",
+  profileId: profile.id,
   platform: "linux/x64",
-  simulator: { name: "ngspice", version: "46", binarySha256: "a".repeat(64) },
-  models: { id: "protocol-fixture", contentSha256: "b".repeat(64) },
-  startupSha256: "c".repeat(64),
+  simulator: profile.simulator,
+  models: {
+    id: profile.models.id,
+    contentSha256: profile.models.contentSha256,
+  },
+  startupSha256: profile.startup.contentSha256,
 });
 export const outputInput = {
   deck: "* protocol test\n.end\n",
@@ -71,13 +75,10 @@ async function throughWorker(response, patch = {}) {
     {
       NGSPICE: {
         getByName: () => ({
-          fetch: async (url) =>
-            new URL(url).pathname === "/health"
-              ? Response.json({
-                  environment,
-                  limits: { outputBytes: NGSPICE_MAX_RAWFILE_BYTES },
-                })
-              : response,
+          fetch: async (url) => {
+            expect(new URL(url).pathname).toBe("/run");
+            return response;
+          },
         }),
       },
     },
@@ -85,6 +86,25 @@ async function throughWorker(response, patch = {}) {
 }
 
 describe("large ngspice output handoff", () => {
+  it("rejects self-consistent but unapproved runtime facts without a follow-up health request", async () => {
+    const { fingerprint: _fingerprint, ...facts } = environment;
+    const changed = await createSimulationEnvironmentMetadata({
+      ...facts,
+      simulator: { ...environment.simulator, binarySha256: "a".repeat(64) },
+    });
+    const reply = await ngspiceResultResponse(
+      outputInput,
+      { ...raw(""), environment: changed },
+      true,
+    );
+    const response = await throughWorker(
+      new Response(reply.body, { headers: reply.headers }),
+    );
+    expect(response.status).toBe(502);
+    expect(await response.json()).toMatchObject({
+      error: "simulator-protocol-invalid",
+    });
+  });
   it("advertises the running collector budget rather than an old Worker declaration", async () => {
     const caps = await routeNgspiceSimulationRequest(
       new Request("https://canvas.test/api/simulate", {
@@ -143,7 +163,7 @@ describe("large ngspice output handoff", () => {
             testbench: outputInput.deck,
             preparedDeck: outputInput.deck,
             inputRevision: "revision-large",
-            environment: { profileId: "protocol-fixture", corner: "tt" },
+            environment: { profileId: profile.id, corner: "tt" },
             files: [],
             dependencies: [],
             collection: outputInput.collection,
