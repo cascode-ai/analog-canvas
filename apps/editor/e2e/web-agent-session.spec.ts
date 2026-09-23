@@ -595,6 +595,16 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
     operation: "read-project-code",
     structureRevision: 0,
   });
+  const invalidProject = await sendProjectRequest("invalid-project", {
+    apiVersion: "3.0",
+    requestId: "invalid-project",
+    operation: "replace-project-code",
+  });
+  expect(invalidProject.payload).toMatchObject({
+    ok: false,
+    operation: "error",
+    error: { code: "PROJECT_REQUEST_INVALID", recovery: "fix-input" },
+  });
   const projectCodePayload = projectCode.payload as {
     projectCode: string;
     structureRevision: number;

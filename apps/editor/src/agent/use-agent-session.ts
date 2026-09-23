@@ -876,11 +876,6 @@ export function useAgentSession(
               const projectRequest = parseAgentProjectResourceRequest(
                 parsed.data.payload,
               );
-              if (!projectRequest.success || !options.projectHost) return;
-              const payloadHash = sha256Hex(
-                JSON.stringify(parsed.data.payload),
-              );
-              const knownHash = live.requestHashes.get(parsed.data.requestId);
               const sendProjectResponse = (payload: unknown) => {
                 if (socket.readyState !== WebSocket.OPEN) return;
                 socket.send(
@@ -895,6 +890,34 @@ export function useAgentSession(
                   }),
                 );
               };
+              if (!projectRequest.success || !options.projectHost) {
+                sendProjectResponse({
+                  apiVersion: AGENT_API_VERSION,
+                  requestId: parsed.data.requestId,
+                  operation: projectRequest.success
+                    ? projectRequest.data.operation
+                    : "error",
+                  ok: false,
+                  error: projectRequest.success
+                    ? {
+                        code: "PROJECT_HOST_UNAVAILABLE",
+                        message:
+                          "The Project host is not available; retry after reconnecting",
+                        recovery: "retry",
+                      }
+                    : {
+                        code: "PROJECT_REQUEST_INVALID",
+                        message:
+                          "The Project request does not match the current contract",
+                        recovery: "fix-input",
+                      },
+                });
+                return;
+              }
+              const payloadHash = sha256Hex(
+                JSON.stringify(parsed.data.payload),
+              );
+              const knownHash = live.requestHashes.get(parsed.data.requestId);
               if (knownHash) {
                 sendProjectResponse({
                   apiVersion: AGENT_API_VERSION,

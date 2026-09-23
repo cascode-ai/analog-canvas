@@ -156,6 +156,35 @@ describe("agent session client", () => {
       expect(client.cachedSnapshot("main")).not.toBeNull();
     },
   );
+  it.each([false, true])(
+    "invalidates Project snapshots after code replacement, uncertain=%s",
+    async (uncertain) => {
+      const { client, http } = await freshClient();
+      await client.connect("session-1.code");
+      await client.snapshot("main");
+      const projects = vi.spyOn(http, "projects");
+      if (uncertain) projects.mockRejectedValueOnce(new Error("response lost"));
+      else projects.mockResolvedValueOnce({ ok: true } as never);
+      const replace = client.projectResource({
+        apiVersion: "3.0",
+        requestId: "replace-code",
+        operation: "replace-project-code",
+        expectedStructureRevision: 0,
+        projectCode: "{}",
+      });
+      if (uncertain) await expect(replace).rejects.toThrow("response lost");
+      else await replace;
+      expect(client.cachedSnapshot("main")).toBeNull();
+      await client.snapshot("main");
+      projects.mockResolvedValueOnce({ ok: true } as never);
+      await client.projectResource({
+        apiVersion: "3.0",
+        requestId: "read-code",
+        operation: "read-project-code",
+      });
+      expect(client.cachedSnapshot("main")).not.toBeNull();
+    },
+  );
   it("does not carry an offline request into a newly paired Project", async () => {
     const http = new FakeAgentHttp();
     const client = new AgentSessionClient({
