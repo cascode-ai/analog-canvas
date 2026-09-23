@@ -204,24 +204,13 @@ describe("component insertion catalog", () => {
     );
   });
 
-  it("offers Digital Clock locally but can remove it with the production flag", () => {
+  it("does not offer the retired Digital Clock in any editor palette", () => {
     expect(
       findPaletteSymbol("razavi-textbook-v1", "pulse-voltage-source"),
-    )?.toMatchObject({
-      id: "pulse-voltage-source",
-      pins: [{ name: "+" }, { name: "-" }],
-    });
-    expect(
-      flattenComponentCatalog(
-        componentCatalog("razavi-textbook-v1", "digital clock"),
-      ),
-    ).toHaveLength(1);
-    expect(
-      findPaletteSymbol("razavi-textbook-v1", "pulse-voltage-source", false),
     ).toBeUndefined();
     expect(
       flattenComponentCatalog(
-        componentCatalog("razavi-textbook-v1", "digital clock", [], false),
+        componentCatalog("razavi-textbook-v1", "digital clock"),
       ),
     ).toEqual([]);
   });

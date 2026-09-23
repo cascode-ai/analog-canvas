@@ -62,8 +62,11 @@ bindings, routes, secrets, queues, buckets, and Durable Object namespaces are
 applied by `wrangler.jsonc` rather than baked into the candidate.
 
 The release build enables the Simulation and Agent workflows and sets
-`VITE_ICM_SIMULATION_TRANSPORT=managed`. Digital Timing remains disabled in the
-hosted build. Local and portable builds retain direct execution unless
+`VITE_ICM_SIMULATION_TRANSPORT=managed`. Digital Timing is retired from the
+Editor runtime in every environment; this does not affect saved clock symbols.
+Bundled example Projects load only on loopback hosts; hosted Gallery entries
+continue to come from the Gallery service.
+Local and portable builds retain direct execution unless
 explicitly configured otherwise.
 
 ## Releasing to Production

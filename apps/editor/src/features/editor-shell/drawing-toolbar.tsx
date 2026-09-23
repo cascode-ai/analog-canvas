@@ -21,7 +21,6 @@ export interface DrawingToolbarProps {
   documentSettingsOpen: boolean;
   undo: ToolbarCommand;
   redo: ToolbarCommand;
-  simulation?: { open: boolean; onToggle: () => void };
   onToggleExamples: () => void;
   onToggleLibrary: () => void;
   onToggleNetlist: () => void;
@@ -144,7 +143,6 @@ export function DrawingToolbar({
   onActivateTool,
   onAddText,
   onOpenDocumentSettings,
-  simulation,
 }: DrawingToolbarProps) {
   const examplesOpen = leftPanelMode === "examples" && libraryPanelOpen;
   const libraryOpen = leftPanelMode === "library" && libraryPanelOpen;
@@ -278,19 +276,6 @@ export function DrawingToolbar({
         <ToolIcon name="style" />
         <span>Properties</span>
       </button>
-      {simulation ? (
-        <button
-          type="button"
-          className="draw-tool"
-          data-testid="digital-simulation-toggle"
-          aria-pressed={simulation.open}
-          title="Digital Simulation"
-          onClick={simulation.onToggle}
-        >
-          <ToolIcon name="simulation" />
-          <span>Simulation</span>
-        </button>
-      ) : null}
     </div>
   );
 }

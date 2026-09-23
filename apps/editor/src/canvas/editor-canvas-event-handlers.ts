@@ -71,15 +71,12 @@ interface CanvasEventHandlerDependencies {
     pendingSymbolId: string | null;
     pendingComponentPlacement: boolean;
     vddRailMode: boolean;
-    waveformPlacementActive: boolean;
     snapPlacementPoint: (point: Point, svg: SVGSVGElement) => Point;
     commitCopyPlacement: (point: Point) => void;
     commitPendingPlacement: (point: Point) => void;
-    commitWaveformPlacement: (point: Point) => void;
     clearComponentPreview: () => void;
     clearVddRailPreview: () => void;
     clearCopyPreview: () => void;
-    clearWaveformPreview: () => void;
   };
   gesture: {
     begin: (event: CanvasPointerEvent) => void;
@@ -155,15 +152,12 @@ export function createEditorCanvasEventHandlers({
     pendingSymbolId,
     pendingComponentPlacement,
     vddRailMode,
-    waveformPlacementActive,
     snapPlacementPoint,
     commitCopyPlacement,
     commitPendingPlacement,
-    commitWaveformPlacement,
     clearComponentPreview,
     clearVddRailPreview,
     clearCopyPreview,
-    clearWaveformPreview,
   },
   gesture: {
     begin: beginCanvasGesture,
@@ -280,23 +274,6 @@ export function createEditorCanvasEventHandlers({
         );
         return;
       }
-      if (waveformPlacementActive) {
-        if (event.detail > 1) return;
-        event.preventDefault();
-        event.stopPropagation();
-        commitWaveformPlacement(
-          snapPlacementPoint(
-            pointFromClient(
-              event.clientX,
-              event.clientY,
-              event.currentTarget,
-              false,
-            ),
-            event.currentTarget,
-          ),
-        );
-        return;
-      }
       if (!vddRailMode && (!pendingSymbolId || !pendingComponentPlacement))
         return;
       if (event.detail > 1) return;
@@ -371,7 +348,6 @@ export function createEditorCanvasEventHandlers({
       if (pendingSymbolId) clearComponentPreview();
       if (vddRailMode) clearVddRailPreview();
       if (kind === "copy-placement") clearCopyPreview();
-      if (waveformPlacementActive) clearWaveformPreview();
     },
     onPointerUp: finishCanvasGesture,
     onPointerCancel: finishCanvasGesture,
