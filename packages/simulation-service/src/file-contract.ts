@@ -88,9 +88,7 @@ export type SimulationFileOperation = z.infer<
 >;
 export const SimulationSourceListingSchema = z.strictObject({
   owner: SimulationFileOwnerSchema,
-  revision: Revision.describe(
-    "For project-folder, Project.structureRevision: pass directly to the next update.expectedRevision or prepare.source.expectedStructureRevision. For session-workspace, pass to expectedRevision.",
-  ),
+  revision: Revision,
   entry: SimulationInputPathSchema.nullable(),
   configPath: SimulationInputPathSchema.optional(),
   drafts: z.array(SimulationSourceDraftSchema).optional(),

@@ -496,13 +496,7 @@ export const InputSourceSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("project-folder"),
     folderId: Id,
-    expectedStructureRevision: z
-      .number()
-      .int()
-      .nonnegative()
-      .describe(
-        "For a project-folder, pass simulation_edit's returned source.revision directly; this is Project.structureRevision, not a document or folder version.",
-      ),
+    expectedStructureRevision: z.number().int().nonnegative(),
     variant: SimulationRunVariantSchema.optional(),
   }),
   z.strictObject({
