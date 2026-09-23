@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "name": "analog-canvas",
-  "version": "0.17.5",
+  "version": "0.17.6",
   "node": ">=24.0.0",
   "packageName": "@analog-canvas/mcp-server",
   "binaryName": "analog-canvas-mcp",
@@ -9,8 +9,8 @@
   "release": {
     "buildPlatform": "linux",
     "repository": "cascode-ai/analog-canvas",
-    "tag": "mcp-v0.17.5",
-    "asset": "analog-canvas-mcp-server-0.17.5.tgz",
-    "sha256": "ab080d9293f2f2fab02db1cbbe61e1ee5e6293594d2b6a2c6251ed545ebaa76f"
+    "tag": "mcp-v0.17.6",
+    "asset": "analog-canvas-mcp-server-0.17.6.tgz",
+    "sha256": ""
   }
 }
