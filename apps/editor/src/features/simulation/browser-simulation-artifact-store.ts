@@ -350,6 +350,61 @@ export function createBrowserSimulationArtifactStore(
         db.close();
       }
     },
+    async putMany(entries) {
+      if (!entries.length) return;
+      const bodies = entries.map(({ ref, text }) => ({
+        ref,
+        body: new Blob([text], { type: ref.mediaType }),
+      }));
+      if (
+        bodies.some(
+          ({ ref, body }) =>
+            body.size !== ref.byteLength || body.size > MAX_ARTIFACT_BYTES,
+        )
+      )
+        throw new Error("ARTIFACT_CAPACITY");
+      const db = await open();
+      try {
+        const tx = db.transaction([BODY, DIRECTORY], "readwrite");
+        let failure: unknown;
+        const done = completed(tx).catch((error: unknown) => {
+          failure = error;
+        });
+        try {
+          const directory = tx.objectStore(DIRECTORY);
+          const existing: Array<{ projectId: string; ref: ArtifactRef }> =
+            await value(directory.index("projectId").getAll(projectId));
+          const byId = new Map(existing.map((item) => [item.ref.id, item.ref]));
+          const fresh = bodies.filter(({ ref }) => !byId.has(ref.id));
+          for (const { ref } of bodies) {
+            const previous = byId.get(ref.id);
+            if (previous && JSON.stringify(previous) !== JSON.stringify(ref))
+              throw new Error("ARTIFACT_ID_CONFLICT");
+          }
+          if (
+            existing.length + fresh.length > MAX_ARTIFACT_FILES ||
+            existing.reduce(
+              (sum, item) => sum + item.ref.byteLength,
+              fresh.reduce((sum, item) => sum + item.body.size, 0),
+            ) > MAX_ARTIFACT_STORE_BYTES
+          )
+            throw new Error("ARTIFACT_CAPACITY");
+          for (const { ref, body } of fresh) {
+            const key = [projectId, ref.id];
+            tx.objectStore(BODY).put(body, key);
+            directory.put({ projectId, ref }, key);
+          }
+        } catch (error) {
+          tx.abort();
+          await done;
+          throw error;
+        }
+        await done;
+        if (failure) throw failure;
+      } finally {
+        db.close();
+      }
+    },
     async get(id) {
       const db = await open();
       try {

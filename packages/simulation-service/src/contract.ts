@@ -772,6 +772,25 @@ export const RunSchema = z.strictObject({
           unconstrained: z.number().int().nonnegative(),
         })
         .optional(),
+      timing: z
+        .strictObject({
+          executionWaitMs: z.number().nonnegative(),
+          resultMaterializationMs: z.number().nonnegative(),
+          catalogSaveMs: z.number().nonnegative(),
+          totalMs: z.number().nonnegative(),
+          managed: z
+            .strictObject({
+              queueMs: z.number().nonnegative().optional(),
+              executionMs: z.number().nonnegative().optional(),
+              runTotalMs: z.number().nonnegative().optional(),
+              resultFetchMs: z.number().nonnegative(),
+              clientWaitMs: z.number().nonnegative(),
+              pollCount: z.number().int().nonnegative(),
+              pollSleepMs: z.number().nonnegative(),
+            })
+            .optional(),
+        })
+        .optional(),
     })
     .optional(),
   catalog: ResultCatalogSchema.optional(),

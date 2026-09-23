@@ -1,7 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { ArtifactDownloadError, SimulationFiles, sha256 } from "./files.js";
+import {
+  artifactTransferConcurrency,
+  ArtifactDownloadError,
+  SimulationFiles,
+  sha256,
+} from "./files.js";
 import { SimulationFileResultSchema } from "./file-contract.js";
 describe("simulation File Resource evidence", () => {
+  it("raises transfer parallelism for small files and bounds large-file pressure", () => {
+    expect(artifactTransferConcurrency(Array(17).fill(256 * 1024))).toBe(8);
+    expect(artifactTransferConcurrency([16 * 1024 * 1024])).toBe(2);
+    expect(artifactTransferConcurrency([64 * 1024 * 1024, 1])).toBe(1);
+  });
   it("batches descriptors without waiting for pending files or hiding individual failures", async () => {
     const files = new SimulationFiles();
     const ready = await files.put("ready.raw", "text/plain", "ready");
@@ -142,21 +152,21 @@ describe("simulation File Resource evidence", () => {
     files.setArtifactPublisher(
       () => new Promise((resolve) => old.push(resolve)),
     );
-    for (const name of ["a", "b", "c"])
+    for (const name of Array.from({ length: 10 }, (_, index) => `${index}`))
       await files.put(name, "text/plain", name);
     files.setArtifactPublisher(
       () => new Promise((resolve) => current.push(resolve)),
     );
-    expect(current).toHaveLength(2);
+    expect(current).toHaveLength(8);
     for (const resolve of old) resolve("/old");
     await Promise.resolve();
     await Promise.resolve();
-    expect(current).toHaveLength(2);
+    expect(current).toHaveLength(8);
     current[0]!("/current");
     await Promise.resolve();
     await Promise.resolve();
-    expect(current).toHaveLength(3);
-    expect(old).toHaveLength(2);
+    expect(current).toHaveLength(9);
+    expect(old).toHaveLength(8);
   });
   it("publishes outside RPC deadlines with bounded concurrency and never restarts a pending upload", async () => {
     const files = new SimulationFiles();
@@ -164,22 +174,24 @@ describe("simulation File Resource evidence", () => {
     files.setArtifactPublisher(
       () => new Promise((resolve) => pending.push(resolve)),
     );
-    const one = await files.put("one.raw", "text/plain", "1");
-    await files.put("two.raw", "text/plain", "2");
-    const three = await files.put("three.raw", "text/plain", "3");
-    expect(pending).toHaveLength(2);
+    const refs = [];
+    for (let index = 0; index < 9; index++)
+      refs.push(await files.put(`${index}.raw`, "text/plain", String(index)));
+    const one = refs[0]!;
+    const last = refs.at(-1)!;
+    expect(pending).toHaveLength(8);
     for (let i = 0; i < 3; i++)
       expect(
-        await files.handle({ action: "download", artifactId: three.id }),
+        await files.handle({ action: "download", artifactId: last.id }),
       ).toMatchObject({
         ok: false,
         error: { code: "ARTIFACT_TRANSFER_PENDING", retryAfterMs: 2000 },
       });
-    expect(pending).toHaveLength(2);
+    expect(pending).toHaveLength(8);
     pending[0]!("/api/agent/sessions/s/artifacts/one");
     await Promise.resolve();
     await Promise.resolve();
-    expect(pending).toHaveLength(3);
+    expect(pending).toHaveLength(9);
     expect(
       await files.handle({ action: "download", artifactId: one.id }),
     ).toMatchObject({

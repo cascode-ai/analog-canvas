@@ -45,6 +45,20 @@ export const ExecutionOutputSchema = z
     cancelled: z.boolean().optional(),
     /** Collector completeness is independent of process/analysis success. */
     collectionStatus: z.enum(["complete", "partial"]).optional(),
+    /** Client-observed managed-plane timing; simulator duration remains in result.durationMs. */
+    timing: z
+      .strictObject({
+        managed: z.strictObject({
+          queueMs: z.number().nonnegative().optional(),
+          executionMs: z.number().nonnegative().optional(),
+          runTotalMs: z.number().nonnegative().optional(),
+          resultFetchMs: z.number().nonnegative(),
+          clientWaitMs: z.number().nonnegative(),
+          pollCount: z.number().int().nonnegative(),
+          pollSleepMs: z.number().nonnegative(),
+        }),
+      })
+      .optional(),
   })
   .superRefine((output, context) => {
     if (output.result.metadata.environment.simulator.name !== "vacask") {

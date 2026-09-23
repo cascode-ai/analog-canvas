@@ -121,10 +121,16 @@ export function createManagedHostedExecutor(
     input: ExecutionInput,
     runId: string,
   ): ReturnType<Executor["execute"]> {
+    const waitStarted = performance.now();
+    let pollCount = 0;
+    let pollSleepMs = 0;
     while (true) {
       const run = await readRun(runId);
+      pollCount++;
       if (activeStates.has(run.state)) {
+        const sleepStarted = performance.now();
         await pause(pollIntervalMs);
+        pollSleepMs += performance.now() - sleepStarted;
         continue;
       }
       if (resultStates.has(run.state)) {
@@ -139,9 +145,11 @@ export function createManagedHostedExecutor(
             recovery: "not-retryable",
           });
         if (!hasResponse && run.error) throw new ExecutionFailure(run.error);
+        const resultFetchStarted = performance.now();
         const payload = await jsonRequest(
           `/api/simulation/runs/${encodeURIComponent(runId)}/result`,
         );
+        const resultFetchMs = performance.now() - resultFetchStarted;
         // A retained executor refusal is evidence, not a SimulationResult. Keep
         // its server-owned Problem; genuine failed analyses still carry results.
         if (
@@ -151,7 +159,31 @@ export function createManagedHostedExecutor(
           !payload.outcome
         )
           throw new ExecutionFailure(run.error);
-        return decodeHostedExecutionPayload(input, payload);
+        const output = decodeHostedExecutionPayload(input, payload);
+        return {
+          ...output,
+          timing: {
+            managed: {
+              ...(run.startedAt === undefined
+                ? {}
+                : { queueMs: Math.max(0, run.startedAt - run.queuedAt) }),
+              ...(run.startedAt === undefined || run.finishedAt === undefined
+                ? {}
+                : {
+                    executionMs: Math.max(0, run.finishedAt - run.startedAt),
+                  }),
+              ...(run.finishedAt === undefined
+                ? {}
+                : {
+                    runTotalMs: Math.max(0, run.finishedAt - run.createdAt),
+                  }),
+              resultFetchMs,
+              clientWaitMs: performance.now() - waitStarted,
+              pollCount,
+              pollSleepMs,
+            },
+          },
+        };
       }
       throw new ExecutionFailure(
         run.error ?? {

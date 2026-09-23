@@ -20,6 +20,7 @@ import {
 import { downloadSimulationArtifact } from "./artifact-download.js";
 import { userWorkspaceRoot } from "./workspace-location.js";
 import { TransferPending } from "./transfer-pending.js";
+import { artifactTransferConcurrency } from "@icm/simulation-service/files";
 
 const IndexSchema = z.strictObject({
   kind: z.literal("analog-canvas-workspace"),
@@ -330,8 +331,14 @@ export class LocalWorkspace {
         timing: undefined as DownloadTiming | undefined,
       }));
       let failure: { file: ArtifactRef; error: unknown } | undefined;
-      // Two rolling slots, not two-file barriers. Stop scheduling on failure,
-      // settle already-started writes and retain deterministic catalog order.
+      // Rolling slots, not fixed-size barriers. Size the pool so even the
+      // largest selected file keeps aggregate in-flight bytes bounded; one
+      // oversized file is still allowed to make progress by itself.
+      const downloadConcurrency = artifactTransferConcurrency(
+        selected.map((file) => file.byteLength),
+      );
+      // Stop scheduling on failure, settle already-started writes and retain
+      // deterministic catalog order.
       const worker = async () => {
         while (!failure && queue.length) {
           const now = Date.now();
@@ -380,7 +387,9 @@ export class LocalWorkspace {
           }
         }
       };
-      await Promise.all([worker(), worker()]);
+      await Promise.all(
+        Array.from({ length: downloadConcurrency }, () => worker()),
+      );
       const files = results.filter((file) => file !== undefined);
       if (failure) {
         const { error } = failure;

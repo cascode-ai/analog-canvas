@@ -248,7 +248,17 @@ describe("managed hosted executor", () => {
         preparedId: "prepared-a",
         preparedDigest: "b".repeat(64),
       }),
-    ).resolves.toMatchObject({ result: { outcome: { status: "completed" } } });
+    ).resolves.toMatchObject({
+      result: { outcome: { status: "completed" } },
+      timing: {
+        managed: {
+          queueMs: 1,
+          executionMs: 1,
+          runTotalMs: 2,
+          pollCount: 2,
+        },
+      },
+    });
     expect(reads).toBe(2);
   });
 

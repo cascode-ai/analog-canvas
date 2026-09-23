@@ -815,41 +815,32 @@ export class SimulationService {
         "prepare",
         "reauthorize",
       );
-    const artifacts: ArtifactRef[] = [];
-    artifacts.push(
-      await this.publishArtifact(
-        epoch,
-        "prepared.cir",
-        "text/plain",
-        input.preparedDeck,
-        { role: "prepared" },
-      ),
-    );
-    for (const f of input.files)
-      artifacts.push(
-        await this.publishArtifact(epoch, f.path, "text/plain", f.text, {
-          role: "source",
-          sourcePath: f.path,
-        }),
-      );
-    artifacts.push(
-      await this.publishArtifact(
-        epoch,
-        "source-map.json",
-        "application/json",
-        JSON.stringify(preparation.sourceMaps, null, 2),
-        { role: "source-map" },
-      ),
-    );
-    artifacts.push(
-      await this.publishArtifact(
-        epoch,
-        "prepared.json",
-        "application/json",
-        JSON.stringify(input, null, 2),
-        { role: "execution-input" },
-      ),
-    );
+    const artifacts = await this.publishArtifacts(epoch, [
+      {
+        name: "prepared.cir",
+        mediaType: "text/plain",
+        text: input.preparedDeck,
+        metadata: { role: "prepared" as const },
+      },
+      ...input.files.map((file) => ({
+        name: file.path,
+        mediaType: "text/plain",
+        text: file.text,
+        metadata: { role: "source" as const, sourcePath: file.path },
+      })),
+      {
+        name: "source-map.json",
+        mediaType: "application/json",
+        text: JSON.stringify(preparation.sourceMaps, null, 2),
+        metadata: { role: "source-map" as const },
+      },
+      {
+        name: "prepared.json",
+        mediaType: "application/json",
+        text: JSON.stringify(input, null, 2),
+        metadata: { role: "execution-input" as const },
+      },
+    ]);
     if (epoch !== this.epoch)
       return problem(
         "SESSION_CHANGED",
@@ -985,17 +976,24 @@ export class SimulationService {
     epoch: number,
     acceptedOutput?: Awaited<ReturnType<Executor["execute"]>>,
   ) {
+    const totalStarted = performance.now();
+    let executionWaitMs = 0;
+    let resultMaterializationMs = 0;
+    let managedTiming:
+      Awaited<ReturnType<Executor["execute"]>>["timing"] | undefined;
+    let materializationStarted: number | undefined;
     let collectionStatus: "complete" | "partial" = "complete";
     let terminalState: Run["state"] = "finished";
     try {
-      const output = validateExecutionOutput(
-        input,
+      const executionOutput =
         acceptedOutput ??
-          (await this.executor.execute(input, run.token, timeoutMs, {
-            preparedId: run.prepared.id,
-            preparedDigest: run.prepared.digest,
-          })),
-      );
+        (await this.executor.execute(input, run.token, timeoutMs, {
+          preparedId: run.prepared.id,
+          preparedDigest: run.prepared.digest,
+        }));
+      executionWaitMs = performance.now() - totalStarted;
+      const output = validateExecutionOutput(input, executionOutput);
+      managedTiming = output.timing;
       if (epoch !== this.epoch) return;
       if (acceptedOutput) delete run.view.error;
       run.retryEvidence = () =>
@@ -1036,124 +1034,150 @@ export class SimulationService {
         diagnostics: nativeReports.diagnostics,
         specs,
       };
-      const artifact = async (
-        name: string,
-        type: string,
-        text: string,
-        metadata: Pick<ArtifactRef, "role" | "sourcePath" | "analysisIndex">,
-      ) =>
-        run.view.artifacts.some(
-          (a) => a.name === name && a.role === metadata.role,
-        )
-          ? undefined
-          : run.view.artifacts.push(
-              await this.publishArtifact(epoch, name, type, text, metadata),
-            );
-      await artifact("log.txt", "text/plain", output.result.log, {
-        role: "log",
-      });
-      await artifact("specs.json", "application/json", JSON.stringify(specs), {
-        role: "specs",
-      });
-      await artifact("specs.csv", "text/csv", simulationSpecsToCsv(specs), {
-        role: "specs",
-      });
+      materializationStarted = performance.now();
+      const pendingArtifacts: Array<{
+        name: string;
+        mediaType: string;
+        text: string;
+        metadata: Pick<ArtifactRef, "role" | "sourcePath" | "analysisIndex">;
+      }> = [
+        {
+          name: "log.txt",
+          mediaType: "text/plain",
+          text: output.result.log,
+          metadata: { role: "log" },
+        },
+        {
+          name: "specs.json",
+          mediaType: "application/json",
+          text: JSON.stringify(specs),
+          metadata: { role: "specs" },
+        },
+        {
+          name: "specs.csv",
+          mediaType: "text/csv",
+          text: simulationSpecsToCsv(specs),
+          metadata: { role: "specs" },
+        },
+      ];
       if (nativeReports.diagnostics.length)
-        await artifact(
-          "outputs.json",
-          "application/json",
-          JSON.stringify(run.view.outputData),
-          { role: "diagnostics" },
-        );
+        pendingArtifacts.push({
+          name: "outputs.json",
+          mediaType: "application/json",
+          text: JSON.stringify(run.view.outputData),
+          metadata: { role: "diagnostics" },
+        });
       if (output.rawfile !== undefined)
-        await artifact("out.raw", "text/plain", output.rawfile, {
-          role: "raw",
+        pendingArtifacts.push({
+          name: "out.raw",
+          mediaType: "text/plain",
+          text: output.rawfile,
+          metadata: { role: "raw" },
         });
       if (output.executedDeck !== undefined)
-        await artifact("executed.cir", "text/plain", output.executedDeck, {
-          role: "executed",
+        pendingArtifacts.push({
+          name: "executed.cir",
+          mediaType: "text/plain",
+          text: output.executedDeck,
+          metadata: { role: "executed" },
         });
+      const executionEntries = executionArtifactEntries(output);
+      pendingArtifacts.push(
+        ...executionEntries.map((item) => ({
+          name: item.name,
+          mediaType: "text/plain",
+          text: item.text,
+          metadata: {
+            role: item.kind,
+            sourcePath: item.path,
+          },
+        })),
+        {
+          name: "result.json",
+          mediaType: "application/json",
+          text: JSON.stringify(output.result),
+          metadata: { role: "result" },
+        },
+        ...(output.result.data?.analyses ?? []).map((analysis, index) => ({
+          name: analysis.analysis + "-" + index + ".csv",
+          mediaType: "text/csv",
+          text: simulationAnalysisToCsv(analysis),
+          metadata: { role: "table" as const, analysisIndex: index },
+        })),
+      );
+      const published = await this.publishArtifacts(
+        epoch,
+        pendingArtifacts,
+        run.view.artifacts,
+      );
       const nativeArtifacts: {
         kind: "raw" | "executed";
         path: string;
         artifact: ArtifactRef;
       }[] = [];
-      for (const item of executionArtifactEntries(output)) {
-        const ref =
-          run.view.artifacts.find(
-            (a) => a.name === item.name && a.role === item.kind,
-          ) ??
-          (await this.publishArtifact(
-            epoch,
-            item.name,
-            "text/plain",
-            item.text,
-            { role: item.kind, sourcePath: item.path },
-          ));
-        if (!run.view.artifacts.some((a) => a.id === ref.id))
-          run.view.artifacts.push(ref);
+      for (const item of executionEntries) {
+        const artifact = published.find(
+          (ref) => ref.name === item.name && ref.role === item.kind,
+        );
+        if (!artifact) throw new Error("ARTIFACT_STORAGE_UNAVAILABLE");
         nativeArtifacts.push({
           kind: item.kind,
           path: item.path,
-          artifact: ref,
+          artifact,
         });
       }
-      await artifact(
-        "result.json",
-        "application/json",
-        JSON.stringify(output.result),
-        { role: "result" },
-      );
-      for (const [i, analysis] of (
-        output.result.data?.analyses ?? []
-      ).entries())
-        await artifact(
-          analysis.analysis + "-" + i + ".csv",
-          "text/csv",
-          simulationAnalysisToCsv(analysis),
-          { role: "table", analysisIndex: i },
-        );
       const catalog = resultCatalog(
         { ...run.view, state: output.cancelled ? "cancelled" : "finished" },
         collectionStatus,
         run.prepared.signalTargets,
       );
       const evidenceArtifacts = run.view.artifacts.map((item) => ({ ...item }));
-      await artifact(
-        "evidence-manifest.json",
-        "application/json",
-        JSON.stringify(
+      await this.publishArtifacts(
+        epoch,
+        [
           {
-            schemaVersion: 1,
-            run: {
-              id: run.view.id,
-              preparedId: run.view.preparedId,
-              inputRevision: run.view.inputRevision,
-            },
-            prepared: {
-              digest: run.prepared.digest,
-              mode: run.prepared.mode,
-              environment: run.prepared.environment,
-              vectors: run.prepared.vectors,
-              signalNames: run.prepared.signalNames,
-              signalTargets: run.prepared.signalTargets,
-              outputs: run.prepared.outputs,
-              deviceOperatingPoints: run.prepared.deviceOperatingPoints,
-              measurements: run.prepared.measurements ?? [],
-            },
-            environment: output.result.metadata.environment,
-            ...(nativeArtifacts.length ? { nativeArtifacts } : {}),
-            artifacts: evidenceArtifacts,
-            catalog,
+            name: "evidence-manifest.json",
+            mediaType: "application/json",
+            text: JSON.stringify(
+              {
+                schemaVersion: 1,
+                run: {
+                  id: run.view.id,
+                  preparedId: run.view.preparedId,
+                  inputRevision: run.view.inputRevision,
+                },
+                prepared: {
+                  digest: run.prepared.digest,
+                  mode: run.prepared.mode,
+                  environment: run.prepared.environment,
+                  vectors: run.prepared.vectors,
+                  signalNames: run.prepared.signalNames,
+                  signalTargets: run.prepared.signalTargets,
+                  outputs: run.prepared.outputs,
+                  deviceOperatingPoints: run.prepared.deviceOperatingPoints,
+                  measurements: run.prepared.measurements ?? [],
+                },
+                environment: output.result.metadata.environment,
+                ...(nativeArtifacts.length ? { nativeArtifacts } : {}),
+                artifacts: evidenceArtifacts,
+                catalog,
+              },
+              null,
+              2,
+            ),
+            metadata: { role: "manifest" },
           },
-          null,
-          2,
-        ),
-        { role: "manifest" },
+        ],
+        run.view.artifacts,
       );
+      resultMaterializationMs = performance.now() - materializationStarted;
       if (epoch === this.epoch)
         terminalState = output.cancelled ? "cancelled" : "finished";
     } catch (error) {
+      if (executionWaitMs === 0)
+        executionWaitMs = performance.now() - totalStarted;
+      if (materializationStarted !== undefined && resultMaterializationMs === 0)
+        resultMaterializationMs = performance.now() - materializationStarted;
       if (epoch !== this.epoch) return;
       if (error instanceof ExecutionFailure) {
         terminalState =
@@ -1186,6 +1210,7 @@ export class SimulationService {
       run.view.error ? "partial" : collectionStatus,
       run.prepared.signalTargets,
     );
+    const catalogSaveStarted = performance.now();
     if (!(await this.files.saveCatalog(run.view.catalog))) {
       run.view.error ??= {
         code: "RUN_CATALOG_STORAGE_UNAVAILABLE",
@@ -1195,6 +1220,18 @@ export class SimulationService {
         recovery: "retry-after",
       };
     }
+    const catalogSaveMs = performance.now() - catalogSaveStarted;
+    run.view.details = {
+      operation: "catalog",
+      runId: run.view.id,
+      timing: {
+        executionWaitMs,
+        resultMaterializationMs,
+        catalogSaveMs,
+        totalMs: performance.now() - totalStarted,
+        ...(managedTiming ? { managed: managedTiming.managed } : {}),
+      },
+    };
     if (epoch !== this.epoch) return;
     run.view.state = terminalState;
     // Do not retain full numeric arrays in memory after complete artifact
@@ -1227,5 +1264,44 @@ export class SimulationService {
         recovery: "reauthorize",
       });
     return ref;
+  }
+  private async publishArtifacts(
+    epoch: number,
+    artifacts: readonly {
+      name: string;
+      mediaType: string;
+      text: string;
+      metadata: Pick<ArtifactRef, "role" | "sourcePath" | "analysisIndex">;
+    }[],
+    retained: ArtifactRef[] = [],
+  ): Promise<ArtifactRef[]> {
+    if (epoch !== this.epoch)
+      throw new ExecutionFailure({
+        code: "SESSION_CHANGED",
+        message: "The session ended before publication",
+        stage: "export",
+        recovery: "reauthorize",
+      });
+    const existing = artifacts.map((item) =>
+      retained.find(
+        (ref) => ref.name === item.name && ref.role === item.metadata.role,
+      ),
+    );
+    const missing = artifacts.filter((_, index) => !existing[index]);
+    const created = await this.files.putMany(missing);
+    if (epoch !== this.epoch)
+      throw new ExecutionFailure({
+        code: "SESSION_CHANGED",
+        message: "The session ended before publication",
+        stage: "export",
+        recovery: "reauthorize",
+      });
+    let createdIndex = 0;
+    return artifacts.map((_, index) => {
+      const ref = existing[index] ?? created[createdIndex++];
+      if (!ref) throw new Error("ARTIFACT_STORAGE_UNAVAILABLE");
+      if (!retained.some((item) => item.id === ref.id)) retained.push(ref);
+      return ref;
+    });
   }
 }
