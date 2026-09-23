@@ -365,6 +365,29 @@ const relay = createServer(async (request, response) => {
       observedAt: Date.now(),
       expiresAt: Date.now() + 60_000,
     });
+  } else if (url.pathname.endsWith("/projects")) {
+    const body = await requestBody(request);
+    result = json({
+      apiVersion: "3.0",
+      requestId: body.requestId,
+      operation: "workspace",
+      ok: true,
+      result: {
+        action: "list",
+        activeWorkspaceId: "release-tab",
+        projects: [
+          {
+            workspaceId: "release-tab",
+            projectId: "release-project",
+            name: "Release smoke",
+            cloudProjectId: "release-cloud-project",
+            dirty: false,
+            structureRevision: 0,
+            cells: [{ documentId: "main", name: "Main", revision: 0 }],
+          },
+        ],
+      },
+    });
   } else if (url.pathname.endsWith("/simulation")) {
     const body = await requestBody(request);
     result =
