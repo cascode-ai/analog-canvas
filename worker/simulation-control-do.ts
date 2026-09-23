@@ -5,6 +5,7 @@ import {
   ManagedRunRecordSchema,
   createManagedRun,
   isManagedRunTerminal,
+  managedRunExpiration,
   transitionManagedRun,
   type ManagedRunPolicy,
   type ManagedRunRecord,
@@ -18,6 +19,8 @@ type DurableObjectStateLike = {
   storage: {
     sql: SqlStorage;
     transactionSync<T>(callback: () => T): T;
+    getAlarm?(): Promise<number | null>;
+    setAlarm?(time: number): Promise<void>;
   };
 };
 
@@ -46,18 +49,20 @@ const json = (value: unknown, status = 200) => Response.json(value, { status });
  */
 export class SimulationControlDO {
   private readonly sql: SqlStorage;
+  private alarmScheduled = false;
 
   constructor(
     private readonly state: DurableObjectStateLike,
-    private readonly policy: ManagedRunPolicy = DEFAULT_MANAGED_RUN_POLICY,
+    _env?: unknown,
     private readonly now: () => number = Date.now,
+    private readonly policy: ManagedRunPolicy = DEFAULT_MANAGED_RUN_POLICY,
   ) {
     this.sql = state.storage.sql;
     this.initializeSchema();
   }
 
   async fetch(request: Request): Promise<Response> {
-    this.pruneExpired(this.now());
+    await this.ensureAlarm();
     const url = new URL(request.url);
     if (url.pathname === "/anonymous-session")
       return this.anonymousSession(request);
@@ -90,6 +95,13 @@ export class SimulationControlDO {
       CREATE INDEX IF NOT EXISTS simulation_runs_owner_state
       ON simulation_runs(owner_id, state)
     `);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS simulation_runs_state_updated
+      ON simulation_runs(state, updated_at)`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS simulation_runs_retention
+      ON simulation_runs(finished_at) WHERE state != 'expired'`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS simulation_runs_lease_expiry
+      ON simulation_runs(json_extract(record_json, '$.lease.expiresAt'))
+      WHERE state IN ('running', 'cancelling')`);
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS simulation_start_requests (
         owner_id TEXT NOT NULL,
@@ -112,6 +124,8 @@ export class SimulationControlDO {
         value TEXT NOT NULL
       ) WITHOUT ROWID
     `);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS simulation_sessions_expiry
+      ON simulation_anonymous_sessions(expires_at)`);
     this.sql.exec(
       `INSERT OR IGNORE INTO simulation_operations (key, value)
        VALUES ('accepting', 'true')`,
@@ -132,6 +146,8 @@ export class SimulationControlDO {
       );
     const admission = parsed.data;
     const result = this.state.storage.transactionSync(() => {
+      // Admission needs current slot counts, not a global history scan.
+      this.pruneActive(this.now());
       const previous = this.sql
         .exec<RequestRow>(
           `SELECT request_fingerprint, run_id
@@ -203,7 +219,9 @@ export class SimulationControlDO {
         const parsed = ManagedRunRecordSchema.safeParse(
           JSON.parse(row.record_json),
         );
-        return parsed.success ? [parsed.data] : [];
+        return parsed.success
+          ? [this.expireRecord(parsed.data, this.now())]
+          : [];
       });
     return json({ runs });
   }
@@ -251,7 +269,8 @@ export class SimulationControlDO {
     const parsed = ManagedRunRecordSchema.safeParse(
       JSON.parse(row.record_json),
     );
-    return parsed.success ? parsed.data : null;
+    if (!parsed.success) return null;
+    return this.expireRecord(parsed.data, this.now());
   }
 
   private writeRecord(run: ManagedRunRecord): void {
@@ -357,37 +376,14 @@ export class SimulationControlDO {
 
   private pruneExpired(now: number): void {
     this.sql.exec(
-      "DELETE FROM simulation_anonymous_sessions WHERE expires_at <= ?",
+      "DELETE FROM simulation_anonymous_sessions WHERE token_hash IN (SELECT token_hash FROM simulation_anonymous_sessions WHERE expires_at <= ? LIMIT 100)",
       now,
     );
-    const queued = this.sql
-      .exec<RunRow>(
-        `SELECT record_json FROM simulation_runs
-         WHERE state = 'queued' AND updated_at <= ?`,
-        now - this.policy.maxQueueWaitMs,
-      )
-      .toArray();
-    for (const row of queued) {
-      const parsed = ManagedRunRecordSchema.safeParse(
-        JSON.parse(row.record_json),
-      );
-      if (!parsed.success) continue;
-      const transition = transitionManagedRun(parsed.data, {
-        kind: "queue-expired",
-        at: now,
-        error: {
-          code: "QUEUE_WAIT_EXPIRED",
-          message: "The run exceeded the queue wait limit.",
-          stage: "start",
-          recovery: "retry-after",
-        },
-      });
-      if (transition.ok) this.writeRecord(transition.run);
-    }
+    this.pruneActive(now);
     const retained = this.sql
       .exec<RunRow>(
         `SELECT record_json FROM simulation_runs
-         WHERE finished_at IS NOT NULL AND finished_at <= ? AND state != 'expired'`,
+         WHERE finished_at IS NOT NULL AND finished_at <= ? AND state != 'expired' LIMIT 100`,
         now - this.policy.retentionMs,
       )
       .toArray();
@@ -395,12 +391,59 @@ export class SimulationControlDO {
       const parsed = ManagedRunRecordSchema.safeParse(
         JSON.parse(row.record_json),
       );
-      if (!parsed.success || !managedRunNeedsRetention(parsed.data)) continue;
-      const transition = transitionManagedRun(parsed.data, {
-        kind: "expired",
-        at: now,
-      });
-      if (transition.ok) this.writeRecord(transition.run);
+      if (parsed.success) this.expireRecord(parsed.data, now);
+    }
+  }
+
+  private pruneActive(now: number): void {
+    const active = this.sql
+      .exec<RunRow>(
+        `SELECT record_json FROM simulation_runs
+         WHERE (state IN ('running', 'cancelling') AND json_extract(record_json, '$.lease.expiresAt') <= ?)
+           OR (state = 'queued' AND updated_at <= ?) LIMIT 100`,
+        now,
+        now - this.policy.maxQueueWaitMs,
+      )
+      .toArray();
+    for (const row of active) {
+      const parsed = ManagedRunRecordSchema.safeParse(
+        JSON.parse(row.record_json),
+      );
+      if (parsed.success) this.expireRecord(parsed.data, now);
+    }
+  }
+
+  private expireRecord(run: ManagedRunRecord, now: number): ManagedRunRecord {
+    const event = managedRunExpiration(run, now, this.policy);
+    if (!event) return run;
+    const next = transitionManagedRun(run, event);
+    if (!next.ok) return run;
+    this.writeRecord(next.run);
+    return next.run;
+  }
+
+  private async ensureAlarm(): Promise<void> {
+    if (this.alarmScheduled || !this.state.storage.setAlarm) return;
+    // Do not postpone an existing deadline when the object wakes in a new isolate.
+    if (!(await this.state.storage.getAlarm?.()))
+      await this.state.storage.setAlarm(this.now() + 30_000);
+    this.alarmScheduled = true;
+  }
+
+  async alarm(): Promise<void> {
+    this.alarmScheduled = false;
+    this.pruneExpired(this.now());
+    // Stop background maintenance once all records are tombstones and sessions
+    // have expired. The next request will schedule maintenance again.
+    const remaining = this.sql
+      .exec<{ present: number }>(
+        `SELECT EXISTS(SELECT 1 FROM simulation_runs WHERE state != 'expired')
+        OR EXISTS(SELECT 1 FROM simulation_anonymous_sessions) AS present`,
+      )
+      .one().present;
+    if (remaining) {
+      await this.state.storage.setAlarm?.(this.now() + 30_000);
+      this.alarmScheduled = true;
     }
   }
 }

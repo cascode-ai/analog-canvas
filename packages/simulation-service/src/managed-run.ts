@@ -97,11 +97,13 @@ export const ManagedRunEventSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("cancel-requested"), at: eventAt }),
   z.strictObject({
     kind: z.literal("completed"),
+    leaseId: Id.optional(),
     at: eventAt,
     artifacts: z.array(ArtifactRefSchema),
   }),
   z.strictObject({
     kind: z.literal("cancelled"),
+    leaseId: Id.optional(),
     at: eventAt,
     artifacts: z.array(ArtifactRefSchema).optional(),
   }),
@@ -110,6 +112,7 @@ export const ManagedRunEventSchema = z.discriminatedUnion("kind", [
   ).map((kind) =>
     z.strictObject({
       kind: z.literal(kind),
+      leaseId: Id.optional(),
       at: eventAt,
       error: ProblemSchema,
       artifacts: z.array(ArtifactRefSchema).optional(),
@@ -177,6 +180,10 @@ export function transitionManagedRun(
     enqueue,
   });
   const active = source.state === "running" || source.state === "cancelling";
+  // Worker completions are fenced to their execution attempt. Optional for
+  // compatibility with existing internal callers during a rolling deployment.
+  if ("leaseId" in event && event.leaseId && event.leaseId !== source.lease?.id)
+    return invalid();
 
   switch (event.kind) {
     case "lease-acquired":
@@ -297,4 +304,48 @@ export function transitionManagedRun(
         artifacts: [],
       });
   }
+}
+
+/** Shared expiration decision; adapters choose when/how to persist it. */
+export function managedRunExpiration(
+  run: ManagedRunRecord,
+  now: number,
+  policy: ManagedRunPolicy = DEFAULT_MANAGED_RUN_POLICY,
+): ManagedRunEvent | undefined {
+  if (run.state === "queued" && run.queuedAt + policy.maxQueueWaitMs <= now)
+    return {
+      kind: "queue-expired",
+      at: now,
+      error: {
+        code: "QUEUE_WAIT_EXPIRED",
+        message: "The run exceeded the queue wait limit.",
+        stage: "start",
+        recovery: "retry-after",
+      },
+    };
+  if (
+    (run.state === "running" || run.state === "cancelling") &&
+    run.lease &&
+    run.lease.expiresAt <= now
+  )
+    return {
+      kind: "lease-expired",
+      at: now,
+      leaseId: run.lease.id,
+      error: {
+        code: "RUN_LEASE_EXPIRED",
+        message:
+          "The execution lease expired; the execution outcome is uncertain.",
+        stage: "read",
+        recovery: "not-retryable",
+      },
+    };
+  if (
+    isManagedRunTerminal(run.state) &&
+    run.state !== "expired" &&
+    run.finishedAt !== undefined &&
+    run.finishedAt + policy.retentionMs <= now
+  )
+    return { kind: "expired", at: now };
+  return undefined;
 }

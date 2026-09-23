@@ -2,9 +2,12 @@ import {
   DEFAULT_MANAGED_RUN_POLICY,
   Digest,
   ManagedRunRecordSchema,
+  ManagedRunEventSchema,
+  isManagedRunTerminal,
   ProblemSchema,
   type ArtifactRef,
   type ManagedRunRecord,
+  type ManagedRunEvent,
   type Problem,
   readExecutionReceipt,
   EXECUTION_RECEIPT_HEADER,
@@ -24,6 +27,7 @@ const CONTROL_NAME = "simulation";
 
 export interface SimulationArtifactObject {
   readonly body: ReadableStream<Uint8Array>;
+  readonly customMetadata?: Record<string, string>;
   text(): Promise<string>;
 }
 
@@ -163,10 +167,12 @@ async function readRun(
   const stub = control(env);
   if (!stub) return null;
   const response = await stub.fetch(runPath(runId));
-  if (!response.ok) return null;
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error("SIMULATION_CONTROL_UNAVAILABLE");
   const value = (await response.json()) as { run?: unknown };
   const parsed = ManagedRunRecordSchema.safeParse(value.run);
-  return parsed.success ? parsed.data : null;
+  if (!parsed.success) throw new Error("SIMULATION_CONTROL_INVALID");
+  return parsed.data;
 }
 
 async function transitionRun(
@@ -362,10 +368,13 @@ export async function routeManagedSimulationRequest(
         }),
       );
     try {
-      await env.SIMULATION_JOBS!.send({
-        schemaVersion: 1,
-        runId: result.run.id,
-      });
+      // Re-enqueue a queued idempotent admission to recover a failed send,
+      // but never manufacture deliveries for an already active/finished run.
+      if (result.run.state === "queued")
+        await env.SIMULATION_JOBS!.send({
+          schemaVersion: 1,
+          runId: result.run.id,
+        });
     } catch {
       return ownedResponse(
         Response.json(
@@ -393,7 +402,22 @@ export async function routeManagedSimulationRequest(
       Response.json({ error: "not-found" }, { status: 404 }),
     );
   const runId = decodeURIComponent(match[1]!);
-  const run = await readRun(env, runId);
+  let run: ManagedRunRecord | null;
+  try {
+    run = await readRun(env, runId);
+  } catch {
+    return ownedResponse(
+      Response.json(
+        {
+          error: "SIMULATION_CONTROL_UNAVAILABLE",
+          recovery: "retry-after",
+          message:
+            "The existing run could not be read; retry reading it, do not submit a new run.",
+        },
+        { status: 503, headers: { "retry-after": "2" } },
+      ),
+    );
+  }
   if (!run || !ownerMayRead(run, principal))
     return ownedResponse(
       Response.json({ error: "RUN_NOT_FOUND" }, { status: 404 }),
@@ -410,21 +434,48 @@ export async function routeManagedSimulationRequest(
       return ownedResponse(
         Response.json({ error: "method-not-allowed" }, { status: 405 }),
       );
+    if (run.state === "expired")
+      return ownedResponse(
+        Response.json(
+          {
+            error:
+              run.error?.code === "QUEUE_WAIT_EXPIRED"
+                ? run.error.code
+                : "RESULT_EXPIRED",
+            message:
+              run.error?.code === "QUEUE_WAIT_EXPIRED"
+                ? run.error.message
+                : "The retained result has expired.",
+            recovery:
+              run.error?.code === "QUEUE_WAIT_EXPIRED"
+                ? run.error.recovery
+                : "not-retryable",
+            state: run.state,
+          },
+          { status: 410 },
+        ),
+      );
     const result = run.artifacts.find(
       (artifact) => artifact.name === "response.json",
     );
     if (
       !result &&
       !["queued", "running", "cancelling"].includes(run.state) &&
-      (run.error || run.state === "cancelled")
+      isManagedRunTerminal(run.state)
     )
       return ownedResponse(
         Response.json(
           {
-            error: run.error?.code ?? "run-cancelled",
+            error:
+              run.error?.code ??
+              (run.state === "cancelled"
+                ? "run-cancelled"
+                : "RESULT_UNAVAILABLE"),
             message:
               run.error?.message ??
-              "The queued run was cancelled before execution.",
+              (run.state === "cancelled"
+                ? "The queued run was cancelled before execution."
+                : "The terminal run has no retained result."),
             recovery: run.error?.recovery ?? "not-retryable",
             state: run.state,
           },
@@ -529,6 +580,7 @@ export async function consumeSimulationJobs(
 ): Promise<void> {
   for (const message of batch.messages) {
     let dispatched = false;
+    let finalizing = false;
     let ownedLeaseId: string | undefined;
     try {
       const current = await readRun(env, message.body.runId);
@@ -547,6 +599,41 @@ export async function consumeSimulationJobs(
         continue;
       }
       const queued = current;
+      // A previous delivery may have stored the result and lost the final
+      // control response. Recover that exact attempt; never execute it again.
+      if (current.state === "running" || current.state === "cancelling") {
+        const stored = await env.SIMULATION_ARTIFACTS!.get(
+          `simulation-runs/${safeSegment(current.ownerId)}/${current.id}/response.json`,
+        );
+        if (stored) {
+          await stored.body.cancel();
+          const completion = ManagedRunEventSchema.safeParse(
+            JSON.parse(stored.customMetadata?.completion ?? "null"),
+          );
+          if (
+            completion.success &&
+            "leaseId" in completion.data &&
+            completion.data.leaseId === current.lease?.id &&
+            ["completed", "failed", "timed-out", "cancelled"].includes(
+              completion.data.kind,
+            )
+          ) {
+            finalizing = true;
+            const settled = await transitionRun(env, current.id, {
+              ...completion.data,
+              artifacts: [
+                ...current.artifacts,
+                ...("artifacts" in completion.data
+                  ? (completion.data.artifacts ?? [])
+                  : []),
+              ],
+            });
+            if (settled && isManagedRunTerminal(settled.state)) message.ack();
+            else message.retry({ delaySeconds: 2 });
+            continue;
+          }
+        }
+      }
       if (
         (current.state === "running" || current.state === "cancelling") &&
         current.lease &&
@@ -588,8 +675,9 @@ export async function consumeSimulationJobs(
         ? await env.SIMULATION_ARTIFACTS?.get(inputArtifact.id)
         : null;
       if (!inputObject) {
-        await transitionRun(env, queued.id, {
+        const settled = await transitionRun(env, queued.id, {
           kind: "failed",
+          leaseId: ownedLeaseId,
           at: runtime.now(),
           error: {
             code: "PREPARED_INPUT_UNAVAILABLE",
@@ -598,7 +686,8 @@ export async function consumeSimulationJobs(
             recovery: "reprepare",
           },
         });
-        message.ack();
+        if (settled && isManagedRunTerminal(settled.state)) message.ack();
+        else message.retry({ delaySeconds: 2 });
         continue;
       }
       const input = JSON.parse(
@@ -634,6 +723,7 @@ export async function consumeSimulationJobs(
       ) {
         const retried = await transitionRun(env, queued.id, {
           kind: "infrastructure-failed",
+          leaseId: ownedLeaseId,
           at: runtime.now(),
           error: infrastructureProblem(
             code,
@@ -651,17 +741,6 @@ export async function consumeSimulationJobs(
         (!response.ok || receipt.runToken !== queued.id || !response.body)
       )
         throw new Error("Invalid retained execution receipt");
-      await env.SIMULATION_ARTIFACTS!.put(
-        resultKey,
-        receipt ? response.body! : responseText!,
-        {
-          httpMetadata: { contentType: "application/json" },
-          customMetadata: { ownerId: queued.ownerId, runId: queued.id },
-          // R2 verifies the producer's digest while consuming the stream. A
-          // mismatch fails storage before this run can advertise complete data.
-          ...(receipt ? { sha256: receipt.sha256 } : {}),
-        },
-      );
       const resultArtifact: ArtifactRef = {
         id: resultKey,
         name: "response.json",
@@ -671,14 +750,15 @@ export async function consumeSimulationJobs(
         sha256: receipt?.sha256 ?? (await sha256(responseText!)),
       };
       const artifacts = [...queued.artifacts, resultArtifact];
+      let completion: ManagedRunEvent;
       if (responseValue.cancelled === true)
-        await transitionRun(env, queued.id, {
+        completion = {
           kind: "cancelled",
           at: runtime.now(),
           artifacts,
-        });
+        };
       else if (responseValue.outcome?.status === "timed-out")
-        await transitionRun(env, queued.id, {
+        completion = {
           kind: "timed-out",
           at: runtime.now(),
           error: {
@@ -688,9 +768,9 @@ export async function consumeSimulationJobs(
             recovery: "fix-input",
           },
           artifacts,
-        });
+        };
       else if (responseValue.outcome?.status === "failed")
-        await transitionRun(env, queued.id, {
+        completion = {
           kind: "failed",
           at: runtime.now(),
           error: {
@@ -700,19 +780,19 @@ export async function consumeSimulationJobs(
             recovery: "fix-input",
           },
           artifacts,
-        });
+        };
       else if (
         response.ok &&
         (responseValue.outcome?.status === "completed" ||
           responseValue.outcome?.status === "completed-with-dropped-input")
       )
-        await transitionRun(env, queued.id, {
+        completion = {
           kind: "completed",
           at: runtime.now(),
           artifacts,
-        });
+        };
       else
-        await transitionRun(env, queued.id, {
+        completion = {
           kind: "failed",
           at: runtime.now(),
           error: {
@@ -727,9 +807,44 @@ export async function consumeSimulationJobs(
                 .data ?? "fix-input",
           },
           artifacts,
-        });
-      message.ack();
+        };
+      completion = { ...completion, leaseId: ownedLeaseId };
+      const recoveryCompletion = {
+        ...completion,
+        artifacts: [resultArtifact],
+        ...("error" in completion
+          ? {
+              error: {
+                ...completion.error,
+                message:
+                  "The retained simulator result reports a failure; inspect response.json for details.",
+              },
+            }
+          : {}),
+      };
+      await env.SIMULATION_ARTIFACTS!.put(
+        resultKey,
+        receipt ? response.body! : responseText!,
+        {
+          httpMetadata: { contentType: "application/json" },
+          customMetadata: { completion: JSON.stringify(recoveryCompletion) },
+          // This is the existing producer/stream integrity check, not a second
+          // payload hash. Recovery metadata commits atomically with the bytes.
+          ...(receipt ? { sha256: receipt.sha256 } : {}),
+        },
+      );
+      finalizing = true;
+      const settled = await transitionRun(env, queued.id, {
+        ...completion,
+        at: runtime.now(),
+      });
+      if (settled && isManagedRunTerminal(settled.state)) message.ack();
+      else message.retry({ delaySeconds: 2 });
     } catch {
+      if (finalizing) {
+        message.retry({ delaySeconds: 2 });
+        continue;
+      }
       const run = await readRun(env, message.body.runId).catch(() => null);
       if (
         ownedLeaseId &&
@@ -738,6 +853,7 @@ export async function consumeSimulationJobs(
       ) {
         const settled = await transitionRun(env, run.id, {
           kind: "infrastructure-failed",
+          leaseId: ownedLeaseId,
           at: runtime.now(),
           error: infrastructureProblem(
             "SIMULATION_CONSUMER_FAILED",

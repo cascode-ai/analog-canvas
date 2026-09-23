@@ -48,16 +48,23 @@ function sqliteState() {
 
 class MemoryBucket implements SimulationArtifactBucket {
   readonly objects = new Map<string, string>();
+  readonly metadata = new Map<string, Record<string, string>>();
   async get(key: string): Promise<SimulationArtifactObject | null> {
     const value = this.objects.get(key);
     return value === undefined
       ? null
-      : { body: new Blob([value]).stream(), text: async () => value };
+      : {
+          body: new Blob([value]).stream(),
+          text: async () => value,
+          ...(this.metadata.has(key)
+            ? { customMetadata: this.metadata.get(key)! }
+            : {}),
+        };
   }
   async put(
     key: string,
     value: string | ReadableStream<Uint8Array>,
-    options?: { sha256?: string },
+    options?: { sha256?: string; customMetadata?: Record<string, string> },
   ) {
     const text =
       typeof value === "string" ? value : await new Response(value).text();
@@ -71,6 +78,7 @@ class MemoryBucket implements SimulationArtifactBucket {
       if (digest !== options.sha256) throw new Error("R2 digest mismatch");
     }
     this.objects.set(key, text);
+    if (options?.customMetadata) this.metadata.set(key, options.customMetadata);
     return {};
   }
   async delete(key: string) {

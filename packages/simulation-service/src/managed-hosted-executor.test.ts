@@ -65,6 +65,50 @@ const result = {
 };
 
 describe("managed hosted executor", () => {
+  it.each(["expired", "succeeded", "failed"])(
+    "does not poll contradictory terminal %s indefinitely",
+    async (state) => {
+      const sleep = vi.fn();
+      const fetch = vi.fn<typeof globalThis.fetch>(async (path) =>
+        String(path).endsWith("/result")
+          ? Response.json({ error: "RESULT_NOT_READY", state }, { status: 409 })
+          : Response.json({ run: { ...baseRun, state: "queued" } }),
+      );
+      const executor = createManagedHostedExecutor({ fetch, sleep });
+      await expect(
+        executor.execute(input, "a", undefined, {
+          preparedId: "p",
+          preparedDigest: "b".repeat(64),
+        }),
+      ).rejects.toMatchObject({
+        problem: {
+          code: state === "expired" ? "RESULT_EXPIRED" : "RESULT_UNAVAILABLE",
+        },
+      });
+      expect(sleep).not.toHaveBeenCalled();
+      expect(fetch).toHaveBeenCalledTimes(2);
+    },
+  );
+  it("classifies transient result transport failure without restarting the simulation", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async (path) =>
+      String(path).endsWith("/result")
+        ? Response.json(
+            { error: "unavailable" },
+            { status: 503, headers: { "retry-after": "2" } },
+          )
+        : Response.json({ run: { ...baseRun, state: "queued" } }),
+    );
+    const executor = createManagedHostedExecutor({ fetch });
+    await expect(
+      executor.execute(input, "a", undefined, {
+        preparedId: "p",
+        preparedDigest: "b".repeat(64),
+      }),
+    ).rejects.toMatchObject({
+      problem: { recovery: "retry-after", retryAfterMs: 2000 },
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
   it("reports broken result streams as uncertain and preserves admission identity on retry", async () => {
     let resultReads = 0;
     const fetch = vi.fn<typeof globalThis.fetch>(async (path) => {

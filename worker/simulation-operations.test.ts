@@ -30,6 +30,149 @@ function startRequest() {
 }
 
 describe("managed simulation operations", () => {
+  it("reuses completed admissions without sending another queue delivery", async () => {
+    const { env, jobs, runtime, close } = harness();
+    try {
+      await routeManagedSimulationRequest(startRequest(), env, runtime);
+      await consumeSimulationJobs(
+        { messages: [{ body: jobs[0]!, ack: vi.fn(), retry: vi.fn() }] },
+        env,
+        runtime,
+      );
+      const retry = await routeManagedSimulationRequest(
+        startRequest(),
+        env,
+        runtime,
+      );
+      expect(await retry!.json()).toMatchObject({
+        accepted: false,
+        run: { state: "succeeded" },
+      });
+      expect(jobs).toHaveLength(1);
+    } finally {
+      close();
+    }
+  });
+  it.each(["refused", "lost-response"])(
+    "recovers stored completion after %s without re-executing",
+    async (mode) => {
+      const { env, jobs, runtime, bucket, control, close } = harness();
+      const execute = vi.fn(async (_url: string, init?: RequestInit) =>
+        nativeStreamingReply(JSON.parse(String(init?.body)), false),
+      );
+      env.VACASK = nativeWorkerEnv(execute).VACASK;
+      try {
+        const accepted = await routeManagedSimulationRequest(
+          startRequest(),
+          env,
+          runtime,
+        );
+        const id = (await accepted!.json()).run.id;
+        const original = env.SIMULATION_CONTROL!.getByName;
+        let reject = true;
+        env.SIMULATION_CONTROL!.getByName = (name) => ({
+          fetch: async (input, init) => {
+            if (
+              init?.method === "POST" &&
+              JSON.parse(String(init.body)).kind === "completed" &&
+              reject
+            ) {
+              if (mode === "lost-response") {
+                await original(name).fetch(input, init);
+                throw new Error("response lost after commit");
+              }
+              return Response.json(
+                { error: "temporarily-unavailable" },
+                { status: 503 },
+              );
+            }
+            return original(name).fetch(input, init);
+          },
+        });
+        const first = { body: jobs[0]!, ack: vi.fn(), retry: vi.fn() };
+        await consumeSimulationJobs({ messages: [first] }, env, runtime);
+        expect(first.ack).not.toHaveBeenCalled();
+        expect(first.retry).toHaveBeenCalledOnce();
+        expect(
+          [...bucket.objects.keys()].some((key) =>
+            key.endsWith("response.json"),
+          ),
+        ).toBe(true);
+        reject = false;
+        const second = { body: jobs[0]!, ack: vi.fn(), retry: vi.fn() };
+        await consumeSimulationJobs({ messages: [second] }, env, runtime);
+        expect(second.ack).toHaveBeenCalledOnce();
+        expect(second.retry).not.toHaveBeenCalled();
+        expect(execute).toHaveBeenCalledOnce();
+        const run = await (
+          await control.fetch(new Request(`https://control/runs/${id}`))
+        ).json();
+        expect(run.run.state).toBe("succeeded");
+        expect(
+          run.run.artifacts.map((item: { name: string }) => item.name),
+        ).toEqual(["managed-input.json", "response.json"]);
+      } finally {
+        close();
+      }
+    },
+  );
+
+  it("returns a terminal expiration instead of asking the client to keep waiting", async () => {
+    const { env, jobs, runtime, control, close } = harness();
+    try {
+      const accepted = await routeManagedSimulationRequest(
+        startRequest(),
+        env,
+        runtime,
+      );
+      const id = (await accepted!.json()).run.id;
+      await consumeSimulationJobs(
+        { messages: [{ body: jobs[0]!, ack: vi.fn(), retry: vi.fn() }] },
+        env,
+        runtime,
+      );
+      await control.fetch(
+        new Request(`https://control/runs/${id}`, {
+          method: "POST",
+          body: JSON.stringify({ kind: "expired", at: 101 }),
+        }),
+      );
+      const result = await routeManagedSimulationRequest(
+        new Request(`https://canvas.test/api/simulation/runs/${id}/result`),
+        env,
+        runtime,
+      );
+      expect(result!.status).toBe(410);
+      expect(await result!.json()).toMatchObject({
+        error: "RESULT_EXPIRED",
+        state: "expired",
+        recovery: "not-retryable",
+      });
+    } finally {
+      close();
+    }
+  });
+
+  it("does not ACK an unreadable control record as though it were missing", async () => {
+    const { env, runtime, close } = harness();
+    try {
+      env.SIMULATION_CONTROL!.getByName = () => ({
+        fetch: async () =>
+          Response.json({ error: "unavailable" }, { status: 503 }),
+      });
+      const delivery = {
+        body: { schemaVersion: 1 as const, runId: "existing" },
+        ack: vi.fn(),
+        retry: vi.fn(),
+      };
+      await consumeSimulationJobs({ messages: [delivery] }, env, runtime);
+      expect(delivery.ack).not.toHaveBeenCalled();
+      expect(delivery.retry).toHaveBeenCalledOnce();
+    } finally {
+      close();
+    }
+  });
+
   it.each([false, true])(
     "stores receipt-bound executor streams and refuses corrupt evidence (%s)",
     async (corrupt) => {
