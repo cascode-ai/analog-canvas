@@ -151,12 +151,32 @@ export function createManagedHostedExecutor(
       );
       pollCount++;
       if (response.status === 409 && body?.error === "RESULT_NOT_READY") {
+        if (
+          typeof body.state === "string" &&
+          !["queued", "running", "cancelling"].includes(body.state)
+        )
+          throw new ExecutionFailure({
+            code:
+              body.state === "expired"
+                ? "RESULT_EXPIRED"
+                : "RESULT_UNAVAILABLE",
+            message: "The managed run is terminal and has no readable result.",
+            stage: "read",
+            recovery: "not-retryable",
+          });
         const sleepStarted = performance.now();
         await pause(pollIntervalMs);
         pollSleepMs += performance.now() - sleepStarted;
         continue;
       }
       if (!response.ok) {
+        // Transport failures are not retained simulation Problems. Preserve
+        // retry/reauthorize classification instead of defaulting to permanent.
+        if (
+          typeof body?.recovery !== "string" &&
+          typeof body?.state !== "string"
+        )
+          throwHttpFailure(response, body);
         const problem = retainedProblem(
           body,
           body?.error === "run-cancelled" ? "cancel" : "read",

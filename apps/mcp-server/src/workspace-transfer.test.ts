@@ -10,6 +10,72 @@ import { LocalWorkspace } from "./local-workspace.js";
 import { TransferPending } from "./transfer-pending.js";
 
 describe("workspace batch preparation", () => {
+  it("keeps publication retries batched and omits already-ready descriptors", async () => {
+    const files = new SimulationFiles();
+    const refs = await Promise.all(
+      Array.from({ length: 17 }, (_, i) =>
+        files.put(`f${i}`, "text/plain", String(i)),
+      ),
+    );
+    const client = new AgentSessionClient({ http: new FakeAgentHttp() });
+    await client.connect("session-1.code");
+    const ready = (id: string) => ({
+      ok: true as const,
+      artifact: refs.find((ref) => ref.id === id)!,
+      download: { path: id },
+    });
+    let round = 0;
+    const batch = vi
+      .spyOn(client, "fileResource")
+      .mockImplementation(async (request) => {
+        round++;
+        const ids = (request as { input: { artifactIds: string[] } }).input
+          .artifactIds;
+        return {
+          apiVersion: "3.0",
+          requestId: "r",
+          operation: "simulation-input",
+          ok: true,
+          result: {
+            ok: true,
+            downloads: ids.map((id) => ({
+              artifactId: id,
+              result:
+                round > 1 || id === refs[0]!.id
+                  ? ready(id)
+                  : {
+                      ok: false as const,
+                      error: {
+                        code: "ARTIFACT_TRANSFER_PENDING",
+                        message: "wait",
+                        stage: "export",
+                        recovery: "retry-after",
+                        retryAfterMs: 500,
+                      },
+                    },
+            })),
+          },
+        } as Awaited<ReturnType<typeof client.fileResource>>;
+      });
+    const single = vi.spyOn(client, "prepareArtifactDownload");
+    vi.spyOn(client, "downloadArtifact").mockImplementation(
+      async () => new Response("data"),
+    );
+    const transfer = workspaceTransfer(client);
+    transfer.select!(refs, { deferPending: true });
+    const initial = await Promise.allSettled(
+      refs.map((ref) => transfer(ref, 0)),
+    );
+    expect(initial.filter((item) => item.status === "rejected")).toHaveLength(
+      16,
+    );
+    await Promise.all(refs.slice(1).map((ref) => transfer(ref, 0)));
+    expect(batch).toHaveBeenCalledTimes(2);
+    expect(batch.mock.calls[1]![0]).toMatchObject({
+      input: { artifactIds: refs.slice(1).map((ref) => ref.id) },
+    });
+    expect(single).not.toHaveBeenCalled();
+  });
   it("bounds deferred publication retries and keeps single-RPC preparation nonblocking", async () => {
     const files = new SimulationFiles();
     const ref = await files.put("pending", "text/plain", "a");
@@ -248,7 +314,8 @@ describe("workspace batch preparation", () => {
       artifact: ref,
       download: { path: `/api/agent/sessions/session-1/artifacts/${ref.id}` },
     });
-    vi.spyOn(client, "fileResource").mockResolvedValue({
+    let release = false;
+    vi.spyOn(client, "fileResource").mockImplementation(async () => ({
       apiVersion: "3.0",
       requestId: "r",
       operation: "simulation-input",
@@ -258,7 +325,7 @@ describe("workspace batch preparation", () => {
         downloads: refs.map((ref, i) => ({
           artifactId: ref.id,
           result:
-            i < 2
+            i < 2 && !release
               ? {
                   ok: false,
                   error: {
@@ -272,8 +339,7 @@ describe("workspace batch preparation", () => {
               : ready(ref),
         })),
       },
-    });
-    let release = false;
+    }));
     vi.spyOn(client, "prepareArtifactDownload").mockImplementation(
       async (id) => ({
         apiVersion: "3.0",

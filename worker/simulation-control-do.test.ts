@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   SIMULATION_SESSION_COOKIE,
@@ -10,6 +10,8 @@ function sqliteState() {
   const db = new DatabaseSync(":memory:");
   return {
     storage: {
+      getAlarm: vi.fn(async () => null as number | null),
+      setAlarm: vi.fn(async (_time: number) => {}),
       sql: {
         exec<T>(query: string, ...bindings: unknown[]) {
           const statement = db.prepare(query);
@@ -60,6 +62,105 @@ async function body<T>(response: Response): Promise<T> {
 }
 
 describe("simulation control durable object", () => {
+  it("uses policy defaults with Cloudflare env bindings and independently expires abandoned leases", async () => {
+    let now = 100;
+    const state = sqliteState();
+    const control = new SimulationControlDO(
+      state,
+      { SIMULATION_ARTIFACTS: {} },
+      () => now,
+    );
+    const accept = (requestId: string) =>
+      control.fetch(
+        new Request("https://control/accept", {
+          method: "POST",
+          body: JSON.stringify(admission(requestId)),
+        }),
+      );
+    const first = await body<{ run: { id: string } }>(await accept("a"));
+    expect(await body(await accept("b"))).toMatchObject({
+      error: "OWNER_QUEUE_LIMIT",
+    });
+    await control.fetch(
+      new Request(`https://control/runs/${first.run.id}`, {
+        method: "POST",
+        body: JSON.stringify({
+          kind: "lease-acquired",
+          lease: { id: "lease", acquiredAt: 100, expiresAt: 200 },
+        }),
+      }),
+    );
+    expect(await body(await accept("b"))).toMatchObject({
+      error: "OWNER_ACTIVE_LIMIT",
+    });
+    expect(state.storage.setAlarm).toHaveBeenCalledWith(30_100);
+    now = 30_100;
+    await control.alarm();
+    expect(
+      await body(
+        await control.fetch(
+          new Request(`https://control/runs/${first.run.id}`),
+        ),
+      ),
+    ).toMatchObject({
+      run: {
+        state: "infrastructure-failed",
+        error: { code: "RUN_LEASE_EXPIRED", recovery: "not-retryable" },
+      },
+    });
+    expect((await accept("b")).status).toBe(201);
+    // The old idempotency key still resolves to its original terminal record.
+    expect(await body(await accept("a"))).toMatchObject({
+      accepted: false,
+      run: { id: first.run.id, state: "infrastructure-failed" },
+    });
+  });
+
+  it("expires the requested record before a delayed alarm without scanning history on every read", async () => {
+    let now = 100;
+    const state = sqliteState();
+    const sql = vi.spyOn(state.storage.sql, "exec");
+    const control = new SimulationControlDO(state, {}, () => now);
+    const first = await body<{ run: { id: string } }>(
+      await control.fetch(
+        new Request("https://control/accept", {
+          method: "POST",
+          body: JSON.stringify(admission()),
+        }),
+      ),
+    );
+    const url = `https://control/runs/${first.run.id}`;
+    await control.fetch(
+      new Request(url, {
+        method: "POST",
+        body: JSON.stringify({
+          kind: "lease-acquired",
+          lease: { id: "lease", acquiredAt: 100, expiresAt: 200 },
+        }),
+      }),
+    );
+    now = 201;
+    sql.mockClear();
+    expect(await body(await control.fetch(new Request(url)))).toMatchObject({
+      run: { state: "infrastructure-failed" },
+    });
+    expect(
+      sql.mock.calls.some(
+        ([query]) =>
+          query.includes("SELECT record_json FROM simulation_runs") &&
+          query.includes("finished_at"),
+      ),
+    ).toBe(false);
+  });
+
+  it("does not postpone an existing alarm after object reactivation", async () => {
+    const state = sqliteState();
+    state.storage.getAlarm.mockResolvedValue(150);
+    const control = new SimulationControlDO(state, {}, () => 100);
+    await control.fetch(new Request("https://control/operations"));
+    expect(state.storage.setAlarm).not.toHaveBeenCalled();
+  });
+
   it("issues an opaque anonymous owner capability and resolves it later", async () => {
     const control = new SimulationControlDO(
       sqliteState(),
@@ -88,7 +189,7 @@ describe("simulation control durable object", () => {
 
   it("persists idempotent admission and lifecycle transitions", async () => {
     const state = sqliteState();
-    const firstInstance = new SimulationControlDO(state);
+    const firstInstance = new SimulationControlDO(state, {}, () => 100);
     const acceptedResponse = await firstInstance.fetch(
       new Request("https://control/accept", {
         method: "POST",
@@ -105,7 +206,7 @@ describe("simulation control durable object", () => {
       run: { state: "queued" },
     });
 
-    const restoredInstance = new SimulationControlDO(state);
+    const restoredInstance = new SimulationControlDO(state, {}, () => 100);
     const retry = await body<{ accepted: boolean; run: { id: string } }>(
       await restoredInstance.fetch(
         new Request("https://control/accept", {

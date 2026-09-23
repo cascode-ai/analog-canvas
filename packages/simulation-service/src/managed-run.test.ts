@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { InMemoryManagedRunRegistry } from "./managed-run-registry.js";
 import {
   DEFAULT_MANAGED_RUN_POLICY,
+  createManagedRun,
+  transitionManagedRun,
   type ManagedRunAdmission,
 } from "./managed-run.js";
 
@@ -27,6 +29,30 @@ function admission(
 }
 
 describe("managed simulation run lifecycle", () => {
+  it("rejects stale attempt completions without losing the current lease", () => {
+    const run = createManagedRun("r", admission(), 100);
+    const leased = transitionManagedRun(run, {
+      kind: "lease-acquired",
+      lease: { id: "current", acquiredAt: 100, expiresAt: 200 },
+    });
+    if (!leased.ok) throw new Error("lease rejected");
+    expect(
+      transitionManagedRun(leased.run, {
+        kind: "completed",
+        leaseId: "stale",
+        at: 110,
+        artifacts: [],
+      }),
+    ).toMatchObject({ ok: false });
+    expect(
+      transitionManagedRun(leased.run, {
+        kind: "completed",
+        leaseId: "current",
+        at: 110,
+        artifacts: [],
+      }),
+    ).toMatchObject({ ok: true, run: { state: "succeeded" } });
+  });
   it("accepts one idempotent start and rejects request-id reuse", () => {
     const registry = new InMemoryManagedRunRegistry(
       DEFAULT_MANAGED_RUN_POLICY,
