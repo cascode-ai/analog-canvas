@@ -207,6 +207,8 @@ export class LocalWorkspace {
     runId?: string,
     timing: DownloadTiming = { started: performance.now(), remoteWaitMs: 0 },
   ) {
+    await this.writes;
+    if (this.persistenceFailed) await this.save();
     const path = this.artifactPath(ref, runId);
     const result = await downloadSimulationArtifact(
       ref,

@@ -61,6 +61,13 @@ describe("local simulation workspace", () => {
       expect(
         JSON.parse(await readFile(base.indexPath, "utf8")).downloads,
       ).toHaveLength(0);
+      // Individual downloads share the same recovery boundary as sync.
+      expect(
+        await base.download(directory.files[0]!, fetch, directory.runId),
+      ).toMatchObject({
+        ok: true,
+        reused: true,
+      });
       expect(await base.sync(directory, fetch)).toMatchObject({
         ok: true,
         transfer: { reused: 1 },
