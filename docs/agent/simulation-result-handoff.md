@@ -38,6 +38,14 @@ succeeds. `resultPreview` describes that receipt, not lost evidence. Download
 the complete registered files to analyze them; keeping a page open does not
 extend access credentials automatically beyond the session's existing rules.
 
+## Download preparation
+For transfer metadata, File `simulation-input` accepts `action:"downloads"`
+with 1–32 `artifactIds`. Its `downloads` array preserves request order and gives
+each file's ready descriptor or pending/error result independently. A successful
+batch envelope does not mean every file is ready. Download ready entries now;
+retry pending descriptors with fresh request IDs, not a new simulation. The
+existing single `download`, bearer authorization and byte-range transport remain.
+
 ## GUI handoff and archives
 
 Project-folder simulations share a read-only run history with the GUI. Starting

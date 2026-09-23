@@ -1,6 +1,41 @@
 import { describe, it, expect } from "vitest";
 import { ArtifactDownloadError, SimulationFiles, sha256 } from "./files.js";
+import { SimulationFileResultSchema } from "./file-contract.js";
 describe("simulation File Resource evidence", () => {
+  it("batches descriptors without waiting for pending files or hiding individual failures", async () => {
+    const files = new SimulationFiles();
+    const ready = await files.put("ready.raw", "text/plain", "ready");
+    const pending = await files.put("pending.raw", "text/plain", "pending");
+    files.setArtifactPublisher(async (ref) => {
+      if (ref.id === pending.id) return new Promise<string>(() => {});
+      return `/api/agent/sessions/s/artifacts/${ref.id}`;
+    });
+    const reply = await files.handle({
+      action: "downloads",
+      artifactIds: [ready.id, pending.id, "missing"],
+    });
+    expect(SimulationFileResultSchema.safeParse(reply).success).toBe(true);
+    expect(reply).toMatchObject({
+      ok: true,
+      downloads: [
+        { artifactId: ready.id, result: { ok: true, artifact: ready } },
+        {
+          artifactId: pending.id,
+          result: { ok: false, error: { code: "ARTIFACT_TRANSFER_PENDING" } },
+        },
+        {
+          artifactId: "missing",
+          result: { ok: false, error: { code: "ARTIFACT_UNAVAILABLE" } },
+        },
+      ],
+    });
+    expect(
+      await files.handle({
+        action: "downloads",
+        artifactIds: Array(33).fill(ready.id),
+      }),
+    ).toMatchObject({ ok: false });
+  });
   it("returns online edit receipts and preserves workspace revisions on no-op saves", async () => {
     const files = new SimulationFiles();
     const created = await files.handle({ action: "create" });

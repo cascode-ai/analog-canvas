@@ -431,6 +431,7 @@ describe.each(["compatibility", "focused", "cli"])(
         await vi.waitFor(async () => {
           finished = await invoke("simulation", {
             request: { operation: "read", runId: started.run.id },
+            detail: "full",
           });
           expect(finished.run.state).toBe("finished");
         });
@@ -449,6 +450,12 @@ describe.each(["compatibility", "focused", "cli"])(
         expect(finished.run.state, JSON.stringify(finished)).toBe("finished");
         expect(finished.run.result.data).toBeUndefined();
         expect(finished.run.outputData).toBeUndefined();
+        const summary = await invoke("simulation", {
+          request: { operation: "read", runId: started.run.id },
+        });
+        expect(summary.run.artifacts).toBeUndefined();
+        expect(summary.run.artifactCount).toBe(finished.run.artifacts.length);
+        expect(summary.run.details).toEqual(finished.run.details);
         const csv = finished.run.artifacts.find(
           (a: { name: string }) => a.name === "op-0.csv",
         );
@@ -476,6 +483,8 @@ describe.each(["compatibility", "focused", "cli"])(
           workspaceFileCount: finished.run.artifacts.length,
         });
         expect(synced.files).toHaveLength(finished.run.artifacts.length);
+        expect(synced.projection).toBe("summary");
+        expect(synced.files[0].sha256).toBeUndefined();
         expect(
           await invoke("simulation_files", {
             request: { action: "workspace" },
@@ -492,6 +501,7 @@ describe.each(["compatibility", "focused", "cli"])(
         expect(download).not.toHaveBeenCalled();
         const localIndex = JSON.parse(await readFile(synced.indexPath, "utf8"));
         expect(localIndex.runs[0].runId).toBe(started.run.id);
+        expect(localIndex.runs[0].files[0].sha256).toBeDefined();
         expect(http.claims).toHaveLength(1);
       } finally {
         await host.clear();
