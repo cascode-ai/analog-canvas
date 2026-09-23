@@ -1,4 +1,5 @@
 import type {
+  Annotation,
   RichTextDocument,
   RichTextRun,
   RichTextStyle,
@@ -8,8 +9,10 @@ import {
   formatLabelSubscripts,
   identifierTextDocument,
   identifierSubscriptCase,
+  rewriteRichTextIdentifier,
 } from "./identifier-text.js";
 import { normalizeRichText } from "./rich-text.js";
+import { voltageNodeTextDocument } from "./semantic-text.js";
 
 /** Current drawing's naming typography, shared by labels, pins and block text. */
 export function labelTypography(
@@ -140,5 +143,56 @@ export function labelTextDocument(
       },
     ),
     presentation.labelFirstLetterItalic,
+  );
+}
+
+/**
+ * The format a supply marker's label is created with: an italic leading V
+ * over an upright subscript, as in V_DD. Placement stores it on the label, so
+ * a later rule or drawing-setting change never redraws a supply the author
+ * has already seen, and the electrical name keeps its exact spelling. Other
+ * spellings (AVDD, VDD_1V8) keep the ordinary label rules.
+ */
+export function supplyLabelFormat(name: string): RichTextDocument | undefined {
+  return /^[Vv][\p{L}\p{N}]+$/u.test(name)
+    ? voltageNodeTextDocument(name)
+    : undefined;
+}
+
+/** Whether a stored format is still exactly the supply default for `name`. */
+export function isSupplyLabelFormat(
+  format: RichTextDocument,
+  name: string,
+): boolean {
+  const expected = supplyLabelFormat(name);
+  return (
+    expected !== undefined &&
+    JSON.stringify(normalizeRichText(format)) ===
+      JSON.stringify(normalizeRichText(expected))
+  );
+}
+
+/**
+ * The format a bound label keeps when its name changes. An untouched supply
+ * default follows the new spelling, or is dropped when that spelling has no
+ * supply form; an authored format keeps its styling around the new text.
+ */
+export function renamedLabelFormat(
+  annotation: Pick<Annotation, "kind" | "formatOverride">,
+  previousName: string,
+  nextName: string,
+  presentation: SchematicDocument["presentation"],
+): RichTextDocument | undefined {
+  const format = annotation.formatOverride;
+  if (!format) return undefined;
+  if (
+    annotation.kind === "power-label" &&
+    isSupplyLabelFormat(format, previousName)
+  )
+    return supplyLabelFormat(nextName);
+  return rewriteRichTextIdentifier(
+    format,
+    nextName,
+    labelIdentifierOptions(presentation),
   );
 }

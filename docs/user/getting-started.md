@@ -201,6 +201,14 @@ removing that suffix when renaming the source removes the bar. Subscript case
 changes leave this reserved suffix as `_bar`. Free text and explicit display
 aliases remain presentation-only.
 
+VDD Power and a drawn VDD Rail start in the standard supply look: an italic V
+with an upright subscript, as V_DD. The look is saved with the label when you
+place it, so the drawing's `labels` settings do not redraw it, and the netlist
+name stays `VDD`. Typing on the label renames the supply exactly as typed and
+keeps the look for any name that starts with V, such as `VDDA` or `VCC`; a name
+such as `AVDD` uses the ordinary label rules. Restyling the label never renames
+it, and a restyled label keeps your formatting.
+
 Clear the selection and open **Properties** to change the current drawing's
 `labels` settings. Each field has a dropdown in the editable code. Valid changes
 refresh existing labels immediately, including pin labels and simple names

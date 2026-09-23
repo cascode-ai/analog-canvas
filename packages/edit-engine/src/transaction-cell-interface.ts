@@ -1,8 +1,4 @@
-import { labelIdentifierOptions } from "@icm/model";
-import {
-  richTextPresentsIdentifier,
-  rewriteRichTextIdentifier,
-} from "@icm/model";
+import { renamedLabelFormat, richTextPresentsIdentifier } from "@icm/model";
 import { CellNetlistTerminalSchema, projectCellInterface } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 
@@ -178,6 +174,7 @@ function mutateCellInterface(
         };
       }
       if (edit.name !== undefined) {
+        const previousName = terminal.name;
         terminal.name = edit.name;
         if (terminal.interfaceAnnotationId) {
           for (const evidence of draft.connectivityEvidence) {
@@ -200,11 +197,14 @@ function mutateCellInterface(
             annotation.binding.terminalId === terminal.id &&
             annotation.formatOverride
           ) {
-            annotation.formatOverride = rewriteRichTextIdentifier(
-              annotation.formatOverride,
+            const format = renamedLabelFormat(
+              annotation,
+              previousName,
               edit.name,
-              labelIdentifierOptions(draft.presentation),
+              draft.presentation,
             );
+            if (format) annotation.formatOverride = format;
+            else delete annotation.formatOverride;
             changedObjectIds.add(annotation.id);
           }
         }

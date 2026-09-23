@@ -1,5 +1,5 @@
 import { resolveDocumentLogicalNets } from "@icm/derived";
-import { deriveStableId, foldNetName } from "@icm/model";
+import { deriveStableId, foldNetName, renamedLabelFormat } from "@icm/model";
 import type {
   ConnectivityEvidence,
   RouteEndpoint,
@@ -133,14 +133,26 @@ export function planElectricalMarkerRename(
       newNetId: candidateNetId,
     },
     ...ensured.edits,
-    ...boundLabels.map((annotation): SchematicEdit => ({
-      kind: "upsert_schematic_annotation",
-      annotation: {
-        ...annotation,
-        netId: ensured.netId,
-        binding: { kind: "net-name", netId: ensured.netId },
-      },
-    })),
+    ...boundLabels.map((annotation): SchematicEdit => {
+      // The label keeps showing this marker's name, so its stored format
+      // must follow the new spelling rather than keep the old one.
+      const { formatOverride: _format, ...rest } = annotation;
+      const format = renamedLabelFormat(
+        annotation,
+        currentName ?? requestedName,
+        requestedName,
+        document.presentation,
+      );
+      return {
+        kind: "upsert_schematic_annotation",
+        annotation: {
+          ...rest,
+          ...(format ? { formatOverride: format } : {}),
+          netId: ensured.netId,
+          binding: { kind: "net-name", netId: ensured.netId },
+        },
+      };
+    }),
   ];
   return {
     status: "ready",

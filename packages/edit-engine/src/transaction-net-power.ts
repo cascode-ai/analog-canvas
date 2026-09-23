@@ -1,11 +1,11 @@
-import { labelIdentifierOptions } from "@icm/model";
-import { rewriteRichTextIdentifier } from "@icm/model";
 import {
   AnnotationSchema,
   ConnectivityEvidenceSchema,
   JunctionSchema,
   createRoutePath,
   deriveStableId,
+  renamedLabelFormat,
+  supplyLabelFormat,
 } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 
@@ -178,6 +178,7 @@ export function applyNetPowerEdit(
           presentation: "power-rail",
         }),
       );
+      const supplyFormat = supplyLabelFormat(edit.netName);
       draft.annotations.push(
         AnnotationSchema.parse({
           id: edit.labelId,
@@ -186,6 +187,7 @@ export function applyNetPowerEdit(
             edit.scope === "local"
               ? { kind: "cell-terminal-name", terminalId }
               : { kind: "net-name", netId: edit.netId },
+          ...(supplyFormat ? { formatOverride: supplyFormat } : {}),
           netId: edit.netId,
           anchor: {
             kind: "object",
@@ -280,24 +282,31 @@ export function applyNetPowerEdit(
       } else {
         draft.connectivityEvidence.push(evidence);
       }
-      if (
-        evidence.kind === "name-claim" &&
-        (evidence.owner.kind === "net-label" ||
-          evidence.owner.kind === "power-marker")
-      ) {
-        const annotationId =
-          evidence.owner.kind === "net-label"
-            ? evidence.owner.annotationId
-            : evidence.owner.objectId;
-        const annotation = draft.annotations.find(
-          (candidate) => candidate.id === annotationId,
-        );
-        if (annotation?.formatOverride) {
-          annotation.formatOverride = rewriteRichTextIdentifier(
-            annotation.formatOverride,
+      if (evidence.kind === "name-claim") {
+        const owner = evidence.owner;
+        const previousName =
+          previous?.kind === "name-claim" ? previous.name : evidence.name;
+        // A rail claim is owned by its label; a supply marker's claim by the
+        // marker, whose label is anchored to it. Both labels show this name.
+        for (const annotation of draft.annotations) {
+          const showsClaim =
+            owner.kind === "net-label"
+              ? annotation.id === owner.annotationId
+              : owner.kind === "power-marker" &&
+                (annotation.id === owner.objectId ||
+                  (annotation.kind === "power-label" &&
+                    annotation.binding?.kind === "net-name" &&
+                    annotation.anchor.kind === "object" &&
+                    annotation.anchor.objectId === owner.objectId));
+          if (!showsClaim || !annotation.formatOverride) continue;
+          const format = renamedLabelFormat(
+            annotation,
+            previousName,
             evidence.name,
-            labelIdentifierOptions(draft.presentation),
+            draft.presentation,
           );
+          if (format) annotation.formatOverride = format;
+          else delete annotation.formatOverride;
           changedObjectIds.add(annotation.id);
         }
       }
