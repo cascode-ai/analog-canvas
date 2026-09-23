@@ -9,6 +9,7 @@ import type { ReleaseChannel } from "../document/release-channel";
 import { FileCommandMenu } from "../features/editor-shell/file-command-menu";
 import { SITE_REPOSITORY_URL } from "../components/site-resource-links";
 import { ToolIcon } from "../features/editor-shell/tool-icon";
+import { HierarchyToolbar } from "../features/hierarchy/hierarchy-toolbar";
 import type { EdgeAlignmentMode } from "../features/selection/align-selection";
 import { dismissOpenCommandMenus } from "./editor-runtime-helpers";
 
@@ -72,6 +73,7 @@ export interface EditorAppChromeProps {
   publishGalleryOpen: boolean;
   onPublishGallery: () => void;
   drawingToolbar: ComponentProps<typeof DrawingToolbar>;
+  hierarchyToolbar: ComponentProps<typeof HierarchyToolbar>;
   telemetry: ComponentProps<typeof EditorTestTelemetry>;
   /** Which channel serves this build; Preview is identified without a warning. */
   releaseChannel: ReleaseChannel;
@@ -133,6 +135,7 @@ export function EditorAppChrome({
   publishGalleryOpen,
   onPublishGallery,
   drawingToolbar,
+  hierarchyToolbar,
   telemetry,
   releaseChannel,
 }: EditorAppChromeProps) {
@@ -423,6 +426,7 @@ export function EditorAppChrome({
         </div>
       </div>
       <DrawingToolbar {...drawingToolbar} />
+      <HierarchyToolbar {...hierarchyToolbar} />
       {projectTabs}
       <EditorTestTelemetry {...telemetry} />
     </header>

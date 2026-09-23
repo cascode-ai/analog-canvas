@@ -103,8 +103,8 @@ describe("editor shell", () => {
     expect(markup).not.toContain("Cell netlist interface");
     expect(markup).not.toContain("Netlist Reference");
     expect(markup).not.toContain("Component model");
-    // Hierarchy is discoverable without adding a second command row to either
-    // a flat Project or one that already contains reusable Cells.
+    // Hierarchy stays discoverable for a flat Project; the operational row is
+    // still omitted until there is hierarchy to navigate or enter.
     expect(markup).not.toContain('data-testid="cell-navigation"');
     expect(markup).toContain('data-testid="hierarchy-entry"');
     expect(markup).not.toContain('data-testid="edit-manage-cells"');
@@ -145,7 +145,7 @@ describe("editor shell", () => {
     expect(markup).toContain('data-testid="save-cloud-project"');
   });
 
-  it("keeps a resolvable imported subcircuit behind the same compact entry", () => {
+  it("shows the hierarchy operation row for a resolvable imported subcircuit", () => {
     const project = createEmptyProject("imported-hierarchy", "Imported");
     const topDocument = project.documents[0]!;
     const childDocument = {
@@ -176,8 +176,9 @@ describe("editor shell", () => {
 
     const markup = renderToStaticMarkup(<App project={project} />);
     expect(markup).toContain('data-testid="hierarchy-entry"');
-    expect(markup).not.toContain('data-testid="cell-navigation"');
-    expect(markup).not.toContain("Manage Cells…");
+    expect(markup).toContain('data-testid="cell-navigation"');
+    expect(markup).toContain("Enter Cell");
+    expect(markup).toContain("Manage Cells…");
   });
 
   it("links GitHub and the change log directly without a Help surface", () => {

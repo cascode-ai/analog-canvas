@@ -18,7 +18,8 @@ its definition; edit the detail heading to rename it (Enter or blur commits,
 Escape cancels). **Delete** is beside the selected Cell's heading. Alt+Up/Down also reorder a focused row;
 Alt+Up into the first row makes that Cell Top.
 
-Use the persistent **Hierarchy** entry beside **Project** to manage the active Project's definitions in one place. It shows each
+Use the persistent **Hierarchy** entry beside **Project**, or **Manage Cells…**
+in the hierarchy toolbar, to manage the active Project's definitions in one place. It shows each
 Cell's projected Port and caller counts, opens or renames a definition, and lists
 each caller with **Jump to caller**. Equal Port names occupy one row, matching
 the generated Symbol; a marker count preserves visibility into repeated canvas
@@ -60,17 +61,16 @@ see [label names and typography](getting-started.md#label-names-and-typography).
 Rendering pin names never changes a component's electrical pin identity or
 external model interface. Complement output bars are retained.
 
-Use **New Cell** in the Cell Manager to create a module. **Edit → Place Cell
-from this Project…** opens the Insert
+Use **New Cell** in the Cell Manager to create a module. **Place Cell** in the
+hierarchy toolbar, or **Edit → Place Cell from this Project…**, opens the Insert
 dialog as a searchable, Cells-only **Place Hierarchical Cell** picker. Select a
 definition, then place its ordinary hierarchical Instance on the canvas using
 the same grid preview, `R` rotation, mirror shortcuts, and `Esc` cancellation
 as a library component. The commit keeps the `Xn` reference as internal
 netlist identity and shows only the Cell name at the normal instance-label
 position. **Enter Cell** opens the child of a selected hierarchical Instance.
-**Shift+E** follows the actual parent Instance path. Open **Hierarchy** and
-select the Top Cell when you need to return directly to the root. Opening a
-Cell from Manager's definition list always opens the
+**Shift+E** follows the actual parent Instance path; **Top** returns directly to
+the root. Opening a Cell from Manager's definition list always opens the
 definition without caller context, even when it has only one caller. **Shift+E** is
 disabled in that context. Enter an instance or use the hierarchy tree to carry
 a concrete path; **Shift+E** then returns to and selects the original caller.
@@ -156,7 +156,7 @@ Deleting a hierarchical Instance with the normal Delete command never deletes
 its reusable child Cell.
 
 Rectangles are drafting geometry only. Create reusable Cells through
-**Hierarchy** and place them with **Edit → Place Cell from this Project…**;
+**Hierarchy** and place them with **Place Cell** in the hierarchy toolbar;
 **Enter Cell** never
 converts drawing objects.
 
@@ -177,7 +177,7 @@ an occurrence path.
 The generated Symbol is ready for the first placement without a separate review
 or apply step. Customize it from a placed parent Instance when needed. An
 unreferenced top Cell is reusable too: create another ordinary Cell, then use
-**Edit → Place Cell from this Project…** to place the original top there. The
+**Place Cell** to place the original top there. The
 Project top does not change.
 A valid zero-port interface is allowed; an absent formal interface must be
 authored first.

@@ -1049,7 +1049,7 @@ test("places an unreferenced top Cell in an ordinary new Cell", async ({
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
 });
 
-test("keeps one persistent Hierarchy entry without adding a toolbar row", async ({
+test("keeps Hierarchy discoverable and restores the operation row on demand", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 420, height: 700 });
@@ -1063,9 +1063,15 @@ test("keeps one persistent Hierarchy entry without adding a toolbar row", async 
   await expect(entry).toHaveAttribute("aria-expanded", "false");
 
   await createCell(page, "FirstStage");
-  await expect(toolbar).toHaveCount(0);
+  await expect(toolbar).toBeVisible();
+  await expect(
+    toolbar.getByRole("button", { name: "Manage Cells…" }),
+  ).toBeVisible();
+  await expect(
+    toolbar.getByRole("button", { name: "Place Cell" }),
+  ).toBeEnabled();
   await expect(entry).toBeVisible();
-  await clickCommand(page, "Edit", "Place Cell from this Project…");
+  await toolbar.getByRole("button", { name: "Place Cell" }).click();
   await expect(
     page.getByRole("dialog", { name: "Place Hierarchical Cell" }),
   ).toBeVisible();
