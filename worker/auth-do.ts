@@ -323,6 +323,20 @@ export class AuthDO {
     if (route === "me" && method === "GET") {
       return noStoreJson({ user: await this.sessionUser(request) });
     }
+    if (route === "admin/stats" && method === "GET") {
+      const user = await this.sessionUser(request);
+      if (!user?.isAdmin) {
+        return noStoreJson({ error: "unauthorized" }, 401);
+      }
+      const row = this.sql
+        .exec<{ registeredAccounts: number }>(
+          "SELECT COUNT(*) AS registeredAccounts FROM users",
+        )
+        .one();
+      return noStoreJson({
+        registeredAccounts: Number(row.registeredAccounts),
+      });
+    }
     if (route === "github/start" && method === "GET") {
       return this.oauthStart(url, "github");
     }

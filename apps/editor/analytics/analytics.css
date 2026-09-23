@@ -248,7 +248,7 @@ html.light .analytics-shell {
 
 .analytics-metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
   gap: 1rem 1.5rem;
   padding: 0.15rem 0 0.35rem;
   border-top: 2px solid var(--analytics-ink);
