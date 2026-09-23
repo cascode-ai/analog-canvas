@@ -7,11 +7,12 @@ import { TransferPending } from "./transfer-pending.js";
 export function workspaceTransfer(client: AgentSessionClient): FetchArtifact {
   let ids: string[] = [];
   const batches = new Map<
-    number,
+    string,
     Promise<AgentFileResourceResponse | undefined>
   >();
   let legacy = false;
   let deferPending = false;
+  const pendingIds = new Set<string>();
   const attempts = new Map<string, { started: number; count: number }>();
   const fetch: FetchArtifact = async (ref, offset) => {
     const attempt = attempts.get(ref.id) ?? { started: Date.now(), count: 0 };
@@ -19,9 +20,12 @@ export function workspaceTransfer(client: AgentSessionClient): FetchArtifact {
     const first = attempt.count++ === 0;
     const position = ids.indexOf(ref.id);
     let descriptor: AgentFileResourceResponse | undefined;
-    if (first && !legacy && position >= 0 && ids.length > 1) {
+    if ((first || deferPending) && !legacy && position >= 0 && ids.length > 1) {
       const group = Math.floor(position / 32);
-      let pending = batches.get(group);
+      // A publication retry is still one batch per round, not N individual
+      // descriptor requests. Ready/cache-hit files do not enter later rounds.
+      const key = `${group}:${deferPending ? attempt.count : 1}`;
+      let pending = batches.get(key);
       if (!pending) {
         pending = client
           .fileResource({
@@ -30,8 +34,27 @@ export function workspaceTransfer(client: AgentSessionClient): FetchArtifact {
             operation: "simulation-input",
             input: {
               action: "downloads",
-              artifactIds: ids.slice(group * 32, group * 32 + 32),
+              artifactIds: ids
+                .slice(group * 32, group * 32 + 32)
+                .filter((id) => first || pendingIds.has(id) || id === ref.id),
             },
+          })
+          .then((response) => {
+            if (
+              response.ok &&
+              response.operation === "simulation-input" &&
+              response.result.ok &&
+              "downloads" in response.result
+            )
+              for (const item of response.result.downloads) {
+                if (
+                  !item.result.ok &&
+                  item.result.error.code === "ARTIFACT_TRANSFER_PENDING"
+                )
+                  pendingIds.add(item.artifactId);
+                else pendingIds.delete(item.artifactId);
+              }
+            return response;
           })
           .catch((error: unknown) => {
             if (
@@ -44,7 +67,7 @@ export function workspaceTransfer(client: AgentSessionClient): FetchArtifact {
             }
             throw error;
           });
-        batches.set(group, pending);
+        batches.set(key, pending);
       }
       const response = await pending;
       if (response?.ok && response.operation === "simulation-input") {
@@ -109,6 +132,7 @@ export function workspaceTransfer(client: AgentSessionClient): FetchArtifact {
     ids = [...new Set(refs.map((ref) => ref.id))];
     deferPending = options?.deferPending ?? false;
     batches.clear();
+    pendingIds.clear();
     attempts.clear();
   };
   return fetch;
