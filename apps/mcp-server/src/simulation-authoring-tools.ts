@@ -296,11 +296,15 @@ export const simulationAuthoringTools: readonly Entry[] = [
             "SIMULATION_DUT_CELL_REQUIRED",
             "A DUT template needs rootDocumentId; omit dut for text-only input.",
           );
-        const discovery = await session.client.simulationResource({
-          apiVersion: "3.0",
-          requestId: crypto.randomUUID(),
-          operation: "capabilities",
-        });
+        const discovery = await session.client.simulationMetadataResource(
+          {
+            apiVersion: "3.0",
+            requestId: crypto.randomUUID(),
+            operation: "capabilities",
+            detail: "summary",
+          },
+          { refresh: parsed.refresh },
+        );
         if (!discovery.ok) return discovery;
         if (!("capabilities" in discovery))
           return failure(
