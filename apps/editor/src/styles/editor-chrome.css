@@ -581,20 +581,6 @@
   border-left: 8px solid #1a8f4c;
 }
 
-.document-nav {
-  display: flex;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: var(--icm-space-1);
-  min-width: 0;
-}
-
-.document-nav button {
-  height: var(--icm-control-h);
-  padding: 0 var(--icm-space-2);
-  white-space: nowrap;
-}
-
 /* One-click return to the gallery landing page from the editor. */
 .toolbar-gallery-link {
   display: inline-flex;
@@ -613,19 +599,6 @@
 .toolbar-gallery-link:hover {
   border-color: var(--icm-border-hover);
   background: var(--icm-surface-hover);
-}
-
-.document-nav select {
-  flex: 1 1 12rem;
-  min-width: 5rem;
-  max-width: 12rem;
-  height: var(--icm-control-h);
-  padding: 0 var(--icm-space-2);
-  border: 1px solid var(--icm-border-strong);
-  border-radius: var(--icm-radius-sm);
-  background: var(--icm-surface);
-  font: inherit;
-  font-size: var(--icm-font-sm);
 }
 
 .command-menu {
@@ -811,22 +784,6 @@
 .command-popover .cloud-project-command > button:last-child {
   width: auto;
   color: var(--icm-text-muted);
-}
-
-.document-nav .command-popover button {
-  height: auto;
-}
-
-.document-nav .command-menu {
-  flex: 0 0 auto;
-}
-
-.document-nav .command-popover {
-  right: 0;
-  left: auto;
-  width: max-content;
-  min-width: min(15rem, calc(100vw - var(--icm-space-6)));
-  max-width: calc(100vw - var(--icm-space-6));
 }
 
 .search-backdrop {
@@ -1107,7 +1064,8 @@
 /* Project titles are variable-length content, never menubar layout inputs. */
 .app-chrome-main .app-brand,
 .app-chrome-main .gallery-home-link,
-.project-menu {
+.project-menu,
+.hierarchy-entry {
   flex: 0 0 auto;
 }
 

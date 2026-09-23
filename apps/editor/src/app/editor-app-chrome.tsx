@@ -9,7 +9,6 @@ import type { ReleaseChannel } from "../document/release-channel";
 import { FileCommandMenu } from "../features/editor-shell/file-command-menu";
 import { SITE_REPOSITORY_URL } from "../components/site-resource-links";
 import { ToolIcon } from "../features/editor-shell/tool-icon";
-import { HierarchyToolbar } from "../features/hierarchy/hierarchy-toolbar";
 import type { EdgeAlignmentMode } from "../features/selection/align-selection";
 import { dismissOpenCommandMenus } from "./editor-runtime-helpers";
 
@@ -48,6 +47,7 @@ export interface EditorAppChromeProps {
   onInsertComponent: () => void;
   userComponentsOpen: boolean;
   onOpenUserComponents: () => void;
+  cellManagerOpen: boolean;
   onManageCells: () => void;
   placeProjectCell: CommandAction;
   selectionFilterOpen: boolean;
@@ -72,7 +72,6 @@ export interface EditorAppChromeProps {
   publishGalleryOpen: boolean;
   onPublishGallery: () => void;
   drawingToolbar: ComponentProps<typeof DrawingToolbar>;
-  hierarchyToolbar: ComponentProps<typeof HierarchyToolbar>;
   telemetry: ComponentProps<typeof EditorTestTelemetry>;
   /** Which channel serves this build; Preview is identified without a warning. */
   releaseChannel: ReleaseChannel;
@@ -109,6 +108,7 @@ export function EditorAppChrome({
   onInsertComponent,
   userComponentsOpen,
   onOpenUserComponents,
+  cellManagerOpen,
   onManageCells,
   placeProjectCell,
   selectionFilterOpen,
@@ -133,7 +133,6 @@ export function EditorAppChrome({
   publishGalleryOpen,
   onPublishGallery,
   drawingToolbar,
-  hierarchyToolbar,
   telemetry,
   releaseChannel,
 }: EditorAppChromeProps) {
@@ -185,6 +184,16 @@ export function EditorAppChrome({
             onNameCancel={onProjectNameCancel}
             {...(projectChoices ? { projects: projectChoices } : {})}
           />
+          <button
+            type="button"
+            className="toolbar-button hierarchy-entry"
+            data-testid="hierarchy-entry"
+            aria-haspopup="dialog"
+            aria-expanded={cellManagerOpen}
+            onClick={onManageCells}
+          >
+            Hierarchy
+          </button>
         </div>
         <nav
           className="app-command-surface"
@@ -214,13 +223,6 @@ export function EditorAppChrome({
                   onClick={onOpenUserComponents}
                 >
                   User Components…
-                </button>
-                <button
-                  type="button"
-                  data-testid="edit-manage-cells"
-                  onClick={onManageCells}
-                >
-                  Manage Cells…
                 </button>
                 {placeProjectCell.enabled ? (
                   <button type="button" onClick={placeProjectCell.execute}>
@@ -421,7 +423,6 @@ export function EditorAppChrome({
         </div>
       </div>
       <DrawingToolbar {...drawingToolbar} />
-      <HierarchyToolbar {...hierarchyToolbar} />
       {projectTabs}
       <EditorTestTelemetry {...telemetry} />
     </header>

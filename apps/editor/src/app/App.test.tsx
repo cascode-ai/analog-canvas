@@ -103,13 +103,15 @@ describe("editor shell", () => {
     expect(markup).not.toContain("Cell netlist interface");
     expect(markup).not.toContain("Netlist Reference");
     expect(markup).not.toContain("Component model");
-    // Cell navigation is hierarchy navigation, so a flat Project does not
-    // carry a row of controls that cannot do anything yet. Manage Cells… stays
-    // reachable from Edit.
+    // Hierarchy is discoverable without adding a second command row to either
+    // a flat Project or one that already contains reusable Cells.
     expect(markup).not.toContain('data-testid="cell-navigation"');
-    expect(markup).toContain('data-testid="edit-manage-cells"');
+    expect(markup).toContain('data-testid="hierarchy-entry"');
+    expect(markup).not.toContain('data-testid="edit-manage-cells"');
     expect(markup).not.toContain('data-testid="cell-command-menu"');
-    expect(markup).toContain("Manage Cells…");
+    expect(markup).toContain(">Hierarchy</button>");
+    expect(markup).toContain("Project name");
+    expect(markup).toContain("Current Cell");
     expect(markup).toContain("Edit Device Data…");
     const netlistStart = markup.indexOf('aria-label="Netlist"');
     const netlistEnd = markup.indexOf("</details>", netlistStart);
@@ -143,7 +145,7 @@ describe("editor shell", () => {
     expect(markup).toContain('data-testid="save-cloud-project"');
   });
 
-  it("shows a resolvable imported subcircuit in Cell navigation", () => {
+  it("keeps a resolvable imported subcircuit behind the same compact entry", () => {
     const project = createEmptyProject("imported-hierarchy", "Imported");
     const topDocument = project.documents[0]!;
     const childDocument = {
@@ -173,9 +175,9 @@ describe("editor shell", () => {
     project.documents.push(childDocument);
 
     const markup = renderToStaticMarkup(<App project={project} />);
-    expect(markup).toContain('data-testid="cell-navigation"');
-    expect(markup).toContain("Enter Cell");
-    expect(markup).toContain("dut (top)");
+    expect(markup).toContain('data-testid="hierarchy-entry"');
+    expect(markup).not.toContain('data-testid="cell-navigation"');
+    expect(markup).not.toContain("Manage Cells…");
   });
 
   it("links GitHub and the change log directly without a Help surface", () => {

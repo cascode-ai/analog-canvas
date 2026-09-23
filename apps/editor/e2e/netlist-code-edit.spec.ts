@@ -112,7 +112,7 @@ test("selects an export entry independently of saved Top and edits only that Cel
   await entry.selectOption("child");
   await expect(code).toContainText("20k");
   await expect(code).not.toContainText("10k");
-  await expect(page.getByTestId("document-selector")).toHaveValue(
+  await expect(page.getByTestId("active-document-id")).toHaveText(
     project.topDocumentId,
   );
   await expect(page.getByTestId("copy-netlist-panel")).toHaveCount(0);

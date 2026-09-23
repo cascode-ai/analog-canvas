@@ -3546,7 +3546,6 @@ function WorkspaceEditor({
     enterHierarchy,
     enterSelectedHierarchy,
     returnToParentDocument,
-    returnToTopDocument,
     selectSearchResult,
     jumpToProjectDiagnostic,
     highlightNet,
@@ -5501,6 +5500,7 @@ function WorkspaceEditor({
         }}
         searchOpen={searchOpen}
         selectionFilterOpen={selectionFilterOpen}
+        cellManagerOpen={cellManagerOpen}
         onManageCells={() => setCellManagerOpen(true)}
         userComponentsOpen={userComponentsOpen}
         onOpenUserComponents={() => {
@@ -5666,18 +5666,6 @@ function WorkspaceEditor({
                 },
               }
             : {}),
-        }}
-        hierarchyToolbar={{
-          documents: project.documents,
-          activeDocumentId: document.id,
-          topDocumentId: project.topDocumentId,
-          navigationDepth: documentStack.length,
-          canEnter: hasHierarchyEnterSelection,
-          onTop: returnToTopDocument,
-          onSelectDocument: selectDocumentFromHierarchy,
-          onEnter: enterSelectedHierarchy,
-          onManageCells: () => setCellManagerOpen(true),
-          onPlaceCell: placeCellInstance,
         }}
         telemetry={{
           snapshot: {

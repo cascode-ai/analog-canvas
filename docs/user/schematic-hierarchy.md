@@ -4,7 +4,7 @@ Analog Canvas treats every Project Document as one reusable schematic Cell.
 The top Cell is the saved default entry; other Cells may be instantiated any number of
 times or kept unreferenced while they are being authored.
 
-In **Manage Cells…**, select a Cell and choose **Set as Top**, or drag it onto the first, **Top** row to change
+Open **Hierarchy**, select a Cell and choose **Set as Top**, or drag it onto the first, **Top** row to change
 the saved default entry. The drop preview says **Set as Top**. Dragging among
 other rows only changes the saved list order; dropping at the bottom moves a Cell
 to the end. Both order and Top changes are undone together. This does not change the circuit, its callers, the
@@ -18,7 +18,7 @@ its definition; edit the detail heading to rename it (Enter or blur commits,
 Escape cancels). **Delete** is beside the selected Cell's heading. Alt+Up/Down also reorder a focused row;
 Alt+Up into the first row makes that Cell Top.
 
-Use **Manage Cells…** in **Edit** or the hierarchy row to manage the Project's definitions in one place. It shows each
+Use the persistent **Hierarchy** entry beside **Project** to manage the active Project's definitions in one place. It shows each
 Cell's projected Port and caller counts, opens or renames a definition, and lists
 each caller with **Jump to caller**. Equal Port names occupy one row, matching
 the generated Symbol; a marker count preserves visibility into repeated canvas
@@ -60,16 +60,17 @@ see [label names and typography](getting-started.md#label-names-and-typography).
 Rendering pin names never changes a component's electrical pin identity or
 external model interface. Complement output bars are retained.
 
-Use **New Cell** in the Cell Manager to create a module. **Place Cell** in the
-hierarchy row, or **Edit → Place Cell from this Project…**, opens the Insert
+Use **New Cell** in the Cell Manager to create a module. **Edit → Place Cell
+from this Project…** opens the Insert
 dialog as a searchable, Cells-only **Place Hierarchical Cell** picker. Select a
 definition, then place its ordinary hierarchical Instance on the canvas using
 the same grid preview, `R` rotation, mirror shortcuts, and `Esc` cancellation
 as a library component. The commit keeps the `Xn` reference as internal
 netlist identity and shows only the Cell name at the normal instance-label
 position. **Enter Cell** opens the child of a selected hierarchical Instance.
-**Shift+E** follows the actual parent Instance path; **Top** returns to the root.
-Opening a Cell from the selector or Manager's definition list always opens the
+**Shift+E** follows the actual parent Instance path. Open **Hierarchy** and
+select the Top Cell when you need to return directly to the root. Opening a
+Cell from Manager's definition list always opens the
 definition without caller context, even when it has only one caller. **Shift+E** is
 disabled in that context. Enter an instance or use the hierarchy tree to carry
 a concrete path; **Shift+E** then returns to and selects the original caller.
@@ -155,7 +156,8 @@ Deleting a hierarchical Instance with the normal Delete command never deletes
 its reusable child Cell.
 
 Rectangles are drafting geometry only. Create reusable Cells through
-**Manage Cells…** and place them with **Place Cell**; **Enter Cell** never
+**Hierarchy** and place them with **Edit → Place Cell from this Project…**;
+**Enter Cell** never
 converts drawing objects.
 
 Select a Cell Instance in a parent and open **Properties** to adjust that
@@ -175,7 +177,8 @@ an occurrence path.
 The generated Symbol is ready for the first placement without a separate review
 or apply step. Customize it from a placed parent Instance when needed. An
 unreferenced top Cell is reusable too: create another ordinary Cell, then use
-**Place Cell** to place the original top there. The Project top does not change.
+**Edit → Place Cell from this Project…** to place the original top there. The
+Project top does not change.
 A valid zero-port interface is allowed; an absent formal interface must be
 authored first.
 

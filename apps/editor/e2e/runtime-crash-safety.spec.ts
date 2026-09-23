@@ -1,10 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import {
-  awaitEditorReady,
-  chooseComponent,
-  clickCommand,
-} from "./editor-fixtures.js";
+import { awaitEditorReady, chooseComponent } from "./editor-fixtures.js";
 
 // These cases deliberately break and reload the shared editor origin. Keep
 // them in one worker so cache cleanup and failed chunk requests cannot race.
@@ -133,7 +129,7 @@ test("a failed dialog chunk degrades to a scoped notice, not the crash screen", 
   // A tab that survives a redeploy asks for chunk names the server no longer
   // has. Aborting the request reproduces the same rejected dynamic import.
   await page.route("**/cell-manager-dialog*", (route) => route.abort());
-  await clickCommand(page, "Edit", "Manage Cells…");
+  await page.getByTestId("hierarchy-entry").click();
 
   const fallback = page.getByTestId("dialog-chunk-load-fallback");
   await expect(fallback).toBeVisible();
@@ -146,7 +142,7 @@ test("a failed dialog chunk degrades to a scoped notice, not the crash screen", 
   await expect(page.getByTestId("hit-R1")).toBeVisible();
 
   // Refreshing from the notice restores the circuit automatically.
-  await clickCommand(page, "Edit", "Manage Cells…");
+  await page.getByTestId("hierarchy-entry").click();
   const navigated = page.waitForEvent("framenavigated");
   await page.unroute("**/cell-manager-dialog*");
   await page
@@ -159,7 +155,7 @@ test("a failed dialog chunk degrades to a scoped notice, not the crash screen", 
   // single-document recovery toast is no longer the recovery contract.
   // Check the actual restored revision and that the editor remains usable.
   await expect(page.getByTestId("revision")).toHaveText("1");
-  await clickCommand(page, "Edit", "Manage Cells…");
+  await page.getByTestId("hierarchy-entry").click();
   await expect(page.getByTestId("dialog-chunk-load-fallback")).toHaveCount(0);
   await expect(
     page.getByRole("dialog", { name: "Cell Manager" }),
