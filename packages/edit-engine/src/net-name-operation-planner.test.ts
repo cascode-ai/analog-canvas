@@ -1,4 +1,4 @@
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, supplyLabelFormat } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
@@ -30,6 +30,31 @@ function addSupply(
     scope: "global",
     powerDomain: "vdd",
     owner: { kind: "power-marker", objectId: id },
+  });
+}
+
+/** The label a placed global VDD Port shows, in its stored default look. */
+function addSupplyLabel(
+  document: ReturnType<typeof createEmptyDocument>,
+  id: string,
+  netId: string,
+  name = "VDD",
+): void {
+  document.annotations.push({
+    id: `power-label-${id.toLowerCase()}`,
+    kind: "power-label",
+    binding: { kind: "net-name", netId },
+    formatOverride: supplyLabelFormat(name)!,
+    netId,
+    anchor: {
+      kind: "object",
+      objectId: id,
+      localOffset: { x: 20, y: 0 },
+      fallbackPosition: { x: 20, y: 0 },
+    },
+    alignment: "start",
+    rotation: 0,
+    locked: false,
   });
 }
 
@@ -102,5 +127,41 @@ describe("Net name operation planner", () => {
       status: "rejected",
       message: "Cannot merge Net names with incompatible power roles",
     });
+  });
+  it("keeps a supply label's stored look in step with a marker rename", () => {
+    const document = createEmptyDocument("main", "Main");
+    addSupply(document, "V1", "net-v1");
+    addSupplyLabel(document, "V1", "net-v1");
+    const labelFormat = (renamed: string) => {
+      const planned = planElectricalMarkerRename(document, "V1", renamed);
+      if (planned.status !== "ready") throw new Error(planned.status);
+      const result = gateRoutingOperationPlan(document, planned.plan, {
+        symbolResolver: resolver,
+      });
+      if (!result.ok) throw new Error(result.message);
+      return result.evaluated.finalDocument.annotations.find(
+        (annotation) => annotation.id === "power-label-v1",
+      )?.formatOverride;
+    };
+    expect(labelFormat("VCC")).toEqual(supplyLabelFormat("VCC"));
+    // No V-led spelling: the label falls back to the ordinary name rules.
+    expect(labelFormat("AVDD")).toBeUndefined();
+  });
+
+  it("renames a Net whose supply marker label stores its look", () => {
+    const document = createEmptyDocument("main", "Main");
+    addSupply(document, "V1", "net-v1");
+    addSupplyLabel(document, "V1", "net-v1");
+    const source =
+      resolveDocumentLogicalNets(document).byBaseNetId.get("net-v1")!;
+    const planned = planLogicalNetRename(document, source.id, "VDDA");
+    if (planned.status !== "ready") throw new Error(planned.status);
+    const result = gateRoutingOperationPlan(document, planned.plan, {
+      symbolResolver: resolver,
+    });
+    if (!result.ok) throw new Error(result.message);
+    expect(
+      result.evaluated.finalDocument.annotations[0]?.formatOverride,
+    ).toEqual(supplyLabelFormat("VDDA"));
   });
 });

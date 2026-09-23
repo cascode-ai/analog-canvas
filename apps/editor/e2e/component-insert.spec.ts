@@ -966,8 +966,13 @@ test("places a vertical Power Rail from I and renames it on the canvas", async (
   await canvas.click({ position: { x: 260, y: 380 } });
   await page.keyboard.press("Escape");
 
-  // The quick pick always lands the default VDD name. The visible label owns
-  // the formal Cell terminal, so editing it renames both the Pin and claim.
+  // The quick pick always lands the default VDD name, drawn in its standard
+  // look. The visible label owns the formal Cell terminal, so editing it
+  // renames both the Pin and claim, exactly as typed.
+  const railLabel = canvas.locator('[data-object-id="label-VDD1"]');
+  await expect(railLabel.locator('[data-text-run="subscript"]')).toHaveText(
+    "DD",
+  );
   await page.getByTestId("annotation-hit-label-VDD1").dblclick();
   const railEditor = page.getByRole("textbox", { name: "Canvas text editor" });
   await railEditor.fill("AVDD");
@@ -1010,7 +1015,7 @@ test("places a vertical Power Rail from I and renames it on the canvas", async (
   };
   const document = saved.documents[0]!;
   const avddClaim = document.connectivityEvidence.find(
-    (evidence) => evidence.kind === "name-claim" && evidence.name === "A_VDD",
+    (evidence) => evidence.kind === "name-claim" && evidence.name === "AVDD",
   );
   expect(avddClaim).toMatchObject({ scope: "local", powerDomain: "vdd" });
   const avdd = document.nets.find((net) => net.id === avddClaim!.netId);
@@ -1061,9 +1066,11 @@ test("places the VDD power-port device as the default VDD entry", async ({
   const powerLabels = canvas.locator('[data-kind="power-label"]');
   await expect(powerLabels).toHaveCount(2);
   await expect(powerLabels).toHaveText(["VDD", "VDD"]);
-  await expect(powerLabels.locator('[data-text-run="subscript"]')).toHaveCount(
-    0,
-  );
+  // Each lands in the standard supply look: italic V, upright DD subscript.
+  const subscripts = powerLabels.locator('[data-text-run="subscript"]');
+  await expect(subscripts).toHaveText(["DD", "DD"]);
+  for (const subscript of await subscripts.all())
+    await expect(subscript).toHaveAttribute("style", /font-style:normal/u);
   await expect(page.getByTestId("instance-count")).toHaveText("2");
 
   const saved = parseSavedProject(
@@ -1185,6 +1192,12 @@ test("renames one supply marker without changing its same-name peer", async ({
   await expect(
     canvas
       .locator('[data-object-id="power-label-vdd2"]')
+      .locator('[data-text-run="subscript"]'),
+  ).toHaveText("DD");
+  // AVDD has no V-led supply spelling, so it drops the supply look.
+  await expect(
+    canvas
+      .locator('[data-object-id="power-label-vdd1"]')
       .locator('[data-text-run="subscript"]'),
   ).toHaveCount(0);
 });

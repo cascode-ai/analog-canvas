@@ -4,6 +4,7 @@ import {
   createEmptyDocument,
   semanticTextDocument,
   defaultDraftTextDocument,
+  supplyLabelFormat,
 } from "@icm/model";
 import type { Annotation, DraftingObject } from "@icm/model";
 
@@ -11,6 +12,7 @@ import {
   createTextEditingSession,
   proposeTextEditingCommit,
   resolveTextEditingTarget,
+  supplyLabelEdit,
   textDeletionEdit,
   updateTextEditingSession,
 } from "./text-editing";
@@ -281,6 +283,71 @@ describe("unified text editing", () => {
       document,
     );
     expect(manual.formatEdited).toBe(true);
+  });
+
+  it("edits a stored supply look as a default whose text renames verbatim", () => {
+    const document = createEmptyDocument("text", "Text");
+    document.netlist!.terminals.push({
+      id: "terminal-vdd",
+      name: "VDD",
+      netId: "net-vdd",
+      direction: "inout",
+      interfaceInstanceIds: [],
+    });
+    const supply: Annotation = {
+      id: "label-VDD1",
+      kind: "power-label",
+      binding: { kind: "cell-terminal-name", terminalId: "terminal-vdd" },
+      formatOverride: supplyLabelFormat("VDD")!,
+      netId: "net-vdd",
+      anchor: { kind: "free", position: { x: 10, y: 20 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    };
+    const session = createTextEditingSession(
+      { owner: "annotation", object: supply },
+      document,
+    );
+    expect(session.formatEdited).toBeUndefined();
+
+    // Typing keeps the characters exactly and the look for the new name;
+    // the subscript never becomes an underscore in the netlist.
+    const typed = updateTextEditingSession(session, {
+      content: supplyLabelFormat("VDDA")!,
+    });
+    expect(supplyLabelEdit(document, supply, typed)).toEqual({
+      name: "VDDA",
+      format: supplyLabelFormat("VDDA"),
+    });
+    expect(
+      supplyLabelEdit(
+        document,
+        supply,
+        updateTextEditingSession(session, {
+          content: { runs: [{ kind: "text", value: "AVDD" }] },
+        }),
+      ),
+    ).toEqual({ name: "AVDD", format: undefined });
+
+    // Restyling alone never renames, and the author's look is kept.
+    const flat = { runs: [{ kind: "text" as const, value: "VDD" }] };
+    const restyled = updateTextEditingSession(session, { content: flat });
+    expect(restyled.formatEdited).toBe(true);
+    expect(supplyLabelEdit(document, supply, restyled)).toEqual({
+      name: "VDD",
+      format: flat,
+    });
+
+    // An author's own format is not treated as the default.
+    const authored = { ...supply, formatOverride: flat };
+    expect(supplyLabelEdit(document, authored, typed)).toBeUndefined();
+    expect(
+      createTextEditingSession(
+        { owner: "annotation", object: authored },
+        document,
+      ).formatEdited,
+    ).toBe(true);
   });
 
   it("resolves only the tagged target kind", () => {

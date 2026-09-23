@@ -18,7 +18,11 @@ import {
   type SchematicEdit,
   type WireSource,
 } from "@icm/edit-engine";
-import { resolveEndpointConnection } from "@icm/derived";
+import {
+  resolveDocumentLogicalNets,
+  resolveEndpointConnection,
+  supplyMarkerForSymbol,
+} from "@icm/derived";
 import type { Instance, RouteEndpoint, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import { planInitialMosBulkDefault } from "./mos-bulk-defaults";
@@ -106,6 +110,12 @@ export function planInsertedInstanceConnections(
           resolved: resolvedPowerSymbol,
           netId: powerNetId,
           grid: document.presentation.grid,
+          // An existing supply keeps its name; a fresh marker claims its own.
+          name:
+            resolveDocumentLogicalNets(document).byBaseNetId.get(powerNetId)
+              ?.name ??
+            supplyMarkerForSymbol(instance.symbolId)?.name ??
+            "VDD",
         })
       : null;
   const projectedDocument = structuredClone(document);

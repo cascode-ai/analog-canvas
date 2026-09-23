@@ -536,6 +536,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
                 resolved: resolvedSupply,
                 netId,
                 grid: options.document.presentation.grid,
+                name: formalName,
               }),
               binding: {
                 kind: "cell-terminal-name" as const,

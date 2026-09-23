@@ -4,6 +4,8 @@ import {
   labelTypography,
   labelTextDocument,
   formatLabelIdentifier,
+  isSupplyLabelFormat,
+  supplyLabelFormat,
 } from "@icm/model";
 import type { SchematicEdit } from "@icm/edit-engine";
 import { flattenRichText, semanticTextDocument } from "@icm/model";
@@ -95,6 +97,48 @@ function uniformTextStyle(
   );
 }
 
+/**
+ * The supply name a label still shows in its stored default format, or
+ * undefined once the author has restyled it (or for any other label).
+ */
+export function supplyLabelDefault(
+  document: SchematicDocument,
+  annotation: Annotation,
+): string | undefined {
+  if (annotation.kind !== "power-label" || !annotation.formatOverride)
+    return undefined;
+  const name = resolveAnnotationName(document, annotation).trim();
+  return isSupplyLabelFormat(annotation.formatOverride, name)
+    ? name
+    : undefined;
+}
+
+/**
+ * Commit an edit of a supply label that still shows its default format.
+ * Changed characters rename the supply exactly as typed; styling never
+ * does, so V_DD's subscript cannot turn VDD into V_DD. A plain text edit
+ * keeps the default for the new spelling, and a restyled label keeps the
+ * author's format.
+ */
+export function supplyLabelEdit(
+  document: SchematicDocument,
+  annotation: Annotation,
+  session: TextEditingSession,
+): { name: string; format: RichTextDocument | undefined } | undefined {
+  const currentName = supplyLabelDefault(document, annotation);
+  if (currentName === undefined) return undefined;
+  const typed = flattenRichText(session.content).trim();
+  const name =
+    session.contentEdited && typed !== currentName ? typed : currentName;
+  return {
+    name,
+    format:
+      session.formatEdited && flattenRichText(session.content) === name
+        ? session.content
+        : supplyLabelFormat(name),
+  };
+}
+
 export function createTextEditingSession(
   target: EditableTextTarget,
   document?: SchematicDocument,
@@ -117,6 +161,11 @@ export function createTextEditingSession(
           "formal-port",
         ),
       );
+    // The supply format placement stores is a default, not the author's
+    // styling: editing starts from it the way it starts from the name.
+    const automaticSupplyFormat =
+      document !== undefined &&
+      supplyLabelDefault(document, annotation) !== undefined;
     const instanceId =
       annotation.binding?.kind === "instance-reference"
         ? annotation.binding.instanceId
@@ -135,7 +184,9 @@ export function createTextEditingSession(
         annotation.binding !== undefined &&
         annotation.binding.kind !== "instance-reference",
       ...(annotation.binding ? { bindingKind: annotation.binding.kind } : {}),
-      ...(annotation.formatOverride && !automaticTerminalOverride
+      ...(annotation.formatOverride &&
+      !automaticTerminalOverride &&
+      !automaticSupplyFormat
         ? { formatEdited: true }
         : {}),
       ...(annotation.kind === "route-marker"

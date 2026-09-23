@@ -40,6 +40,7 @@ import {
   createTextEditingSession,
   proposeTextEditingCommit,
   resolveTextEditingTarget,
+  supplyLabelEdit,
   textDeletionEdit,
   updateTextEditingSession,
 } from "../text-editing/text-editing";
@@ -917,12 +918,18 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       boundAnnotation.binding.kind !== "instance-value"
     ) {
       const typography = labelTypography(options.document.presentation);
-      const name =
-        textEditing.contentEdited &&
-        richTextIdentifier(textEditing.content) !==
-          richTextIdentifier(
-            resolveAnnotationText(options.document, boundAnnotation),
-          )
+      const supplyEdit = supplyLabelEdit(
+        options.document,
+        boundAnnotation,
+        textEditing,
+      );
+      const name = supplyEdit
+        ? supplyEdit.name
+        : textEditing.contentEdited &&
+            richTextIdentifier(textEditing.content) !==
+              richTextIdentifier(
+                resolveAnnotationText(options.document, boundAnnotation),
+              )
           ? textEditing.formatEdited
             ? richTextIdentifier(textEditing.content).trim()
             : formatLabelIdentifier(
@@ -946,9 +953,10 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
         name,
         options.document.presentation,
       );
-      const editedPresentation =
-        boundAnnotation.binding.kind === "cell-terminal-name" &&
-        !textEditing.formatEdited
+      const editedPresentation = supplyEdit
+        ? (supplyEdit.format ?? semanticContent)
+        : boundAnnotation.binding.kind === "cell-terminal-name" &&
+            !textEditing.formatEdited
           ? semanticContent
           : flattenRichText(textEditing.content).includes("_") ||
               (typography.subscriptAfterFirst && !textEditing.formatEdited)

@@ -284,6 +284,16 @@ commit. A rail explicitly drawn onto an existing Global supply retains that
 electrical connection. Deleting the rail also deletes its power label and rail-only Junctions;
 an otherwise-unused local Net follows the ordinary orphan lifecycle.
 
+Both VDD Power and Power Rail store their label's standard supply look when
+they are placed: an italic leading `V` over an upright subscript, as V_DD. The
+look is the label's own `formatOverride`, so drawing label settings and later
+rule changes never redraw it, and the electrical name keeps its exact spelling
+(`VDD`). While the label still carries that default, typing on it renames the
+supply exactly as typed and keeps the look for any `V`-led spelling such as
+`VDDA` or `VCC`; another spelling such as `AVDD` returns to the ordinary label
+rules. Restyling never renames the supply, and a restyled label keeps the
+author's formatting through later renames.
+
 ## Interaction states
 
 The canonical reducer owns exactly one exclusive canvas interaction:
@@ -842,8 +852,8 @@ topology hash, history, recovery, or formal export.
 - component placement and ordinary terminal connectivity for both
   interface-marker assets;
 - VDD rail picker/Library preview, cancellation at both phases, creation with no
-  VDD Instance or annotation-owned stub, bold italic subscript label, default
-  exit, selection, and complete visual deletion;
+  VDD Instance or annotation-owned stub, stored italic-V / upright-subscript
+  label, default exit, selection, and complete visual deletion;
 - canonical MOS default-variant and explicit bulk behavior;
 - move/stretch, segment tap, crossing non-connectivity, cancel, delete, and
   undo/redo tests;

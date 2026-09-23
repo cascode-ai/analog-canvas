@@ -10,8 +10,11 @@ import {
 import {
   formatLabelFirstLetter,
   formatLabelIdentifier,
+  isSupplyLabelFormat,
   labelTypography,
   labelTextDocument,
+  renamedLabelFormat,
+  supplyLabelFormat,
 } from "./label-typography.js";
 
 it("gives new drawings italic initials and upright preserved-case subscripts", () => {
@@ -127,4 +130,74 @@ it("applies subscript case even beneath an older whole-label case style", () => 
   expect(richTextIdentifier(text)).toBe("V_load");
   expect(JSON.stringify(text)).not.toContain('"uppercase"');
   expect(JSON.stringify(text)).toContain('"bold"');
+});
+
+it("stores the supply look as italic V over an upright subscript", () => {
+  const format = supplyLabelFormat("VDD")!;
+  expect(format).toEqual({
+    runs: [
+      {
+        kind: "span",
+        style: "italic",
+        children: [
+          {
+            kind: "span",
+            style: "bold",
+            children: [{ kind: "text", value: "V" }],
+          },
+        ],
+      },
+      {
+        kind: "span",
+        style: "subscript",
+        children: [
+          {
+            kind: "span",
+            style: "bold",
+            children: [{ kind: "text", value: "DD" }],
+          },
+        ],
+      },
+    ],
+  });
+  // The visible characters are the electrical name, exactly.
+  expect(flattenRichText(format)).toBe("VDD");
+  expect(flattenRichText(supplyLabelFormat("Vdd1V8")!)).toBe("Vdd1V8");
+  for (const name of ["AVDD", "VDD_1V8", "V", "VDD!", ""])
+    expect(supplyLabelFormat(name)).toBeUndefined();
+});
+
+it("recognises only an untouched supply default", () => {
+  expect(isSupplyLabelFormat(supplyLabelFormat("VDD")!, "VDD")).toBe(true);
+  expect(isSupplyLabelFormat(supplyLabelFormat("VDD")!, "VCC")).toBe(false);
+  const flat = { runs: [{ kind: "text" as const, value: "VDD" }] };
+  expect(isSupplyLabelFormat(flat, "VDD")).toBe(false);
+});
+
+it("lets an untouched supply default follow a rename", () => {
+  const presentation = createEmptyDocument("a", "A").presentation;
+  const label = { kind: "power-label" as const };
+  const vdd = { ...label, formatOverride: supplyLabelFormat("VDD")! };
+  // Any V-led supply takes the same look, e.g. separate VDDH and VDDL rails.
+  for (const supply of ["VDDA", "VDDH", "VDDL"]) {
+    const renamed = renamedLabelFormat(vdd, "VDD", supply, presentation)!;
+    expect(renamed).toEqual(supplyLabelFormat(supply));
+    expect(flattenRichText(renamed)).toBe(supply);
+  }
+  expect(renamedLabelFormat(vdd, "VDD", "VDD", presentation)).toEqual(
+    supplyLabelFormat("VDD"),
+  );
+  // No supply spelling: the label returns to the ordinary rules.
+  expect(renamedLabelFormat(vdd, "VDD", "AVDD", presentation)).toBeUndefined();
+  // An authored format keeps the existing rename rewrite.
+  const authored = {
+    ...label,
+    formatOverride: { runs: [{ kind: "text" as const, value: "VDD" }] },
+  };
+  expect(
+    flattenRichText(renamedLabelFormat(authored, "VDD", "VCC", presentation)!),
+  ).toBe("VCC");
+  expect(
+    renamedLabelFormat({ kind: "power-label" }, "VDD", "VCC", presentation),
+  ).toBeUndefined();
 });

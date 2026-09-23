@@ -15,6 +15,19 @@ import { vddPowerLabelAnnotation } from "./vdd-power-label";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
+/** The name a placed VDD Port claims for its Net, as placement writes it. */
+function vddMarkerClaim(instanceId: string, netId: string) {
+  return {
+    id: `claim-${instanceId.toLowerCase()}`,
+    kind: "name-claim" as const,
+    netId,
+    name: "VDD",
+    scope: "global" as const,
+    powerDomain: "vdd" as const,
+    owner: { kind: "power-marker" as const, objectId: instanceId },
+  };
+}
+
 function objectAnchor(annotation: Annotation) {
   if (annotation.anchor.kind !== "object") {
     throw new Error("expected object-anchored annotation");
@@ -40,6 +53,7 @@ describe("vdd power label annotation", () => {
       resolved,
       netId: "net-power-vdd3",
       grid: 10,
+      name: "VDD",
     });
     expect(AnnotationSchema.parse(annotation)).toEqual(annotation);
     expect(annotation).toMatchObject({
@@ -56,6 +70,54 @@ describe("vdd power label annotation", () => {
       kind: "net-name",
       netId: "net-power-vdd3",
     });
+    // Placed with its standard look stored: italic V, upright DD subscript.
+    expect(annotation.formatOverride).toEqual({
+      runs: [
+        {
+          kind: "span",
+          style: "italic",
+          children: [
+            {
+              kind: "span",
+              style: "bold",
+              children: [{ kind: "text", value: "V" }],
+            },
+          ],
+        },
+        {
+          kind: "span",
+          style: "subscript",
+          children: [
+            {
+              kind: "span",
+              style: "bold",
+              children: [{ kind: "text", value: "DD" }],
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("stores no supply format for a name outside the V convention", () => {
+    const resolved = resolver.resolve("vdd-port");
+    if (!resolved) throw new Error("missing VDD Port Symbol");
+    const annotation = vddPowerLabelAnnotation({
+      instance: {
+        id: "VDD4",
+        symbolId: "vdd-port",
+        placement: {
+          position: { x: 0, y: 0 },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+      },
+      resolved,
+      netId: "net-power-vdd4",
+      grid: 10,
+      name: "AVDD",
+    });
+    expect(annotation.formatOverride).toBeUndefined();
   });
 
   it("never collides with the drawn rail label id namespace", () => {
@@ -75,6 +137,7 @@ describe("vdd power label annotation", () => {
       resolved,
       netId: "net-power-vdd1",
       grid: 10,
+      name: "VDD",
     });
     // The rail owns `label-VDDn`; the device label must not upsert over it.
     expect(annotation.id).not.toBe("label-VDD1");
@@ -114,6 +177,7 @@ describe("vdd power label annotation", () => {
               resolved,
               netId: powerNetId!,
               grid: document.presentation.grid,
+              name: "VDD",
             }),
           },
         ],
@@ -149,15 +213,16 @@ describe("vdd power label annotation", () => {
     document.instances.push(instance);
     document.nets.push({
       id: "net-vdd",
-
-      terminals: [],
+      terminals: [{ instanceId: "VDD1", pinName: "P" }],
     });
+    document.connectivityEvidence.push(vddMarkerClaim("VDD1", "net-vdd"));
     document.annotations.push(
       vddPowerLabelAnnotation({
         instance,
         resolved,
         netId: "net-vdd",
         grid: document.presentation.grid,
+        name: "VDD",
       }),
     );
 
@@ -249,15 +314,16 @@ describe("vdd power label annotation", () => {
     document.instances.push(instance);
     document.nets.push({
       id: "net-vdd",
-
-      terminals: [],
+      terminals: [{ instanceId: "VDD1", pinName: "P" }],
     });
+    document.connectivityEvidence.push(vddMarkerClaim("VDD1", "net-vdd"));
     document.annotations.push(
       vddPowerLabelAnnotation({
         instance,
         resolved,
         netId: "net-vdd",
         grid: document.presentation.grid,
+        name: "VDD",
       }),
     );
 
@@ -340,15 +406,16 @@ describe("vdd power label annotation", () => {
     document.instances.push(instance);
     document.nets.push({
       id: "net-vdd",
-
-      terminals: [],
+      terminals: [{ instanceId: "VDD1", pinName: "P" }],
     });
+    document.connectivityEvidence.push(vddMarkerClaim("VDD1", "net-vdd"));
     document.annotations.push(
       vddPowerLabelAnnotation({
         instance,
         resolved,
         netId: "net-vdd",
         grid: document.presentation.grid,
+        name: "VDD",
       }),
     );
 
@@ -426,6 +493,7 @@ describe("vdd power label annotation", () => {
       resolved,
       netId: "net-vdd",
       grid: document.presentation.grid,
+      name: "VDD",
     });
     if (annotation.anchor.kind !== "object")
       throw new Error("object anchor required");
@@ -434,9 +502,9 @@ describe("vdd power label annotation", () => {
     document.instances.push(instance);
     document.nets.push({
       id: "net-vdd",
-
-      terminals: [],
+      terminals: [{ instanceId: "VDD1", pinName: "P" }],
     });
+    document.connectivityEvidence.push(vddMarkerClaim("VDD1", "net-vdd"));
     document.annotations.push(annotation);
 
     const result = executeTransaction(
