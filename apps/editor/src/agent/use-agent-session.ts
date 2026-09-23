@@ -10,6 +10,10 @@ import {
   AgentSessionEventSchema,
   AgentSessionMessageSchema,
   AgentSessionScopeSchema,
+  isReadOnlyCircuitRequest,
+  isReadOnlyFileRequest,
+  isReadOnlySimulationRequest,
+  isReadOnlyProjectRequest,
   parseAgentFileResourceRequest,
   parseAgentSimulationResourceRequest,
   parseAgentProjectResourceRequest,
@@ -783,6 +787,8 @@ export function useAgentSession(
                   }),
                 )
                 .finally(() => {
+                  if (isReadOnlyFileRequest(fileRequest.data))
+                    live.requestHashes.delete(parsed.data.requestId);
                   if (liveRef.current === live)
                     update({ status: live.paused ? "paused" : "connected" });
                 });
@@ -867,6 +873,8 @@ export function useAgentSession(
                   }),
                 )
                 .finally(() => {
+                  if (isReadOnlySimulationRequest(simulationRequest.data))
+                    live.requestHashes.delete(parsed.data.requestId);
                   if (liveRef.current === live)
                     update({ status: live.paused ? "paused" : "connected" });
                 });
@@ -876,11 +884,6 @@ export function useAgentSession(
               const projectRequest = parseAgentProjectResourceRequest(
                 parsed.data.payload,
               );
-              if (!projectRequest.success || !options.projectHost) return;
-              const payloadHash = sha256Hex(
-                JSON.stringify(parsed.data.payload),
-              );
-              const knownHash = live.requestHashes.get(parsed.data.requestId);
               const sendProjectResponse = (payload: unknown) => {
                 if (socket.readyState !== WebSocket.OPEN) return;
                 socket.send(
@@ -895,6 +898,34 @@ export function useAgentSession(
                   }),
                 );
               };
+              if (!projectRequest.success || !options.projectHost) {
+                sendProjectResponse({
+                  apiVersion: AGENT_API_VERSION,
+                  requestId: parsed.data.requestId,
+                  operation: projectRequest.success
+                    ? projectRequest.data.operation
+                    : "error",
+                  ok: false,
+                  error: projectRequest.success
+                    ? {
+                        code: "PROJECT_HOST_UNAVAILABLE",
+                        message:
+                          "The Project host is not available; retry after reconnecting",
+                        recovery: "retry",
+                      }
+                    : {
+                        code: "PROJECT_REQUEST_INVALID",
+                        message:
+                          "The Project request does not match the current contract",
+                        recovery: "fix-input",
+                      },
+                });
+                return;
+              }
+              const payloadHash = sha256Hex(
+                JSON.stringify(parsed.data.payload),
+              );
+              const knownHash = live.requestHashes.get(parsed.data.requestId);
               if (knownHash) {
                 sendProjectResponse({
                   apiVersion: AGENT_API_VERSION,
@@ -936,6 +967,8 @@ export function useAgentSession(
                   }),
                 )
                 .finally(() => {
+                  if (isReadOnlyProjectRequest(projectRequest.data))
+                    live.requestHashes.delete(parsed.data.requestId);
                   if (liveRef.current === live)
                     update({ status: live.paused ? "paused" : "connected" });
                 });
@@ -1042,6 +1075,11 @@ export function useAgentSession(
             )
               sendHeartbeat(live, socket);
             sendResponse(result);
+            if (
+              circuitRequest.success &&
+              isReadOnlyCircuitRequest(circuitRequest.data)
+            )
+              live.requestHashes.delete(parsed.data.requestId);
             if (
               result.ok &&
               result.operation === "transact" &&

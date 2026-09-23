@@ -62,6 +62,46 @@ async function body<T>(response: Response): Promise<T> {
 }
 
 describe("simulation control durable object", () => {
+  it("wakes a held result read when the run becomes terminal", async () => {
+    const control = new SimulationControlDO(sqliteState(), {}, () => 100);
+    const accepted = await body<{ run: { id: string } }>(
+      await control.fetch(
+        new Request("https://control/accept", {
+          method: "POST",
+          body: JSON.stringify(admission()),
+        }),
+      ),
+    );
+    const path = `https://control/runs/${accepted.run.id}`;
+    expect((await control.fetch(new Request(`${path}?waitMs=20001`))).status).toBe(
+      400,
+    );
+    const waiting = control.fetch(new Request(`${path}?waitMs=20000`));
+    await control.fetch(
+      new Request(path, {
+        method: "POST",
+        body: JSON.stringify({
+          kind: "lease-acquired",
+          lease: { id: "lease", acquiredAt: 100, expiresAt: 1_000 },
+        }),
+      }),
+    );
+    await control.fetch(
+      new Request(path, {
+        method: "POST",
+        body: JSON.stringify({
+          kind: "completed",
+          leaseId: "lease",
+          at: 101,
+          artifacts: [],
+        }),
+      }),
+    );
+    expect(await body(await waiting)).toMatchObject({
+      run: { state: "succeeded" },
+    });
+  });
+
   it("uses policy defaults with Cloudflare env bindings and independently expires abandoned leases", async () => {
     let now = 100;
     const state = sqliteState();

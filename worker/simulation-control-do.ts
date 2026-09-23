@@ -55,6 +55,10 @@ export class SimulationControlDO {
   private readonly sql: SqlStorage;
   private alarmScheduled = false;
   private executing = false;
+  private readonly resultWaiters = new Map<
+    string,
+    Set<(run: ManagedRunRecord) => void>
+  >();
   private readonly env: SimulationOperationsEnv | undefined;
 
   constructor(
@@ -85,7 +89,12 @@ export class SimulationControlDO {
     const runMatch = url.pathname.match(/^\/runs\/([^/]+)$/u);
     if (!runMatch) return json({ error: "not-found" }, 404);
     const runId = decodeURIComponent(runMatch[1]!);
-    if (request.method === "GET") return this.read(runId);
+    if (request.method === "GET") {
+      const waitMs = Number(url.searchParams.get("waitMs") ?? 0);
+      if (!Number.isInteger(waitMs) || waitMs < 0 || waitMs > 20_000)
+        return json({ error: "invalid-wait" }, 400);
+      return this.read(runId, waitMs);
+    }
     if (request.method === "POST") return this.transition(runId, request);
     return json({ error: "method-not-allowed" }, 405);
   }
@@ -214,9 +223,32 @@ export class SimulationControlDO {
     return "error" in result ? json(result, 409) : json(result, 201);
   }
 
-  private read(runId: string): Response {
+  private async read(runId: string, waitMs: number): Promise<Response> {
     const run = this.readRecord(runId);
-    return run ? json({ run }) : json({ error: "RUN_NOT_FOUND" }, 404);
+    if (!run) return json({ error: "RUN_NOT_FOUND" }, 404);
+    if (waitMs === 0 || this.resultReady(run)) return json({ run });
+    const settled = await new Promise<ManagedRunRecord>((resolve) => {
+      const listeners = this.resultWaiters.get(runId) ?? new Set();
+      this.resultWaiters.set(runId, listeners);
+      const listener = (next: ManagedRunRecord) => {
+        clearTimeout(timeout);
+        listeners.delete(listener);
+        if (listeners.size === 0) this.resultWaiters.delete(runId);
+        resolve(next);
+      };
+      listeners.add(listener);
+      const timeout = setTimeout(() => {
+        listener(this.readRecord(runId) ?? run);
+      }, waitMs);
+    });
+    return json({ run: settled });
+  }
+
+  private resultReady(run: ManagedRunRecord): boolean {
+    return (
+      isManagedRunTerminal(run.state) ||
+      run.artifacts.some((artifact) => artifact.name === "response.json")
+    );
   }
 
   private list(ownerId: string | null): Response {
@@ -323,6 +355,9 @@ export class SimulationControlDO {
       run.finishedAt ?? null,
       JSON.stringify(run),
     );
+    if (this.resultReady(run))
+      for (const listener of this.resultWaiters.get(run.id) ?? [])
+        listener(run);
   }
 
   private async anonymousSession(request: Request): Promise<Response> {

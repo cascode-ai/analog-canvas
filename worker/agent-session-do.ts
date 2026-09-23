@@ -12,6 +12,10 @@ import {
   AgentSessionScopeSchema,
   AgentSessionStatusResponseSchema,
   invalidAgentRequestResponse,
+  isReadOnlyCircuitRequest,
+  isReadOnlyFileRequest,
+  isReadOnlySimulationRequest,
+  isReadOnlyProjectRequest,
   parseAgentCircuitRequest,
   parseAgentFileResourceRequest,
   parseAgentSimulationResourceRequest,
@@ -779,10 +783,12 @@ export class AgentSessionDO {
       }
     }
     const payloadHash = await sha256Text(raw);
+    const readOnly = isReadOnlyCircuitRequest(circuitRequest);
     const begin = machine.beginRequest(
       circuitRequest.requestId,
       Date.now(),
       payloadHash,
+      readOnly ? "read" : "write",
     );
     if (begin.kind === "cached")
       return jsonResponse(begin.result, 200, allowedOrigin);
@@ -795,7 +801,7 @@ export class AgentSessionDO {
     }
     if (circuitRequest.operation !== "capabilities")
       machine.recordActivity(Date.now());
-    await this.persist();
+    if (!readOnly) await this.persist();
     this.emit({
       type: "operation.started",
       sessionId: machine.sessionId,
@@ -923,10 +929,12 @@ export class AgentSessionDO {
           allowedOrigin,
         );
     }
+    const readOnly = isReadOnlyFileRequest(fileRequest);
     const begin = machine.beginRequest(
       fileRequest.requestId,
       Date.now(),
       await sha256Text(raw),
+      readOnly ? "read" : "write",
     );
     if (begin.kind === "cached")
       return jsonResponse(begin.result, 200, allowedOrigin);
@@ -937,7 +945,7 @@ export class AgentSessionDO {
         allowedOrigin,
       );
     machine.recordActivity(Date.now());
-    await this.persist();
+    if (!readOnly) await this.persist();
     this.emit({
       type: "operation.started",
       sessionId: machine.sessionId,
@@ -1056,10 +1064,12 @@ export class AgentSessionDO {
         allowedOrigin,
       );
     }
+    const readOnly = isReadOnlySimulationRequest(simulationRequest);
     const begin = machine.beginRequest(
       simulationRequest.requestId,
       Date.now(),
       await sha256Text(raw),
+      readOnly ? "read" : "write",
     );
     if (begin.kind === "cached")
       return jsonResponse(begin.result, 200, allowedOrigin);
@@ -1074,7 +1084,7 @@ export class AgentSessionDO {
       simulationRequest.operation !== "authoring-help"
     )
       machine.recordActivity(Date.now());
-    await this.persist();
+    if (!readOnly) await this.persist();
     this.emit({
       type: "operation.started",
       sessionId: machine.sessionId,
@@ -1187,10 +1197,12 @@ export class AgentSessionDO {
         allowedOrigin,
       );
     }
+    const readOnly = isReadOnlyProjectRequest(projectRequest);
     const begin = machine.beginRequest(
       projectRequest.requestId,
       Date.now(),
       await sha256Text(raw),
+      readOnly ? "read" : "write",
     );
     if (begin.kind === "cached") {
       return jsonResponse(begin.result, 200, allowedOrigin);
@@ -1203,7 +1215,7 @@ export class AgentSessionDO {
       );
     }
     machine.recordActivity(Date.now());
-    await this.persist();
+    if (!readOnly) await this.persist();
     this.emit({
       type: "operation.started",
       sessionId: machine.sessionId,

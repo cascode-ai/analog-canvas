@@ -911,7 +911,10 @@ describe("public Agent session routes", () => {
       env,
     );
     await wasForwarded;
-    const replacement = { readyState: WebSocket.OPEN } as WebSocket;
+    const replacement = {
+      readyState: WebSocket.OPEN,
+      send: vi.fn(),
+    } as unknown as WebSocket;
     sockets.set(created.session.sessionId, [oldSocket, replacement]);
 
     await objects.get(created.session.sessionId)!.webSocketClose(oldSocket);

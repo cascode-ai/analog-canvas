@@ -536,9 +536,19 @@ export class AgentSessionClient {
     request: AgentProjectResourceRequest,
   ): Promise<AgentProjectResourceResponse> {
     request = structuredClone(request);
-    return this.resourceRequest("projects", request, (session) =>
-      this.http.projects(session.sessionId, session.agentToken, request),
-    );
+    const changesProject =
+      request.operation === "import-cell" ||
+      request.operation === "replace-project-code" ||
+      request.operation === "replace-netlist" ||
+      (request.operation === "workspace" && request.request.action !== "list");
+    try {
+      return await this.resourceRequest("projects", request, (session) =>
+        this.http.projects(session.sessionId, session.agentToken, request),
+      );
+    } finally {
+      // A lost reply may follow a committed edit or workspace switch.
+      if (changesProject) this.cache.clear();
+    }
   }
 
   /** Revoke the server session and forget the durable connector locally. */

@@ -171,10 +171,14 @@ session record required for same-browser reconnect.
 
 ## Idempotency and revisions
 
-Each request ID is bound to the canonical exact payload hash. An exact retry
-returns the cached terminal response or resumes the same pending request; a
-different payload under the same ID returns `REQUEST_ID_REUSED`. Relay and
-browser caches are bounded by entry count, bytes, and session lifetime.
+Each request ID is bound to the canonical exact payload hash while active.
+An exact retry returns the cached terminal response or resumes the same
+pending request; a different payload under the same ID returns
+`REQUEST_ID_REUSED`. Read-only requests leave no durable request ledger entry
+and may run again after their bounded result cache is evicted. Mutations retain
+their request identity for the session: after the result cache is gone, a
+completed mutation returns `REQUEST_RESULT_UNAVAILABLE` rather than executing
+again. The Agent must reconcile its outcome before making a new write.
 
 Circuit edits target one exact Document revision. Dry-run and commit share the
 same validation path. On `STALE_REVISION`, uncertain write outcome, reconnect,

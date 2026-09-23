@@ -408,6 +408,15 @@ describe("managed simulation operations", () => {
       expect(await pending!.json()).toMatchObject({
         error: "RESULT_NOT_READY",
       });
+      const held = await routeManagedSimulationRequest(
+        new Request(`${url}/result?waitMs=5`),
+        env,
+        runtime,
+      );
+      expect(await held!.json()).toMatchObject({
+        error: "RESULT_NOT_READY",
+        waitedMs: expect.any(Number),
+      });
       await routeManagedSimulationRequest(
         new Request(`${url}/cancel`, { method: "POST" }),
         env,
@@ -436,6 +445,8 @@ describe("managed simulation operations", () => {
     const { env, jobs, runtime, close } = harness();
     const deliveries: SimulationQueueMessage<(typeof jobs)[number]>[] = [];
     const executor = createManagedHostedExecutor({
+      // This fixture drives queue delivery from the legacy poll sleep hook.
+      resultWaitMs: 0,
       fetch: async (path, init) =>
         (await routeManagedSimulationRequest(
           new Request(new URL(String(path), "https://canvas.test"), init),
