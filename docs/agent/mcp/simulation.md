@@ -13,8 +13,13 @@ an unfamiliar field only; no full-contract or authoring-help prerequisite.
    Creation returns its source owner, revision and paths. Use `simulation_edit`
    for native code; `simulation_source` reads only text you need to preserve.
    Reuse successful update revisions/digests without a confirmation reread.
-3. `simulation_run` `prepare` freezes the input. On success, `start` with
-   the returned prepared ID/digest and optional outer `waitMs:20000`.
+3. Normally call `simulation_run` with `request:{operation:"run",source:...}`
+   and optional outer `waitMs:20000`. Use a project-folder source with `folderId`
+   and `expectedStructureRevision` from the latest source update (or a workspace
+   source with `workspaceId` and `expectedRevision`). This captures input before
+   network waits, prepares and submits once. Keep the same request ID and payload
+   on uncertain retries. Explicit `prepare` → `start` remains optional when you
+   want to inspect or reuse a frozen input; it is not a normal prerequisite.
    The normal path holds one bounded Agent read rather than repeatedly crossing
    the relay; an older already-open editor falls back to the compatible polling
    path. This wait never starts another run.
@@ -38,7 +43,7 @@ an unfamiliar field only; no full-contract or authoring-help prerequisite.
    `simulation_results` `catalog` is the explicit full remote directory, not
    a mandatory extra step. Read data locally rather than paging waveform previews.
 
-Iteration: edit → prepare → start/wait → plot or selected sync. Do not repeat
+Iteration: edit → run/wait → plot or selected sync. Do not repeat
 connection, discovery, folder creation, environment checks or full archive
 downloads when their inputs have not changed. Final sync archives all files.
 For styling-only iterations, edit and execute the existing local plot script;

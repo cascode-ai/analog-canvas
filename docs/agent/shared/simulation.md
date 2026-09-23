@@ -22,9 +22,10 @@ published folder schema. Save setup v4 source/config files through File Resource
 `simulation-input` / `update` with a `project-folder` owner (MCP
 `simulation_files`). Read the actual input revision before writing.
 
-Use the sibling Simulation resource: `capabilities`, `prepare` with the
-folder and current structure revision, `start` with the returned prepared ID
-and digest, then `read` to completion. Preserve returned IDs; do not invent
+Use the sibling Simulation resource: discover `capabilities` as needed, submit
+`run` with the folder and current structure revision, then `read` to completion.
+Explicit `prepare`/`start` remains available for input inspection or frozen-input
+reuse, not a mandatory extra round trip. Preserve returned IDs; do not invent
 profiles, analysis records, output IDs or revisions. Preparation is not execution,
 and a started run is not a successful result. Read diagnostics and outputs, then
 perform the requested measurements. For code-authoritative experiment config

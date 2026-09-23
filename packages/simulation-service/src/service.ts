@@ -33,6 +33,12 @@ type PrepareSource = Extract<
   SimulationOperation,
   { operation: "prepare" }
 >["source"];
+type InputArtifact = {
+  name: string;
+  mediaType: string;
+  text: string;
+  metadata: Pick<ArtifactRef, "role" | "sourcePath" | "analysisIndex">;
+};
 type InternalRun = {
   view: Run;
   engine: "ngspice" | "vacask";
@@ -40,6 +46,7 @@ type InternalRun = {
   token: string;
   done: Promise<void>;
   source: PrepareSource;
+  inputArtifacts?: InputArtifact[];
   retryEvidence?: (() => Promise<void>) | undefined;
   savingEvidence?: Promise<void> | undefined;
 };
@@ -47,6 +54,7 @@ type StoredPrepared = {
   view: Prepared;
   input: ExecutionInput;
   source: PrepareSource;
+  inputArtifacts?: InputArtifact[];
 };
 type BatchPrepareItem = {
   id: string;
@@ -85,6 +93,10 @@ export class SimulationService {
   private prepared = new Map<string, StoredPrepared>();
   private runs = new Map<string, InternalRun>();
   private starts = new Map<string, { key: string; runId: string }>();
+  private submissions = new Map<
+    string,
+    { key: string; reply: Promise<SimulationReply> }
+  >();
   private batches = new Map<string, InternalBatch>();
   private batchStarts = new Map<string, { key: string; batchId: string }>();
   private epoch = 0;
@@ -104,6 +116,7 @@ export class SimulationService {
     this.prepared.clear();
     this.runs.clear();
     this.starts.clear();
+    this.submissions.clear();
     this.batches.clear();
     this.batchStarts.clear();
     // Draft/artifact teardown belongs to the File Resource owner.
@@ -241,6 +254,7 @@ export class SimulationService {
         };
       }
       if (op.operation === "prepare") return await this.prepare(op);
+      if (op.operation === "run") return await this.submit(op, requestId);
       if (op.operation === "start") return this.start(op, requestId);
       if (op.operation === "prepare-batch") return await this.prepareBatch(op);
       if (op.operation === "prepare-sweep") return await this.prepareSweep(op);
@@ -392,7 +406,7 @@ export class SimulationService {
                 ? "prepare"
                 : op.operation === "prepare-sweep"
                   ? "prepare"
-                  : op.operation === "start-batch"
+                  : op.operation === "start-batch" || op.operation === "run"
                     ? "start"
                     : op.operation === "read-batch"
                       ? "read"
@@ -801,10 +815,65 @@ export class SimulationService {
     }
     return { ok: true, batch: structuredClone(batch.view) };
   }
+  private submit(
+    op: Extract<SimulationOperation, { operation: "run" }>,
+    requestId: string,
+  ): Promise<SimulationReply> {
+    const key = JSON.stringify(op);
+    const previous = this.submissions.get(requestId);
+    if (previous)
+      return previous.key === key
+        ? previous.reply
+        : Promise.resolve(
+            problem(
+              "REQUEST_ID_REUSED",
+              "This request ID identifies a different submission",
+              "start",
+            ),
+          );
+    if (this.starts.has(requestId))
+      return Promise.resolve(
+        problem(
+          "REQUEST_ID_REUSED",
+          "This request ID identifies an existing start",
+          "start",
+        ),
+      );
+    if (this.submissions.size >= 256)
+      return Promise.resolve(
+        problem(
+          "RUN_LIMIT",
+          "Session submission history limit reached",
+          "start",
+          "reauthorize",
+        ),
+      );
+    // Reserve the identity while preparation is in flight, not only after it.
+    const reply = this.prepare(
+      { operation: "prepare", source: op.source },
+      false,
+    ).then((prepared): SimulationReply => {
+      if (!prepared.ok || !("prepared" in prepared)) return prepared;
+      const result = this.start(
+        {
+          operation: "start",
+          preparedId: prepared.prepared.id,
+          digest: prepared.prepared.digest,
+          ...(op.timeoutMs === undefined ? {} : { timeoutMs: op.timeoutMs }),
+        },
+        requestId,
+      );
+      this.prepared.delete(prepared.prepared.id);
+      return result;
+    });
+    this.submissions.set(requestId, { key, reply });
+    return reply;
+  }
   private async prepare(
     op: Extract<SimulationOperation, { operation: "prepare" }>,
+    publish = true,
   ): Promise<SimulationReply> {
-    if (this.prepared.size >= 32)
+    if (publish && this.prepared.size >= 32)
       return problem(
         "PREPARED_LIMIT",
         "Prepared input capacity reached; expired entries are removed automatically",
@@ -812,17 +881,9 @@ export class SimulationService {
         "retry-after",
       );
     const epoch = this.epoch;
-    const caps = await this.executor.capabilities();
-    if (!caps.configured)
-      return problem(
-        "simulation-not-configured",
-        "Configure an execution environment to run simulations; authored input remains available.",
-        "prepare",
-        "retry-after",
-      );
     const preparation = await prepareExecutionInput(
       op,
-      caps,
+      undefined,
       this.getProject,
       this.files,
       (profileId) => this.executor.capabilities(profileId),
@@ -844,7 +905,7 @@ export class SimulationService {
         "prepare",
         "reauthorize",
       );
-    const artifacts = await this.publishArtifacts(epoch, [
+    const inputArtifacts: InputArtifact[] = [
       {
         name: "prepared.cir",
         mediaType: "text/plain",
@@ -869,7 +930,10 @@ export class SimulationService {
         text: JSON.stringify(input, null, 2),
         metadata: { role: "execution-input" as const },
       },
-    ]);
+    ];
+    const artifacts = publish
+      ? await this.publishArtifacts(epoch, inputArtifacts)
+      : [];
     if (epoch !== this.epoch)
       return problem(
         "SESSION_CHANGED",
@@ -893,19 +957,20 @@ export class SimulationService {
       artifacts,
       warnings,
     };
-    artifacts.push(
-      await this.publishArtifact(
-        epoch,
-        "preparation.json",
-        "application/json",
-        JSON.stringify(view),
-        { role: "prepared" },
-      ),
-    );
+    const summary: InputArtifact = {
+      name: "preparation.json",
+      mediaType: "application/json",
+      text: JSON.stringify(view),
+      metadata: { role: "prepared" },
+    };
+    if (publish)
+      artifacts.push(...(await this.publishArtifacts(epoch, [summary])));
+    else inputArtifacts.push(summary);
     this.prepared.set(view.id, {
       input: structuredClone(input),
       view,
       source: structuredClone(op.source),
+      ...(publish ? {} : { inputArtifacts }),
     });
     return { ok: true, prepared: structuredClone(view) };
   }
@@ -986,6 +1051,9 @@ export class SimulationService {
       token: crypto.randomUUID(),
       done: Promise.resolve(),
       source: prepared.source,
+      ...(prepared.inputArtifacts
+        ? { inputArtifacts: prepared.inputArtifacts }
+        : {}),
     };
     this.runs.set(view.id, entry);
     this.starts.set(requestId, { key, runId: view.id });
@@ -1028,6 +1096,17 @@ export class SimulationService {
       run.retryEvidence = () =>
         this.execute(run, input, timeoutMs, epoch, output);
       run.view.result = output.result;
+      materializationStarted = performance.now();
+      // These are browsing/evidence representations. The executor persists the
+      // immutable execution input before admission; publication need not delay it.
+      if (run.inputArtifacts) {
+        await this.publishArtifacts(
+          epoch,
+          run.inputArtifacts,
+          run.view.artifacts,
+        );
+        delete run.inputArtifacts;
+      }
       collectionStatus = output.collectionStatus ?? "complete";
       const nativeReports =
         output.result.metadata.environment.simulator.name === "vacask"
@@ -1063,7 +1142,6 @@ export class SimulationService {
         diagnostics: nativeReports.diagnostics,
         specs,
       };
-      materializationStarted = performance.now();
       const pendingArtifacts: Array<{
         name: string;
         mediaType: string;
@@ -1234,6 +1312,33 @@ export class SimulationService {
         };
       }
     }
+    // A refused/lost execution still needs its captured input evidence. Retrying
+    // this publication must never call the executor again.
+    if (!run.view.result && run.inputArtifacts) {
+      const saveInput = async () => {
+        await this.publishArtifacts(
+          epoch,
+          run.inputArtifacts ?? [],
+          run.view.artifacts,
+        );
+        delete run.inputArtifacts;
+      };
+      try {
+        await saveInput();
+      } catch {
+        run.retryEvidence = async () => {
+          await saveInput();
+          run.view.catalog = resultCatalog(
+            run.view,
+            "partial",
+            run.prepared.signalTargets,
+          );
+          if (!(await this.files.saveCatalog(run.view.catalog)))
+            throw new Error("ARTIFACT_STORAGE_UNAVAILABLE");
+          run.retryEvidence = undefined;
+        };
+      }
+    }
     run.view.catalog = resultCatalog(
       { ...run.view, state: terminalState },
       run.view.error ? "partial" : collectionStatus,
@@ -1269,6 +1374,9 @@ export class SimulationService {
           : { serverRunTotalMs: managedTiming.managed.runTotalMs }),
         ...(managedTiming
           ? {
+              serverInputReadMs: managedTiming.managed.inputReadMs,
+              serverUpstreamMs: managedTiming.managed.upstreamMs,
+              serverResultCommitMs: managedTiming.managed.resultCommitMs,
               resultFetchMs: managedTiming.managed.resultFetchMs,
               clientWaitMs: managedTiming.managed.clientWaitMs,
               pollCount: managedTiming.managed.pollCount,
@@ -1285,30 +1393,6 @@ export class SimulationService {
       run.view = releaseRunData(run.view);
       run.retryEvidence = undefined;
     }
-  }
-  private async publishArtifact(
-    epoch: number,
-    name: string,
-    mediaType: string,
-    text: string,
-    metadata: Pick<ArtifactRef, "role" | "sourcePath" | "analysisIndex"> = {},
-  ) {
-    if (epoch !== this.epoch)
-      throw new ExecutionFailure({
-        code: "SESSION_CHANGED",
-        message: "The session ended before publication",
-        stage: "export",
-        recovery: "reauthorize",
-      });
-    const ref = await this.files.put(name, mediaType, text, metadata);
-    if (epoch !== this.epoch)
-      throw new ExecutionFailure({
-        code: "SESSION_CHANGED",
-        message: "The session ended before publication",
-        stage: "export",
-        recovery: "reauthorize",
-      });
-    return ref;
   }
   private async publishArtifacts(
     epoch: number,

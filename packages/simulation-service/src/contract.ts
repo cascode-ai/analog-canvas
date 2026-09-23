@@ -528,6 +528,11 @@ export const SimulationOperationSchema = z.discriminatedUnion("operation", [
     source: InputSourceSchema,
   }),
   z.strictObject({
+    operation: z.literal("run"),
+    source: InputSourceSchema,
+    timeoutMs: z.number().int().positive().max(120000).optional(),
+  }),
+  z.strictObject({
     operation: z.literal("start"),
     preparedId: Id,
     digest: Digest,

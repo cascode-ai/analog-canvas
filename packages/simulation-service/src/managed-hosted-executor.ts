@@ -202,6 +202,14 @@ export function createManagedHostedExecutor(
         ...output,
         timing: {
           managed: {
+            ...Object.fromEntries(
+              ["inputReadMs", "upstreamMs", "resultCommitMs"].flatMap(
+                (phase) => {
+                  const value = timestamp(response, `x-analog-canvas-${phase}`);
+                  return value === undefined ? [] : [[phase, value]];
+                },
+              ),
+            ),
             ...(startedAt === undefined
               ? {}
               : {

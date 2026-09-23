@@ -7,25 +7,39 @@ import {
 } from "./contract.js";
 import { SimulationFiles } from "./files.js";
 import { prepareSourceExecutionInput } from "./prepare-source.js";
+import { resolveSimulationEngine } from "./profile-engine.js";
 
 /** Project and session sources enter exactly the same compiler and preparation path. */
 export async function prepareExecutionInput(
   op: Extract<SimulationOperation, { operation: "prepare" }>,
-  caps: Capabilities,
+  caps: Capabilities | undefined,
   getProject: () => CircuitProject,
   files: SimulationFiles,
   selectCapabilities?: (profileId: string) => Promise<Capabilities>,
 ) {
-  const project = getProject();
+  // Capture before any capability/network await. Human edits during discovery
+  // must not change the meaning of an already submitted revision.
+  const project = structuredClone(getProject());
   async function prepare(
     folder: ProjectSimulationFolder,
     variant?: Parameters<typeof prepareSourceExecutionInput>[3],
   ) {
     const config = readSimulationExperimentConfig(folder);
+    if (!config.ok) {
+      const failure = resolveSimulationEngine(folder, { profiles: [] });
+      if (!failure.ok) return failure;
+    }
     const selected =
       config.ok && selectCapabilities
         ? await selectCapabilities(config.config.environment.profileId)
         : caps;
+    if (!selected?.configured)
+      return problem(
+        "simulation-not-configured",
+        "The selected execution Profile is unavailable; authored input remains available.",
+        "prepare",
+        "retry-after",
+      );
     return prepareSourceExecutionInput(project, folder, selected, variant);
   }
   const source = op.source;

@@ -19,10 +19,15 @@ evidence details.
    `authoring-help` exposes the selected engine's current syntax and reporting
    helpers. The returned config version determines whether native source or the
    legacy JSON helpers own outputs and measurements.
-4. `prepare` with
+4. Normally submit `run` with
+   `source:{kind:"project-folder",folderId,expectedStructureRevision}` (or the
+   revisioned workspace source). It freezes, compiles and submits once, returning
+   `run.id`. An uncertain retry uses the same request ID and payload, including
+   while preparation is in flight. It never rereads a changed circuit on retry.
+   Optional `prepare` with
    `source:{kind:"project-folder",folderId,expectedStructureRevision}` freezes the
    input and returns `prepared.id`, `digest`, vectors and artifacts.
-   On a successful preparation, proceed to start. Read input artifacts and source
+   When choosing explicit preparation, proceed to start. Read input artifacts and source
    maps when investigating a discrepancy, not as a mandatory second check.
    Use returned references rather than inventing artifact names or extensions.
 5. `start` uses `preparedId` and `digest`, returning `run.id` immediately.
