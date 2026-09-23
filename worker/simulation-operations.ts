@@ -165,10 +165,13 @@ function asInput(value: unknown): SimulationRequestBody | null {
 async function readRun(
   env: SimulationOperationsEnv,
   runId: string,
+  waitMs = 0,
 ): Promise<ManagedRunRecord | null> {
   const stub = control(env);
   if (!stub) throw new Error("SIMULATION_CONTROL_UNAVAILABLE");
-  const response = await stub.fetch(runPath(runId));
+  const response = await stub.fetch(
+    `${runPath(runId)}${waitMs ? `?waitMs=${waitMs}` : ""}`,
+  );
   if (response.status === 404) return null;
   if (!response.ok) throw new Error("SIMULATION_CONTROL_UNAVAILABLE");
   const value = (await response.json()) as { run?: unknown };
@@ -436,6 +439,30 @@ export async function routeManagedSimulationRequest(
       return ownedResponse(
         Response.json({ error: "method-not-allowed" }, { status: 405 }),
       );
+    const waitMs = Number(url.searchParams.get("waitMs") ?? 0);
+    if (!Number.isInteger(waitMs) || waitMs < 0 || waitMs > 20_000)
+      return ownedResponse(
+        Response.json({ error: "invalid-wait" }, { status: 400 }),
+      );
+    let waitedMs = 0;
+    if (waitMs > 0 && ["queued", "running", "cancelling"].includes(run.state)) {
+      const started = performance.now();
+      try {
+        run = (await readRun(env, runId, waitMs)) ?? run;
+      } catch {
+        return ownedResponse(
+          Response.json(
+            {
+              error: "SIMULATION_CONTROL_UNAVAILABLE",
+              recovery: "retry-after",
+              message: "The existing run could not be read; retry reading it.",
+            },
+            { status: 503, headers: { "retry-after": "2" } },
+          ),
+        );
+      }
+      waitedMs = performance.now() - started;
+    }
     if (run.state === "expired")
       return ownedResponse(
         Response.json(
@@ -491,6 +518,7 @@ export async function routeManagedSimulationRequest(
             error: "RESULT_NOT_READY",
             state: run.state,
             retryAfterMs: 1_000,
+            ...(waitMs > 0 ? { waitedMs } : {}),
           },
           { status: 409, headers: { "retry-after": "1" } },
         ),
@@ -507,6 +535,8 @@ export async function routeManagedSimulationRequest(
       "cache-control": "private, no-store",
       "x-content-type-options": "nosniff",
     });
+    if (waitMs > 0)
+      headers.set("x-analog-canvas-result-wait-ms", String(waitedMs));
     if (run.startedAt !== undefined)
       headers.set("x-analog-canvas-run-started-at", String(run.startedAt));
     if (run.finishedAt !== undefined)

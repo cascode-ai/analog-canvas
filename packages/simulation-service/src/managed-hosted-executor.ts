@@ -2,7 +2,11 @@ import {
   ManagedRunRecordSchema,
   type ManagedRunRecord,
 } from "./managed-run.js";
-import { CapabilitiesSchema, ProblemSchema } from "./contract.js";
+import {
+  CapabilitiesSchema,
+  ProblemSchema,
+  type Capabilities,
+} from "./contract.js";
 import {
   ExecutionFailure,
   type ExecutionIdentity,
@@ -14,6 +18,7 @@ import { decodeHostedExecutionPayload } from "./hosted-executor.js";
 export interface ManagedHostedExecutorOptions {
   fetch?: typeof fetch;
   pollIntervalMs?: number;
+  resultWaitMs?: number;
   sleep?: (milliseconds: number) => Promise<void>;
 }
 
@@ -33,7 +38,15 @@ export function createManagedHostedExecutor(
     ((milliseconds: number) =>
       new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
   const pollIntervalMs = options.pollIntervalMs ?? 750;
+  const resultWaitMs = Math.max(
+    0,
+    Math.min(options.resultWaitMs ?? 20_000, 20_000),
+  );
   const serverRuns = new Map<string, Promise<string>>();
+  const capabilityCache = new Map<
+    string,
+    { expiresAt: number; promise: Promise<Capabilities> }
+  >();
 
   async function jsonResponse(path: string, init?: RequestInit) {
     let response: Response;
@@ -147,7 +160,7 @@ export function createManagedHostedExecutor(
     while (true) {
       const resultFetchStarted = performance.now();
       const { response, body } = await jsonResponse(
-        `/api/simulation/runs/${encodeURIComponent(initialRun.id)}/result`,
+        `/api/simulation/runs/${encodeURIComponent(initialRun.id)}/result?waitMs=${resultWaitMs}`,
       );
       pollCount++;
       if (response.status === 409 && body?.error === "RESULT_NOT_READY") {
@@ -164,9 +177,13 @@ export function createManagedHostedExecutor(
             stage: "read",
             recovery: "not-retryable",
           });
-        const sleepStarted = performance.now();
-        await pause(pollIntervalMs);
-        pollSleepMs += performance.now() - sleepStarted;
+        // A held server response already waited for an event or its deadline.
+        // Keep the timer only for older servers that return immediately.
+        if (typeof body.waitedMs !== "number") {
+          const sleepStarted = performance.now();
+          await pause(pollIntervalMs);
+          pollSleepMs += performance.now() - sleepStarted;
+        }
         continue;
       }
       if (!response.ok) {
@@ -198,6 +215,10 @@ export function createManagedHostedExecutor(
       const output = decodeHostedExecutionPayload(input, body);
       const startedAt = timestamp(response, "x-analog-canvas-run-started-at");
       const finishedAt = timestamp(response, "x-analog-canvas-run-finished-at");
+      const serverWaitMs = timestamp(
+        response,
+        "x-analog-canvas-result-wait-ms",
+      );
       return {
         ...output,
         timing: {
@@ -226,6 +247,7 @@ export function createManagedHostedExecutor(
                   runTotalMs: Math.max(0, finishedAt - initialRun.createdAt),
                 }),
             resultFetchMs,
+            ...(serverWaitMs === undefined ? {} : { serverWaitMs }),
             clientWaitMs: performance.now() - waitStarted,
             pollCount,
             pollSleepMs,
@@ -237,26 +259,41 @@ export function createManagedHostedExecutor(
 
   return {
     async capabilities(profileId) {
-      const response = await fetchImpl("/api/simulate", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          operation: "capabilities",
-          ...(profileId ? { environment: { profileId } } : {}),
-        }),
-        signal: AbortSignal.timeout(10_000),
-      }).catch(() => null);
-      const parsed = CapabilitiesSchema.safeParse(
-        await response?.json().catch(() => null),
-      );
-      if (!response?.ok || !parsed.success)
-        throw new ExecutionFailure({
-          code: "SIMULATION_CAPABILITIES_UNAVAILABLE",
-          message: "This deployment does not advertise simulation capabilities",
-          stage: "read",
-          recovery: "retry-after",
-        });
-      return parsed.data;
+      const key = profileId ?? "";
+      const cached = capabilityCache.get(key);
+      if (cached && cached.expiresAt > Date.now())
+        return structuredClone(await cached.promise);
+      const promise = (async () => {
+        const response = await fetchImpl("/api/simulate", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            operation: "capabilities",
+            ...(profileId ? { environment: { profileId } } : {}),
+          }),
+          signal: AbortSignal.timeout(10_000),
+        }).catch(() => null);
+        const parsed = CapabilitiesSchema.safeParse(
+          await response?.json().catch(() => null),
+        );
+        if (!response?.ok || !parsed.success)
+          throw new ExecutionFailure({
+            code: "SIMULATION_CAPABILITIES_UNAVAILABLE",
+            message:
+              "This deployment does not advertise simulation capabilities",
+            stage: "read",
+            recovery: "retry-after",
+          });
+        return parsed.data;
+      })();
+      capabilityCache.set(key, { expiresAt: Date.now() + 30_000, promise });
+      try {
+        return structuredClone(await promise);
+      } catch (error) {
+        if (capabilityCache.get(key)?.promise === promise)
+          capabilityCache.delete(key);
+        throw error;
+      }
     },
     async execute(
       input: ExecutionInput,
