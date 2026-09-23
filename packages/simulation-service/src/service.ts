@@ -60,6 +60,26 @@ type InternalBatch = {
   done: Promise<void>;
 };
 const TTL = 15 * 60_000;
+const MAX_READ_WAIT_MS = 20_000;
+
+async function waitForRun(
+  completion: Promise<void>,
+  waitMs: number | undefined,
+): Promise<void> {
+  const duration = Math.min(Math.max(waitMs ?? 0, 0), MAX_READ_WAIT_MS);
+  if (!duration) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      completion,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, duration);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
 /** One live session owns this service. UI visibility has no effect on execution. */
 export class SimulationService {
   private prepared = new Map<string, StoredPrepared>();
@@ -93,7 +113,11 @@ export class SimulationService {
       ),
     );
   }
-  async handle(request: unknown, requestId: string): Promise<SimulationReply> {
+  async handle(
+    request: unknown,
+    requestId: string,
+    options: { waitMs?: number } = {},
+  ): Promise<SimulationReply> {
     const parsed = SimulationOperationSchema.safeParse(request);
     if (!parsed.success)
       return problem(
@@ -274,6 +298,11 @@ export class SimulationService {
               resultCatalog(run.view, "pending", run.prepared.signalTargets),
             op,
           );
+        if (
+          op.operation === "read" &&
+          ["running", "cancelling"].includes(run.view.state)
+        )
+          await waitForRun(run.done, options.waitMs);
         if (
           op.operation === "cancel" &&
           ["running", "cancelling", "lost"].includes(run.view.state)

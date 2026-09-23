@@ -2,7 +2,7 @@ import {
   ManagedRunRecordSchema,
   type ManagedRunRecord,
 } from "./managed-run.js";
-import { CapabilitiesSchema } from "./contract.js";
+import { CapabilitiesSchema, ProblemSchema } from "./contract.js";
 import {
   ExecutionFailure,
   type ExecutionIdentity,
@@ -16,9 +16,6 @@ export interface ManagedHostedExecutorOptions {
   pollIntervalMs?: number;
   sleep?: (milliseconds: number) => Promise<void>;
 }
-
-const activeStates = new Set(["queued", "running", "cancelling"]);
-const resultStates = new Set(["succeeded", "failed", "timed-out", "cancelled"]);
 
 /**
  * Browser/Agent adapter for the hosted operations plane.
@@ -38,7 +35,7 @@ export function createManagedHostedExecutor(
   const pollIntervalMs = options.pollIntervalMs ?? 750;
   const serverRuns = new Map<string, Promise<string>>();
 
-  async function jsonRequest(path: string, init?: RequestInit) {
+  async function jsonResponse(path: string, init?: RequestInit) {
     let response: Response;
     try {
       response = await fetchImpl(path, {
@@ -75,125 +72,138 @@ export function createManagedHostedExecutor(
         true,
       );
     }
-    if (!response.ok) {
-      const code =
-        typeof body?.error === "string" ? body.error : "SIMULATION_HTTP_ERROR";
-      throw new ExecutionFailure(
-        {
-          code,
-          message: typeof body?.message === "string" ? body.message : code,
-          stage: "read",
-          recovery:
-            response.status === 429 || response.status === 503
-              ? "retry-after"
-              : response.status === 401
-                ? "reauthorize"
-                : "not-retryable",
-          ...(response.headers.get("retry-after")
-            ? {
-                retryAfterMs:
-                  Number(response.headers.get("retry-after")) * 1_000,
-              }
-            : {}),
-        },
-        code === "RUN_RESPONSE_UNKNOWN",
-      );
-    }
+    return { response, body };
+  }
+
+  function throwHttpFailure(
+    response: Response,
+    body: Record<string, unknown> | null,
+  ): never {
+    const code =
+      typeof body?.error === "string" ? body.error : "SIMULATION_HTTP_ERROR";
+    throw new ExecutionFailure(
+      {
+        code,
+        message: typeof body?.message === "string" ? body.message : code,
+        stage: "read",
+        recovery:
+          response.status === 429 || response.status === 503
+            ? "retry-after"
+            : response.status === 401
+              ? "reauthorize"
+              : "not-retryable",
+        ...(response.headers.get("retry-after")
+          ? {
+              retryAfterMs: Number(response.headers.get("retry-after")) * 1_000,
+            }
+          : {}),
+      },
+      code === "RUN_RESPONSE_UNKNOWN",
+    );
+  }
+
+  async function jsonRequest(path: string, init?: RequestInit) {
+    const { response, body } = await jsonResponse(path, init);
+    if (!response.ok) throwHttpFailure(response, body);
     return body;
   }
 
-  async function readRun(runId: string): Promise<ManagedRunRecord> {
-    const body = await jsonRequest(
-      `/api/simulation/runs/${encodeURIComponent(runId)}`,
-    );
-    const parsed = ManagedRunRecordSchema.safeParse(body?.run);
-    if (!parsed.success)
-      throw new ExecutionFailure({
-        code: "MANAGED_RUN_INVALID",
-        message: "The simulation control plane returned an invalid run record.",
-        stage: "read",
-        recovery: "not-retryable",
-      });
-    return parsed.data;
+  function timestamp(response: Response, name: string): number | undefined {
+    const value = response.headers.get(name);
+    if (value === null) return undefined;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+  }
+
+  function retainedProblem(
+    body: Record<string, unknown> | null,
+    fallbackStage: "cancel" | "read" = "read",
+  ) {
+    return ProblemSchema.safeParse({
+      code:
+        typeof body?.error === "string" ? body.error : "SIMULATION_HTTP_ERROR",
+      message:
+        typeof body?.message === "string"
+          ? body.message
+          : typeof body?.error === "string"
+            ? body.error
+            : "The managed run did not produce a readable result.",
+      stage: typeof body?.stage === "string" ? body.stage : fallbackStage,
+      recovery:
+        typeof body?.recovery === "string" ? body.recovery : "not-retryable",
+      ...(typeof body?.retryAfterMs === "number"
+        ? { retryAfterMs: body.retryAfterMs }
+        : {}),
+    });
   }
 
   async function waitForResult(
     input: ExecutionInput,
-    runId: string,
+    initialRun: ManagedRunRecord,
   ): ReturnType<Executor["execute"]> {
     const waitStarted = performance.now();
     let pollCount = 0;
     let pollSleepMs = 0;
     while (true) {
-      const run = await readRun(runId);
+      const resultFetchStarted = performance.now();
+      const { response, body } = await jsonResponse(
+        `/api/simulation/runs/${encodeURIComponent(initialRun.id)}/result`,
+      );
       pollCount++;
-      if (activeStates.has(run.state)) {
+      if (response.status === 409 && body?.error === "RESULT_NOT_READY") {
         const sleepStarted = performance.now();
         await pause(pollIntervalMs);
         pollSleepMs += performance.now() - sleepStarted;
         continue;
       }
-      if (resultStates.has(run.state)) {
-        const hasResponse = run.artifacts.some(
-          (artifact) => artifact.name === "response.json",
+      if (!response.ok) {
+        const problem = retainedProblem(
+          body,
+          body?.error === "run-cancelled" ? "cancel" : "read",
         );
-        if (!hasResponse && run.state === "cancelled")
-          throw new ExecutionFailure({
-            code: "run-cancelled",
-            message: "The queued run was cancelled before execution.",
-            stage: "cancel",
-            recovery: "not-retryable",
-          });
-        if (!hasResponse && run.error) throw new ExecutionFailure(run.error);
-        const resultFetchStarted = performance.now();
-        const payload = await jsonRequest(
-          `/api/simulation/runs/${encodeURIComponent(runId)}/result`,
-        );
-        const resultFetchMs = performance.now() - resultFetchStarted;
-        // A retained executor refusal is evidence, not a SimulationResult. Keep
-        // its server-owned Problem; genuine failed analyses still carry results.
-        if (
-          run.state === "failed" &&
-          run.error &&
-          typeof payload?.error === "string" &&
-          !payload.outcome
-        )
-          throw new ExecutionFailure(run.error);
-        const output = decodeHostedExecutionPayload(input, payload);
-        return {
-          ...output,
-          timing: {
-            managed: {
-              ...(run.startedAt === undefined
-                ? {}
-                : { queueMs: Math.max(0, run.startedAt - run.queuedAt) }),
-              ...(run.startedAt === undefined || run.finishedAt === undefined
-                ? {}
-                : {
-                    executionMs: Math.max(0, run.finishedAt - run.startedAt),
-                  }),
-              ...(run.finishedAt === undefined
-                ? {}
-                : {
-                    runTotalMs: Math.max(0, run.finishedAt - run.createdAt),
-                  }),
-              resultFetchMs,
-              clientWaitMs: performance.now() - waitStarted,
-              pollCount,
-              pollSleepMs,
-            },
-          },
-        };
+        if (problem.success)
+          throw new ExecutionFailure(
+            problem.data,
+            body?.state === "infrastructure-failed",
+          );
+        throwHttpFailure(response, body);
       }
-      throw new ExecutionFailure(
-        run.error ?? {
-          code: "MANAGED_RUN_UNAVAILABLE",
-          message: `The managed run ended in state ${run.state}.`,
-          stage: "read",
-          recovery: run.state === "expired" ? "reprepare" : "retry-after",
+      const resultFetchMs = performance.now() - resultFetchStarted;
+      // A retained executor refusal is evidence, not a SimulationResult. Keep
+      // its server-owned Problem; genuine failed analyses still carry results.
+      if (typeof body?.error === "string" && !body.outcome) {
+        const problem = retainedProblem(body);
+        if (problem.success) throw new ExecutionFailure(problem.data);
+      }
+      const output = decodeHostedExecutionPayload(input, body);
+      const startedAt = timestamp(response, "x-analog-canvas-run-started-at");
+      const finishedAt = timestamp(response, "x-analog-canvas-run-finished-at");
+      return {
+        ...output,
+        timing: {
+          managed: {
+            ...(startedAt === undefined
+              ? {}
+              : {
+                  queueMs: Math.max(0, startedAt - initialRun.queuedAt),
+                }),
+            ...(startedAt === undefined || finishedAt === undefined
+              ? {}
+              : {
+                  executionMs: Math.max(0, finishedAt - startedAt),
+                }),
+            ...(finishedAt === undefined
+              ? {}
+              : {
+                  runTotalMs: Math.max(0, finishedAt - initialRun.createdAt),
+                }),
+            resultFetchMs,
+            clientWaitMs: performance.now() - waitStarted,
+            pollCount,
+            pollSleepMs,
+          },
         },
-        run.state === "infrastructure-failed",
-      );
+      };
     }
   }
 
@@ -254,9 +264,12 @@ export function createManagedHostedExecutor(
             stage: "start",
             recovery: "retry-same-request",
           });
-        return parsed.data.id;
+        return parsed.data;
       });
-      serverRuns.set(runToken, starting);
+      serverRuns.set(
+        runToken,
+        starting.then((run) => run.id),
+      );
       try {
         return await waitForResult(input, await starting);
       } finally {

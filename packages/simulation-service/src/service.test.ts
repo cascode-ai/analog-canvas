@@ -322,6 +322,36 @@ async function prepareRaw(f: ReturnType<typeof fixture>, source = deck) {
   return { prepared, workspaceId: created.workspace.id };
 }
 describe("shared simulation lifecycle", () => {
+  it("waits inside one bounded read without starting or polling another run", async () => {
+    const f = fixture();
+    const { prepared } = await prepareRaw(f);
+    const run = unwrap(
+      await f.service.handle(
+        {
+          operation: "start",
+          preparedId: prepared.id,
+          digest: prepared.digest,
+        },
+        "start-wait",
+      ),
+      "run",
+    );
+    let settled = false;
+    const waiting = f.service
+      .handle({ operation: "read", runId: run.id }, "read-wait", {
+        waitMs: 1_000,
+      })
+      .then((reply) => {
+        settled = true;
+        return reply;
+      });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    f.release();
+    expect(unwrap(await waiting, "run").state).toBe("finished");
+    expect(f.executor.execute).toHaveBeenCalledTimes(1);
+  });
+
   it.each([true, false])(
     "publishes terminal state after the directory save resolves (%s)",
     async (saved) => {

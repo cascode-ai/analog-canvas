@@ -81,12 +81,53 @@ describe("bounded simulation waiting", () => {
       vi.useRealTimers();
     }
   });
-  it("polls one run with fresh request identities and stops at completion", async () => {
+  it("waits for one run in a single bounded Agent read", async () => {
+    const read = vi.fn().mockResolvedValueOnce(reply("finished"));
+    const client = {
+      simulationResource: read,
+    } as unknown as AgentSessionClient;
+    expect(
+      await waitForSimulation(client, reply("running"), 5000),
+    ).toMatchObject({ run: { state: "finished" } });
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(read.mock.calls[0]![0]).toMatchObject({
+      operation: "read",
+      runId: "run-1",
+      waitMs: 5000,
+    });
+  });
+  it("returns the bounded read receipt and never reexecutes lost runs", async () => {
+    const read = vi.fn().mockResolvedValue(reply("running"));
+    const client = {
+      simulationResource: read,
+    } as unknown as AgentSessionClient;
+    expect(
+      await waitForSimulation(client, reply("running"), 1000),
+    ).toMatchObject({ run: { id: "run-1", state: "running" } });
+    expect(read).toHaveBeenCalledOnce();
+    read.mockClear();
+    expect(await waitForSimulation(client, reply("lost"), 1000)).toMatchObject({
+      run: { state: "lost" },
+    });
+    expect(read).not.toHaveBeenCalled();
+  });
+  it("falls back to legacy polling for an older browser contract", async () => {
     vi.useFakeTimers();
     try {
       const read = vi
         .fn()
-        .mockResolvedValueOnce(reply("running"))
+        .mockResolvedValueOnce({
+          apiVersion: "3.0",
+          requestId: "unsupported",
+          operation: "read",
+          ok: false,
+          error: {
+            code: "SIMULATION_REQUEST_INVALID",
+            message: "old browser",
+            stage: "input",
+            recovery: "fix-input",
+          },
+        })
         .mockResolvedValueOnce(reply("finished"));
       const client = {
         simulationResource: read,
@@ -95,31 +136,8 @@ describe("bounded simulation waiting", () => {
       await vi.runAllTimersAsync();
       expect(await pending).toMatchObject({ run: { state: "finished" } });
       expect(read).toHaveBeenCalledTimes(2);
-      for (const [request] of read.mock.calls)
-        expect(request).toMatchObject({ operation: "read", runId: "run-1" });
-      expect(new Set(read.mock.calls.map(([r]) => r.requestId)).size).toBe(2);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-  it("returns the last running receipt at the budget and never reexecutes lost runs", async () => {
-    vi.useFakeTimers();
-    try {
-      const read = vi.fn().mockResolvedValue(reply("running"));
-      const client = {
-        simulationResource: read,
-      } as unknown as AgentSessionClient;
-      const pending = waitForSimulation(client, reply("running"), 1000);
-      await vi.runAllTimersAsync();
-      expect(await pending).toMatchObject({
-        run: { id: "run-1", state: "running" },
-      });
-      expect(read).toHaveBeenCalledTimes(2);
-      read.mockClear();
-      expect(
-        await waitForSimulation(client, reply("lost"), 1000),
-      ).toMatchObject({ run: { state: "lost" } });
-      expect(read).not.toHaveBeenCalled();
+      expect(read.mock.calls[0]![0]).toMatchObject({ waitMs: 5000 });
+      expect(read.mock.calls[1]![0]).not.toHaveProperty("waitMs");
     } finally {
       vi.useRealTimers();
     }

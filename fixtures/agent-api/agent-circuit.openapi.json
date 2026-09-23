@@ -33935,6 +33935,11 @@
               },
               "requestId": {
                 "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema2"
+              },
+              "waitMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 20000
               }
             },
             "required": [

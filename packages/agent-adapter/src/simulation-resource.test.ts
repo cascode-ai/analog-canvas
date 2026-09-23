@@ -41,6 +41,31 @@ describe("Simulation sibling contract", () => {
       digest: "a".repeat(64),
     });
     expect(simulationOperationScopes(start)).toEqual(["simulation.run"]);
+    expect(
+      AgentSimulationResourceRequestSchema.parse({
+        ...envelope,
+        operation: "read",
+        runId: "run",
+        waitMs: 20_000,
+      }),
+    ).toMatchObject({ operation: "read", waitMs: 20_000 });
+    expect(
+      AgentSimulationResourceRequestSchema.safeParse({
+        ...envelope,
+        operation: "start",
+        preparedId: "p",
+        digest: "a".repeat(64),
+        waitMs: 1,
+      }).success,
+    ).toBe(false);
+    expect(
+      AgentSimulationResourceRequestSchema.safeParse({
+        ...envelope,
+        operation: "read",
+        runId: "run",
+        waitMs: 20_001,
+      }).success,
+    ).toBe(false);
     const batch = AgentSimulationResourceRequestSchema.parse({
       ...envelope,
       operation: "prepare-batch",

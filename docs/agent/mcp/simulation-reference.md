@@ -172,6 +172,11 @@ managed runs additionally report `serverQueueMs`, `serverExecutionMs`,
 `pollSleepMs`. `result.durationMs` covers the spawned
 simulator process only; compare it with these stages instead of calling the
 difference simulation time.
+The managed client polls the existing result endpoint directly. A terminal
+response carries both result bytes and server run timestamps, avoiding a final
+metadata read followed by a second result request. Missing timing headers from
+an older deployment only omit those optional server fields; result decoding and
+recovery semantics remain unchanged.
 Argument validation failures return `INVALID_TOOL_INPUT` with field paths and
 `recovery:"fix-input"`; correct the arguments rather than reconnecting.
 

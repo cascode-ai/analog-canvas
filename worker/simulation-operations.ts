@@ -449,13 +449,16 @@ export async function routeManagedSimulationRequest(
       );
     // R2 already exposes a byte stream. Do not materialize another complete
     // raw/result envelope in the Worker just to relay it to its owner.
-    return new Response(object.body, {
-      headers: {
-        "content-type": result.mediaType,
-        "cache-control": "private, no-store",
-        "x-content-type-options": "nosniff",
-      },
+    const headers = new Headers({
+      "content-type": result.mediaType,
+      "cache-control": "private, no-store",
+      "x-content-type-options": "nosniff",
     });
+    if (run.startedAt !== undefined)
+      headers.set("x-analog-canvas-run-started-at", String(run.startedAt));
+    if (run.finishedAt !== undefined)
+      headers.set("x-analog-canvas-run-finished-at", String(run.finishedAt));
+    return new Response(object.body, { headers });
   }
   if (request.method !== "POST")
     return ownedResponse(
