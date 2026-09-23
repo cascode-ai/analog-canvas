@@ -45,7 +45,11 @@ no connection, sync or new plot preparation is needed.
 
 Check execution, collection, per-analysis diagnostics and requested measurements
 independently; completion does not prove every analysis produced data.
-`run.details` summarizes collection/Specs; registered files hold complete evidence.
+`run.details` summarizes collection/Specs and separates executor wait, result
+materialization and catalog-save time. Managed runs additionally report server
+queue/execution, result fetch and client polling. Simulator-only time remains
+`result.durationMs`; do not treat it as end-to-end latency. Registered files hold
+complete evidence.
 Run summaries reference the catalog instead of repeating its file list; outer
 `detail:"full"` retains the complete run metadata response.
 `export` retries failed evidence saving on the same run without executing again.
@@ -60,7 +64,9 @@ actual downloads retain authorization, publication and integrity checks.
 
 Download preparation batches up to 32 missing-file descriptors, independently
 reporting ready/pending/failed files. Pending publication releases its slot so
-ready files proceed; bytes use two rolling slots. Existing files are verified
+ready files proceed; bytes use up to eight rolling slots with a 32 MiB aggregate
+in-flight target. Large files automatically reduce concurrency and one oversized
+file can still progress. Existing files are verified
 locally once per sync, without descriptors; unchanged index records are not rewritten.
 Partial failures preserve completed files and the
 local index. `transfer` counts selected/downloaded/reused/remaining files in

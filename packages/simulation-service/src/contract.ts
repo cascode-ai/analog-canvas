@@ -772,6 +772,8 @@ export const RunSchema = z.strictObject({
           unconstrained: z.number().int().nonnegative(),
         })
         .optional(),
+      /** Server-produced observational counters; names are versioned in the workflow docs. */
+      timing: z.unknown().optional(),
     })
     .optional(),
   catalog: ResultCatalogSchema.optional(),

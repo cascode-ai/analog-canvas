@@ -72,12 +72,12 @@ it("retries failed evidence storage through export without executing or duplicat
     rawfile: "retained raw",
   }));
   const { prepared } = await prepareRaw(f);
-  const originalPut = f.files.put.bind(f.files);
+  const originalPutMany = f.files.putMany.bind(f.files);
   let unavailable = true;
-  vi.spyOn(f.files, "put").mockImplementation(async (...args) => {
-    if (args[0] === "result.json" && unavailable)
+  vi.spyOn(f.files, "putMany").mockImplementation(async (entries) => {
+    if (entries.some((entry) => entry.name === "result.json") && unavailable)
       throw Error("ARTIFACT_STORAGE_UNAVAILABLE");
-    return originalPut(...args);
+    return originalPutMany(entries);
   });
   const run = unwrap(
     await f.service.handle(
@@ -94,6 +94,12 @@ it("retries failed evidence storage through export without executing or duplicat
     expect(receipt.state).toBe("finished");
     expect(receipt.error?.code).toBe("ARTIFACT_STORAGE_UNAVAILABLE");
     expect(receipt.result?.data).toBeUndefined();
+    expect(receipt.details?.timing).toMatchObject({
+      executionWaitMs: expect.any(Number),
+      resultMaterializationMs: expect.any(Number),
+      catalogSaveMs: expect.any(Number),
+      totalMs: expect.any(Number),
+    });
   });
   unavailable = false;
   const exported = await f.service.handle(
@@ -1378,6 +1384,7 @@ describe("shared simulation lifecycle", () => {
   it("start returns immediately; exact retries never execute twice, and another run can follow completion", async () => {
     const f = fixture(),
       { prepared } = await prepareRaw(f);
+    const resultBatches = vi.spyOn(f.files, "putMany");
     const op = {
       operation: "start",
       preparedId: prepared.id,
@@ -1412,6 +1419,11 @@ describe("shared simulation lifecycle", () => {
       await f.service.handle({ operation: "read", runId: run.id }, "read"),
       "run",
     );
+    expect(resultBatches).toHaveBeenCalledTimes(2);
+    expect(resultBatches.mock.calls[0]![0].length).toBeGreaterThan(1);
+    expect(resultBatches.mock.calls[1]![0]).toEqual([
+      expect.objectContaining({ name: "evidence-manifest.json" }),
+    ]);
     expect(finished.artifacts.map((a) => a.name)).toEqual(
       expect.arrayContaining([
         "raw/divider_op.raw",

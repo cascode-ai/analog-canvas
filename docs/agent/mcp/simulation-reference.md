@@ -160,8 +160,18 @@ including publication rescheduling) and
 `timing.remoteWaitMs` (download preparation/publication wait and GET headers).
 The latter excludes streamed body transfer; the difference is not pure disk
 time. Publication backoff counts as remote wait, but extra local queue time does
-not. Reused files have zero remote wait. Two download slots refill independently;
-on failure, no new files start and already-started downloads settle before return.
+not. Reused files have zero remote wait. Up to eight rolling download slots refill
+independently while the largest selected file keeps aggregate in-flight bytes near
+32 MiB; larger files reduce concurrency and one oversized file may run alone. On
+failure, no new files start and already-started downloads settle before return.
+
+Terminal `run.details.timing` separates `executionWaitMs`,
+`resultMaterializationMs`, `catalogSaveMs` and `totalMs`. For managed runs,
+managed runs additionally report `serverQueueMs`, `serverExecutionMs`,
+`serverRunTotalMs`, `resultFetchMs`, `clientWaitMs`, `pollCount` and
+`pollSleepMs`. `result.durationMs` covers the spawned
+simulator process only; compare it with these stages instead of calling the
+difference simulation time.
 Argument validation failures return `INVALID_TOOL_INPUT` with field paths and
 `recovery:"fix-input"`; correct the arguments rather than reconnecting.
 

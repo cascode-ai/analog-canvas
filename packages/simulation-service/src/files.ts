@@ -45,11 +45,34 @@ export class ArtifactDownloadError extends Error {
 export const MAX_ARTIFACT_BYTES = 256 * 1024 * 1024;
 export const MAX_ARTIFACT_STORE_BYTES = 1024 * 1024 * 1024;
 export const MAX_ARTIFACT_FILES = 1024;
+export const MAX_ARTIFACT_TRANSFER_CONCURRENCY = 8;
+export const MAX_ARTIFACT_TRANSFER_IN_FLIGHT_BYTES = 32 * 1024 * 1024;
+export function artifactTransferConcurrency(
+  byteLengths: readonly number[],
+): number {
+  const largest = byteLengths.reduce(
+    (maximum, bytes) => Math.max(maximum, bytes),
+    0,
+  );
+  return Math.min(
+    MAX_ARTIFACT_TRANSFER_CONCURRENCY,
+    Math.max(
+      1,
+      largest === 0
+        ? MAX_ARTIFACT_TRANSFER_CONCURRENCY
+        : Math.floor(MAX_ARTIFACT_TRANSFER_IN_FLIGHT_BYTES / largest),
+    ),
+  );
+}
 const CACHE_BYTES = 16 * 1024 * 1024;
 export interface SimulationArtifactStore {
   /** Release this consumer's lifetime protection; persisted evidence remains. */
   releaseSession?(): void;
   put(ref: ArtifactRef, text: string): Promise<void>;
+  /** Persist one generated result set in a single store transaction when supported. */
+  putMany?(
+    entries: readonly { ref: ArtifactRef; text: string }[],
+  ): Promise<void>;
   get(id: string): Promise<{ ref: ArtifactRef; text: string } | null>;
   find?(fileId: string): Promise<ArtifactRef | null>;
   saveCatalog?(record: StoredResultCatalog): Promise<void>;
@@ -73,8 +96,9 @@ export class SimulationFiles {
     string,
     { result?: { path: string } | { error: unknown } }
   >();
-  private uploadQueue: Array<() => void> = [];
+  private uploadQueue: Array<{ bytes: number; run: () => void }> = [];
   private uploading = 0;
+  private uploadingBytes = 0;
   private publicationEpoch = 0;
   setArtifactPublisher(
     publisher: (ref: ArtifactRef, text: string) => Promise<string>,
@@ -82,6 +106,7 @@ export class SimulationFiles {
     this.publisher = publisher;
     this.publicationEpoch++;
     this.uploading = 0;
+    this.uploadingBytes = 0;
     this.downloads.clear();
     this.uploadQueue = [];
     for (const item of this.artifacts.values()) this.startDownload(item);
@@ -106,6 +131,7 @@ export class SimulationFiles {
     this.artifactStore?.releaseSession?.();
     this.publicationEpoch++;
     this.uploading = 0;
+    this.uploadingBytes = 0;
     this.workspaces.clear();
     this.artifacts.clear();
     this.catalogs.clear();
@@ -580,10 +606,12 @@ export class SimulationFiles {
     this.downloads.set(item.ref.id, upload);
     const publisher = this.publisher!;
     const epoch = this.publicationEpoch;
+    const bytes = item.ref.byteLength;
     const run = () => {
       if (this.publisher !== publisher || epoch !== this.publicationEpoch)
         return;
       this.uploading++;
+      this.uploadingBytes += bytes;
       let promise: Promise<string>;
       try {
         promise =
@@ -609,12 +637,28 @@ export class SimulationFiles {
         .finally(() => {
           if (epoch !== this.publicationEpoch) return;
           this.uploading--;
-          this.uploadQueue.shift()?.();
+          this.uploadingBytes -= bytes;
+          this.drainUploadQueue();
         });
     };
-    if (this.uploading < 2) run();
-    else this.uploadQueue.push(run);
+    this.uploadQueue.push({ bytes, run });
+    this.drainUploadQueue();
     return upload;
+  }
+  private drainUploadQueue() {
+    while (
+      this.uploading < MAX_ARTIFACT_TRANSFER_CONCURRENCY &&
+      this.uploadQueue.length
+    ) {
+      const next = this.uploadQueue.findIndex(
+        ({ bytes }) =>
+          this.uploading === 0 ||
+          this.uploadingBytes + bytes <= MAX_ARTIFACT_TRANSFER_IN_FLIGHT_BYTES,
+      );
+      if (next < 0) return;
+      const [entry] = this.uploadQueue.splice(next, 1);
+      entry!.run();
+    }
   }
   private listWorkspace(workspace: Workspace): SimulationFileResult {
     return {
@@ -738,5 +782,74 @@ export class SimulationFiles {
     this.trimCache();
     if (this.publisher) this.startDownload(item);
     return ref;
+  }
+  /** Generated run evidence without stable caller-supplied file identities. */
+  async putMany(
+    entries: readonly {
+      name: string;
+      mediaType: string;
+      text: string;
+      metadata?: Pick<ArtifactRef, "role" | "sourcePath" | "analysisIndex">;
+    }[],
+  ): Promise<ArtifactRef[]> {
+    if (!entries.length) return [];
+    const epoch = this.epoch;
+    const encoder = new TextEncoder();
+    const prepared = await Promise.all(
+      entries.map(async (entry) => {
+        const byteLength = encoder.encode(entry.text).byteLength;
+        return {
+          ...entry,
+          byteLength,
+          digest: await sha256(entry.text),
+        };
+      }),
+    );
+    if (epoch !== this.epoch) throw new Error("SESSION_CHANGED");
+    const totalBytes = prepared.reduce((sum, item) => sum + item.byteLength, 0);
+    if (
+      prepared.some((item) => item.byteLength > MAX_ARTIFACT_BYTES) ||
+      this.artifacts.size + prepared.length > MAX_ARTIFACT_FILES ||
+      (!this.artifactStore &&
+        [...this.artifacts.values()].reduce(
+          (sum, item) => sum + item.ref.byteLength,
+          totalBytes,
+        ) > CACHE_BYTES)
+    )
+      throw new Error("ARTIFACT_CAPACITY");
+    const items = prepared.map((entry) => {
+      const id = crypto.randomUUID();
+      return {
+        ref: {
+          id,
+          fileId: id,
+          name: entry.name,
+          mediaType: entry.mediaType,
+          byteLength: entry.byteLength,
+          sha256: entry.digest,
+          ...entry.metadata,
+        } satisfies ArtifactRef,
+        text: entry.text,
+      };
+    });
+    if (this.artifactStore) {
+      try {
+        if (this.artifactStore.putMany) await this.artifactStore.putMany(items);
+        else
+          for (const item of items)
+            await this.artifactStore.put(item.ref, item.text);
+      } catch (error) {
+        if (error instanceof Error && error.message === "ARTIFACT_CAPACITY")
+          throw error;
+        throw new Error("ARTIFACT_STORAGE_UNAVAILABLE");
+      }
+    }
+    if (epoch !== this.epoch) throw new Error("SESSION_CHANGED");
+    for (const item of items) {
+      this.artifacts.set(item.ref.id, item);
+      if (this.publisher) this.startDownload(item);
+    }
+    this.trimCache();
+    return items.map((item) => item.ref);
   }
 }

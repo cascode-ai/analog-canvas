@@ -15,44 +15,45 @@ export function runReceipt(view: Run): Run {
         };
       })()
     : undefined;
+  const generatedDetails = {
+    operation: "catalog" as const,
+    runId: view.id,
+    ...(catalog
+      ? {
+          execution: catalog.execution,
+          collection: catalog.collection,
+          datasetCount: catalog.datasets.length,
+          fileCount: catalog.files.length,
+        }
+      : {}),
+    diagnostics: {
+      total: result?.diagnostics.length ?? 0,
+      shown: Math.min(result?.diagnostics.length ?? 0, 16),
+      textMayBeShortened:
+        result?.diagnostics.some((d) => d.text.length > 512) ?? false,
+    },
+    outputDiagnostics: _outputs?.diagnostics.length ?? 0,
+    specs: {
+      available: _outputs?.specs !== undefined,
+      total: _outputs?.specs?.results.length ?? 0,
+      passed:
+        _outputs?.specs?.results.filter((s) => s.judgment === "pass").length ??
+        0,
+      failed:
+        _outputs?.specs?.results.filter((s) => s.judgment === "failed")
+          .length ?? 0,
+      notEvaluated:
+        _outputs?.specs?.results.filter((s) => s.judgment === "not-evaluated")
+          .length ?? 0,
+      unconstrained:
+        _outputs?.specs?.results.filter((s) => s.judgment === "unconstrained")
+          .length ?? 0,
+    },
+  };
   return structuredClone({
     ...summary,
     ...(resultSummary ? { result: resultSummary } : {}),
-    details: view.details ?? {
-      operation: "catalog",
-      runId: view.id,
-      ...(catalog
-        ? {
-            execution: catalog.execution,
-            collection: catalog.collection,
-            datasetCount: catalog.datasets.length,
-            fileCount: catalog.files.length,
-          }
-        : {}),
-      diagnostics: {
-        total: result?.diagnostics.length ?? 0,
-        shown: Math.min(result?.diagnostics.length ?? 0, 16),
-        textMayBeShortened:
-          result?.diagnostics.some((d) => d.text.length > 512) ?? false,
-      },
-      outputDiagnostics: _outputs?.diagnostics.length ?? 0,
-      specs: {
-        available: _outputs?.specs !== undefined,
-        total: _outputs?.specs?.results.length ?? 0,
-        passed:
-          _outputs?.specs?.results.filter((s) => s.judgment === "pass")
-            .length ?? 0,
-        failed:
-          _outputs?.specs?.results.filter((s) => s.judgment === "failed")
-            .length ?? 0,
-        notEvaluated:
-          _outputs?.specs?.results.filter((s) => s.judgment === "not-evaluated")
-            .length ?? 0,
-        unconstrained:
-          _outputs?.specs?.results.filter((s) => s.judgment === "unconstrained")
-            .length ?? 0,
-      },
-    },
+    details: { ...generatedDetails, ...view.details },
     resultPreview: true,
   });
 }

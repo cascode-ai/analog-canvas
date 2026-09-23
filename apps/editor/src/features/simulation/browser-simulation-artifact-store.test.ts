@@ -6,6 +6,27 @@ import { SimulationService } from "@icm/simulation-service";
 import { createEmptyProject } from "@icm/model";
 
 describe("persistent simulation evidence", () => {
+  it("persists a generated result set through one batch operation", async () => {
+    const store = createBrowserSimulationArtifactStore(
+      "batch-project",
+      new IDBFactory(),
+    )!;
+    const entries = ["one", "two", "three"].map((id) => ({
+      ref: {
+        id,
+        fileId: id,
+        name: `${id}.txt`,
+        mediaType: "text/plain",
+        byteLength: id.length,
+        sha256: id.padEnd(64, "0"),
+      },
+      text: id,
+    }));
+    await store.putMany!(entries);
+    await expect(
+      Promise.all(entries.map(({ ref }) => store.get(ref.id))),
+    ).resolves.toEqual(entries.map(({ ref, text }) => ({ ref, text })));
+  });
   it("survives a denied storage getter and reports failure on I/O", async () => {
     const previous = Object.getOwnPropertyDescriptor(globalThis, "indexedDB");
     const denied = new DOMException("storage blocked", "InvalidStateError");

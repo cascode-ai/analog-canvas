@@ -226,7 +226,7 @@ describe("local simulation workspace", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
-  it("downloads two files concurrently and settles partial evidence before returning", async () => {
+  it("downloads up to eight files concurrently and settles partial evidence before returning", async () => {
     const root = await mkdtemp(join(tmpdir(), "icm-concurrent-base-"));
     let release!: () => void;
     const ready = new Promise<void>((resolve) => {
@@ -235,30 +235,31 @@ describe("local simulation workspace", () => {
     try {
       const base = await LocalWorkspace.open(scope, root);
       const started: string[] = [];
-      const pending = base.sync(
-        catalog([file("one", "a"), file("two", "b"), file("three", "c")]),
-        async (ref) => {
-          started.push(ref.id);
-          await ready;
-          if (ref.id === "one") throw new Error("offline");
-          return new Response("b");
-        },
+      const refs = Array.from({ length: 10 }, (_, index) =>
+        file(index === 0 ? "one" : `file-${index}`, "b"),
       );
-      await vi.waitFor(() => expect(started).toHaveLength(2));
+      const pending = base.sync(catalog(refs), async (ref) => {
+        started.push(ref.id);
+        await ready;
+        if (ref.id === "one") throw new Error("offline");
+        return new Response("b");
+      });
+      await vi.waitFor(() => expect(started).toHaveLength(8));
       release();
       const result = await pending;
-      expect(started.sort()).toEqual(["one", "two"]);
+      expect(started).toHaveLength(8);
+      expect(started).toContain("one");
       expect(result).toMatchObject({ ok: false, error: { fileId: "one" } });
-      expect(result.files).toHaveLength(1);
+      expect(result.files).toHaveLength(7);
       expect(result.transfer).toEqual({
-        selected: 3,
-        downloaded: 1,
+        selected: 10,
+        downloaded: 7,
         reused: 0,
-        remaining: 2,
+        remaining: 3,
       });
       expect(await readFile(result.files[0]!.outputPath, "utf8")).toBe("b");
       expect(await LocalWorkspace.inspect(root)).toMatchObject({
-        workspaceFileCount: 1,
+        workspaceFileCount: 7,
       });
     } finally {
       release();
