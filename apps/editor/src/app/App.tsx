@@ -264,6 +264,7 @@ import {
 } from "../features/editor-shell/gallery-publish";
 import {
   announceGalleryChange,
+  localhostExamplesEnabled,
   primeGalleryPreview,
   subscribeGalleryRefresh,
 } from "../gallery-client";
@@ -274,10 +275,6 @@ import {
   evaluateSubmissionGates,
   type SubmissionGateReport,
 } from "@icm/derived";
-import {
-  createLibraryExampleProject,
-  libraryProjectExamples,
-} from "../examples/library-examples";
 import {
   EditorDocumentController,
   useDocumentController,
@@ -3769,22 +3766,31 @@ function WorkspaceEditor({
       return;
     }
     if (exampleId) {
-      const exampleProject = createLibraryExampleProject(exampleId);
-      const example = libraryProjectExamples.find(
-        (candidate) => candidate.id === exampleId,
-      );
-      if (exampleProject && example) {
-        replaceActiveProject(
-          prepareNetlistExample(
-            exampleProject,
-            netlistPreferences.preferences.profiles[
-              netlistPreferences.selected
-            ],
-          ),
-          DEFAULT_VIEWBOX,
-        );
-        setStatus(`Opened example: ${example.name}`);
+      if (!localhostExamplesEnabled()) {
+        setStatus("Built-in examples are available only on localhost");
+        return;
       }
+      void import("../examples/library-examples")
+        .then(({ createLibraryExampleProject, libraryProjectExamples }) => {
+          const exampleProject = createLibraryExampleProject(exampleId);
+          const example = libraryProjectExamples.find(
+            (candidate) => candidate.id === exampleId,
+          );
+          if (!exampleProject || !example) return;
+          replaceActiveProject(
+            prepareNetlistExample(
+              exampleProject,
+              netlistPreferences.preferences.profiles[
+                netlistPreferences.selected
+              ],
+            ),
+            DEFAULT_VIEWBOX,
+          );
+          setStatus(`Opened example: ${example.name}`);
+        })
+        .catch(() => {
+          setStatus("Built-in example could not load");
+        });
     }
   }, [initialGalleryEntryId, restoreAfterRefresh]);
 

@@ -13,6 +13,7 @@ import {
   loadGalleryFeed,
   loadGalleryTagSummary,
   loadGalleryTags,
+  localhostExamplesEnabled,
   subscribeGalleryRefresh,
   type GalleryAuthorOption,
   type GalleryFeedEntry,
@@ -778,6 +779,7 @@ export function GalleryFeed({
 
   const entries = state.entries;
   const needsBundledFallback =
+    localhostExamplesEnabled() &&
     state.status !== "loading" &&
     entries.length === 0 &&
     !galleryFiltersNarrowQuery(filters);
@@ -1264,6 +1266,15 @@ export function GalleryFeed({
                         : likedOnly
                           ? "You have not liked any circuits yet."
                           : "No circuits here extract to a netlist yet."}
+                  </p>
+                ) : null}
+                {!localhostExamplesEnabled() &&
+                entries.length === 0 &&
+                !galleryFiltersNarrowQuery(filters) ? (
+                  <p className="gallery-status" data-testid="gallery-empty">
+                    {state.status === "unavailable"
+                      ? "Gallery is unavailable. Try again later."
+                      : "No published circuits yet."}
                   </p>
                 ) : null}
                 {/* Two empty states, because only one of them is a verdict:

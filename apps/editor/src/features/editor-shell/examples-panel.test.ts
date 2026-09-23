@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { galleryEntryMatchesQuery } from "../../gallery-client";
 import { libraryProjectExamples } from "../../examples/library-examples";
 import { deriveGalleryPanelView, ExamplesPanel } from "./examples-panel";
+import { LocalExamplesCards } from "./local-examples-cards";
 
 function entry(
   overrides: Partial<Parameters<typeof galleryEntryMatchesQuery>[0]> & {
@@ -44,13 +45,11 @@ describe("ExamplesPanel", () => {
   });
   it("presents every bundled example outside the Library device panel", () => {
     const markup = renderToStaticMarkup(
-      createElement(ExamplesPanel, {
-        open: true,
+      createElement(LocalExamplesCards, {
         onOpenExample: () => undefined,
       }),
     );
 
-    expect(markup).toContain('data-testid="examples-panel"');
     expect(markup).toContain("<svg");
     expect(markup).not.toContain('data-testid="shapes-fold-library"');
     expect(markup).not.toContain('data-testid="gallery-topology-check"');
@@ -180,8 +179,7 @@ describe("gallery panel view", () => {
 describe("user examples section", () => {
   it("previews each circuit rather than only naming it", () => {
     const markup = renderToStaticMarkup(
-      createElement(ExamplesPanel, {
-        open: true,
+      createElement(LocalExamplesCards, {
         onOpenExample: () => undefined,
       }),
     );
@@ -193,6 +191,17 @@ describe("user examples section", () => {
     // Columns follow the panel's dragged width rather than a second control
     // for the same thing.
     expect(markup).not.toContain('data-testid="gallery-column-slider"');
+  });
+
+  it("does not offer bundled examples on a non-loopback host", () => {
+    const markup = renderToStaticMarkup(
+      createElement(ExamplesPanel, {
+        open: true,
+        onOpenExample: () => undefined,
+      }),
+    );
+    expect(markup).not.toContain('data-testid="shapes-example-');
+    expect(markup).toContain("No published circuits yet.");
   });
 
   it("keeps the gallery as the only place circuits are stored", () => {

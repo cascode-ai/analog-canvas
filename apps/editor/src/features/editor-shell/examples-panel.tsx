@@ -1,18 +1,13 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import "./examples-panel.css";
 
-import { renderDocumentSvg } from "@icm/render-svg";
-import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
-
-import {
-  libraryProjectExamples,
-  type LibraryProjectExample,
-} from "../../examples/library-examples";
+import type { LibraryProjectExample } from "../../examples/library-examples";
 import {
   galleryCountLabel,
   galleryEntryMatchesQuery,
   galleryPreviewUrl,
   loadGalleryFeed,
+  localhostExamplesEnabled,
   subscribeGalleryRefresh,
   type GalleryFeedEntry,
 } from "../../gallery-client";
@@ -20,6 +15,11 @@ import {
 const ExamplesPanelTags = lazy(() =>
   import("./examples-panel-tags").then((module) => ({
     default: module.ExamplesPanelTags,
+  })),
+);
+const LocalExamplesCards = lazy(() =>
+  import("./local-examples-cards").then((module) => ({
+    default: module.LocalExamplesCards,
   })),
 );
 
@@ -196,28 +196,6 @@ export function ExamplesPanel({
 
   const { showGallery, visibleEntries, countLabel, emptyMessage } =
     deriveGalleryPanelView(feed, { searchQuery, selectedTags });
-  const previewCache = useRef<Map<string, string> | null>(null);
-  const bundledPreviews = useMemo(() => {
-    if (!open || showGallery) return new Map<string, string>();
-    if (previewCache.current) return previewCache.current;
-    return (previewCache.current = new Map(
-      libraryProjectExamples.map((example) => {
-        const topDocument = example.project.documents.find(
-          (candidate) => candidate.id === example.project.topDocumentId,
-        )!;
-        // A Cell instance draws with artwork derived from the Project, not
-        // from the built-in library, so the preview needs the same
-        // Project-aware resolver the canvas uses.
-        return [
-          example.id,
-          renderDocumentSvg(
-            topDocument,
-            createProjectSymbolResolver(example.project, builtInSymbols),
-          ),
-        ];
-      }),
-    ));
-  }, [open, showGallery]);
   const exhausted = feed.nextCursor === null;
 
   return (
@@ -293,63 +271,50 @@ export function ExamplesPanel({
             tiles do; a separate control for the same thing is one knob too
             many. */}
             <div className="shapes-example-list">
-              {showGallery
-                ? visibleEntries.map((example) => (
-                    <button
-                      key={example.id}
-                      type="button"
-                      className="shapes-example-card"
-                      data-testid={`gallery-example-${example.id}`}
-                      aria-label={`Insert gallery circuit ${example.name}`}
-                      title={`Insert ${example.name}`}
-                      onClick={() => onOpenGalleryExample?.(example.id)}
-                    >
-                      <span className="shapes-example-preview">
-                        <img
-                          src={galleryPreviewUrl(
-                            example.id,
-                            example.previewRevision,
-                          )}
-                          alt=""
-                          loading="lazy"
-                        />
-                      </span>
-                      <span className="shapes-example-copy">
-                        <span className="shapes-example-kicker">
-                          {example.author || "Gallery"}
-                        </span>
-                        <span className="shapes-example-name">
-                          {example.name}
-                        </span>
-                      </span>
-                    </button>
-                  ))
-                : libraryProjectExamples.map((example) => (
-                    <button
-                      key={example.id}
-                      type="button"
-                      className="shapes-example-card"
-                      data-testid={`shapes-example-${example.id}`}
-                      aria-label={`Insert example ${example.name}`}
-                      title={`Insert ${example.name}`}
-                      onClick={() => onOpenExample(example)}
-                    >
-                      <span
-                        className="shapes-example-preview"
-                        // Server-free preview: our own renderer's escaped output.
-                        dangerouslySetInnerHTML={{
-                          __html: bundledPreviews.get(example.id) ?? "",
-                        }}
+              {showGallery ? (
+                visibleEntries.map((example) => (
+                  <button
+                    key={example.id}
+                    type="button"
+                    className="shapes-example-card"
+                    data-testid={`gallery-example-${example.id}`}
+                    aria-label={`Insert gallery circuit ${example.name}`}
+                    title={`Insert ${example.name}`}
+                    onClick={() => onOpenGalleryExample?.(example.id)}
+                  >
+                    <span className="shapes-example-preview">
+                      <img
+                        src={galleryPreviewUrl(
+                          example.id,
+                          example.previewRevision,
+                        )}
+                        alt=""
+                        loading="lazy"
                       />
-                      <span className="shapes-example-copy">
-                        <span className="shapes-example-kicker">Example</span>
-                        <span className="shapes-example-name">
-                          {example.name}
-                        </span>
+                    </span>
+                    <span className="shapes-example-copy">
+                      <span className="shapes-example-kicker">
+                        {example.author || "Gallery"}
                       </span>
-                    </button>
-                  ))}
+                      <span className="shapes-example-name">
+                        {example.name}
+                      </span>
+                    </span>
+                  </button>
+                ))
+              ) : localhostExamplesEnabled() ? (
+                <Suspense fallback={null}>
+                  <LocalExamplesCards onOpenExample={onOpenExample} />
+                </Suspense>
+              ) : null}
             </div>
+            {!showGallery && !localhostExamplesEnabled() ? (
+              <p className="examples-panel-empty">
+                {feed.status === "unavailable"
+                  ? "Gallery is unavailable. Try again later."
+                  : "No published circuits yet."}
+              </p>
+            ) : null}
             {/* Says "still looking" while pages remain, and only claims nothing
             matches once the feed is exhausted — a wall of 120 circuits paged
             30 at a time would otherwise deny a circuit that is simply not
