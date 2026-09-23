@@ -175,9 +175,9 @@ test("simulation examples confirm whole-Project replacement and protect existing
   });
   await page.getByTestId("project-menu-toggle").click();
   await page
-    .getByRole("textbox", { name: "Circuit name" })
+    .getByRole("textbox", { name: "Project name" })
     .fill("My unsaved circuit");
-  await page.getByRole("textbox", { name: "Circuit name" }).press("Enter");
+  await page.getByRole("textbox", { name: "Project name" }).press("Enter");
   await page.getByTestId("open-analog-simulation").click();
   const panel = page.getByRole("region", { name: "Analog simulation" });
   const cards = panel.getByRole("group", { name: "Simulation examples" });
