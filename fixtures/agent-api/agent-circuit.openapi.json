@@ -479,7 +479,7 @@
     "/api/agent/sessions/{sessionId}/simulation": {
       "post": {
         "operationId": "agentSessionSimulationResource",
-        "description": "Discover Profiles/help; prepare, start/read/cancel or catalog/export runs and batches. history discovers retained runs; catalog maps roles, axes, units and selectors without samples. Reconnect to the same Project to retrieve evidence without rerunning. Preserve request ID/payload for uncertain starts. Execution failure does not revoke authorization.",
+        "description": "Discover Profiles/help; run submits a revisioned source once, including preparation. Optional prepare/start supports inspection and reuse. Read/cancel or catalog/export runs and batches; history discovers retained evidence. Preserve request ID/payload for uncertain submissions, including during preparation. Execution failure does not revoke authorization.",
         "security": [
           {
             "bearerAuth": []
@@ -33787,88 +33787,37 @@
                 "const": "prepare"
               },
               "source": {
-                "oneOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "kind": {
-                        "type": "string",
-                        "const": "project-folder"
-                      },
-                      "folderId": {
-                        "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema0"
-                      },
-                      "expectedStructureRevision": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991
-                      },
-                      "variant": {
-                        "type": "object",
-                        "properties": {
-                          "environment": {
-                            "type": "object",
-                            "properties": {
-                              "corner": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 64
-                              },
-                              "temperatureC": {
-                                "type": "number"
-                              }
-                            },
-                            "additionalProperties": false
-                          },
-                          "parameters": {
-                            "maxItems": 16,
-                            "type": "array",
-                            "items": {
-                              "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema3"
-                            }
-                          },
-                          "variables": {
-                            "maxItems": 16,
-                            "type": "array",
-                            "items": {
-                              "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema5"
-                            }
-                          }
-                        },
-                        "additionalProperties": false
-                      }
-                    },
-                    "required": [
-                      "kind",
-                      "folderId",
-                      "expectedStructureRevision"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "kind": {
-                        "type": "string",
-                        "const": "workspace"
-                      },
-                      "workspaceId": {
-                        "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema0"
-                      },
-                      "expectedRevision": {
-                        "type": "integer",
-                        "minimum": 0,
-                        "maximum": 9007199254740991
-                      }
-                    },
-                    "required": [
-                      "kind",
-                      "workspaceId",
-                      "expectedRevision"
-                    ],
-                    "additionalProperties": false
-                  }
-                ]
+                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema3"
+              },
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema1"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema2"
+              }
+            },
+            "required": [
+              "operation",
+              "source",
+              "apiVersion",
+              "requestId"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operation": {
+                "type": "string",
+                "const": "run"
+              },
+              "source": {
+                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema3"
+              },
+              "timeoutMs": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 120000
               },
               "apiVersion": {
                 "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema1"
@@ -34065,7 +34014,7 @@
                 "maxItems": 16,
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema6"
+                  "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema7"
                 }
               },
               "apiVersion": {
@@ -34104,7 +34053,7 @@
                 "maxItems": 4,
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema7"
+                  "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema8"
                 }
               },
               "apiVersion": {
@@ -34248,13 +34197,97 @@
             "maxLength": 256
           },
           "__schema3": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "project-folder"
+                  },
+                  "folderId": {
+                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema0"
+                  },
+                  "expectedStructureRevision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "variant": {
+                    "type": "object",
+                    "properties": {
+                      "environment": {
+                        "type": "object",
+                        "properties": {
+                          "corner": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "temperatureC": {
+                            "type": "number"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "parameters": {
+                        "maxItems": 16,
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema4"
+                        }
+                      },
+                      "variables": {
+                        "maxItems": 16,
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema6"
+                        }
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "kind",
+                  "folderId",
+                  "expectedStructureRevision"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "workspace"
+                  },
+                  "workspaceId": {
+                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema0"
+                  },
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "kind",
+                  "workspaceId",
+                  "expectedRevision"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "__schema4": {
             "type": "object",
             "properties": {
               "documentId": {
-                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema4"
+                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema5"
               },
               "instanceId": {
-                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema4"
+                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema5"
               },
               "parameter": {
                 "type": "string",
@@ -34274,16 +34307,16 @@
             ],
             "additionalProperties": false
           },
-          "__schema4": {
+          "__schema5": {
             "type": "string",
             "minLength": 1,
             "maxLength": 256
           },
-          "__schema5": {
+          "__schema6": {
             "type": "object",
             "properties": {
               "variableId": {
-                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema4"
+                "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema5"
               },
               "value": {
                 "type": "string",
@@ -34297,7 +34330,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema6": {
+          "__schema7": {
             "type": "object",
             "properties": {
               "id": {
@@ -34313,7 +34346,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema7": {
+          "__schema8": {
             "oneOf": [
               {
                 "type": "object",
@@ -34321,28 +34354,6 @@
                   "kind": {
                     "type": "string",
                     "const": "corner"
-                  },
-                  "values": {
-                    "minItems": 1,
-                    "maxItems": 64,
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema8"
-                    }
-                  }
-                },
-                "required": [
-                  "kind",
-                  "values"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "temperature"
                   },
                   "values": {
                     "minItems": 1,
@@ -34364,10 +34375,7 @@
                 "properties": {
                   "kind": {
                     "type": "string",
-                    "const": "variable"
-                  },
-                  "variableId": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema4"
+                    "const": "temperature"
                   },
                   "values": {
                     "minItems": 1,
@@ -34375,6 +34383,31 @@
                     "type": "array",
                     "items": {
                       "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema10"
+                    }
+                  }
+                },
+                "required": [
+                  "kind",
+                  "values"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "variable"
+                  },
+                  "variableId": {
+                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema5"
+                  },
+                  "values": {
+                    "minItems": 1,
+                    "maxItems": 64,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema11"
                     }
                   }
                 },
@@ -34393,10 +34426,10 @@
                     "const": "parameter"
                   },
                   "documentId": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema4"
+                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema5"
                   },
                   "instanceId": {
-                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema4"
+                    "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema5"
                   },
                   "parameter": {
                     "type": "string",
@@ -34408,7 +34441,7 @@
                     "maxItems": 64,
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema11"
+                      "$ref": "#/components/schemas/agentSimulationResourceRequest/$defs/__schema12"
                     }
                   }
                 },
@@ -34423,20 +34456,20 @@
               }
             ]
           },
-          "__schema8": {
+          "__schema9": {
             "type": "string",
             "minLength": 1,
             "maxLength": 64
           },
-          "__schema9": {
+          "__schema10": {
             "type": "number"
           },
-          "__schema10": {
+          "__schema11": {
             "type": "string",
             "minLength": 1,
             "maxLength": 4096
           },
-          "__schema11": {
+          "__schema12": {
             "type": "string",
             "minLength": 1,
             "maxLength": 4096
