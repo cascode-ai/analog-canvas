@@ -20,9 +20,9 @@ an unfamiliar field only; no full-contract or authoring-help prerequisite.
    network waits, prepares and submits once. Keep the same request ID and payload
    on uncertain retries. Explicit `prepare` → `start` remains optional when you
    want to inspect or reuse a frozen input; it is not a normal prerequisite.
-   The normal path holds one bounded Agent read rather than repeatedly crossing
-   the relay; an older already-open editor falls back to the compatible polling
-   path. This wait never starts another run.
+   The normal path holds the run submission within one bounded Agent relay
+   request; a still-running receipt can be continued with a bounded read.
+   This wait never starts another run.
    Continue a running result with `read` and the same run ID, never another start.
    Preserve an uncertain start's request ID. One hosted slot means sequential
    starts or `simulation_batch`.

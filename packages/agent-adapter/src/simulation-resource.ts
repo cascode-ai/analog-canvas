@@ -13,7 +13,7 @@ const envelope = {
 };
 export const AgentSimulationResourceRequestSchema = z.union(
   SimulationOperationSchema.options.map((schema) =>
-    schema.shape.operation.value === "read"
+    ["read", "run", "start"].includes(schema.shape.operation.value)
       ? schema.extend({
           ...envelope,
           waitMs: z
@@ -43,14 +43,14 @@ type AgentSimulationRequestEnvelope = {
   apiVersion: typeof AGENT_API_VERSION;
   requestId: string;
 };
-type SimulationReadOperation = Extract<
+type SimulationWaitableOperation = Extract<
   SimulationOperation,
-  { operation: "read" }
+  { operation: "read" | "run" | "start" }
 >;
 export type AgentSimulationResourceRequest =
-  | (Exclude<SimulationOperation, SimulationReadOperation> &
+  | (Exclude<SimulationOperation, SimulationWaitableOperation> &
       AgentSimulationRequestEnvelope)
-  | (SimulationReadOperation &
+  | (SimulationWaitableOperation &
       AgentSimulationRequestEnvelope & { waitMs?: number });
 export type AgentSimulationResourceResponse = z.infer<
   typeof AgentSimulationResourceResponseSchema

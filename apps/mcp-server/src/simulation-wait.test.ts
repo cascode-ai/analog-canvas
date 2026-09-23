@@ -23,6 +23,41 @@ function reply(
   };
 }
 describe("bounded simulation waiting", () => {
+  it("returns a fast completed run with one Agent relay request", async () => {
+    const session = {
+      client: new AgentSessionClient({ http: new FakeAgentHttp() }),
+    };
+    const send = vi
+      .spyOn(session.client, "simulationResource")
+      .mockResolvedValueOnce(reply("finished"));
+    const result = await callTool(
+      "simulation_run",
+      {
+        requestId: "one-run",
+        waitMs: 20_000,
+        request: {
+          operation: "run",
+          source: {
+            kind: "project-folder",
+            folderId: "folder",
+            expectedStructureRevision: 0,
+          },
+        },
+      },
+      session,
+    );
+    expect(JSON.parse(result.content[0]!.text!)).toMatchObject({
+      ok: true,
+      run: { state: "finished" },
+    });
+    expect(send).toHaveBeenCalledOnce();
+    expect(send.mock.calls[0]![0]).toMatchObject({
+      operation: "run",
+      waitMs: 20_000,
+      requestId: "one-run",
+    });
+  });
+
   it.each(["run", "start"] as const)(
     "retains an accepted %s when the internal wait loses transport",
     async (operation) => {

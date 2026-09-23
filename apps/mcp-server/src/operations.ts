@@ -93,7 +93,7 @@ const SimulationArgs = z
       .max(20_000)
       .optional()
       .describe(
-        "For run/start/read: wait on the same run through one bounded Agent read before returning its latest receipt. Resume a running receipt with read, never another submission.",
+        "For run/start/read: hold the same Agent request for up to 20 seconds and return its latest run receipt. Resume a running receipt with read, never another submission.",
       ),
   })
   .superRefine((value, context) => {
@@ -694,18 +694,26 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       let runId = "runId" in request ? request.runId : undefined;
       let waiting = false;
       try {
+        const waitStarted = Date.now();
         const response = await session.client.simulationResource({
           ...request,
           ...(request.operation === "capabilities"
             ? { detail: request.detail ?? "summary" }
+            : {}),
+          ...(waitMs > 0 && ["run", "start", "read"].includes(request.operation)
+            ? { waitMs }
             : {}),
           apiVersion: AGENT_API_VERSION,
           requestId: effectiveRequestId,
         });
         if (response.ok && "run" in response) runId = response.run.id;
         waiting = waitMs > 0 && response.ok && "run" in response;
-        const result = waitMs
-          ? await waitForSimulation(session.client, response, waitMs)
+        const remainingWaitMs = Math.max(
+          0,
+          waitMs - (Date.now() - waitStarted),
+        );
+        const result = remainingWaitMs
+          ? await waitForSimulation(session.client, response, remainingWaitMs)
           : response;
         if (detail === "summary" && result.ok && "prepared" in result) {
           const {
