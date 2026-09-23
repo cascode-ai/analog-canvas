@@ -255,7 +255,15 @@ export class SimulationService {
       }
       if (op.operation === "prepare") return await this.prepare(op);
       if (op.operation === "run") return await this.submit(op, requestId);
-      if (op.operation === "start") return this.start(op, requestId);
+      if (op.operation === "start") {
+        if (this.submissions.has(requestId))
+          return problem(
+            "REQUEST_ID_REUSED",
+            "This request ID identifies a run submission",
+            "start",
+          );
+        return this.start(op, requestId);
+      }
       if (op.operation === "prepare-batch") return await this.prepareBatch(op);
       if (op.operation === "prepare-sweep") return await this.prepareSweep(op);
       if (op.operation === "start-batch") return this.startBatch(op, requestId);

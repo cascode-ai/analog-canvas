@@ -448,6 +448,16 @@ describe("shared simulation lifecycle", () => {
     };
     const first = f.service.handle(request, "submit");
     const repeated = f.service.handle(request, "submit");
+    expect(
+      await f.service.handle(
+        {
+          operation: "start",
+          preparedId: "another-preparation",
+          digest: "a".repeat(64),
+        },
+        "submit",
+      ),
+    ).toMatchObject({ ok: false, error: { code: "REQUEST_ID_REUSED" } });
     f.project.simulationFolders[0]!.input.files.find(
       (file) => file.path === "run.cir",
     )!.text = "changed after submit";
