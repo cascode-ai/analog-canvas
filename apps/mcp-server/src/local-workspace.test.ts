@@ -42,6 +42,38 @@ const catalog = (files: ArtifactRef[]): ResultCatalog => ({
   datasets: [],
 });
 describe("local simulation workspace", () => {
+  it("retries a failed index persistence before accepting a reused no-op", async () => {
+    const root = await mkdtemp(join(tmpdir(), "icm-index-retry-"));
+    try {
+      const base = await LocalWorkspace.open(scope, root);
+      const directory = catalog([file("one", "a")]);
+      await base.sync(directory, async () => new Response("a"), []);
+      const writer = vi.spyOn(
+        base as unknown as { writeIndex(content: string): Promise<void> },
+        "writeIndex",
+      );
+      writer.mockRejectedValueOnce(new Error("disk unavailable"));
+      const fetch = vi.fn(async () => new Response("a"));
+      expect(await base.sync(directory, fetch)).toMatchObject({
+        ok: false,
+        error: { code: "WORKSPACE_DOWNLOAD_INCOMPLETE" },
+      });
+      expect(
+        JSON.parse(await readFile(base.indexPath, "utf8")).downloads,
+      ).toHaveLength(0);
+      expect(await base.sync(directory, fetch)).toMatchObject({
+        ok: true,
+        transfer: { reused: 1 },
+      });
+      expect(
+        JSON.parse(await readFile(base.indexPath, "utf8")).downloads,
+      ).toHaveLength(1);
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(writer).toHaveBeenCalledTimes(2);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it("does not rewrite an unchanged index on a fully reused sync", async () => {
     const root = await mkdtemp(join(tmpdir(), "icm-noop-index-"));
     try {

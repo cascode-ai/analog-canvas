@@ -104,6 +104,7 @@ async function readIndex(path: string): Promise<ReadableIndex | null> {
 /** One local index, immutable run files and ordinary user-owned work files. */
 export class LocalWorkspace {
   private writes: Promise<void> = Promise.resolve();
+  private persistenceFailed = false;
   private constructor(
     readonly basePath: string,
     private index: ReadableIndex,
@@ -244,6 +245,10 @@ export class LocalWorkspace {
       roles?: NonNullable<ArtifactRef["role"]>[] | undefined;
     },
   ) {
+    // A prior failed atomic index write must not become a successful no-op just
+    // because its in-memory records already match the next request.
+    await this.writes;
+    if (this.persistenceFailed) await this.save();
     const parsed = ResultCatalogSchema.parse(catalog);
     const byId =
       fileIds === undefined
@@ -416,7 +421,15 @@ export class LocalWorkspace {
   }
   private async save() {
     const content = JSON.stringify(this.index, null, 2);
-    const write = this.writes.then(() => this.writeIndex(content));
+    const write = this.writes.then(async () => {
+      try {
+        await this.writeIndex(content);
+        this.persistenceFailed = false;
+      } catch (error) {
+        this.persistenceFailed = true;
+        throw error;
+      }
+    });
     this.writes = write.catch(() => undefined);
     return write;
   }
