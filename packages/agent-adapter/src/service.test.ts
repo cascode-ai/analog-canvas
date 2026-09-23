@@ -279,13 +279,17 @@ describe("current Agent Circuit API service", () => {
     // Project source-file provenance is now an editable structural record so
     // imported Cell closures can remain source-addressable without bypassing
     // the canonical transaction contract.
+    // The Simulation Resource read envelope adds one bounded wait hint while
+    // retaining the complete operation union and runtime validation. Keep the
+    // allowance close to the measured projection so accidental unfolding is
+    // still caught.
     expect(JSON.stringify(AgentCircuitRequestJsonSchema).length).toBeLessThan(
       172_000,
     );
     expect(JSON.stringify(AgentCircuitResponseJsonSchema).length).toBeLessThan(
       180_000,
     );
-    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(500_000);
+    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(501_000);
   });
 
   it("publishes the flat Snapshot workflow and returns complete facts", () => {
