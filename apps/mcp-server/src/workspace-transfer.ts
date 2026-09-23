@@ -1,6 +1,7 @@
 import { AgentSessionError, type AgentSessionClient } from "@icm/agent-client";
 import type { AgentFileResourceResponse } from "@icm/agent-adapter";
 import type { FetchArtifact } from "./local-workspace.js";
+import { TransferPending } from "./transfer-pending.js";
 
 /** One sync's metadata preparation. Local cache hits never enter this function. */
 export function workspaceTransfer(client: AgentSessionClient): FetchArtifact {
@@ -10,10 +11,15 @@ export function workspaceTransfer(client: AgentSessionClient): FetchArtifact {
     Promise<AgentFileResourceResponse | undefined>
   >();
   let legacy = false;
+  let deferPending = false;
+  const attempts = new Map<string, { started: number; count: number }>();
   const fetch: FetchArtifact = async (ref, offset) => {
+    const attempt = attempts.get(ref.id) ?? { started: Date.now(), count: 0 };
+    attempts.set(ref.id, attempt);
+    const first = attempt.count++ === 0;
     const position = ids.indexOf(ref.id);
     let descriptor: AgentFileResourceResponse | undefined;
-    if (!legacy && position >= 0 && ids.length > 1) {
+    if (first && !legacy && position >= 0 && ids.length > 1) {
       const group = Math.floor(position / 32);
       let pending = batches.get(group);
       if (!pending) {
@@ -48,6 +54,7 @@ export function workspaceTransfer(client: AgentSessionClient): FetchArtifact {
           );
           if (!entry) throw new Error("DOWNLOAD_DESCRIPTOR_MISSING");
           if (
+            deferPending ||
             entry.result.ok ||
             entry.result.error.code !== "ARTIFACT_TRANSFER_PENDING"
           )
@@ -61,7 +68,30 @@ export function workspaceTransfer(client: AgentSessionClient): FetchArtifact {
         // A pre-batch editor's definite schema rejection falls back once per sync group.
       } else if (response) throw new Error(JSON.stringify(response));
     }
-    descriptor ??= await client.prepareArtifactDownload(ref.id);
+    descriptor ??= await client.prepareArtifactDownload(
+      ref.id,
+      undefined,
+      deferPending ? { waitMs: 0 } : {},
+    );
+    if (
+      deferPending &&
+      descriptor.ok &&
+      descriptor.operation === "simulation-input" &&
+      !descriptor.result.ok &&
+      descriptor.result.error.code === "ARTIFACT_TRANSFER_PENDING"
+    ) {
+      const remaining = 120_000 - (Date.now() - attempt.started);
+      if (remaining > 0 && attempt.count <= 60)
+        throw new TransferPending(
+          Math.min(
+            remaining,
+            Math.max(
+              500,
+              Math.min(5000, descriptor.result.error.retryAfterMs ?? 2000),
+            ),
+          ),
+        );
+    }
     if (
       !descriptor.ok ||
       descriptor.operation !== "simulation-input" ||
@@ -75,8 +105,11 @@ export function workspaceTransfer(client: AgentSessionClient): FetchArtifact {
       ref.sha256,
     );
   };
-  fetch.select = (refs) => {
+  fetch.select = (refs, options) => {
     ids = [...new Set(refs.map((ref) => ref.id))];
+    deferPending = options?.deferPending ?? false;
+    batches.clear();
+    attempts.clear();
   };
   return fetch;
 }

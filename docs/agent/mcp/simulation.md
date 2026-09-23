@@ -28,7 +28,9 @@ an unfamiliar field only; no full-contract or authoring-help prerequisite.
 5. For custom analysis use `simulation_data` `sync`, selecting `analysisIndex`
    and `roles:["table"]` if appropriate. Omit selectors for complete final
    handoff; `fileIds:[]` updates only the directory. Local files are reused.
-   The default receipt keeps paths/counts/timing; outer `detail:"full"` adds file identities.
+   The default receipt keeps current-task counts and up to 16 file paths/timings;
+   larger selections use `filesOmitted` and the local index. Outer `detail:"full"`
+   retains every file and history. Explicit `workspace` lists local runs.
    Full identities, units and dataset mapping remain in the returned local index.
    `simulation_results` `catalog` is the explicit full remote directory, not
    a mandatory extra step. Read data locally rather than paging waveform previews.
@@ -36,6 +38,8 @@ an unfamiliar field only; no full-contract or authoring-help prerequisite.
 Iteration: edit → prepare → start/wait → plot or selected sync. Do not repeat
 connection, discovery, folder creation, environment checks or full archive
 downloads when their inputs have not changed. Final sync archives all files.
+For styling-only iterations, edit and execute the existing local plot script;
+no connection, sync or new plot preparation is needed.
 
 ## Results and freshness
 
@@ -54,9 +58,11 @@ folder `refresh:true` refreshes discovery too. Pairing/Project-context changes
 invalidate reuse. A cached directory does not assert remote file availability:
 actual downloads retain authorization, publication and integrity checks.
 
-Download preparation batches up to 32 selected descriptors, independently
-reporting ready/pending/failed files. Bytes use two rolling slots; local reuse
-does not request descriptors. Partial failures preserve completed files and the
+Download preparation batches up to 32 missing-file descriptors, independently
+reporting ready/pending/failed files. Pending publication releases its slot so
+ready files proceed; bytes use two rolling slots. Existing files are verified
+locally once per sync, without descriptors; unchanged index records are not rewritten.
+Partial failures preserve completed files and the
 local index. `transfer` counts selected/downloaded/reused/remaining files in
 this sync; `workspaceFileCount` covers local history. Detailed timing definitions
 and advanced features are in [detailed contracts](simulation-reference.md).

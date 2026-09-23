@@ -1,5 +1,13 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+  stat,
+  utimes,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -34,6 +42,70 @@ const catalog = (files: ArtifactRef[]): ResultCatalog => ({
   datasets: [],
 });
 describe("local simulation workspace", () => {
+  it("retries a failed index persistence before accepting a reused no-op", async () => {
+    const root = await mkdtemp(join(tmpdir(), "icm-index-retry-"));
+    try {
+      const base = await LocalWorkspace.open(scope, root);
+      const directory = catalog([file("one", "a")]);
+      await base.sync(directory, async () => new Response("a"), []);
+      const writer = vi.spyOn(
+        base as unknown as { writeIndex(content: string): Promise<void> },
+        "writeIndex",
+      );
+      writer.mockRejectedValueOnce(new Error("disk unavailable"));
+      const fetch = vi.fn(async () => new Response("a"));
+      expect(await base.sync(directory, fetch)).toMatchObject({
+        ok: false,
+        error: { code: "WORKSPACE_DOWNLOAD_INCOMPLETE" },
+      });
+      expect(
+        JSON.parse(await readFile(base.indexPath, "utf8")).downloads,
+      ).toHaveLength(0);
+      // Individual downloads share the same recovery boundary as sync.
+      expect(
+        await base.download(directory.files[0]!, fetch, directory.runId),
+      ).toMatchObject({
+        ok: true,
+        reused: true,
+      });
+      expect(await base.sync(directory, fetch)).toMatchObject({
+        ok: true,
+        transfer: { reused: 1 },
+      });
+      expect(
+        JSON.parse(await readFile(base.indexPath, "utf8")).downloads,
+      ).toHaveLength(1);
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(writer).toHaveBeenCalledTimes(2);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+  it("does not rewrite an unchanged index on a fully reused sync", async () => {
+    const root = await mkdtemp(join(tmpdir(), "icm-noop-index-"));
+    try {
+      const base = await LocalWorkspace.open(scope, root);
+      const directory = catalog([file("one", "a"), file("two", "b")]);
+      await base.sync(
+        directory,
+        async (ref) => new Response(ref.id === "one" ? "a" : "b"),
+      );
+      const before = await readFile(base.indexPath, "utf8");
+      const sentinel = new Date("2020-01-01T00:00:00Z");
+      await utimes(base.indexPath, sentinel, sentinel);
+      vi.resetModules();
+      const fresh = await import("./local-workspace.js");
+      const reopened = await fresh.LocalWorkspace.open(scope, root);
+      const result = await reopened.sync(directory, async () => {
+        throw new Error("no network");
+      });
+      expect(result.transfer.reused).toBe(2);
+      expect(await readFile(base.indexPath, "utf8")).toBe(before);
+      expect((await stat(base.indexPath)).mtimeMs).toBe(sentinel.getTime());
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it("refills a free slot without waiting for its slow peer and preserves catalog order", async () => {
     const root = await mkdtemp(join(tmpdir(), "icm-rolling-base-"));
     let release!: () => void;
