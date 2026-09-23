@@ -768,23 +768,24 @@ export function renderVisiblePinNames(
             }
           : { runs: [{ kind: "text" as const, value: displayName }] };
       const typography = presentation && labelTypography(presentation);
-      // Preserve authored script boundaries and complement bars. A displayName
-      // such as Q deliberately omits the bar carried by the pin's role.
+      // Pin names are fixed identifiers, not instance designators: the
+      // drawing's after-first-letter rule must not turn CK into C sub K or
+      // RST into R sub ST. Keep explicit underscores and complement bars.
       const pinIdentifier = richTextIdentifier(content);
       const scripted =
         typography &&
         ((displayName.includes("_") &&
           (!pin.presentation.nameContent ||
             presentation.labelUnderscoreSubscript === true)) ||
-          typography.subscriptAfterFirst ||
           presentation.labelUnderscoreSubscript === false)
           ? rewriteRichTextIdentifier(
               content,
-              formatLabelIdentifier(pinIdentifier, typography),
+              formatLabelIdentifier(pinIdentifier, {
+                ...typography,
+                subscriptAfterFirst: false,
+              }),
               {
-                underscoreSubscript:
-                  typography.subscriptAfterFirst ||
-                  typography.underscoreSubscript,
+                underscoreSubscript: typography.underscoreSubscript,
               },
             )
           : content;
