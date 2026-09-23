@@ -1,5 +1,13 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+  stat,
+  utimes,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -34,6 +42,28 @@ const catalog = (files: ArtifactRef[]): ResultCatalog => ({
   datasets: [],
 });
 describe("local simulation workspace", () => {
+  it("does not rewrite an unchanged index on a fully reused sync", async () => {
+    const root = await mkdtemp(join(tmpdir(), "icm-noop-index-"));
+    try {
+      const base = await LocalWorkspace.open(scope, root);
+      const directory = catalog([file("one", "a"), file("two", "b")]);
+      await base.sync(
+        directory,
+        async (ref) => new Response(ref.id === "one" ? "a" : "b"),
+      );
+      const before = await readFile(base.indexPath, "utf8");
+      const sentinel = new Date("2020-01-01T00:00:00Z");
+      await utimes(base.indexPath, sentinel, sentinel);
+      const result = await base.sync(directory, async () => {
+        throw new Error("no network");
+      });
+      expect(result.transfer.reused).toBe(2);
+      expect(await readFile(base.indexPath, "utf8")).toBe(before);
+      expect((await stat(base.indexPath)).mtimeMs).toBe(sentinel.getTime());
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it("refills a free slot without waiting for its slow peer and preserves catalog order", async () => {
     const root = await mkdtemp(join(tmpdir(), "icm-rolling-base-"));
     let release!: () => void;

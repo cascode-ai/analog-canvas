@@ -6,7 +6,9 @@ import {
   writeFile,
   unlink,
   stat,
+  lstat,
 } from "node:fs/promises";
+import { isDeepStrictEqual } from "node:util";
 import { basename, join, resolve } from "node:path";
 import { z } from "zod";
 import {
@@ -17,6 +19,7 @@ import {
 } from "@icm/simulation-service/contract";
 import { downloadSimulationArtifact } from "./artifact-download.js";
 import { userWorkspaceRoot } from "./workspace-location.js";
+import { TransferPending } from "./transfer-pending.js";
 
 const IndexSchema = z.strictObject({
   kind: z.literal("analog-canvas-workspace"),
@@ -51,8 +54,9 @@ export type FetchArtifact = ((
   offset: number,
 ) => Promise<Response>) & {
   /** Selection only: do not publish/download until a missing local file requests bytes. */
-  select?: (refs: ArtifactRef[]) => void;
+  select?: (refs: ArtifactRef[], options?: { deferPending: boolean }) => void;
 };
+type DownloadTiming = { started: number; remoteWaitMs: number };
 const workspaces = new Map<string, Promise<LocalWorkspace>>();
 function segment(value: string): string {
   if (
@@ -200,13 +204,9 @@ export class LocalWorkspace {
     ref: ArtifactRef,
     fetchArtifact: FetchArtifact,
     runId?: string,
+    timing: DownloadTiming = { started: performance.now(), remoteWaitMs: 0 },
   ) {
-    const started = performance.now();
-    let remoteWaitMs = 0;
-    const directory = runId
-      ? join(this.basePath, "runs", segment(runId))
-      : join(this.basePath, "work", "downloads");
-    const path = join(directory, filename(ref));
+    const path = this.artifactPath(ref, runId);
     const result = await downloadSimulationArtifact(
       ref,
       path,
@@ -215,21 +215,23 @@ export class LocalWorkspace {
         try {
           return await fetchArtifact(ref, offset);
         } finally {
-          remoteWaitMs += performance.now() - requested;
+          timing.remoteWaitMs += performance.now() - requested;
         }
       },
     );
     const old = this.index.downloads.findIndex((item) => item.path === path);
     const record = { artifact: ref, path, ...(runId ? { runId } : {}) };
-    if (old < 0) this.index.downloads.push(record);
-    else this.index.downloads[old] = record;
-    await this.save();
+    if (old < 0 || !isDeepStrictEqual(this.index.downloads[old], record)) {
+      if (old < 0) this.index.downloads.push(record);
+      else this.index.downloads[old] = record;
+      await this.save();
+    }
     return {
       ...result,
       timing: {
-        elapsedMs: Math.round(performance.now() - started),
+        elapsedMs: Math.round(performance.now() - timing.started),
         // Descriptor publication/wait and GET headers; excludes streamed body.
-        remoteWaitMs: Math.round(remoteWaitMs),
+        remoteWaitMs: Math.round(timing.remoteWaitMs),
       },
     };
   }
@@ -280,26 +282,88 @@ export class LocalWorkspace {
       const old = this.index.runs.findIndex(
         (run) => run.runId === parsed.runId,
       );
-      if (old < 0) this.index.runs.push(parsed);
-      else this.index.runs[old] = parsed;
-      await this.save();
+      if (old < 0 || !isDeepStrictEqual(this.index.runs[old], parsed)) {
+        if (old < 0) this.index.runs.push(parsed);
+        else this.index.runs[old] = parsed;
+        await this.save();
+      }
       const results: Awaited<ReturnType<LocalWorkspace["download"]>>[] = [];
-      fetchArtifact.select?.(selected);
-      let next = 0;
+      // Metadata only: content is verified exactly once by download(). Never
+      // pre-read whole files or treat an index entry as proof of integrity.
+      const missing: ArtifactRef[] = [];
+      if (fetchArtifact.select) {
+        for (let start = 0; start < selected.length; start += 32) {
+          const group = selected.slice(start, start + 32);
+          const absent = await Promise.all(
+            group.map(async (ref) => {
+              try {
+                await lstat(this.artifactPath(ref, parsed.runId));
+                return false;
+              } catch (error) {
+                if ((error as NodeJS.ErrnoException).code === "ENOENT")
+                  return true;
+                throw error;
+              }
+            }),
+          );
+          missing.push(...group.filter((_, i) => absent[i]));
+        }
+        fetchArtifact.select(missing, { deferPending: true });
+      }
+      const queue = selected.map((file, index) => ({
+        file,
+        index,
+        readyAt: 0,
+        waitStarted: 0,
+        timing: undefined as DownloadTiming | undefined,
+      }));
       let failure: { file: ArtifactRef; error: unknown } | undefined;
       // Two rolling slots, not two-file barriers. Stop scheduling on failure,
       // settle already-started writes and retain deterministic catalog order.
       const worker = async () => {
-        while (!failure && next < selected.length) {
-          const index = next++;
-          const file = selected[index]!;
+        while (!failure && queue.length) {
+          const now = Date.now();
+          const next = queue.findIndex((item) => item.readyAt <= now);
+          if (next < 0) {
+            await new Promise((resolve) =>
+              setTimeout(
+                resolve,
+                Math.max(
+                  1,
+                  Math.min(...queue.map((item) => item.readyAt)) - now,
+                ),
+              ),
+            );
+            continue;
+          }
+          const item = queue.splice(next, 1)[0]!;
+          const { file, index } = item;
+          item.timing ??= { started: performance.now(), remoteWaitMs: 0 };
+          if (item.waitStarted) {
+            // Preserve publication backoff in the existing remote-wait metric,
+            // but do not label extra queue time as remote work.
+            item.timing.remoteWaitMs += Math.max(
+              0,
+              Math.min(now - item.waitStarted, item.readyAt - item.waitStarted),
+            );
+          }
           try {
             results[index] = await this.download(
               file,
               fetchArtifact,
               parsed.runId,
+              item.timing,
             );
           } catch (error) {
+            if (error instanceof TransferPending) {
+              const waitStarted = Date.now();
+              queue.push({
+                ...item,
+                waitStarted,
+                readyAt: waitStarted + error.retryAfterMs,
+              });
+              continue;
+            }
             failure ??= { file, error };
           }
         }
@@ -341,6 +405,14 @@ export class LocalWorkspace {
         },
       };
     }
+  }
+  private artifactPath(ref: ArtifactRef, runId?: string) {
+    return join(
+      runId
+        ? join(this.basePath, "runs", segment(runId))
+        : join(this.basePath, "work", "downloads"),
+      filename(ref),
+    );
   }
   private async save() {
     const content = JSON.stringify(this.index, null, 2);

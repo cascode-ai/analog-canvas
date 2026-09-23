@@ -529,6 +529,7 @@ describe.each(["compatibility", "focused", "cli"])(
         });
         expect(synced.files).toHaveLength(finished.run.artifacts.length);
         expect(synced.projection).toBe("summary");
+        expect(synced.runs).toBeUndefined();
         expect(synced.files[0].sha256).toBeUndefined();
         expect(
           await invoke("simulation_files", {

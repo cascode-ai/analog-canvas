@@ -10,6 +10,7 @@ import {
 import { join } from "node:path";
 import { simulationAuthoringTools } from "./simulation-authoring-tools.js";
 import { PreparePlotSchema, preparePlot } from "./prepare-plot.js";
+import { workspaceSyncReceipt } from "./workspace-receipt.js";
 import {
   SimulationOperationSchema,
   ArtifactRefSchema,
@@ -863,17 +864,7 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           { analysisIndex: request.analysisIndex, roles: request.roles },
         );
         if (detail === "full") return result;
-        return {
-          ...result,
-          files: result.files.map(({ id, outputPath, reused, timing }) => ({
-            id,
-            outputPath,
-            reused,
-            timing,
-          })),
-          projection: "summary",
-          fileMetadata: { indexPath: result.indexPath, runId: request.runId },
-        };
+        return workspaceSyncReceipt(result);
       }
       if (
         outputPath &&

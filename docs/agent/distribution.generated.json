@@ -101,11 +101,11 @@
     },
     {
       "source": "docs/agent/mcp/simulation.md",
-      "sha256": "79d0948fe6e0917132aa9583c77b8b32533e39094eb14978dd8777d8ae80e30a"
+      "sha256": "7db45350332eebf7dbd1d861d74893f0357bfc6bd3b8215edb847922a8591bab"
     },
     {
       "source": "docs/agent/mcp/simulation-reference.md",
-      "sha256": "6eab70ba2415b1cc3b8bc119c877fea2d70e06f4b132b33f4ef07364ff51fccc"
+      "sha256": "6a8872456ace336bb9dd3d8b5b6381197c14dcf9cce9d79da5e837e697db0bd5"
     },
     {
       "source": "docs/agent/shared/simulation.md",
@@ -629,7 +629,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/knowledge/patterns.md"
       ],
-      "sha256": "3a518b88bb0c9ee66db3a38d0b420179ab6ac9c061fa556f971a3dd3bcb70e53"
+      "sha256": "d245e5256724d1c2f01ba76df97a9b6afa7bf49dbc1e39ae2629e612d134b3dd"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
