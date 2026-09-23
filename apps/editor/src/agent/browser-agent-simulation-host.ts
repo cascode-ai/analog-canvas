@@ -22,8 +22,19 @@ export class BrowserAgentSimulationHost {
     request: AgentSimulationResourceRequest,
   ): Promise<AgentSimulationResourceResponse> {
     const { apiVersion: _version, requestId, ...operation } = request;
+    const result =
+      operation.operation === "read"
+        ? await this.session.handle(
+            {
+              operation: operation.operation,
+              runId: operation.runId,
+            },
+            requestId,
+            operation.waitMs === undefined ? {} : { waitMs: operation.waitMs },
+          )
+        : await this.session.handle(operation, requestId);
     return {
-      ...(await this.session.handle(operation, requestId)),
+      ...result,
       apiVersion: AGENT_API_VERSION,
       requestId,
       operation: operation.operation,

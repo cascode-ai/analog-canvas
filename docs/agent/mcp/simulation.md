@@ -15,6 +15,9 @@ an unfamiliar field only; no full-contract or authoring-help prerequisite.
    Reuse successful update revisions/digests without a confirmation reread.
 3. `simulation_run` `prepare` freezes the input. On success, `start` with
    the returned prepared ID/digest and optional outer `waitMs:20000`.
+   The normal path holds one bounded Agent read rather than repeatedly crossing
+   the relay; an older already-open editor falls back to the compatible polling
+   path. This wait never starts another run.
    Continue a running result with `read` and the same run ID, never another start.
    Preserve an uncertain start's request ID. One hosted slot means sequential
    starts or `simulation_batch`.

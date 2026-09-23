@@ -93,7 +93,7 @@ const SimulationArgs = z
       .max(20_000)
       .optional()
       .describe(
-        "For start/read only: poll the same run inside MCP for up to this budget before returning its latest receipt. A running receipt can be resumed with read. In-flight network calls retain their transport timeout.",
+        "For start/read only: wait on the same run through one bounded Agent read before returning its latest receipt. A running receipt can be resumed with read. Older editor contracts fall back to polling; in-flight network calls retain their transport timeout.",
       ),
   })
   .superRefine((value, context) => {

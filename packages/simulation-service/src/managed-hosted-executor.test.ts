@@ -161,31 +161,20 @@ describe("managed hosted executor", () => {
         recovery: "reprepare",
       };
       const fetch = vi.fn<typeof globalThis.fetch>(async (path) => {
-        if (String(path).endsWith("/result"))
-          return Response.json({
-            error: problem.code,
-            message: problem.message,
+        if (String(path).endsWith("/result")) {
+          const body =
+            kind === "cancelled"
+              ? {
+                  error: "run-cancelled",
+                  message: "The queued run was cancelled before execution.",
+                  recovery: "not-retryable",
+                }
+              : { error: problem.code, ...problem };
+          return Response.json(body, {
+            status: kind === "refused" ? 200 : 409,
           });
-        return Response.json({
-          run: {
-            ...baseRun,
-            state: kind === "cancelled" ? "cancelled" : "failed",
-            finishedAt: 3,
-            ...(kind === "cancelled" ? {} : { error: problem }),
-            artifacts:
-              kind === "refused"
-                ? [
-                    {
-                      id: "reply",
-                      name: "response.json",
-                      mediaType: "application/json",
-                      byteLength: 1,
-                      sha256: "a".repeat(64),
-                    },
-                  ]
-                : [],
-          },
-        });
+        }
+        return Response.json({ run: { ...baseRun, state: "queued" } });
       });
       const executor = createManagedHostedExecutor({ fetch });
       await expect(
@@ -201,13 +190,41 @@ describe("managed hosted executor", () => {
       });
       expect(
         fetch.mock.calls.filter(([path]) => String(path).endsWith("/result")),
-      ).toHaveLength(kind === "refused" ? 1 : 0);
+      ).toHaveLength(1);
       expect(
         fetch.mock.calls.filter(([, init]) => init?.method === "POST"),
       ).toHaveLength(1);
     },
   );
-  it("submits immutable identity, polls the server run, and reads its result", async () => {
+  it("marks a terminal infrastructure failure as admitted with an uncertain outcome", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async (path) =>
+      String(path).endsWith("/result")
+        ? Response.json(
+            {
+              error: "executor-unavailable",
+              message: "The admitted run failed outside the simulator.",
+              recovery: "retry-same-request",
+              state: "infrastructure-failed",
+            },
+            { status: 503 },
+          )
+        : Response.json({ run: { ...baseRun, state: "queued" } }),
+    );
+    const executor = createManagedHostedExecutor({ fetch });
+    await expect(
+      executor.execute(input, "request-a", undefined, {
+        preparedId: "prepared-a",
+        preparedDigest: "b".repeat(64),
+      }),
+    ).rejects.toMatchObject({
+      acceptedUnknown: true,
+      problem: {
+        code: "executor-unavailable",
+        recovery: "retry-same-request",
+      },
+    });
+  });
+  it("submits immutable identity and polls the result endpoint through completion", async () => {
     let reads = 0;
     const fetch = vi.fn<typeof globalThis.fetch>(async (request, init) => {
       const path =
@@ -225,17 +242,23 @@ describe("managed hosted executor", () => {
         });
         return Response.json({ run: { ...baseRun, state: "queued" } });
       }
-      if (path === "/api/simulation/runs/server-run-a/result")
-        return Response.json(result);
-      if (path === "/api/simulation/runs/server-run-a") {
+      if (path === "/api/simulation/runs/server-run-a/result") {
         reads++;
-        return Response.json({
-          run: {
-            ...baseRun,
-            state: reads === 1 ? "running" : "succeeded",
-            ...(reads === 1 ? {} : { finishedAt: 3 }),
-          },
-        });
+        return reads === 1
+          ? Response.json(
+              {
+                error: "RESULT_NOT_READY",
+                state: "running",
+                retryAfterMs: 1000,
+              },
+              { status: 409 },
+            )
+          : Response.json(result, {
+              headers: {
+                "x-analog-canvas-run-started-at": "2",
+                "x-analog-canvas-run-finished-at": "3",
+              },
+            });
       }
       throw new Error(`unexpected ${path}`);
     });
@@ -282,10 +305,15 @@ describe("managed hosted executor", () => {
         return Response.json({
           run: { ...baseRun, state: "cancelled", finishedAt: 3 },
         });
-      if (path === "/api/simulation/runs/server-run-a")
-        return Response.json({
-          run: { ...baseRun, state: "infrastructure-failed", finishedAt: 3 },
-        });
+      if (path === "/api/simulation/runs/server-run-a/result")
+        return Response.json(
+          {
+            error: "MANAGED_RUN_UNAVAILABLE",
+            message: "The managed run is no longer available.",
+            recovery: "retry-after",
+          },
+          { status: 409 },
+        );
       throw new Error(`unexpected ${path}`);
     });
     const executor = createManagedHostedExecutor({

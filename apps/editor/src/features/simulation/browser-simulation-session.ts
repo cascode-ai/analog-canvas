@@ -87,6 +87,7 @@ export class BrowserSimulationSession {
   async handle(
     operation: SimulationOperation,
     requestId: string = crypto.randomUUID(),
+    options: { waitMs?: number } = {},
   ): Promise<SimulationReply> {
     const generation = this.generation;
     if (this.options.getProjectSessionId() !== this.projectSessionId)
@@ -150,7 +151,7 @@ export class BrowserSimulationSession {
         this.options.runHistory
           ? structuredClone(this.options.getProject())
           : undefined;
-      const reply = await service.handle(operation, requestId);
+      const reply = await service.handle(operation, requestId, options);
       const projectFile = sourceProject
         ? unchangedProjectSnapshot(sourceProject, this.options.getProject())
         : "";

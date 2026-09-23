@@ -126,6 +126,14 @@ describe("managed simulation operations", () => {
       );
       expect(emitted).toBeLessThanOrEqual(1);
       expect(response!.headers.get("cache-control")).toBe("private, no-store");
+      expect(
+        Number(response!.headers.get("x-analog-canvas-run-started-at")),
+      ).toBeGreaterThan(0);
+      expect(
+        Number(response!.headers.get("x-analog-canvas-run-finished-at")),
+      ).toBeGreaterThanOrEqual(
+        Number(response!.headers.get("x-analog-canvas-run-started-at")),
+      );
       const reader = response!.body!.getReader();
       let bytes = 0;
       while (true) {
