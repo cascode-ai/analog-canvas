@@ -93,7 +93,10 @@ describe("local simulation workspace", () => {
       const before = await readFile(base.indexPath, "utf8");
       const sentinel = new Date("2020-01-01T00:00:00Z");
       await utimes(base.indexPath, sentinel, sentinel);
-      const result = await base.sync(directory, async () => {
+      vi.resetModules();
+      const fresh = await import("./local-workspace.js");
+      const reopened = await fresh.LocalWorkspace.open(scope, root);
+      const result = await reopened.sync(directory, async () => {
         throw new Error("no network");
       });
       expect(result.transfer.reused).toBe(2);

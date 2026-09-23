@@ -150,7 +150,8 @@ export class LocalWorkspace {
   ): Promise<LocalWorkspace> {
     const serverUrl = new URL(scope.serverUrl).origin;
     const indexPath = join(basePath, "index.json");
-    const index = (await readIndex(indexPath)) ?? {
+    const existing = await readIndex(indexPath);
+    const index = existing ?? {
       kind: "analog-canvas-workspace" as const,
       schemaVersion: 2 as const,
       serverUrl,
@@ -167,12 +168,16 @@ export class LocalWorkspace {
       index.projectIdentity !== scope.projectIdentity
     )
       throw new Error("WORKSPACE_PROJECT_MISMATCH");
+    const changed =
+      !existing ||
+      index.projectId !== scope.projectId ||
+      !index.sessions.includes(scope.sessionId);
     index.projectId = scope.projectId;
     if (!index.sessions.includes(scope.sessionId))
       index.sessions.push(scope.sessionId);
     await mkdir(join(basePath, "work"), { recursive: true });
     const workspace = new LocalWorkspace(basePath, index);
-    await workspace.save();
+    if (changed) await workspace.save();
     return workspace;
   }
   static async inspect(path: string) {
