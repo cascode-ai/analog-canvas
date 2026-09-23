@@ -292,6 +292,46 @@ describe("current rendering contract", () => {
     expect(uprightPin).not.toContain("font-style:italic");
   });
 
+  it("keeps fixed DFF pin names on one baseline under default label typography", () => {
+    for (const symbolId of [
+      "d-flip-flop",
+      "d-flip-flop-reset",
+      "d-flip-flop-q",
+    ]) {
+      for (const rotation of [0, 90, 180, 270] as const) {
+        const document = createEmptyDocument("doc", "DFF pins");
+        expect(document.presentation.labelSubscriptAfterFirst).toBe(true);
+        document.instances.push({
+          id: "X1",
+          symbolId,
+          placement: {
+            position: { x: 100, y: 100 },
+            rotation,
+            mirror: "none",
+          },
+        });
+        const svg = renderDocumentSvg(document, resolver);
+        for (const name of symbolId === "d-flip-flop-reset"
+          ? ["CK", "RST"]
+          : ["CK"]) {
+          const pinText = svg.match(
+            new RegExp(`<text data-pin-name="${name}"[^>]*>.*?<\\/text>`, "u"),
+          )?.[0];
+          expect(pinText, `${symbolId} ${rotation}° ${name}`).toBeDefined();
+          expect(pinText?.replace(/<[^>]+>/gu, "")).toBe(name);
+          expect(pinText).not.toContain('data-text-run="subscript"');
+        }
+        expect(svg).toContain('data-pin-name="Q"');
+        if (symbolId !== "d-flip-flop-q") {
+          const qBar = svg.match(
+            /<text data-pin-name="QBAR"[^>]*>.*?<\/text>/u,
+          )?.[0];
+          expect(qBar).toContain('data-text-run="overbar"');
+        }
+      }
+    }
+  });
+
   it("renders both Port assets as symbols and labels only from annotations", () => {
     const document = createEmptyDocument("doc", "Ports");
     document.instances.push(
