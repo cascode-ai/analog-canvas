@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { routeSimulationRequest, type SimulationEnv } from "./simulation";
 import ngspiceProfile from "../containers/ngspice/hosted-sky130-profile.json";
 import {
@@ -21,6 +21,11 @@ const env: SimulationEnv = {
   VACASK_UPSTREAM_URL: "https://vacask.test",
   VACASK_UPSTREAM_TOKEN: "vacask-test-only",
 };
+// Each mock represents a separate deployment. Do not reuse an earlier mock's
+// successful runtime facts when replacing its transport with an outage fixture.
+beforeEach(() => {
+  env.VACASK_UPSTREAM_TOKEN = `vacask-test-only-${crypto.randomUUID()}`;
+});
 afterEach(() => vi.unstubAllGlobals());
 describe("dual-engine Profile routing", () => {
   it("discovers both Profiles but returns the selected engine's collection and limits", async () => {
@@ -59,7 +64,7 @@ describe("dual-engine Profile routing", () => {
       expect(url.origin).toBe("https://vacask.test");
       expect(init.redirect).toBe("manual");
       expect(new Headers(init.headers).get("authorization")).toBe(
-        "Bearer vacask-test-only",
+        `Bearer ${env.VACASK_UPSTREAM_TOKEN}`,
       );
       return Response.json(
         url.pathname === "/health" ? nativeHealth : await nativeReply(),
@@ -70,13 +75,21 @@ describe("dual-engine Profile routing", () => {
       (await routeSimulationRequest(post(nativeInput()), env))!.status,
     ).toBe(200);
     expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(
+      (await routeSimulationRequest(post(nativeInput()), env))!.status,
+    ).toBe(200);
+    expect(fetcher.mock.calls.map(([url]) => url.pathname)).toEqual([
+      "/health",
+      "/run",
+      "/run",
+    ]);
   });
   it("routes cancellation by the captured Profile, without checking health or broadcasting", async () => {
     const fetcher = vi.fn(async (url: URL, init: RequestInit) => {
       expect(url.pathname).toBe("/cancel");
       expect(new Headers(init.headers).get("authorization")).toBe(
         url.hostname === "vacask.test"
-          ? "Bearer vacask-test-only"
+          ? `Bearer ${env.VACASK_UPSTREAM_TOKEN}`
           : "Bearer ngspice-test-only",
       );
       return Response.json({ cancelled: true });

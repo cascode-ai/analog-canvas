@@ -43,7 +43,7 @@ export const agentToolHelp = {
   netlist_code:
     "Read the open Project's generated SPICE/Spectre netlist or replace its editable device names, models and values through the same planner as the Netlist panel. Use Project Code or structured circuit edits for topology and connectivity changes.",
   simulation:
-    "Prepare/start/read/cancel and discover results. Run receipts never inline samples; run.details summarizes collection, diagnostics and Specs; catalog locates complete files. Capabilities default to summary; request detail:full for model facts. Prepare outer detail:full includes mappings otherwise available in preparation.json. start/read accept waitMs 0–20000; resume the same runId. Retry uncertain starts with the same requestId. One hosted run at a time or Batch. Use simulation_files sync for local results; export retries failed evidence saving without executing again.",
+    "Submit source with run; prepare/start remain optional. run/start/read accept waitMs 0–20000. Retry uncertain submissions with the same requestId; resume by runId. Catalog indexes full results; export retries evidence storage, never execution. One active run per session or Batch.",
   simulation_files:
     "Edit native source using returned revisions; sync complete files to the local base. analysisIndex + roles:[table] selects CSV; fileIds:[] gets directory only, omitted selectors all files. prepare-plot creates editable Python/config from panels or dc/ac/tran/noise presets and optional A/B cursors; run locally with matplotlib. Never overwrites plots. download saves locally; artifact without outputPath previews. Details: analog-canvas://reference/mcp-simulation.",
   export_file:
