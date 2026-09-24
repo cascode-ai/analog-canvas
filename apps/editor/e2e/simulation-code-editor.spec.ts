@@ -312,6 +312,36 @@ test("edits, saves and undoes exact source bytes while keeping a save boundary a
   await expect(editor).toHaveAttribute("contenteditable", "false");
 });
 
+test("Save source button and Ctrl+S apply the same current-project source", async ({
+  page,
+}) => {
+  const editor = page.getByRole("textbox", {
+    name: "Simulation source editor",
+  });
+  const save = page.getByRole("button", { name: "Save source" });
+  await editor.fill("* saved by button\ncontrol\nendc\n");
+  await expect(page.getByTestId("draft-source")).toContainText(
+    "saved by button",
+  );
+  const firstDraft = await page.getByTestId("draft-source").textContent();
+  await save.click();
+  await expect(page.getByTestId("saved-source")).toContainText(
+    "saved by button",
+  );
+  await expect(page.getByTestId("saved-source")).toHaveText(firstDraft!);
+
+  await editor.fill("* saved by shortcut\ncontrol\nendc\n");
+  await expect(page.getByTestId("draft-source")).toContainText(
+    "saved by shortcut",
+  );
+  const secondDraft = await page.getByTestId("draft-source").textContent();
+  await save.press("ControlOrMeta+s");
+  await expect(page.getByTestId("saved-source")).toContainText(
+    "saved by shortcut",
+  );
+  await expect(page.getByTestId("saved-source")).toHaveText(secondDraft!);
+});
+
 test("invalid text stays editable and saveable and known command errors are inline diagnostics", async ({
   page,
 }) => {

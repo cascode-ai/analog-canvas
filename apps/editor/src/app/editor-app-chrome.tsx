@@ -1,11 +1,9 @@
 import { type ReactNode, type ComponentProps } from "react";
 
-import { AccountMenu } from "../components/account";
 import { BugReportLink } from "../components/bug-report-link";
 import { ProjectMenu, type ProjectMenuProps } from "./project-menu";
 import { DrawingToolbar } from "../features/editor-shell/drawing-toolbar";
 import { EditorTestTelemetry } from "../features/editor-shell/editor-test-telemetry";
-import type { ReleaseChannel } from "../document/release-channel";
 import { FileCommandMenu } from "../features/editor-shell/file-command-menu";
 import { SITE_REPOSITORY_URL } from "../components/site-resource-links";
 import { ToolIcon } from "../features/editor-shell/tool-icon";
@@ -75,20 +73,6 @@ export interface EditorAppChromeProps {
   drawingToolbar: ComponentProps<typeof DrawingToolbar>;
   hierarchyToolbar: ComponentProps<typeof HierarchyToolbar>;
   telemetry: ComponentProps<typeof EditorTestTelemetry>;
-  /** Which channel serves this build; Preview is identified without a warning. */
-  releaseChannel: ReleaseChannel;
-}
-
-export function ReleaseChannelBadge({
-  releaseChannel,
-}: {
-  releaseChannel: ReleaseChannel;
-}) {
-  return releaseChannel === "preview" ? (
-    <span className="app-channel-badge" data-testid="release-channel-badge">
-      Preview
-    </span>
-  ) : null;
 }
 
 /** Persistent command chrome above the document workspace. */
@@ -137,7 +121,6 @@ export function EditorAppChrome({
   drawingToolbar,
   hierarchyToolbar,
   telemetry,
-  releaseChannel,
 }: EditorAppChromeProps) {
   const copyNetlist = (format: "spice" | "spectre") => {
     dismissOpenCommandMenus();
@@ -378,10 +361,6 @@ export function EditorAppChrome({
           </div>
         </nav>
         <div className="app-chrome-actions">
-          <ReleaseChannelBadge releaseChannel={releaseChannel} />
-          {releaseChannel === "preview" ? (
-            <AccountMenu showGalleryLinks={false} />
-          ) : null}
           <BugReportLink
             testId="editor-report-bug"
             surface="Editor"

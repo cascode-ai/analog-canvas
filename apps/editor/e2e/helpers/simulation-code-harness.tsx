@@ -44,6 +44,7 @@ function Harness() {
           configPath="experiment.json"
           activePath={path}
           onSelectFile={setPath}
+          onSave={save}
           actions={<button onClick={save}>Save source</button>}
           outputPane={pane}
           onSelectOutputPane={setPane}

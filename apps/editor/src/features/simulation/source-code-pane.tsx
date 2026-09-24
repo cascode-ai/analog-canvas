@@ -994,8 +994,13 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           : saveState === "failed"
             ? "Apply failed; drafts retained. Retry save."
             : "Save source to current project";
+    const requestSaveFromUi = () => {
+      if (saveState === "saving" || saveState === "saved") return;
+      void requestSave();
+    };
     return (
       <SimulationCodeWorkspace
+        onSave={requestSaveFromUi}
         workspaceKey={props.folder.id}
         folders={
           props.folders
@@ -1264,14 +1269,13 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           <>
             <button
               className="simulation-action-button"
-              data-workspace-save="true"
               data-save-state={saveState}
               aria-label="Save source"
               aria-description={saveFeedback}
               title={`${saveFeedback} · Ctrl+S`}
               disabled={saveState === "saving" || saveState === "saved"}
               aria-busy={saveState === "saving"}
-              onClick={() => void requestSave()}
+              onClick={requestSaveFromUi}
             >
               <SimulationActionIcon
                 kind={saveState === "dirty" ? "save" : saveState}

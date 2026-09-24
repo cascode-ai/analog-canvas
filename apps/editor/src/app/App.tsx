@@ -136,11 +136,7 @@ import {
 } from "../canvas/camera-runtime";
 import type { CanvasDragSession } from "../canvas/canvas-drag-session";
 import { instanceVisibleHitBox } from "../canvas/instance-geometry";
-import {
-  loadReleaseChannel,
-  projectStoreCopy,
-  type ReleaseChannel,
-} from "../document/release-channel";
+import { CLOUD_PROJECT_COPY } from "../document/cloud-project-copy";
 import { resolveSimulationTransport } from "../features/simulation/deployment-transport";
 import { createCanvasHitController } from "../canvas/canvas-hit-controller";
 import { LazyCellInterfaceConfirmationDialog as CellInterfaceConfirmationDialog } from "./lazy-editor-dialogs";
@@ -775,22 +771,7 @@ function WorkspaceEditor({
   useEffect(() => () => cameraRuntime.dispose(), [cameraRuntime]);
   const [shortcutHintsVisible, setShortcutHintsVisible] = useState(false);
   const [gridDotsVisible, setGridDotsVisible] = useState(true);
-  // Which channel serves this build (Deployment rationale). Asked once; anything but a
-  // clear "preview" is production, so the public site never wears its badge.
-  const [releaseChannel, setReleaseChannel] =
-    useState<ReleaseChannel>("production");
-  useEffect(() => {
-    let cancelled = false;
-    void loadReleaseChannel().then((channel) => {
-      if (!cancelled) setReleaseChannel(channel);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  const projectStore = projectStoreCopy(releaseChannel);
   const simulationTransport = resolveSimulationTransport(
-    releaseChannel,
     import.meta.env.VITE_ICM_SIMULATION_TRANSPORT,
   );
   // Annotations and drafting place on their own pitch; the Document grid
@@ -1229,7 +1210,6 @@ function WorkspaceEditor({
     viewBox,
     defaultViewBox: DEFAULT_VIEWBOX,
     setStatus,
-    projectStoreCopy: projectStore,
     onCloudProjectSaved: (saved) => {
       if (
         galleryEntryContext &&
@@ -5203,7 +5183,6 @@ function WorkspaceEditor({
           ? { simulationAction: openAnalogSimulation }
           : {})}
         simulationState={analogSimulationState}
-        releaseChannel={releaseChannel}
         projectName={project.name}
         galleryEntryMetadata={galleryEntryContext}
         projectSchemaVersion={project.schemaVersion}
@@ -5227,8 +5206,6 @@ function WorkspaceEditor({
           });
         }}
         fileCommands={{
-          projectStoreLabel: projectStore.plural,
-          projectStoreItemLabel: projectStore.singular,
           cloudProjects,
           activeCloudProjectId: cloudBinding?.id ?? null,
           canRevert: savedProjectBaseline !== null && isDirtyWork(),
@@ -5252,11 +5229,13 @@ function WorkspaceEditor({
               if (outcome.status === "deleted") {
                 cloudListMutationRef.current += 1;
                 setCloudProjects(outcome.projects);
-                setStatus(`Deleted ${projectStore.singular} ${summary.name}`);
+                setStatus(
+                  `Deleted ${CLOUD_PROJECT_COPY.singular} ${summary.name}`,
+                );
                 return;
               }
               setStatus(
-                `Could not delete ${projectStore.singular} (${outcome.message})`,
+                `Could not delete ${CLOUD_PROJECT_COPY.singular} (${outcome.message})`,
               );
               throw new Error(outcome.message);
             });
@@ -5376,17 +5355,7 @@ function WorkspaceEditor({
             : null
         }
         publishGalleryOpen={publishGalleryOpen}
-        onPublishGallery={() => {
-          // The preview reads the gallery and never writes it (Deployment rationale);
-          // saying so here beats a sign-in dialog with nowhere to sign in.
-          if (releaseChannel === "preview") {
-            setStatus(
-              "Preview builds cannot publish to the gallery; publish from the production site.",
-            );
-            return;
-          }
-          setPublishGalleryOpen(true);
-        }}
+        onPublishGallery={() => setPublishGalleryOpen(true)}
         drawingToolbar={{
           leftPanelMode,
           libraryPanelOpen: visibleLibraryPanelOpen,

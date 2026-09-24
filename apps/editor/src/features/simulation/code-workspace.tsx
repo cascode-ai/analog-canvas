@@ -67,6 +67,7 @@ export interface SimulationCodeWorkspaceProps {
   additionalActions?: WorkspaceMenuItem[];
   children: ReactNode;
   actions: ReactNode;
+  onSave(): void;
   toolbarEnd?: ReactNode;
   status?: ReactNode;
   sourceContext?: ReactNode;
@@ -205,9 +206,7 @@ export function SimulationCodeWorkspace(props: SimulationCodeWorkspaceProps) {
         ) {
           event.preventDefault();
           event.stopPropagation();
-          event.currentTarget
-            .querySelector<HTMLButtonElement>("[data-workspace-save]")
-            ?.click();
+          props.onSave();
         }
         if (
           (event.ctrlKey || event.metaKey) &&
