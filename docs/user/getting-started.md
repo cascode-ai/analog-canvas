@@ -211,8 +211,11 @@ New parts start in their standard look, saved with the label:
   subscript index, as M₁. `MTAIL` or `RL` is shown as written.
 - A Pin or Net name that is a V followed by letters or digits, such as `Vin`,
   `Vout`, `VBP`, `VBN` or `VcasP`, whether you typed it or the editor chose
-  it: an italic V with an upright subscript, as V_BP. Any other name, such as
-  `CLK` or `OUT`, is shown as written.
+  it: an italic V with an upright subscript, as V_BP.
+- A Pin or Net name for a current, an I followed by letters or digits such as
+  `Iout`, `IREF` or `I1`: an italic I with an upright subscript, as I_out.
+  Inputs such as `IN`, `INP` or `INN` and an `IO` pin are left alone. Any other
+  name, such as `CLK` or `OUT`, is shown as written.
 
 Renaming keeps a standard look in step with the new name. Once you restyle a
 label, your formatting is kept instead: to show `VBP` without a subscript,
