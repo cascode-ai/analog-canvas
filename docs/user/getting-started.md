@@ -48,11 +48,11 @@ is defined.
   `Esc` exits, just like copying an already selected component. A copy lands
   as if newly inserted: it keeps the wiring and labels inside the selection,
   but no connection or Net name from the circuit around it.
-- To reuse an editable circuit in another tab or window, select it (or use
-  `Ctrl/Cmd+A`), press `Ctrl/Cmd+C`, then switch to the destination canvas and
-  press `Ctrl/Cmd+V`. Plain `C` also keeps the selection in the clipboard while
-  starting its cursor preview; cancel or switch projects, then `V` starts a new
-  placement. Both Ctrl and Cmd are supported on the canvas. Move the preview
+- To reuse an editable circuit in another tab, press `C` and click the other
+  tab: the copy stays under the pointer, and a click places it there. Or press
+  `Ctrl/Cmd+C`, switch to the destination canvas or window and press
+  `Ctrl/Cmd+V`; it places exactly what `C` would. After `Esc`, `V` starts a new
+  placement of the last copy. Both Ctrl and Cmd are supported on the canvas. Move the preview
   and click to place; `Esc` cancels. Devices, parameters, selected wires, node labels,
   custom definitions and referenced
   child Cells travel together. Name conflicts receive fresh names; explicit

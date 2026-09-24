@@ -5,7 +5,7 @@ import {
   type CircuitProject,
   type SchematicDocument,
 } from "@icm/model";
-import { captureProjectCopy } from "./project-copy";
+import { captureProjectCopy, cellSimulationFolders } from "./project-copy";
 import type {
   SchematicClipboard,
   ExplicitCopyRoutingSelection,
@@ -26,14 +26,14 @@ type Selection = ExplicitCopyRoutingSelection & {
 
 /**
  * A closed Project fragment, never a reference to another tab's mutable state.
- * Ctrl/Cmd+C keeps the selection's outside electrical context; C encodes the
- * fresh insertion it places (`preserveElectrical: false`).
+ * Every copy path encodes a fresh insertion: what was selected travels, with
+ * its own wiring and labels, and no Net name, Bulk or No Connect from outside
+ * the selection does. Copying a whole Cell leaves nothing outside it.
  */
 export function encodeCircuitClipboard(
   project: CircuitProject,
   document: SchematicDocument,
   selection: Selection,
-  preserveElectrical = true,
 ): string | null {
   const includes = (items: readonly { id: string }[], ids: readonly string[]) =>
     items.every((item) => ids.includes(item.id));
@@ -43,13 +43,12 @@ export function encodeCircuitClipboard(
     includes(document.junctions, selection.junctionIds) &&
     includes(document.annotations, selection.annotationIds) &&
     includes(document.drafting?.objects ?? [], selection.draftingIds);
-  const copied = captureProjectCopy(
-    project,
-    document,
-    whole ? undefined : selection,
-    preserveElectrical,
-  );
+  // Every copy is a clone of what was selected, placed the way C places it. A
+  // partial selection brings nothing from outside it; a whole Cell leaves
+  // nothing outside, so its names, No Connects and testbench come too.
+  const copied = captureProjectCopy(project, document, selection);
   if (!copied?.context) return null;
+  if (whole) withWholeCell(copied, project, document);
   const context = copied.context;
   const fragment = createEmptyProject(project.id, "Clipboard", document.id);
   fragment.source = context.source;
@@ -66,7 +65,12 @@ export function encodeCircuitClipboard(
       ...fragment.documents[0]!,
       name: document.name,
       presentation,
-      instances: copied.instances,
+      // A copied MOS takes its body from the destination Cell's policy, as a
+      // newly inserted one does, so the fragment carries no bulk binding (it
+      // would name a Net the copy does not bring).
+      instances: copied.instances.map(({ mosBulkBinding: _, ...instance }) => ({
+        ...instance,
+      })),
       nets: copied.nets,
       routes: copied.routes,
       junctions: copied.junctions,
@@ -120,5 +124,58 @@ export function decodeCircuitClipboard(
   const document = project.documents.find(
     (item) => item.id === project.topDocumentId,
   )!;
-  return captureProjectCopy(project, document);
+  // The fragment is exactly what was copied, so all of it travels, and it is
+  // placed the way C places a copy, whichever key pasted it.
+  const clipboard = captureProjectCopy(project, document, {
+    instanceIds: document.instances.map((item) => item.id),
+    routeIds: document.routes.map((item) => item.id),
+    junctionIds: document.junctions.map((item) => item.id),
+    annotationIds: document.annotations.map((item) => item.id),
+    draftingIds: (document.drafting?.objects ?? []).map((item) => item.id),
+  });
+  if (clipboard) withWholeCell(clipboard, project, document);
+  return clipboard;
+}
+
+/**
+ * What a copy of a whole Cell keeps beyond its selected objects: the names,
+ * provenance and No Connects on the Nets and parts it carries, and the
+ * simulation folders bound only to the copied Cells.
+ */
+function withWholeCell(
+  clipboard: SchematicClipboard,
+  project: CircuitProject,
+  document: SchematicDocument,
+): void {
+  const nets = new Set(clipboard.nets.map((item) => item.id));
+  const evidence = new Set(
+    clipboard.connectivityEvidence.map((item) => item.id),
+  );
+  clipboard.connectivityEvidence.push(
+    ...structuredClone(
+      document.connectivityEvidence.filter(
+        (item) => nets.has(item.netId) && !evidence.has(item.id),
+      ),
+    ),
+  );
+  const instances = new Set(clipboard.instances.map((item) => item.id));
+  const noConnects = new Set(clipboard.noConnects.map((item) => item.id));
+  clipboard.noConnects.push(
+    ...structuredClone(
+      document.noConnects.filter(
+        (item) =>
+          instances.has(item.endpoint.instanceId) && !noConnects.has(item.id),
+      ),
+    ),
+  );
+  if (clipboard.context)
+    clipboard.context.simulationFolders = structuredClone(
+      cellSimulationFolders(
+        project,
+        new Set([
+          document.id,
+          ...clipboard.context.documents.map((item) => item.id),
+        ]),
+      ),
+    );
 }

@@ -151,9 +151,11 @@ test("project tabs append a partial selection and retain independent history, ca
   await page.screenshot({ path: "plan/project-tabs.png" });
 });
 
-test("C carries a fresh copy into another tab, and V after C pastes the same", async ({
+test("C carries a fresh copy into another tab, and V and Ctrl/Cmd+V paste the same", async ({
   page,
+  context,
 }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   // M1's gate is on the Net a Cell Pin names O; its source goes to ground.
   const project = createEmptyProject("fresh-tab-copy", "Fresh tab copy");
   const document = project.documents[0]!;
@@ -246,6 +248,21 @@ test("C carries a fresh copy into another tab, and V after C pastes the same", a
   await page.getByRole("tab").first().click();
   await expect(page.getByTestId("active-instance-count")).toHaveText("3");
   await expect(ghost).toHaveCount(0);
+
+  // Ctrl/Cmd+C in one tab and Ctrl/Cmd+V in another place exactly what C does.
+  await page.getByTestId("hit-M1").click();
+  await page.keyboard.press("ControlOrMeta+c");
+  await page.getByRole("tab").nth(1).click();
+  await expect(page.getByTestId("active-instance-count")).toHaveText("2");
+  await page.keyboard.press("ControlOrMeta+v");
+  await expect(ghost).toBeVisible();
+  await expect(ghost.locator('[data-kind="net-label"]')).toHaveCount(0);
+  await canvas.click({ position: { x: 480, y: 420 } });
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("3");
+  await expect(netLabels).toHaveCount(0);
+  const pasted = (await saved(page)).documents[0]!;
+  expect(pasted.nets.flatMap((net) => net.terminals)).toEqual([]);
 });
 
 test("tab file opening is additive and closing unsaved projects can be cancelled", async ({

@@ -255,7 +255,8 @@ describe("one Project copy path", () => {
     const instance = copied.instances.find(
       (candidate) => candidate.symbolId === "resistor",
     )!;
-    expect(instance.reference).toBe("R1");
+    // R9 is free in the destination, so the copy keeps its name.
+    expect(instance.reference).toBe("R9");
     expect(
       copied.nets.find((net) =>
         net.terminals.some((terminal) => terminal.instanceId === "P1"),

@@ -1259,10 +1259,27 @@ export function proposePaste(
       ...document,
       instances: [...document.instances],
     };
+    // A copy keeps its Reference wherever that name is still free, so a
+    // circuit copied into another tab keeps R7 and XDUT, and what its
+    // simulation setups call them. Only a taken name gets the next free one,
+    // and names that can be kept are claimed before any is allocated.
+    const taken = new Set(occupiedReferences);
+    const keptReferences = new Map<string, string>();
     for (const source of clipboard.instances) {
+      const key = source.reference?.toLowerCase();
+      if (!source.reference || !key || taken.has(key)) continue;
+      taken.add(key);
+      keptReferences.set(source.id, source.reference);
+    }
+    const allocationOrder = [
+      ...clipboard.instances.filter((item) => keptReferences.has(item.id)),
+      ...clipboard.instances.filter((item) => !keptReferences.has(item.id)),
+    ];
+    for (const source of allocationOrder) {
       const instance = createNewInstance(allocationDocument, source, {
         id: instanceIds.get(source.id)!,
         project,
+        reference: keptReferences.get(source.id),
       });
       freshInstances.set(source.id, instance);
       allocationDocument.instances.push(instance);
@@ -1327,7 +1344,6 @@ export function proposePaste(
     ),
   );
   if (
-    clipboard.intent === "compose-document" &&
     clipboard.instances.some((instance) =>
       Object.values(instance.netlist?.parameters ?? {}).some((value) =>
         [

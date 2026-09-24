@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import { isTypingTarget } from "../../app/editor-runtime-helpers";
 import type { SchematicClipboard } from "./clipboard";
-import { captureProjectCopy } from "./project-copy";
 import {
   CIRCUIT_CLIPBOARD_MIME,
   decodeCircuitClipboard,
@@ -35,13 +34,10 @@ export function useCircuitClipboard(options: Options) {
     const action = ++operation.current;
     if (!owner.enabled) return;
     try {
-      // What V pastes later is what this gesture copied: C's fresh insertion,
-      // or Ctrl/Cmd+C's selection with its outside context.
       const text = encodeCircuitClipboard(
         owner.project,
         owner.document,
         selection ?? owner.selection,
-        !placeImmediately,
       );
       if (!text) {
         owner.setStatus("Select components or wires before copying");
@@ -53,16 +49,12 @@ export function useCircuitClipboard(options: Options) {
         "Circuit copied · switch to another canvas and paste to place",
       );
       if (placeImmediately) {
-        // C places a fresh insertion, exactly as if the parts were inserted
-        // anew: the copy keeps the selection's own wiring and labels, but no
-        // connection or name from outside it (a Net name owned by an
-        // unselected label or Port, a Bulk override, a No Connect). Only
-        // Ctrl/Cmd+C carries that electrical context to another canvas.
-        const clipboard = captureProjectCopy(
-          owner.project,
-          owner.document,
-          selection ?? owner.selection,
-        );
+        // C is Ctrl/Cmd+C then V in one key: it places exactly what the
+        // clipboard now holds, so the two can never disagree. That is a fresh
+        // insertion: the selection's own wiring and labels, and no connection
+        // or name from outside it (a Net name owned by an unselected label or
+        // Port, a Bulk override, a No Connect).
+        const clipboard = decodeCircuitClipboard(text);
         if (!clipboard) throw new Error("Copied selection cannot be placed");
         // C starts the cursor preview synchronously, even if the optional
         // system clipboard write is waiting for permission or never resolves.
