@@ -800,6 +800,10 @@ export class GalleryDO {
         return this.renameOwner(body);
       case "update-entry":
         return this.updateEntry(body);
+      case "label-looks-read":
+        return this.labelLooksRead(String(body.id));
+      case "label-looks-store":
+        return this.labelLooksStore(body);
       case "replace-entry":
         return this.replaceEntry(body);
       case "versions":
@@ -3003,6 +3007,60 @@ export class GalleryDO {
       .exec<{ id: string }>("SELECT id FROM gallery_entries ORDER BY id")
       .toArray();
     return Response.json({ ids: rows.map((row) => row.id) });
+  }
+
+  /** The one Gallery row a label-look maintenance pass reads. */
+  private labelLooksRead(id: string): Response {
+    const row = this.sql
+      .exec<{ status: string; project_text: string }>(
+        "SELECT status, project_text FROM gallery_entries WHERE id = ?",
+        id,
+      )
+      .toArray()[0];
+    if (!row) return Response.json({ error: "not-found" }, { status: 404 });
+    return Response.json({ status: row.status, projectText: row.project_text });
+  }
+
+  /**
+   * Store one server-verified label-look change: the Project and its
+   * re-rendered preview, only if the row still holds exactly the Project
+   * that was checked. History, byline, status, tags and likes are untouched.
+   */
+  private labelLooksStore(body: Record<string, unknown>): Response {
+    const row = this.sql
+      .exec<EntryRow>(
+        "SELECT * FROM gallery_entries WHERE id = ?",
+        String(body.id),
+      )
+      .toArray()[0];
+    if (!row) return Response.json({ error: "not-found" }, { status: 404 });
+    if (row.project_text !== String(body.originalProjectText))
+      return Response.json(
+        { error: "concurrent-change", id: row.id },
+        { status: 409 },
+      );
+    const svgText = String(body.svgText);
+    const previewRevision = sha256Hex(svgText);
+    const previewDimensions = svgPreviewDimensions(svgText);
+    // Synchronous DO operation: no await between compare and update. The SQL
+    // predicate also protects against future refactors introducing an await.
+    this.sql.exec(
+      `UPDATE gallery_entries
+       SET project_text = ?, schema_version = ?, svg_text = ?,
+           preview_revision = ?, preview_width = ?, preview_height = ?,
+           curation_json = ?
+       WHERE id = ? AND project_text = ?`,
+      String(body.projectText),
+      Number(body.schemaVersion),
+      svgText,
+      previewRevision,
+      previewDimensions?.width ?? null,
+      previewDimensions?.height ?? null,
+      advanceCurationRevision(row, String(body.at ?? row.created_at)),
+      row.id,
+      row.project_text,
+    );
+    return Response.json({ id: row.id, previewRevision });
   }
 
   private updateEntry(body: Record<string, unknown>): Response {

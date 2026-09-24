@@ -18,6 +18,7 @@ import {
   labelTextDocument,
   renamedLabelFormat,
   roleLabelFormat,
+  standardLabelLookChanges,
   supplyLabelFormat,
 } from "./label-typography.js";
 
@@ -307,4 +308,104 @@ it("shows a hidden underscore again when restyling leaves nothing to hide it", (
   // A format that already spells its name is kept as it is.
   const scripted = identifierTextDocument("M_load");
   expect(formatPresentingName(scripted, "M_load")).toBe(scripted);
+});
+
+it("lists the standard looks an existing drawing's unformatted labels would take", () => {
+  const document = createEmptyDocument("a", "A");
+  const placement = {
+    position: { x: 0, y: 0 },
+    rotation: 0 as const,
+    mirror: "none" as const,
+  };
+  const at = (objectId: string) => ({
+    kind: "object" as const,
+    objectId,
+    localOffset: { x: 10, y: 0 },
+    fallbackPosition: { x: 10, y: 0 },
+  });
+  const label = (
+    id: string,
+    kind: "instance-label" | "power-label",
+    binding: NonNullable<(typeof document.annotations)[number]["binding"]>,
+    objectId: string,
+    formatOverride?: ReturnType<typeof identifierTextDocument>,
+  ) => ({
+    id,
+    kind,
+    binding,
+    ...(formatOverride ? { formatOverride } : {}),
+    anchor: at(objectId),
+    alignment: "start" as const,
+    rotation: 0 as const,
+    locked: false,
+  });
+  document.instances.push(
+    { id: "M1", reference: "M1", symbolId: "nmos", placement },
+    { id: "MTAIL", reference: "MTAIL", symbolId: "nmos", placement },
+    { id: "M2", reference: "M2", symbolId: "nmos", placement },
+    { id: "VDD1", symbolId: "vdd-port", placement },
+    { id: "VDD2", symbolId: "vdd-port", placement },
+  );
+  document.connectivityEvidence.push(
+    {
+      id: "claim-vddh",
+      kind: "name-claim",
+      netId: "net-vddh",
+      name: "VDDH",
+      scope: "global",
+      powerDomain: "vdd",
+      owner: { kind: "power-marker", objectId: "VDD1" },
+    },
+    {
+      id: "claim-avdd",
+      kind: "name-claim",
+      netId: "net-avdd",
+      name: "AVDD",
+      scope: "global",
+      powerDomain: "vdd",
+      owner: { kind: "power-marker", objectId: "VDD2" },
+    },
+  );
+  const ref = (instanceId: string) => ({
+    kind: "instance-reference" as const,
+    instanceId,
+  });
+  document.annotations.push(
+    label("label-M1", "instance-label", ref("M1"), "M1"),
+    label("label-MTAIL", "instance-label", ref("MTAIL"), "MTAIL"),
+    // An author's own format is never replaced.
+    label(
+      "label-M2",
+      "instance-label",
+      ref("M2"),
+      "M2",
+      identifierTextDocument("M2"),
+    ),
+    label(
+      "label-vddh",
+      "power-label",
+      { kind: "net-name", netId: "net-vddh" },
+      "VDD1",
+    ),
+    label(
+      "label-avdd",
+      "power-label",
+      { kind: "net-name", netId: "net-avdd" },
+      "VDD2",
+    ),
+  );
+  expect(standardLabelLookChanges(document)).toEqual([
+    {
+      annotationId: "label-M1",
+      role: "device-reference",
+      name: "M1",
+      format: roleLabelFormat("device-reference", "M1"),
+    },
+    {
+      annotationId: "label-vddh",
+      role: "supply",
+      name: "VDDH",
+      format: supplyLabelFormat("VDDH"),
+    },
+  ]);
 });

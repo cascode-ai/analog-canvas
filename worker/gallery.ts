@@ -3,7 +3,7 @@ import { validGalleryAttention } from "./gallery-curation";
 // Public Gallery HTTP policy and rendering. Durable storage lives in
 // gallery-do.ts; this module only authenticates and maps API requests.
 
-import { prepareDocumentFormulaArtifacts } from "@icm/derived";
+import { prepareDocumentFormulaArtifacts, sha256Hex } from "@icm/derived";
 import { createDesignNetlistExport, designExtractsNetlist } from "@icm/netlist";
 import {
   CURRENT_PROJECT_FILE_VERSION,
@@ -16,7 +16,11 @@ import {
   createProjectSymbolResolver,
   type SymbolResolver,
 } from "@icm/symbols";
-import { type CircuitProject } from "@icm/model";
+import {
+  CircuitProjectSchema,
+  standardLabelLookChanges,
+  type CircuitProject,
+} from "@icm/model";
 
 import { sessionUserOf } from "./auth";
 import {
@@ -271,6 +275,220 @@ async function recoverFormulaPreview(
   return renderPreview(
     project,
     createProjectSymbolResolver(project, builtInSymbols),
+  );
+}
+
+/** Largest batch one label-look maintenance request may check. */
+const LABEL_LOOK_BATCH = 20;
+/** A planner may move a restyled label this far to keep its clearance. */
+const LABEL_LOOK_NUDGE = { x: 16, y: 12 };
+
+type LabelLookNudge = { label: string; dx: number; dy: number };
+
+/** Names a drawing exposes electrically; a look change must keep all of them. */
+function electricalNames(project: CircuitProject): string {
+  return JSON.stringify(
+    project.documents.map((document) => ({
+      references: document.instances.map((instance) => instance.reference),
+      terminals: document.netlist?.terminals.map((terminal) => terminal.name),
+      claims: document.connectivityEvidence.map((evidence) =>
+        evidence.kind === "name-claim" ? evidence.name : null,
+      ),
+    })),
+  );
+}
+
+function designNetlists(project: CircuitProject): string {
+  return (["spice", "spectre"] as const)
+    .map((format) => {
+      const result = createDesignNetlistExport(project, { format });
+      return result.status === "ready"
+        ? result.file.text
+        : `blocked:${result.diagnostics.map((item) => item.code).join(",")}`;
+    })
+    .join("\n");
+}
+
+/**
+ * Give one existing entry's unformatted supply and device labels their
+ * stored standard look (V_DD, M₁), with the planner's bounded nudges. The
+ * server recomputes the change itself and refuses anything that would alter
+ * a name, a netlist or the Project beyond those labels.
+ */
+async function labelLookEntry(
+  env: GalleryEnv,
+  id: string,
+  options: { apply: boolean; expected?: string; nudges: LabelLookNudge[] },
+): Promise<Record<string, unknown>> {
+  const read = await callGallery<{ status?: string; projectText?: string }>(
+    env,
+    "label-looks-read",
+    { id },
+  );
+  const originalProjectText = read.payload.projectText;
+  if (read.status !== 200 || typeof originalProjectText !== "string")
+    return { id, skipped: "not-found" };
+  const sha = sha256Hex(originalProjectText);
+  let before: CircuitProject;
+  let project: CircuitProject;
+  try {
+    before = parseProject(originalProjectText);
+    project = parseProject(originalProjectText);
+  } catch {
+    return { id, sha, skipped: "unreadable" };
+  }
+  const labels: { id: string; name: string; role: string }[] = [];
+  const changed = new Map<
+    string,
+    CircuitProject["documents"][number]["annotations"][number]
+  >();
+  for (const document of project.documents) {
+    for (const change of standardLabelLookChanges(document)) {
+      const annotation = document.annotations.find(
+        (candidate) => candidate.id === change.annotationId,
+      )!;
+      annotation.formatOverride = change.format;
+      changed.set(annotation.id, annotation);
+      labels.push({ id: annotation.id, name: change.name, role: change.role });
+    }
+  }
+  if (!labels.length)
+    return { id, sha, status: read.payload.status, labels, changed: false };
+  for (const nudge of options.nudges) {
+    const annotation = changed.get(nudge.label);
+    if (
+      !annotation ||
+      !Number.isFinite(nudge.dx) ||
+      !Number.isFinite(nudge.dy) ||
+      Math.abs(nudge.dx) > LABEL_LOOK_NUDGE.x ||
+      Math.abs(nudge.dy) > LABEL_LOOK_NUDGE.y ||
+      (annotation.anchor.kind !== "object" && annotation.anchor.kind !== "free")
+    )
+      return { id, sha, skipped: `invalid-nudge:${nudge.label}` };
+    if (annotation.anchor.kind === "object") {
+      annotation.anchor.localOffset = {
+        x: annotation.anchor.localOffset.x + nudge.dx,
+        y: annotation.anchor.localOffset.y + nudge.dy,
+      };
+      annotation.anchor.fallbackPosition = {
+        x: annotation.anchor.fallbackPosition.x + nudge.dx,
+        y: annotation.anchor.fallbackPosition.y + nudge.dy,
+      };
+    } else {
+      annotation.anchor.position = {
+        x: annotation.anchor.position.x + nudge.dx,
+        y: annotation.anchor.position.y + nudge.dy,
+      };
+    }
+  }
+  let projectText: string;
+  let stored: CircuitProject;
+  try {
+    projectText = serializeProject(CircuitProjectSchema.parse(project));
+    stored = parseProject(projectText);
+  } catch {
+    return { id, sha, skipped: "invalid-result" };
+  }
+  if (new TextEncoder().encode(projectText).length > GALLERY_MAX_PROJECT_BYTES)
+    return { id, sha, skipped: "too-large" };
+  const namesUnchanged = electricalNames(before) === electricalNames(stored);
+  const netlistUnchanged = designNetlists(before) === designNetlists(stored);
+  const report = {
+    id,
+    sha,
+    status: read.payload.status,
+    labels,
+    nudged: options.nudges.length,
+    namesUnchanged,
+    netlistUnchanged,
+  };
+  if (!namesUnchanged || !netlistUnchanged)
+    return { ...report, skipped: "electrical-change" };
+  if (!options.apply) return { ...report, changed: true };
+  if (options.expected !== sha) return { ...report, skipped: "stale" };
+  const svgText = await renderPreview(
+    stored,
+    createProjectSymbolResolver(stored, builtInSymbols),
+  );
+  const write = await callGallery<{ previewRevision?: string }>(
+    env,
+    "label-looks-store",
+    {
+      id,
+      originalProjectText,
+      projectText,
+      svgText,
+      schemaVersion: CURRENT_PROJECT_FILE_VERSION,
+      at: new Date().toISOString(),
+    },
+  );
+  return write.status === 200
+    ? {
+        ...report,
+        applied: true,
+        previewRevision: write.payload.previewRevision,
+      }
+    : {
+        ...report,
+        skipped: write.status === 409 ? "concurrent-change" : "store-failed",
+      };
+}
+
+async function handleLabelLooks(
+  request: Request,
+  env: GalleryEnv,
+): Promise<Response> {
+  if (!sameOrigin(request))
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  if (!(await isAdmin(request, env)))
+    return Response.json({ error: "unauthorized" }, { status: 401 });
+  const body = (await request.json().catch(() => null)) as {
+    ids?: unknown;
+    apply?: unknown;
+    expected?: unknown;
+    nudges?: unknown;
+  } | null;
+  const ids = body?.ids;
+  if (
+    !Array.isArray(ids) ||
+    ids.length === 0 ||
+    ids.length > LABEL_LOOK_BATCH ||
+    ids.some((id) => typeof id !== "string" || !id)
+  )
+    return Response.json({ error: "invalid-request" }, { status: 400 });
+  const expected =
+    body?.expected && typeof body.expected === "object"
+      ? (body.expected as Record<string, unknown>)
+      : {};
+  const nudges =
+    body?.nudges && typeof body.nudges === "object"
+      ? (body.nudges as Record<string, unknown>)
+      : {};
+  const results = [];
+  for (const id of ids as string[]) {
+    const entryNudges = Array.isArray(nudges[id])
+      ? (nudges[id] as unknown[]).map((item) => {
+          const nudge = (item ?? {}) as Record<string, unknown>;
+          return {
+            label: String(nudge.label),
+            dx: Number(nudge.dx),
+            dy: Number(nudge.dy),
+          };
+        })
+      : [];
+    results.push(
+      await labelLookEntry(env, id, {
+        apply: body?.apply === true,
+        ...(typeof expected[id] === "string"
+          ? { expected: expected[id] as string }
+          : {}),
+        nudges: entryNudges,
+      }),
+    );
+  }
+  return Response.json(
+    { results },
+    { headers: { "cache-control": "no-store" } },
   );
 }
 
@@ -1400,6 +1618,14 @@ export async function routeGalleryRequest(
       status,
       headers: { "cache-control": "no-store" },
     });
+  }
+  if (
+    segments.length === 2 &&
+    segments[0] === "maintenance" &&
+    segments[1] === "label-looks" &&
+    request.method === "POST"
+  ) {
+    return handleLabelLooks(request, env);
   }
   if (
     segments.length === 2 &&

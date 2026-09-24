@@ -1,3 +1,4 @@
+import { boundAnnotationName } from "./schema/bound-annotation-text.js";
 import type {
   Annotation,
   RichTextDocument,
@@ -260,4 +261,35 @@ export function formatPresentingName(
   return richTextPresentsIdentifier(format, name)
     ? format
     : rewriteRichTextPlainText(format, name);
+}
+
+/** One existing label that would take its stored standard look. */
+export interface StandardLabelLookChange {
+  readonly annotationId: string;
+  readonly role: LabelRole;
+  readonly name: string;
+  readonly format: RichTextDocument;
+}
+
+/**
+ * The standard looks an existing drawing's unformatted supply and device
+ * Reference labels would take. Names never change, and an author's own
+ * format is never replaced. Older drawings cannot tell a generated Pin name
+ * from a typed one, so Pin labels are left as they are.
+ */
+export function standardLabelLookChanges(
+  document: SchematicDocument,
+): StandardLabelLookChange[] {
+  const changes: StandardLabelLookChange[] = [];
+  for (const annotation of document.annotations) {
+    if (annotation.formatOverride || !annotation.binding) continue;
+    const role = labelRole(annotation);
+    if (role !== "supply" && role !== "device-reference") continue;
+    const name = boundAnnotationName(document, annotation)?.trim();
+    if (!name) continue;
+    const format = roleLabelFormat(role, name);
+    if (format)
+      changes.push({ annotationId: annotation.id, role, name, format });
+  }
+  return changes;
 }

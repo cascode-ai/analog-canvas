@@ -8,6 +8,7 @@ import {
   createEmptyDocument,
   createEmptyProject,
   createRoutePath,
+  roleLabelFormat,
 } from "@icm/model";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { hierarchicalSymbolId } from "@icm/symbols";
@@ -217,7 +218,12 @@ describe("off-site Gallery backup credential", () => {
         )
       ).status,
     ).toBe(405);
-    for (const action of ["schema-restore", "project-format", "schema-current"])
+    for (const action of [
+      "schema-restore",
+      "project-format",
+      "schema-current",
+      "label-looks",
+    ])
       expect(
         (
           await route(
@@ -5712,5 +5718,211 @@ describe("durable Shelf publication sources", () => {
       revision: 7,
       gallery_entry_id: "old-public",
     });
+  });
+});
+
+/** One drawing whose device and supply labels have no format of their own. */
+function labelLookProjectText(): string {
+  const project = createEmptyProject("label-looks", "Label looks");
+  const document = project.documents[0]!;
+  document.instances.push(
+    {
+      id: "M1",
+      reference: "M1",
+      symbolId: "nmos",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+    },
+    {
+      id: "VDD1",
+      symbolId: "vdd-port",
+      placement: { position: { x: 100, y: 40 }, rotation: 0, mirror: "none" },
+    },
+  );
+  document.nets.push({
+    id: "net-vdd",
+    terminals: [{ instanceId: "VDD1", pinName: "P" }],
+  });
+  document.connectivityEvidence.push({
+    id: "claim-vdd1",
+    kind: "name-claim",
+    netId: "net-vdd",
+    name: "VDD",
+    scope: "global",
+    powerDomain: "vdd",
+    owner: { kind: "power-marker", objectId: "VDD1" },
+  });
+  document.annotations.push(
+    {
+      id: "instance-label-M1",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "M1" },
+      anchor: {
+        kind: "object",
+        objectId: "M1",
+        localOffset: { x: 20, y: 0 },
+        fallbackPosition: { x: 120, y: 100 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    },
+    {
+      id: "power-label-vdd1",
+      kind: "power-label",
+      binding: { kind: "net-name", netId: "net-vdd" },
+      netId: "net-vdd",
+      anchor: {
+        kind: "object",
+        objectId: "VDD1",
+        localOffset: { x: 20, y: 10 },
+        fallbackPosition: { x: 120, y: 50 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    },
+  );
+  return serializeProject(project);
+}
+
+describe("label-look maintenance", () => {
+  const endpoint = `${ORIGIN}/api/gallery/maintenance/label-looks`;
+  const entryRow = (env: Harness, id: string) =>
+    env.gallerySql
+      .exec<Record<string, any>>(
+        "SELECT * FROM gallery_entries WHERE id = ?",
+        id,
+      )
+      .one();
+  const versionCount = (env: Harness, id: string) =>
+    env.gallerySql
+      .exec<{ n: number }>(
+        "SELECT COUNT(*) AS n FROM gallery_entry_versions WHERE entry_id = ?",
+        id,
+      )
+      .one().n;
+
+  it("previews, then applies stored standard looks without touching names or history", async () => {
+    const env = environment();
+    const cookie = await adminOf(env);
+    const id = await submitOne(env, "Label looks", {
+      cookie,
+      text: labelLookProjectText(),
+    });
+    const send = (body: unknown, headers = cookieHeaders(cookie)) =>
+      route(
+        env,
+        new Request(endpoint, {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+      );
+    expect((await send({ ids: [id] }, { Origin: ORIGIN })).status).toBe(401);
+    expect(
+      (
+        await send(
+          { ids: [id] },
+          { ...cookieHeaders(cookie), Origin: "https://untrusted.example" },
+        )
+      ).status,
+    ).toBe(403);
+    expect((await send({ ids: [] })).status).toBe(400);
+
+    const before = entryRow(env, id);
+    const versions = versionCount(env, id);
+    const preview = (await (await send({ ids: [id] })).json()) as {
+      results: Array<Record<string, any>>;
+    };
+    expect(preview.results[0]).toMatchObject({
+      id,
+      changed: true,
+      namesUnchanged: true,
+      netlistUnchanged: true,
+      labels: [
+        { id: "instance-label-M1", name: "M1", role: "device-reference" },
+        { id: "power-label-vdd1", name: "VDD", role: "supply" },
+      ],
+    });
+    // A preview writes nothing.
+    expect(entryRow(env, id)).toEqual(before);
+
+    // Applying requires the exact content the preview reported.
+    expect(
+      (await (await send({ ids: [id], apply: true })).json()).results[0],
+    ).toMatchObject({ skipped: "stale" });
+    const applied = (await (
+      await send({
+        ids: [id],
+        apply: true,
+        expected: { [id]: preview.results[0]!.sha },
+      })
+    ).json()) as { results: Array<Record<string, any>> };
+    expect(applied.results[0]).toMatchObject({ applied: true });
+
+    const after = entryRow(env, id);
+    expect(after.preview_revision).not.toBe(before.preview_revision);
+    expect(after.name).toBe(before.name);
+    expect(after.status).toBe(before.status);
+    expect(versionCount(env, id)).toBe(versions);
+    const stored = parseProject(after.project_text).documents[0]!;
+    expect(stored.instances.map((instance) => instance.reference)).toEqual([
+      "M1",
+      undefined,
+    ]);
+    expect(
+      stored.annotations.find((item) => item.id === "instance-label-M1")
+        ?.formatOverride,
+    ).toEqual(roleLabelFormat("device-reference", "M1"));
+    expect(
+      stored.annotations.find((item) => item.id === "power-label-vdd1")
+        ?.formatOverride,
+    ).toEqual(roleLabelFormat("supply", "VDD"));
+    // Nothing is left to change on a second pass.
+    expect((await (await send({ ids: [id] })).json()).results[0]).toMatchObject(
+      { changed: false, labels: [] },
+    );
+  });
+
+  it("accepts only bounded nudges of the labels it restyles", async () => {
+    const env = environment();
+    const cookie = await adminOf(env);
+    const id = await submitOne(env, "Label nudges", {
+      cookie,
+      text: labelLookProjectText(),
+    });
+    const send = (body: unknown) =>
+      route(
+        env,
+        new Request(endpoint, {
+          method: "POST",
+          headers: {
+            ...cookieHeaders(cookie),
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(body),
+        }),
+      );
+    for (const nudge of [
+      { label: "power-label-vdd1", dx: 0, dy: -40 },
+      { label: "not-a-restyled-label", dx: 0, dy: -3 },
+    ])
+      expect(
+        (await (await send({ ids: [id], nudges: { [id]: [nudge] } })).json())
+          .results[0],
+      ).toMatchObject({ skipped: `invalid-nudge:${nudge.label}` });
+    const preview = (await (await send({ ids: [id] })).json()) as {
+      results: Array<Record<string, any>>;
+    };
+    await send({
+      ids: [id],
+      apply: true,
+      expected: { [id]: preview.results[0]!.sha },
+      nudges: { [id]: [{ label: "power-label-vdd1", dx: 0, dy: -3 }] },
+    });
+    const label = parseProject(
+      entryRow(env, id).project_text,
+    ).documents[0]!.annotations.find((item) => item.id === "power-label-vdd1")!;
+    expect(label.anchor).toMatchObject({ localOffset: { x: 20, y: 7 } });
   });
 });
