@@ -43,9 +43,9 @@ export const agentToolHelp = {
   netlist_code:
     "Read the open Project's generated SPICE/Spectre netlist or replace its editable device names, models and values through the same planner as the Netlist panel. Use Project Code or structured circuit edits for topology and connectivity changes.",
   simulation:
-    "Submit with run; prepare/start are optional. run/start/read accept waitMs 0–20000. Retry uncertain submissions with the same requestId; resume by runId. run.details has Specs/collection; catalog indexes full files. export retries saving, not execution. One active run or Batch.",
+    "Submit with run; prepare/start are optional. run/start/read accept waitMs 0–20000. Retry uncertain submissions with the same requestId; resume by runId. run.details has Specs/collection; catalog indexes full files. export retries saving, not execution. One slot.",
   simulation_files:
-    "Edit native source using returned revisions; sync complete files to the local base. analysisIndex + roles:[table] selects CSV; fileIds:[] gets directory only, omitted selectors all files. prepare-plot creates editable Python/config from panels or dc/ac/tran/noise presets and optional A/B cursors; run locally with matplotlib. Never overwrites plots. download saves locally; artifact without outputPath previews. Details: analog-canvas://reference/mcp-simulation.",
+    "Compatibility entry for simulation_source, simulation_edit, simulation_data and simulation_plot. Edit with returned revisions; sync downloads complete files; prepare-plot writes editable local code and does not execute it. Details: analog-canvas://reference/mcp-simulation.",
   export_file:
     "Export Project or Canvas SVG/PNG/PDF to outputPath; Canvas requires documentId. For simulation data use simulation_files sync/download. simulation-plot returns SIMULATION_PLOT_RETIRED; use simulation_files prepare-plot.",
   import_file:
