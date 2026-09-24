@@ -9,7 +9,10 @@ import { fileURLToPath } from "node:url";
 import { format } from "prettier";
 
 import { loadRazaviReferenceAuthority } from "./lib/razavi-reference-authority.mjs";
-import { anchorLogicBody } from "./lib/anchor-logic-body.mjs";
+import {
+  anchorLogicBody,
+  closeSplitGateBody,
+} from "./lib/anchor-logic-body.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const referenceRoot = resolve(
@@ -155,6 +158,7 @@ definitions.set(
 );
 
 for (const definition of definitions.values()) {
+  closeSplitGateBody(definition);
   anchorLogicBody(definition);
 }
 

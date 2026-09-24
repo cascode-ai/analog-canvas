@@ -2280,6 +2280,17 @@ describe("logic-gate and comparator family", () => {
     });
   });
 
+  it.each(["and-gate", "nand-gate"])(
+    "strokes the %s outer contour as one closed path",
+    (symbolId) => {
+      const bodyPaths = requireRazaviCatalogSymbol(symbolId).primitives.filter(
+        (primitive) => primitive.kind === "path",
+      );
+      expect(bodyPaths).toHaveLength(1);
+      expect(bodyPaths[0]?.data.trimEnd()).toMatch(/\sZ$/u);
+    },
+  );
+
   it("keeps logic gates in the reviewed component-family scale", () => {
     const nand = requireRazaviCatalogSymbol("nand-gate");
     const resistor = requireRazaviCatalogSymbol("resistor");
@@ -2579,7 +2590,8 @@ describe("left-anchored digital gates", () => {
       );
       const paths = symbol.primitives.filter((p) => p.kind === "path");
       const sourcePaths = source.primitives.filter((p) => p.kind === "path");
-      expect(paths).toHaveLength(sourcePaths.length);
+      const joinedBody = id === "and-gate" || id === "nand-gate";
+      expect(paths).toHaveLength(joinedBody ? 1 : sourcePaths.length);
       const left = Math.min(
         ...paths.flatMap((p) => pathPoints(p.data).map((point) => point.x)),
       );
@@ -2587,16 +2599,57 @@ describe("left-anchored digital gates", () => {
       const dx =
         pathPoints(paths[0]!.data)[0]!.x -
         pathPoints(sourcePaths[0]!.data)[0]!.x;
-      for (const [index, path] of paths.entries()) {
-        const original = sourcePaths[index]!;
-        expect(path.style).toEqual(original.style);
+      if (joinedBody) {
+        const straight = pathPoints(sourcePaths[0]!.data);
+        const curve = pathPoints(sourcePaths[1]!.data);
+        const joined = pathPoints(paths[0]!.data);
+        expect(paths[0]!.style).toEqual(sourcePaths[0]!.style);
+        expect(joined).toHaveLength(curve.length + 2);
+        expect(joined[0]!.x - straight[0]!.x).toBeCloseTo(dx, 5);
+        expect(joined[0]!.y).toBeCloseTo(straight[0]!.y, 8);
+        for (const point of joined.slice(1, 3)) {
+          expect(point).toEqual(joined[0]);
+        }
+        if (id === "and-gate") {
+          for (const point of joined.slice(1, 6)) {
+            expect(point.y).toBeCloseTo(straight[0]!.y, 8);
+          }
+        }
+        for (
+          let index = id === "and-gate" ? 6 : 3;
+          index < curve.length - 3;
+          index++
+        ) {
+          expect(joined[index]!.x - curve[index]!.x).toBeCloseTo(dx, 5);
+          expect(joined[index]!.y).toBeCloseTo(curve[index]!.y, 8);
+        }
+        expect(joined[curve.length - 1]!.x - straight[3]!.x).toBeCloseTo(dx, 5);
+        expect(joined[curve.length - 1]!.y).toBeCloseTo(straight[3]!.y, 8);
+        for (const [index, sourcePoint] of [
+          straight[2]!,
+          straight[1]!,
+        ].entries()) {
+          const point = joined[curve.length + index]!;
+          expect(point.x - sourcePoint.x).toBeCloseTo(dx, 5);
+          expect(point.y).toBeCloseTo(sourcePoint.y, 8);
+        }
+      } else {
+        for (const [index, path] of paths.entries()) {
+          const original = sourcePaths[index]!;
+          expect(path.style).toEqual(original.style);
+          const points = pathPoints(path.data);
+          const originalPoints = pathPoints(original.data);
+          expect(points).toHaveLength(originalPoints.length);
+          for (const [i, point] of points.entries()) {
+            expect(point.x - originalPoints[i]!.x).toBeCloseTo(dx, 5);
+            expect(point.y).toBeCloseTo(originalPoints[i]!.y, 8);
+          }
+        }
+      }
+      for (const path of paths) {
         const points = pathPoints(path.data);
-        const originalPoints = pathPoints(original.data);
-        expect(points).toHaveLength(originalPoints.length);
         expect(path.bounds).toBeDefined();
-        for (const [i, point] of points.entries()) {
-          expect(point.x - originalPoints[i]!.x).toBeCloseTo(dx, 5);
-          expect(point.y).toBeCloseTo(originalPoints[i]!.y, 8);
+        for (const point of points) {
           const bounds = path.bounds!;
           expect(point.x).toBeGreaterThanOrEqual(bounds.x - 0.000001);
           expect(point.x).toBeLessThanOrEqual(
