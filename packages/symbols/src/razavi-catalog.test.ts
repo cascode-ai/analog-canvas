@@ -2121,11 +2121,11 @@ describe("Razavi symbol catalog", () => {
 });
 
 describe("logic-gate and comparator family", () => {
-  it("packs 3/4-input AND leads inside the unchanged body while keeping pins on-grid", () => {
+  it("keeps the AND body fixed and connects four equally spaced input pins with straight leads", () => {
     const base = requireRazaviCatalogSymbol("and-gate");
     for (const [count, inputYs] of [
       [3, [-10, 0, 10]],
-      [4, [-20, -10, 10, 20]],
+      [4, [-12, -4, 4, 12]],
     ] as const) {
       const id = `and-gate-${count}`;
       const symbol = requireRazaviCatalogSymbol(id);
@@ -2140,19 +2140,31 @@ describe("logic-gate and comparator family", () => {
       expect(symbol.primitives[count]).toEqual(base.primitives[2]);
       expect(
         symbol.primitives.slice(0, count).map((primitive) => primitive.kind),
-      ).toEqual(Array(count).fill(count === 3 ? "line" : "path"));
+      ).toEqual(Array(count).fill("line"));
       if (count === 4)
         expect(
           symbol.primitives
             .slice(0, count)
             .map((primitive) =>
-              primitive.kind === "path" ? primitive.data : "",
+              primitive.kind === "line" ? [primitive.from, primitive.to] : null,
             ),
         ).toEqual([
-          "M -30 -20 L -26 -20 L -20 -12",
-          "M -30 -10 L -26 -10 L -20 -4",
-          "M -30 10 L -26 10 L -20 4",
-          "M -30 20 L -26 20 L -20 12",
+          [
+            { x: -30, y: -12 },
+            { x: -20, y: -12 },
+          ],
+          [
+            { x: -30, y: -4 },
+            { x: -20, y: -4 },
+          ],
+          [
+            { x: -30, y: 4 },
+            { x: -20, y: 4 },
+          ],
+          [
+            { x: -30, y: 12 },
+            { x: -20, y: 12 },
+          ],
         ]);
       expect(getRazaviCatalogEntry(id)).toMatchObject({
         provenance: "house",

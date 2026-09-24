@@ -2,6 +2,7 @@ import { cancelDoubledBackLegs } from "./routing-planner.js";
 import { stretchRouteEndpoint } from "./route-endpoint-stretch.js";
 import { tidyRouteTerminalApproaches } from "./route-terminal-approach.js";
 import {
+  electricalConnectionGrid,
   reflectOrientation,
   routeBends,
   routeEnd,
@@ -549,7 +550,12 @@ function smoothedBoundaryGeometry(
     // point along the same axis, every single-corner shape has to arrive
     // across one of them and lay the wire over that symbol, so the two-corner
     // shapes are offered as well and scored on the same terms.
-    const grid = smoothing.movedDocument.presentation.grid;
+    const coarseGrid = smoothing.movedDocument.presentation.grid;
+    const grid = [a, b].some(
+      (point) => point.x % coarseGrid !== 0 || point.y % coarseGrid !== 0,
+    )
+      ? electricalConnectionGrid(coarseGrid)
+      : coarseGrid;
     const between = (left: number, right: number): number =>
       grid > 0
         ? Math.round((left + right) / 2 / grid) * grid
@@ -1225,7 +1231,13 @@ function stretchedSegmentLeads(
   return {
     from: usablePinAxis(from.outward, from.contactPoint, to.contactPoint),
     to: usablePinAxis(to.outward, to.contactPoint, from.contactPoint),
-    grid: movedDocument.presentation.grid,
+    grid: [from.gridLanding, to.gridLanding].some(
+      (point) =>
+        point.x % movedDocument.presentation.grid !== 0 ||
+        point.y % movedDocument.presentation.grid !== 0,
+    )
+      ? electricalConnectionGrid(movedDocument.presentation.grid)
+      : movedDocument.presentation.grid,
   };
 }
 

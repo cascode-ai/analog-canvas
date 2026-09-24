@@ -13,10 +13,9 @@ export function deriveMultiInputAndGate(source, inputCount) {
   if (!lead || !output || output.kind !== "line") {
     throw new Error("AND pin leads are missing");
   }
-  // Keep the reviewed body untouched. Electrical pin anchors remain on the
-  // connection grid; only the four-input lead interiors fan into the body.
-  const inputYs = inputCount === 3 ? [-10, 0, 10] : [-20, -10, 10, 20];
-  const contactYs = inputCount === 3 ? inputYs : [-12, -4, 4, 12];
+  // Keep the reviewed body untouched. Four straight leads use the common
+  // two-unit electrical lattice while ordinary placement stays ten-unit.
+  const inputYs = inputCount === 3 ? [-10, 0, 10] : [-12, -4, 4, 12];
   const pins = [
     ...inputYs.map((y, index) => ({
       ...structuredClone(base.pins[0]),
@@ -26,25 +25,11 @@ export function deriveMultiInputAndGate(source, inputCount) {
     structuredClone(base.pins.at(-1)),
   ];
   const primitives = [
-    ...inputYs.map((y, index) =>
-      inputCount === 3
-        ? {
-            ...structuredClone(lead),
-            from: { x: -30, y },
-            to: { x: -20, y },
-          }
-        : {
-            kind: "path",
-            data: `M -30 ${y} L -26 ${y} L -20 ${contactYs[index]}`,
-            bounds: {
-              x: -30,
-              y: Math.min(y, contactYs[index]),
-              width: 10,
-              height: Math.abs(y - contactYs[index]),
-            },
-            style: structuredClone(lead.style),
-          },
-    ),
+    ...inputYs.map((y) => ({
+      ...structuredClone(lead),
+      from: { x: -30, y },
+      to: { x: -20, y },
+    })),
     structuredClone(body),
     structuredClone(output),
   ];

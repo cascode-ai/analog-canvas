@@ -222,6 +222,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       target,
       options.readCurrentWireSession().source?.netId ?? null,
       () => wireDraftTargetIdsForSuffix(target, options.nextRoutingSuffix()),
+      options.resolver,
     );
 
   const commitWire = (candidate: WireSource): void => {

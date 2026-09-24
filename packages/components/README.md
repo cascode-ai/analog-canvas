@@ -144,8 +144,10 @@ The product set is exactly the reviewed, Reference-calibrated entries:
   columns can require manual repair of historical routes;
 - `and-gate-3` and `and-gate-4` are internal, house-provenance AND arities
   derived from the reviewed two-input outline without resizing its body. The
-  three-input leads fit on-grid inside the body; four-input leads keep their
-  external pin anchors on the 10-unit grid and fan into closer body contacts.
+  three-input leads fit on the ordinary grid inside the body; four-input leads
+  use the shared 2-unit electrical lattice at y=-12,-4,4,12 and run straight
+  from their external pin anchors to the body. Ordinary placement and free
+  drawing still snap to 10 units, and existing 10-unit ports remain unchanged.
   Interior Symbol geometry may be off-grid; electrical anchors are not. They do
   not claim an exact textbook 3/4-input witness. The Library still offers one
   AND tile; each Instance selects 2, 3 or 4 inputs through Properties JSON.

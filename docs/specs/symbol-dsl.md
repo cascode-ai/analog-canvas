@@ -42,12 +42,14 @@ rename electrical pins. Selecting `textbook-3terminal` never implies `B=S`.
 
 Primitives are line, polyline, polygon, circle, and path. Pins carry stable
 name, electrical role, anchor, direction, and visibility metadata. Pin anchors
-lie on the canonical 10-unit electrical grid; artwork may use finite decimal
+lie on the shared 2-unit electrical lattice; ordinary symbols continue to use
+the 10-unit placement grid. Artwork may use finite decimal
 coordinates. Razavi assets use semantic stroke roles resolved through the
 Document style profile. Raw per-asset compatibility widths are not accepted.
 
-A reviewed auxiliary/variant pin contact may be off that grid only when its
-`routing` metadata declares an outward, grid-aligned `preferredLanding`.
+A reviewed auxiliary/variant pin contact may be off its authored connection
+lattice only when its `routing` metadata declares an outward, grid-aligned
+`preferredLanding`.
 Registration rejects a landing behind or transverse to the pin direction.
 Runtime resolves the exact contact and the landing as one
 `EndpointConnection`; the Symbol never persists a Document Route escape.

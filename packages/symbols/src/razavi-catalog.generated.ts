@@ -86,7 +86,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Select through the AND input-count property; behavioral SPICE realization requires an explicit subcircuit or PDK mapping.",
     assetPath: "and-gate-4.json",
     assetHash:
-      "380ef967a4fc42bf1a78bb198b24e58acb660c63cd2148a9c867cec0124cc727",
+      "588c6fd97436ab125605b998bf6e0a8251d5add986c4588a4bdf6fc75d70b675",
     generation: {
       kind: "derived-multi-input-and-gate",
       sourceSymbolId: "and-gate",
@@ -2804,7 +2804,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         role: "input",
         at: {
           x: -30,
-          y: -20,
+          y: -12,
         },
         direction: "west",
         presentation: {
@@ -2817,7 +2817,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         role: "input",
         at: {
           x: -30,
-          y: -10,
+          y: -4,
         },
         direction: "west",
         presentation: {
@@ -2830,7 +2830,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         role: "input",
         at: {
           x: -30,
-          y: 10,
+          y: 4,
         },
         direction: "west",
         presentation: {
@@ -2843,7 +2843,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         role: "input",
         at: {
           x: -30,
-          y: 20,
+          y: 12,
         },
         direction: "west",
         presentation: {
@@ -2867,13 +2867,14 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     ],
     primitives: [
       {
-        kind: "path",
-        data: "M -30 -20 L -26 -20 L -20 -12",
-        bounds: {
+        kind: "line",
+        from: {
           x: -30,
-          y: -20,
-          width: 10,
-          height: 8,
+          y: -12,
+        },
+        to: {
+          x: -20,
+          y: -12,
         },
         style: {
           strokeRole: "normal",
@@ -2882,13 +2883,14 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
       },
       {
-        kind: "path",
-        data: "M -30 -10 L -26 -10 L -20 -4",
-        bounds: {
+        kind: "line",
+        from: {
           x: -30,
-          y: -10,
-          width: 10,
-          height: 6,
+          y: -4,
+        },
+        to: {
+          x: -20,
+          y: -4,
         },
         style: {
           strokeRole: "normal",
@@ -2897,13 +2899,14 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
       },
       {
-        kind: "path",
-        data: "M -30 10 L -26 10 L -20 4",
-        bounds: {
+        kind: "line",
+        from: {
           x: -30,
           y: 4,
-          width: 10,
-          height: 6,
+        },
+        to: {
+          x: -20,
+          y: 4,
         },
         style: {
           strokeRole: "normal",
@@ -2912,13 +2915,14 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
       },
       {
-        kind: "path",
-        data: "M -30 20 L -26 20 L -20 12",
-        bounds: {
+        kind: "line",
+        from: {
           x: -30,
           y: 12,
-          width: 10,
-          height: 8,
+        },
+        to: {
+          x: -20,
+          y: 12,
         },
         style: {
           strokeRole: "normal",

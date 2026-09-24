@@ -1,4 +1,9 @@
-import { isGridAlignedCoordinate, transformPoint } from "@icm/model";
+import {
+  isGridAlignedCoordinate,
+  electricalConnectionGrid,
+  SYMBOL_STANDARD_GRID,
+  transformPoint,
+} from "@icm/model";
 import type {
   DerivedPoint,
   GridPoint,
@@ -153,7 +158,15 @@ export function resolveEndpointConnection(
     { x: 0, y: 0 },
     instance.placement,
   );
-  const grid = document.presentation.grid;
+  // Ordinary pins retain the Document's established landing behavior (which
+  // also supports coarser imported grids). A fine-pitch pin lands exactly on
+  // the shared electrical subgrid so its wire need not fork inside the icon.
+  const finePitchPin =
+    localLanding.x % SYMBOL_STANDARD_GRID !== 0 ||
+    localLanding.y % SYMBOL_STANDARD_GRID !== 0;
+  const grid = finePitchPin
+    ? electricalConnectionGrid(document.presentation.grid)
+    : document.presentation.grid;
   const gridLanding: GridPoint | null = (() => {
     if (
       isGridAlignedCoordinate(landing.x, grid) &&

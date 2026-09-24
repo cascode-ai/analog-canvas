@@ -1,6 +1,9 @@
 import { createEmptyProject } from "@icm/model";
 import type { Net, RouteEndpoint } from "@icm/model";
-import { InMemorySymbolResolver } from "@icm/symbols";
+import {
+  InMemorySymbolResolver,
+  requireRazaviCatalogSymbol,
+} from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -164,6 +167,40 @@ describe("endpoint primitives", () => {
   });
 
   describe("resolveEndpointConnection", () => {
+    it("lands every fine-pitch AND input exactly after each quarter-turn", () => {
+      const document = createEmptyProject("ep", "EP").documents[0]!;
+      const gateResolver = new InMemorySymbolResolver([
+        requireRazaviCatalogSymbol("and-gate-4"),
+      ]);
+      for (const rotation of [0, 90, 180, 270] as const) {
+        document.instances = [
+          {
+            ...placeDual(rotation),
+            symbolId: "and-gate-4",
+          },
+        ];
+        const contacts = ["A", "B", "C", "D"].map((pinName) =>
+          resolveEndpointConnection(
+            document,
+            gateResolver,
+            terminal("I1", pinName),
+          ),
+        );
+        expect(contacts.every(Boolean)).toBe(true);
+        for (const connection of contacts) {
+          expect(connection?.gridLanding).toEqual(connection?.contactPoint);
+          expect(connection?.escapePath).toEqual([]);
+        }
+        expect(
+          new Set(
+            contacts.map(
+              (connection) =>
+                `${connection?.contactPoint.x}:${connection?.contactPoint.y}`,
+            ),
+          ).size,
+        ).toBe(4);
+      }
+    });
     it("separates an exact auxiliary contact from its persistable grid landing", () => {
       const project = createEmptyProject("ep", "EP");
       const document = project.documents[0]!;

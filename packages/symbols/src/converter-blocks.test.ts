@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { requireRazaviCatalogSymbol } from "./razavi-catalog.js";
-import { SYMBOL_CONNECTION_GRID, SymbolDefinitionSchema } from "./schema.js";
+import { SYMBOL_STANDARD_GRID, SymbolDefinitionSchema } from "./schema.js";
 
 const CONVERTERS = ["adc", "dac"] as const;
 
@@ -31,10 +31,10 @@ describe("converter blocks", () => {
     const shoulder = (points: readonly { x: number; y: number }[]) =>
       points.find((point) => point.y < 0 && Math.abs(point.x) === 20)!.x;
     expect(Math.abs(tip(adc.points) - shoulder(adc.points))).toBe(
-      SYMBOL_CONNECTION_GRID * 2,
+      SYMBOL_STANDARD_GRID * 2,
     );
     expect(Math.abs(tip(dac.points) - shoulder(dac.points))).toBe(
-      SYMBOL_CONNECTION_GRID * 2,
+      SYMBOL_STANDARD_GRID * 2,
     );
   });
 
@@ -49,21 +49,21 @@ describe("converter blocks", () => {
       const symbol = requireRazaviCatalogSymbol(id);
       expect(symbol.pins.map((pin) => pin.name)).toEqual(["IN", "OUT"]);
       for (const point of bodyPolygon(id).points) {
-        expect(Math.abs(point.x) % SYMBOL_CONNECTION_GRID, `${id} body x`).toBe(
+        expect(Math.abs(point.x) % SYMBOL_STANDARD_GRID, `${id} body x`).toBe(
           0,
         );
-        expect(Math.abs(point.y) % SYMBOL_CONNECTION_GRID, `${id} body y`).toBe(
+        expect(Math.abs(point.y) % SYMBOL_STANDARD_GRID, `${id} body y`).toBe(
           0,
         );
       }
       for (const pin of symbol.pins) {
         expect(
-          Math.abs(pin.at.x) % SYMBOL_CONNECTION_GRID,
+          Math.abs(pin.at.x) % SYMBOL_STANDARD_GRID,
           `${id} ${pin.name} anchor`,
         ).toBe(0);
         expect(pin.at.y).toBe(0);
         expect(pin.presentation.leadLength, `${id} ${pin.name} lead`).toBe(
-          SYMBOL_CONNECTION_GRID,
+          SYMBOL_STANDARD_GRID,
         );
 
         const lead = symbol.primitives.find(
@@ -77,7 +77,7 @@ describe("converter blocks", () => {
         expect(
           Math.hypot(lead.to.x - lead.from.x, lead.to.y - lead.from.y),
           `${id} ${pin.name} drawn lead`,
-        ).toBe(SYMBOL_CONNECTION_GRID);
+        ).toBe(SYMBOL_STANDARD_GRID);
       }
     }
   });
