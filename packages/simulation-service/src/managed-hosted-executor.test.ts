@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { ExecutionInput } from "./executor.js";
+import { validateExecutionOutput, type ExecutionInput } from "./executor.js";
 import { createManagedHostedExecutor } from "./managed-hosted-executor.js";
 
 const input: ExecutionInput = {
@@ -346,12 +346,11 @@ describe("managed hosted executor", () => {
     });
     const sleep = vi.fn(async () => undefined);
     const executor = createManagedHostedExecutor({ fetch, sleep });
-    await expect(
-      executor.execute(input, "request-a", 10_000, {
-        preparedId: "prepared-a",
-        preparedDigest: "b".repeat(64),
-      }),
-    ).resolves.toMatchObject({
+    const output = await executor.execute(input, "request-a", 10_000, {
+      preparedId: "prepared-a",
+      preparedDigest: "b".repeat(64),
+    });
+    expect(output).toMatchObject({
       result: { outcome: { status: "completed" } },
       timing: {
         managed: {
@@ -365,6 +364,9 @@ describe("managed hosted executor", () => {
           serverWaitMs: 12,
         },
       },
+    });
+    expect(validateExecutionOutput(input, output)).toMatchObject({
+      timing: { managed: { serverWaitMs: 12 } },
     });
     expect(reads).toBe(2);
     expect(sleep).not.toHaveBeenCalled();
