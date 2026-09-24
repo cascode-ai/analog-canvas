@@ -46,7 +46,7 @@ describe("ConnectAgentPanel", () => {
     expect(JSON.parse(claimLine.slice(7))).toEqual({ claimCode });
     expect(instructions).toContain("https://editor.example/api/agent/kit");
   });
-  it("provides one complete golden-path lifecycle without a bearer value", () => {
+  it("keeps every connection branch in a compact handoff without editing advice", () => {
     const instructions = agentConnectionInstructions(
       "https://editor.example",
       "claim-once",
@@ -54,27 +54,31 @@ describe("ConnectAgentPanel", () => {
     expect(instructions).toContain(
       "Connect to Analog Canvas at https://editor.example",
     );
-    expect(instructions).toContain("reports this exact server");
-    expect(instructions).toContain(
-      "No plugin installation or restart is needed",
-    );
+    expect(instructions).toContain('connection_status({"refresh":false})');
+    expect(instructions).toContain("this exact origin");
     expect(instructions).toContain('Claim: {"claimCode":"claim-once"}');
     expect(instructions).toContain(
       "https://editor.example/api/agent/mcp-manifest.json",
     );
     expect(instructions).toContain("analog-canvas://reference/quickstart");
-    expect(instructions).toContain("connector resumes automatically");
     expect(instructions).toContain("https://editor.example/api/agent/kit");
-    expect(instructions).toContain("do not silently switch to HTTP");
-    expect(instructions).toContain("it is not MCP acceptance");
-    expect(instructions).toContain("install or update using");
+    expect(instructions).toContain("public bootstrap manifest over HTTPS");
     expect(instructions).toContain("version-pinned package");
-    expect(instructions).toContain("tools are actually callable");
+    expect(instructions).toContain("verified local installation");
+    expect(instructions).toContain("preserve unrelated host settings");
+    expect(instructions).toContain("tools are callable in this conversation");
+    expect(instructions).toContain("report the failed stage");
+    expect(instructions).toContain("host restart or new conversation");
     expect(instructions).toContain("tell the user once");
-    expect(instructions).toContain("Do not restart it yourself");
-    expect(instructions).toContain("installation is declined, blocked");
-    expect(instructions).toContain("If the Claim expires during setup");
+    expect(instructions).toContain("do not restart it yourself");
+    expect(instructions).toContain("Do not silently switch to HTTP");
+    expect(instructions).toContain("user explicitly chooses HTTP");
+    expect(instructions).toContain("HTTP success is not MCP acceptance");
+    expect(instructions).toContain("If it expires, ask for a new code");
+    expect(instructions).toContain("For a loopback origin");
+    expect(instructions).not.toMatch(/symbol IDs|pin names|raw API requests/u);
     expect(instructions).not.toMatch(/Bearer [A-Za-z0-9_-]{20,}/u);
+    expect(instructions.length).toBeLessThan(1_600);
   });
 
   it("renders nothing when closed", () => {

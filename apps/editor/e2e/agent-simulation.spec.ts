@@ -101,9 +101,9 @@ test("HTTP Kit alone authors native objects and hands off a Project-folder run",
     timeout: 30000,
   });
   const handoff = await panel.getByTestId("agent-copy-text").inputValue();
-  const kit = await (
-    await request.get(handoff.match(/HTTP Agent Kit: (\S+)/u)![1]!)
-  ).json();
+  const kitUrl = `${baseURL}/api/agent/kit`;
+  expect(handoff).toContain(kitUrl);
+  const kit = await (await request.get(kitUrl)).json();
   const files = new Map<string, string>(
     kit.files.map((file: { path: string; content: string }) => [
       file.path,

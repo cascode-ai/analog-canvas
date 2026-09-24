@@ -133,7 +133,7 @@
     },
     {
       "source": "docs/agent/entrypoints/connect.md",
-      "sha256": "8f438a4ff111d8f8d8ceccdce6c3bf3c913ff05037797dd4207c348c7ea59e63"
+      "sha256": "b22a811e1568657a31a28c8eaf8de82f1ea594472b8a698e481524452e7d6cae"
     },
     {
       "source": "docs/agent/repo-skill/SKILL.md",
@@ -683,7 +683,7 @@
         "docs/agent/distribution.json",
         "docs/agent/entrypoints/connect.md"
       ],
-      "sha256": "f2c78e7556244d32db35b4c400307c61abc5aee9cfe1a650aecbab04b23efff7"
+      "sha256": "0e381c1768b69344b62eba1d39178fb6d01326eaf9996001db151379edfe1126"
     },
     {
       "file": "skills/circuit-layout/SKILL.md",
