@@ -37,6 +37,7 @@ import type {
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import {
+  createdRouteChildIds,
   createRoutePath,
   rewriteRichTextPlainText,
   routeBends,
@@ -1030,6 +1031,34 @@ function uniqueCopyId(
   return candidate;
 }
 
+/**
+ * A pasted Route also needs Leg and Bend IDs nobody holds. Split Routes keep
+ * the children of the Route they came from, so a freed `X-copy-1` can still
+ * have its derived children in the Document.
+ */
+function uniqueRouteCopyId(
+  source: RouteBranch,
+  sequence: number,
+  occupied: Set<string>,
+  occupiedRouteChildren: Set<string>,
+): string {
+  let candidate = `${source.id}-copy-${sequence}`;
+  let collision = 1;
+  while (
+    occupied.has(candidate) ||
+    createdRouteChildIds(candidate, source.legs.length).some((id) =>
+      occupiedRouteChildren.has(id),
+    )
+  ) {
+    collision += 1;
+    candidate = `${source.id}-copy-${sequence}-${collision}`;
+  }
+  occupied.add(candidate);
+  for (const id of createdRouteChildIds(candidate, source.legs.length))
+    occupiedRouteChildren.add(id);
+  return candidate;
+}
+
 function pastedInstanceId(
   source: Instance,
   sequence: number,
@@ -1159,6 +1188,14 @@ export function proposePaste(
       ...(document.drafting?.objects ?? []),
     ].map((object) => object.id),
   );
+  const occupiedRouteChildren = new Set(
+    document.routes.flatMap((route) =>
+      route.legs.flatMap((leg) => [
+        leg.id,
+        ...(leg.to.kind === "bend" ? [leg.to.bendId] : []),
+      ]),
+    ),
+  );
   const compositionOccurrenceId =
     clipboard.intent === "compose-document"
       ? uniqueCopyId(
@@ -1236,7 +1273,7 @@ export function proposePaste(
   const routeIds = new Map(
     clipboard.routes.map((route) => [
       route.id,
-      uniqueCopyId(route.id, sequence, occupied),
+      uniqueRouteCopyId(route, sequence, occupied, occupiedRouteChildren),
     ]),
   );
   const junctionIds = new Map(

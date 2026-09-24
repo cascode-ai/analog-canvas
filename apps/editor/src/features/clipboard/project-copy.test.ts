@@ -583,6 +583,89 @@ describe("one Project copy path", () => {
     expect(changed.documents).toHaveLength(3);
   });
 
+  it("copies a Wire whose first copy name was freed by an earlier split", () => {
+    const source = createEmptyProject("source", "Source");
+    const doc = source.documents[0]!;
+    doc.instances.push(
+      ...[100, 220].map((x, i) => ({
+        id: `R${i + 1}`,
+        symbolId: "resistor",
+        placement: {
+          position: { x, y: 100 },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+      })),
+    );
+    doc.nets.push(
+      {
+        id: "n",
+        terminals: [
+          { instanceId: "R1", pinName: "2" },
+          { instanceId: "R2", pinName: "1" },
+        ],
+      },
+      { id: "m", terminals: [] },
+    );
+    doc.routes.push(
+      createRoutePath({
+        id: "wire",
+        netId: "n",
+        start: { kind: "terminal", instanceId: "R1", pinName: "2" },
+        end: { kind: "terminal", instanceId: "R2", pinName: "1" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    // An earlier session's first copy, `wire-copy-1`, was later split. The
+    // half renamed `wire-copy-1-a-move-1` kept that Route's Leg ID, so the
+    // Route name is free while its derived child ID is not.
+    doc.junctions.push(
+      {
+        id: "j1",
+        netId: "m",
+        position: { x: 0, y: 300 },
+        role: "route-anchor",
+      },
+      {
+        id: "j2",
+        netId: "m",
+        position: { x: 100, y: 300 },
+        role: "route-anchor",
+      },
+    );
+    const survivor = createRoutePath({
+      id: "wire-copy-1",
+      netId: "m",
+      start: { kind: "junction", junctionId: "j1" },
+      end: { kind: "junction", junctionId: "j2" },
+      bends: [],
+      modes: ["manual"],
+    });
+    doc.routes.push({ ...survivor, id: "wire-copy-1-a-move-1" });
+
+    // A fresh C session always places its first copy with sequence 1.
+    const plan = planProjectCopyPlacement(
+      source,
+      doc,
+      captureProjectCopy(source, doc, selection(["R1", "R2"], ["wire"]))!,
+      { x: 0, y: 400 },
+      1,
+    );
+    const placed = applyProjectCopyPlacement(plan).documents[0]!;
+    const copied = placed.routes.find(
+      (route) => route.id === plan.mapping.objects.routes.wire,
+    )!;
+    expect(copied.id).not.toBe("wire-copy-1");
+    const children = placed.routes.flatMap((route) =>
+      route.legs.flatMap((leg) => [
+        leg.id,
+        ...(leg.to.kind === "bend" ? [leg.to.bendId] : []),
+      ]),
+    );
+    expect(new Set(children).size).toBe(children.length);
+  });
+
   it("copies an attached Wire and current marker without importing its unselected devices", () => {
     const source = createEmptyProject("source", "Source");
     const doc = source.documents[0]!;
