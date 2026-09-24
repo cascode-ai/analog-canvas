@@ -58,80 +58,89 @@ test("C before selection picks up one copy and only subsequent clicks place it",
   await expect(page.getByTestId("instance-count")).toHaveText("2");
 });
 
-test("C copies a part as a fresh insertion, without the Net names its pins were on", async ({
-  page,
-}) => {
-  // M1's gate is on the Net a Cell Pin names O; its source goes to ground.
-  const project = createEmptyProject("fresh-copy", "Fresh copy");
-  const document = project.documents[0]!;
-  const placement = (x: number, y: number) => ({
-    position: { x, y },
-    rotation: 0 as const,
-    mirror: "none" as const,
-  });
-  document.instances.push(
-    {
-      id: "M1",
-      reference: "M1",
-      symbolId: "nmos",
-      placement: placement(300, 200),
-      netlist: {
-        binding: { kind: "model", deviceClass: "mos", name: "NMOS" },
-        parameters: { w: "1u", l: "150n", nf: "1", m: "1" },
+for (const gesture of ["C", "Ctrl/Cmd+C then Ctrl/Cmd+V"] as const) {
+  test(`${gesture} copies a part as a fresh insertion, without the Net names its pins were on`, async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    // M1's gate is on the Net a Cell Pin names O; its source goes to ground.
+    const project = createEmptyProject("fresh-copy", "Fresh copy");
+    const document = project.documents[0]!;
+    const placement = (x: number, y: number) => ({
+      position: { x, y },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    });
+    document.instances.push(
+      {
+        id: "M1",
+        reference: "M1",
+        symbolId: "nmos",
+        placement: placement(300, 200),
+        netlist: {
+          binding: { kind: "model", deviceClass: "mos", name: "NMOS" },
+          parameters: { w: "1u", l: "150n", nf: "1", m: "1" },
+        },
       },
-    },
-    { id: "P1", symbolId: "port", placement: placement(200, 200) },
-    { id: "GND1", symbolId: "ground", placement: placement(320, 300) },
-  );
-  document.nets.push(
-    {
-      id: "net-o",
-      terminals: [
-        { instanceId: "M1", pinName: "G" },
-        { instanceId: "P1", pinName: "P" },
-      ],
-    },
-    {
-      id: "net-gnd",
-      terminals: [
-        { instanceId: "M1", pinName: "S" },
-        { instanceId: "GND1", pinName: "0" },
-      ],
-    },
-  );
-  document.netlist!.terminals.push({
-    id: "terminal-o",
-    name: "O",
-    netId: "net-o",
-    direction: "input",
-    interfaceInstanceIds: ["P1"],
-  });
-  await page.goto("/editor");
-  await awaitEditorReady(page);
-  await page.getByTestId("project-file").setInputFiles({
-    name: "fresh-copy.icproj.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(serializeProject(project)),
-  });
-  const netLabels = page.locator(
-    '[data-layer="annotations"] [data-kind="net-label"]',
-  );
-  await expect(page.getByTestId("hit-M1")).toBeVisible();
-  await expect(netLabels).toHaveCount(0);
+      { id: "P1", symbolId: "port", placement: placement(200, 200) },
+      { id: "GND1", symbolId: "ground", placement: placement(320, 300) },
+    );
+    document.nets.push(
+      {
+        id: "net-o",
+        terminals: [
+          { instanceId: "M1", pinName: "G" },
+          { instanceId: "P1", pinName: "P" },
+        ],
+      },
+      {
+        id: "net-gnd",
+        terminals: [
+          { instanceId: "M1", pinName: "S" },
+          { instanceId: "GND1", pinName: "0" },
+        ],
+      },
+    );
+    document.netlist!.terminals.push({
+      id: "terminal-o",
+      name: "O",
+      netId: "net-o",
+      direction: "input",
+      interfaceInstanceIds: ["P1"],
+    });
+    await page.goto("/editor");
+    await awaitEditorReady(page);
+    await page.getByTestId("project-file").setInputFiles({
+      name: "fresh-copy.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(serializeProject(project)),
+    });
+    const netLabels = page.locator(
+      '[data-layer="annotations"] [data-kind="net-label"]',
+    );
+    await expect(page.getByTestId("hit-M1")).toBeVisible();
+    await expect(netLabels).toHaveCount(0);
 
-  await page.getByTestId("hit-M1").click();
-  await page.keyboard.press("c");
-  const ghost = page.getByTestId("copy-placement-preview");
-  await expect(ghost).toBeVisible();
-  // Nothing from the source circuit travels: no O, no ground name.
-  await expect(ghost.locator('[data-kind="net-label"]')).toHaveCount(0);
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 620, y: 460 } });
-  await page.keyboard.press("Escape");
-  await expect(instances(page)).toHaveCount(4);
-  await expect(netLabels).toHaveCount(0);
-});
+    await page.getByTestId("hit-M1").click();
+    // The two gestures are one copy: the same ghost, the same placed part.
+    if (gesture === "C") await page.keyboard.press("c");
+    else {
+      await page.keyboard.press("ControlOrMeta+c");
+      await page.keyboard.press("ControlOrMeta+v");
+    }
+    const ghost = page.getByTestId("copy-placement-preview");
+    await expect(ghost).toBeVisible();
+    // Nothing from the source circuit travels: no O, no ground name.
+    await expect(ghost.locator('[data-kind="net-label"]')).toHaveCount(0);
+    await page
+      .getByTestId("schematic-canvas")
+      .click({ position: { x: 620, y: 460 } });
+    await page.keyboard.press("Escape");
+    await expect(instances(page)).toHaveCount(4);
+    await expect(netLabels).toHaveCount(0);
+  });
+}
 
 test("Delete pressed first enters a repeating delete mode until Escape", async ({
   page,

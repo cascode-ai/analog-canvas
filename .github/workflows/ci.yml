@@ -1,12 +1,15 @@
 name: CI
 
 on:
+  # A pull request only plans its scope and checks its Test-Impact trailers;
+  # its two required checks are skipped, which GitHub counts as passing, so it
+  # can enter the merge queue at once.
   pull_request:
-  # The merge queue validates each queued candidate against current main, so
-  # nobody has to update a pull request by hand when main moves.
+  # The merge queue runs the checks once, on the candidate merged with current
+  # main: what is tested is what lands, and nobody updates a branch by hand.
   merge_group:
-  # Nothing else: no schedule and no full browser audit. Pull requests and
-  # queued groups run the browser specs mapped to their changed paths.
+  # Nothing else: no schedule and no full browser audit. Queued groups run the
+  # browser specs mapped to their changed paths.
 
 permissions:
   contents: read
@@ -58,9 +61,8 @@ jobs:
             --github-output \
             --github-summary
       - name: Check test-impact declaration
-        if: github.event_name == 'pull_request'
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
         run: node scripts/check-test-impact.mjs --base "$BASE_SHA"
       - name: Check local Markdown links
         # Core contracts includes this check for implementation changes.
@@ -71,7 +73,7 @@ jobs:
   core:
     name: Core contracts
     needs: changes
-    if: needs.changes.outputs.heavy == 'true'
+    if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
@@ -98,7 +100,7 @@ jobs:
   browser_shard:
     name: Browser tests (${{ matrix.shard }})
     needs: changes
-    if: (github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.changes.outputs.browser == 'true'
+    if: github.event_name == 'merge_group' && needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
@@ -130,7 +132,7 @@ jobs:
     needs:
       - changes
       - browser_shard
-    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.changes.outputs.browser == 'true'
+    if: always() && github.event_name == 'merge_group' && needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Confirm every selected browser shard passed

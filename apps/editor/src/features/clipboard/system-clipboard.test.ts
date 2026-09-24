@@ -161,7 +161,7 @@ describe("portable system circuit clipboard", () => {
     },
   );
 
-  it("carries only selected components and wires, preserving names, bulk, NoConnect and cut endpoints", () => {
+  it("carries only selected components and wires with their cut endpoints, nothing from outside", () => {
     const source = createEmptyProject("source", "Partial");
     const document = source.documents[0]!;
     for (const [id, x] of [
@@ -226,7 +226,8 @@ describe("portable system circuit clipboard", () => {
     expect(copied.instances).toHaveLength(1);
     expect(copied.instances[0]!.reference).toBe("R7");
     expect(copied.instances[0]!.netlist?.parameters).toEqual({ value: "13k" });
-    expect(copied.noConnects[0]?.reason).toBe("intentional");
+    // A No Connect and a global Net name are context, not selected objects.
+    expect(copied.noConnects).toEqual([]);
     expect(copied.routes).toHaveLength(1);
     expect(
       copied.nets
@@ -237,10 +238,10 @@ describe("portable system circuit clipboard", () => {
       copied.connectivityEvidence.some(
         (item) => item.kind === "name-claim" && item.name === "BIAS",
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it("encodes C's fresh insertion without the selection's outside context", () => {
+  it("encodes a fresh insertion, never the selection's outside Net names", () => {
     // M1's gate is on the Net a Cell Pin names O; its source goes to ground.
     const source = createEmptyProject("source", "Fresh");
     const document = source.documents[0]!;
@@ -293,25 +294,15 @@ describe("portable system circuit clipboard", () => {
       annotationIds: [],
       draftingIds: [],
     };
-    const placed = (preserveElectrical: boolean) =>
-      paste(
-        createEmptyProject("target", "Target"),
-        encodeCircuitClipboard(
-          source,
-          document,
-          selection,
-          preserveElectrical,
-        )!,
-      ).documents[0]!;
-    const claims = (copied: ReturnType<typeof placed>) =>
-      copied.connectivityEvidence.flatMap((item) =>
-        item.kind === "name-claim" ? [item.name] : [],
-      );
-    // Ctrl/Cmd+C composes with the context; C lands as if newly inserted.
-    expect(claims(placed(true))).toContain("O");
-    const fresh = placed(false);
+    const fresh = paste(
+      createEmptyProject("target", "Target"),
+      encodeCircuitClipboard(source, document, selection)!,
+    ).documents[0]!;
+    // C and Ctrl/Cmd+C alike: no O, no ground name, every pin open.
     expect(fresh.instances.map((item) => item.reference)).toEqual(["M1"]);
-    expect(claims(fresh)).toEqual([]);
+    expect(
+      fresh.connectivityEvidence.filter((item) => item.kind === "name-claim"),
+    ).toEqual([]);
     expect(fresh.nets.flatMap((net) => net.terminals)).toEqual([]);
   });
 
@@ -535,11 +526,13 @@ describe("portable system circuit clipboard", () => {
       const copied = paste(createEmptyProject("target", "Target"), content)
         .documents[0]!;
       expect(copied.instances).toEqual([]);
+      // The name travels with the label that owns it, never with a junction
+      // copied without that label.
       expect(
         resolveDocumentLogicalNets(copied).groups.some(
           (net) => net.name === "BIAS",
         ),
-      ).toBe(true);
+      ).toBe(kind === "label");
     },
   );
 

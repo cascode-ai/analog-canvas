@@ -594,9 +594,10 @@ use the same Project-aware copy planner. C retains its pointer-following ghost,
 rotation/reflection shortcuts, repeated click placement, and Escape cancellation.
 A copy in hand stays in hand across project tabs: activating or opening another
 tab prepares the same capsule against that tab's Project and keeps its turns and
-flips, so `C` in one tab and a click in another places it there. Plain `V` after
-`C` pastes the same fresh insertion; only `Ctrl/Cmd+C` composes with the
-selection's outside context.
+flips, so `C` in one tab and a click in another places it there. `Ctrl/Cmd+C`
+then `V` or `Ctrl/Cmd+V` places exactly what `C` places, with the same contact
+planning and Reference rules; no copy path brings a name from outside the
+selection.
 Gallery selects the source top Cell body; referenced child Cells remain hierarchy
 and are imported as dependencies. Inserting a nonempty hierarchical Gallery entry
 does not replace the current Project.
@@ -612,7 +613,8 @@ Cells are not copied. Authored simulation text is preserved, so references
 affected by composition may require repair before preparation.
 
 Every placement allocates new canvas object IDs and collision-free component
-instance References. Net names and Cell Pin names remain exactly as authored on
+instance References: a copy keeps its Reference where that name is still free
+and otherwise takes the next free one. Net names and Cell Pin names remain exactly as authored on
 all copy paths (C, Ctrl/Cmd+C/V, project tabs, and Gallery insertion), including
 when the destination already has the same name. No `_copy` suffix is added.
 Copied electrical labels retain their RichText, overbars, subscripts, typography,

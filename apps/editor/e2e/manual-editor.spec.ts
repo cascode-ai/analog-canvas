@@ -4043,7 +4043,7 @@ test("R rotates a selected component instead of entering Rectangle", async ({
   await expect(page.getByTestId("revision")).toHaveText("4");
 });
 
-test("C/V preserves display aliases but detaches unselected connections and allocates a unique reference", async ({
+test("C/V copies as fresh: the name label follows a unique new reference and unselected connections detach", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -4094,18 +4094,18 @@ test("C/V preserves display aliases but detaches unselected connections and allo
       item.anchor.objectId === copy.id &&
       item.kind === "instance-label",
   )!;
-  expect(annotation.content).toBeDefined();
-  // An explicit display alias stays authored text, independent of the fresh netlist name.
-  expect(annotation.binding).toBeUndefined();
-  expect(annotation.content).toEqual(
-    document.annotations.find((item) => item.id === "instance-label-R1")!
-      .content,
+  // Ctrl/Cmd+C then V places what C places: a fresh part whose name label
+  // shows its own new Reference, not the source's display alias.
+  expect(annotation.binding).toEqual({
+    kind: "instance-reference",
+    instanceId: copy.id,
+  });
+  expect(annotation.content).toBeUndefined();
+  const label = page.locator(
+    `[data-layer="annotations"] [data-object-id="${annotation.id}"]`,
   );
-  await expect(
-    page.locator(
-      `[data-layer="annotations"] [data-object-id="${annotation.id}"]`,
-    ),
-  ).toContainText("Old_alias");
+  await expect(label).not.toContainText("Old_alias");
+  await expect(label).toContainText(copy.reference!);
   await page.keyboard.press("Escape");
   await page.keyboard.press("Control+z");
   await expect(page.getByTestId("instance-count")).toHaveText("2");

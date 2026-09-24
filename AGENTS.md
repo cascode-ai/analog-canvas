@@ -23,8 +23,8 @@ asks for local-only work or a branch backup instead of publication.
    the user limited the request to local work. A branch pushed only for backup
    is not a delivery.
 2. **Delivery.** Open one pull request for the completed change or batch, run
-   the mainline delivery gate, wait for the required PR checks, merge, and
-   verify Production. Every non-documentation merge to `main` follows this one
+   the mainline delivery gate, queue it for merge, wait for the required
+   checks in the merge queue, and verify Production. Every non-documentation merge to `main` follows this one
    route. Batching is optional. A change means one independently useful feature, fix, or
    improvement; supporting tests, repair commits, files, and formatting do not
    count as extra changes. Prepare any intended release version before merging.
@@ -203,23 +203,25 @@ Before a non-document change is merged or pushed to `main`:
 2. Run `pnpm gate:preflight -- --base <base-ref>`.
 3. Run `pnpm gate:affected -- --base <base-ref>` when the plan selects bounded
    affected gates. When it selects `full-delivery`, run the target's focused
-   checks locally and let the required PR checks own the single broad core run
-   plus the mapped browser contracts. Do not run the same full suite both
+   checks locally and let the required merge-queue checks own the single broad
+   core run plus the mapped browser contracts. Do not run the same full suite both
    locally and remotely just because publication is next. Run `pnpm gate:full`
    locally when actual risk cannot be represented by the browser map, when it
    calls for pre-push full evidence, or when remote CI is unavailable.
-4. Push a review branch and wait for both GitHub required checks.
+4. Push a review branch, open the pull request and run `gh pr merge <number>`
+   right away. On the pull request itself CI only plans the change scope and
+   checks the Test-Impact trailers; its two required checks are skipped, which
+   GitHub counts as passing. The merge queue then runs them once, on the
+   candidate merged with current `main`, and squash-merges it when both pass.
    `Core contracts` runs static contracts, the complete unit/module suite, and
    the release/performance checks on one shared runner. `Browser tests` runs
    only the mapped affected specs, or a small insertion/runtime fallback for
-   an unmapped product path. Once both pass, `gh pr merge <number>` adds the
-   pull request to the merge queue, which re-runs the same path-planned checks
-   on the candidate merged with current `main` and then squash-merges it. A
-   branch needs a manual update only when it conflicts with `main`, not merely
-   because `main` moved. CI has no full browser audit and runs nothing on a
+   an unmapped product path. A branch needs a manual update only when it
+   conflicts with `main`, not merely because `main` moved. CI has no full browser audit and runs nothing on a
    schedule; `pnpm test:e2e` runs every spec locally when a change needs it.
-5. If a remote check fails, keep the target active: inspect its log, repair the
-   reported cause, and repeat verification. A successful `git push` is not a
+5. If a queue check fails, the pull request leaves the queue. Keep the target
+   active: inspect its log, repair the reported cause, push, and queue it
+   again. A successful `git push` is not a
    completed delivery.
 
 Do not bypass the gate by weakening, skipping, or deleting a failing check.

@@ -128,7 +128,8 @@ export function captureProjectCopy(
   }
   // A junction/label can be copied alone. The transport still needs a closed
   // Net record even when none of its original component terminals are selected.
-  if (preserveElectrical) {
+  // The record is structure only: names stay with the labels that own them.
+  {
     const referencedNets = [
       ...clipboard.junctions.map((item) => item.netId),
       ...clipboard.cellTerminals.map((item) => item.netId),
@@ -348,16 +349,24 @@ export function captureProjectCopy(
     componentDefinitions: componentProject.componentDefinitions,
     // Simulation source belongs to the complete Cell, not a partial selection.
     simulationFolders: !selection
-      ? project.simulationFolders.filter(
-          (folder) =>
-            folder.input.circuitBindings.length > 0 &&
-            folder.input.circuitBindings.every((binding) =>
-              copiedDocumentIds.has(binding.documentId),
-            ),
-        )
+      ? cellSimulationFolders(project, copiedDocumentIds)
       : [],
   });
   return clipboard;
+}
+
+/** The simulation folders bound only to the given Cells: their testbench. */
+export function cellSimulationFolders(
+  project: CircuitProject,
+  documentIds: ReadonlySet<string>,
+): CircuitProject["simulationFolders"] {
+  return project.simulationFolders.filter(
+    (folder) =>
+      folder.input.circuitBindings.length > 0 &&
+      folder.input.circuitBindings.every((binding) =>
+        documentIds.has(binding.documentId),
+      ),
+  );
 }
 
 /** Resolve dependencies once per Project revision/orientation, not per pointer move. */
