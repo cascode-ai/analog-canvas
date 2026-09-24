@@ -525,7 +525,8 @@ function WorkspaceEditor({
   const [preparedInitialProject] = useState(
     () =>
       materializeRazaviProjectBulkConnections(
-        initialProject ?? createEmptyProject("project-main", "New Circuit"),
+        initialProject ??
+          createEmptyProject(createId("project"), "New Circuit"),
       ).project,
   );
   const [status, setStatus] = useState(workspaceError ?? "Ready");

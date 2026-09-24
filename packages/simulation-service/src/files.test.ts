@@ -1,12 +1,100 @@
 import { describe, it, expect } from "vitest";
+import { vi } from "vitest";
+
 import {
   artifactTransferConcurrency,
   ArtifactDownloadError,
   SimulationFiles,
   sha256,
+  type StoredResultCatalog,
 } from "./files.js";
 import { SimulationFileResultSchema } from "./file-contract.js";
+import { SimulationOperationSchema, type ArtifactRef } from "./contract.js";
 describe("simulation File Resource evidence", () => {
+  it("keeps history paging small unless the caller requests more", () => {
+    expect(
+      SimulationOperationSchema.parse({ operation: "history" }),
+    ).toMatchObject({
+      limit: 10,
+    });
+    expect(
+      SimulationOperationSchema.parse({ operation: "history", limit: 50 }),
+    ).toMatchObject({ limit: 50 });
+  });
+  it("uses persistent evidence usage without materializing every catalog again", async () => {
+    const catalogs = vi.fn(async () => {
+      throw new Error("full catalog scan is unnecessary for usage");
+    });
+    const files = new SimulationFiles(Date.now, undefined, undefined, {
+      put: async () => {},
+      get: async () => null,
+      catalogs,
+      usage: async () => ({
+        fileCount: 954,
+        byteLength: 22_639_599,
+        unreferencedFileCount: 0,
+        unreferencedBytes: 0,
+        catalogCount: 63,
+        cleanupDeferred: false,
+      }),
+    });
+    expect(await files.usage()).toMatchObject({
+      fileCount: 954,
+      byteLength: 22_639_599,
+      catalogCount: 63,
+      fileLimit: 4096,
+    });
+    expect(catalogs).not.toHaveBeenCalled();
+  });
+  it("revokes deleted Run files before deferred physical reclamation", async () => {
+    const bodies = new Map<string, { ref: ArtifactRef; text: string }>();
+    const catalogs: StoredResultCatalog[] = [];
+    const files = new SimulationFiles(Date.now, undefined, undefined, {
+      put: async (ref, text) => {
+        bodies.set(ref.id, { ref, text });
+      },
+      get: async (id) => bodies.get(id) ?? null,
+      catalogs: async () => catalogs,
+      saveCatalog: async (record) => {
+        catalogs.push(record);
+      },
+      runArchives: async () => [],
+      referencedArtifactIds: async () => [],
+      deleteRun: async (runId) => {
+        const index = catalogs.findIndex(
+          (entry) => entry.catalog.runId === runId,
+        );
+        if (index >= 0) catalogs.splice(index, 1);
+        return {
+          archiveCount: 0,
+          reclaimedFiles: 0,
+          reclaimedBytes: 0,
+          cleanupDeferred: true,
+        };
+      },
+    });
+    const ref = await files.put("result.raw", "text/plain", "data");
+    await files.saveCatalog({
+      schemaVersion: 1,
+      runId: "finished",
+      preparedId: "prepared",
+      inputRevision: "revision",
+      execution: "completed",
+      collection: "complete",
+      files: [ref],
+      datasets: [],
+    });
+    expect(await files.readArtifact(ref.id)).toMatchObject({ ok: true });
+    expect(await files.deleteHistory("finished", {})).toMatchObject({
+      deleted: true,
+      cleanupDeferred: true,
+    });
+    expect(bodies.has(ref.id)).toBe(true);
+    expect(await files.readArtifact(ref.id)).toMatchObject({
+      ok: false,
+      error: { code: "ARTIFACT_UNAVAILABLE" },
+    });
+  });
   it("keeps canonical history readable but blocks deletion when archive protection cannot be verified", async () => {
     const files = new SimulationFiles(Date.now, undefined, undefined, {
       put: async () => {},

@@ -19,7 +19,7 @@ whole-run restoration do not require running the simulation again. Local Agent
 downloads remain independent of browser lifetime and storage.
 
 After reconnecting to the same Project, `simulation` operation `history` lists
-retained terminal runs, newest stored first. `limit` defaults to 50 (maximum 100);
+retained terminal runs, newest stored first. `limit` defaults to 10 (maximum 100);
 pass `nextCursor` as `cursor` to continue. This list contains no file bodies or
 waveform arrays. `storage: persistent` means the directory was saved in browser
 storage; `memory` means it is only retained by the current host. Browser storage

@@ -586,7 +586,7 @@ export const SimulationOperationSchema = z.discriminatedUnion("operation", [
   }),
   z.strictObject({
     operation: z.literal("history"),
-    limit: z.number().int().min(1).max(100).default(50),
+    limit: z.number().int().min(1).max(100).default(10),
     cursor: Id.optional(),
   }),
   z.strictObject({ operation: z.literal("history-usage") }),
