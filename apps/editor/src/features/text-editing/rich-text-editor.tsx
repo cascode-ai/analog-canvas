@@ -531,14 +531,21 @@ export function RichTextEditor({
       next.selectNodeContents(wrapper);
       selection?.removeAllRanges();
       selection?.addRange(next);
-    } else if (name === "italic" && range && !range.collapsed) {
+    } else if (
+      name === "italic" &&
+      range &&
+      !range.collapsed &&
+      selectionStartItalic(range) &&
+      !document.queryCommandState("italic")
+    ) {
       // Scripts are upright, so italic text with its subscript is only partly
-      // italic. Chromium outside macOS would then slant everything; toggle
-      // from the start of the selection on every platform, as macOS does.
-      const startItalic = selectionStartItalic(range);
+      // italic, and native editing would slant everything outside macOS. Let
+      // scripts follow the surrounding slant while the command runs, so it
+      // removes italic from the whole selection on every platform.
+      const editable = editableRef.current;
+      editable.dataset.richTextScriptsInherit = "";
       document.execCommand("italic");
-      if (startItalic && document.queryCommandState("italic"))
-        document.execCommand("italic");
+      delete editable.dataset.richTextScriptsInherit;
     } else {
       document.execCommand(name);
     }

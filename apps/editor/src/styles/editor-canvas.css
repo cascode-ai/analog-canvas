@@ -826,9 +826,10 @@
   text-decoration: none;
 }
 
-/* Scripts are upright, as the drawing renders them; italic set inside stays. */
-.rich-text-editable sub,
-.rich-text-editable sup {
+/* Scripts are upright, as the drawing renders them; italic set inside stays.
+   The italic command briefly lets them follow the surrounding slant. */
+.rich-text-editable:not([data-rich-text-scripts-inherit]) sub,
+.rich-text-editable:not([data-rich-text-scripts-inherit]) sup {
   font-style: normal;
 }
 
