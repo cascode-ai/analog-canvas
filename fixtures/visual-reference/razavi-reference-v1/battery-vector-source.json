@@ -1,0 +1,318 @@
+{
+  "schemaVersion": 1,
+  "id": "razavi-textbook-battery",
+  "kind": "pdf-vector-extract",
+  "source": {
+    "title": "Fundamentals of Microelectronics, First Edition",
+    "sha256": "4b5d1a96f998a6fb7f9ce2d1251a0087712032297e858e118f7476fa37d7d586",
+    "pdfPage": 95,
+    "printedPage": 70,
+    "figure": "3.11(a)"
+  },
+  "selection": {
+    "method": "native-battery-and-adjacent-vsource-vectors",
+    "nativeObjects": {
+      "voltage_circle": {
+        "objectType": "curve",
+        "boxPdf": [
+          248.259,
+          248.799,
+          259.101,
+          259.641
+        ],
+        "lineWidthPdfPt": 0.678,
+        "pathSha256": "f85cec1124dc52dc9d95ac3366678ee2c38cb07ec375190971c4b2f38925d671"
+      },
+      "upper_lead": {
+        "objectType": "line",
+        "boxPdf": [
+          291.632,
+          255.773,
+          291.632,
+          263.158
+        ],
+        "lineWidthPdfPt": 0.678,
+        "pathSha256": "e65107c4b7990c63c4a06aae541dde00d965a27db6325923b9771f42bff2ffcd"
+      },
+      "lower_lead": {
+        "objectType": "line",
+        "boxPdf": [
+          291.632,
+          266.615,
+          291.632,
+          274.0
+        ],
+        "lineWidthPdfPt": 0.678,
+        "pathSha256": "ebf7b94f3831b4d0a1741ffdfaddb5ab12636840bd00a4e8cc70c92190731743"
+      },
+      "long_plate": {
+        "objectType": "line",
+        "boxPdf": [
+          283.9,
+          263.227,
+          299.377,
+          263.227
+        ],
+        "lineWidthPdfPt": 1.355,
+        "pathSha256": "3130b3ebf28482e0304a6b8369e47bdbdc2b615f11f281fea096c491ffd8120e"
+      },
+      "short_plate": {
+        "objectType": "line",
+        "boxPdf": [
+          287.606,
+          266.615,
+          295.667,
+          266.615
+        ],
+        "lineWidthPdfPt": 1.355,
+        "pathSha256": "18cab96bf17ab8d60094e865a31e2e7b223ca1c8bb48d1a5aa4bdc28b4cb1ef1"
+      },
+      "plus_horizontal": {
+        "objectType": "line",
+        "boxPdf": [
+          295.623,
+          258.159,
+          299.689,
+          258.159
+        ],
+        "lineWidthPdfPt": 0.678,
+        "pathSha256": "c4e978c8c4b595ef71afcc830488caa9cb30bd8ede00997a633c2588f9b54218"
+      },
+      "plus_vertical": {
+        "objectType": "line",
+        "boxPdf": [
+          297.656,
+          256.126,
+          297.656,
+          260.191
+        ],
+        "lineWidthPdfPt": 0.678,
+        "pathSha256": "dc99578dbc8dbc7234839ef7ddd2e080293e7dc15a276fc9e3d59a2f75bbcb96"
+      },
+      "minus": {
+        "objectType": "line",
+        "boxPdf": [
+          295.623,
+          271.711,
+          299.689,
+          271.711
+        ],
+        "lineWidthPdfPt": 0.678,
+        "pathSha256": "bc7182e52ce80143a53e8485a07d50b843f182ac248bce6eec3da2efd08cae39"
+      }
+    },
+    "nativeObjectSha256": "99d90ad454baf3628ffc966375d037f8869dc6927f710e780e118cdb0639ffae"
+  },
+  "normalization": {
+    "originPdf": {
+      "x": 291.632,
+      "y": 264.921
+    },
+    "logicalUnitsPerPdfPoint": 1.984101,
+    "adjacentVsourceDiameterPdfPt": 10.842,
+    "reviewedVsourceDiameterLogical": 21.511628,
+    "longPlatePdfPt": 15.477,
+    "shortPlatePdfPt": 8.061,
+    "plateCenterGapPdfPt": 3.388,
+    "plateToVsourceStrokeRatio": 1.998525,
+    "symbolDefinition": {
+      "schemaVersion": 1,
+      "id": "battery",
+      "name": "Battery",
+      "viewBox": {
+        "x": -24,
+        "y": -24,
+        "width": 48,
+        "height": 48
+      },
+      "pins": [
+        {
+          "name": "+",
+          "role": "positive",
+          "at": {
+            "x": 0,
+            "y": -20
+          },
+          "direction": "north",
+          "presentation": {
+            "visibility": "visible",
+            "leadLength": 17
+          }
+        },
+        {
+          "name": "-",
+          "role": "negative",
+          "at": {
+            "x": 0,
+            "y": 20
+          },
+          "direction": "south",
+          "presentation": {
+            "visibility": "visible",
+            "leadLength": 17
+          }
+        }
+      ],
+      "primitives": [
+        {
+          "kind": "line",
+          "from": {
+            "x": 0,
+            "y": -20
+          },
+          "to": {
+            "x": 0,
+            "y": -3.361068
+          },
+          "style": {
+            "strokeRole": "normal",
+            "lineCap": "butt",
+            "lineJoin": "miter"
+          }
+        },
+        {
+          "kind": "line",
+          "from": {
+            "x": 0,
+            "y": 3.361068
+          },
+          "to": {
+            "x": 0,
+            "y": 20
+          },
+          "style": {
+            "strokeRole": "normal",
+            "lineCap": "butt",
+            "lineJoin": "miter"
+          }
+        },
+        {
+          "kind": "polygon",
+          "points": [
+            {
+              "x": -15.341072,
+              "y": -4.959888
+            },
+            {
+              "x": 15.366866,
+              "y": -4.959888
+            },
+            {
+              "x": 15.366866,
+              "y": -1.762248
+            },
+            {
+              "x": -15.341072,
+              "y": -1.762248
+            }
+          ],
+          "fill": "foreground",
+          "stroke": "none"
+        },
+        {
+          "kind": "polygon",
+          "points": [
+            {
+              "x": -7.987992,
+              "y": 1.762248
+            },
+            {
+              "x": 8.005849,
+              "y": 1.762248
+            },
+            {
+              "x": 8.005849,
+              "y": 4.959888
+            },
+            {
+              "x": -7.987992,
+              "y": 4.959888
+            }
+          ],
+          "fill": "foreground",
+          "stroke": "none"
+        },
+        {
+          "kind": "line",
+          "from": {
+            "x": 7.918549,
+            "y": -13.416494
+          },
+          "to": {
+            "x": 15.985905,
+            "y": -13.416494
+          },
+          "style": {
+            "strokeRole": "normal",
+            "lineCap": "butt",
+            "lineJoin": "miter"
+          }
+        },
+        {
+          "kind": "line",
+          "from": {
+            "x": 11.952227,
+            "y": -17.450172
+          },
+          "to": {
+            "x": 11.952227,
+            "y": -9.3848
+          },
+          "style": {
+            "strokeRole": "normal",
+            "lineCap": "butt",
+            "lineJoin": "miter"
+          }
+        },
+        {
+          "kind": "line",
+          "from": {
+            "x": 7.918549,
+            "y": 13.472049
+          },
+          "to": {
+            "x": 15.985905,
+            "y": 13.472049
+          },
+          "style": {
+            "strokeRole": "normal",
+            "lineCap": "butt",
+            "lineJoin": "miter"
+          }
+        }
+      ],
+      "variants": []
+    }
+  },
+  "derivation": {
+    "pinExtension": "native roughly 36-unit total lead span extended symmetrically to 40-unit on-grid pins",
+    "stroke": "normal leads and polarity marks; filled plate thickness preserves the native 2:1 plate-to-source-stroke ratio",
+    "model": "drawing-only; no default electrical or netlist binding"
+  },
+  "rasterWitness": {
+    "kind": "source-pdf-crop",
+    "sourcePdfPage": 95,
+    "dpi": 342.852732,
+    "pixels": {
+      "width": 90,
+      "height": 106
+    },
+    "pixelsPerLogical": 2.4,
+    "originPx": {
+      "x": 43.705943,
+      "y": 53.512341
+    },
+    "window": {
+      "width": 90,
+      "height": 106,
+      "minX": -18,
+      "minY": -22
+    },
+    "sourceCropPx": {
+      "x": 1345,
+      "y": 1208
+    },
+    "assetPath": "battery-reference.png",
+    "threshold": 160
+  }
+}

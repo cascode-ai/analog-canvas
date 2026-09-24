@@ -4,6 +4,7 @@
   "version": 1,
   "entries": [
     "and-gate",
+    "battery",
     "buffer",
     "capacitor",
     "closed-switch",

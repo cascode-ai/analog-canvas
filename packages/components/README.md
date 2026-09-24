@@ -77,6 +77,13 @@ The product set is exactly the reviewed, Reference-calibrated entries:
 - `voltage-source`, `pulse-voltage-source`, `current-source`; the two-terminal
   Digital Clock composes the calibrated independent voltage-source body with
   the Figure 16.8 clock-pulse mark and owns its timing semantics separately;
+- `battery`, the drawing-only single-cell plate symbol extracted from
+  _Fundamentals of Microelectronics_ Figure 3.11(a). Its long/short plate
+  lengths, spacing, and stroke ratio use the circular voltage source in the
+  same panel as the scale reference. It has `electrical: null`: placing it does
+  not silently create a DC source or a physical battery model, and netlist
+  export reports a missing reviewed definition until an explicit binding is
+  authored;
 - `resistor`, `capacitor`, `inductor-compact`, their adjustable siblings
   `variable-resistor`, `variable-capacitor`, and `variable-inductor` (the base
   body plus one diagonal adjustment arrow), `port`, and `port-filled`;

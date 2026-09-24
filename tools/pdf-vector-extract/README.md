@@ -21,6 +21,9 @@ The family extractors currently cover:
   switch from Figure 16.38.
 - `extract-razavi-zener.py`: direct Zener diode geometry from Figure 3.44(a)
   of _Fundamentals of Microelectronics_;
+- `extract-razavi-battery.py`: the single-cell battery and adjacent circular
+  voltage source from Figure 3.11(a) of _Fundamentals of Microelectronics_;
+  the circle anchors a documented ratio normalization, not a simulator model;
 - `extract-razavi-logic-gates.py`: inverter, AND, NAND, NOR, and XOR native
   vectors from Figures 16.2, 16.24, and 16.25. OR and XNOR are explicitly
   derived by the family generator from these direct sources.

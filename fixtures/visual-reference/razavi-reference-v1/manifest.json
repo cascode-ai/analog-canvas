@@ -240,6 +240,25 @@
       "scope": ["outline diode geometry", "double-width cathode bar"]
     },
     {
+      "id": "razavi-textbook-battery",
+      "kind": "pdf-vector-extract",
+      "source": {
+        "title": "Fundamentals of Microelectronics, First Edition",
+        "sha256": "4b5d1a96f998a6fb7f9ce2d1251a0087712032297e858e118f7476fa37d7d586",
+        "pdfPage": 95,
+        "printedPage": 70,
+        "figure": "3.11(a)"
+      },
+      "extractPath": "battery-vector-source.json",
+      "extractSha256": "d90d096efff1476c3068b30814ffd1ac33fd5fb5a2f83ae2dea061388d0a84f7",
+      "rasterPath": "battery-reference.png",
+      "rasterSha256": "6435e601506c2179db36594b84ff4789aabfd0396e8c4e80b4fd47087697c0f5",
+      "scope": [
+        "single-cell battery plate and polarity geometry",
+        "same-panel voltage-source diameter and stroke ratio"
+      ]
+    },
+    {
       "id": "razavi-textbook-zener-diode",
       "kind": "pdf-vector-extract",
       "source": {
@@ -517,6 +536,8 @@
   "commonSymbolGeometrySha256": "1972b4584a02c9845c5a20d24005746f2ae258c5c250c740e67a644ae4d68d37",
   "zenerDiodeGeometryPath": "zener-diode-geometry.json",
   "zenerDiodeGeometrySha256": "0ceb7d8e0512e933dc36fff854a851491baf8e270748d6793b40a2fdc1bf1a15",
+  "batteryGeometryPath": "battery-geometry.json",
+  "batteryGeometrySha256": "475743760a5cede0055999d9628851dbe591b573c789983da296481a13b0e91a",
   "logicGateGeometryPath": "logic-gate-geometry.json",
   "logicGateGeometrySha256": "82ab85760e6c5db3f1201a792fbad19d7a3dad32dfc42c90bd69603f693c88f8",
   "bufferDffGeometryPath": "buffer-dff-geometry.json",
@@ -524,7 +545,7 @@
   "delayCellGeometryPath": "delay-cell-geometry.json",
   "delayCellGeometrySha256": "b64afe75141020b265bc7826a1c21fa5f13cb9f898e9e6bc013f1e0ef3f84985",
   "fidelityTargetsPath": "fidelity-targets.json",
-  "fidelityTargetsSha256": "42d94a268d87c0899afe13df6d89f88b4365c3ee930f8f29b5638cae5abdd5b4",
+  "fidelityTargetsSha256": "884be97d4e7d61bd60ae9deabb7e1cbf7316b69c61bcee76b5228d774ea9cc77",
   "pixels": {
     "width": 1204,
     "height": 794
