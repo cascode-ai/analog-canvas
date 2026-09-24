@@ -6,9 +6,21 @@ const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
 const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 
 describe("CI workflow", () => {
-  it("validates pull requests and their merge-queue groups by changed paths", () => {
+  it("runs the checks once, in the merge queue, planned by changed paths", () => {
     expect(workflow).toContain("  pull_request:\n");
     expect(workflow).toContain("  merge_group:\n");
+    // A pull request only plans; its required checks skip, which counts as
+    // passing, and the queue runs them on the candidate merged with main.
+    expect(workflow).toContain(
+      "if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'\n",
+    );
+    expect(workflow).toContain(
+      "if: always() && github.event_name == 'merge_group' && needs.changes.outputs.browser == 'true'",
+    );
+    // Test-Impact is still enforced where the checks run.
+    expect(workflow).toContain(
+      "BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}",
+    );
     // A queued group is planned from the main it was queued on, not forced
     // full.
     expect(workflow).toContain('base="$MERGE_GROUP_BASE_SHA"');
@@ -19,7 +31,7 @@ describe("CI workflow", () => {
     for (const name of ["Core contracts", "Browser tests"])
       expect(workflow).toContain(`name: ${name}`);
     expect(workflow).toContain(
-      "if: (github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.changes.outputs.browser == 'true'",
+      "if: github.event_name == 'merge_group' && needs.changes.outputs.browser == 'true'",
     );
     expect(workflow).toContain(
       "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome",
@@ -58,6 +70,8 @@ describe("CI workflow", () => {
     expect(workflow).not.toContain("cron:");
     expect(workflow).not.toContain("workflow_dispatch:");
     expect(workflow).not.toContain("Full browser audit");
-    expect(workflow).toContain("if: needs.changes.outputs.heavy == 'true'\n");
+    expect(workflow).not.toContain(
+      "if: needs.changes.outputs.heavy == 'true'\n",
+    );
   });
 });

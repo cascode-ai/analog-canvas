@@ -116,7 +116,8 @@ owns the local-to-Production handoff and rollback.
 
 ## Batch pull-request checks
 
-Every implementation pull request keeps two required checks:
+Every implementation change keeps two required checks, run once in the merge
+queue:
 
 - `Core contracts` shares one checkout and dependency install while running
   all static and generated checks, the complete unit/module suite, the build,
@@ -133,9 +134,11 @@ Every implementation pull request keeps two required checks:
 
 Nothing runs on a schedule, and CI has no full browser audit. Run
 `pnpm test:e2e` locally when a change calls for the complete browser suite.
-A PR enters the merge queue after its two required checks pass. The queue runs
-the same path-planned checks on the PR merged with current `main`, never the
-complete browser suite, and merges it. CI does not repeat on the subsequent
+On the pull request itself, CI only plans the change scope and checks the
+Test-Impact trailers; the two required checks are skipped there, which GitHub
+counts as passing, so the pull request can enter the merge queue at once. The
+queue runs the path-planned checks on the PR merged with current `main`, never
+the complete browser suite, and merges it when both pass. CI does not repeat on the subsequent
 `main` push;
 the Production workflow builds, deploys, and verifies the merged commit.
 A release tag or explicit dispatch may redeploy another selected commit only
