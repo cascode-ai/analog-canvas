@@ -14,6 +14,13 @@ const IDS = [
   "f22q5vhdb5",
 ];
 
+// The Gallery answers only signed-in readers or its read-only credential.
+const token = process.env.GALLERY_BACKUP_TOKEN;
+if (!token)
+  throw new Error(
+    "Set GALLERY_BACKUP_TOKEN to the read-only Gallery credential; see docs/gallery-backup.md",
+  );
+
 const out = join(
   dirname(fileURLToPath(import.meta.url)),
   "..",
@@ -23,7 +30,10 @@ const out = join(
 await mkdir(out, { recursive: true });
 for (const id of IDS) {
   const response = await fetch(`${BASE}/${id}`, {
-    headers: { "user-agent": "icm-redline-corpus-refresh" },
+    headers: {
+      authorization: `Bearer ${token}`,
+      "user-agent": "icm-redline-corpus-refresh",
+    },
   });
   if (!response.ok) {
     throw new Error(

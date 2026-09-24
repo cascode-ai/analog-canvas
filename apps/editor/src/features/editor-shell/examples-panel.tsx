@@ -6,6 +6,7 @@ import {
   galleryCountLabel,
   galleryEntryMatchesQuery,
   galleryPreviewUrl,
+  GALLERY_SIGN_IN_REQUIRED,
   loadGalleryFeed,
   localhostExamplesEnabled,
   subscribeGalleryRefresh,
@@ -40,7 +41,7 @@ export interface ExamplesPanelProps {
 }
 
 interface FeedState {
-  status: "loading" | "ready" | "unavailable";
+  status: "loading" | "ready" | "unavailable" | "signed-out";
   entries: GalleryFeedEntry[];
   nextCursor: string | null;
   total: number | null;
@@ -151,14 +152,16 @@ export function ExamplesPanel({
     void loadGalleryFeed(fetcher).then((page) => {
       if (generation !== loadGenerationRef.current) return;
       setFeed(
-        page === null
-          ? { ...EMPTY_FEED, status: "unavailable" }
-          : {
-              status: "ready",
-              entries: page.entries,
-              nextCursor: page.nextCursor,
-              total: page.total,
-            },
+        page === GALLERY_SIGN_IN_REQUIRED
+          ? { ...EMPTY_FEED, status: "signed-out" }
+          : page === null
+            ? { ...EMPTY_FEED, status: "unavailable" }
+            : {
+                status: "ready",
+                entries: page.entries,
+                nextCursor: page.nextCursor,
+                total: page.total,
+              },
       );
     });
   }, [open, fetcher, refreshSignal]);
@@ -178,7 +181,12 @@ export function ExamplesPanel({
       const generation = loadGenerationRef.current;
       void loadGalleryFeed(fetcher, { cursor })
         .then((page) => {
-          if (page === null || generation !== loadGenerationRef.current) return;
+          if (
+            page === null ||
+            page === GALLERY_SIGN_IN_REQUIRED ||
+            generation !== loadGenerationRef.current
+          )
+            return;
           setFeed((previous) => ({
             ...previous,
             entries: [...previous.entries, ...page.entries],
@@ -310,9 +318,11 @@ export function ExamplesPanel({
             </div>
             {!showGallery && !localhostExamplesEnabled() ? (
               <p className="examples-panel-empty">
-                {feed.status === "unavailable"
-                  ? "Gallery is unavailable. Try again later."
-                  : "No published circuits yet."}
+                {feed.status === "signed-out"
+                  ? "Sign in to browse the Community Gallery's circuits."
+                  : feed.status === "unavailable"
+                    ? "Gallery is unavailable. Try again later."
+                    : "No published circuits yet."}
               </p>
             ) : null}
             {/* Says "still looking" while pages remain, and only claims nothing

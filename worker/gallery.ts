@@ -22,7 +22,7 @@ import {
   type CircuitProject,
 } from "@icm/model";
 
-import { sessionUserOf } from "./auth";
+import { sessionUserOf, type SessionUser } from "./auth";
 import {
   previewAcceptanceUserOf,
   type PreviewAcceptanceEnv,
@@ -192,6 +192,41 @@ function sameOrigin(request: Request): boolean {
 async function isAdmin(request: Request, env: GalleryEnv): Promise<boolean> {
   const user = await sessionUserOf(request, env);
   return user?.isAdmin === true;
+}
+
+/**
+ * Who may read the Community Gallery: a signed-in account. Remembered per
+ * session cookie for a minute in this isolate, so a wall of previews asks the
+ * AuthDO once rather than once per image.
+ */
+const galleryReaders = new Map<
+  string,
+  { expires: number; user: SessionUser }
+>();
+async function galleryReaderOf(
+  request: Request,
+  env: GalleryEnv,
+): Promise<SessionUser | null> {
+  const cookie = request.headers.get("Cookie") ?? "";
+  const now = Date.now();
+  const remembered = galleryReaders.get(cookie);
+  if (remembered && remembered.expires > now) return remembered.user;
+  const user = await sessionUserOf(request, env);
+  if (user) {
+    if (galleryReaders.size >= 256)
+      galleryReaders.delete(galleryReaders.keys().next().value!);
+    galleryReaders.set(cookie, { expires: now + 60_000, user });
+  }
+  return user;
+}
+
+/** A reader's copy of a cacheable response: a browser may keep it, a shared cache may not. */
+function readerCopy(response: Response): Response {
+  const headers = new Headers(response.headers);
+  const policy = headers.get("cache-control");
+  if (policy?.startsWith("public"))
+    headers.set("cache-control", policy.replace(/^public/u, "private"));
+  return new Response(response.body, { status: response.status, headers });
 }
 
 /**
@@ -1561,6 +1596,18 @@ export async function routeGalleryRequest(
   }
   if (!url.pathname.startsWith("/api/gallery")) return null;
   const segments = url.pathname.split("/").filter(Boolean).slice(2);
+  // The Community Gallery is for signed-in readers. Without a session or the
+  // read-only Gallery credential a visitor reads nothing from it: no list,
+  // count, preview or Project. Writes keep their own, stricter checks.
+  if (
+    (request.method === "GET" || request.method === "HEAD") &&
+    !hasGalleryReadToken(request, env) &&
+    !(await galleryReaderOf(request, env))
+  )
+    return Response.json(
+      { error: "sign-in-required" },
+      { status: 401, headers: { "cache-control": "no-store" } },
+    );
 
   if (
     segments.length === 2 &&
@@ -2004,7 +2051,7 @@ export async function routeGalleryRequest(
         access.payload.status === "public" &&
         access.payload.previewRevision === requestedRevision
       ) {
-        return cached;
+        return readerCopy(cached);
       }
     }
     const { status, payload } = await callGallery<{
@@ -2044,7 +2091,7 @@ export async function routeGalleryRequest(
       if (immutable) {
         await storePreviewCache(previewCache, request, response.clone());
       }
-      return response;
+      return readerCopy(response);
     }
     const allowed =
       (await canReview(request, env)) ||

@@ -207,6 +207,14 @@ jobs:
               exit 1
             fi
           done
+          # The Gallery answers only signed-in readers or its read credential.
+          gallery_status="$(curl --silent --show-error --max-time 20 \
+            --output /dev/null --write-out '%{http_code}' \
+            https://analog-canvas.tokenzhang.com/api/gallery)"
+          if [ "$gallery_status" != "401" ]; then
+            echo "An anonymous Gallery read answered HTTP $gallery_status, not 401."
+            exit 1
+          fi
           curl --fail --silent --show-error \
             --retry 5 --retry-delay 2 --retry-all-errors \
             --max-time 20 \

@@ -111,6 +111,10 @@ export function createGalleryExampleCommands({
       const response = await fetchImpl(`/api/gallery/${entryId}`, {
         credentials: "same-origin",
       });
+      if (response.status === 401) {
+        setStatus("Sign in to open Community Gallery circuits");
+        return;
+      }
       if (!response.ok) {
         setStatus("This gallery entry is unavailable");
         return;
@@ -160,6 +164,10 @@ export function createGalleryExampleCommands({
       const response = await fetchImpl(`/api/gallery/${entryId}`, {
         credentials: "same-origin",
       });
+      if (response.status === 401) {
+        setStatus("Sign in to insert Community Gallery circuits");
+        return;
+      }
       const payload = response.ok
         ? ((await response.json()) as GalleryEntryPayload)
         : null;

@@ -12,6 +12,7 @@ import {
   loadGalleryAuthors,
   loadGalleryFeed,
   galleryTagScope,
+  GALLERY_SIGN_IN_REQUIRED,
   loadGalleryTagSummary,
   loadGalleryTags,
   localhostExamplesEnabled,
@@ -615,7 +616,15 @@ export function GalleryFeed({
     void request.then((page) => {
       if (cancelled || generation !== feedGenerationRef.current) return;
       firstPageLoadingRef.current = false;
-      if (page) {
+      if (page === GALLERY_SIGN_IN_REQUIRED) {
+        loadedQueryRef.current = queryKey;
+        setState({
+          status: "signed-out",
+          entries: [],
+          nextCursor: null,
+          total: null,
+        });
+      } else if (page) {
         loadedQueryRef.current = queryKey;
         setState({ status: "ready", ...page });
       } else if (changingQuery) {
@@ -667,6 +676,16 @@ export function GalleryFeed({
       }).then((page) => {
         if (generation !== feedGenerationRef.current) return;
         loadingMoreRef.current = false;
+        if (page === GALLERY_SIGN_IN_REQUIRED) {
+          // The session ended while the reader scrolled.
+          setState({
+            status: "signed-out",
+            entries: [],
+            nextCursor: null,
+            total: null,
+          });
+          return;
+        }
         if (!page) return;
         setState((previous) =>
           previous.status === "ready" && previous.nextCursor === nextCursor
@@ -944,7 +963,15 @@ export function GalleryFeed({
         </Suspense>
       ) : null}
 
-      {view === "gallery" ? (
+      {view === "gallery" && state.status === "signed-out" ? (
+        <section className="gallery-sign-in" data-testid="gallery-sign-in">
+          <p className="gallery-status">
+            The Community Gallery is for signed-in members. Sign in (top right)
+            to browse its circuits and open them in the editor.
+          </p>
+        </section>
+      ) : null}
+      {view === "gallery" && state.status !== "signed-out" ? (
         <div className="gallery-browser">
           <GalleryTagSidebar
             tags={tagOptions}

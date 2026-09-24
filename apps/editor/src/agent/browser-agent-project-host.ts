@@ -23,7 +23,7 @@ import {
   loadCloudProjectForCellImport,
   type CloudCellImportLoadResult,
 } from "../features/hierarchy/cloud-cell-import";
-import { loadGalleryFeed } from "../gallery-client";
+import { GALLERY_SIGN_IN_REQUIRED, loadGalleryFeed } from "../gallery-client";
 import { planNetlistCodeEdit } from "../features/netlist-export/netlist-code-edit";
 
 export interface BrowserAgentProjectHostOptions {
@@ -90,6 +90,14 @@ export class BrowserAgentProjectHost {
         ...(request.cursor ? { cursor: request.cursor } : {}),
         ...(request.limit === undefined ? {} : { limit: request.limit }),
       });
+      if (page === GALLERY_SIGN_IN_REQUIRED) {
+        return this.error(
+          request,
+          "GALLERY_UNAVAILABLE",
+          "The Community Gallery is for signed-in members; sign in to the Editor first",
+          "retry",
+        );
+      }
       if (!page) {
         return this.error(
           request,

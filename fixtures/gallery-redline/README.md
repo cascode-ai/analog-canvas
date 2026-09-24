@@ -33,8 +33,10 @@ for pathology and coverage, ~410KB total:
 node scripts/refresh-gallery-redline.mjs
 ```
 
-The script re-fetches exactly these entry ids from the public Gallery API and
-rewrites the `.icproj.json` files. Refresh deliberately keeps the same ids: the
+The script re-fetches exactly these entry ids from the Gallery API and
+rewrites the `.icproj.json` files. The Gallery answers only signed-in readers,
+so export the read-only Gallery credential as `GALLERY_BACKUP_TOKEN` first
+(see [off-site backups](../../docs/gallery-backup.md)). Refresh deliberately keeps the same ids: the
 value of the corpus is that these documents are known-pathological; swap an id
 only when a document is deleted upstream, and record the replacement's
 pathology in the table above.

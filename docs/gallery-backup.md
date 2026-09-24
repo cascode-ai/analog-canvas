@@ -11,12 +11,14 @@ retention deletion is deliberately disabled initially.
 The read-only `GALLERY_BACKUP_TOKEN` is stored as a GitHub Actions secret in
 both repositories. Production deployment syncs it to the Worker. Rotation
 requires updating both secrets and deploying; never commit or print its value.
-It authorizes only two reads: `GET /api/gallery/maintenance/automated-backup`
-with `table=inventory|galleryEntries|galleryEntryVersions|galleryLikes`, whose
+It authorizes Gallery reads only: every read a signed-in member may make (the
+wall, tags, entries with their Project Code, previews), plus
+`GET /api/gallery/maintenance/automated-backup` with
+`table=inventory|galleryEntries|galleryEntryVersions|galleryLikes`, whose
 pages contain one raw record and an opaque continuation cursor, and
 `GET /api/gallery/maintenance/netlists`, the public entries' netlists (see
-below). The credential grants no admin session, mutation, restore or private
-Cloud Project access. Preview does not receive the secret. Responses are never
+below). Without it or a session the Gallery reads nothing. The credential
+grants no admin session, mutation, restore or private Cloud Project access. Preview does not receive the secret. Responses are never
 publicly cached.
 
 Every capture includes all Gallery statuses, retained historical versions,
