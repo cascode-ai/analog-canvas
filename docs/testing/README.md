@@ -136,9 +136,11 @@ Weekly scheduled and manual workflows run the complete browser suite in four
 shards. The scheduled audit skips Core contracts because the audited `main`
 commit already passed them in its pull request; manual full validation retains
 both layers.
-A PR based on current `main` merges after its two required checks without
-repeating them in a merge queue. CI does not repeat on the subsequent `main`
-push; the Production workflow builds, deploys, and verifies the merged commit.
+A PR enters the merge queue after its two required checks pass. The queue runs
+the same path-planned checks on the PR merged with current `main`, never the
+complete browser suite, and merges it. CI does not repeat on the subsequent
+`main` push;
+the Production workflow builds, deploys, and verifies the merged commit.
 A release tag or explicit dispatch may redeploy another selected commit only
 when that commit is already on `main`.
 [Deployment](../deployment.md) owns that sequence and recovery.
