@@ -419,7 +419,7 @@ describe("CI validation planning", () => {
     });
   });
 
-  it("forces complete validation for a manual run", () => {
+  it("forces complete validation when asked to", () => {
     expect(
       ciPlan(["docs/user/getting-started.md"], { forceFull: true }),
     ).toMatchObject({
