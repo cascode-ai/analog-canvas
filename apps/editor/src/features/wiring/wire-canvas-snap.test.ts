@@ -40,6 +40,44 @@ function source(
 }
 
 describe("wire canvas snap", () => {
+  it("selects each dense AND pin independently without joining its neighbors", () => {
+    const document = createEmptyDocument("fine-snap", "Fine snap");
+    document.instances.push({
+      id: "X1",
+      symbolId: "and-gate-4",
+      placement: { position: { x: 200, y: 100 }, rotation: 0, mirror: "none" },
+    });
+    const wiringEndpoints = ["A", "B", "C", "D"].map((pinName) => {
+      const endpoint = { kind: "terminal" as const, instanceId: "X1", pinName };
+      return {
+        endpoint,
+        netId: null,
+        connection: resolveEndpointConnection(document, resolver, endpoint)!,
+        preludeEdits: [],
+      } satisfies WireSource;
+    });
+    const context: WireCanvasSnapContext = {
+      document,
+      resolver,
+      wiringEndpoints,
+      routeGeometryRecords: [],
+      contactComponents: [],
+      wireSource: null,
+      wireWaypoints: [],
+      captureTolerance: 5,
+    };
+    for (const [index, pinName] of ["A", "B", "C", "D"].entries()) {
+      const y = [88, 96, 104, 112][index]!;
+      const result = resolveWireCanvasSnap(context, { x: 170, y }, false);
+      expect(result.point).toEqual({ x: 170, y });
+      expect(result.endpoint?.endpoint).toEqual({
+        kind: "terminal",
+        instanceId: "X1",
+        pinName,
+      });
+      expect(result.ambiguous).toBeUndefined();
+    }
+  });
   function conductorContext(diagonal = false): WireCanvasSnapContext {
     const document = createEmptyDocument("snap", "Snap");
     document.presentation.grid = 10;

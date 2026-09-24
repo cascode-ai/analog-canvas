@@ -94,7 +94,9 @@ Undo restores the whole committed document, including the derived membership.
   joins real Net membership through one atomic Edit Engine transaction.
 - Every terminal resolves through one `EndpointConnection`. Exact artwork
   contact and outward escape are derived presentation geometry; the Wire
-  compiler persists only grid landings and ordinary grid bends. An offset
+  compiler persists only electrical-lattice landings and bends. The ordinary
+  placement and free-draw snap remains on the Document's coarser grid; dense
+  authored pins may land on its common 2-unit subgrid. An offset
   MOS B anchor therefore uses the same Route transaction as every other pin;
   `bulk-dashed` changes only presentation.
 - Exact visible endpoint coincidence is a zero-length physical contact. When a

@@ -38,6 +38,104 @@ async function openSelectionShelf(page: import("@playwright/test").Page) {
   }
 }
 
+for (const family of [
+  "and-gate",
+  "nand-gate",
+  "or-gate",
+  "nor-gate",
+  "xor-gate",
+  "xnor-gate",
+])
+  test(`${family} input count changes drawn pins and black-box target together`, async ({
+    page,
+  }) => {
+    const target = family.replace("-", "_");
+    await page.goto("/editor");
+    await chooseComponent(page, family);
+    await page
+      .getByTestId("schematic-canvas")
+      .click({ position: { x: 360, y: 230 } });
+    await page.keyboard.press("Escape");
+    await page.getByTestId("hit-X1").click();
+    await openSelectionShelf(page);
+    expect(JSON.parse(await readComponentPropertyCode(page)).inputs).toBe(2);
+    await editComponentPropertyCode(page, (code) => {
+      code.inputs = 4;
+    });
+    await expect(page.getByTestId("terminal-X1-C")).toHaveCount(1);
+    await expect(page.getByTestId("terminal-X1-D")).toHaveCount(1);
+    await expect
+      .poll(() => recoveryProjectTexts(page))
+      .toContain(`"name": "${target}_4"`);
+    await page.getByLabel("Inputs options").selectOption("3");
+    await expect(page.getByTestId("terminal-X1-D")).toHaveCount(0);
+    await expectComponentCodeField(page, "inputs", 3);
+  });
+
+for (const family of [
+  "and-gate",
+  "nand-gate",
+  "or-gate",
+  "nor-gate",
+  "xor-gate",
+  "xnor-gate",
+])
+  test(`${family} can shrink after its extra input wire is deleted`, async ({
+    page,
+  }) => {
+    const target = family.replace("-", "_");
+    const project = createEmptyProject("and-shrink", "AND shrink");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "X1",
+      symbolId: `${family}-4`,
+      reference: "X1",
+      placement: { position: { x: 200, y: 100 }, rotation: 0, mirror: "none" },
+      netlist: {
+        binding: { kind: "unresolved-subcircuit", name: `${target}_4` },
+        parameters: {},
+      },
+    });
+    document.nets.push({
+      id: "net-D",
+      terminals: [{ instanceId: "X1", pinName: "D" }],
+    });
+    document.junctions.push({
+      id: "J-D",
+      netId: "net-D",
+      position: { x: 140, y: 112 },
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "wire-D",
+        netId: "net-D",
+        start: { kind: "junction", junctionId: "J-D" },
+        end: { kind: "terminal", instanceId: "X1", pinName: "D" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    await page.goto("/editor");
+    await page.getByTestId("project-file").setInputFiles({
+      name: "and-shrink.icproj.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(project)),
+    });
+    await page.getByTestId("route-hit-wire-D").click({ force: true });
+    await page.keyboard.press("Delete");
+    await expect(page.getByTestId("route-hit-wire-D")).toHaveCount(0);
+    await page.getByTestId("hit-X1").click({ force: true });
+    await openSelectionShelf(page);
+    await editComponentPropertyCode(page, (code) => {
+      code.inputs = 2;
+    });
+    await expect(page.getByTestId("terminal-X1-D")).toHaveCount(0);
+    await expectComponentCodeField(page, "inputs", 2);
+    await expect
+      .poll(() => recoveryProjectTexts(page))
+      .toContain(`"name": "${target}"`);
+  });
+
 test("C copy shows alignment guides, commits the preview and clears guides on Escape", async ({
   page,
 }) => {

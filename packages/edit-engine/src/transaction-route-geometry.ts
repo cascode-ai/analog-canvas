@@ -1,4 +1,8 @@
-import { createRoutePath, routeEnd } from "@icm/model";
+import {
+  createRoutePath,
+  electricalConnectionGrid,
+  routeEnd,
+} from "@icm/model";
 import type { RouteBranch, SchematicDocument } from "@icm/model";
 import { resolveEndpointConnection } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
@@ -154,11 +158,18 @@ export function applyRouteGeometryEdit(
           ),
         };
       }
+      const coarseGrid = draft.presentation.grid;
+      const fineEndpoint = [
+        fromConnection.gridLanding,
+        toConnection.gridLanding,
+      ].some(
+        (point) => point.x % coarseGrid !== 0 || point.y % coarseGrid !== 0,
+      );
       const geometry = buildOrthogonalEscapeRoute(
         fromConnection,
         toConnection,
         edit.escapeLength,
-        draft.presentation.grid,
+        fineEndpoint ? electricalConnectionGrid(coarseGrid) : coarseGrid,
       );
       const route: RouteBranch = createRoutePath({
         id: edit.routeId,

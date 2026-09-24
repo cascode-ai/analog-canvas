@@ -48,6 +48,54 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "and-gate-3",
+    name: "AND Gate (3 inputs)",
+    category: "logic",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "Three-input product derivation from the calibrated two-input AND; the cited PDF does not contain this exact arity.",
+    pinOrder: ["A", "B", "C", "Y"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Select through the AND input-count property; behavioral SPICE realization requires an explicit subcircuit or PDK mapping.",
+    assetPath: "and-gate-3.json",
+    assetHash:
+      "ecacacdb6ea33394d074debe3a5427821a38bca48e893ec03bef75b0a8ca5c85",
+    generation: {
+      kind: "derived-multi-input-and-gate",
+      sourceSymbolId: "and-gate",
+      inputCount: 3,
+      converterPath: "scripts/lib/derived-and-gate.mjs",
+      converterVersion: 2,
+    },
+  },
+  {
+    symbolId: "and-gate-4",
+    name: "AND Gate (4 inputs)",
+    category: "logic",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "Four-input product derivation from the calibrated two-input AND; the cited PDF does not contain this exact arity.",
+    pinOrder: ["A", "B", "C", "D", "Y"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Select through the AND input-count property; behavioral SPICE realization requires an explicit subcircuit or PDK mapping.",
+    assetPath: "and-gate-4.json",
+    assetHash:
+      "588c6fd97436ab125605b998bf6e0a8251d5add986c4588a4bdf6fc75d70b675",
+    generation: {
+      kind: "derived-multi-input-and-gate",
+      sourceSymbolId: "and-gate",
+      inputCount: 4,
+      converterPath: "scripts/lib/derived-and-gate.mjs",
+      converterVersion: 2,
+    },
+  },
+  {
     symbolId: "battery",
     name: "Battery",
     category: "source",
@@ -1006,6 +1054,54 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "nand-gate-3",
+    name: "NAND Gate (3 inputs)",
+    category: "logic",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "3-input product derivation from the calibrated two-input nand-gate; the cited reference does not contain this exact arity.",
+    pinOrder: ["A", "B", "C", "Y"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Select through the NAND Gate input-count property; behavioral SPICE realization requires an explicit subcircuit or PDK mapping.",
+    assetPath: "nand-gate-3.json",
+    assetHash:
+      "290ad9fe05a623fa49b04e34973bdb53c749a1fdbb3a740ec9672eaab23c4806",
+    generation: {
+      kind: "derived-multi-input-logic-gate",
+      sourceSymbolId: "nand-gate",
+      inputCount: 3,
+      converterPath: "scripts/lib/derived-logic-gate.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
+    symbolId: "nand-gate-4",
+    name: "NAND Gate (4 inputs)",
+    category: "logic",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "4-input product derivation from the calibrated two-input nand-gate; the cited reference does not contain this exact arity.",
+    pinOrder: ["A", "B", "C", "D", "Y"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Select through the NAND Gate input-count property; behavioral SPICE realization requires an explicit subcircuit or PDK mapping.",
+    assetPath: "nand-gate-4.json",
+    assetHash:
+      "672fe149821a2230d4e8bda5891273a7d1a3cf76503a75e2b36c3047b10371f7",
+    generation: {
+      kind: "derived-multi-input-logic-gate",
+      sourceSymbolId: "nand-gate",
+      inputCount: 4,
+      converterPath: "scripts/lib/derived-logic-gate.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
     symbolId: "nmos",
     name: "NMOS",
     category: "transistor",
@@ -1060,6 +1156,54 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       converterPath: "scripts/generate-razavi-logic-gate-assets.mjs",
       converterVersion: 3,
       bodyNormalization: "left-grid-anchor",
+    },
+  },
+  {
+    symbolId: "nor-gate-3",
+    name: "NOR Gate (3 inputs)",
+    category: "logic",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "3-input product derivation from the calibrated two-input nor-gate; the cited reference does not contain this exact arity.",
+    pinOrder: ["A", "B", "C", "Y"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Select through the NOR Gate input-count property; behavioral SPICE realization requires an explicit subcircuit or PDK mapping.",
+    assetPath: "nor-gate-3.json",
+    assetHash:
+      "be4b0604132aff25fb6493ff2a1edf2724cedccdf033fa86e3c832bebb932189",
+    generation: {
+      kind: "derived-multi-input-logic-gate",
+      sourceSymbolId: "nor-gate",
+      inputCount: 3,
+      converterPath: "scripts/lib/derived-logic-gate.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
+    symbolId: "nor-gate-4",
+    name: "NOR Gate (4 inputs)",
+    category: "logic",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "4-input product derivation from the calibrated two-input nor-gate; the cited reference does not contain this exact arity.",
+    pinOrder: ["A", "B", "C", "D", "Y"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Select through the NOR Gate input-count property; behavioral SPICE realization requires an explicit subcircuit or PDK mapping.",
+    assetPath: "nor-gate-4.json",
+    assetHash:
+      "207d166b8b8612fcaea346aab8c7a8d51bbe7f03511f016aa2eef920f75963d5",
+    generation: {
+      kind: "derived-multi-input-logic-gate",
+      sourceSymbolId: "nor-gate",
+      inputCount: 4,
+      converterPath: "scripts/lib/derived-logic-gate.mjs",
+      converterVersion: 1,
     },
   },
   {
@@ -1902,6 +2046,54 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "or-gate-3",
+    name: "OR Gate (3 inputs)",
+    category: "logic",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "3-input product derivation from the calibrated two-input or-gate; the cited reference does not contain this exact arity.",
+    pinOrder: ["A", "B", "C", "Y"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Select through the OR Gate input-count property; behavioral SPICE realization requires an explicit subcircuit or PDK mapping.",
+    assetPath: "or-gate-3.json",
+    assetHash:
+      "4cd8458cddad0ca960326d89fcb2921f0d0e5b118e323308ed4e875d2cec12ee",
+    generation: {
+      kind: "derived-multi-input-logic-gate",
+      sourceSymbolId: "or-gate",
+      inputCount: 3,
+      converterPath: "scripts/lib/derived-logic-gate.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
+    symbolId: "or-gate-4",
+    name: "OR Gate (4 inputs)",
+    category: "logic",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "4-input product derivation from the calibrated two-input or-gate; the cited reference does not contain this exact arity.",
+    pinOrder: ["A", "B", "C", "D", "Y"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Select through the OR Gate input-count property; behavioral SPICE realization requires an explicit subcircuit or PDK mapping.",
+    assetPath: "or-gate-4.json",
+    assetHash:
+      "8f6b8c479166b11e071086d557322162eaf25c08ddfbde3bd9b280003baa75db",
+    generation: {
+      kind: "derived-multi-input-logic-gate",
+      sourceSymbolId: "or-gate",
+      inputCount: 4,
+      converterPath: "scripts/lib/derived-logic-gate.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
     symbolId: "pmos",
     name: "PMOS",
     category: "transistor",
@@ -2353,6 +2545,54 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "xnor-gate-3",
+    name: "XNOR Gate (3 inputs)",
+    category: "logic",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "3-input product derivation from the calibrated two-input xnor-gate; the cited reference does not contain this exact arity.",
+    pinOrder: ["A", "B", "C", "Y"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Select through the XNOR Gate input-count property; behavioral SPICE realization requires an explicit subcircuit or PDK mapping.",
+    assetPath: "xnor-gate-3.json",
+    assetHash:
+      "009bc23d1e260e05700678412e2ee6de1d12932ed9de34fc16ac23559a45369e",
+    generation: {
+      kind: "derived-multi-input-logic-gate",
+      sourceSymbolId: "xnor-gate",
+      inputCount: 3,
+      converterPath: "scripts/lib/derived-logic-gate.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
+    symbolId: "xnor-gate-4",
+    name: "XNOR Gate (4 inputs)",
+    category: "logic",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "4-input product derivation from the calibrated two-input xnor-gate; the cited reference does not contain this exact arity.",
+    pinOrder: ["A", "B", "C", "D", "Y"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Select through the XNOR Gate input-count property; behavioral SPICE realization requires an explicit subcircuit or PDK mapping.",
+    assetPath: "xnor-gate-4.json",
+    assetHash:
+      "e4cba3f9d9f138e00b5e0d7fca7bf629799cf3ad8a3370be76e9088b0af23cfe",
+    generation: {
+      kind: "derived-multi-input-logic-gate",
+      sourceSymbolId: "xnor-gate",
+      inputCount: 4,
+      converterPath: "scripts/lib/derived-logic-gate.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
     symbolId: "xor-gate",
     name: "XOR Gate",
     category: "logic",
@@ -2385,6 +2625,54 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       converterPath: "scripts/generate-razavi-logic-gate-assets.mjs",
       converterVersion: 3,
       bodyNormalization: "left-grid-anchor",
+    },
+  },
+  {
+    symbolId: "xor-gate-3",
+    name: "XOR Gate (3 inputs)",
+    category: "logic",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "3-input product derivation from the calibrated two-input xor-gate; the cited reference does not contain this exact arity.",
+    pinOrder: ["A", "B", "C", "Y"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Select through the XOR Gate input-count property; behavioral SPICE realization requires an explicit subcircuit or PDK mapping.",
+    assetPath: "xor-gate-3.json",
+    assetHash:
+      "c40671f12f1707030a62ef51afaa33d6c4056c95ea320815b13da9f22c37a216",
+    generation: {
+      kind: "derived-multi-input-logic-gate",
+      sourceSymbolId: "xor-gate",
+      inputCount: 3,
+      converterPath: "scripts/lib/derived-logic-gate.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
+    symbolId: "xor-gate-4",
+    name: "XOR Gate (4 inputs)",
+    category: "logic",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "4-input product derivation from the calibrated two-input xor-gate; the cited reference does not contain this exact arity.",
+    pinOrder: ["A", "B", "C", "D", "Y"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Select through the XOR Gate input-count property; behavioral SPICE realization requires an explicit subcircuit or PDK mapping.",
+    assetPath: "xor-gate-4.json",
+    assetHash:
+      "d60d9d0f39b213c307b21370eeeb40383d9db61c3d282860fe755c94de7fd03a",
+    generation: {
+      kind: "derived-multi-input-logic-gate",
+      sourceSymbolId: "xor-gate",
+      inputCount: 4,
+      converterPath: "scripts/lib/derived-logic-gate.mjs",
+      converterVersion: 1,
     },
   },
   {
@@ -2550,6 +2838,331 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -20,
           y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -0.938181 -15.077165 C -0.938181 -15.077165 -0.938181 -15.077165 -0.781236 -15.077165 C -0.626035 -15.077165 -0.312146 -15.077165 -0.156945 -15.0388 C 0 -14.998692 0 -14.998692 0.676607 -14.895806 C 1.353213 -14.791176 2.70817 -14.58366 3.918389 -14.231406 C 5.130352 -13.879152 6.197576 -13.385648 7.357224 -12.590461 C 8.515128 -11.797018 9.765455 -10.701892 10.72805 -9.556195 C 11.692388 -8.410498 12.368995 -7.21423 12.8904 -5.988316 C 13.411806 -4.764147 13.776267 -3.515564 13.971576 -2.212922 C 14.166885 -0.912024 14.193042 0.442933 14.062255 1.707211 C 13.931468 2.969745 13.645479 4.141599 13.111867 5.43029 C 12.578255 6.718982 11.797018 8.126253 10.898945 9.284157 C 10.000872 10.443805 8.984218 11.354085 8.150667 12.030691 C 7.317116 12.709042 6.666667 13.153719 5.97611 13.502485 C 5.285553 13.854739 4.556631 14.116314 3.906182 14.323829 C 3.253989 14.533089 2.682013 14.690034 2.174558 14.777226 C 1.665359 14.869649 1.22417 14.89755 0.767286 14.909757 C 0.312146 14.921964 -0.156945 14.921964 -0.650449 14.921964 C -1.145697 14.921964 -1.667102 14.921964 -1.926933 14.921964 C -2.110036 14.921964 -2.110036 14.921964 -2.110036 14.921964 L -20 14.921964 L -20 -15.077165 Z",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+        bounds: {
+          x: -20,
+          y: -15.077165,
+          width: 34.193042,
+          height: 29.999129,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 14.68829,
+          y: 0,
+        },
+        to: {
+          x: 20,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "and-gate-3",
+    name: "AND Gate (3 inputs)",
+    viewBox: {
+      x: -44,
+      y: -24,
+      width: 88,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "input",
+        at: {
+          x: -30,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "B",
+        role: "input",
+        at: {
+          x: -30,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "C",
+        role: "input",
+        at: {
+          x: -30,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "Y",
+        role: "output",
+        at: {
+          x: 20,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 5,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -10,
+        },
+        to: {
+          x: -20,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 0,
+        },
+        to: {
+          x: -20,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 10,
+        },
+        to: {
+          x: -20,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -0.938181 -15.077165 C -0.938181 -15.077165 -0.938181 -15.077165 -0.781236 -15.077165 C -0.626035 -15.077165 -0.312146 -15.077165 -0.156945 -15.0388 C 0 -14.998692 0 -14.998692 0.676607 -14.895806 C 1.353213 -14.791176 2.70817 -14.58366 3.918389 -14.231406 C 5.130352 -13.879152 6.197576 -13.385648 7.357224 -12.590461 C 8.515128 -11.797018 9.765455 -10.701892 10.72805 -9.556195 C 11.692388 -8.410498 12.368995 -7.21423 12.8904 -5.988316 C 13.411806 -4.764147 13.776267 -3.515564 13.971576 -2.212922 C 14.166885 -0.912024 14.193042 0.442933 14.062255 1.707211 C 13.931468 2.969745 13.645479 4.141599 13.111867 5.43029 C 12.578255 6.718982 11.797018 8.126253 10.898945 9.284157 C 10.000872 10.443805 8.984218 11.354085 8.150667 12.030691 C 7.317116 12.709042 6.666667 13.153719 5.97611 13.502485 C 5.285553 13.854739 4.556631 14.116314 3.906182 14.323829 C 3.253989 14.533089 2.682013 14.690034 2.174558 14.777226 C 1.665359 14.869649 1.22417 14.89755 0.767286 14.909757 C 0.312146 14.921964 -0.156945 14.921964 -0.650449 14.921964 C -1.145697 14.921964 -1.667102 14.921964 -1.926933 14.921964 C -2.110036 14.921964 -2.110036 14.921964 -2.110036 14.921964 L -20 14.921964 L -20 -15.077165 Z",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+        bounds: {
+          x: -20,
+          y: -15.077165,
+          width: 34.193042,
+          height: 29.999129,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 14.68829,
+          y: 0,
+        },
+        to: {
+          x: 20,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "and-gate-4",
+    name: "AND Gate (4 inputs)",
+    viewBox: {
+      x: -44,
+      y: -24,
+      width: 88,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "input",
+        at: {
+          x: -30,
+          y: -12,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "B",
+        role: "input",
+        at: {
+          x: -30,
+          y: -4,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "C",
+        role: "input",
+        at: {
+          x: -30,
+          y: 4,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "D",
+        role: "input",
+        at: {
+          x: -30,
+          y: 12,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "Y",
+        role: "output",
+        at: {
+          x: 20,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 5,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -12,
+        },
+        to: {
+          x: -20,
+          y: -12,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -4,
+        },
+        to: {
+          x: -20,
+          y: -4,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 4,
+        },
+        to: {
+          x: -20,
+          y: 4,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 12,
+        },
+        to: {
+          x: -20,
+          y: 12,
         },
         style: {
           strokeRole: "normal",
@@ -7033,6 +7646,361 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "nand-gate-3",
+    name: "NAND Gate (3 inputs)",
+    viewBox: {
+      x: -44,
+      y: -24,
+      width: 88,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "input",
+        at: {
+          x: -30,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "B",
+        role: "input",
+        at: {
+          x: -30,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "C",
+        role: "input",
+        at: {
+          x: -30,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "Y",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 7,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -10,
+        },
+        to: {
+          x: -20,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 0,
+        },
+        to: {
+          x: -20,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 10,
+        },
+        to: {
+          x: -20,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -1.405528 15.07978 C -1.405528 15.07978 -1.405528 15.07978 -1.236377 15.06583 C -0.988753 15.051879 -0.493505 15.025722 -0.245881 15.013515 C 0.001743 15.001308 0.001743 15.001308 0.67835 14.894934 C 1.354956 14.792048 2.708169 14.582788 3.918388 14.234022 C 5.130351 13.880024 6.199319 13.38652 7.358967 12.591333 C 8.516871 11.79789 9.767198 10.704508 10.729793 9.558811 C 11.692388 8.413114 12.370738 7.213358 12.892144 5.990932 C 13.411805 4.766763 13.77801 3.516436 13.973319 2.213794 C 14.166884 0.911152 14.194786 -0.442061 14.062254 -1.706339 C 13.933211 -2.968873 13.648966 -4.140727 13.111866 -5.429418 C 12.578254 -6.71811 11.797018 -8.125381 10.898945 -9.283285 C 10.000871 -10.442933 8.985962 -11.354957 8.15241 -12.031563 C 7.318859 -12.70817 6.66841 -13.151103 5.979597 -13.503357 C 5.285552 -13.853867 4.560118 -14.115442 3.906181 -14.322958 C 3.257476 -14.530473 2.683756 -14.687418 2.176301 -14.778097 C 1.667102 -14.870521 1.224169 -14.894934 0.769029 -14.908885 C 0.313889 -14.921092 -0.155201 -14.921092 -0.650449 -14.921092 C -1.143954 -14.921092 -1.665359 -14.921092 -1.926934 -14.921092 C -2.108292 -14.921092 -2.108292 -14.921092 -2.108292 -14.921092 L -20 -14.921092 L -20 15.07978 Z",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+        bounds: {
+          x: -20,
+          y: -14.921092,
+          width: 34.194786,
+          height: 30.000872,
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 19.652977,
+          y: 0.010463,
+        },
+        radius: 3.375185,
+        part: "negation-bubble",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 23.028162,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "nand-gate-4",
+    name: "NAND Gate (4 inputs)",
+    viewBox: {
+      x: -44,
+      y: -24,
+      width: 88,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "input",
+        at: {
+          x: -30,
+          y: -12,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "B",
+        role: "input",
+        at: {
+          x: -30,
+          y: -4,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "C",
+        role: "input",
+        at: {
+          x: -30,
+          y: 4,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "D",
+        role: "input",
+        at: {
+          x: -30,
+          y: 12,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "Y",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 7,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -12,
+        },
+        to: {
+          x: -20,
+          y: -12,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -4,
+        },
+        to: {
+          x: -20,
+          y: -4,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 4,
+        },
+        to: {
+          x: -20,
+          y: 4,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 12,
+        },
+        to: {
+          x: -20,
+          y: 12,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -1.405528 15.07978 C -1.405528 15.07978 -1.405528 15.07978 -1.236377 15.06583 C -0.988753 15.051879 -0.493505 15.025722 -0.245881 15.013515 C 0.001743 15.001308 0.001743 15.001308 0.67835 14.894934 C 1.354956 14.792048 2.708169 14.582788 3.918388 14.234022 C 5.130351 13.880024 6.199319 13.38652 7.358967 12.591333 C 8.516871 11.79789 9.767198 10.704508 10.729793 9.558811 C 11.692388 8.413114 12.370738 7.213358 12.892144 5.990932 C 13.411805 4.766763 13.77801 3.516436 13.973319 2.213794 C 14.166884 0.911152 14.194786 -0.442061 14.062254 -1.706339 C 13.933211 -2.968873 13.648966 -4.140727 13.111866 -5.429418 C 12.578254 -6.71811 11.797018 -8.125381 10.898945 -9.283285 C 10.000871 -10.442933 8.985962 -11.354957 8.15241 -12.031563 C 7.318859 -12.70817 6.66841 -13.151103 5.979597 -13.503357 C 5.285552 -13.853867 4.560118 -14.115442 3.906181 -14.322958 C 3.257476 -14.530473 2.683756 -14.687418 2.176301 -14.778097 C 1.667102 -14.870521 1.224169 -14.894934 0.769029 -14.908885 C 0.313889 -14.921092 -0.155201 -14.921092 -0.650449 -14.921092 C -1.143954 -14.921092 -1.665359 -14.921092 -1.926934 -14.921092 C -2.108292 -14.921092 -2.108292 -14.921092 -2.108292 -14.921092 L -20 -14.921092 L -20 15.07978 Z",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+        bounds: {
+          x: -20,
+          y: -14.921092,
+          width: 34.194786,
+          height: 30.000872,
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 19.652977,
+          y: 0.010463,
+        },
+        radius: 3.375185,
+        part: "negation-bubble",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 23.028162,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
     id: "nmos",
     name: "NMOS",
     viewBox: {
@@ -7408,6 +8376,361 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -15.748539,
           y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M 15.757259 0.002616 C 15.757259 0.002616 15.757259 0.002616 13.373442 2.213794 C 10.989624 4.426715 6.22199 8.849071 0.263319 11.829279 C -5.697096 14.809486 -12.850292 16.345802 -16.425146 17.114831 C -20 17.882117 -20 17.882117 -20 17.882117 C -20 17.882117 -20 17.882117 -18.139332 14.786817 C -16.275176 11.689772 -12.550353 5.497428 -12.550353 -0.438574 C -12.550353 -6.374575 -16.275176 -12.055977 -18.139332 -14.896678 C -20 -17.735635 -20 -17.735635 -20 -17.735635 C -20 -17.735635 -20 -17.735635 -16.425146 -16.991019 C -12.850292 -16.246403 -5.697096 -14.757172 0.263319 -11.799634 C 6.22199 -8.84384 10.989624 -4.41974 13.373442 -2.208562 C 15.757259 0.002616 15.757259 0.002616 15.757259 0.002616",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+        bounds: {
+          x: -20,
+          y: -17.735635,
+          width: 35.757259,
+          height: 35.617752,
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 19.96338,
+          y: -0.121196,
+        },
+        radius: 3.374313,
+        part: "negation-bubble",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 23.337693,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "nor-gate-3",
+    name: "NOR Gate (3 inputs)",
+    viewBox: {
+      x: -44,
+      y: -24,
+      width: 88,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "input",
+        at: {
+          x: -30,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "B",
+        role: "input",
+        at: {
+          x: -30,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "C",
+        role: "input",
+        at: {
+          x: -30,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "Y",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 7,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -10,
+        },
+        to: {
+          x: -14.966749,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 0,
+        },
+        to: {
+          x: -12.307069,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 10,
+        },
+        to: {
+          x: -15.215411,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M 15.757259 0.002616 C 15.757259 0.002616 15.757259 0.002616 13.373442 2.213794 C 10.989624 4.426715 6.22199 8.849071 0.263319 11.829279 C -5.697096 14.809486 -12.850292 16.345802 -16.425146 17.114831 C -20 17.882117 -20 17.882117 -20 17.882117 C -20 17.882117 -20 17.882117 -18.139332 14.786817 C -16.275176 11.689772 -12.550353 5.497428 -12.550353 -0.438574 C -12.550353 -6.374575 -16.275176 -12.055977 -18.139332 -14.896678 C -20 -17.735635 -20 -17.735635 -20 -17.735635 C -20 -17.735635 -20 -17.735635 -16.425146 -16.991019 C -12.850292 -16.246403 -5.697096 -14.757172 0.263319 -11.799634 C 6.22199 -8.84384 10.989624 -4.41974 13.373442 -2.208562 C 15.757259 0.002616 15.757259 0.002616 15.757259 0.002616",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+        bounds: {
+          x: -20,
+          y: -17.735635,
+          width: 35.757259,
+          height: 35.617752,
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 19.96338,
+          y: -0.121196,
+        },
+        radius: 3.374313,
+        part: "negation-bubble",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 23.337693,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "nor-gate-4",
+    name: "NOR Gate (4 inputs)",
+    viewBox: {
+      x: -44,
+      y: -24,
+      width: 88,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "input",
+        at: {
+          x: -30,
+          y: -12,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "B",
+        role: "input",
+        at: {
+          x: -30,
+          y: -4,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "C",
+        role: "input",
+        at: {
+          x: -30,
+          y: 4,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "D",
+        role: "input",
+        at: {
+          x: -30,
+          y: 12,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "Y",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 7,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -12,
+        },
+        to: {
+          x: -16.06749,
+          y: -12,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -4,
+        },
+        to: {
+          x: -12.714012,
+          y: -4,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 4,
+        },
+        to: {
+          x: -12.909141,
+          y: 4,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 12,
+        },
+        to: {
+          x: -16.264942,
+          y: 12,
         },
         style: {
           strokeRole: "normal",
@@ -13284,6 +14607,331 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "or-gate-3",
+    name: "OR Gate (3 inputs)",
+    viewBox: {
+      x: -44,
+      y: -24,
+      width: 88,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "input",
+        at: {
+          x: -30,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "B",
+        role: "input",
+        at: {
+          x: -30,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "C",
+        role: "input",
+        at: {
+          x: -30,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "Y",
+        role: "output",
+        at: {
+          x: 20,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 4,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -10,
+        },
+        to: {
+          x: -14.966749,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 0,
+        },
+        to: {
+          x: -12.307069,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 10,
+        },
+        to: {
+          x: -15.215411,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M 15.757259 0.002616 C 15.757259 0.002616 15.757259 0.002616 13.373442 2.213794 C 10.989624 4.426715 6.22199 8.849071 0.263319 11.829279 C -5.697096 14.809486 -12.850292 16.345802 -16.425146 17.114831 C -20 17.882117 -20 17.882117 -20 17.882117 C -20 17.882117 -20 17.882117 -18.139332 14.786817 C -16.275176 11.689772 -12.550353 5.497428 -12.550353 -0.438574 C -12.550353 -6.374575 -16.275176 -12.055977 -18.139332 -14.896678 C -20 -17.735635 -20 -17.735635 -20 -17.735635 C -20 -17.735635 -20 -17.735635 -16.425146 -16.991019 C -12.850292 -16.246403 -5.697096 -14.757172 0.263319 -11.799634 C 6.22199 -8.84384 10.989624 -4.41974 13.373442 -2.208562 C 15.757259 0.002616 15.757259 0.002616 15.757259 0.002616",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+        bounds: {
+          x: -20,
+          y: -17.735635,
+          width: 35.757259,
+          height: 35.617752,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 15.757259,
+          y: 0,
+        },
+        to: {
+          x: 20,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "or-gate-4",
+    name: "OR Gate (4 inputs)",
+    viewBox: {
+      x: -44,
+      y: -24,
+      width: 88,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "input",
+        at: {
+          x: -30,
+          y: -12,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "B",
+        role: "input",
+        at: {
+          x: -30,
+          y: -4,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "C",
+        role: "input",
+        at: {
+          x: -30,
+          y: 4,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "D",
+        role: "input",
+        at: {
+          x: -30,
+          y: 12,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 15,
+        },
+      },
+      {
+        name: "Y",
+        role: "output",
+        at: {
+          x: 20,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 4,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -12,
+        },
+        to: {
+          x: -16.06749,
+          y: -12,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -4,
+        },
+        to: {
+          x: -12.714012,
+          y: -4,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 4,
+        },
+        to: {
+          x: -12.909141,
+          y: 4,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 12,
+        },
+        to: {
+          x: -16.264942,
+          y: 12,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M 15.757259 0.002616 C 15.757259 0.002616 15.757259 0.002616 13.373442 2.213794 C 10.989624 4.426715 6.22199 8.849071 0.263319 11.829279 C -5.697096 14.809486 -12.850292 16.345802 -16.425146 17.114831 C -20 17.882117 -20 17.882117 -20 17.882117 C -20 17.882117 -20 17.882117 -18.139332 14.786817 C -16.275176 11.689772 -12.550353 5.497428 -12.550353 -0.438574 C -12.550353 -6.374575 -16.275176 -12.055977 -18.139332 -14.896678 C -20 -17.735635 -20 -17.735635 -20 -17.735635 C -20 -17.735635 -20 -17.735635 -16.425146 -16.991019 C -12.850292 -16.246403 -5.697096 -14.757172 0.263319 -11.799634 C 6.22199 -8.84384 10.989624 -4.41974 13.373442 -2.208562 C 15.757259 0.002616 15.757259 0.002616 15.757259 0.002616",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+        bounds: {
+          x: -20,
+          y: -17.735635,
+          width: 35.757259,
+          height: 35.617752,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 15.757259,
+          y: 0,
+        },
+        to: {
+          x: 20,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
     id: "pmos",
     name: "PMOS",
     viewBox: {
@@ -15523,6 +17171,393 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "xnor-gate-3",
+    name: "XNOR Gate (3 inputs)",
+    viewBox: {
+      x: -44,
+      y: -24,
+      width: 88,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "input",
+        at: {
+          x: -30,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 14,
+        },
+      },
+      {
+        name: "B",
+        role: "input",
+        at: {
+          x: -30,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 14,
+        },
+      },
+      {
+        name: "C",
+        role: "input",
+        at: {
+          x: -30,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 14,
+        },
+      },
+      {
+        name: "Y",
+        role: "output",
+        at: {
+          x: 40,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -10,
+        },
+        to: {
+          x: -15.049176,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 0,
+        },
+        to: {
+          x: -12.451942,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 10,
+        },
+        to: {
+          x: -15.259133,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M 22.287907 0.002616 C 22.287907 0.002616 22.287907 0.002616 19.90409 2.213794 C 17.520272 4.424972 12.752638 8.849071 6.792223 11.829279 C 0.833552 14.807743 -6.3179 16.344058 -9.894498 17.113087 C -13.471096 17.880373 -13.471096 17.880373 -13.471096 17.880373 C -13.471096 17.880373 -13.471096 17.880373 -11.608684 14.785073 C -9.746272 11.689772 -6.021449 5.497428 -6.021449 -0.440317 C -6.021449 -6.376319 -9.746272 -12.057721 -11.608684 -14.896678 C -13.471096 -17.737379 -13.471096 -17.737379 -13.471096 -17.737379 C -13.471096 -17.737379 -13.471096 -17.737379 -9.894498 -16.992763 C -6.3179 -16.248147 0.833552 -14.757172 6.792223 -11.801378 C 12.752638 -8.84384 17.520272 -4.421484 19.90409 -2.210306 C 22.287907 0.002616 22.287907 0.002616 22.287907 0.002616",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+        bounds: {
+          x: -13.471096,
+          y: -17.737379,
+          width: 35.759003,
+          height: 35.617752,
+        },
+      },
+      {
+        kind: "path",
+        data: "M -20 -17.735635 C -20 -17.735635 -20 -17.735635 -18.177696 -14.910629 C -16.353649 -12.083878 -12.709041 -6.432121 -12.695091 -0.482169 C -12.682884 5.467783 -16.303077 11.717674 -18.11143 14.842619 C -19.921527 17.969309 -19.921527 17.969309 -19.921527 17.969309",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+        bounds: {
+          x: -20,
+          y: -17.735635,
+          width: 7.317116,
+          height: 35.704944,
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 26.494028,
+          y: 0.002616,
+        },
+        radius: 3.374313,
+        part: "negation-bubble",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 29.868341,
+          y: 0,
+        },
+        to: {
+          x: 40,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "xnor-gate-4",
+    name: "XNOR Gate (4 inputs)",
+    viewBox: {
+      x: -44,
+      y: -24,
+      width: 88,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "input",
+        at: {
+          x: -30,
+          y: -12,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 14,
+        },
+      },
+      {
+        name: "B",
+        role: "input",
+        at: {
+          x: -30,
+          y: -4,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 14,
+        },
+      },
+      {
+        name: "C",
+        role: "input",
+        at: {
+          x: -30,
+          y: 4,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 14,
+        },
+      },
+      {
+        name: "D",
+        role: "input",
+        at: {
+          x: -30,
+          y: 12,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 14,
+        },
+      },
+      {
+        name: "Y",
+        role: "output",
+        at: {
+          x: 40,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -12,
+        },
+        to: {
+          x: -16.128847,
+          y: -12,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -4,
+        },
+        to: {
+          x: -12.846395,
+          y: -4,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 4,
+        },
+        to: {
+          x: -13.036194,
+          y: 4,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 12,
+        },
+        to: {
+          x: -16.268314,
+          y: 12,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M 22.287907 0.002616 C 22.287907 0.002616 22.287907 0.002616 19.90409 2.213794 C 17.520272 4.424972 12.752638 8.849071 6.792223 11.829279 C 0.833552 14.807743 -6.3179 16.344058 -9.894498 17.113087 C -13.471096 17.880373 -13.471096 17.880373 -13.471096 17.880373 C -13.471096 17.880373 -13.471096 17.880373 -11.608684 14.785073 C -9.746272 11.689772 -6.021449 5.497428 -6.021449 -0.440317 C -6.021449 -6.376319 -9.746272 -12.057721 -11.608684 -14.896678 C -13.471096 -17.737379 -13.471096 -17.737379 -13.471096 -17.737379 C -13.471096 -17.737379 -13.471096 -17.737379 -9.894498 -16.992763 C -6.3179 -16.248147 0.833552 -14.757172 6.792223 -11.801378 C 12.752638 -8.84384 17.520272 -4.421484 19.90409 -2.210306 C 22.287907 0.002616 22.287907 0.002616 22.287907 0.002616",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+        bounds: {
+          x: -13.471096,
+          y: -17.737379,
+          width: 35.759003,
+          height: 35.617752,
+        },
+      },
+      {
+        kind: "path",
+        data: "M -20 -17.735635 C -20 -17.735635 -20 -17.735635 -18.177696 -14.910629 C -16.353649 -12.083878 -12.709041 -6.432121 -12.695091 -0.482169 C -12.682884 5.467783 -16.303077 11.717674 -18.11143 14.842619 C -19.921527 17.969309 -19.921527 17.969309 -19.921527 17.969309",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+        bounds: {
+          x: -20,
+          y: -17.735635,
+          width: 7.317116,
+          height: 35.704944,
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 26.494028,
+          y: 0.002616,
+        },
+        radius: 3.374313,
+        part: "negation-bubble",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 29.868341,
+          y: 0,
+        },
+        to: {
+          x: 40,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
     id: "xor-gate",
     name: "XOR Gate",
     viewBox: {
@@ -15598,6 +17633,363 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: -15.455575,
           y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M 22.287907 0.002616 C 22.287907 0.002616 22.287907 0.002616 19.90409 2.213794 C 17.520272 4.424972 12.752638 8.849071 6.792223 11.829279 C 0.833552 14.807743 -6.3179 16.344058 -9.894498 17.113087 C -13.471096 17.880373 -13.471096 17.880373 -13.471096 17.880373 C -13.471096 17.880373 -13.471096 17.880373 -11.608684 14.785073 C -9.746272 11.689772 -6.021449 5.497428 -6.021449 -0.440317 C -6.021449 -6.376319 -9.746272 -12.057721 -11.608684 -14.896678 C -13.471096 -17.737379 -13.471096 -17.737379 -13.471096 -17.737379 C -13.471096 -17.737379 -13.471096 -17.737379 -9.894498 -16.992763 C -6.3179 -16.248147 0.833552 -14.757172 6.792223 -11.801378 C 12.752638 -8.84384 17.520272 -4.421484 19.90409 -2.210306 C 22.287907 0.002616 22.287907 0.002616 22.287907 0.002616",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+        bounds: {
+          x: -13.471096,
+          y: -17.737379,
+          width: 35.759003,
+          height: 35.617752,
+        },
+      },
+      {
+        kind: "path",
+        data: "M -20 -17.735635 C -20 -17.735635 -20 -17.735635 -18.177696 -14.910629 C -16.353649 -12.083878 -12.709041 -6.432121 -12.695091 -0.482169 C -12.682884 5.467783 -16.303077 11.717674 -18.11143 14.842619 C -19.921527 17.969309 -19.921527 17.969309 -19.921527 17.969309",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+        bounds: {
+          x: -20,
+          y: -17.735635,
+          width: 7.317116,
+          height: 35.704944,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 22.287907,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "xor-gate-3",
+    name: "XOR Gate (3 inputs)",
+    viewBox: {
+      x: -44,
+      y: -24,
+      width: 88,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "input",
+        at: {
+          x: -30,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 14,
+        },
+      },
+      {
+        name: "B",
+        role: "input",
+        at: {
+          x: -30,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 14,
+        },
+      },
+      {
+        name: "C",
+        role: "input",
+        at: {
+          x: -30,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 14,
+        },
+      },
+      {
+        name: "Y",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 8,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -10,
+        },
+        to: {
+          x: -15.049176,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 0,
+        },
+        to: {
+          x: -12.451942,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 10,
+        },
+        to: {
+          x: -15.259133,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M 22.287907 0.002616 C 22.287907 0.002616 22.287907 0.002616 19.90409 2.213794 C 17.520272 4.424972 12.752638 8.849071 6.792223 11.829279 C 0.833552 14.807743 -6.3179 16.344058 -9.894498 17.113087 C -13.471096 17.880373 -13.471096 17.880373 -13.471096 17.880373 C -13.471096 17.880373 -13.471096 17.880373 -11.608684 14.785073 C -9.746272 11.689772 -6.021449 5.497428 -6.021449 -0.440317 C -6.021449 -6.376319 -9.746272 -12.057721 -11.608684 -14.896678 C -13.471096 -17.737379 -13.471096 -17.737379 -13.471096 -17.737379 C -13.471096 -17.737379 -13.471096 -17.737379 -9.894498 -16.992763 C -6.3179 -16.248147 0.833552 -14.757172 6.792223 -11.801378 C 12.752638 -8.84384 17.520272 -4.421484 19.90409 -2.210306 C 22.287907 0.002616 22.287907 0.002616 22.287907 0.002616",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+        bounds: {
+          x: -13.471096,
+          y: -17.737379,
+          width: 35.759003,
+          height: 35.617752,
+        },
+      },
+      {
+        kind: "path",
+        data: "M -20 -17.735635 C -20 -17.735635 -20 -17.735635 -18.177696 -14.910629 C -16.353649 -12.083878 -12.709041 -6.432121 -12.695091 -0.482169 C -12.682884 5.467783 -16.303077 11.717674 -18.11143 14.842619 C -19.921527 17.969309 -19.921527 17.969309 -19.921527 17.969309",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+        bounds: {
+          x: -20,
+          y: -17.735635,
+          width: 7.317116,
+          height: 35.704944,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 22.287907,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "xor-gate-4",
+    name: "XOR Gate (4 inputs)",
+    viewBox: {
+      x: -44,
+      y: -24,
+      width: 88,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "input",
+        at: {
+          x: -30,
+          y: -12,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 14,
+        },
+      },
+      {
+        name: "B",
+        role: "input",
+        at: {
+          x: -30,
+          y: -4,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 14,
+        },
+      },
+      {
+        name: "C",
+        role: "input",
+        at: {
+          x: -30,
+          y: 4,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 14,
+        },
+      },
+      {
+        name: "D",
+        role: "input",
+        at: {
+          x: -30,
+          y: 12,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 14,
+        },
+      },
+      {
+        name: "Y",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 8,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -12,
+        },
+        to: {
+          x: -16.128847,
+          y: -12,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -4,
+        },
+        to: {
+          x: -12.846395,
+          y: -4,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 4,
+        },
+        to: {
+          x: -13.036194,
+          y: 4,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 12,
+        },
+        to: {
+          x: -16.268314,
+          y: 12,
         },
         style: {
           strokeRole: "normal",

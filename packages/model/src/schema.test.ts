@@ -2,6 +2,7 @@ import { createSimulationFolder } from "./simulation-source-authoring.js";
 import { describe, expect, it } from "vitest";
 
 import { createEmptyDocument, createEmptyProject } from "./factories.js";
+import { createRoutePath } from "./route-path.js";
 import {
   AnnotationSchema,
   CircuitProjectJsonSchema,
@@ -333,7 +334,7 @@ describe("CircuitProject schema", () => {
     expect(SchematicDocumentSchema.safeParse(document).success).toBe(false);
   });
 
-  it("holds electrical objects to the Document grid while annotations position freely", () => {
+  it("keeps placements coarse while allowing routes and junctions on the shared electrical subgrid", () => {
     const document = createEmptyProject("project-grid", "Grid").documents[0]!;
     // Schema 32 retains 1-unit-precise drafting and annotation anchors.
     document.drafting!.objects.push({
@@ -347,6 +348,26 @@ describe("CircuitProject schema", () => {
       rotation: 0,
     });
     expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
+
+    document.nets.push({ id: "fine-net", terminals: [] });
+    document.junctions.push(
+      { id: "fine-left", netId: "fine-net", position: { x: 20, y: 12 } },
+      { id: "fine-right", netId: "fine-net", position: { x: 40, y: 12 } },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "fine-route",
+        netId: "fine-net",
+        start: { kind: "junction", junctionId: "fine-left" },
+        end: { kind: "junction", junctionId: "fine-right" },
+        bends: [{ x: 30, y: 14 }],
+        modes: ["manual", "manual"],
+      }),
+    );
+    expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
+    document.junctions[0]!.position.y = 13;
+    expect(SchematicDocumentSchema.safeParse(document).success).toBe(false);
+    document.junctions[0]!.position.y = 12;
 
     // The electrical grid contract is unchanged: an off-grid Instance
     // placement still fails Document validation.
