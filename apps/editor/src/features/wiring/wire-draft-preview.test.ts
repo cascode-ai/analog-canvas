@@ -231,6 +231,7 @@ function bothWays(
       secondRouteId: "route-b-1",
       newNetId: "net-ui-1",
     }),
+    resolver,
   )!;
   expect(to, "the target resolves to a committable endpoint").toBeTruthy();
   const committed = committedCenterline(
@@ -406,6 +407,51 @@ describe("the wire a draft preview promises is the wire that lands", () => {
 
     expect(preview.points).toEqual(committed);
     expect(preview.points.at(-1)).toEqual({ x: 200, y: 500 });
+  });
+
+  it("keeps a tap on a fine-grid conductor at its actual coordinate", () => {
+    const build = () => {
+      const document = createEmptyDocument("main", "Main");
+      nmos(document, "M1", { x: 300, y: 300 });
+      document.instances.push({
+        id: "X1",
+        symbolId: "and-gate-4",
+        placement: {
+          position: { x: 200, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      });
+      document.nets.push({
+        id: "fine-net",
+        terminals: [{ instanceId: "X1", pinName: "D" }],
+      });
+      document.junctions.push({
+        id: "fine-end",
+        netId: "fine-net",
+        position: { x: 100, y: 112 },
+      });
+      document.routes.push(
+        createRoutePath({
+          id: "fine-route",
+          netId: "fine-net",
+          start: { kind: "junction", junctionId: "fine-end" },
+          end: terminal("X1", "D"),
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+      return document;
+    };
+    const { preview, committed } = bothWays(build, terminal("M1", "G"), () => ({
+      kind: "route",
+      point: { x: 130, y: 112 },
+      routeId: "fine-route",
+      segmentIndex: 0,
+    }));
+
+    expect(preview.points).toEqual(committed);
+    expect(preview.points.at(-1)).toEqual({ x: 130, y: 112 });
   });
 
   it("leaves a tapped rail across it, not along it", () => {

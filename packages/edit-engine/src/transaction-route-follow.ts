@@ -1,5 +1,6 @@
 import {
   createRoutePath,
+  electricalConnectionGrid,
   routeEnd,
   routeModes,
   snapGridPoint,
@@ -244,6 +245,15 @@ export function applyInstancesRouteFollow(
 
     const points = original.points.map((point) => ({ ...point }));
     const modes = [...original.segmentModes];
+    const coarseGrid = draft.presentation.grid;
+    const needsFineGrid = [
+      newFrom.gridLanding,
+      newTo.gridLanding,
+      ...original.points.slice(1, -1),
+    ].some((point) => point.x % coarseGrid !== 0 || point.y % coarseGrid !== 0);
+    const routeGrid = needsFineGrid
+      ? electricalConnectionGrid(coarseGrid)
+      : coarseGrid;
     const leads = {
       from: usablePinAxis(
         newFrom.outward,
@@ -255,7 +265,7 @@ export function applyInstancesRouteFollow(
         newTo.contactPoint,
         newFrom.contactPoint,
       ),
-      grid: draft.presentation.grid,
+      grid: routeGrid,
     };
     try {
       if (movesFrom) {
@@ -335,13 +345,13 @@ export function applyInstancesRouteFollow(
       // Rotated terminal contacts are exact derived geometry and may be
       // fractional. Endpoint stretch uses those contacts to preserve the pin
       // lead, but every intermediate point becomes a persisted Route bend and
-      // therefore must return to the document grid before commit.
+      // therefore must return to the applicable electrical lattice before commit.
       normalized = normalizeRouteGeometry(
         [
           normalized.points[0]!,
           ...normalized.points
             .slice(1, -1)
-            .map((point) => snapGridPoint(point, draft.presentation.grid)),
+            .map((point) => snapGridPoint(point, routeGrid)),
           normalized.points.at(-1)!,
         ],
         normalized.segmentModes,

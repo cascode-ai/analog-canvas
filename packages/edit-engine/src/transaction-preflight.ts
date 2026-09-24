@@ -1,4 +1,9 @@
-import type { DraftingObject, Point, VisualAnchor } from "@icm/model";
+import {
+  electricalConnectionGrid,
+  type DraftingObject,
+  type Point,
+  type VisualAnchor,
+} from "@icm/model";
 import { z } from "zod";
 
 import type { SchematicEdit } from "./edit-schema.js";
@@ -134,14 +139,18 @@ export function gridAlignmentDiagnostics(
   edit: SchematicEdit,
   grid: number,
 ): EditDiagnostic[] {
-  // Annotations and drafting objects position at 1-unit precision (schema
-  // 30); the Document grid remains the hard contract for electrical edits so
-  // pins, wires, and junctions always coincide.
+  // Keep ordinary placements on the visible Document grid. Only authored
+  // electrical route geometry may use the finer, shared pin lattice.
   const pitch =
     edit.kind === "upsert_schematic_annotation" ||
     edit.kind === "upsert_drafting_object"
       ? 1
-      : grid;
+      : edit.kind === "set_route_path" ||
+          edit.kind === "add_junction" ||
+          edit.kind === "move_junction" ||
+          edit.kind === "attach_endpoint_to_route"
+        ? electricalConnectionGrid(grid)
+        : grid;
   return gridPointsOfEdit(edit).flatMap(({ point, path }) =>
     (["x", "y"] as const).flatMap((axis) =>
       point[axis] % pitch === 0

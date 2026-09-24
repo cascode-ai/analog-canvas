@@ -264,7 +264,7 @@ for (const entry of catalog.entries) {
     fail(`pin order mismatch for ${entry.symbolId}`);
   }
   for (const pin of symbol.pins) {
-    if (pin.at.x % 10 !== 0 || pin.at.y % 10 !== 0) {
+    if (pin.at.x % 2 !== 0 || pin.at.y % 2 !== 0) {
       fail(`off-grid pin ${entry.symbolId}.${pin.name}`);
     }
   }

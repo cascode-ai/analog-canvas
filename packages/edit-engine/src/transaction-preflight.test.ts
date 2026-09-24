@@ -15,14 +15,14 @@ describe("typed-edit grid preflight", () => {
         netId: "N1",
         start: { kind: "junction", junctionId: "J1" },
         end: { kind: "junction", junctionId: "J2" },
-        bends: [{ x: 16, y: 20 }],
+        bends: [{ x: 15, y: 20 }],
         modes: ["manual", "manual"],
       }),
     };
 
     expect(gridPointsOfEdit(edit)).toEqual([
       {
-        point: { x: 16, y: 20 },
+        point: { x: 15, y: 20 },
         path: ["route", "legs", 0, "to", "position"],
       },
     ]);
@@ -32,6 +32,22 @@ describe("typed-edit grid preflight", () => {
         path: ["route", "legs", 0, "to", "position", "x"],
       },
     ]);
+    expect(
+      gridAlignmentDiagnostics(
+        {
+          ...edit,
+          route: createRoutePath({
+            id: "R2",
+            netId: "N1",
+            start: { kind: "junction", junctionId: "J1" },
+            end: { kind: "junction", junctionId: "J2" },
+            bends: [{ x: 16, y: 20 }],
+            modes: ["manual", "manual"],
+          }),
+        },
+        10,
+      ),
+    ).toEqual([]);
   });
 
   it("does not reinterpret non-page scalar geometry as a coordinate", () => {

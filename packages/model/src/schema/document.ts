@@ -25,6 +25,7 @@ import {
 } from "./presentation.js";
 import type { GridPoint } from "./types.js";
 import { reportDuplicateIds } from "./validation.js";
+import { electricalConnectionGrid } from "../coordinate-domain.js";
 export const SourceBindingSchema = z.strictObject({
   cellName: z.string().min(1),
   sourceRef: SourceSpanSchema,
@@ -457,6 +458,9 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
     }
     reportDuplicateIds(objectCollections, "objects", context);
     const grid = document.presentation.grid;
+    // Existing documents may use another placement pitch; the electrical
+    // lattice must divide both that pitch and the Symbol connection pitch.
+    const electricalGrid = electricalConnectionGrid(grid);
     document.instances.forEach((instance, index) => {
       if (instance.placement) {
         reportGridPoint(
@@ -472,7 +476,7 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
         if (leg.to.kind !== "bend") return;
         reportGridPoint(
           leg.to.position,
-          grid,
+          electricalGrid,
           ["routes", routeIndex, "legs", legIndex, "to", "position"],
           context,
         );
@@ -481,16 +485,15 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
     document.junctions.forEach((junction, index) =>
       reportGridPoint(
         junction.position,
-        grid,
+        electricalGrid,
         ["junctions", index, "position"],
         context,
       ),
     );
     // Since schema 29, annotations and drafting objects position at 1-unit
     // precision (their point schemas already enforce integers). The Document
-    // grid remains the hard electrical contract above — instance placements,
-    // route bends, and junctions stay grid-aligned so pins and wires always
-    // coincide.
+    // grid remains the coarse placement contract. Electrical bends and
+    // Junctions may use the finer connection lattice to reach dense pins.
 
     const instanceIds = new Set(
       document.instances.map((instance) => instance.id),
