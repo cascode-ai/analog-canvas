@@ -23,7 +23,7 @@ export type FormulaPresentation = NonNullable<
 >;
 
 export interface SignalFlowFormulaRenderOptions {
-  /** Plain block names share the drawing's label rules; expressions stay formulas. */
+  /** Body names use explicit script marks and drawing typography; expressions stay formulas. */
   labels?: {
     presentation: SchematicDocument["presentation"];
     profile: SchematicStyleProfile;
@@ -127,10 +127,13 @@ export function renderSignalFlowFormula(
     options.labels && /^[\p{L}][\p{L}\p{N}_]*$/u.test(layout.formula)
       ? renderRichTextDocument(
           labelTextDocument(
-            formatLabelIdentifier(
-              layout.formula,
-              labelTypography(options.labels.presentation),
-            ),
+            formatLabelIdentifier(layout.formula, {
+              ...labelTypography(options.labels.presentation),
+              // A Symbol's body word is a name, not a designator with an
+              // implicit index. Keep ADC, DAC and authored words whole;
+              // an explicit underscore still requests a subscript.
+              subscriptAfterFirst: false,
+            }),
             options.labels.presentation,
           ),
           options.labels.profile,
