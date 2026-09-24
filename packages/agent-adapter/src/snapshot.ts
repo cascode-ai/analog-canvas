@@ -24,6 +24,7 @@ import {
 import {
   AGENT_SNAPSHOT_VERSION,
   AgentBootstrapSnapshotSchema,
+  AgentGeometryObjectSchema,
   AgentSessionSnapshotSchema,
 } from "./schema.js";
 import type {
@@ -43,6 +44,70 @@ export interface BuildAgentSessionSnapshotOptions {
 export interface BuildAgentBootstrapSnapshotOptions {
   project?: CircuitProject;
   document: SchematicDocument;
+}
+
+/** Read authored geometry by stable ID without resolving topology or rendering. */
+export function selectAgentGeometry(
+  document: SchematicDocument,
+  objectIds: readonly string[],
+): {
+  objects: Array<ReturnType<typeof AgentGeometryObjectSchema.parse>>;
+  missingObjectIds: string[];
+} {
+  const objects: Array<ReturnType<typeof AgentGeometryObjectSchema.parse>> = [];
+  const missingObjectIds: string[] = [];
+  for (const id of [...new Set(objectIds)]) {
+    const instance = document.instances.find((item) => item.id === id);
+    if (instance) {
+      objects.push({ kind: "instance", id, placement: instance.placement });
+      continue;
+    }
+    const route = document.routes.find((item) => item.id === id);
+    if (route) {
+      objects.push({
+        kind: "route",
+        id,
+        netId: route.netId,
+        start: route.start,
+        legs: route.legs,
+        ...(route.presentation ? { presentation: route.presentation } : {}),
+      });
+      continue;
+    }
+    const junction = document.junctions.find((item) => item.id === id);
+    if (junction) {
+      objects.push({
+        kind: "junction",
+        id,
+        netId: junction.netId,
+        position: junction.position,
+      });
+      continue;
+    }
+    const annotation = document.annotations.find((item) => item.id === id);
+    if (annotation) {
+      objects.push({
+        kind: "annotation",
+        id,
+        anchor: annotation.anchor,
+        rotation: annotation.rotation,
+        alignment: annotation.alignment,
+      });
+      continue;
+    }
+    const drafting = document.drafting?.objects.find((item) => item.id === id);
+    if (drafting) {
+      objects.push({ kind: "drafting", id, object: drafting });
+      continue;
+    }
+    const noConnect = document.noConnects.find((item) => item.id === id);
+    if (noConnect) {
+      objects.push({ kind: "no-connect", id, object: noConnect });
+      continue;
+    }
+    missingObjectIds.push(id);
+  }
+  return { objects, missingObjectIds };
 }
 
 function stableValue(input: unknown): unknown {

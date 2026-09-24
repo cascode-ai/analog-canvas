@@ -53,7 +53,7 @@ export const agentToolHelp = {
   get_context:
     "Compact document identity, revision, counts and diagnostic totals. Reuses the clean Snapshot; refresh:true reconciles external changes. Connect already returns bootstrap context; do not repeat this call just to confirm pairing.",
   inspect:
-    "Inspect document facts, objects, nets, connectivity, diagnostics, cross-Cell traces or current-process activity. Use returned IDs and resolved pins when planning edits.",
+    "Inspect document facts, objects, nets, connectivity, diagnostics, cross-Cell traces or current-process activity. For local placement/routes use target kind geometry with stable objectIds; it avoids a full Snapshot. Use resolved pins when planning wiring.",
   search:
     "Case-insensitive search, including LaTeX, over one authorized document or scope:project. Results include documentId. Reuses clean Snapshots by default and loads authorized Project documents concurrently.",
   apply_actions:

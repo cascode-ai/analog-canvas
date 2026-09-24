@@ -128,8 +128,9 @@ export const AgentProjectResourceCapabilitySchema = z.strictObject({
 export const AgentSnapshotRequestSchema = RequestBaseSchema.extend({
   operation: z.literal("snapshot"),
   documentId: StableIdSchema,
-  /** Full remains the default for wire compatibility; bootstrap is the small connection projection. */
-  projection: z.enum(["full", "bootstrap"]).optional(),
+  /** Full remains the default; geometry reads only selected authored objects. */
+  projection: z.enum(["full", "bootstrap", "geometry"]).optional(),
+  geometryIds: z.array(StableIdSchema).min(1).max(64).optional(),
   includeSourceSpans: z.boolean().optional(),
   traceNet: z
     .strictObject({
@@ -715,6 +716,56 @@ export const AgentBootstrapSnapshotResponseSchema = ResponseBaseSchema.extend({
   context: AgentBootstrapSnapshotSchema,
 });
 
+export const AgentGeometryObjectSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("instance"),
+    id: StableIdSchema,
+    placement: PlacementSchema.nullable(),
+  }),
+  z.strictObject({
+    kind: z.literal("route"),
+    id: StableIdSchema,
+    netId: StableIdSchema,
+    start: RouteEndpointSchema,
+    legs: z.array(RouteLegSchema),
+    presentation: RoutePresentationSchema.optional(),
+  }),
+  z.strictObject({
+    kind: z.literal("junction"),
+    id: StableIdSchema,
+    netId: StableIdSchema,
+    position: PointSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("annotation"),
+    id: StableIdSchema,
+    anchor: AnnotationSchema.shape.anchor,
+    rotation: AnnotationSchema.shape.rotation,
+    alignment: AnnotationSchema.shape.alignment,
+  }),
+  z.strictObject({
+    kind: z.literal("drafting"),
+    id: StableIdSchema,
+    object: DraftingObjectSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("no-connect"),
+    id: StableIdSchema,
+    object: NoConnectSchema,
+  }),
+]);
+export const AgentGeometrySnapshotResponseSchema = ResponseBaseSchema.extend({
+  operation: z.literal("snapshot"),
+  ok: z.literal(true),
+  projection: z.literal("geometry"),
+  projectId: StableIdSchema,
+  structureRevision: z.number().int().nonnegative(),
+  documentId: StableIdSchema,
+  revision: z.number().int().nonnegative(),
+  objects: z.array(AgentGeometryObjectSchema).max(64),
+  missingObjectIds: z.array(StableIdSchema).max(64),
+});
+
 export const AgentSemanticIntentResultSchema = z.strictObject({
   kind: z.enum([
     "activate-document",
@@ -791,6 +842,7 @@ export const AgentErrorResponseSchema = ResponseBaseSchema.extend({
 export const AgentProductionCircuitResponseSchema = z.union([
   AgentCapabilitiesResponseSchema,
   AgentBootstrapSnapshotResponseSchema,
+  AgentGeometrySnapshotResponseSchema,
   AgentSnapshotResponseSchema,
   AgentTransactSuccessResponseSchema,
   AgentRenderResponseSchema,

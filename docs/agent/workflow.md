@@ -7,9 +7,10 @@ connection and request mechanics; MCP clients need not implement raw HTTP.
 
 Identify the authorized Document, current revision and affected objects before
 editing. Read the complete Snapshot for new construction, unfamiliar topology,
-hierarchy changes or broad rerouting. A current targeted inspection can suffice
-for a known object's local value/display change; counts alone are not pin or
-connectivity evidence. Refresh after placement before using newly resolved pins.
+hierarchy changes or broad rerouting. For a known object's placement or route
+geometry, use a focused geometry read by stable ID; it does not resolve pins or
+connectivity. Counts alone are not pin or connectivity evidence. Refresh after
+placement before using newly resolved pins.
 
 Preserve topology unless the user requests an electrical change. Preserve
 human-owned work outside the affected area, including locks and groups. A lock
@@ -21,8 +22,9 @@ semantics or hierarchy binding requires an authoritative fact or a human answer.
 Use [native authoring](shared/authoring.md) for placement, displays and Net names.
 Use the shared edit path and current Document/Project revisions. For risky
 connectivity, destructive or multi-object edits, validate a dry-run before
-commit. MCP `apply_actions` already performs its preview/commit sequence; do not
-add another preview ritual unless a separate review is actually needed.
+commit when the risk warrants it. MCP `apply_actions` normally sends one atomic
+commit without a separate client-side preview; do not add a preview ritual
+when the same server validation and receipt already answer the question.
 
 On a stale revision, refresh affected facts and reconsider intent. Do not replay
 an outdated edit against a newly substituted revision. An uncertain transport

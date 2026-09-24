@@ -1,6 +1,7 @@
 import {
   parseAgentCircuitRequest,
   AgentBootstrapSnapshotResponseSchema,
+  AgentGeometrySnapshotResponseSchema,
   AgentAuthoringCommandSchema,
   AgentCapabilitiesResponseSchema,
   AgentRenderResponseSchema,
@@ -745,6 +746,137 @@ export class AgentSessionClient {
       context.project.topDocumentId,
     );
     return context;
+  }
+
+  /** Read selected authored geometry without resolving topology or diagnostics. */
+  async geometrySnapshot(
+    objectIds: readonly string[],
+    documentId?: string,
+  ): Promise<z.infer<typeof AgentGeometrySnapshotResponseSchema>> {
+    if (objectIds.length < 1 || objectIds.length > 64)
+      throw new AgentSessionError(
+        "INVALID_REQUEST",
+        "geometry read requires 1–64 object IDs",
+        "request-rejected",
+      );
+    const ids = [...new Set(objectIds)];
+    const target = await this.resolveDocumentId(documentId);
+    const response = await this.send({
+      ...baseRequest(this.newRequestId()),
+      operation: "snapshot",
+      documentId: target,
+      projection: "geometry",
+      geometryIds: ids,
+    });
+    if (!response.ok && response.error.code === "INVALID_REQUEST") {
+      // An older Editor may reject the projection during a rolling deploy.
+      const full = await this.refreshSnapshot(target);
+      const document = full.snapshot.document;
+      const objects: unknown[] = [];
+      const found = new Set<string>();
+      for (const id of ids) {
+        const instance = document.instances.find((item) => item.id === id);
+        if (instance) {
+          objects.push({ kind: "instance", id, placement: instance.placement });
+          found.add(id);
+          continue;
+        }
+        const route = document.routes.find((item) => item.id === id);
+        if (route) {
+          objects.push({
+            kind: "route",
+            id,
+            netId: route.netId,
+            start: route.start,
+            legs: route.legs,
+            ...(route.presentation ? { presentation: route.presentation } : {}),
+          });
+          found.add(id);
+          continue;
+        }
+        const junction = document.junctions.find((item) => item.id === id);
+        if (junction) {
+          objects.push({
+            kind: "junction",
+            id,
+            netId: junction.netId,
+            position: junction.position,
+          });
+          found.add(id);
+          continue;
+        }
+        const annotation = document.annotations.find((item) => item.id === id);
+        if (annotation) {
+          objects.push({
+            kind: "annotation",
+            id,
+            anchor: annotation.anchor,
+            rotation: annotation.rotation,
+            alignment: annotation.alignment,
+          });
+          found.add(id);
+          continue;
+        }
+        const drafting = document.drafting.objects.find(
+          (item) => item.object.id === id,
+        );
+        if (drafting) {
+          objects.push({ kind: "drafting", id, object: drafting.object });
+          found.add(id);
+          continue;
+        }
+        const noConnect = document.noConnects.find((item) => item.id === id);
+        if (noConnect) {
+          objects.push({ kind: "no-connect", id, object: noConnect });
+          found.add(id);
+        }
+      }
+      return AgentGeometrySnapshotResponseSchema.parse({
+        apiVersion: AGENT_API_VERSION,
+        requestId: response.requestId,
+        operation: "snapshot",
+        ok: true,
+        projection: "geometry",
+        projectId: full.snapshot.project.id,
+        structureRevision: full.snapshot.project.structureRevision,
+        documentId: target,
+        revision: full.revision,
+        objects,
+        missingObjectIds: ids.filter((id) => !found.has(id)),
+      });
+    }
+    if (!response.ok)
+      throw new AgentSessionError(
+        response.error.code,
+        response.error.message,
+        "request-rejected",
+      );
+    const parsed = AgentGeometrySnapshotResponseSchema.safeParse(response);
+    if (!parsed.success)
+      throw new AgentSessionError(
+        "INVALID_RESPONSE",
+        "geometry snapshot response failed schema validation",
+        "request-rejected",
+      );
+    const cached = this.cache.get(target);
+    if (
+      cached &&
+      (cached.snapshot.project.id !== parsed.data.projectId ||
+        cached.snapshot.project.structureRevision !==
+          parsed.data.structureRevision)
+    ) {
+      this.cache.clear();
+      this.knownRevisions.clear();
+    } else if (cached && cached.revision !== parsed.data.revision) {
+      this.cache.markDirty(target, parsed.data.revision);
+    }
+    this.rememberRevision({
+      documentId: target,
+      revision: parsed.data.revision,
+      structureRevision: parsed.data.structureRevision,
+      projectId: parsed.data.projectId,
+    });
+    return parsed.data;
   }
 
   summary(documentId?: string): SnapshotSummary | null {

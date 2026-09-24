@@ -1297,6 +1297,67 @@ describe("agent session client", () => {
     ).toHaveLength(1);
   });
 
+  it("falls back to a full read for geometry when an older Editor rejects the projection", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation === "snapshot" && request.projection === "geometry")
+        return errorResponse(
+          request.requestId,
+          "snapshot",
+          "INVALID_REQUEST",
+          "unknown projection",
+        );
+      if (request.operation === "snapshot")
+        return snapshotResponse(request.requestId);
+      throw new Error(`unexpected ${request.operation} request`);
+    };
+    const geometry = await client.geometrySnapshot(["instance-1", "absent"]);
+    expect(geometry).toMatchObject({
+      projection: "geometry",
+      objects: [{ kind: "instance", id: "instance-1" }],
+      missingObjectIds: ["absent"],
+    });
+    expect(
+      http.circuitCalls.flatMap(({ request }) =>
+        request.operation === "snapshot" ? [request.projection ?? "full"] : [],
+      ),
+    ).toEqual(["bootstrap", "geometry", "full"]);
+  });
+
+  it("invalidates an older full Snapshot when focused geometry observes a newer revision", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    await client.snapshot();
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation === "snapshot" && request.projection === "geometry")
+        return {
+          apiVersion: "3.0",
+          requestId: request.requestId,
+          operation: "snapshot",
+          ok: true,
+          projection: "geometry",
+          projectId: "project-1",
+          structureRevision: 0,
+          documentId: "main",
+          revision: 6,
+          objects: [{ kind: "instance", id: "instance-1", placement: null }],
+          missingObjectIds: [],
+        };
+      if (request.operation === "snapshot")
+        return snapshotResponse(request.requestId, testSnapshot(), 6);
+      throw new Error(`unexpected ${request.operation} request`);
+    };
+    expect((await client.geometrySnapshot(["instance-1"])).revision).toBe(6);
+    expect(client.cachedSnapshot()?.dirty).toBe(true);
+    await client.snapshot();
+    expect(
+      http.circuitCalls.filter(
+        ({ request }) => request.operation === "snapshot",
+      ),
+    ).toHaveLength(4);
+  });
+
   it("does not silently rebase a source helper after a concurrent Project edit", async () => {
     const { client, http } = await freshClient();
     await client.connect("session-1.code");
