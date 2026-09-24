@@ -442,8 +442,10 @@ unreadable, ruleVersion, remaining}`). Every entry stores the rule version
   unformatted supply and device Reference labels their stored standard look
   (V_DD, M₁; see [names and labels](names-and-labels.md)). The body is
   `{ "ids": [...], "apply"?: true, "expected"?: {<id>: <sha256>}, "nudges"?:
-{<id>: [{label, dx, dy}]} }`. The server computes the change itself; a nudge
-  may only move a label it restyles, by at most 16 × 12 units. Without
+{<id>: [{label, dx, dy}]}, "keep"?: {<id>: [label]} }`. The server computes
+  the change itself; a nudge may only move a label it restyles, by at most
+  16 × 12 units, and `keep` names standard-look candidates to leave exactly as
+  they are (for a label that cannot stay as clear as it was). Without
   `apply` it reports, per entry, the labels, the SHA-256 of the stored Project
   Code, and whether every electrical name and the SPICE and Spectre netlists
   are unchanged. An apply needs that SHA-256 for each entry (`stale`

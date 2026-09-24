@@ -318,7 +318,12 @@ function designNetlists(project: CircuitProject): string {
 async function labelLookEntry(
   env: GalleryEnv,
   id: string,
-  options: { apply: boolean; expected?: string; nudges: LabelLookNudge[] },
+  options: {
+    apply: boolean;
+    expected?: string;
+    nudges: LabelLookNudge[];
+    keep: string[];
+  },
 ): Promise<Record<string, unknown>> {
   const read = await callGallery<{ status?: string; projectText?: string }>(
     env,
@@ -342,8 +347,15 @@ async function labelLookEntry(
     string,
     CircuitProject["documents"][number]["annotations"][number]
   >();
+  const keep = new Set(options.keep);
+  const kept: string[] = [];
   for (const document of project.documents) {
     for (const change of standardLabelLookChanges(document)) {
+      // A label the planner could not keep clear stays as it is.
+      if (keep.has(change.annotationId)) {
+        kept.push(change.annotationId);
+        continue;
+      }
       const annotation = document.annotations.find(
         (candidate) => candidate.id === change.annotationId,
       )!;
@@ -352,8 +364,17 @@ async function labelLookEntry(
       labels.push({ id: annotation.id, name: change.name, role: change.role });
     }
   }
+  const unknownKeep = options.keep.find((label) => !kept.includes(label));
+  if (unknownKeep) return { id, sha, skipped: `invalid-keep:${unknownKeep}` };
   if (!labels.length)
-    return { id, sha, status: read.payload.status, labels, changed: false };
+    return {
+      id,
+      sha,
+      status: read.payload.status,
+      labels,
+      kept: kept.length,
+      changed: false,
+    };
   for (const nudge of options.nudges) {
     const annotation = changed.get(nudge.label);
     if (
@@ -399,6 +420,7 @@ async function labelLookEntry(
     status: read.payload.status,
     labels,
     nudged: options.nudges.length,
+    kept: kept.length,
     namesUnchanged,
     netlistUnchanged,
   };
@@ -447,6 +469,7 @@ async function handleLabelLooks(
     apply?: unknown;
     expected?: unknown;
     nudges?: unknown;
+    keep?: unknown;
   } | null;
   const ids = body?.ids;
   if (
@@ -463,6 +486,10 @@ async function handleLabelLooks(
   const nudges =
     body?.nudges && typeof body.nudges === "object"
       ? (body.nudges as Record<string, unknown>)
+      : {};
+  const keep =
+    body?.keep && typeof body.keep === "object"
+      ? (body.keep as Record<string, unknown>)
       : {};
   const results = [];
   for (const id of ids as string[]) {
@@ -483,6 +510,9 @@ async function handleLabelLooks(
           ? { expected: expected[id] as string }
           : {}),
         nudges: entryNudges,
+        keep: Array.isArray(keep[id])
+          ? (keep[id] as unknown[]).map((label) => String(label))
+          : [],
       }),
     );
   }

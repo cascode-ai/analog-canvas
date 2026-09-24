@@ -60,8 +60,8 @@ Existing Gallery drawings are moved to stored standard looks by an
 administrator maintenance pass
 ([Community Gallery](community-gallery.md#administration)). It changes only
 unformatted supply and device Reference labels, may nudge a restyled label a
-few grid units clear of its neighbours, and refuses any change to an
-electrical name or netlist. Pin labels keep the historical rule, because an
+few grid units clear of its neighbours or leave one that cannot stay as clear
+as it was, and refuses any change to an electrical name or netlist. Pin labels keep the historical rule, because an
 older drawing cannot tell a generated Pin name from a typed one.
 
 ### Editing

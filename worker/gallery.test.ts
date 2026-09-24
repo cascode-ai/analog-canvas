@@ -5925,4 +5925,53 @@ describe("label-look maintenance", () => {
     ).documents[0]!.annotations.find((item) => item.id === "power-label-vdd1")!;
     expect(label.anchor).toMatchObject({ localOffset: { x: 20, y: 7 } });
   });
+
+  it("leaves the labels the planner keeps exactly as they are", async () => {
+    const env = environment();
+    const cookie = await adminOf(env);
+    const id = await submitOne(env, "Label keeps", {
+      cookie,
+      text: labelLookProjectText(),
+    });
+    const send = async (body: unknown) =>
+      (await (
+        await route(
+          env,
+          new Request(endpoint, {
+            method: "POST",
+            headers: {
+              ...cookieHeaders(cookie),
+              "content-type": "application/json",
+            },
+            body: JSON.stringify(body),
+          }),
+        )
+      ).json()) as { results: Array<Record<string, any>> };
+    expect(
+      (await send({ ids: [id], keep: { [id]: ["not-a-standard-label"] } }))
+        .results[0],
+    ).toMatchObject({ skipped: "invalid-keep:not-a-standard-label" });
+    const keep = { [id]: ["instance-label-M1"] };
+    const preview = await send({ ids: [id], keep });
+    expect(preview.results[0]).toMatchObject({
+      changed: true,
+      kept: 1,
+      labels: [{ id: "power-label-vdd1" }],
+    });
+    await send({
+      ids: [id],
+      apply: true,
+      keep,
+      expected: { [id]: preview.results[0]!.sha },
+    });
+    const stored = parseProject(entryRow(env, id).project_text).documents[0]!;
+    expect(
+      stored.annotations.find((item) => item.id === "instance-label-M1")
+        ?.formatOverride,
+    ).toBeUndefined();
+    expect(
+      stored.annotations.find((item) => item.id === "power-label-vdd1")
+        ?.formatOverride,
+    ).toEqual(roleLabelFormat("supply", "VDD"));
+  });
 });
