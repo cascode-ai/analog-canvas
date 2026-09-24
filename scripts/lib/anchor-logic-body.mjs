@@ -21,6 +21,103 @@ function pathPoints(data) {
 }
 
 /**
+ * The PDF records the straight and curved halves of AND/NAND as separate
+ * strokes. Their endpoints differ slightly, so independently stroking them
+ * leaves a visible step at high zoom. Join only those two body contours in the
+ * product projection; the original vector evidence remains untouched.
+ */
+export function closeSplitGateBody(definition) {
+  if (!["and-gate", "nand-gate"].includes(definition.id)) return definition;
+  const indices = definition.primitives.flatMap((primitive, index) =>
+    primitive.kind === "path" ? [index] : [],
+  );
+  if (indices.length !== 2 || indices[1] !== indices[0] + 1) {
+    throw new Error(
+      `${definition.id} needs adjacent straight and curved body paths`,
+    );
+  }
+  const straight = definition.primitives[indices[0]];
+  const curve = definition.primitives[indices[1]];
+  if (
+    !/^M(?:\s+-?\d+(?:\.\d+)?){2}(?:\s+L(?:\s+-?\d+(?:\.\d+)?){2}){3}$/u.test(
+      straight.data,
+    ) ||
+    !/^M(?:\s+-?\d+(?:\.\d+)?){2}(?:\s+C(?:\s+-?\d+(?:\.\d+)?){6})+$/u.test(
+      curve.data,
+    )
+  ) {
+    throw new Error(
+      `${definition.id} body no longer has the reviewed M/L and M/C shapes`,
+    );
+  }
+  const linePoints = pathPoints(straight.data);
+  const curvePoints = pathPoints(curve.data);
+  if (
+    linePoints.length !== 4 ||
+    (curvePoints.length - 1) % 3 !== 0 ||
+    JSON.stringify(straight.style) !== JSON.stringify(curve.style)
+  ) {
+    throw new Error(`${definition.id} body paths cannot be joined safely`);
+  }
+  const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const start = linePoints[0];
+  const end = linePoints[3];
+  if (
+    distance(start, curvePoints[0]) > 0.25 ||
+    distance(end, curvePoints.at(-1)) > 0.25
+  ) {
+    throw new Error(
+      `${definition.id} body endpoints have drifted beyond the seam tolerance`,
+    );
+  }
+  // Repeated endpoint controls should move with the endpoint; all interior
+  // Bézier controls and the straight outline retain the extracted geometry.
+  for (const index of [1, 2]) {
+    if (distance(curvePoints[index], curvePoints[0]) < 0.000001) {
+      curvePoints[index] = start;
+    }
+  }
+  for (const index of [curvePoints.length - 3, curvePoints.length - 2]) {
+    if (distance(curvePoints[index], curvePoints.at(-1)) < 0.000001) {
+      curvePoints[index] = end;
+    }
+  }
+  if (definition.id === "and-gate") {
+    // The extracted arc initially rises 0.157 units above the flat top. Its
+    // first two tiny cubics must meet that top tangentially, not leave a tooth.
+    for (let index = 1; index < curvePoints.length; index++) {
+      const control = curvePoints[index];
+      if (control.x > start.x + 0.7) break;
+      if (control.y < start.y && start.y - control.y < 0.25) {
+        curvePoints[index] = { ...control, y: start.y };
+      }
+    }
+  }
+  curvePoints[curvePoints.length - 1] = end;
+  const point = ({ x, y }) => `${x} ${y}`;
+  const cubics = [];
+  for (let index = 1; index < curvePoints.length; index += 3) {
+    cubics.push(
+      `C ${curvePoints
+        .slice(index, index + 3)
+        .map(point)
+        .join(" ")}`,
+    );
+  }
+  const data = [
+    `M ${point(start)}`,
+    ...cubics,
+    ...linePoints
+      .slice(1, -1)
+      .reverse()
+      .map((value) => `L ${point(value)}`),
+    "Z",
+  ].join(" ");
+  definition.primitives.splice(indices[0], 2, { ...curve, data });
+  return definition;
+}
+
+/**
  * Anchor the product's left outline first, preserving the source shape and
  * scale. Pins and their short leads are then rebuilt from that artwork.
  * Original PDF evidence is never rewritten to claim this product placement.
