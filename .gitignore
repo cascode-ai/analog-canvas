@@ -13,6 +13,7 @@ tmp/
 *.tsbuildinfo
 .vite/
 .wrangler/
+.DS_Store
 
 # Razavi fidelity diff generated output
 fixtures/visual-reference/razavi-reference-v1/diff/
