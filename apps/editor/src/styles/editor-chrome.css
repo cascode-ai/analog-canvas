@@ -690,6 +690,33 @@
     0 12px 32px rgb(15 15 15 / 12%);
 }
 
+/* Only the variable Cloud Project list scrolls; File commands and flyouts stay reachable. */
+.file-command-popover {
+  display: flex;
+  flex-direction: column;
+  width: min(22rem, calc(100vw - var(--icm-space-6)));
+  max-height: calc(100dvh - 4rem);
+}
+
+.file-command-popover > :not(.cloud-project-list) {
+  flex-shrink: 0;
+}
+
+.cloud-project-list {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: min(21rem, 42dvh);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--icm-text-disabled) transparent;
+  scrollbar-width: thin;
+}
+
+.cloud-project-list .cloud-project-command {
+  width: 100%;
+}
+
 .command-popover button,
 .command-popover .file-import {
   display: inline-flex;
@@ -761,8 +788,32 @@
   display: none;
 }
 
+@media (min-width: 481px) and (max-width: 780px) {
+  .file-command-popover .export-submenu-options {
+    right: 100%;
+    left: auto;
+  }
+}
+
 @media (max-width: 480px) {
   .command-popover .export-submenu-options {
+    position: static;
+    margin-left: 12px;
+    box-shadow: none;
+  }
+}
+
+/* An unusually short viewport cannot hold even the fixed actions. */
+@media (max-height: 380px) {
+  .file-command-popover {
+    overflow-y: auto;
+  }
+
+  .file-command-popover .cloud-project-list {
+    flex-shrink: 0;
+  }
+
+  .file-command-popover .export-submenu-options {
     position: static;
     margin-left: 12px;
     box-shadow: none;

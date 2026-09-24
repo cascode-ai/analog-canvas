@@ -1,6 +1,7 @@
 import {
   lazy,
   Suspense,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -58,6 +59,13 @@ function CommandSubmenu({
   children: ReactNode;
 }) {
   const trigger = useRef<HTMLButtonElement>(null);
+  const options = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const menu = options.current?.closest<HTMLElement>(".file-command-popover");
+    if (!open || !menu || getComputedStyle(menu).overflowY !== "auto") return;
+    const bottom = options.current!.getBoundingClientRect().bottom;
+    menu.scrollTop += Math.max(0, bottom - menu.getBoundingClientRect().bottom);
+  }, [open]);
   return (
     <div
       className="export-submenu"
@@ -97,6 +105,7 @@ function CommandSubmenu({
         <span aria-hidden="true">›</span>
       </button>
       <div
+        ref={options}
         className="export-submenu-options"
         id={id}
         role="group"
@@ -133,6 +142,22 @@ export function FileCommandMenu({
   const [openSubmenu, setOpenSubmenu] = useState<"import" | "export" | null>(
     null,
   );
+  const cloudProjectList = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!deletingId) return;
+    const list = cloudProjectList.current;
+    const decision = list?.querySelector<HTMLElement>(
+      ".inline-confirm[data-expanded]",
+    );
+    const row = decision?.closest<HTMLElement>(".cloud-project-command");
+    if (!list || !row) return;
+    const listBounds = list.getBoundingClientRect();
+    const rowBounds = row.getBoundingClientRect();
+    if (rowBounds.bottom > listBounds.bottom)
+      list.scrollTop += rowBounds.bottom - listBounds.bottom;
+    else if (rowBounds.top < listBounds.top)
+      list.scrollTop += rowBounds.top - listBounds.top;
+  }, [deletingId]);
   const activateFileLabel = (
     event: ReactKeyboardEvent<HTMLLabelElement>,
   ): void => {
@@ -150,7 +175,10 @@ export function FileCommandMenu({
       }}
     >
       <summary>File</summary>
-      <div className="command-popover" data-inline-confirm-menu>
+      <div
+        className="command-popover file-command-popover"
+        data-inline-confirm-menu
+      >
         <button type="button" onClick={onNewProject}>
           New Project
         </button>
@@ -166,55 +194,73 @@ export function FileCommandMenu({
         >
           Check and Save
         </button>
-        <span className="command-group-label">
+        <span className="command-group-label" id="file-cloud-projects-label">
           Cloud Projects ({cloudProjects.length}/{CLOUD_PROJECT_LIMIT})
         </span>
-        {cloudProjects.map((project) => (
-          <div className="cloud-project-command" key={project.id}>
-            <button
-              type="button"
-              className="cloud-project-open"
-              data-testid={`cloud-project-${project.id}`}
-              title={`Open revision ${project.revision}`}
-              disabled={project.id === activeCloudProjectId}
-              onClick={() => onOpenCloudProject(project)}
-            >
-              <span className="cloud-project-name">{project.name}</span>
-              <time className="cloud-project-time" dateTime={project.updatedAt}>
-                {new Date(project.updatedAt).toLocaleString(undefined, {
-                  dateStyle: "short",
-                  timeStyle: "short",
-                })}
-              </time>
-            </button>
-            <Suspense fallback={<button disabled>Delete</button>}>
-              <InlineConfirm
-                aria-label={`Delete Cloud Project ${project.name}`}
-                title="Delete this Cloud Project"
+        <div
+          ref={cloudProjectList}
+          className="cloud-project-list"
+          role="region"
+          aria-labelledby="file-cloud-projects-label"
+          tabIndex={cloudProjects.length ? 0 : undefined}
+          data-testid="file-cloud-project-list"
+        >
+          {cloudProjects.map((project) => (
+            <div className="cloud-project-command" key={project.id}>
+              <button
+                type="button"
+                className="cloud-project-open"
+                data-testid={`cloud-project-${project.id}`}
+                title={`Open revision ${project.revision}`}
                 disabled={project.id === activeCloudProjectId}
-                open={deletingId === project.id}
-                onOpenChange={(open) =>
-                  setDeletingId((current) =>
-                    open ? project.id : current === project.id ? null : current,
-                  )
-                }
-                onConfirm={() => onDeleteCloudProject(project)}
+                onClick={() => onOpenCloudProject(project)}
               >
-                Delete
-              </InlineConfirm>
-            </Suspense>
-          </div>
-        ))}
+                <span className="cloud-project-name">{project.name}</span>
+                <time
+                  className="cloud-project-time"
+                  dateTime={project.updatedAt}
+                >
+                  {new Date(project.updatedAt).toLocaleString(undefined, {
+                    dateStyle: "short",
+                    timeStyle: "short",
+                  })}
+                </time>
+              </button>
+              <Suspense fallback={<button disabled>Delete</button>}>
+                <InlineConfirm
+                  aria-label={`Delete Cloud Project ${project.name}`}
+                  title="Delete this Cloud Project"
+                  disabled={project.id === activeCloudProjectId}
+                  open={deletingId === project.id}
+                  onOpenChange={(open) => {
+                    if (open) setOpenSubmenu(null);
+                    setDeletingId((current) =>
+                      open
+                        ? project.id
+                        : current === project.id
+                          ? null
+                          : current,
+                    );
+                  }}
+                  onConfirm={() => onDeleteCloudProject(project)}
+                >
+                  Delete
+                </InlineConfirm>
+              </Suspense>
+            </div>
+          ))}
+        </div>
         <div>
           <CommandSubmenu
             id="file-import-options"
             title="Import"
             open={openSubmenu === "import"}
-            onToggle={() =>
+            onToggle={() => {
+              setDeletingId(null);
               setOpenSubmenu((current) =>
                 current === "import" ? null : "import",
-              )
-            }
+              );
+            }}
             onClose={() => setOpenSubmenu(null)}
           >
             <label
@@ -270,11 +316,12 @@ export function FileCommandMenu({
             id="file-export-options"
             title="Export"
             open={openSubmenu === "export"}
-            onToggle={() =>
+            onToggle={() => {
+              setDeletingId(null);
               setOpenSubmenu((current) =>
                 current === "export" ? null : "export",
-              )
-            }
+              );
+            }}
             onClose={() => setOpenSubmenu(null)}
           >
             <button
