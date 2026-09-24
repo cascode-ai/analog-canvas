@@ -3,6 +3,7 @@ import type {
   Annotation,
   DerivedPoint,
   DerivedRect,
+  RichTextDocument,
   Rotation,
   SchematicDocument,
 } from "@icm/model";
@@ -54,11 +55,12 @@ export function isSchematicAnnotationVisible(
   document: SchematicDocument,
   annotation: Annotation,
   logicalNets?: ResolvedDocumentLogicalNets,
+  resolvedText?: RichTextDocument,
 ): boolean {
   if (annotation.visible === false) return false;
   if (
     !flattenRichText(
-      resolveAnnotationText(document, annotation, logicalNets),
+      resolvedText ?? resolveAnnotationText(document, annotation, logicalNets),
     ).trim()
   ) {
     return false;
@@ -95,6 +97,7 @@ export function resolveAnnotationPresentation(
     resolver,
   ),
   logicalNets?: ResolvedDocumentLogicalNets,
+  resolvedText?: RichTextDocument,
 ): AnnotationPresentation {
   const anchor = resolveVisualAnchor(
     document,
@@ -104,7 +107,8 @@ export function resolveAnnotationPresentation(
   );
   const sizeScale = annotation.sizeScale ?? 1;
   const fontSize = annotationFontSize(annotation, styleProfile) * sizeScale;
-  const text = resolveAnnotationText(document, annotation, logicalNets);
+  const text =
+    resolvedText ?? resolveAnnotationText(document, annotation, logicalNets);
   const textLayout = measureRichTextDocument(text, {
     ...richTextMetrics(styleProfile, "label", sizeScale),
     fontSize,
