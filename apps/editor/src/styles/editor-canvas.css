@@ -754,44 +754,68 @@
   background: var(--icm-accent);
 }
 
+.rich-text-floating-toolbar .rich-text-symbol-button {
+  min-width: 1.8rem;
+}
+
+.rich-text-floating-toolbar .rich-text-symbol-button[aria-expanded="true"] {
+  background: var(--icm-accent-tint);
+}
+
+/* A page-level portal right-aligned under the Ω button: the canvas editor's
+   foreignObject would clip a menu that hangs below its controls. */
 .rich-text-symbol-menu {
-  position: relative;
-}
-
-.rich-text-symbol-menu > summary {
+  position: fixed;
+  z-index: 60;
   display: grid;
-  width: 1.8rem;
-  min-height: 1.8rem;
-  place-items: center;
-  list-style: none;
-  cursor: pointer;
-}
-
-.rich-text-symbol-menu > summary::-webkit-details-marker {
-  display: none;
-}
-
-.rich-text-symbol-menu > div {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  left: auto;
-  z-index: 2;
-  display: grid;
-  grid-template-columns: repeat(5, 1.8rem);
-  gap: 0.1rem;
+  gap: 0.25rem;
   width: max-content;
   padding: 0.25rem;
   border: 1px solid var(--icm-border-strong);
   border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
   background: #fff;
   box-shadow: var(--icm-shadow-md);
+  font-family:
+    "ICM Round Period", "DejaVu Sans", Arial, "Helvetica Neue", Helvetica,
+    sans-serif;
 }
 
-.rich-text-symbol-menu > div button {
+.rich-text-symbol-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1.8rem);
+  gap: 0.1rem;
+}
+
+.rich-text-symbol-grid + .rich-text-symbol-grid {
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--icm-border);
+}
+
+.rich-text-symbol-grid button {
   width: 1.8rem;
   min-width: 1.8rem;
+  min-height: 1.6rem;
   padding: 0;
+  border: 0;
+  border-radius: var(--icm-radius-sm);
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: var(--icm-font-sm);
+  cursor: pointer;
+}
+
+.rich-text-symbol-grid button:hover:not(:disabled) {
+  background: var(--icm-accent-tint);
+}
+
+.rich-text-symbol-hint {
+  max-width: calc(8 * 1.8rem + 0.7rem);
+  margin: 0;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+  line-height: var(--icm-line-tight);
 }
 
 .rich-text-editable {

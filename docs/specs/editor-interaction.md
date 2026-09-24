@@ -778,6 +778,13 @@ Net and Cell terminal names refuse a non-equivalent formula in
 the Formula panel. Ordinary character edits and formatting commands do not use
 this formula-only decision path.
 
+The symbol menu (Ω) inserts a Greek letter or circuit symbol at the caret:
+every lowercase Greek letter, the capitals LaTeX names (Γ Δ Θ Λ Ξ Π Σ Υ Φ Ψ
+Ω), and ± ≈ ≤ ≥ ∞ ° · →. It floats above the page yet belongs to the editor,
+so choosing from it keeps the text open for further input. In any RichText
+editor, a LaTeX Greek name such as `\phi` or `\Omega` followed by Space is
+replaced by its letter, consuming the Space; an unknown name stays as typed.
+
 ## Project sessions
 
 Opening an independent project tab, activating an existing tab and replacing
