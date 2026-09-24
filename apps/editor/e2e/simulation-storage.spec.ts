@@ -1,4 +1,81 @@
 import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import { parseProject } from "@icm/project-protocol";
+
+test("Run history can reveal browser results from other folders without changing the selected folder", async ({
+  page,
+}) => {
+  const project = parseProject(
+    await readFile(
+      "apps/editor/src/examples/simulation-rc.icproj.json",
+      "utf8",
+    ),
+  );
+  const folderId = project.simulationFolders[0]!.id;
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "history-folders.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.evaluate(
+    async ({ projectId, folderId }) => {
+      const archivePath =
+        "/src/features/simulation/browser-simulation-archive-store.ts";
+      const { createBrowserSimulationArchiveStore } = await import(archivePath);
+      const store = createBrowserSimulationArchiveStore();
+      for (const [id, owner] of [
+        ["current", folderId],
+        ["other", "other-folder"],
+      ] as const) {
+        const saved = await store.save({
+          schemaVersion: 1,
+          id: `history-${id}`,
+          projectId,
+          createdAt: new Date(0).toISOString(),
+          retention: "saved",
+          presentation: {
+            folderId: owner,
+            folderName: id === "current" ? "Current" : "Other folder",
+            analysisLabel: "OP",
+            outputs: [],
+          },
+          prepared: {
+            id: `prepared-${id}`,
+            digest: "a".repeat(64),
+            inputRevision: "rev",
+            expiresAt: 1,
+            mode: "structured",
+            environment: { profileId: "test" },
+            vectors: [],
+            outputs: [],
+            deviceOperatingPoints: [],
+            warnings: [],
+            artifactIds: [],
+          },
+          run: {
+            id: `run-${id}`,
+            preparedId: `prepared-${id}`,
+            inputRevision: "rev",
+            state: "finished",
+          },
+          artifacts: [],
+          byteLength: 0,
+        });
+        if (!saved.ok) throw new Error(saved.message);
+      }
+      store.close();
+    },
+    { projectId: project.id, folderId },
+  );
+  await page.getByTestId("open-analog-simulation").click();
+  await page.locator(".simulation-run-history > summary").click();
+  const history = page.getByRole("region", { name: "Saved folder results" });
+  await expect(history).toContainText("Other folder");
+  await page.getByRole("checkbox", { name: "All Project folders" }).uncheck();
+  await expect(history).toContainText("Current");
+  await expect(history).not.toContainText("Other folder");
+});
 
 test("Project evidence lifetime defers reclamation until the next idle startup", async ({
   page,

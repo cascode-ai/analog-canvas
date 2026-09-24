@@ -44,7 +44,8 @@ export class ArtifactDownloadError extends Error {
 }
 export const MAX_ARTIFACT_BYTES = 256 * 1024 * 1024;
 export const MAX_ARTIFACT_STORE_BYTES = 1024 * 1024 * 1024;
-export const MAX_ARTIFACT_FILES = 1024;
+// Preserve headroom for older protected evidence while generated runs rotate.
+export const MAX_ARTIFACT_FILES = 4096;
 export const MAX_ARTIFACT_TRANSFER_CONCURRENCY = 8;
 export const MAX_ARTIFACT_TRANSFER_IN_FLIGHT_BYTES = 32 * 1024 * 1024;
 export function artifactTransferConcurrency(
@@ -77,6 +78,27 @@ export interface SimulationArtifactStore {
   find?(fileId: string): Promise<ArtifactRef | null>;
   saveCatalog?(record: StoredResultCatalog): Promise<void>;
   catalogs?(): Promise<StoredResultCatalog[]>;
+  usage?(): Promise<{
+    fileCount: number;
+    byteLength: number;
+    unreferencedFileCount: number;
+    unreferencedBytes: number;
+    catalogCount: number;
+    cleanupDeferred: boolean;
+  }>;
+  runArchives?(): Promise<
+    readonly { runId: string; retention: "saved" | "cache" }[]
+  >;
+  /** Delete by Run identity, never by arbitrary artifact ID. */
+  deleteRun?(
+    runId: string,
+    includeSaved: boolean,
+  ): Promise<{
+    archiveCount: number;
+    reclaimedFiles: number;
+    reclaimedBytes: number;
+    cleanupDeferred: boolean;
+  }>;
 }
 export interface StoredResultCatalog {
   catalog: ResultCatalog;
@@ -532,6 +554,45 @@ export class SimulationFiles {
         a.catalog.runId.localeCompare(b.catalog.runId),
     );
   }
+  private async archiveRetention() {
+    const archives = (await this.artifactStore?.runArchives?.()) ?? [];
+    const byRun = new Map<string, { saved: boolean; count: number }>();
+    for (const archive of archives) {
+      const entry = byRun.get(archive.runId) ?? { saved: false, count: 0 };
+      entry.saved ||= archive.retention === "saved";
+      entry.count++;
+      byRun.set(archive.runId, entry);
+    }
+    return byRun;
+  }
+  async usage() {
+    const stored = await this.artifactStore?.usage?.();
+    const records = await this.retainedCatalogs();
+    const referenced = new Set(
+      records.flatMap((record) => record.catalog.files.map((file) => file.id)),
+    );
+    const unreferenced = [...this.artifacts.values()].filter(
+      (item) => !referenced.has(item.ref.id),
+    );
+    return {
+      fileCount: stored?.fileCount ?? this.artifacts.size,
+      byteLength:
+        stored?.byteLength ??
+        [...this.artifacts.values()].reduce(
+          (sum, item) => sum + item.ref.byteLength,
+          0,
+        ),
+      unreferencedFileCount:
+        stored?.unreferencedFileCount ?? unreferenced.length,
+      unreferencedBytes:
+        stored?.unreferencedBytes ??
+        unreferenced.reduce((sum, item) => sum + item.ref.byteLength, 0),
+      catalogCount: stored?.catalogCount ?? records.length,
+      fileLimit: MAX_ARTIFACT_FILES,
+      byteLimit: MAX_ARTIFACT_STORE_BYTES,
+      cleanupDeferred: stored?.cleanupDeferred ?? false,
+    };
+  }
   async catalog(runId: string): Promise<ResultCatalog | undefined> {
     const current = this.catalogs.get(runId);
     if (current) return structuredClone(current.catalog);
@@ -544,6 +605,9 @@ export class SimulationFiles {
     cursor?: string,
   ): Promise<{ runs: SimulationHistoryEntry[]; nextCursor: string | null }> {
     const records = await this.retainedCatalogs();
+    // A damaged secondary archive index must not hide canonical Run catalogs.
+    // Deletion below remains strict and never assumes the archive is absent.
+    const archives = await this.archiveRetention().catch(() => undefined);
     const offset = cursor
       ? records.findIndex((record) => record.catalog.runId === cursor) + 1
       : 0;
@@ -554,15 +618,89 @@ export class SimulationFiles {
         runId: catalog.runId,
         preparedId: catalog.preparedId,
         inputRevision: catalog.inputRevision,
+        ...(catalog.source ? { source: catalog.source } : {}),
         execution: catalog.execution,
         collection: catalog.collection,
         storedAt,
         storage,
+        fileCount: catalog.files.length,
+        byteLength: catalog.files.reduce(
+          (sum, file) => sum + file.byteLength,
+          0,
+        ),
+        retention:
+          storage === "memory"
+            ? ("session-only" as const)
+            : !archives
+              ? ("unverified" as const)
+              : archives.get(catalog.runId)?.saved
+                ? ("saved" as const)
+                : archives.has(catalog.runId) ||
+                    catalog.retentionPolicy === "cache"
+                  ? ("cache" as const)
+                  : ("catalog-only" as const),
+        archiveCount: archives?.get(catalog.runId)?.count ?? 0,
       })),
       nextCursor:
         offset + selected.length < records.length
           ? selected.at(-1)!.catalog.runId
           : null,
+    };
+  }
+  async deleteHistory(
+    runId: string,
+    options: {
+      dryRun?: boolean | undefined;
+      includeSaved?: boolean | undefined;
+    },
+  ) {
+    const record = (await this.retainedCatalogs()).find(
+      (item) => item.catalog.runId === runId,
+    );
+    if (!record) throw new Error("RUN_HISTORY_NOT_FOUND");
+    const archives = (await this.archiveRetention()).get(runId);
+    const retention =
+      record.storage === "memory"
+        ? ("session-only" as const)
+        : archives?.saved
+          ? ("saved" as const)
+          : archives || record.catalog.retentionPolicy === "cache"
+            ? ("cache" as const)
+            : ("catalog-only" as const);
+    const receipt = {
+      runId,
+      dryRun: options.dryRun ?? false,
+      deleted: false,
+      retention,
+      archiveCount: archives?.count ?? 0,
+      fileCount: record.catalog.files.length,
+      byteLength: record.catalog.files.reduce(
+        (sum, file) => sum + file.byteLength,
+        0,
+      ),
+      reclaimedFiles: 0,
+      reclaimedBytes: 0,
+      cleanupDeferred: false,
+    };
+    if (options.dryRun) return receipt;
+    if (record.catalog.execution === "pending")
+      throw new Error("RUN_HISTORY_ACTIVE");
+    if (retention === "saved" && !options.includeSaved)
+      throw new Error("RUN_HISTORY_SAVED");
+    if (record.storage === "persistent" && !this.artifactStore?.deleteRun)
+      throw new Error("RUN_HISTORY_DELETE_UNAVAILABLE");
+    const removed = await this.artifactStore?.deleteRun?.(
+      runId,
+      options.includeSaved ?? false,
+    );
+    this.catalogs.delete(runId);
+    return {
+      ...receipt,
+      deleted: true,
+      archiveCount: removed?.archiveCount ?? receipt.archiveCount,
+      reclaimedFiles: removed?.reclaimedFiles ?? 0,
+      reclaimedBytes: removed?.reclaimedBytes ?? 0,
+      cleanupDeferred: removed?.cleanupDeferred ?? !!this.artifactStore,
     };
   }
   /** Host-local whole-file access. Never embed this body in the relay RPC. */

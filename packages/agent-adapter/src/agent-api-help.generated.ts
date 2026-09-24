@@ -11,7 +11,7 @@ export const agentApiHelp = {
   agentSessionFileResource:
     "Export Project/Canvas files, stage imports, or access simulation source/evidence. Staging requires browser-human confirmation before replacement. Source updates are atomic and revisioned; receipts report paths/digests, and fileEdit locates rejected edits. Artifact access never grants arbitrary host files.",
   agentSessionSimulationResource:
-    "Discover Profiles/help; run submits a revisioned source once, including preparation. Optional prepare/start supports inspection and reuse. Read/cancel or catalog/export runs and batches; history discovers retained evidence. Preserve request ID/payload for uncertain submissions, including during preparation. Execution failure does not revoke authorization.",
+    "Discover Profiles/help; run submits a revisioned source once, including preparation. Optional prepare/start supports inspection and reuse. Read/cancel or catalog/export runs and batches; history and history-usage discover retained evidence. history-delete targets one completed run, supports dryRun, and requires includeSaved for saved archives. Preserve request ID/payload for uncertain writes. Execution failure does not revoke authorization.",
   agentSessionProjectResource:
     "Page through the public Gallery, read complete Gallery Project Code and generated netlists, read or replace the open Project Code and editable netlist fields, and discover/import Cells from signed-in Cloud Projects through the live editor transaction boundary.",
   agentSessionArtifactDownload:

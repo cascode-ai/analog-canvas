@@ -9,7 +9,7 @@ export const agentToolHelp = {
   simulation_plot:
     "Generate editable local Python/config for registered results using panels or presets. This does not execute Python; check matplotlib once, then run locally. Existing plot files are not overwritten. Complex panel fields: describe_tool with this tool and a field path.",
   simulation_results:
-    "Discover run catalogs/history or retry evidence export without rerunning. Use simulation_data to download complete registered files, not repeated read previews. Receipts never inline samples.",
+    "Discover run history, evidence usage and catalogs; delete an exact completed run with dry-run and saved-result protection, or retry evidence export without rerunning. Use simulation_data for complete files. Receipts never inline samples.",
   simulation_run:
     "Normally submit run with a revisioned source; preparation is internal. For project-folder use the latest simulation_edit source.revision as expectedStructureRevision. Optional prepare/start supports inspection or frozen-input reuse. run/start/read accept waitMs 0–20000; resume via read with the same runId. One hosted slot. Retry uncertain submissions with the same requestId and payload. Results summarize collection and diagnostics; files are registered separately.",
   simulation_batch:
@@ -43,9 +43,9 @@ export const agentToolHelp = {
   netlist_code:
     "Read the open Project's generated SPICE/Spectre netlist or replace its editable device names, models and values through the same planner as the Netlist panel. Use Project Code or structured circuit edits for topology and connectivity changes.",
   simulation:
-    "Submit with run; prepare/start are optional. run/start/read accept waitMs 0–20000. Retry uncertain submissions with the same requestId; resume by runId. run.details has Specs/collection; catalog indexes full files. export retries saving, not execution. One active run or Batch.",
+    "Submit with run; prepare/start are optional. run/start/read accept waitMs 0–20000. Retry uncertain submissions with the same requestId; resume by runId. run.details has Specs/collection; catalog indexes full files. export retries saving, not execution. One slot.",
   simulation_files:
-    "Edit native source using returned revisions; sync complete files to the local base. analysisIndex + roles:[table] selects CSV; fileIds:[] gets directory only, omitted selectors all files. prepare-plot creates editable Python/config from panels or dc/ac/tran/noise presets and optional A/B cursors; run locally with matplotlib. Never overwrites plots. download saves locally; artifact without outputPath previews. Details: analog-canvas://reference/mcp-simulation.",
+    "Compatibility entry for simulation_source, simulation_edit, simulation_data and simulation_plot. Edit with returned revisions; sync downloads complete files; prepare-plot writes editable local code and does not execute it. Details: analog-canvas://reference/mcp-simulation.",
   export_file:
     "Export Project or Canvas SVG/PNG/PDF to outputPath; Canvas requires documentId. For simulation data use simulation_files sync/download. simulation-plot returns SIMULATION_PLOT_RETIRED; use simulation_files prepare-plot.",
   import_file:

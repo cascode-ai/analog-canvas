@@ -30,7 +30,13 @@ export const FOCUSED_TOOLS = [
   {
     name: "simulation_results",
     source: "simulation",
-    operations: ["catalog", "history", "export"],
+    operations: [
+      "catalog",
+      "history",
+      "history-usage",
+      "history-delete",
+      "export",
+    ],
   },
   {
     name: "simulation_run",

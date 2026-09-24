@@ -289,9 +289,10 @@ describe("current Agent Circuit API service", () => {
     expect(JSON.stringify(AgentCircuitResponseJsonSchema).length).toBeLessThan(
       180_000,
     );
-    // The bounded geometry projection is a new documented response variant;
-    // its typed object union adds about 4 KiB to the published OpenAPI.
-    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(506_000);
+    // Run evidence management adds two bounded request and response variants
+    // to the complete published OpenAPI. Measured projection: 510,581 chars;
+    // keep the ceiling close so unrelated schema expansion still fails.
+    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(511_200);
   });
 
   it("publishes the flat Snapshot workflow and returns complete facts", () => {

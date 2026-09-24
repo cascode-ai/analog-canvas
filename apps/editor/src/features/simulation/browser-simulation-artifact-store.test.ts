@@ -2,10 +2,238 @@ import { IDBFactory, IDBObjectStore } from "fake-indexeddb";
 import { describe, expect, it, vi } from "vitest";
 import { SimulationFiles } from "@icm/simulation-service/files";
 import { createBrowserSimulationArtifactStore } from "./browser-simulation-artifact-store";
+import { createBrowserSimulationArchiveStore } from "./browser-simulation-archive-store";
 import { SimulationService } from "@icm/simulation-service";
 import { createEmptyProject } from "@icm/model";
 
 describe("persistent simulation evidence", () => {
+  it("prunes only new unarchived cache catalogs and leaves legacy history intact", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArtifactStore("project", factory)!;
+    for (let index = 0; index < 32; index++)
+      await store.saveCatalog!({
+        catalog: {
+          schemaVersion: 1,
+          runId: `cache-${index}`,
+          preparedId: "prepared",
+          inputRevision: "rev",
+          retentionPolicy: "cache",
+          execution: "completed",
+          collection: "complete",
+          files: [],
+          datasets: [],
+        },
+        storedAt: index,
+      });
+    await store.saveCatalog!({
+      catalog: {
+        schemaVersion: 1,
+        runId: "legacy",
+        preparedId: "prepared",
+        inputRevision: "rev",
+        execution: "completed",
+        collection: "complete",
+        files: [],
+        datasets: [],
+      },
+      storedAt: 0,
+    });
+    expect(await store.pruneCatalogCache([])).toEqual(["cache-1", "cache-0"]);
+    const retained = (await store.catalogs!()).map(
+      (entry) => entry.catalog.runId,
+    );
+    expect(retained).toContain("legacy");
+    expect(retained).not.toContain("cache-0");
+    expect(retained).toHaveLength(31);
+  });
+  it("reports actual Project usage and deletes an exact catalog without losing shared evidence", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArtifactStore("project", factory)!;
+    const files = new SimulationFiles(Date.now, undefined, undefined, store);
+    const ref = await files.put("shared.raw", "text/plain", "data", {
+      role: "raw",
+    });
+    expect(await store.usage!()).toMatchObject({
+      fileCount: 1,
+      unreferencedFileCount: 1,
+      unreferencedBytes: 4,
+    });
+    const catalog = {
+      schemaVersion: 1 as const,
+      runId: "run-a",
+      preparedId: "prepared",
+      inputRevision: "rev",
+      source: {
+        kind: "project-folder" as const,
+        folderId: "folder",
+        expectedStructureRevision: 3,
+      },
+      execution: "completed" as const,
+      collection: "complete" as const,
+      files: [ref],
+      datasets: [],
+    };
+    await files.saveCatalog(catalog);
+    await files.saveCatalog({ ...catalog, runId: "run-b" });
+    const service = new SimulationService(
+      files,
+      {
+        capabilities: vi.fn(),
+        execute: vi.fn(),
+        cancel: vi.fn(),
+      },
+      () => createEmptyProject("project", "Project", "doc"),
+    );
+    expect(
+      await service.handle({ operation: "history-usage" }, "usage"),
+    ).toMatchObject({
+      ok: true,
+      usage: {
+        fileCount: 1,
+        byteLength: 4,
+        unreferencedFileCount: 0,
+        catalogCount: 2,
+        fileLimit: 4096,
+      },
+    });
+    expect(
+      await service.handle({ operation: "history", limit: 2 }, "history"),
+    ).toMatchObject({
+      ok: true,
+      runs: expect.arrayContaining([
+        expect.objectContaining({
+          runId: "run-a",
+          source: expect.objectContaining({
+            kind: "project-folder",
+            folderId: "folder",
+          }),
+          retention: "catalog-only",
+          fileCount: 1,
+          byteLength: 4,
+        }),
+      ]),
+    });
+    expect(
+      await service.handle(
+        { operation: "history-delete", runId: "run-a", dryRun: true },
+        "preview",
+      ),
+    ).toMatchObject({ ok: true, deletion: { deleted: false, dryRun: true } });
+    expect(await files.catalog("run-a")).toBeDefined();
+    expect(
+      await service.handle(
+        { operation: "history-delete", runId: "run-a" },
+        "delete-a",
+      ),
+    ).toMatchObject({
+      ok: true,
+      deletion: {
+        deleted: true,
+        cleanupDeferred: expect.any(Boolean),
+        reclaimedFiles: 0,
+      },
+    });
+    expect(await files.catalog("run-a")).toBeUndefined();
+    expect(await store.reclaim([], [])).toEqual({ files: 0, bytes: 0 });
+    expect((await store.get(ref.id))?.text).toBe("data");
+    const finalDelete = await service.handle(
+      { operation: "history-delete", runId: "run-b" },
+      "delete-b",
+    );
+    const reclaimedByDelete =
+      finalDelete.ok && "deletion" in finalDelete
+        ? finalDelete.deletion.reclaimedFiles
+        : 0;
+    const reclaimedAfter = await store.reclaim([], []);
+    expect(reclaimedByDelete + reclaimedAfter.files).toBe(1);
+    expect(await store.get(ref.id)).toBeNull();
+  });
+  it("requires an explicit saved-result override without weakening dry-run", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArtifactStore("project", factory)!;
+    const files = new SimulationFiles(Date.now, undefined, undefined, store);
+    const archiveStore = createBrowserSimulationArchiveStore({
+      idbFactory: factory,
+    });
+    await files.saveCatalog({
+      schemaVersion: 1,
+      runId: "run-saved",
+      preparedId: "prepared",
+      inputRevision: "rev",
+      execution: "completed",
+      collection: "complete",
+      files: [],
+      datasets: [],
+    });
+    expect(
+      await archiveStore.save({
+        schemaVersion: 1,
+        id: "archive-saved",
+        projectId: "project",
+        createdAt: new Date(0).toISOString(),
+        retention: "saved",
+        presentation: {
+          folderId: "folder",
+          folderName: "Test",
+          analysisLabel: "OP",
+          outputs: [],
+        },
+        prepared: {
+          id: "prepared",
+          digest: "a".repeat(64),
+          inputRevision: "rev",
+          expiresAt: 1,
+          mode: "structured",
+          environment: { profileId: "test" },
+          vectors: [],
+          outputs: [],
+          deviceOperatingPoints: [],
+          warnings: [],
+          artifactIds: [],
+        },
+        run: {
+          id: "run-saved",
+          preparedId: "prepared",
+          inputRevision: "rev",
+          state: "finished",
+        },
+        artifacts: [],
+        byteLength: 0,
+      }),
+    ).toMatchObject({ ok: true });
+    const service = new SimulationService(
+      files,
+      { capabilities: vi.fn(), execute: vi.fn(), cancel: vi.fn() },
+      () => createEmptyProject("project", "Project", "doc"),
+    );
+    expect(
+      await service.handle(
+        { operation: "history-delete", runId: "run-saved", dryRun: true },
+        "preview",
+      ),
+    ).toMatchObject({
+      ok: true,
+      deletion: { retention: "saved", archiveCount: 1 },
+    });
+    expect(
+      await service.handle(
+        { operation: "history-delete", runId: "run-saved" },
+        "blocked",
+      ),
+    ).toMatchObject({ ok: false, error: { code: "RUN_HISTORY_SAVED" } });
+    expect((await archiveStore.read("archive-saved")).ok).toBe(true);
+    expect(
+      await service.handle(
+        { operation: "history-delete", runId: "run-saved", includeSaved: true },
+        "delete",
+      ),
+    ).toMatchObject({ ok: true, deletion: { deleted: true, archiveCount: 1 } });
+    expect(await archiveStore.read("archive-saved")).toEqual({
+      ok: true,
+      value: null,
+    });
+    archiveStore.close();
+  });
   it("persists a generated result set through one batch operation", async () => {
     const store = createBrowserSimulationArtifactStore(
       "batch-project",

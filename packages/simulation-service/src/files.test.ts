@@ -7,6 +7,57 @@ import {
 } from "./files.js";
 import { SimulationFileResultSchema } from "./file-contract.js";
 describe("simulation File Resource evidence", () => {
+  it("keeps canonical history readable but blocks deletion when archive protection cannot be verified", async () => {
+    const files = new SimulationFiles(Date.now, undefined, undefined, {
+      put: async () => {},
+      get: async () => null,
+      catalogs: async () => [
+        {
+          storedAt: 1,
+          catalog: {
+            schemaVersion: 1,
+            runId: "run",
+            preparedId: "prepared",
+            inputRevision: "rev",
+            execution: "completed",
+            collection: "complete",
+            files: [],
+            datasets: [],
+          },
+        },
+      ],
+      runArchives: async () => {
+        throw new Error("archive index unavailable");
+      },
+    });
+    expect(await files.history(10)).toMatchObject({
+      runs: [{ runId: "run", retention: "unverified" }],
+    });
+    await expect(files.deleteHistory("run", {})).rejects.toThrow(
+      "archive index unavailable",
+    );
+  });
+  it("does not delete a pending Run even when its catalog is visible", async () => {
+    const files = new SimulationFiles();
+    await files.saveCatalog({
+      schemaVersion: 1,
+      runId: "pending",
+      preparedId: "prepared",
+      inputRevision: "rev",
+      execution: "pending",
+      collection: "pending",
+      files: [],
+      datasets: [],
+    });
+    expect(
+      await files.deleteHistory("pending", { dryRun: true }),
+    ).toMatchObject({
+      deleted: false,
+    });
+    await expect(files.deleteHistory("pending", {})).rejects.toThrow(
+      "RUN_HISTORY_ACTIVE",
+    );
+  });
   it("raises transfer parallelism for small files and bounds large-file pressure", () => {
     expect(artifactTransferConcurrency(Array(17).fill(256 * 1024))).toBe(8);
     expect(artifactTransferConcurrency([16 * 1024 * 1024])).toBe(2);
