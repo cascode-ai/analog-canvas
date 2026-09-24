@@ -19,8 +19,6 @@ const InlineConfirm = lazy(() =>
 );
 
 export interface FileCommandMenuProps {
-  projectStoreLabel: "Cloud Projects" | "Preview Projects";
-  projectStoreItemLabel: "Cloud Project" | "Preview Project";
   cloudProjects: readonly CloudProjectSummary[];
   activeCloudProjectId: string | null;
   canRevert: boolean;
@@ -112,8 +110,6 @@ function CommandSubmenu({
 }
 
 export function FileCommandMenu({
-  projectStoreLabel,
-  projectStoreItemLabel,
   cloudProjects,
   activeCloudProjectId,
   onOpenCloudProject,
@@ -166,12 +162,12 @@ export function FileCommandMenu({
           data-testid="check-and-save"
           disabled={!checkAndSave.enabled}
           onClick={checkAndSave.execute}
-          title={`Check ERC and visual issues, and save this ${projectStoreItemLabel}`}
+          title="Check ERC and visual issues, and save this Cloud Project"
         >
           Check and Save
         </button>
         <span className="command-group-label">
-          {projectStoreLabel} ({cloudProjects.length}/{CLOUD_PROJECT_LIMIT})
+          Cloud Projects ({cloudProjects.length}/{CLOUD_PROJECT_LIMIT})
         </span>
         {cloudProjects.map((project) => (
           <div className="cloud-project-command" key={project.id}>
@@ -193,8 +189,8 @@ export function FileCommandMenu({
             </button>
             <Suspense fallback={<button disabled>Delete</button>}>
               <InlineConfirm
-                aria-label={`Delete ${projectStoreItemLabel} ${project.name}`}
-                title={`Delete this ${projectStoreItemLabel}`}
+                aria-label={`Delete Cloud Project ${project.name}`}
+                title="Delete this Cloud Project"
                 disabled={project.id === activeCloudProjectId}
                 open={deletingId === project.id}
                 onOpenChange={(open) =>

@@ -42,7 +42,7 @@ import {
   readRecentCloudProjectId,
   rememberRecentCloudProject,
 } from "./cloud-project-session";
-import type { ProjectStoreCopy } from "./release-channel";
+import { CLOUD_PROJECT_COPY } from "./cloud-project-copy";
 
 export const REFRESH_RESTORE_STORAGE_KEY = "icm.restore-after-refresh.v1";
 
@@ -108,7 +108,6 @@ export interface UseProjectFileLifecycleOptions {
   installProject(project: CircuitProject, viewBox: GridRect): SchematicDocument;
   setStatus(message: string): void;
   onCloudProjectSaved(project: CloudProjectSummary): void;
-  projectStoreCopy: ProjectStoreCopy;
   /** Commit feature-owned text buffers before taking a durable Project snapshot. */
   beforeSnapshot?(): Promise<CircuitProject | null>;
   hasPendingEdits?(): boolean;
@@ -133,7 +132,6 @@ export function useProjectFileLifecycle({
   installProject,
   setStatus,
   onCloudProjectSaved,
-  projectStoreCopy,
   beforeSnapshot,
   hasPendingEdits,
   onRecoverBuffers,
@@ -267,7 +265,7 @@ export function useProjectFileLifecycle({
     const savedCandidateToken = projectChangeToken(savedCandidate);
     setPersistenceState("saving");
     setStatus(
-      `Saving ${savedCandidate.name} to ${projectStoreCopy.destination}`,
+      `Saving ${savedCandidate.name} to ${CLOUD_PROJECT_COPY.destination}`,
     );
     recovery.stage(savedCandidate, { unsavedAtSnapshot: true, cloudBinding });
     await recovery.flushNow();
@@ -305,35 +303,35 @@ export function useProjectFileLifecycle({
       onCloudProjectSaved(outcome.project);
       setStatus(
         stillMatchesSavedCandidate
-          ? `Saved ${savedCandidate.name} to ${projectStoreCopy.destination}`
-          : `Saved ${savedCandidate.name} to ${projectStoreCopy.destination}; newer edits remain unsaved`,
+          ? `Saved ${savedCandidate.name} to ${CLOUD_PROJECT_COPY.destination}`
+          : `Saved ${savedCandidate.name} to ${CLOUD_PROJECT_COPY.destination}; newer edits remain unsaved`,
       );
       return outcome;
     }
     if (outcome.status === "unreachable") {
       setPersistenceState("offline");
       setStatus(
-        `${projectStoreCopy.plural} unavailable; work remains local (${outcome.message})`,
+        `${CLOUD_PROJECT_COPY.plural} unavailable; work remains local (${outcome.message})`,
       );
       return outcome;
     }
     if (outcome.status === "conflict") {
       setPersistenceState("conflict");
       setStatus(
-        `${projectStoreCopy.singular} changed elsewhere at revision ${outcome.project.revision}; current work was not overwritten`,
+        `${CLOUD_PROJECT_COPY.singular} changed elsewhere at revision ${outcome.project.revision}; current work was not overwritten`,
       );
       return outcome;
     }
     setPersistenceState("failed");
     setStatus(
       outcome.status === "signed-out"
-        ? `Sign in to save this ${projectStoreCopy.singular}`
+        ? `Sign in to save this ${CLOUD_PROJECT_COPY.singular}`
         : outcome.status === "too-large"
-          ? `Project is too large for ${projectStoreCopy.plural}; download a backup`
+          ? `Project is too large for ${CLOUD_PROJECT_COPY.plural}; download a backup`
           : outcome.status === "limit"
-            ? `${projectStoreCopy.singular} limit reached (${outcome.projects.length}/${CLOUD_PROJECT_LIMIT})`
+            ? `${CLOUD_PROJECT_COPY.singular} limit reached (${outcome.projects.length}/${CLOUD_PROJECT_LIMIT})`
             : outcome.status === "not-found"
-              ? `${projectStoreCopy.singular} no longer exists; current work remains local`
+              ? `${CLOUD_PROJECT_COPY.singular} no longer exists; current work remains local`
               : outcome.message,
     );
     return outcome;

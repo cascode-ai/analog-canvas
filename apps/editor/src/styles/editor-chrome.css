@@ -1292,22 +1292,6 @@
   }
 }
 
-/* Preview is an environment identity, not a warning repeated above every
-   editing action. Keep it visible but subordinate to the Project name. */
-.app-channel-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 1.5rem;
-  padding: 0 0.45rem;
-  border: 1px solid #c47a1b;
-  border-radius: 999px;
-  color: #8a4b00;
-  font-size: 0.72rem;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}
-
 /* The editor reuses the account contract from Gallery without importing the
    Gallery page stylesheet. Only its compact header treatment lives here. */
 .app-chrome-actions .account-menu {
