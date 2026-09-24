@@ -21,6 +21,24 @@ export interface NewRoutePath {
 }
 
 /**
+ * The Leg and Bend IDs `createRoutePath` allocates for a Route of `legCount`
+ * legs. They derive from the Route ID, but split Routes keep their original
+ * children, so a freed Route ID's children may still exist elsewhere. Callers
+ * choosing a new Route ID check these against the Document as well.
+ */
+export function createdRouteChildIds(
+  routeId: string,
+  legCount: number,
+): string[] {
+  return Array.from({ length: legCount }, (_, index) => [
+    deriveStableId("route-leg", routeId, String(index)),
+    ...(index < legCount - 1
+      ? [deriveStableId("route-bend", routeId, String(index))]
+      : []),
+  ]).flat();
+}
+
+/**
  * Construct a new canonical Route path and allocate deterministic child IDs.
  * Existing Routes must be edited with identity-preserving Route operations,
  * never reconstructed through this creation-only factory.
@@ -29,17 +47,18 @@ export function createRoutePath(input: NewRoutePath): RouteBranch {
   if (input.modes.length !== input.bends.length + 1) {
     throw new Error("A new Route requires one mode per geometric leg");
   }
+  const childIds = createdRouteChildIds(input.id, input.modes.length);
   return {
     id: input.id,
     netId: input.netId,
     start: input.start,
     legs: input.modes.map((mode, index) => ({
-      id: deriveStableId("route-leg", input.id, String(index)),
+      id: childIds[index * 2]!,
       to:
         index < input.bends.length
           ? {
               kind: "bend" as const,
-              bendId: deriveStableId("route-bend", input.id, String(index)),
+              bendId: childIds[index * 2 + 1]!,
               position: { ...input.bends[index]! },
             }
           : { kind: "endpoint" as const, endpoint: input.end },
