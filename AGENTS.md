@@ -216,8 +216,8 @@ Before a non-document change is merged or pushed to `main`:
    pull request to the merge queue, which re-runs the same path-planned checks
    on the candidate merged with current `main` and then squash-merges it. A
    branch needs a manual update only when it conflicts with `main`, not merely
-   because `main` moved. The complete four-shard browser audit runs only when
-   started by hand (`gh workflow run ci.yml`); nothing runs on a schedule.
+   because `main` moved. CI has no full browser audit and runs nothing on a
+   schedule; `pnpm test:e2e` runs every spec locally when a change needs it.
 5. If a remote check fails, keep the target active: inspect its log, repair the
    reported cause, and repeat verification. A successful `git push` is not a
    completed delivery.

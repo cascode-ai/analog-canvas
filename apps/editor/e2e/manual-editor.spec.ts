@@ -3335,7 +3335,7 @@ test("starts a V-led Net Label subscripted and lets the author turn it off witho
   ).toHaveCount(0);
 });
 
-test("draws a new subscript upright and keeps one the author slants", async ({
+test("draws a new subscript upright, lights the looks it has, and keeps one the author slants", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -3353,21 +3353,38 @@ test("draws a new subscript upright and keeps one the author slants", async ({
   const hit = page.getByTestId("annotation-hit-net-label-route-ui-1");
   const rendered = page.locator('[data-object-id="net-label-route-ui-1"]');
   const editor = page.getByRole("textbox", { name: "Canvas text editor" });
+  const italic = page.getByRole("button", { name: "Italic" });
+  const subscriptButton = page.getByRole("button", { name: "Subscript" });
 
-  // Subscripting part of the bold italic label does not slant the script.
+  // Opening the bold italic label lights Italic for its first letter.
   await hit.dblclick();
+  await expect(italic).toHaveAttribute("aria-pressed", "true");
+  await expect(subscriptButton).toHaveAttribute("aria-pressed", "false");
+
+  // Subscripting part of the bold italic label does not slant the script,
+  // and the buttons report the upright script rather than the label around it.
   await selectRichTextOffsets(editor, 3, 4);
-  await page.getByRole("button", { name: "Subscript" }).click();
+  await subscriptButton.click();
   await expect(editor.locator("sub")).toHaveCSS("font-style", "normal");
+  await expect(subscriptButton).toHaveAttribute("aria-pressed", "true");
+  await expect(italic).toHaveAttribute("aria-pressed", "false");
+  await selectRichTextOffsets(editor, 0, 1);
+  await expect(italic).toHaveAttribute("aria-pressed", "true");
+  await expect(subscriptButton).toHaveAttribute("aria-pressed", "false");
   await page.getByRole("button", { name: "Apply text changes" }).click();
   const subscript = rendered.locator('[data-text-run="subscript"]');
   await expect(subscript).toHaveText("E");
   await expect(subscript).toHaveCSS("font-style", "normal");
 
-  // The author may still slant it on purpose, and that choice is kept.
+  // The author may still slant it on purpose, Italic lights for it, and that
+  // choice is kept.
   await hit.dblclick();
   await selectRichTextOffsets(editor, 3, 4);
-  await page.getByRole("button", { name: "Italic" }).click();
+  await expect(subscriptButton).toHaveAttribute("aria-pressed", "true");
+  await expect(italic).toHaveAttribute("aria-pressed", "false");
+  await italic.click();
+  await expect(italic).toHaveAttribute("aria-pressed", "true");
+  await expect(subscriptButton).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Apply text changes" }).click();
   await expect(subscript.locator('[data-text-run="span"]').first()).toHaveCSS(
     "font-style",

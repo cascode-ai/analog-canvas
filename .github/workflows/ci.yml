@@ -5,9 +5,8 @@ on:
   # The merge queue validates each queued candidate against current main, so
   # nobody has to update a pull request by hand when main moves.
   merge_group:
-  # Nothing runs on a schedule. Pull requests and queued groups run their
-  # mapped browser specs; the complete four-shard audit is started by hand.
-  workflow_dispatch:
+  # Nothing else: no schedule and no full browser audit. Pull requests and
+  # queued groups run the browser specs mapped to their changed paths.
 
 permissions:
   contents: read
@@ -31,9 +30,7 @@ jobs:
         with:
           # Pull requests need their complete commit range for Test-Impact,
           # and a queued group its range from the main it was queued on.
-          # Manual runs inspect only the checked-out commit, so
-          # two commits avoid an unbounded all-ref fetch.
-          fetch-depth: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '0' || '2' }}
+          fetch-depth: 0
       - id: plan
         name: Plan CI validation
         env:
@@ -42,19 +39,15 @@ jobs:
           MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
         shell: bash
         run: |
-          force_args=()
+          base=""
           case "$EVENT_NAME" in
             pull_request)
               base="$PULL_REQUEST_BASE_SHA"
               ;;
             merge_group)
-              # Planned by its changed paths like a pull request, not forced
-              # full: the queue re-checks the combination, not the whole suite.
+              # Planned by its changed paths like a pull request: the queue
+              # re-checks the combination, not the whole suite.
               base="$MERGE_GROUP_BASE_SHA"
-              ;;
-            *)
-              base="$(git rev-parse HEAD^ 2>/dev/null || git rev-parse HEAD)"
-              force_args+=(--force-full)
               ;;
           esac
           if [[ -z "$base" ]] || ! git rev-parse --verify "$base^{commit}" >/dev/null 2>&1; then
@@ -62,7 +55,6 @@ jobs:
           fi
           node scripts/ci-plan.mjs \
             --base "$base" \
-            "${force_args[@]}" \
             --github-output \
             --github-summary
       - name: Check test-impact declaration
@@ -145,39 +137,3 @@ jobs:
         env:
           SHARD_RESULT: ${{ needs.browser_shard.result }}
         run: test "$SHARD_RESULT" = "success"
-
-  full_browser_audit:
-    name: Full browser audit (${{ matrix.shard }})
-    needs: changes
-    # Manual only: pull requests and queued groups run their mapped specs.
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    env:
-      PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        # Full coverage is a manual audit, not a per-PR tax. Four shards
-        # retain its wall-clock speed without charging every candidate for the
-        # complete browser suite.
-        shard:
-          - 1/4
-          - 2/4
-          - 3/4
-          - 4/4
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.16.0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - env:
-          E2E_ARGS: ${{ needs.changes.outputs.e2e_args }}
-        run: |
-          read -r -a specs <<< "$E2E_ARGS"
-          pnpm ci:e2e --workers=2 --shard=${{ matrix.shard }} "${specs[@]}"

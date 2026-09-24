@@ -45,6 +45,40 @@ describe("canvas text editor frame", () => {
     }
   });
 
+  it("stays clear of the part of the canvas a dock covers", () => {
+    // Text beside a right-hand dock: clamped to the whole camera, the panel
+    // opened under the dock, so its right-aligned text was hidden.
+    const beside = { x: 620, y: 200, width: 40, height: 20 };
+    const obscured = { left: 0, right: 40, top: 0, bottom: 0 };
+    const frame = resolveCanvasTextEditorFrame(
+      beside,
+      camera(720, 640),
+      1,
+      1,
+      null,
+      obscured,
+    );
+    expect(frame.width).toBeCloseTo(344, 10);
+    expect(frame.x + frame.width).toBeLessThanOrEqual(720 - 40 - 8);
+    const unobscured = resolveCanvasTextEditorFrame(
+      beside,
+      camera(720, 640),
+      1,
+      1,
+    );
+    expect(unobscured.x + unobscured.width).toBeGreaterThan(720 - 40);
+    // A dock wider than the canvas leaves nothing to dodge into.
+    const covered = resolveCanvasTextEditorFrame(
+      beside,
+      camera(720, 640),
+      1,
+      1,
+      null,
+      { left: 0, right: 800, top: 0, bottom: 0 },
+    );
+    expect(covered.x).toBeGreaterThanOrEqual(8);
+  });
+
   it("shrinks only when the canvas cannot fit the standard editor", () => {
     const frame = resolveCanvasTextEditorFrame(target, camera(300, 640), 1, 1);
     expect(frame.layoutWidth).toBe(284);

@@ -10,11 +10,9 @@ describe("CI workflow", () => {
     expect(workflow).toContain("  pull_request:\n");
     expect(workflow).toContain("  merge_group:\n");
     // A queued group is planned from the main it was queued on, not forced
-    // full: the full browser audit stays manual.
+    // full.
     expect(workflow).toContain('base="$MERGE_GROUP_BASE_SHA"');
-    expect(workflow).toContain(
-      "if: github.event_name == 'workflow_dispatch'\n",
-    );
+    expect(workflow).not.toContain("--force-full");
   });
 
   it("uses runner Chrome for one core and one affected-browser job", () => {
@@ -55,14 +53,11 @@ describe("CI workflow", () => {
     expect(workflow).toContain('test "$SHARD_RESULT" = "success"');
   });
 
-  it("runs the complete browser audit only by hand, never on a schedule", () => {
-    expect(workflow).toContain("workflow_dispatch:");
+  it("runs no scheduled, manual or full browser audit", () => {
     expect(workflow).not.toContain("schedule:");
     expect(workflow).not.toContain("cron:");
-    expect(workflow).toContain("force_args+=(--force-full)");
+    expect(workflow).not.toContain("workflow_dispatch:");
+    expect(workflow).not.toContain("Full browser audit");
     expect(workflow).toContain("if: needs.changes.outputs.heavy == 'true'\n");
-    expect(workflow).toContain("Full browser audit (${{ matrix.shard }})");
-    for (const shard of ["1/4", "2/4", "3/4", "4/4"])
-      expect(workflow).toContain(shard);
   });
 });
