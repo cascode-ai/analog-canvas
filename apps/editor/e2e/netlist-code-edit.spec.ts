@@ -788,7 +788,8 @@ test("drawing label rules immediately update formatted names and amplifier body 
   const saved = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
-  expect(saved.documents[0]!.instances[1]!.reference).toBe("R_2");
+  // The first-letter look only changes the drawing: R2 is still R2.
+  expect(saved.documents[0]!.instances[1]!.reference).toBe("R2");
   expect(
     saved.documents[0]!.instances.find(
       (item: { id: string }) => item.id === "amp",

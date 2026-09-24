@@ -95,8 +95,11 @@ later drawings, where a slanted script is the author's choice.
   rule. An authored format keeps its styling around the new text.
 - Placing a Cell Pin, Net label or supply never alters the name it is given.
 - The explicit whole-drawing `labels` action in document Properties is the one
-  remaining operation that may change names (subscript case, and turning on
-  the first-letter convention); it is undoable.
+  remaining operation that may change names, and only their subscript case; it
+  is undoable. Turning the first-letter convention on or off only changes how
+  names are drawn: `Start` is shown as S with subscript tart and stays `Start`
+  in the netlist, and a standard look (V_DD, M₁, V_in) is left as it is. New
+  drawings start with it off.
 
 ### Netlist
 

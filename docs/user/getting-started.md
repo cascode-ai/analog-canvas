@@ -231,10 +231,11 @@ formula formatting.
 
 - `underscore_subscript`: `true` displays `A_1` as A₁; `false` keeps `A_1`
   literally, without renaming its electrical source.
-- `subscript_after_first`: `true` applies the leading-letter convention to
-  existing names, changing `Vin` to `V_in` in both the drawing and netlist.
-  This takes precedence over literal underscores. Turning it off keeps the
-  resulting names; use Undo to restore the earlier names.
+- `subscript_after_first`: `true` draws each existing name's first letter over
+  a subscript of the rest (`Start` as S with subscript tart); `false`, the
+  default for new drawings, takes that look away again. It only changes the
+  drawing: names in the netlist are never changed, and standard looks such
+  as V_DD, M₁ and V_in stay as they are.
 - `subscript_case`: `preserve`, `uppercase`, or `lowercase`. Changing case
   updates existing underscore suffixes and historical explicit subscripts in
   both the labels and netlist. `preserve` leaves current spelling alone.

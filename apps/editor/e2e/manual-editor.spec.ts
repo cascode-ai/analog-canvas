@@ -5714,7 +5714,7 @@ test("docked Properties JSON is the only global configuration surface", async ({
   expect(style.bulkDefaults).toEqual({ nmos: "VSS", pmos: "VDD" });
   expect(style.labels).toEqual({
     first_letter_italic: true,
-    subscript_after_first: true,
+    subscript_after_first: false,
     subscript_case: "preserve",
     subscript_italic: false,
     underscore_subscript: true,
