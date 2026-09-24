@@ -288,30 +288,12 @@
     flex-direction: column;
   }
 }
-.netlist-port-case {
-  display: inline-grid;
-  align-items: center;
-  justify-items: center;
-  width: 36px;
-  padding: 4px;
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-  font-weight: 600;
-  white-space: nowrap;
-}
-.netlist-port-case code {
-  color: var(--icm-text);
-  font: inherit;
-  text-transform: none;
-}
 .netlist-mapping-actions {
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
+  display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
-}
-.netlist-mapping-actions .netlist-default-action {
-  min-width: 0;
 }
 .netlist-code-actions svg {
   width: 18px;

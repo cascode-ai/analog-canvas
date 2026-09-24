@@ -1,23 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
   createDefaultNetlistExportPreferences,
+  parseNetlistExportPreferences,
   readNetlistExportPreferences,
   selectNetlistExportFormat,
-  selectNetlistPortCase,
   selectNetlistExportProfile,
   setNetlistExportDeviceTarget,
 } from "./netlist-export-preferences.js";
 
 describe("netlist authoring preferences", () => {
-  it("remembers format, process, device choices and case independently", () => {
+  it("remembers format, process and device choices independently", () => {
     const preferences = setNetlistExportDeviceTarget(
       selectNetlistExportProfile(
-        selectNetlistPortCase(
-          selectNetlistExportFormat(
-            createDefaultNetlistExportPreferences(),
-            "spectre",
-          ),
-          "lower",
+        selectNetlistExportFormat(
+          createDefaultNetlistExportPreferences(),
+          "spectre",
         ),
         "sky130",
       ),
@@ -28,7 +25,7 @@ describe("netlist authoring preferences", () => {
       preferences,
     );
     expect(preferences.format).toBe("spectre");
-    expect(preferences.portCase).toBe("lower");
+    expect(preferences).not.toHaveProperty("portCase");
     expect(preferences.profiles.sky130.devices.nmos.target).toBe(
       "sky130_fd_pr__nfet_01v8_lvt",
     );
@@ -37,7 +34,7 @@ describe("netlist authoring preferences", () => {
     );
   });
 
-  it("restores templates around the format-only storage left by the regression", () => {
+  it("retains process choices but drops legacy case conversion preferences", () => {
     const restored = readNetlistExportPreferences(
       JSON.stringify({ format: "spectre", portCase: "lower" }),
     );
@@ -46,10 +43,21 @@ describe("netlist authoring preferences", () => {
     expect(restored).toMatchObject({
       selected: "sky130",
       format: "spectre",
-      portCase: "lower",
     });
+    expect(restored).not.toHaveProperty("portCase");
     expect(restored.profiles.tsmc28.devices.nmos.target).toBe("nch_ulvt_mac");
     expect(restored.profiles.tsmc180.devices.pmos.target).toBe("pch");
+  });
+
+  it("does not accept a case override in new configuration code", () => {
+    expect(() =>
+      parseNetlistExportPreferences(
+        JSON.stringify({
+          ...createDefaultNetlistExportPreferences(),
+          portCase: "upper",
+        }),
+      ),
+    ).toThrow("Port names keep their authored case");
   });
 
   it("moves a stored Abstract default to SKY130 exactly once", () => {
@@ -74,7 +82,9 @@ describe("netlist authoring preferences", () => {
     preferences.selected = "custom";
     preferences.profiles.custom.devices.nmos.target = "my_nmos";
     preferences.profiles.custom.devices.nmos.parameters.w = "5u";
-    const restored = readNetlistExportPreferences(JSON.stringify(preferences));
+    const restored = readNetlistExportPreferences(
+      JSON.stringify({ ...preferences, portCase: "lower" }),
+    );
     expect(restored).toEqual(preferences);
   });
 

@@ -28,6 +28,22 @@ describe("editor export commands", () => {
     expect(project).toEqual(before);
     expect(project.topDocumentId).toBe(topId);
   });
+
+  it.each(["spice", "spectre"] as const)(
+    "preserves authored mixed-case port names in %s",
+    (format) => {
+      const project = hierarchyParameterFixture();
+      const port = project.documents[0]!.netlist!.terminals.find(
+        (terminal) => terminal.name === "A",
+      )!;
+      port.name = "Vb1";
+      const plan = planDesignNetlistExport({ project, format });
+      expect(plan.status).toBe("ready");
+      if (plan.status !== "ready") return;
+      expect(String(plan.artifact.bytes)).toContain("Vb1");
+      expect(String(plan.artifact.bytes)).not.toContain("VB1");
+    },
+  );
   it("blocks structurally incomplete extraction", () => {
     const project = createEmptyProject("project", "Circuit");
     project.documents[0]!.netlist = undefined;

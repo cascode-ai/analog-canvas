@@ -40,7 +40,6 @@ import {
   unfinishedDrawingDiagnostics,
   type NetlistFormat,
   type NetlistNamingProfile,
-  type NetlistPortCase,
 } from "@icm/netlist";
 
 const ProjectTextEditor = lazy(
@@ -55,9 +54,7 @@ export function NetlistCodePanel({
   onRootChange,
   format,
   namingProfile,
-  portCase,
   onFormatChange,
-  onPortCaseChange,
   onReset,
   configurationError,
   onApply,
@@ -73,9 +70,7 @@ export function NetlistCodePanel({
   onRootChange?(documentId: string): void;
   format: NetlistFormat;
   namingProfile: NetlistNamingProfile;
-  portCase: NetlistPortCase;
   onFormatChange(format: NetlistFormat): void;
-  onPortCaseChange(portCase: NetlistPortCase): void;
   onReset(): void;
   configurationError: string | null;
   onApply(edits: ProjectStructureEdit[]): boolean;
@@ -134,7 +129,6 @@ export function NetlistCodePanel({
         : createDesignNetlistExport(project, {
             format,
             namingProfile,
-            portCase,
             includeLocations: true,
             ...(rootDocumentId ? { rootDocumentId } : {}),
           }),
@@ -142,7 +136,6 @@ export function NetlistCodePanel({
       project,
       format,
       namingProfile,
-      portCase,
       configurationError,
       rootDocumentId,
       compileRevision,
@@ -443,17 +436,6 @@ export function NetlistCodePanel({
           );
         })}
         <div className="netlist-mapping-actions">
-          <button
-            type="button"
-            className="netlist-port-case"
-            aria-label={`Port names: ${portCase === "upper" ? "uppercase" : "lowercase"}`}
-            title={`Use ${portCase === "upper" ? "lowercase" : "uppercase"} port names`}
-            onClick={() =>
-              onPortCaseChange(portCase === "upper" ? "lower" : "upper")
-            }
-          >
-            <code>{portCase === "upper" ? "ABC" : "abc"}</code>
-          </button>
           {pendingDefaults > 0 ? (
             <button
               type="button"

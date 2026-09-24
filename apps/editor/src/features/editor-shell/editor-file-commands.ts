@@ -1,9 +1,5 @@
 import { convertImportSources } from "../netlist-export/convert-import-sources";
-import type {
-  NetlistFormat,
-  NetlistNamingProfile,
-  NetlistPortCase,
-} from "@icm/netlist";
+import type { NetlistFormat, NetlistNamingProfile } from "@icm/netlist";
 import { CircuitProjectSchema } from "@icm/model";
 import type { CircuitProject, GridRect, SchematicDocument } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
@@ -32,7 +28,6 @@ export interface EditorFileCommandDependencies {
   resolver: SymbolResolver;
   defaultViewBox: GridRect;
   electricalWarningsPresent: () => boolean;
-  netlistPortCase?: NetlistPortCase;
   netlistRootDocumentId?: string | undefined;
   netlistConfigurationError?: string | null;
   guardDirtyReplacement: (
@@ -82,7 +77,6 @@ export function createEditorFileCommands({
   resolver,
   defaultViewBox,
   electricalWarningsPresent,
-  netlistPortCase,
   netlistRootDocumentId,
   netlistConfigurationError,
   guardDirtyReplacement,
@@ -122,7 +116,6 @@ export function createEditorFileCommands({
       ...(netlistRootDocumentId
         ? { rootDocumentId: netlistRootDocumentId }
         : {}),
-      ...(netlistPortCase ? { portCase: netlistPortCase } : {}),
       electricalWarningsPresent: electricalWarningsPresent(),
     });
     if (plan.status === "blocked") {

@@ -12,13 +12,11 @@ describe("live netlist controls", () => {
         project={createEmptyProject("project", "Project")}
         format="spectre"
         namingProfile="native"
-        portCase="upper"
         profiles={createDefaultNetlistExportPreferences().profiles}
         selectedProcess="abstract"
         onProcessChange={vi.fn()}
         onDeviceTargetChange={vi.fn()}
         onFormatChange={vi.fn()}
-        onPortCaseChange={vi.fn()}
         onApply={vi.fn()}
         onFocusInstance={vi.fn()}
         onReset={vi.fn()}
@@ -30,8 +28,8 @@ describe("live netlist controls", () => {
     expect(markup).toContain('aria-label="Netlist process"');
     expect(markup).toContain('value="spectre" selected=""');
     expect(markup).not.toContain('data-testid="copy-netlist-panel"');
-    expect(markup).toContain('aria-label="Port names: uppercase"');
-    expect(markup).toContain(">ABC</code>");
+    expect(markup).not.toContain('aria-label="Port names:');
+    expect(markup).not.toContain(">ABC</code>");
     expect(markup).not.toContain('aria-label="Copy netlist"');
     expect(markup).toContain("<svg");
     expect(markup).not.toContain(">Copy</button>");
@@ -41,7 +39,7 @@ describe("live netlist controls", () => {
     expect(markup).not.toContain("<input");
     expect(markup).toContain(">Default</button>");
     expect(markup).toMatch(
-      /aria-label="Netlist output options"[\s\S]*aria-label="Port names: uppercase"[\s\S]*>Default<\/button><\/div>/u,
+      /aria-label="Netlist output options"[\s\S]*>Default<\/button><\/div>/u,
     );
     expect(markup).toContain('class="netlist-code-viewport"');
     expect(markup).not.toContain("<h2>Netlist</h2>");

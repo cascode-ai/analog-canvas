@@ -92,8 +92,9 @@ Its bound Annotation may retain same-text RichText formatting, which never
 changes emitted names. At extraction, names are grouped case-insensitively;
 first occurrence fixes order and spelling, and every member Net maps to that
 one emitted formal node. This projection does not merge Base Nets or mutate the
-Project. Repeated internal Net naming still uses Net Labels. The copy/export
-projection below may then change only the letter case of formal names.
+Project. Repeated internal Net naming still uses Net Labels. Only an Agent that
+explicitly asks the copy/export projection below for a letter case changes the
+case of formal names; the editor never does.
 
 Every manually inserted device receives an explicit reference. References are
 unique per cell and have the prefix required by their device definition. Model-
@@ -281,13 +282,13 @@ device parameters or renumbers an Instance before extraction. An authored
 external-subcircuit remains an `X` call everywhere and an authored primitive MOS
 remains an `M` card everywhere.
 
-Netlist configuration stores `format`, `portCase`, the selected process and
-editable device templates for Abstract, SKY130, TSMC 28, TSMC 180 and Custom.
+Netlist configuration stores `format`, the selected process and editable
+device templates for Abstract, SKY130, TSMC 28, TSMC 180 and Custom.
 The editor works in SKY130 until told otherwise, and a native device placed
 while a process is selected is bound to that process's model as part of the
 placement, so a drawn circuit exports as that process rather than with missing
 model fields.
-Format and case are output preferences. Process/device selection is an
+Format is an output preference; names always keep their authored case. Process/device selection is an
 undoable Project transaction that writes ordinary typed bindings and parameters
 before any consumer extracts the circuit. Creating a bundled example applies
 missing native-device defaults from the cached template while retaining
@@ -438,11 +439,14 @@ in this panel is disabled until the draft is applied or discarded. The printed
 source and the circuit share undo/redo through those same transactions.
 
 The copy/export projection removes the strict printer's generated title and
-adds no diagnostic, preset or library comments. It also accepts
-an optional `portCase` (`upper` or `lower`), which the editor always supplies
-from its remembered choice, uppercase by default. Every formal Port name and
-the Cell-local node it owns, subcircuit-call pin names, and external-master
-terminal names then take that case; all other Nets keep their spelling. SPICE
+adds no diagnostic, preset or library comments. It prints every name exactly as
+authored: the live panel, Check Report, copy and download never change a
+name's letter case. The projection still accepts an optional `portCase`
+(`upper` or `lower`) for Agent API callers that request it explicitly; every
+formal Port name and the Cell-local node it owns, subcircuit-call pin names,
+and external-master terminal names then take that case, and all other Nets
+keep their spelling. A browser that saved the retired case preference drops
+it on load and keeps its process choices. SPICE
 preserves an empty first title line so an entry-file reader does not consume
 the first directive. Native SCS begins with its language declaration before an
 include. Structured diagnostics remain available in the optional Check Report;
