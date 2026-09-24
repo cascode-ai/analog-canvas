@@ -66,8 +66,10 @@ For history management, `simulation_results` `history` lists Run IDs, source
 ownership (when recorded), logical evidence bytes, and whether each run is
 saved, generated cache, catalog-only, or session-only. An unavailable archive
 index is reported as `unverified`: history stays readable, but deletion cannot
-assume the Run is unprotected. `history-usage` reports actual Project evidence
-file count/bytes, unreferenced bodies and limits; unreferenced does not imply
+assume the Run is unprotected. History defaults to 10 entries; continue with
+`nextCursor` or choose a larger `limit` when needed. `history-usage` reports
+actual Project evidence file count/bytes, unreferenced bodies and limits;
+unreferenced does not imply
 immediate reclaim while an Editor holds a lease. `history-delete` with
 `runId` and `dryRun:true` previews an exact deletion; omit `dryRun` to remove
 it. Saved or unclassified legacy archives require explicit

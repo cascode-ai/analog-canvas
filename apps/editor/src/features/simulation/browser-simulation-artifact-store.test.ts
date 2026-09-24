@@ -10,20 +10,24 @@ describe("persistent simulation evidence", () => {
   it("prunes only new unarchived cache catalogs and leaves legacy history intact", async () => {
     const factory = new IDBFactory();
     const store = createBrowserSimulationArtifactStore("project", factory)!;
+    let storedAt = 0;
+    const files = new SimulationFiles(
+      () => storedAt++,
+      undefined,
+      undefined,
+      store,
+    );
     for (let index = 0; index < 32; index++)
-      await store.saveCatalog!({
-        catalog: {
-          schemaVersion: 1,
-          runId: `cache-${index}`,
-          preparedId: "prepared",
-          inputRevision: "rev",
-          retentionPolicy: "cache",
-          execution: "completed",
-          collection: "complete",
-          files: [],
-          datasets: [],
-        },
-        storedAt: index,
+      await files.saveCatalog({
+        schemaVersion: 1,
+        runId: `cache-${index}`,
+        preparedId: "prepared",
+        inputRevision: "rev",
+        retentionPolicy: "cache",
+        execution: "completed",
+        collection: "complete",
+        files: [],
+        datasets: [],
       });
     await store.saveCatalog!({
       catalog: {
@@ -51,6 +55,10 @@ describe("persistent simulation evidence", () => {
     expect(retained).toContain("legacy");
     expect(retained).not.toContain("cache-0");
     expect(retained).toHaveLength(31);
+    expect(
+      (await files.history(100)).runs.map((entry) => entry.runId),
+    ).not.toContain("cache-0");
+    expect(await files.catalog("cache-0")).toBeUndefined();
     archives.close();
   });
   it("reports actual Project usage and deletes an exact catalog without losing shared evidence", async () => {
@@ -141,6 +149,10 @@ describe("persistent simulation evidence", () => {
       },
     });
     expect(await files.catalog("run-a")).toBeUndefined();
+    expect(await files.readArtifact(ref.id)).toMatchObject({
+      ok: true,
+      text: "data",
+    });
     expect(await store.reclaim([], [])).toEqual({ files: 0, bytes: 0 });
     expect((await store.get(ref.id))?.text).toBe("data");
     const finalDelete = await service.handle(
@@ -151,6 +163,16 @@ describe("persistent simulation evidence", () => {
       finalDelete.ok && "deletion" in finalDelete
         ? finalDelete.deletion.reclaimedFiles
         : 0;
+    expect(await files.readArtifact(ref.id)).toMatchObject({
+      ok: false,
+      error: { code: "ARTIFACT_UNAVAILABLE" },
+    });
+    expect(
+      await files.handle({ action: "download", artifactId: ref.id }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "ARTIFACT_UNAVAILABLE" },
+    });
     const reclaimedAfter = await store.reclaim([], []);
     expect(reclaimedByDelete + reclaimedAfter.files).toBe(1);
     expect(await store.get(ref.id)).toBeNull();
