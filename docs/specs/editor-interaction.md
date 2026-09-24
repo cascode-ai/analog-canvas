@@ -709,6 +709,31 @@ label is one visual deletion: the label removal is planned once, so the atomic
 transaction cannot reject a duplicated annotation removal. Drafting text has
 no electrical meaning.
 
+### Text authority and formatting rules
+
+The RichText document is one presentation format, not one shared identity
+field. The following distinctions are intentional and apply equally after
+save/reopen and when the same Project is entered through Project Code:
+
+| Text on canvas           | Authoritative source              | Ordinary text edit                                   | Formatting-only edit                                                  |
+| ------------------------ | --------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------- |
+| Following instance label | `Instance.reference`              | Renames the Reference with its electrical validation | Stores a same-name `formatOverride`; the binding stays live           |
+| Instance display alias   | Annotation `content`              | Edits only the alias                                 | Edits only the alias; the Reference is unchanged                      |
+| Cell Pin label           | Formal terminal name              | Renames that declaration and reconciles callers      | Stores a same-name `formatOverride` and projects it to the parent pin |
+| Net or power label       | Its name claim or formal terminal | Uses the owning Net/terminal rename path             | Retains the name and stores its presentation                          |
+| Free drafting text       | Drafting `content`                | Edits only the drawing                               | Edits only the drawing                                                |
+
+Automatic name typography, an authored override, and an explicit drawing-wide
+formatting action are different operations. `_` and `_bar` in a bound name can
+carry identifier meaning; a style change that preserves its interpreted name
+must not rename the electrical object. The explicit whole-drawing naming action
+may change names and is undoable. Newly created free drafting text uses the
+Razavi default, while a Cell/master name remains a whole word rather than a
+symbol with an index. The explicit **Format all Ports** command may change the
+visible suffix case or placement without changing any Port Name. These are
+separate policies over the same RichText representation, not alternative
+storage protocols.
+
 The standalone `+` and `−` entries in **Annotations** are fixed polarity
 marks, not editable text. Their vector-stroke center is the placement anchor,
 so the preview, snapped click point, persisted mark, hit target, and selection
