@@ -1,4 +1,7 @@
-import { resolveSchematicStyleProfile } from "@icm/derived";
+import {
+  resolveAnnotationName,
+  resolveSchematicStyleProfile,
+} from "@icm/derived";
 import { createEmptyDocument, roleLabelFormat } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
@@ -7,10 +10,44 @@ import {
   defaultInstanceDisplayAnnotations,
   missingDefaultInstanceDisplayAnnotations,
 } from "./default-instance-display";
+import {
+  createNewInstance,
+  initialInstanceNetlist,
+} from "../netlist-export/netlist-authoring";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("default instance display annotations", () => {
+  it("shows a live, editable Battery Reference with no default netlist binding", () => {
+    const document = createEmptyDocument("battery", "Battery");
+    const instance = createNewInstance(document, {
+      symbolId: "battery",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+      netlist: initialInstanceNetlist("battery", {}),
+    });
+    document.instances.push(instance);
+    const annotations = defaultInstanceDisplayAnnotations(
+      document,
+      instance,
+      resolver,
+      resolveSchematicStyleProfile(document.presentation.styleProfileId),
+    );
+
+    expect(instance.reference).toBe("B1");
+    expect(instance.netlist?.binding).toBeUndefined();
+    expect(annotations).toHaveLength(1);
+    expect(annotations[0]).toMatchObject({
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: instance.id },
+      anchor: { kind: "object", objectId: instance.id },
+    });
+    expect(resolveAnnotationName(document, annotations[0]!)).toBe("B1");
+  });
+
   it("creates a live Reference label and literal master label for an external call", () => {
     const document = createEmptyDocument("main", "Main");
     const instance = {

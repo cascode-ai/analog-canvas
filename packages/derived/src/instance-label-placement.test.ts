@@ -181,6 +181,15 @@ describe("instance label placement", () => {
       position: { x: 116, y: 105 },
       alignment: "start",
     });
+    expect(placedDefaultLabel("battery")).toMatchObject({
+      position: { x: expect.any(Number), y: 105 },
+      alignment: "start",
+    });
+    expect(placedDefaultLabel("battery").position.x).toBeGreaterThan(115);
+    expect(placedDefaultLabel("battery", 90)).toMatchObject({
+      position: { x: 100, y: expect.any(Number) },
+      alignment: "middle",
+    });
     expect(placedDefaultLabel("capacitor", 90)).toMatchObject({
       position: { x: 100, y: 124 },
       alignment: "middle",

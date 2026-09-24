@@ -95,6 +95,24 @@ function cards(text: string) {
 }
 
 describe("copy/export netlist projection", () => {
+  it("keeps a named Battery drawing out of SPICE without inventing DC behavior", () => {
+    const project = createEmptyProject("battery-project", "Battery");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "B1",
+      symbolId: "battery",
+      reference: "B1",
+      placement: null,
+      netlist: { parameters: {} },
+    });
+
+    const result = createDesignNetlistExport(project);
+    expect(result.status).toBe("blocked");
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "NON_NETLISTABLE_DEVICE" }),
+    );
+  });
+
   it("blocks missing hierarchy values without writing placeholder output", async () => {
     const source = `
 .subckt leaf OUT IN params: scale=2

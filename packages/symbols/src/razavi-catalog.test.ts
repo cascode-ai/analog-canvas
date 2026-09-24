@@ -296,7 +296,7 @@ describe("Razavi symbol catalog", () => {
     }
   });
 
-  it("keeps the PDF-scaled battery a drawing-only symbol", () => {
+  it("keeps the PDF-scaled battery drawing-only with an authoring reference", () => {
     const component = JSON.parse(
       readFileSync(resolve(assetRoot, "battery.json"), "utf8"),
     );
@@ -308,7 +308,12 @@ describe("Razavi symbol catalog", () => {
     const plates = battery.primitives.filter(
       (primitive) => primitive.kind === "polygon",
     );
-    expect(component.electrical).toBeNull();
+    expect(component.electrical).toMatchObject({
+      referencePrefix: "B",
+      targetPolicy: "none",
+      parameters: [],
+    });
+    expect(component.electrical).not.toHaveProperty("sourceWaveformDefault");
     expect(battery.pins.map((pin) => [pin.name, pin.at])).toEqual([
       ["+", { x: 0, y: -20 }],
       ["-", { x: 0, y: 20 }],
