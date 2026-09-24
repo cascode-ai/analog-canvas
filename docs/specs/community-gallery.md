@@ -438,6 +438,21 @@ unreadable, ruleVersion, remaining}`). Every entry stores the rule version
   The same pass runs on a schedule (`triggers.crons` in both channels'
   Wrangler configs), so a deployed rule change converges without anybody
   pressing anything; the route stays for when somebody wants it now.
+- `POST /api/gallery/maintenance/label-looks` — give up to 20 entries'
+  unformatted supply and device Reference labels their stored standard look
+  (V_DD, M₁; see [names and labels](names-and-labels.md)). The body is
+  `{ "ids": [...], "apply"?: true, "expected"?: {<id>: <sha256>}, "nudges"?:
+{<id>: [{label, dx, dy}]}, "keep"?: {<id>: [label]} }`. The server computes
+  the change itself; a nudge may only move a label it restyles, by at most
+  16 × 12 units, and `keep` names standard-look candidates to leave exactly as
+  they are (for a label that cannot stay as clear as it was). Without
+  `apply` it reports, per entry, the labels, the SHA-256 of the stored Project
+  Code, and whether every electrical name and the SPICE and Spectre netlists
+  are unchanged. An apply needs that SHA-256 for each entry (`stale`
+  otherwise), refuses any electrical change, re-renders the preview, and
+  replaces only the Project Code and preview through a compare-and-set;
+  saved versions, byline, status, tags and likes are untouched. Same-origin
+  only.
 - `POST /api/gallery/maintenance/schema-restore` — atomically restore the three
   Project-bearing tables from a `schema-backup` payload supplied as
   `{ "backup": ... }`. Current retention is reapplied, so a legacy backup with

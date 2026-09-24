@@ -56,6 +56,14 @@ overbar, subject to the drawing's `labels` settings. This rule is kept so
 existing drawings keep their look; it is display only and never changes a
 name.
 
+Existing Gallery drawings are moved to stored standard looks by an
+administrator maintenance pass
+([Community Gallery](community-gallery.md#administration)). It changes only
+unformatted supply and device Reference labels, may nudge a restyled label a
+few grid units clear of its neighbours or leave one that cannot stay as clear
+as it was, and refuses any change to an electrical name or netlist. Pin labels keep the historical rule, because an
+older drawing cannot tell a generated Pin name from a typed one.
+
 ### Editing
 
 - Changing the visible characters renames the object exactly as typed:
@@ -112,10 +120,13 @@ redraws a drawing its author has already seen.
   Pin, claim, marker and device renames keep stored looks valid.
 - `apps/editor/src/features/text-editing/text-editing.test.ts`: verbatim text
   renames, styling that never renames, and hidden-character splicing.
+- `worker/gallery.test.ts` (label-look maintenance): a dry run writes
+  nothing; an apply needs the checked content, keeps names, netlists and
+  history, and leaves nothing for a second pass.
 - `apps/editor/e2e/component-insert.spec.ts` and
   `apps/editor/e2e/manual-editor.spec.ts`: placed supplies in their standard
   look and verbatim canvas renames.
 
 Custom display text that differs from its name (for example Q′ for `Q_prime`),
-one-click formatting presets, a literal default for typed names, and moving
-existing drawings to stored standard looks are not yet provided.
+one-click formatting presets, and a literal default for typed names are not
+yet provided.
