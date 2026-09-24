@@ -14,6 +14,7 @@ import type {
 } from "@icm/model";
 import {
   defaultInstanceLabelPlacement,
+  legacyPortLabelPlacement,
   defaultInstanceParameterLabelPlacement,
   displayableInstanceParameter,
   defaultVddPowerLabelPlacement,
@@ -126,23 +127,39 @@ function isCanonicalCellPinLabel(
   ) {
     return false;
   }
-  const expected = defaultInstanceLabelPlacement(
-    { ...instance, placement: { position: oldPosition, ...oldOrientation } },
-    resolved,
-    resolveDocumentStyleProfile(document.presentation),
-    document.presentation.grid,
-    "reference",
-  );
-  if (!expected) return false;
+  const before = {
+    ...instance,
+    placement: { position: oldPosition, ...oldOrientation },
+  };
+  const profile = resolveDocumentStyleProfile(document.presentation);
   const visiblePosition = {
     x: oldPosition.x + annotation.anchor.localOffset.x,
     y: oldPosition.y + annotation.anchor.localOffset.y,
   };
-  return (
-    annotation.rotation === 0 &&
-    annotation.alignment === expected.alignment &&
-    samePoint(visiblePosition, expected.position) &&
-    samePoint(annotation.anchor.fallbackPosition, expected.position)
+  const fallbackPosition = annotation.anchor.fallbackPosition;
+  // A label the previous rule placed is just as untouched as one the current
+  // rule placed, so both keep following their Pin.
+  return [
+    defaultInstanceLabelPlacement(
+      before,
+      resolved,
+      profile,
+      document.presentation.grid,
+      "reference",
+    ),
+    legacyPortLabelPlacement(
+      before,
+      resolved,
+      profile,
+      document.presentation.grid,
+    ),
+  ].some(
+    (expected) =>
+      expected !== null &&
+      annotation.rotation === 0 &&
+      annotation.alignment === expected.alignment &&
+      samePoint(visiblePosition, expected.position) &&
+      samePoint(fallbackPosition, expected.position),
   );
 }
 
