@@ -233,6 +233,43 @@ describe("editable body text as a general Symbol capability", () => {
 });
 
 describe("converter blocks carry the same editable body text", () => {
+  it("keeps plain body words on one baseline while honoring explicit scripts", () => {
+    const document = createEmptyDocument("main", "Main");
+    for (const [index, symbolId, formula] of [
+      [0, "adc", undefined],
+      [1, "dac", undefined],
+      [2, "adc", "BUF"],
+      [3, "opamp-lettered", "A_gain"],
+    ] as const) {
+      document.instances.push({
+        id: `U${index}`,
+        symbolId,
+        placement: {
+          position: { x: 100 + index * 200, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+        ...(formula ? { signalFlowParameters: { formula } } : {}),
+      });
+    }
+    expect(document.presentation.labelSubscriptAfterFirst).toBe(true);
+    const svg = renderDocumentSvg(document, resolver);
+    const bodies = [
+      ...svg.matchAll(/<text data-role="formula-text"[^>]*>(.*?)<\/text>/gu),
+    ].map((match) => match[1]!);
+    expect(bodies).toHaveLength(4);
+    expect(bodies.map((body) => body.replace(/<[^>]+>/gu, ""))).toEqual([
+      "ADC",
+      "DAC",
+      "BUF",
+      "Again",
+    ]);
+    for (const body of bodies.slice(0, 3)) {
+      expect(body).not.toContain('data-text-run="subscript"');
+    }
+    expect(bodies[3]).toContain('data-text-run="subscript"');
+  });
+
   it("renders ADC and DAC defaults and honours a per-Instance override", () => {
     const document = createEmptyDocument("main", "Main");
     document.instances.push(
