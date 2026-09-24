@@ -40,6 +40,8 @@ describe("FileCommandMenu", () => {
 
     expect(markup).not.toContain("Save as Cloud Copy");
     expect(markup).toContain(`Cloud Projects (1/${CLOUD_PROJECT_LIMIT})`);
+    expect(markup).toContain('data-testid="file-cloud-project-list"');
+    expect(markup).toContain('aria-labelledby="file-cloud-projects-label"');
     expect(markup).toContain("Saved Circuit");
     expect(markup).toContain('class="cloud-project-time"');
     expect(markup).toContain("cloud-project-cloud-1");

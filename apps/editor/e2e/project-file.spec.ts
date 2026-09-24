@@ -83,6 +83,136 @@ async function mockCloudProjects(page: Page) {
   return { stored: () => stored };
 }
 
+async function mockFullCloudProjectList(page: Page) {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "u1",
+          displayName: "Circuit Author",
+          email: "author@example.com",
+          provider: "github",
+          isAdmin: false,
+        },
+      },
+    }),
+  );
+  await page.route("**/api/projects", (route) =>
+    route.fulfill({
+      json: {
+        projects: Array.from({ length: CLOUD_PROJECT_LIMIT }, (_, index) => ({
+          id: `cloud-${index + 1}`,
+          name: `Circuit ${String(index + 1).padStart(2, "0")}`,
+          updatedAt: "2026-09-24T08:00:00.000Z",
+          revision: 1,
+          schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+        })),
+      },
+    }),
+  );
+}
+
+for (const { width, height } of [
+  { width: 1536, height: 825 },
+  { width: 1536, height: 600 },
+  { width: 720, height: 600 },
+]) {
+  test(`File commands remain reachable with 20 Cloud Projects at ${width}×${height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await mockFullCloudProjectList(page);
+    await page.goto("/editor");
+    const fileMenu = await openMenu(page, "File");
+    const list = fileMenu.getByTestId("file-cloud-project-list");
+    await expect(list.locator(".cloud-project-command")).toHaveCount(
+      CLOUD_PROJECT_LIMIT,
+    );
+    expect(
+      await list.evaluate(
+        (element) => element.scrollHeight > element.clientHeight,
+      ),
+    ).toBe(true);
+
+    const popover = fileMenu.locator(".file-command-popover");
+    const bounds = await popover.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(height - 6);
+    const importTrigger = fileMenu.getByRole("button", {
+      name: "Import",
+      exact: true,
+    });
+    const exportTrigger = fileMenu.getByRole("button", {
+      name: "Export",
+      exact: true,
+    });
+    await expect(importTrigger).toBeInViewport();
+    await expect(exportTrigger).toBeInViewport();
+    await importTrigger.click();
+    const importOption = fileMenu.getByText("SPICE / SCS…");
+    await expect(importOption).toBeInViewport();
+    const importBounds = await importOption.boundingBox();
+    expect(importBounds!.x + importBounds!.width).toBeLessThanOrEqual(
+      width - 6,
+    );
+    await exportTrigger.click();
+    const exportOption = fileMenu.getByRole("button", {
+      name: "Export Project File…",
+    });
+    await expect(exportOption).toBeInViewport();
+    const exportBounds = await exportOption.boundingBox();
+    expect(exportBounds!.x + exportBounds!.width).toBeLessThanOrEqual(
+      width - 6,
+    );
+
+    await list.hover();
+    await page.mouse.wheel(0, 1200);
+    await expect
+      .poll(() => list.evaluate((element) => element.scrollTop))
+      .toBeGreaterThan(0);
+    const lastProject = fileMenu.getByTestId(
+      `cloud-project-cloud-${CLOUD_PROJECT_LIMIT}`,
+    );
+    await expect(lastProject).toBeInViewport();
+    await list.evaluate((element) => {
+      element.scrollTop = 0;
+    });
+    await lastProject.focus();
+    await expect(lastProject).toBeInViewport();
+    await fileMenu
+      .getByRole("button", { name: "Delete Cloud Project Circuit 20" })
+      .click();
+    const keep = fileMenu.getByRole("button", { name: "Keep it" });
+    await expect(keep).toBeInViewport();
+    await keep.click();
+    await expect(exportTrigger).toBeInViewport();
+  });
+}
+
+test("File menu falls back to one scroll area in a short viewport", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 720, height: 360 });
+  await mockFullCloudProjectList(page);
+  await page.goto("/editor");
+  const fileMenu = await openMenu(page, "File");
+  const popover = fileMenu.locator(".file-command-popover");
+  await expect
+    .poll(() =>
+      popover.evaluate(
+        (element) => element.scrollHeight > element.clientHeight,
+      ),
+    )
+    .toBe(true);
+  const bounds = await popover.boundingBox();
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(360);
+  await fileMenu.getByRole("button", { name: "Export", exact: true }).click();
+  const exportOption = fileMenu.getByRole("button", {
+    name: "Export Project File…",
+  });
+  await expect(exportOption).toBeInViewport();
+});
+
 async function expectAgentRecoveryAlongsideWorkingCopy(
   page: Page,
   sessionId: string,
