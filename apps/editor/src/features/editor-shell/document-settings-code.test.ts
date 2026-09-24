@@ -35,7 +35,7 @@ function editableValue(): DocumentSettingsCodeValue {
     bulkDefaults: { nmos: "VSS", pmos: "VDD" },
     labels: {
       first_letter_italic: true,
-      subscript_after_first: true,
+      subscript_after_first: false,
       subscript_case: "preserve",
       subscript_italic: false,
       underscore_subscript: true,

@@ -300,7 +300,8 @@ describe("current rendering contract", () => {
     ]) {
       for (const rotation of [0, 90, 180, 270] as const) {
         const document = createEmptyDocument("doc", "DFF pins");
-        expect(document.presentation.labelSubscriptAfterFirst).toBe(true);
+        // Fixed names stay whole even when the drawing shows first-letter looks.
+        document.presentation.labelSubscriptAfterFirst = true;
         document.instances.push({
           id: "X1",
           symbolId,

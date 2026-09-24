@@ -9,6 +9,8 @@ import {
   CircuitProjectSchema,
   formatLabelSubscripts,
   flattenRichText,
+  isRoleLabelFormat,
+  labelRole,
   richTextIdentifier,
   type Annotation,
   rewriteRichTextIdentifier,
@@ -59,6 +61,18 @@ export function applyLabelSubscriptCase(
   const changeInitial =
     nextTypography.firstLetterItalic !== previous.firstLetterItalic;
   const changeScripts = changeUnderscore || changeAfterFirst;
+  // The first-letter convention only changes how names are drawn: turning it
+  // on shows each name's first letter over a subscript of the rest (Start is
+  // drawn as S with subscript tart and stays Start), and turning it off
+  // takes that look away again. It never inserts characters into a name.
+  const firstLetterOn = changeAfterFirst && nextTypography.subscriptAfterFirst;
+  const firstLetterOff =
+    changeAfterFirst && !nextTypography.subscriptAfterFirst;
+  const firstLetterIdentifier = (name: string) =>
+    formatLabelIdentifier(name, {
+      subscriptAfterFirst: true,
+      subscriptCase: "preserve",
+    });
   // Historical explicit subscripts can be bound to a name without `_`. Only
   // an explicit case edit adopts their script boundaries; opening a file or
   // changing slant must never rename a terminal.
@@ -66,11 +80,7 @@ export function applyLabelSubscriptCase(
     name: string,
     matches: (annotation: Annotation) => boolean,
   ): string => {
-    if (
-      !(changeCase && mode !== "preserve") &&
-      !(changeAfterFirst && nextTypography.subscriptAfterFirst)
-    )
-      return name;
+    if (!(changeCase && mode !== "preserve")) return name;
     const legacy = original.annotations.find(
       (annotation) =>
         matches(annotation) &&
@@ -78,15 +88,10 @@ export function applyLabelSubscriptCase(
         flattenRichText(annotation.formatOverride) === name &&
         richTextIdentifier(annotation.formatOverride) !== name,
     );
-    // Only turning the first-letter convention on inserts its separator; a
-    // case change alone never adds characters to a name.
+    // A case change never adds characters to a name.
     return formatLabelIdentifier(
       legacy?.formatOverride ? richTextIdentifier(legacy.formatOverride) : name,
-      {
-        subscriptAfterFirst:
-          changeAfterFirst && nextTypography.subscriptAfterFirst,
-        subscriptCase: mode,
-      },
+      { subscriptAfterFirst: false, subscriptCase: mode },
     );
   };
   const instanceName = (id: string, name: string) =>
@@ -194,8 +199,9 @@ export function applyLabelSubscriptCase(
     )
       continue;
     // Unformatted bound labels derive both their new name and slant; do not
-    // materialize redundant per-label copies of the generated text.
-    if (binding && !annotation.formatOverride) continue;
+    // materialize redundant per-label copies of the generated text, unless
+    // the first-letter look is being turned on and needs storing.
+    if (binding && !annotation.formatOverride && !firstLetterOn) continue;
     let content = resolveAnnotationText(document, annotation);
     if (binding) {
       const name = resolveAnnotationName(document, annotation);
@@ -205,8 +211,25 @@ export function applyLabelSubscriptCase(
           : binding.kind === "cell-terminal-name"
             ? portName(binding.terminalId, name)
             : netName(binding.netId, name);
-      if (next !== name || changeScripts)
-        content = rewriteRichTextIdentifier(content, next, {
+      const role = labelRole(annotation);
+      // A standard look (V_DD, M₁, V_in) belongs to what the label names,
+      // not to this setting; an author's own look stays as it is.
+      const standard =
+        role !== undefined &&
+        annotation.formatOverride !== undefined &&
+        isRoleLabelFormat(annotation.formatOverride, role, name);
+      const shown = firstLetterOn
+        ? standard
+          ? undefined
+          : firstLetterIdentifier(next)
+        : firstLetterOff &&
+            !standard &&
+            !next.includes("_") &&
+            richTextIdentifier(content) === firstLetterIdentifier(next)
+          ? next
+          : undefined;
+      if (shown !== undefined || next !== name || changeUnderscore)
+        content = rewriteRichTextIdentifier(content, shown ?? next, {
           underscoreSubscript:
             nextTypography.subscriptAfterFirst ||
             nextTypography.underscoreSubscript,

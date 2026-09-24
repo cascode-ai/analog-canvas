@@ -252,7 +252,8 @@ describe("converter blocks carry the same editable body text", () => {
         ...(formula ? { signalFlowParameters: { formula } } : {}),
       });
     }
-    expect(document.presentation.labelSubscriptAfterFirst).toBe(true);
+    // Fixed names stay whole even when the drawing shows first-letter looks.
+    document.presentation.labelSubscriptAfterFirst = true;
     const svg = renderDocumentSvg(document, resolver);
     const bodies = [
       ...svg.matchAll(/<text data-role="formula-text"[^>]*>(.*?)<\/text>/gu),

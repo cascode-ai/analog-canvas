@@ -29,16 +29,23 @@ import {
 
 it("gives new drawings italic initials and upright preserved-case subscripts", () => {
   const presentation = createEmptyDocument("a", "A").presentation;
+  // A typed name is shown as written; the first-letter look is opt-in.
   expect(labelTypography(presentation)).toEqual({
     underscoreSubscript: true,
-    subscriptAfterFirst: true,
+    subscriptAfterFirst: false,
     subscriptCase: "preserve",
     subscriptItalic: false,
     firstLetterItalic: true,
   });
-  expect(formatLabelIdentifier("VinP", labelTypography(presentation))).toBe(
-    "V_inP",
+  expect(formatLabelIdentifier("Start", labelTypography(presentation))).toBe(
+    "Start",
   );
+  expect(
+    formatLabelIdentifier("VinP", {
+      ...labelTypography(presentation),
+      subscriptAfterFirst: true,
+    }),
+  ).toBe("V_inP");
   const content = labelTextDocument("V_inP", presentation);
   expect(richTextIdentifier(content)).toBe("V_inP");
   expect(JSON.stringify(content.runs[0])).toContain('"italic"');

@@ -68,8 +68,9 @@ Under `razavi-textbook-v1`, bound names are composed into deterministic SVG
 `<tspan>` runs. By default `_` starts a subscript and a terminal `_bar` denotes
 an overbar. Each Document can keep underscores literal, apply the leading-letter
 subscript convention, and choose subscript case and independent initial/script
-slant. Explicit whole-drawing naming actions update electrical spelling along
-with the labels; slant is presentation only. RichText overrides remain editable,
+slant. The leading-letter convention and slant are presentation only; only an
+explicit whole-drawing subscript case change updates electrical spelling along
+with the labels. RichText overrides remain editable,
 and case/slant actions preserve unrelated color, weight and bar decoration.
 Simple analog-block body names share these rules; mathematical expressions
 retain the formula renderer. Only the explicit Formula editor interprets LaTeX.
