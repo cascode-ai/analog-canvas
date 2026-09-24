@@ -4,6 +4,8 @@
   "version": 1,
   "entries": [
     "and-gate",
+    "and-gate-3",
+    "and-gate-4",
     "battery",
     "buffer",
     "capacitor",

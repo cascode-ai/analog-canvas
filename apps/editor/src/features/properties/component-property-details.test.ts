@@ -37,6 +37,41 @@ const context = {
 };
 
 describe("unified component property details", () => {
+  it("exposes a strict 2/3/4-input control only for AND gates", () => {
+    for (const [symbolId, count] of [
+      ["and-gate", 2],
+      ["and-gate-3", 3],
+      ["and-gate-4", 4],
+    ] as const) {
+      const and = { id: "X1", symbolId, placement: null };
+      const andContext = {
+        instance: and,
+        referenceVisible: null,
+        valueVisible: null,
+        details: { parameters: [] },
+      };
+      const source = formatComponentPropertyCode(andContext);
+      expect(JSON.parse(source).inputs).toBe(count);
+      expect(componentDetailFields(and, andContext.details)).toContainEqual(
+        expect.objectContaining({ path: "inputs", kind: "choice" }),
+      );
+      expect(parseComponentPropertyCode(source, andContext)).toMatchObject({
+        ok: true,
+        value: { inputs: count },
+      });
+      expect(
+        parseComponentPropertyCode(
+          source.replace(`"inputs": ${count}`, '"inputs": 5'),
+          andContext,
+        ),
+      ).toMatchObject({ ok: false, message: "inputs must be 2, 3, or 4" });
+    }
+    expect(
+      componentDetailFields(instance, context.details).some(
+        (field) => field.path === "inputs",
+      ),
+    ).toBe(false);
+  });
   it("leaves parameter values free of redundant unit comments and distinguishes the netlist name", () => {
     const fields = componentDetailFields(instance, context.details);
     for (const key of ["w", "l", "m", "nf"])

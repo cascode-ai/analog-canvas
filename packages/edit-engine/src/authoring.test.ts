@@ -34,6 +34,91 @@ function addInstance(id: string, symbolId: string, x: number) {
 }
 
 describe("semantic authoring", () => {
+  it("keeps AND Nets on upgrade and rejects a connected input on downgrade atomically", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.instances.push({
+      id: "X1",
+      symbolId: "and-gate",
+      placement: { position: { x: 200, y: 100 }, rotation: 0, mirror: "none" },
+      reference: "X1",
+      netlist: {
+        binding: { kind: "unresolved-subcircuit", name: "and_gate" },
+        parameters: {},
+      },
+    });
+    for (const pinName of ["A", "B", "Y"]) {
+      document.nets.push({
+        id: `net-${pinName}`,
+        terminals: [{ instanceId: "X1", pinName }],
+      });
+    }
+    const upgraded = executeTransaction(
+      document,
+      transaction([
+        {
+          kind: "set_instance_symbol",
+          instanceId: "X1",
+          symbolId: "and-gate-4",
+        },
+        {
+          kind: "set_instance_binding",
+          instanceId: "X1",
+          binding: { kind: "unresolved-subcircuit", name: "and_gate_4" },
+        },
+      ]),
+      { symbolResolver: resolver },
+    );
+    expect(upgraded.ok).toBe(true);
+    if (!upgraded.ok) return;
+    expect(upgraded.document.nets).toEqual(document.nets);
+    expect(upgraded.document.instances[0]).toMatchObject({
+      symbolId: "and-gate-4",
+      netlist: { binding: { name: "and_gate_4" } },
+    });
+    const connected = structuredClone(upgraded.document);
+    connected.nets.push({
+      id: "net-D",
+      terminals: [{ instanceId: "X1", pinName: "D" }],
+    });
+    const rejected = executeTransaction(
+      connected,
+      transaction(
+        [
+          {
+            kind: "set_instance_symbol",
+            instanceId: "X1",
+            symbolId: "and-gate",
+          },
+        ],
+        connected.revision,
+      ),
+      { symbolResolver: resolver },
+    );
+    expect(rejected).toMatchObject({ ok: false, applied: false });
+    expect(rejected.document).toBe(connected);
+    expect(connected.instances[0]!.symbolId).toBe("and-gate-4");
+    const marked = structuredClone(upgraded.document);
+    marked.noConnects.push({
+      id: "NC-D",
+      endpoint: { kind: "terminal", instanceId: "X1", pinName: "D" },
+    });
+    const noConnectRejected = executeTransaction(
+      marked,
+      transaction(
+        [
+          {
+            kind: "set_instance_symbol",
+            instanceId: "X1",
+            symbolId: "and-gate",
+          },
+        ],
+        marked.revision,
+      ),
+      { symbolResolver: resolver },
+    );
+    expect(noConnectRejected).toMatchObject({ ok: false, applied: false });
+    expect(marked.noConnects).toHaveLength(1);
+  });
   it("rejects an integer typed-edit point that is not aligned to the Document grid", () => {
     const document = createEmptyDocument("document-main", "Main");
     const result = executeTransaction(

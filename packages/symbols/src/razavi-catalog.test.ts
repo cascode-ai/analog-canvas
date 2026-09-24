@@ -158,6 +158,8 @@ describe("Razavi symbol catalog", () => {
       ]),
     ).toEqual([
       ["and-gate", "reviewed", "razavi-reference-v1"],
+      ["and-gate-3", "reviewed", "house"],
+      ["and-gate-4", "reviewed", "house"],
       ["battery", "reviewed", "razavi-reference-v1"],
       ["buffer", "reviewed", "razavi-reference-v1"],
       ["capacitor", "reviewed", "razavi-reference-v1"],
@@ -817,7 +819,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(83);
+    expect(razaviCatalogSymbols).toHaveLength(85);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -2119,6 +2121,48 @@ describe("Razavi symbol catalog", () => {
 });
 
 describe("logic-gate and comparator family", () => {
+  it("packs 3/4-input AND leads inside the unchanged body while keeping pins on-grid", () => {
+    const base = requireRazaviCatalogSymbol("and-gate");
+    for (const [count, inputYs] of [
+      [3, [-10, 0, 10]],
+      [4, [-20, -10, 10, 20]],
+    ] as const) {
+      const id = `and-gate-${count}`;
+      const symbol = requireRazaviCatalogSymbol(id);
+      expect(symbol.pins.map((pin) => pin.name)).toEqual([
+        ...["A", "B", "C", "D"].slice(0, count),
+        "Y",
+      ]);
+      expect(symbol.pins.slice(0, count).map((pin) => pin.at.y)).toEqual(
+        inputYs,
+      );
+      expect(symbol.viewBox).toEqual(base.viewBox);
+      expect(symbol.primitives[count]).toEqual(base.primitives[2]);
+      expect(
+        symbol.primitives.slice(0, count).map((primitive) => primitive.kind),
+      ).toEqual(Array(count).fill(count === 3 ? "line" : "path"));
+      if (count === 4)
+        expect(
+          symbol.primitives
+            .slice(0, count)
+            .map((primitive) =>
+              primitive.kind === "path" ? primitive.data : "",
+            ),
+        ).toEqual([
+          "M -30 -20 L -26 -20 L -20 -12",
+          "M -30 -10 L -26 -10 L -20 -4",
+          "M -30 10 L -26 10 L -20 4",
+          "M -30 20 L -26 20 L -20 12",
+        ]);
+      expect(getRazaviCatalogEntry(id)).toMatchObject({
+        provenance: "house",
+        palette: false,
+      });
+      expect(
+        razaviProductSymbols.some((candidate) => candidate.id === id),
+      ).toBe(false);
+    }
+  });
   const twoInputGates = [
     "and-gate",
     "or-gate",

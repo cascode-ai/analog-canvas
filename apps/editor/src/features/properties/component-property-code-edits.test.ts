@@ -6,6 +6,53 @@ import { planComponentPropertyCodeEdits } from "./component-property-code-edits"
 import { componentPropertyCodeValue } from "./component-property-code";
 
 describe("planComponentPropertyCodeEdits", () => {
+  it("switches AND arity and its default black-box target in one edit batch", () => {
+    const document = createEmptyDocument("main", "Main");
+    const instance = {
+      id: "X1",
+      symbolId: "and-gate",
+      placement: null,
+      netlist: {
+        binding: { kind: "unresolved-subcircuit" as const, name: "and_gate" },
+        parameters: {},
+      },
+    };
+    const value = componentPropertyCodeValue({
+      instance,
+      referenceVisible: null,
+      valueVisible: null,
+      details: { parameters: [] },
+    });
+    expect(
+      planComponentPropertyCodeEdits(document, instance, {
+        ...value,
+        inputs: 4,
+      }),
+    ).toEqual([
+      { kind: "set_instance_symbol", instanceId: "X1", symbolId: "and-gate-4" },
+      {
+        kind: "set_instance_binding",
+        instanceId: "X1",
+        binding: { kind: "unresolved-subcircuit", name: "and_gate_4" },
+      },
+    ]);
+    expect(() =>
+      planComponentPropertyCodeEdits(
+        document,
+        {
+          ...instance,
+          netlist: {
+            binding: {
+              kind: "unresolved-subcircuit" as const,
+              name: "custom_and",
+            },
+            parameters: {},
+          },
+        },
+        { ...value, inputs: 4 },
+      ),
+    ).toThrow("Restore the default AND target");
+  });
   it.each(["opamp-differential", "opamp-differential-wide"])(
     "composes both swap axes and custom marks for %s",
     (family) => {

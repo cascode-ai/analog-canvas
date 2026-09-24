@@ -38,6 +38,31 @@ async function openSelectionShelf(page: import("@playwright/test").Page) {
   }
 }
 
+test("AND input count changes the drawn pins and black-box target together", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await chooseComponent(page, "and-gate");
+  await page
+    .getByTestId("schematic-canvas")
+    .click({ position: { x: 360, y: 230 } });
+  await page.keyboard.press("Escape");
+  await page.getByTestId("hit-X1").click();
+  await openSelectionShelf(page);
+  expect(JSON.parse(await readComponentPropertyCode(page)).inputs).toBe(2);
+  await editComponentPropertyCode(page, (code) => {
+    code.inputs = 4;
+  });
+  await expect(page.getByTestId("terminal-X1-C")).toHaveCount(1);
+  await expect(page.getByTestId("terminal-X1-D")).toHaveCount(1);
+  await expect
+    .poll(() => recoveryProjectTexts(page))
+    .toContain('"name": "and_gate_4"');
+  await page.getByLabel("Inputs options").selectOption("3");
+  await expect(page.getByTestId("terminal-X1-D")).toHaveCount(0);
+  await expectComponentCodeField(page, "inputs", 3);
+});
+
 test("C copy shows alignment guides, commits the preview and clears guides on Escape", async ({
   page,
 }) => {

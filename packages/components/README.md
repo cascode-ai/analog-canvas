@@ -142,6 +142,19 @@ The product set is exactly the reviewed, Reference-calibrated entries:
   in `scripts/lib/anchor-logic-body.mjs`; raw PDF evidence and the DFF/delay
   geometry are unchanged. Pin names and order stay fixed, but changed pin
   columns can require manual repair of historical routes;
+- `and-gate-3` and `and-gate-4` are internal, house-provenance AND arities
+  derived from the reviewed two-input outline without resizing its body. The
+  three-input leads fit on-grid inside the body; four-input leads keep their
+  external pin anchors on the 10-unit grid and fan into closer body contacts.
+  Interior Symbol geometry may be off-grid; electrical anchors are not. They do
+  not claim an exact textbook 3/4-input witness. The Library still offers one
+  AND tile; each Instance selects 2, 3 or 4 inputs through Properties JSON.
+  The Symbol and black-box subcircuit ports are separate per arity, while the
+  editor switches both the Symbol and its default target in one transaction.
+  Existing pin names and Nets survive an upgrade; a downgrade with an authored
+  connection, Route, No Connect or import mapping on a removed pin is rejected
+  rather than silently losing electrical information. These black-box targets
+  still require an external implementation to simulate;
 - triangular Analog Blocks (`opamp`, fully differential amps, voltage amps,
   comparators, and their lettered/polarity variants) share a user-requested
   equilateral outline with three 60-unit sides and a 60-degree apex. Its left

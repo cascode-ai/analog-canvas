@@ -186,7 +186,7 @@ describe("built-in device registry", () => {
   });
 
   it("registers Analog Blocks as semantic black-box subcircuits", () => {
-    expect(builtInSubcircuitDescriptors).toHaveLength(48);
+    expect(builtInSubcircuitDescriptors).toHaveLength(50);
     expect(
       subcircuitDescriptor("opamp-differential-crossed-inputs-swapped"),
     ).toMatchObject({
@@ -207,6 +207,13 @@ describe("built-in device registry", () => {
   });
 
   it("registers the logic symbols on the same black-box contract", () => {
+    for (const count of [3, 4]) {
+      expect(
+        subcircuitDescriptor(`and-gate-${count}`)?.ports.map(
+          (port) => port.name,
+        ),
+      ).toEqual(["VDD", "VSS", ...["A", "B", "C", "D"].slice(0, count), "Y"]);
+    }
     // A gate is a black box like any other Block: the drawing says what it
     // is and which nodes it meets, and the model behind the name is the
     // reader's to supply. Declaring supplies keeps one interface shape for

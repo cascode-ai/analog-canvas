@@ -73,6 +73,22 @@ function analogBlockProject(
 }
 
 describe("built-in Analog Block subcircuits", () => {
+  it("exports every four-input AND terminal in its declared electrical order", () => {
+    const project = analogBlockProject(
+      ["and-gate-4"],
+      [
+        ["A", "a"],
+        ["B", "b"],
+        ["C", "c"],
+        ["D", "d"],
+        ["Y", "y"],
+      ],
+    );
+    const result = createDesignNetlistExport(project);
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.file.text).toContain("X1 VDD VSS a b c d y and_gate_4");
+  });
   for (const family of ["opamp", "opamp-differential"])
     for (const state of [
       "",

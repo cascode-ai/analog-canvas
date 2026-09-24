@@ -1476,6 +1476,33 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
       ],
     },
     {
+      id: "and-gate-3",
+      symbolId: "and-gate-3",
+      target: "and_gate_3",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "A", direction: "input", pinName: "A" },
+        { name: "B", direction: "input", pinName: "B" },
+        { name: "C", direction: "input", pinName: "C" },
+        { name: "Y", direction: "output", pinName: "Y" },
+      ],
+    },
+    {
+      id: "and-gate-4",
+      symbolId: "and-gate-4",
+      target: "and_gate_4",
+      ports: [
+        { name: "VDD", direction: "inout", supply: "VDD" },
+        { name: "VSS", direction: "inout", supply: "VSS" },
+        { name: "A", direction: "input", pinName: "A" },
+        { name: "B", direction: "input", pinName: "B" },
+        { name: "C", direction: "input", pinName: "C" },
+        { name: "D", direction: "input", pinName: "D" },
+        { name: "Y", direction: "output", pinName: "Y" },
+      ],
+    },
+    {
       id: "buffer",
       symbolId: "buffer",
       target: "buffer",
