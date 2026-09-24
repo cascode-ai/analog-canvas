@@ -2,7 +2,9 @@ import { expect, it } from "vitest";
 import {
   createEmptyProject,
   createEmptyDocument,
+  isRoleLabelFormat,
   labelTypography,
+  roleLabelFormat,
   semanticTextDocument,
   type SchematicDocument,
 } from "@icm/model";
@@ -100,35 +102,77 @@ it("changes subscript case without inserting separators into plain names", () =>
   expect(next.documents[0]!.instances[0]!.reference).toBe("Rload");
 });
 
-it("applies first-letter subscripts to plain names and aliases as one consistent naming action", () => {
+it("draws first-letter subscripts without renaming anything, and takes them away again", () => {
   const source = fixture(),
     doc = source.documents[0]!;
   doc.instances[0]!.reference = "Rload";
   delete doc.annotations[0]!.formatOverride;
-  doc.netlist!.terminals[0]!.name = "Vin";
-  // Explicitly turning the convention on is what applies it; a case change
-  // alone never inserts separators.
+  doc.netlist!.terminals[0]!.name = "Start";
   doc.presentation.labelSubscriptAfterFirst = false;
-  const next = applyLabelSubscriptCase(
+  const on = applyLabelSubscriptCase(
     source,
     doc.id,
-    "lowercase",
+    "preserve",
     resolver,
     [],
     false,
     { ...layout, subscriptAfterFirst: true },
   );
-  expect(next.documents[0]!.instances[0]!.reference).toBe("R_load");
-  expect(next.documents[0]!.netlist!.terminals[0]!.name).toBe("V_in");
-  expect(next.documents[0]!.annotations[0]!.formatOverride).toBeUndefined();
+  // The netlist keeps the names exactly as written.
+  expect(on.documents[0]!.instances[0]!.reference).toBe("Rload");
+  expect(on.documents[0]!.netlist!.terminals[0]!.name).toBe("Start");
+  // Only the label's look changes: R over a subscript of load.
+  const shown = resolveAnnotationText(
+    on.documents[0]!,
+    on.documents[0]!.annotations[0]!,
+  );
+  expect(flattenRichText(shown)).toBe("Rload");
+  expect(richTextIdentifier(shown)).toBe("R_load");
+  const off = applyLabelSubscriptCase(
+    on,
+    doc.id,
+    "preserve",
+    resolver,
+    [],
+    false,
+    { ...layout, subscriptAfterFirst: false },
+  );
+  expect(off.documents[0]!.instances[0]!.reference).toBe("Rload");
   expect(
     richTextIdentifier(
       resolveAnnotationText(
-        next.documents[0]!,
-        next.documents[0]!.annotations[0]!,
+        off.documents[0]!,
+        off.documents[0]!.annotations[0]!,
       ),
     ),
-  ).toBe("R_load");
+  ).toBe("Rload");
+});
+
+it("leaves a standard look alone when the first-letter look is turned off", () => {
+  const source = fixture(),
+    doc = source.documents[0]!;
+  doc.instances[0]!.reference = "R1";
+  doc.annotations[0]!.formatOverride = roleLabelFormat(
+    "device-reference",
+    "R1",
+  )!;
+  doc.presentation.labelSubscriptAfterFirst = true;
+  const off = applyLabelSubscriptCase(
+    source,
+    doc.id,
+    "preserve",
+    resolver,
+    [],
+    false,
+    { ...layout, subscriptAfterFirst: false },
+  );
+  expect(
+    isRoleLabelFormat(
+      off.documents[0]!.annotations[0]!.formatOverride!,
+      "device-reference",
+      "R1",
+    ),
+  ).toBe(true);
 });
 function fixture() {
   const project = createEmptyProject("case", "Case");

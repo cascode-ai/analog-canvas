@@ -33,7 +33,7 @@ export function createEmptyDocument(
       styleProfileId: "razavi-textbook-v1",
       grid: 10,
       compactness: "normal",
-      labelSubscriptAfterFirst: true,
+      labelSubscriptAfterFirst: false,
       labelSubscriptItalic: false,
     },
     layoutGroups: [],
