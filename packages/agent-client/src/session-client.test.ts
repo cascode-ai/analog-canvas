@@ -1186,6 +1186,117 @@ describe("agent session client", () => {
     expect(client.summary("main")?.revision).toBe(6);
   });
 
+  it("reuses bootstrap and transaction revisions for consecutive direct edits without a full snapshot", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation === "transact")
+        return transactSuccessResponse(
+          request.requestId,
+          request.expectedRevision,
+        );
+      throw new Error(`unexpected ${request.operation} request`);
+    };
+    const transform = {
+      kind: "transform",
+      selection: { instanceIds: ["instance-1"] },
+      transform: { kind: "translate", delta: { x: 20, y: 0 } },
+    };
+    expect((await client.applyActions([transform])).revision).toBe(6);
+    expect((await client.applyActions([transform])).revision).toBe(7);
+    expect(
+      (
+        await client.advancedTransact([
+          {
+            kind: "move_instance",
+            instanceId: "instance-1",
+            position: { x: 40, y: 0 },
+          },
+        ])
+      ).revision,
+    ).toBe(8);
+    const calls = http.circuitCalls.map(({ request }) => request);
+    expect(
+      calls.filter((request) => request.operation === "snapshot"),
+    ).toHaveLength(1);
+    expect(
+      calls
+        .filter((request) => request.operation === "transact")
+        .map((request) => request.expectedRevision),
+    ).toEqual([5, 6, 7]);
+  });
+
+  it("does not reuse a revision across browser contexts", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    http.contextRevision = "new-browser-context";
+    http.circuitHandler = async ({ request }) => {
+      if (
+        request.operation === "snapshot" &&
+        request.projection === "bootstrap"
+      ) {
+        const response = bootstrapSnapshotResponse(request.requestId);
+        response.context.document.revision = 12;
+        return response;
+      }
+      if (request.operation === "transact") {
+        expect(request.expectedRevision).toBe(12);
+        return transactSuccessResponse(
+          request.requestId,
+          request.expectedRevision,
+        );
+      }
+      throw new Error(`unexpected ${request.operation} request`);
+    };
+    const report = await client.advancedTransact([
+      {
+        kind: "move_instance",
+        instanceId: "instance-1",
+        position: { x: 40, y: 0 },
+      },
+    ]);
+    expect(report).toMatchObject({ ok: true, revision: 13 });
+    expect(
+      http.circuitCalls.filter(
+        ({ request }) => request.operation === "snapshot",
+      ),
+    ).toHaveLength(2);
+  });
+
+  it("refreshes on a stale direct edit without replaying the mutation", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation === "transact")
+        return errorResponse(
+          request.requestId,
+          "transact",
+          "STALE_REVISION",
+          "human edit",
+        );
+      if (request.operation === "snapshot")
+        return snapshotResponse(request.requestId, testSnapshot(), 9);
+      throw new Error(`unexpected ${request.operation} request`);
+    };
+    const report = await client.applyActions([
+      {
+        kind: "transform",
+        selection: { instanceIds: ["instance-1"] },
+        transform: { kind: "translate", delta: { x: 20, y: 0 } },
+      },
+    ]);
+    expect(report).toMatchObject({
+      ok: false,
+      code: "STATE_CHANGED",
+      revision: 9,
+    });
+    expect(
+      http.circuitCalls.filter(
+        ({ request }) => request.operation === "transact",
+      ),
+    ).toHaveLength(1);
+  });
+
   it("does not silently rebase a source helper after a concurrent Project edit", async () => {
     const { client, http } = await freshClient();
     await client.connect("session-1.code");

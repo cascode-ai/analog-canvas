@@ -1,6 +1,7 @@
 import {
   parseAgentCircuitRequest,
   AgentBootstrapSnapshotResponseSchema,
+  AgentAuthoringCommandSchema,
   AgentCapabilitiesResponseSchema,
   AgentRenderResponseSchema,
   AgentTransactionPayloadSchema,
@@ -49,6 +50,7 @@ import {
   compileActions,
   type CompiledTransaction,
 } from "./authoring-helper.js";
+import { AuthoringActionSchema } from "./authoring-actions.js";
 
 interface ActiveSession {
   sessionId: string;
@@ -57,6 +59,15 @@ interface ActiveSession {
   scopes: string[];
   projectId: string;
   documentIds: string[];
+}
+
+interface KnownRevision {
+  documentId: string;
+  revision: number;
+  structureRevision: number;
+  projectId: string;
+  sessionId: string;
+  contextRevision: string | undefined;
 }
 
 export interface AgentSessionClientOptions {
@@ -136,6 +147,12 @@ function baseRequest(requestId: string): {
   return { apiVersion: AGENT_API_VERSION, requestId };
 }
 
+const BATCHABLE_COMMAND_KINDS = new Set([
+  "set-net-label",
+  "set-model",
+  "move-annotation",
+]);
+
 /**
  * Unified Agent-side Helper (Agent rationale). Owns claim/resume, token and session
  * state, capabilities/revision caches, exact-payload request-ID retry, the
@@ -148,6 +165,8 @@ export class AgentSessionClient {
   readonly connection: ConnectionTracker;
   private readonly http: AgentHttpClient;
   private readonly cache = new SnapshotCache();
+  /** Revisions are authority hints only; every write is still checked by the Editor. */
+  private readonly knownRevisions = new Map<string, KnownRevision>();
   private readonly now: () => number;
   private readonly newRequestId: () => string;
   private readonly networkRetryAttempts: number;
@@ -240,6 +259,7 @@ export class AgentSessionClient {
     try {
       const claim: ClaimSuccess = await this.http.claim(claimCode.trim());
       this.cache.clear();
+      this.knownRevisions.clear();
       this.receipts.length = 0;
       this.capabilitiesCache = null;
       this.simulationMetadata.clear();
@@ -373,6 +393,7 @@ export class AgentSessionClient {
         this.connection.observe(this.observation);
         if (previousContext !== this.http.contextRevision) {
           this.cache.clear();
+          this.knownRevisions.clear();
           this.capabilitiesCache = null;
         }
         if (this.session) this.session.projectId = this.observation.projectId;
@@ -384,6 +405,7 @@ export class AgentSessionClient {
           error.code === "NO_ACTIVE_PROJECT"
         ) {
           this.cache.clear();
+          this.knownRevisions.clear();
           this.connection.observe(null, error.code);
           throw error;
         }
@@ -417,7 +439,10 @@ export class AgentSessionClient {
     try {
       return await this.send(request);
     } finally {
-      if (request.operation === "transact") this.cache.clear();
+      if (request.operation === "transact") {
+        this.cache.clear();
+        this.knownRevisions.clear();
+      }
     }
   }
 
@@ -437,7 +462,10 @@ export class AgentSessionClient {
     } finally {
       // A lost response can still have committed source or circuit edits.
       // Folder files share the Project revision used by cached Snapshots.
-      if (changesProject) this.cache.clear();
+      if (changesProject) {
+        this.cache.clear();
+        this.knownRevisions.clear();
+      }
     }
   }
 
@@ -547,7 +575,10 @@ export class AgentSessionClient {
       );
     } finally {
       // A lost reply may follow a committed edit or workspace switch.
-      if (changesProject) this.cache.clear();
+      if (changesProject) {
+        this.cache.clear();
+        this.knownRevisions.clear();
+      }
     }
   }
 
@@ -632,6 +663,12 @@ export class AgentSessionClient {
       dirty: false,
     };
     this.cache.set(entry);
+    this.rememberRevision({
+      documentId: target,
+      revision: entry.revision,
+      structureRevision: entry.snapshot.project.structureRevision,
+      projectId: entry.snapshot.project.id,
+    });
     return entry;
   }
 
@@ -663,6 +700,12 @@ export class AgentSessionClient {
           dirty: false,
         };
         this.cache.set(entry);
+        this.rememberRevision({
+          documentId: target,
+          revision: entry.revision,
+          structureRevision: entry.snapshot.project.structureRevision,
+          projectId: entry.snapshot.project.id,
+        });
         const fallback = bootstrapFromFullSnapshot(response.snapshot);
         this.updateDocumentRoster(
           fallback.project.documents.map((document) => document.id),
@@ -691,6 +734,12 @@ export class AgentSessionClient {
       );
     }
     const context = parsed.data.context;
+    this.rememberRevision({
+      documentId: target,
+      revision: context.document.revision,
+      structureRevision: context.project.structureRevision,
+      projectId: context.project.id,
+    });
     this.updateDocumentRoster(
       context.project.documents.map((document) => document.id),
       context.project.topDocumentId,
@@ -770,6 +819,54 @@ export class AgentSessionClient {
       dryRunOnly?: boolean;
     } = {},
   ): Promise<ApplyActionsReport> {
+    const parsed = z.array(AuthoringActionSchema).safeParse(actions);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      return {
+        ok: false,
+        stage: "compile",
+        code: "ACTION_COMPILE_FAILED",
+        message: issue
+          ? `${issue.path.join(".")}: ${issue.message}`
+          : "invalid action",
+        actionIndex: Number(issue?.path[0] ?? 0) || 0,
+        actionKind: "schema",
+      };
+    }
+    const direct = parsed.data;
+    if (direct.length === 1) {
+      const action = direct[0]!;
+      const command = AgentAuthoringCommandSchema.safeParse(action);
+      if (
+        command.success ||
+        action.kind === "focus" ||
+        action.kind === "undo" ||
+        action.kind === "redo"
+      ) {
+        const revision = await this.revisionFor(options.documentId);
+        const payload =
+          action.kind === "focus"
+            ? { semanticIntent: action.intent }
+            : action.kind === "undo" || action.kind === "redo"
+              ? { edits: [{ kind: action.kind }] }
+              : { command: command.data };
+        return this.submitTransaction(revision, payload, {
+          dryRun: options.dryRunOnly ?? false,
+        });
+      }
+    }
+    if (
+      direct.length > 1 &&
+      direct.length <= 64 &&
+      direct.every((action) => BATCHABLE_COMMAND_KINDS.has(action.kind))
+    ) {
+      const revision = await this.revisionFor(options.documentId);
+      return this.submitTransaction(
+        revision,
+        { command: { kind: "batch", commands: direct } },
+        { dryRun: options.dryRunOnly ?? false },
+      );
+    }
     const entry = await this.snapshot(options.documentId);
     let compiled: CompiledTransaction[];
     try {
@@ -796,7 +893,7 @@ export class AgentSessionClient {
       compiled.every((item) => item.form === "wire-intent")
     ) {
       return this.submitTransaction(
-        entry,
+        this.revisionFromSnapshot(entry),
         { wireIntent: compiled.map((item) => item.wireIntent!) },
         {
           dryRun: options.dryRunOnly ?? false,
@@ -818,7 +915,7 @@ export class AgentSessionClient {
       batchCommands.length === compiled.length
     ) {
       return this.submitTransaction(
-        entry,
+        this.revisionFromSnapshot(entry),
         { command: { kind: "batch", commands: batchCommands } },
         { dryRun: options.dryRunOnly ?? false },
       );
@@ -842,7 +939,7 @@ export class AgentSessionClient {
           : transaction.form === "semantic"
             ? { semanticIntent: transaction.semanticIntent }
             : { wireIntent: transaction.wireIntent };
-    return this.submitTransaction(entry, payload, {
+    return this.submitTransaction(this.revisionFromSnapshot(entry), payload, {
       dryRun: options.dryRunOnly ?? false,
     });
   }
@@ -867,10 +964,12 @@ export class AgentSessionClient {
         code: "EDIT_SCHEMA_INVALID",
         message: parsed.error.issues[0]?.message ?? "Invalid transaction",
       };
-    const entry = options.snapshot ?? (await this.snapshot(options.documentId));
+    const entry = options.snapshot
+      ? this.revisionFromSnapshot(options.snapshot)
+      : await this.revisionFor(options.documentId);
     if (
       options.snapshot &&
-      (entry.dirty || entry.snapshot.project.id !== this.session?.projectId)
+      (options.snapshot.dirty || entry.projectId !== this.session?.projectId)
     )
       return this.stateChangedReport(
         entry,
@@ -883,8 +982,7 @@ export class AgentSessionClient {
       );
     if (
       options.expectedStructureRevision !== undefined &&
-      entry.snapshot.project.structureRevision !==
-        options.expectedStructureRevision
+      entry.structureRevision !== options.expectedStructureRevision
     )
       return this.stateChangedReport(
         entry,
@@ -913,8 +1011,52 @@ export class AgentSessionClient {
         : [...ids];
   }
 
+  private rememberRevision(
+    value: Omit<KnownRevision, "sessionId" | "contextRevision">,
+  ): void {
+    if (!this.session || value.projectId !== this.session.projectId) return;
+    this.knownRevisions.set(value.documentId, {
+      ...value,
+      sessionId: this.session.sessionId,
+      contextRevision: this.http.contextRevision,
+    });
+  }
+
+  private async revisionFor(documentId?: string): Promise<KnownRevision> {
+    const target = await this.resolveDocumentId(documentId);
+    const known = this.knownRevisions.get(target);
+    if (
+      known &&
+      known.sessionId === this.session?.sessionId &&
+      known.projectId === this.session.projectId &&
+      known.contextRevision === this.http.contextRevision
+    )
+      return known;
+    await this.bootstrapSnapshot(target);
+    const refreshed = this.knownRevisions.get(target);
+    if (!refreshed) {
+      throw new AgentSessionError(
+        "INVALID_RESPONSE",
+        "bootstrap did not establish the selected Document revision",
+        "request-rejected",
+      );
+    }
+    return refreshed;
+  }
+
+  private revisionFromSnapshot(entry: CachedSnapshot): KnownRevision {
+    return {
+      documentId: entry.documentId,
+      revision: entry.revision,
+      structureRevision: entry.snapshot.project.structureRevision,
+      projectId: entry.snapshot.project.id,
+      sessionId: this.session?.sessionId ?? "",
+      contextRevision: this.http.contextRevision,
+    };
+  }
+
   private async submitTransaction(
-    entry: CachedSnapshot,
+    entry: KnownRevision,
     payload: unknown,
     options: { dryRun?: boolean },
   ): Promise<ApplyActionsReport> {
@@ -932,7 +1074,7 @@ export class AgentSessionClient {
       documentId: entry.documentId,
       transactionId: `txn-${crypto.randomUUID()}`,
       expectedRevision: entry.revision,
-      expectedStructureRevision: entry.snapshot.project.structureRevision,
+      expectedStructureRevision: entry.structureRevision,
       dryRun,
       ...parsed.data,
     });
@@ -969,8 +1111,23 @@ export class AgentSessionClient {
           response.projectStructure.documentIds,
           response.projectStructure.topDocumentId,
         );
-      if (response.projectStructure) this.cache.clear();
-      else this.cache.markDirty(entry.documentId, response.revision);
+      if (response.projectStructure) {
+        this.cache.clear();
+        this.knownRevisions.clear();
+      } else {
+        this.cache.markDirty(entry.documentId, response.revision);
+        if (
+          entry.sessionId === this.session?.sessionId &&
+          entry.contextRevision === this.http.contextRevision
+        ) {
+          this.rememberRevision({
+            documentId: entry.documentId,
+            revision: response.revision,
+            structureRevision: entry.structureRevision,
+            projectId: entry.projectId,
+          });
+        }
+      }
     }
     const report: ApplyActionsReport = {
       ok: true,
@@ -1011,9 +1168,10 @@ export class AgentSessionClient {
     return report;
   }
   private async stateChangedReport(
-    entry: CachedSnapshot,
+    entry: KnownRevision,
     message: string,
   ): Promise<ApplyActionsReport> {
+    const before = this.cache.get(entry.documentId);
     const fresh = await this.refreshSnapshot(entry.documentId);
     return {
       ok: false,
@@ -1023,7 +1181,10 @@ export class AgentSessionClient {
         message ??
         "the document revision changed; re-inspect the affected objects and retry",
       revision: fresh.revision,
-      changedObjectIds: changedObjectIds(entry.snapshot, fresh.snapshot),
+      changedObjectIds:
+        before && !before.dirty && before.revision === entry.revision
+          ? changedObjectIds(before.snapshot, fresh.snapshot)
+          : [],
     };
   }
 
@@ -1094,6 +1255,7 @@ export class AgentSessionClient {
         const failure = response as { ok?: boolean; error?: { code?: string } };
         if (ownerContext !== this.http.contextRevision) {
           this.cache.clear();
+          this.knownRevisions.clear();
           this.capabilitiesCache = null;
         }
         if (
@@ -1105,6 +1267,7 @@ export class AgentSessionClient {
           ].includes(failure.error?.code ?? "")
         ) {
           this.cache.clear();
+          this.knownRevisions.clear();
           this.connection.observe(null, failure.error?.code);
           await this.status({ refresh: true }).catch(() => {});
         } else this.connection.apply("request-succeeded");
@@ -1116,6 +1279,7 @@ export class AgentSessionClient {
           error.code === "NO_ACTIVE_PROJECT"
         ) {
           this.cache.clear();
+          this.knownRevisions.clear();
           this.connection.observe(null, error.code);
           await this.status({ refresh: true }).catch(() => {});
           throw error;
@@ -1155,6 +1319,7 @@ export class AgentSessionClient {
     this.simulationMetadata.clear();
     this.capabilitiesCache = null;
     this.cache.clear();
+    this.knownRevisions.clear();
     this.receipts.length = 0;
     await this.connectorStore?.clear();
   }
