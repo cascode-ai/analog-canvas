@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
@@ -132,6 +133,76 @@ function withoutItalic(runs: RichTextRun[]): RichTextRun[] {
 function enclosingScript(node: Node): HTMLElement | null {
   const element = isElement(node) ? node : node.parentElement;
   return element?.closest<HTMLElement>("sub, sup") ?? null;
+}
+
+const STYLE_BUTTONS = [
+  "bold",
+  "italic",
+  "subscript",
+  "superscript",
+  "overbar",
+] as const;
+type ActiveStyles = Readonly<Record<(typeof STYLE_BUTTONS)[number], boolean>>;
+const NO_ACTIVE_STYLES: ActiveStyles = {
+  bold: false,
+  italic: false,
+  subscript: false,
+  superscript: false,
+  overbar: false,
+};
+
+/**
+ * The elements whose look a selection reports. A range reports every
+ * character it covers. A caret reports the character before it, which is what
+ * typing there continues, or the first character when it sits at the start.
+ */
+function selectedTextElements(range: Range, root: HTMLElement): HTMLElement[] {
+  const texts: Text[] = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode())
+    if ((node as Text).data.length) texts.push(node as Text);
+  const elements = (nodes: Text[]) =>
+    nodes.flatMap((text) => (text.parentElement ? [text.parentElement] : []));
+  if (!range.collapsed)
+    return elements(
+      texts.filter(
+        (text) =>
+          range.intersectsNode(text) &&
+          !(text === range.endContainer && range.endOffset === 0) &&
+          !(
+            text === range.startContainer &&
+            range.startOffset >= text.data.length
+          ),
+      ),
+    );
+  const before = texts.filter((text) => range.comparePoint(text, 0) < 0);
+  const text = before[before.length - 1] ?? texts[0];
+  return text ? elements([text]) : [root];
+}
+
+/** Which formatting buttons show pressed for a selection inside `root`. */
+function activeStylesAt(range: Range, root: HTMLElement): ActiveStyles {
+  const elements = selectedTextElements(range, root);
+  if (!elements.length) return NO_ACTIVE_STYLES;
+  const every = (test: (element: HTMLElement) => boolean) =>
+    elements.every(test);
+  const inside = (element: HTMLElement, selector: string) => {
+    const found = element.closest(selector);
+    return !!found && root.contains(found);
+  };
+  return {
+    bold: every(
+      (element) => Number(getComputedStyle(element).fontWeight) >= 600,
+    ),
+    italic: every(
+      (element) => getComputedStyle(element).fontStyle !== "normal",
+    ),
+    subscript: every((element) => inside(element, "sub")),
+    superscript: every((element) => inside(element, "sup")),
+    overbar: every((element) =>
+      inside(element, '[data-rich-text-style="overbar"]'),
+    ),
+  };
 }
 
 function withoutBold(runs: RichTextRun[]): RichTextRun[] {
@@ -386,6 +457,35 @@ export function RichTextEditor({
     existingFormula?.display ?? "inline",
   );
   const [formulaError, setFormulaError] = useState<string | null>(null);
+  const [activeStyles, setActiveStyles] =
+    useState<ActiveStyles>(NO_ACTIVE_STYLES);
+
+  // The formatting buttons show what the selection already has, so italic
+  // text lights Italic and a subscript lights Subscript. Clicking a button
+  // keeps the text's selection; a selection elsewhere keeps the last report.
+  const refreshActiveStyles = useCallback((): void => {
+    const editable = editableRef.current;
+    const selection = window.getSelection();
+    const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    if (
+      !editable ||
+      !range ||
+      !editable.contains(range.commonAncestorContainer)
+    )
+      return;
+    const next = activeStylesAt(range, editable);
+    setActiveStyles((current) =>
+      STYLE_BUTTONS.every((name) => current[name] === next[name])
+        ? current
+        : next,
+    );
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener("selectionchange", refreshActiveStyles);
+    return () =>
+      document.removeEventListener("selectionchange", refreshActiveStyles);
+  }, [refreshActiveStyles]);
 
   useEffect(() => {
     if (!formulaOpen) return;
@@ -418,8 +518,9 @@ export function RichTextEditor({
     if (editableRef.current) {
       editableRef.current.innerHTML = toEditableHtml(content, disabled);
       editableRef.current.focus();
+      refreshActiveStyles();
     }
-  }, [sourceOnly, targetKey, disabled]);
+  }, [sourceOnly, targetKey, disabled, refreshActiveStyles]);
 
   const sync = (): void => {
     if (editableRef.current)
@@ -475,9 +576,13 @@ export function RichTextEditor({
     return inserted;
   };
 
-  const command = (
-    name: "bold" | "italic" | "subscript" | "superscript" | "overbar",
-  ) => {
+  const command = (name: (typeof STYLE_BUTTONS)[number]): void => {
+    applyCommand(name);
+    // A style change that keeps the same selection fires no selectionchange.
+    refreshActiveStyles();
+  };
+
+  const applyCommand = (name: (typeof STYLE_BUTTONS)[number]): void => {
     if (disabled || !editableRef.current) return;
     editableRef.current.focus();
     restoreSelection();
@@ -879,6 +984,7 @@ export function RichTextEditor({
             <button
               type="button"
               aria-label="Bold"
+              aria-pressed={activeStyles.bold}
               disabled={disabled}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => command("bold")}
@@ -888,6 +994,7 @@ export function RichTextEditor({
             <button
               type="button"
               aria-label="Italic"
+              aria-pressed={activeStyles.italic}
               disabled={disabled}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => command("italic")}
@@ -897,6 +1004,7 @@ export function RichTextEditor({
             <button
               type="button"
               aria-label="Subscript"
+              aria-pressed={activeStyles.subscript}
               disabled={disabled}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => command("subscript")}
@@ -906,6 +1014,7 @@ export function RichTextEditor({
             <button
               type="button"
               aria-label="Superscript"
+              aria-pressed={activeStyles.superscript}
               disabled={disabled}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => command("superscript")}
@@ -915,6 +1024,7 @@ export function RichTextEditor({
             <button
               type="button"
               aria-label="Overbar"
+              aria-pressed={activeStyles.overbar}
               disabled={disabled}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => command("overbar")}
@@ -941,41 +1051,6 @@ export function RichTextEditor({
             <span className="rich-text-toolbar-separator" />
           </>
         ) : null}
-        {!compact
-          ? (
-              [
-                ["start", "Align left"],
-                ["middle", "Align center"],
-                ["end", "Align right"],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                aria-label={label}
-                aria-pressed={alignment === value}
-                disabled={disabled}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => onAlignmentChange(value)}
-              >
-                <svg
-                  className="rich-text-align-icon"
-                  viewBox="0 0 16 16"
-                  aria-hidden="true"
-                >
-                  <path
-                    d={
-                      value === "start"
-                        ? "M1 3h14M1 6h9M1 9h14M1 12h7"
-                        : value === "middle"
-                          ? "M1 3h14M3.5 6h9M1 9h14M4.5 12h7"
-                          : "M1 3h14M6 6h9M1 9h14M8 12h7"
-                    }
-                  />
-                </svg>
-              </button>
-            ))
-          : null}
         {!sourceOnly && !compact ? (
           <>
             <button
@@ -1121,6 +1196,44 @@ export function RichTextEditor({
             {deleteLabel}
           </button>
         ) : null}
+        {!compact ? (
+          <span className="rich-text-toolbar-separator" aria-hidden="true" />
+        ) : null}
+        {!compact
+          ? (
+              [
+                ["start", "Align left"],
+                ["middle", "Align center"],
+                ["end", "Align right"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-label={label}
+                aria-pressed={alignment === value}
+                disabled={disabled}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => onAlignmentChange(value)}
+              >
+                <svg
+                  className="rich-text-align-icon"
+                  viewBox="0 0 16 16"
+                  aria-hidden="true"
+                >
+                  <path
+                    d={
+                      value === "start"
+                        ? "M1 3h14M1 6h9M1 9h14M1 12h7"
+                        : value === "middle"
+                          ? "M1 3h14M3.5 6h9M1 9h14M4.5 12h7"
+                          : "M1 3h14M6 6h9M1 9h14M8 12h7"
+                    }
+                  />
+                </svg>
+              </button>
+            ))
+          : null}
         {onDisplayAliasChange ? (
           <label className="rich-text-display-alias">
             <input

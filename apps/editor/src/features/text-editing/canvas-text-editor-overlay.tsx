@@ -9,6 +9,10 @@ import {
 import type { DerivedRect, GridRect } from "@icm/model";
 import { flattenRichText, semanticTextDocument } from "@icm/model";
 
+import {
+  canvasInsetsFromOverlays,
+  type CanvasInsets,
+} from "../../canvas/fit-view";
 import { RichTextEditor } from "./rich-text-editor";
 import type { TextEditingSession } from "./text-editing";
 
@@ -54,6 +58,25 @@ const EDITOR_FALLBACK_VIEW_FRACTION = 1 / 2;
 const INLINE_EDITOR_LAYOUT_WIDTH = 176;
 const INLINE_EDITOR_LAYOUT_HEIGHT = 30;
 
+const NO_INSETS: CanvasInsets = { left: 0, right: 0, top: 0, bottom: 0 };
+
+/**
+ * The part of the camera nobody is standing on. The canvas element spans the
+ * whole workspace and the docks float over its edges, so a panel clamped to
+ * the whole camera could slide under a dock, even its collapsed rail.
+ */
+function unobscuredView(viewBox: GridRect, obscured: CanvasInsets): GridRect {
+  const width = viewBox.width - obscured.left - obscured.right;
+  const height = viewBox.height - obscured.top - obscured.bottom;
+  if (!(width > 0) || !(height > 0)) return viewBox;
+  return {
+    x: viewBox.x + obscured.left,
+    y: viewBox.y + obscured.top,
+    width,
+    height,
+  };
+}
+
 export interface CanvasTextEditorFrame {
   /** Where the panel sits, in Document units. */
   x: number;
@@ -73,9 +96,12 @@ export function resolveCanvasTextEditorFrame(
   sizeScale: number,
   pixelsPerUnit?: number | null,
   preferredLayoutHeight?: number | null,
+  /** Document units of the camera hidden behind docks, per side. */
+  obscured: CanvasInsets = NO_INSETS,
 ): CanvasTextEditorFrame {
   const viewportInset = 8;
-  const availableWidth = Math.max(0, viewBox.width - viewportInset * 2);
+  const visible = unobscuredView(viewBox, obscured);
+  const availableWidth = Math.max(0, visible.width - viewportInset * 2);
   // Laying the panel out at true screen pixels is what lets its type be set
   // against the rest of the chrome rather than against the drawing. Without a
   // measurement — the first render, before the canvas is on screen — fall back
@@ -100,10 +126,10 @@ export function resolveCanvasTextEditorFrame(
   );
   const height = layoutHeight * scale;
   const targetGap = 8;
-  const minX = viewBox.x + viewportInset;
-  const maxX = viewBox.x + viewBox.width - width - viewportInset;
-  const minY = viewBox.y + viewportInset;
-  const maxY = viewBox.y + viewBox.height - height - viewportInset;
+  const minX = visible.x + viewportInset;
+  const maxX = visible.x + visible.width - width - viewportInset;
+  const minY = visible.y + viewportInset;
+  const maxY = visible.y + visible.height - height - viewportInset;
   const x = Math.max(minX, Math.min(maxX, bounds.x - 6));
   const above = bounds.y - height - targetGap;
   const below = bounds.y + bounds.height + targetGap;
@@ -128,20 +154,22 @@ export function resolveInlineTextEditorFrame(
   bounds: DerivedRect,
   viewBox: GridRect,
   pixelsPerUnit?: number | null,
+  obscured: CanvasInsets = NO_INSETS,
 ): CanvasTextEditorFrame {
   const viewportInset = 8;
+  const visible = unobscuredView(viewBox, obscured);
   const scale =
     pixelsPerUnit && pixelsPerUnit > 0
       ? 1 / pixelsPerUnit
       : (viewBox.width * 0.28) / INLINE_EDITOR_LAYOUT_WIDTH;
-  const availableWidth = Math.max(0, viewBox.width - viewportInset * 2);
+  const availableWidth = Math.max(0, visible.width - viewportInset * 2);
   const width = Math.min(availableWidth, INLINE_EDITOR_LAYOUT_WIDTH * scale);
   const layoutWidth = width / scale;
   const height = INLINE_EDITOR_LAYOUT_HEIGHT * scale;
-  const minX = viewBox.x + viewportInset;
-  const maxX = viewBox.x + viewBox.width - width - viewportInset;
-  const minY = viewBox.y + viewportInset;
-  const maxY = viewBox.y + viewBox.height - height - viewportInset;
+  const minX = visible.x + viewportInset;
+  const maxX = visible.x + visible.width - width - viewportInset;
+  const minY = visible.y + viewportInset;
+  const maxY = visible.y + visible.height - height - viewportInset;
   const above = bounds.y - height - 6;
   const below = bounds.y + bounds.height + 6;
   return {
@@ -182,6 +210,33 @@ export function CanvasTextEditorOverlay({
   const [measuredLayoutHeight, setMeasuredLayoutHeight] = useState<
     number | null
   >(null);
+  // Screen pixels of the canvas under each floating dock, so the panel opens
+  // where it can be seen rather than under a Properties or Project dock.
+  const [obscuredPixels, setObscuredPixels] = useState<CanvasInsets>(NO_INSETS);
+  const measureObscured = useCallback((): void => {
+    const svg = anchorRef.current?.ownerSVGElement;
+    if (!svg) return;
+    // A dock hidden while text is edited (visibility: hidden) keeps its box
+    // but covers nothing.
+    const docks = [
+      ...svg.ownerDocument.querySelectorAll("[data-canvas-overlay]"),
+    ]
+      .filter((dock) => getComputedStyle(dock).visibility !== "hidden")
+      .map((dock) => dock.getBoundingClientRect());
+    const next = canvasInsetsFromOverlays(svg.getBoundingClientRect(), docks);
+    setObscuredPixels((current) =>
+      (["left", "right", "top", "bottom"] as const).every(
+        (side) => Math.abs(current[side] - next[side]) < 0.5,
+      )
+        ? current
+        : next,
+    );
+  }, []);
+  // Docks open and close around an edit (double-click opens Properties and
+  // closes the Netlist dock a render later), so look again after each render.
+  useLayoutEffect(() => {
+    measureObscured();
+  });
 
   useEffect(() => {
     setMeasuredLayoutHeight(null);
@@ -202,28 +257,21 @@ export function CanvasTextEditorOverlay({
     const measure = () => {
       const rect = svg.getBoundingClientRect();
       setCanvasSize({ width: rect.width, height: rect.height });
+      measureObscured();
     };
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(measure);
     observer.observe(svg);
+    for (const dock of svg.ownerDocument.querySelectorAll(
+      "[data-canvas-overlay]",
+    ))
+      observer.observe(dock);
     return () => observer.disconnect();
-  }, []);
+  }, [measureObscured]);
 
-  const frame = resolveCanvasTextEditorFrame(
-    bounds,
-    viewBox,
-    session.sizeScale,
-    // preserveAspectRatio="meet" fits the camera inside the element, so the
-    // painted scale is the smaller of the two ratios — not the width's alone.
-    canvasSize && viewBox.width > 0 && viewBox.height > 0
-      ? Math.min(
-          canvasSize.width / viewBox.width,
-          canvasSize.height / viewBox.height,
-        )
-      : null,
-    measuredLayoutHeight,
-  );
+  // preserveAspectRatio="meet" fits the camera inside the element, so the
+  // painted scale is the smaller of the two ratios — not the width's alone.
   const pixelsPerUnit =
     canvasSize && viewBox.width > 0 && viewBox.height > 0
       ? Math.min(
@@ -231,10 +279,27 @@ export function CanvasTextEditorOverlay({
           canvasSize.height / viewBox.height,
         )
       : null;
+  const obscured: CanvasInsets = pixelsPerUnit
+    ? {
+        left: obscuredPixels.left / pixelsPerUnit,
+        right: obscuredPixels.right / pixelsPerUnit,
+        top: obscuredPixels.top / pixelsPerUnit,
+        bottom: obscuredPixels.bottom / pixelsPerUnit,
+      }
+    : NO_INSETS;
+  const frame = resolveCanvasTextEditorFrame(
+    bounds,
+    viewBox,
+    session.sizeScale,
+    pixelsPerUnit,
+    measuredLayoutHeight,
+    obscured,
+  );
   const inlineFrame = resolveInlineTextEditorFrame(
     bounds,
     viewBox,
     pixelsPerUnit,
+    obscured,
   );
   // A bound value (a parameter or a device value) edits its source text.
   // A Symbol's body text is a label like any other and keeps every format.

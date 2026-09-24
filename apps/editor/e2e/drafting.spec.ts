@@ -283,19 +283,32 @@ test("adds formatted drafting text and undo/redo restores it", async ({
     canvasBounds.x + canvasBounds.width + 1,
   );
   expect(editorBounds.width).toBeCloseTo(344, 0);
-  const [boldTop, decreaseTop, increaseTop, applyTop, cancelTop, deleteTop] =
-    await Promise.all([
-      controlTop(page.getByRole("button", { name: "Bold" })),
-      controlTop(page.getByRole("button", { name: "Decrease text size" })),
-      controlTop(page.getByRole("button", { name: "Increase text size" })),
-      controlTop(page.getByRole("button", { name: "Apply text changes" })),
-      controlTop(page.getByRole("button", { name: "Cancel text changes" })),
-      controlTop(page.getByRole("button", { name: "Delete text" })),
-    ]);
+  const [
+    boldTop,
+    decreaseTop,
+    increaseTop,
+    applyTop,
+    cancelTop,
+    deleteTop,
+    alignLeftTop,
+    alignRightTop,
+  ] = await Promise.all([
+    controlTop(page.getByRole("button", { name: "Bold" })),
+    controlTop(page.getByRole("button", { name: "Decrease text size" })),
+    controlTop(page.getByRole("button", { name: "Increase text size" })),
+    controlTop(page.getByRole("button", { name: "Apply text changes" })),
+    controlTop(page.getByRole("button", { name: "Cancel text changes" })),
+    controlTop(page.getByRole("button", { name: "Delete text" })),
+    controlTop(page.getByRole("button", { name: "Align left" })),
+    controlTop(page.getByRole("button", { name: "Align right" })),
+  ]);
   expect(Math.abs(increaseTop - decreaseTop)).toBeLessThan(1);
   expect(Math.abs(increaseTop - boldTop)).toBeLessThan(1);
   expect(Math.abs(cancelTop - applyTop)).toBeLessThan(1);
   expect(Math.abs(deleteTop - applyTop)).toBeLessThan(1);
+  // Alignment shares the commit row, which keeps the two rows balanced.
+  expect(Math.abs(alignLeftTop - applyTop)).toBeLessThan(1);
+  expect(Math.abs(alignRightTop - applyTop)).toBeLessThan(1);
   expect(applyTop).toBeGreaterThan(increaseTop);
 
   const fullViewport = page.viewportSize();
@@ -418,6 +431,63 @@ test("adds formatted drafting text and undo/redo restores it", async ({
   await expect(page.locator('[data-layer="drafting"] text')).toHaveCount(1);
   await page.keyboard.press("Control+y");
   await expect(page.getByTestId("revision")).toHaveText("6");
+});
+
+test("opens the text editor beside a docked panel instead of under it", async ({
+  page,
+}) => {
+  // Half a laptop screen: the collapsed Properties rail floats over the
+  // canvas's right edge, which the editor must treat as covered.
+  await page.setViewportSize({ width: 720, height: 720 });
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  const netlist = page.getByRole("button", {
+    name: "Netlist",
+    exact: true,
+    pressed: true,
+  });
+  if (await netlist.isVisible()) await netlist.click();
+  const canvas = page.getByTestId("schematic-canvas");
+  const rail = page.getByRole("complementary", { name: "Properties" });
+  await expect(rail).toBeVisible();
+  const [canvasBounds, railBounds] = await Promise.all([
+    canvas.boundingBox(),
+    rail.boundingBox(),
+  ]);
+  if (!canvasBounds || !railBounds) throw new Error("Layout is not measurable");
+  expect(railBounds.x).toBeGreaterThan(canvasBounds.x + 400);
+
+  // Text placed just left of the rail would open its 344 px editor across it.
+  await placeText(page, {
+    x: railBounds.x - canvasBounds.x - 40,
+    y: 320,
+  });
+  const editor = page.getByTestId("canvas-text-editor");
+  await expect
+    .poll(async () => {
+      const [editorBounds, docks] = await Promise.all([
+        editor.boundingBox(),
+        page.locator("[data-canvas-overlay]").evaluateAll((elements) =>
+          elements
+            .filter(
+              (element) => getComputedStyle(element).visibility !== "hidden",
+            )
+            .map((element) => element.getBoundingClientRect())
+            .filter((rect) => rect.width > 0 && rect.height > 0)
+            .map((rect) => ({ left: rect.left, right: rect.right })),
+        ),
+      ]);
+      if (!editorBounds) return "unmeasured";
+      const right = editorBounds.x + editorBounds.width;
+      return docks.every(
+        (dock) => right <= dock.left + 1 || editorBounds.x >= dock.right - 1,
+      )
+        ? "clear"
+        : `editor ${Math.round(editorBounds.x)}–${Math.round(right)} overlaps ${JSON.stringify(docks)}`;
+    })
+    .toBe("clear");
+  const editorBounds = await editor.boundingBox();
+  expect(editorBounds!.x).toBeGreaterThanOrEqual(canvasBounds.x);
 });
 
 test("drafting text owns an independent color override with Auto inheritance", async ({
