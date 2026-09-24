@@ -52,7 +52,7 @@ test("Analog Block hit boxes closely enclose browser-rendered artwork", async ({
         symbol.id,
       ) || ["transconductance", "adc", "dac"].includes(symbol.id),
   );
-  expect(blocks).toHaveLength(23);
+  expect(blocks).toHaveLength(35);
   const instances: SchematicDocument["instances"] = blocks.map(
     (symbol, index) => ({
       id: `U${index + 1}`,
@@ -67,14 +67,15 @@ test("Analog Block hit boxes closely enclose browser-rendered artwork", async ({
       },
     }),
   );
+  // A rotated and a mirrored copy, numbered after the catalogue above.
   instances.push(
     {
-      id: "U24",
+      id: `U${blocks.length + 1}`,
       symbolId: "opamp-differential",
       placement: { position: { x: 800, y: 460 }, rotation: 90, mirror: "none" },
     },
     {
-      id: "U25",
+      id: `U${blocks.length + 2}`,
       symbolId: "opamp-differential",
       placement: {
         position: { x: 100, y: 580 },
