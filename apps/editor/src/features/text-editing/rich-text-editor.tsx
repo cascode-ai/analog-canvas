@@ -77,6 +77,19 @@ function selectionItalic(range: Range): boolean {
   return !!element && getComputedStyle(element).fontStyle !== "normal";
 }
 
+/** Whether the first text a selection covers is drawn italic. */
+function selectionStartItalic(range: Range): boolean {
+  let node: Node | null =
+    range.startContainer.nodeType === Node.TEXT_NODE
+      ? range.startContainer
+      : (range.startContainer.childNodes[range.startOffset] ??
+        range.startContainer);
+  while (node && node.nodeType !== Node.TEXT_NODE && node.firstChild)
+    node = node.firstChild;
+  const element = node && (isElement(node) ? node : node.parentElement);
+  return !!element && getComputedStyle(element).fontStyle !== "normal";
+}
+
 function allTextBold(runs: RichTextRun[], bold = false): boolean {
   return runs.every((run) => {
     if (run.kind === "text") return !run.value.trim() || bold;
@@ -518,6 +531,14 @@ export function RichTextEditor({
       next.selectNodeContents(wrapper);
       selection?.removeAllRanges();
       selection?.addRange(next);
+    } else if (name === "italic" && range && !range.collapsed) {
+      // Scripts are upright, so italic text with its subscript is only partly
+      // italic. Chromium outside macOS would then slant everything; toggle
+      // from the start of the selection on every platform, as macOS does.
+      const startItalic = selectionStartItalic(range);
+      document.execCommand("italic");
+      if (startItalic && document.queryCommandState("italic"))
+        document.execCommand("italic");
     } else {
       document.execCommand(name);
     }
