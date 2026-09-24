@@ -153,8 +153,10 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
  * 4 also resolves unconnected schematic MOS bodies without supply symbols.
  * 5 refuses missing model targets and required parameters instead of emitting
  * placeholder identifiers.
+ * 6 writes Greek letters in Net, Pin, device and Cell names as their standard
+ * names, so a circuit named with them now extracts.
  */
-export const NETLIST_MARK_RULE_VERSION = 5;
+export const NETLIST_MARK_RULE_VERSION = 6;
 
 export function designExtractsNetlist(
   project: CircuitProject,
