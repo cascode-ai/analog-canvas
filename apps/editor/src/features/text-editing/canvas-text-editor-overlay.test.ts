@@ -39,9 +39,9 @@ describe("canvas text editor frame", () => {
         1,
         pixelsPerUnit,
       );
-      expect(view.width * pixelsPerUnit).toBeGreaterThan(332);
-      expect(frame.width * pixelsPerUnit).toBeCloseTo(332, 10);
-      expect(frame.layoutWidth).toBeCloseTo(332, 10);
+      expect(view.width * pixelsPerUnit).toBeGreaterThan(344);
+      expect(frame.width * pixelsPerUnit).toBeCloseTo(344, 10);
+      expect(frame.layoutWidth).toBeCloseTo(344, 10);
     }
   });
 
