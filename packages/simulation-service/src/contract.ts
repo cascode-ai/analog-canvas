@@ -131,6 +131,10 @@ export const ResultCatalogSchema = z.strictObject({
   runId: Id,
   preparedId: Id,
   inputRevision: z.string(),
+  /** Present for new runs; historical catalogs may predate source ownership. */
+  source: z.lazy(() => InputSourceSchema).optional(),
+  /** Missing on historical catalogs: do not infer permission to auto-prune. */
+  retentionPolicy: z.literal("cache").optional(),
   signalTargets: SimulationSignalTargetsSchema.optional(),
   execution: z.enum([
     "pending",
@@ -192,15 +196,49 @@ export const SimulationHistoryEntrySchema = ResultCatalogSchema.pick({
   runId: true,
   preparedId: true,
   inputRevision: true,
+  source: true,
   execution: true,
   collection: true,
 }).extend({
   storedAt: z.number(),
   storage: z.enum(["persistent", "memory"]),
+  fileCount: z.number().int().nonnegative(),
+  byteLength: z.number().int().nonnegative(),
+  retention: z.enum([
+    "saved",
+    "cache",
+    "catalog-only",
+    "session-only",
+    "unverified",
+  ]),
+  archiveCount: z.number().int().nonnegative(),
 });
 export type SimulationHistoryEntry = z.infer<
   typeof SimulationHistoryEntrySchema
 >;
+export const SimulationHistoryUsageSchema = z.strictObject({
+  fileCount: z.number().int().nonnegative(),
+  byteLength: z.number().int().nonnegative(),
+  unreferencedFileCount: z.number().int().nonnegative(),
+  unreferencedBytes: z.number().int().nonnegative(),
+  catalogCount: z.number().int().nonnegative(),
+  fileLimit: z.number().int().positive(),
+  byteLimit: z.number().int().positive(),
+  /** Browser evidence can remain pending reclamation while another tab uses it. */
+  cleanupDeferred: z.boolean(),
+});
+export const SimulationHistoryDeletionSchema = z.strictObject({
+  runId: Id,
+  dryRun: z.boolean(),
+  deleted: z.boolean(),
+  retention: SimulationHistoryEntrySchema.shape.retention,
+  archiveCount: z.number().int().nonnegative(),
+  fileCount: z.number().int().nonnegative(),
+  byteLength: z.number().int().nonnegative(),
+  reclaimedFiles: z.number().int().nonnegative(),
+  reclaimedBytes: z.number().int().nonnegative(),
+  cleanupDeferred: z.boolean(),
+});
 export const VectorSchema = z.strictObject({
   probeId: Id,
   vector: z.string(),
@@ -551,6 +589,14 @@ export const SimulationOperationSchema = z.discriminatedUnion("operation", [
     limit: z.number().int().min(1).max(100).default(50),
     cursor: Id.optional(),
   }),
+  z.strictObject({ operation: z.literal("history-usage") }),
+  z.strictObject({
+    operation: z.literal("history-delete"),
+    runId: Id,
+    dryRun: z.boolean().optional(),
+    /** Explicitly include manually saved or unclassified legacy archives. */
+    includeSaved: z.boolean().optional(),
+  }),
   z.strictObject({ operation: z.literal("cancel"), runId: Id }),
   z
     .strictObject({
@@ -858,6 +904,11 @@ export const SimulationReplySchema = z.union([
     ok: z.literal(true),
     runs: z.array(SimulationHistoryEntrySchema),
     nextCursor: Id.nullable(),
+  }),
+  z.strictObject({ ok: z.literal(true), usage: SimulationHistoryUsageSchema }),
+  z.strictObject({
+    ok: z.literal(true),
+    deletion: SimulationHistoryDeletionSchema,
   }),
   z.strictObject({ ok: z.literal(true), batch: SimulationBatchSchema }),
   z.strictObject({

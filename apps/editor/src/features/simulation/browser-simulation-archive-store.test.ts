@@ -42,6 +42,88 @@ function archive(id: string, createdAt: string): SimulationRunArchiveV1 {
 }
 
 describe("browser simulation archive store", () => {
+  it("rotates only explicitly generated cache and preserves legacy and saved archives", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArchiveStore({ idbFactory: factory });
+    for (let index = 0; index < 33; index++) {
+      expect(
+        await store.save({
+          ...archive(`cache-${index}`, new Date(index * 1000).toISOString()),
+          retention: "cache",
+        }),
+      ).toMatchObject({ ok: true });
+    }
+    expect(
+      await store.save(archive("legacy", new Date(0).toISOString())),
+    ).toMatchObject({
+      ok: true,
+    });
+    expect(
+      await store.save({
+        ...archive("saved", new Date(0).toISOString()),
+        retention: "saved",
+      }),
+    ).toMatchObject({ ok: true });
+    expect(await store.pruneCache("project")).toEqual({
+      ok: true,
+      value: ["cache-2", "cache-1", "cache-0"],
+    });
+    const entries = await store.runEntries("project");
+    expect(entries).toMatchObject({ ok: true });
+    if (!entries.ok) throw new Error(entries.message);
+    expect(
+      entries.value.filter((item) => item.retention === "cache"),
+    ).toHaveLength(30);
+    expect(entries.value.find((item) => item.id === "legacy")?.retention).toBe(
+      "saved",
+    );
+    expect(entries.value.find((item) => item.id === "saved")?.retention).toBe(
+      "saved",
+    );
+    expect(await store.read("cache-0")).toEqual({ ok: true, value: null });
+    store.close();
+  });
+  it("does not let a late automatic handoff downgrade an explicit Save", async () => {
+    const store = createBrowserSimulationArchiveStore({
+      idbFactory: new IDBFactory(),
+    });
+    const saved = {
+      ...archive("same", new Date(0).toISOString()),
+      retention: "saved" as const,
+    };
+    expect(await store.save(saved)).toMatchObject({
+      ok: true,
+      value: { retention: "saved" },
+    });
+    expect(await store.save({ ...saved, retention: "cache" })).toMatchObject({
+      ok: true,
+      value: { retention: "saved" },
+    });
+    expect(await store.read("same")).toMatchObject({
+      ok: true,
+      value: { retention: "saved" },
+    });
+    store.close();
+  });
+  it("reports pending GUI deletion to evidence usage before physical cleanup", async () => {
+    const factory = new IDBFactory();
+    const archiveStore = createBrowserSimulationArchiveStore({
+      idbFactory: factory,
+    });
+    const evidence = createBrowserSimulationArtifactStore("project", factory)!;
+    expect(
+      await archiveStore.save(archive("to-delete", new Date(0).toISOString())),
+    ).toMatchObject({
+      ok: true,
+    });
+    expect(await archiveStore.delete("to-delete")).toMatchObject({ ok: true });
+    expect(await archiveStore.pendingRemovalCount("project")).toEqual({
+      ok: true,
+      value: 1,
+    });
+    expect(await evidence.usage!()).toMatchObject({ cleanupDeferred: true });
+    archiveStore.close();
+  });
   it("reclaims deleted runs and abandoned files atomically while preserving shared and other-Project evidence", async () => {
     const factory = new IDBFactory();
     // Unit harness grants locks; real cross-tab exclusion has browser coverage.

@@ -1,11 +1,48 @@
 import { describe, expect, it, vi } from "vitest";
+import { IDBFactory } from "fake-indexeddb";
 import { createEmptyProject } from "@icm/model";
+import { SimulationFiles } from "@icm/simulation-service/files";
+import { createBrowserSimulationArtifactStore } from "./browser-simulation-artifact-store";
+import { ProjectRunHistory } from "./project-run-history";
 import {
   BrowserSimulationSession,
   unchangedProjectSnapshot,
 } from "./browser-simulation-session";
 
 describe("browser simulation ownership", () => {
+  it("refreshes Project run views after an Agent history deletion", async () => {
+    const project = createEmptyProject("project", "Project");
+    const files = new SimulationFiles(
+      Date.now,
+      undefined,
+      undefined,
+      createBrowserSimulationArtifactStore(project.id, new IDBFactory()),
+    );
+    await files.saveCatalog({
+      schemaVersion: 1,
+      runId: "old-run",
+      preparedId: "prepared",
+      inputRevision: "rev",
+      execution: "completed",
+      collection: "complete",
+      files: [],
+      datasets: [],
+    });
+    const history = new ProjectRunHistory(project.id);
+    const forget = vi.spyOn(history, "forgetRun");
+    const session = new BrowserSimulationSession({
+      files,
+      runHistory: history,
+      getProject: () => project,
+      getProjectSessionId: () => "project",
+    });
+    expect(
+      await session.handle({ operation: "history-delete", runId: "old-run" }),
+    ).toMatchObject({ ok: true, deletion: { deleted: true } });
+    expect(forget).toHaveBeenCalledWith("old-run");
+    await session.clear();
+    history.dispose();
+  });
   it("omits the Project snapshot when editing races with preparation", () => {
     const before = createEmptyProject("project", "Before");
     const after = structuredClone(before);

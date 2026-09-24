@@ -165,6 +165,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   const [archives, setArchives] = useState<
     readonly SimulationRunArchiveSummary[]
   >([]);
+  const [historyAllFolders, setHistoryAllFolders] = useState(true);
 
   const batchMenuRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
@@ -639,13 +640,15 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       );
       return;
     }
-    const saved = await archiveStore.save(
-      existing?.value ?? {
+    const saved = await archiveStore.save({
+      ...(existing?.value ?? {
         ...captured.value,
         id: `run-${run.id}`,
         ...(openedProjectFile ? { projectFile: openedProjectFile } : {}),
-      },
-    );
+      }),
+      // Explicit Save upgrades an automatically retained result to protected.
+      retention: "saved",
+    });
     setArtifactBusy(undefined);
     if (!saved.ok) {
       setProblem(
@@ -1046,26 +1049,35 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   const historyContent = (
     <details className="simulation-run-history">
       <summary>Run history</summary>{" "}
+      <label>
+        <input
+          type="checkbox"
+          checked={historyAllFolders}
+          onChange={(event) => setHistoryAllFolders(event.target.checked)}
+        />
+        All Project folders
+      </label>
       {archives.some(
         (item) =>
-          item.folderId === selectedFolder?.id &&
+          (historyAllFolders || item.folderId === selectedFolder?.id) &&
           !sharedRuns.some((run) => run.archive?.id === item.id),
       ) ? (
         <section
           className="simulation-archive-list"
           aria-label="Saved folder results"
         >
-          <strong>Saved results · this browser</strong>
+          <strong>Saved and cached results · this browser</strong>
           <ul>
             {archives
               .filter(
                 (item) =>
-                  item.folderId === selectedFolder?.id &&
+                  (historyAllFolders || item.folderId === selectedFolder?.id) &&
                   !sharedRuns.some((run) => run.archive?.id === item.id),
               )
               .map((item) => (
                 <li key={item.id}>
                   <span>
+                    {item.retention === "cache" ? "Auto · " : "Saved · "}
                     {item.origin === "agent" ? "Agent · " : ""}
                     {item.folderName} · {item.state ?? "saved"} ·{" "}
                     {new Date(item.createdAt).toLocaleString()}
@@ -1079,7 +1091,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
                   </button>
                   <button
                     type="button"
-                    aria-label={`Delete saved result ${item.id}`}
+                    aria-label={`Delete result ${item.id}`}
                     onClick={() => void deleteArchivedRun(item.id)}
                   >
                     Delete
@@ -1090,14 +1102,18 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         </section>
       ) : null}
       {sharedRuns.some(
-        (item) => item.presentation.folderId === selectedFolder?.id,
+        (item) =>
+          historyAllFolders ||
+          item.presentation.folderId === selectedFolder?.id,
       ) ? (
         <section className="simulation-archive-list" aria-label="Project runs">
           <strong>Project runs · automatically archived in this browser</strong>
           <ul>
             {sharedRuns
               .filter(
-                (item) => item.presentation.folderId === selectedFolder?.id,
+                (item) =>
+                  historyAllFolders ||
+                  item.presentation.folderId === selectedFolder?.id,
               )
               .map((item) => (
                 <li key={item.id}>

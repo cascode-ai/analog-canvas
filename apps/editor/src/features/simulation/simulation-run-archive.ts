@@ -55,6 +55,8 @@ export interface SimulationRunArchiveV1 {
   readonly id: string;
   readonly projectId: string;
   readonly createdAt: string;
+  /** Missing on legacy archives: conservatively treated as saved. */
+  readonly retention?: "cache" | "saved";
   readonly presentation: SimulationArchivePresentation;
   readonly prepared: ArchivedPrepared;
   readonly run: ArchivedRun;
@@ -71,6 +73,8 @@ export interface SimulationRunArchiveSummary {
   readonly folderName: string;
   readonly analysisLabel: string;
   readonly createdAt: string;
+  readonly runId?: string;
+  readonly retention?: "cache" | "saved";
   readonly byteLength: number;
   readonly environment: Prepared["environment"];
 }
@@ -334,6 +338,8 @@ export function summarizeSimulationRunArchive(
     folderName: archive.presentation.folderName,
     analysisLabel: archive.presentation.analysisLabel,
     createdAt: archive.createdAt,
+    runId: archive.run.id,
+    retention: archive.retention ?? "saved",
     byteLength: archive.byteLength,
     environment: archive.prepared.environment,
     state: archive.run.state,

@@ -53,6 +53,16 @@ describe("request replay classification", () => {
       } as AgentSimulationResourceRequest),
     ).toBe(false);
     expect(
+      isReadOnlySimulationRequest({
+        operation: "history-usage",
+      } as AgentSimulationResourceRequest),
+    ).toBe(true);
+    expect(
+      isReadOnlySimulationRequest({
+        operation: "history-delete",
+      } as AgentSimulationResourceRequest),
+    ).toBe(false);
+    expect(
       isReadOnlyProjectRequest({
         operation: "workspace",
         request: { action: "list" },

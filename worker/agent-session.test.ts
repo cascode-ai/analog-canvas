@@ -62,6 +62,10 @@ it("requires no spending grant for static authoring help without relaxing run ac
   expect(scopes({ operation: "catalog", runId: "r" })).toEqual([
     "simulation.run",
   ]);
+  expect(scopes({ operation: "history-usage" })).toEqual(["simulation.run"]);
+  expect(scopes({ operation: "history-delete", runId: "r" })).toEqual([
+    "simulation.run",
+  ]);
 });
 
 it("uses existing Project write authorization for Project-owned simulation source only", () => {
