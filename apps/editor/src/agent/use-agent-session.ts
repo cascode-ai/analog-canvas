@@ -511,8 +511,14 @@ export function useAgentSession(
             });
           }
         };
+        // Keep revision-scoped derived Snapshot evidence for this live browser
+        // session. The host replaces Project/Document identities on commit, so
+        // the service's existing identity guards invalidate it automatically.
+        let serviceInstance: ReturnType<
+          typeof createAgentCircuitService
+        > | null = null;
         const service = () =>
-          createAgentCircuitService({
+          (serviceInstance ??= createAgentCircuitService({
             agentId: `web-agent:${live.sessionId}`,
             host: options.host,
             permissions: permissionsFromScopes(scopes),
@@ -583,7 +589,7 @@ export function useAgentSession(
                     : {}),
                 }
               : {}),
-          });
+          }));
         const bind = (socket: WebSocket) => {
           live.socket = socket;
           socket.addEventListener("message", (event) => {
