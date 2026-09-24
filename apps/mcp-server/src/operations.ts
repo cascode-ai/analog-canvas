@@ -205,7 +205,7 @@ async function localWorkspace(session: ToolSessionState, basePath?: string) {
   const status = await session.client.status();
   if (!status.sessionId)
     throw new Error("Connect before creating or syncing a local workspace");
-  // Project.id is not an open-workspace identity: new projects may all use
+  // Project.id is not an open-workspace identity: legacy drafts may still use
   // project-main. Resolve the browser's active copy before selecting a disk base.
   const response = await session.client.projectResource({
     apiVersion: AGENT_API_VERSION,
