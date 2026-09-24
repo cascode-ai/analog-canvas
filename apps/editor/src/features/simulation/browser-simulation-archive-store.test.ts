@@ -1,4 +1,4 @@
-import { IDBFactory, IDBObjectStore } from "fake-indexeddb";
+import { IDBDatabase, IDBFactory, IDBObjectStore } from "fake-indexeddb";
 import { describe, expect, it, vi } from "vitest";
 
 import { createBrowserSimulationArchiveStore } from "./browser-simulation-archive-store";
@@ -42,6 +42,32 @@ function archive(id: string, createdAt: string): SimulationRunArchiveV1 {
 }
 
 describe("browser simulation archive store", () => {
+  it("reconciles many retained archives with one evidence-reference transaction", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArchiveStore({ idbFactory: factory });
+    for (let index = 0; index < 12; index++)
+      expect(
+        await store.save(
+          archive(`batch-${index}`, new Date(index).toISOString()),
+        ),
+      ).toMatchObject({ ok: true });
+    const transactions = vi.spyOn(IDBDatabase.prototype, "transaction");
+    try {
+      expect(await store.reconcileReferences("project")).toEqual({
+        ok: true,
+        value: 0,
+      });
+      const referenceTransactions = transactions.mock.calls.filter(([names]) =>
+        Array.isArray(names)
+          ? names.includes("references")
+          : names === "references",
+      );
+      expect(referenceTransactions).toHaveLength(1);
+    } finally {
+      transactions.mockRestore();
+      store.close();
+    }
+  });
   it("keeps 30 automatic runs across archived and catalog-only results", async () => {
     const factory = new IDBFactory();
     const store = createBrowserSimulationArchiveStore({ idbFactory: factory });

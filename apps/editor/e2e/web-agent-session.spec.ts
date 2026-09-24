@@ -357,6 +357,7 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
   let sessionCreates = 0;
   let revokeControls = 0;
   let contextRevision: string | undefined;
+  let initialProjectId: string | undefined;
 
   await page.routeWebSocket(
     `**/api/agent/sessions/${sessionId}/editor`,
@@ -384,7 +385,9 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
         documentIds: string[];
         scopes: string[];
       };
-      expect(body.projectId).toBe("project-main");
+      expect(body.projectId).toMatch(/^project-/);
+      initialProjectId ??= body.projectId;
+      expect(body.projectId).toBe(initialProjectId);
       expect(body.projectSessionId).toBeTruthy();
       expect(body.documentIds).toEqual(["document-main"]);
       expect([...body.scopes].sort()).toEqual(
@@ -627,7 +630,7 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
     structureRevision: number;
   };
   expect(JSON.parse(projectCodePayload.projectCode)).toMatchObject({
-    id: "project-main",
+    id: initialProjectId,
   });
   const projectCodeNoop = await sendProjectRequest("replace-project-code", {
     apiVersion: "3.0",

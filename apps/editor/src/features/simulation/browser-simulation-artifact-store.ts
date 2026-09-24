@@ -21,6 +21,10 @@ export interface BrowserSimulationArtifactStore extends SimulationArtifactStore 
     owner: string,
     artifactIds: readonly string[],
   ): Promise<void>;
+  /** Reconcile many archive owners in one validated storage transaction. */
+  retainReferencesMany(
+    owners: readonly { owner: string; artifactIds: readonly string[] }[],
+  ): Promise<void>;
   releaseReferences(owner: string): Promise<void>;
   referencedArtifactIds(): Promise<string[]>;
   queueRunRemoval(runId: string): Promise<void>;
@@ -87,7 +91,7 @@ export function createBrowserSimulationArtifactStore(
         } finally {
           archives.close();
         }
-      })().catch(() => {}); // Housekeeping never gates ordinary simulation I/O.
+      })().catch(() => {}); // Failed housekeeping does not deny ordinary I/O.
       await startup;
       if (current !== generation) throw new Error("SESSION_CHANGED");
     }
@@ -108,6 +112,52 @@ export function createBrowserSimulationArtifactStore(
             .createIndex("projectId", "projectId");
     };
     return value(request);
+  }
+  async function retainReferenceOwners(
+    owners: readonly { owner: string; artifactIds: readonly string[] }[],
+  ) {
+    if (!owners.length) return;
+    const db = await open();
+    try {
+      const tx = db.transaction([BODY, DIRECTORY, REFERENCES], "readwrite");
+      const done = completed(tx);
+      // Observe abort immediately, including a deliberate validation abort.
+      void done.catch(() => {});
+      try {
+        const ids = [...new Set(owners.flatMap((entry) => entry.artifactIds))];
+        const directory = tx.objectStore(DIRECTORY);
+        const bodies = tx.objectStore(BODY);
+        const present = await Promise.all(
+          ids.map(async (id) => {
+            const key = [projectId, id];
+            const [entry, bodyKey] = await Promise.all([
+              value(directory.get(key)),
+              value(bodies.getKey(key)),
+            ]);
+            return Boolean(entry && bodyKey !== undefined);
+          }),
+        );
+        const missing = ids.find((_, index) => !present[index]);
+        if (missing) throw new Error(`ARTIFACT_UNAVAILABLE: ${missing}`);
+        const references = tx.objectStore(REFERENCES);
+        for (const { owner, artifactIds } of owners)
+          references.put(
+            { projectId, artifactIds: [...new Set(artifactIds)] },
+            [projectId, owner],
+          );
+        await done;
+      } catch (error) {
+        try {
+          tx.abort();
+        } catch {
+          /* transaction already completed */
+        }
+        await done.catch(() => {});
+        throw error;
+      }
+    } finally {
+      db.close();
+    }
   }
   return {
     async removeCachedCatalogs(entries) {
@@ -355,37 +405,10 @@ export function createBrowserSimulationArtifactStore(
       lease?.release();
     },
     async retainReferences(owner, artifactIds) {
-      const db = await open();
-      try {
-        const tx = db.transaction([BODY, DIRECTORY, REFERENCES], "readwrite");
-        const done = completed(tx);
-        // Observe abort immediately, including a deliberate validation abort.
-        void done.catch(() => {});
-        try {
-          const ids = [...new Set(artifactIds)];
-          for (const id of ids)
-            if (
-              !(await value(tx.objectStore(DIRECTORY).get([projectId, id]))) ||
-              !(await value(tx.objectStore(BODY).getKey([projectId, id])))
-            )
-              throw new Error(`ARTIFACT_UNAVAILABLE: ${id}`);
-          tx.objectStore(REFERENCES).put({ projectId, artifactIds: ids }, [
-            projectId,
-            owner,
-          ]);
-          await done;
-        } catch (error) {
-          try {
-            tx.abort();
-          } catch {
-            /* transaction already completed */
-          }
-          await done.catch(() => {});
-          throw error;
-        }
-      } finally {
-        db.close();
-      }
+      await retainReferenceOwners([{ owner, artifactIds }]);
+    },
+    async retainReferencesMany(owners) {
+      await retainReferenceOwners(owners);
     },
     async releaseReferences(owner) {
       const db = await open();
@@ -449,6 +472,20 @@ export function createBrowserSimulationArtifactStore(
           [projectId, record.catalog.runId],
         );
         await completed(tx);
+      } finally {
+        db.close();
+      }
+    },
+    async catalog(runId) {
+      const db = await open();
+      try {
+        const tx = db.transaction(CATALOGS, "readonly");
+        const done = completed(tx);
+        const record = (await value(
+          tx.objectStore(CATALOGS).get([projectId, runId]),
+        )) as StoredResultCatalog | undefined;
+        await done;
+        return record ?? null;
       } finally {
         db.close();
       }

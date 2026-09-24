@@ -293,48 +293,82 @@ export function createBrowserSimulationArchiveStore(
             .getAll(projectId),
         )) as SimulationRunArchiveSummary[];
         await transactionDone(directory);
-        let registered = 0;
+        const read = db.transaction(STORE_NAME, "readonly");
+        const readDone = transactionDone(read);
+        const records = await Promise.all(
+          summaries.map(
+            (summary) =>
+              requestValue(
+                read.objectStore(STORE_NAME).get(summary.id),
+              ) as Promise<StoredArchive | undefined>,
+          ),
+        );
+        await readDone;
         // Self-contained legacy archives do not depend on shared file bodies.
-        for (const summary of summaries) {
-          const read = db.transaction(STORE_NAME, "readonly");
-          const record = (await requestValue(
-            read.objectStore(STORE_NAME).get(summary.id),
-          )) as StoredArchive | undefined;
-          await transactionDone(read);
-          if (
-            !record ||
-            record.projectId !== projectId ||
-            record.storageFormat !== "artifact-references-v1"
-          )
-            continue;
-          const retentionKey =
-            record.retentionKey ??
-            `archive:${record.id}:${crypto.randomUUID()}`;
-          await evidenceStore(projectId).retainReferences(
-            retentionKey,
-            record.artifacts.map((file) => file.storageId),
-          );
-          if (record.retentionKey) continue;
-          const next = { ...record, retentionKey };
-          try {
-            const tx = db.transaction(STORE_NAME, "readwrite");
-            const done = transactionDone(tx);
-            void done.catch(() => {});
-            const store = tx.objectStore(STORE_NAME);
-            const current = await requestValue(store.get(record.id));
-            // Compare metadata, never overwrite a concurrent replacement/delete.
-            const unchanged =
-              JSON.stringify(current) === JSON.stringify(record);
-            if (unchanged) store.put(next, record.id);
-            await done;
-            if (unchanged) registered++;
-            else await release(next);
-          } catch (error) {
-            await release(next);
-            throw error;
-          }
+        const candidates = records.flatMap((record) =>
+          record?.projectId === projectId &&
+          record.storageFormat === "artifact-references-v1"
+            ? [
+                {
+                  record,
+                  retentionKey:
+                    record.retentionKey ??
+                    `archive:${record.id}:${crypto.randomUUID()}`,
+                },
+              ]
+            : [],
+        );
+        const missing = candidates.filter(({ record }) => !record.retentionKey);
+        const evidence = evidenceStore(projectId);
+        // Keep large legacy stores bounded without one transaction per Run.
+        try {
+          for (let offset = 0; offset < candidates.length; offset += 16)
+            await evidence.retainReferencesMany(
+              candidates
+                .slice(offset, offset + 16)
+                .map(({ record, retentionKey }) => ({
+                  owner: retentionKey,
+                  artifactIds: record.artifacts.map((file) => file.storageId),
+                })),
+            );
+        } catch (error) {
+          for (const { record, retentionKey } of missing)
+            await release({ ...record, retentionKey });
+          throw error;
         }
-        return { ok: true, value: registered };
+        if (!missing.length) return { ok: true, value: 0 };
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        const done = transactionDone(tx);
+        void done.catch(() => {});
+        try {
+          const store = tx.objectStore(STORE_NAME);
+          const current = await Promise.all(
+            missing.map(({ record }) => requestValue(store.get(record.id))),
+          );
+          let registered = 0;
+          const abandoned: StoredArchive[] = [];
+          missing.forEach(({ record, retentionKey }, index) => {
+            const next = { ...record, retentionKey };
+            // Compare metadata, never overwrite a concurrent replacement/delete.
+            if (JSON.stringify(current[index]) === JSON.stringify(record)) {
+              store.put(next, record.id);
+              registered++;
+            } else abandoned.push(next);
+          });
+          await done;
+          for (const next of abandoned) await release(next);
+          return { ok: true, value: registered };
+        } catch (error) {
+          try {
+            tx.abort();
+          } catch {
+            /* transaction already completed */
+          }
+          await done.catch(() => {});
+          for (const { record, retentionKey } of missing)
+            await release({ ...record, retentionKey });
+          throw error;
+        }
       } catch (error) {
         return failure(error);
       }
@@ -351,12 +385,18 @@ export function createBrowserSimulationArchiveStore(
             const db = await open();
             const keys: string[] = [],
               runIds: string[] = [];
-            for (const summary of listed.value) {
-              const tx = db.transaction(STORE_NAME, "readonly");
-              const record = (await requestValue(
-                tx.objectStore(STORE_NAME).get(summary.id),
-              )) as StoredArchive | undefined;
-              await transactionDone(tx);
+            const read = db.transaction(STORE_NAME, "readonly");
+            const readDone = transactionDone(read);
+            const records = await Promise.all(
+              listed.value.map(
+                (summary) =>
+                  requestValue(
+                    read.objectStore(STORE_NAME).get(summary.id),
+                  ) as Promise<StoredArchive | undefined>,
+              ),
+            );
+            await readDone;
+            for (const record of records) {
               if (!record) continue;
               runIds.push(record.run.id);
               if (record.storageFormat === "artifact-references-v1") {
@@ -492,6 +532,16 @@ export function createBrowserSimulationArchiveStore(
         if (!listed.ok) return listed;
         const evidence = evidenceStore(projectId);
         const catalogs = await evidence.catalogs!();
+        // Even counting duplicate representations, nothing can be evicted.
+        // Avoid loading archive ownership on the normal under-cap path.
+        if (
+          listed.value.filter((entry) => entry.retention === "cache").length +
+            catalogs.filter(
+              ({ catalog }) => catalog.retentionPolicy === "cache",
+            ).length <=
+          RETAINED_CACHE_RUNS
+        )
+          return { ok: true, value: [] };
         const owners = await api.runEntries(projectId);
         if (!owners.ok) return owners;
         const savedRuns = new Set(
@@ -559,11 +609,13 @@ export function createBrowserSimulationArchiveStore(
       try {
         const listed = await api.list(projectId);
         if (!listed.ok) return listed;
-        const db = await open();
-        const read = db.transaction(STORE_NAME, "readonly");
         const possible = listed.value.filter(
           (entry) => entry.retention === "saved",
         );
+        if (possible.length <= RETAINED_SAVED_RUNS)
+          return { ok: true, value: [] };
+        const db = await open();
+        const read = db.transaction(STORE_NAME, "readonly");
         const records = await Promise.all(
           possible.map(
             (entry) =>

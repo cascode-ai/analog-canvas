@@ -19,6 +19,27 @@ async function saved(page: Page): Promise<CircuitProject> {
   ) as CircuitProject;
 }
 
+test("first blank Project has its own stable evidence identity", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/editor?new=1");
+  const initialId = (await saved(page)).id;
+  expect(initialId).toMatch(/^project-/);
+  const separateWindow = await context.newPage();
+  await separateWindow.goto("/editor?new=1");
+  expect((await saved(separateWindow)).id).not.toBe(initialId);
+  await separateWindow.close();
+  await page.reload();
+  expect((await saved(page)).id).toBe(initialId);
+  await page
+    .getByRole("button", { name: "New project tab", exact: true })
+    .click();
+  const nextId = (await saved(page)).id;
+  expect(nextId).toMatch(/^project-/);
+  expect(nextId).not.toBe(initialId);
+});
+
 test("project tabs append a partial selection and retain independent history, cameras and code drafts", async ({
   page,
   context,

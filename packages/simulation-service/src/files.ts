@@ -77,7 +77,10 @@ export interface SimulationArtifactStore {
   get(id: string): Promise<{ ref: ArtifactRef; text: string } | null>;
   find?(fileId: string): Promise<ArtifactRef | null>;
   saveCatalog?(record: StoredResultCatalog): Promise<void>;
+  catalog?(runId: string): Promise<StoredResultCatalog | null>;
   catalogs?(): Promise<StoredResultCatalog[]>;
+  /** Current durable owners after a logical Run deletion. */
+  referencedArtifactIds?(): Promise<string[]>;
   usage?(): Promise<{
     fileCount: number;
     byteLength: number;
@@ -136,6 +139,8 @@ export class SimulationFiles {
   private epoch = 0;
   private workspaces = new Map<string, Workspace>();
   private artifacts = new Map<string, CachedArtifact>();
+  /** Logical Run deletion takes effect before cross-tab physical reclamation. */
+  private revokedArtifactIds = new Set<string>();
   private catalogs = new Map<
     string,
     StoredResultCatalog & { storage: "persistent" | "memory" }
@@ -156,6 +161,7 @@ export class SimulationFiles {
     this.uploadingBytes = 0;
     this.workspaces.clear();
     this.artifacts.clear();
+    this.revokedArtifactIds.clear();
     this.catalogs.clear();
     this.downloads.clear();
     this.uploadQueue = [];
@@ -251,6 +257,13 @@ export class SimulationFiles {
       return { ok: true as const, workspace: structuredClone(workspace) };
     }
     if (op.action === "artifact" || op.action === "download") {
+      if (this.revokedArtifactIds.has(op.artifactId))
+        return problem(
+          "ARTIFACT_UNAVAILABLE",
+          "Artifact is unavailable in this Project",
+          "export",
+          "not-retryable",
+        );
       const epoch = this.epoch;
       let item = this.artifacts.get(op.artifactId);
       if (!item && this.artifactStore) {
@@ -547,7 +560,21 @@ export class SimulationFiles {
         { ...record, storage: "persistent" as "persistent" | "memory" },
       ]),
     );
-    for (const [id, record] of this.catalogs) records.set(id, record);
+    for (const [id, record] of this.catalogs) {
+      if (record.storage === "memory" || !this.artifactStore?.catalogs) {
+        records.set(id, record);
+      } else if (records.has(id)) {
+        records.set(id, record);
+      } else {
+        // An automatic retention pass removed the durable catalog while this
+        // process was open. Do not resurrect it from the hot cache.
+        this.catalogs.delete(id);
+        for (const file of record.catalog.files) {
+          this.artifacts.delete(file.id);
+          this.downloads.delete(file.id);
+        }
+      }
+    }
     return [...records.values()].sort(
       (a, b) =>
         b.storedAt - a.storedAt ||
@@ -567,6 +594,12 @@ export class SimulationFiles {
   }
   async usage() {
     const stored = await this.artifactStore?.usage?.();
+    if (stored)
+      return {
+        ...stored,
+        fileLimit: MAX_ARTIFACT_FILES,
+        byteLimit: MAX_ARTIFACT_STORE_BYTES,
+      };
     const records = await this.retainedCatalogs();
     const referenced = new Set(
       records.flatMap((record) => record.catalog.files.map((file) => file.id)),
@@ -575,27 +608,31 @@ export class SimulationFiles {
       (item) => !referenced.has(item.ref.id),
     );
     return {
-      fileCount: stored?.fileCount ?? this.artifacts.size,
-      byteLength:
-        stored?.byteLength ??
-        [...this.artifacts.values()].reduce(
-          (sum, item) => sum + item.ref.byteLength,
-          0,
-        ),
-      unreferencedFileCount:
-        stored?.unreferencedFileCount ?? unreferenced.length,
-      unreferencedBytes:
-        stored?.unreferencedBytes ??
-        unreferenced.reduce((sum, item) => sum + item.ref.byteLength, 0),
-      catalogCount: stored?.catalogCount ?? records.length,
+      fileCount: this.artifacts.size,
+      byteLength: [...this.artifacts.values()].reduce(
+        (sum, item) => sum + item.ref.byteLength,
+        0,
+      ),
+      unreferencedFileCount: unreferenced.length,
+      unreferencedBytes: unreferenced.reduce(
+        (sum, item) => sum + item.ref.byteLength,
+        0,
+      ),
+      catalogCount: records.length,
       fileLimit: MAX_ARTIFACT_FILES,
       byteLimit: MAX_ARTIFACT_STORE_BYTES,
-      cleanupDeferred: stored?.cleanupDeferred ?? false,
+      cleanupDeferred: false,
     };
   }
   async catalog(runId: string): Promise<ResultCatalog | undefined> {
     const current = this.catalogs.get(runId);
-    if (current) return structuredClone(current.catalog);
+    if (current?.storage === "memory" || !this.artifactStore?.catalogs)
+      return current ? structuredClone(current.catalog) : undefined;
+    if (this.artifactStore?.catalog) {
+      const saved = await this.artifactStore.catalog(runId);
+      if (!saved) this.catalogs.delete(runId);
+      return saved ? structuredClone(saved.catalog) : undefined;
+    }
     return (await this.retainedCatalogs()).find(
       (record) => record.catalog.runId === runId,
     )?.catalog;
@@ -694,6 +731,27 @@ export class SimulationFiles {
       options.includeSaved ?? false,
     );
     this.catalogs.delete(runId);
+    // An active Editor lease can defer physical reclamation. Invalidate its
+    // process cache now, but retain IDs still owned by another Run or archive.
+    let retainedIds: Set<string> | undefined;
+    try {
+      retainedIds = new Set(
+        this.artifactStore?.referencedArtifactIds
+          ? await this.artifactStore.referencedArtifactIds()
+          : (await this.retainedCatalogs()).flatMap((entry) =>
+              entry.catalog.files.map((file) => file.id),
+            ),
+      );
+    } catch {
+      // The delete committed; do not turn a cache refresh failure into a
+      // misleading retryable delete failure.
+    }
+    for (const file of record.catalog.files) {
+      if (retainedIds?.has(file.id)) continue;
+      this.artifacts.delete(file.id);
+      this.downloads.delete(file.id);
+      if (retainedIds) this.revokedArtifactIds.add(file.id);
+    }
     return {
       ...receipt,
       deleted: true,
@@ -710,6 +768,13 @@ export class SimulationFiles {
     | { ok: true; artifact: ArtifactRef; text: string }
     | { ok: false; error: Problem }
   > {
+    if (this.revokedArtifactIds.has(id))
+      return problem(
+        "ARTIFACT_UNAVAILABLE",
+        "Artifact is unavailable in this Project",
+        "export",
+        "not-retryable",
+      );
     const epoch = this.epoch;
     try {
       const item =
@@ -879,6 +944,7 @@ export class SimulationFiles {
         )
           throw new Error("ARTIFACT_ID_CONFLICT");
         const item = { ref: existing, text };
+        this.revokedArtifactIds.delete(existing.id);
         this.artifacts.set(existing.id, item);
         this.trimCache();
         if (this.publisher && !this.downloads.has(existing.id))
@@ -916,6 +982,7 @@ export class SimulationFiles {
     }
     if (epoch !== this.epoch) throw new Error("SESSION_CHANGED");
     const item = { ref, text };
+    this.revokedArtifactIds.delete(ref.id);
     this.artifacts.set(ref.id, item);
     this.trimCache();
     if (this.publisher) this.startDownload(item);
