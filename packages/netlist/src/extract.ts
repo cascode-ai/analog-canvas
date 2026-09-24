@@ -3,6 +3,7 @@ import {
   foldNetName,
   projectCellInterface,
   routeEndpoints,
+  spellGreekLetters,
 } from "@icm/model";
 import {
   deriveProjectNetNameProjection,
@@ -1750,6 +1751,10 @@ function extractCell(
   const cellPinInstanceIds = new Set(
     interfaceProjection.ports.flatMap((port) => port.interfaceInstanceIds),
   );
+  const spelledReferences = new Map<
+    string,
+    { reference: string; id: string }
+  >();
   for (const source of [...document.instances].sort((a, b) => {
     const left = a.reference ?? syntheticReferences.get(a.id) ?? a.id;
     const right = b.reference ?? syntheticReferences.get(b.id) ?? b.id;
@@ -1757,10 +1762,35 @@ function extractCell(
   })) {
     // Older/Agent-authored drawings can omit references on primitive devices
     // too. Allocate only in this read-only projection, before dialect prefixes.
-    const generatedReference = syntheticReferences.get(source.id);
-    const instance = generatedReference
-      ? { ...source, reference: generatedReference }
-      : source;
+    // A Greek letter is written as its standard name (Mφ is Mphi).
+    const authoredReference =
+      source.reference ?? syntheticReferences.get(source.id);
+    const reference =
+      authoredReference === undefined
+        ? undefined
+        : spellGreekLetters(authoredReference);
+    const instance =
+      reference !== source.reference ? { ...source, reference } : source;
+    if (reference && authoredReference) {
+      const folded = reference.toLowerCase();
+      const prior = spelledReferences.get(folded);
+      if (!prior) {
+        spelledReferences.set(folded, {
+          reference: authoredReference,
+          id: source.id,
+        });
+      } else if (
+        prior.reference.toLowerCase() !== authoredReference.toLowerCase()
+      ) {
+        diagnostic(
+          diagnostics,
+          document.id,
+          "DUPLICATE_INSTANCE_REFERENCE",
+          `References ${prior.reference} and ${authoredReference} both export as ${reference}`,
+          [prior.id, source.id],
+        );
+      }
+    }
     if (cellPinInstanceIds.has(instance.id)) continue;
     const binding = instance.netlist?.binding;
     const builtInSubcircuit = subcircuitDescriptor(instance.symbolId, project);

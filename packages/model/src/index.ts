@@ -13,5 +13,6 @@ export * from "./simulation-expression.js";
 export * from "./schema/bound-annotation-text.js";
 export * from "./schema.js";
 export * from "./simulation-source-authoring.js";
+export * from "./greek-letters.js";
 export * from "./identifier-text.js";
 export * from "./label-typography.js";

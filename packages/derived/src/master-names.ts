@@ -1,17 +1,23 @@
 import {
   deriveStableId,
+  spellGreekLetters,
   type CircuitProject,
   type SchematicDocument,
 } from "@icm/model";
 import { subcircuitDescriptor } from "@icm/devices";
 
-/** Shared exported Cell spelling for both checks and netlist generation. */
+/**
+ * Shared exported Cell spelling for both checks and netlist generation. Greek
+ * letters keep their meaning as standard names (Φgen is Phigen) before any
+ * other character is folded away.
+ */
 export function portableCellIdentifier(
   name: string,
   documentId: string,
 ): string {
-  if (/^[A-Za-z_][A-Za-z0-9_]*$/u.test(name)) return name;
-  const ascii = name.normalize("NFKD").replace(/[\u0300-\u036f]/gu, "");
+  const spelled = spellGreekLetters(name);
+  if (/^[A-Za-z_][A-Za-z0-9_]*$/u.test(spelled)) return spelled;
+  const ascii = spelled.normalize("NFKD").replace(/[\u0300-\u036f]/gu, "");
   const body = ascii
     .replace(/[^A-Za-z0-9_]+/gu, "_")
     .replace(/_+/gu, "_")

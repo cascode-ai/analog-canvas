@@ -38,6 +38,19 @@ describe("Net name codecs", () => {
     });
   });
 
+  it("writes a Greek letter as its standard name in either dialect", () => {
+    expect(encodeNetName("φ1", "local", "spice")).toEqual({
+      ok: true,
+      token: "phi1",
+      collisionKey: "phi1",
+    });
+    expect(encodeNetName("VΦ", "global", "spectre")).toEqual({
+      ok: true,
+      token: "VPhi",
+      collisionKey: "VPhi",
+    });
+  });
+
   it("adds Cadence bang spelling only for typed non-ground globals", () => {
     expect(
       encodeNetName("VDD", "global", "spectre", "cadence-bang"),

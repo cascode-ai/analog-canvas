@@ -1,3 +1,5 @@
+import { spellGreekLetters } from "@icm/model";
+
 export type NetlistFormat = "spice" | "spectre";
 export type NetlistNamingProfile = "native" | "cadence-bang";
 export type NetlistPortCase = "upper" | "lower";
@@ -82,14 +84,22 @@ function encodeSpectre(name: string): EncodedNetName {
   return { ok: true, token, collisionKey: token };
 }
 
-/** Pure dialect projection for one semantic Net name and scope. */
+/**
+ * Pure dialect projection for one semantic Net name and scope. A Greek letter
+ * is written as its standard name (`φ1` is `phi1`), so collisions are judged
+ * on what the netlist actually says.
+ */
 export function encodeNetName(
   name: string,
   scope: "local" | "global",
   format: NetlistFormat,
   profile: NetlistNamingProfile = "native",
 ): EncodedNetName {
-  const spelling = profileSpelling(name.trim(), scope, profile);
+  const spelling = profileSpelling(
+    spellGreekLetters(name.trim()),
+    scope,
+    profile,
+  );
   if (!spelling) {
     return {
       ok: false,
