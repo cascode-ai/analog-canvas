@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, type RichTextDocument } from "@icm/model";
 
 import { builtInSymbols } from "./builtins.js";
 import {
@@ -57,6 +57,54 @@ describe("hierarchical block formal terminals", () => {
     });
 
     expect(symbol?.pins.map((pin) => pin.name)).toEqual(["IN", "OUT"]);
+  });
+
+  it("projects a Cell Pin's authored RichText to the parent without changing its electrical name", () => {
+    const authored: RichTextDocument = {
+      runs: [
+        {
+          kind: "span",
+          style: "italic",
+          children: [{ kind: "text", value: "V" }],
+        },
+        {
+          kind: "span",
+          style: "subscript",
+          children: [{ kind: "text", value: "out" }],
+        },
+      ],
+    };
+    const symbol = createHierarchicalBlockSymbol({
+      name: "Child",
+      netlist: {
+        name: "Child",
+        formalParameters: [],
+        terminals: [
+          {
+            id: "terminal-vout",
+            name: "Vout",
+            netId: "net-vout",
+            direction: "output",
+            interfaceInstanceIds: ["P1"],
+          },
+        ],
+      },
+      annotations: [
+        {
+          id: "pin-label",
+          kind: "instance-label",
+          binding: { kind: "cell-terminal-name", terminalId: "terminal-vout" },
+          formatOverride: authored,
+          anchor: { kind: "free", position: { x: 0, y: 0 } },
+          alignment: "start",
+          rotation: 0,
+          locked: false,
+        },
+      ],
+    });
+
+    expect(symbol?.pins[0]?.name).toBe("Vout");
+    expect(symbol?.pins[0]?.presentation?.nameContent).toEqual(authored);
   });
 
   it("uses the current local Cell name after an imported Cell is renamed", () => {

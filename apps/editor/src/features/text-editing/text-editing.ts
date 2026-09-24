@@ -139,6 +139,30 @@ export function supplyLabelEdit(
   };
 }
 
+/**
+ * Interpret an edited bound label as a name once, regardless of whether its
+ * owner is an Instance, a Net, or a Cell terminal. Each owner still commits
+ * that name through its own electrical transaction boundary.
+ */
+export function editedBoundAnnotationName(
+  document: SchematicDocument,
+  annotation: Annotation,
+  session: TextEditingSession,
+  currentName: string,
+): string {
+  if (!session.contentEdited) return currentName;
+  const identifier = richTextIdentifier(session.content);
+  if (
+    identifier ===
+    richTextIdentifier(resolveAnnotationText(document, annotation))
+  )
+    return currentName;
+  const typed = identifier.trim();
+  return session.formatEdited
+    ? typed
+    : formatLabelIdentifier(typed, labelTypography(document.presentation));
+}
+
 export function createTextEditingSession(
   target: EditableTextTarget,
   document?: SchematicDocument,
@@ -520,17 +544,12 @@ export function proposeTextEditingCommit(
       } = annotation;
       const follows = !session.displayAlias;
       const typography = labelTypography(document.presentation);
-      const name =
-        session.contentEdited &&
-        richTextIdentifier(session.content) !==
-          richTextIdentifier(resolveAnnotationText(document, annotation))
-          ? session.formatEdited
-            ? richTextIdentifier(session.content).trim()
-            : formatLabelIdentifier(
-                richTextIdentifier(session.content).trim(),
-                typography,
-              )
-          : reference;
+      const name = editedBoundAnnotationName(
+        document,
+        annotation,
+        session,
+        reference,
+      );
       if (
         follows &&
         (!isNamePresentation(session.content.runs) ||

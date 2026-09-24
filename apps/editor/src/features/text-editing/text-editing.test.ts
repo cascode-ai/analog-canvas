@@ -10,6 +10,7 @@ import type { Annotation, DraftingObject } from "@icm/model";
 
 import {
   createTextEditingSession,
+  editedBoundAnnotationName,
   proposeTextEditingCommit,
   resolveTextEditingTarget,
   supplyLabelEdit,
@@ -41,6 +42,71 @@ const draftingText = (): Extract<DraftingObject, { kind: "text" }> => ({
 });
 
 describe("unified text editing", () => {
+  it("interprets bound Instance and Cell Pin edits through the same name rule", () => {
+    const document = createEmptyDocument("bound", "Bound");
+    document.instances.push({
+      id: "M1",
+      reference: "M1",
+      symbolId: "nmos",
+      placement: null,
+    });
+    document.netlist!.terminals.push({
+      id: "pin-vout",
+      name: "Vout",
+      netId: "net-vout",
+      direction: "output",
+      interfaceInstanceIds: [],
+    });
+    const instanceLabel: Annotation = {
+      ...annotation(),
+      kind: "instance-label",
+      content: undefined,
+      netId: undefined,
+      binding: { kind: "instance-reference", instanceId: "M1" },
+    };
+    const pinLabel: Annotation = {
+      ...instanceLabel,
+      id: "pin-label",
+      binding: { kind: "cell-terminal-name", terminalId: "pin-vout" },
+    };
+    const cases = [
+      { label: instanceLabel, current: "M1", typed: "M2", expected: "M_2" },
+      { label: pinLabel, current: "Vout", typed: "Vin", expected: "V_in" },
+    ];
+    for (const { label, current, typed, expected } of cases) {
+      const session = createTextEditingSession(
+        { owner: "annotation", object: label },
+        document,
+      );
+      expect(editedBoundAnnotationName(document, label, session, current)).toBe(
+        current,
+      );
+      expect(
+        editedBoundAnnotationName(
+          document,
+          label,
+          updateTextEditingSession(session, {
+            content: { runs: [{ kind: "text", value: typed }] },
+          }),
+          current,
+        ),
+      ).toBe(expected);
+      expect(
+        editedBoundAnnotationName(
+          document,
+          label,
+          updateTextEditingSession(session, {
+            content: {
+              runs: [
+                { kind: "span", style: "bold", children: session.content.runs },
+              ],
+            },
+          }),
+          current,
+        ),
+      ).toBe(current);
+    }
+  });
   it("edits a scalar Value at its source and leaves compound MOS values to Properties", () => {
     const document = createEmptyDocument("value", "Value");
     document.instances.push({

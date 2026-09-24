@@ -14,7 +14,6 @@ import {
   type SchematicEdit,
 } from "@icm/edit-engine";
 import { flattenRichText, semanticTextDocument } from "@icm/model";
-import { resolveAnnotationText } from "@icm/derived";
 import type {
   Annotation,
   DraftingObject,
@@ -38,6 +37,7 @@ import {
 import type { AdditionalParameterDraft } from "./additional-parameters";
 import {
   createTextEditingSession,
+  editedBoundAnnotationName,
   proposeTextEditingCommit,
   resolveTextEditingTarget,
   supplyLabelEdit,
@@ -925,18 +925,12 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       );
       const name = supplyEdit
         ? supplyEdit.name
-        : textEditing.contentEdited &&
-            richTextIdentifier(textEditing.content) !==
-              richTextIdentifier(
-                resolveAnnotationText(options.document, boundAnnotation),
-              )
-          ? textEditing.formatEdited
-            ? richTextIdentifier(textEditing.content).trim()
-            : formatLabelIdentifier(
-                richTextIdentifier(textEditing.content).trim(),
-                typography,
-              )
-          : resolveAnnotationName(options.document, boundAnnotation);
+        : editedBoundAnnotationName(
+            options.document,
+            boundAnnotation,
+            textEditing,
+            resolveAnnotationName(options.document, boundAnnotation),
+          );
       const currentName = resolveAnnotationName(
         options.document,
         boundAnnotation,

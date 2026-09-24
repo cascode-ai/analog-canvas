@@ -33,7 +33,7 @@ function records(value: unknown): Record<string, unknown>[] {
  * one whose name has since disappeared — is dropped, and the label falls back
  * to the house style rather than taking the Project down with it.
  *
- * The semantic name comes from `boundAnnotationSemanticText`, the same
+ * The semantic name comes from `boundAnnotationName`, the same
  * function the schema checks against. A repair computed any other way would
  * either miss files the check still refuses or claim success on a file that
  * still cannot load.
