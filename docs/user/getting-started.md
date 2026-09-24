@@ -211,6 +211,10 @@ Renaming keeps a standard look in step with the new name. Once you restyle a
 label, your formatting is kept instead: to show `VBP` without a subscript,
 select `BP` in the label and turn Subscript off. The name stays `VBP`.
 
+Subscripts and superscripts are upright by default, even when you apply them
+to part of an italic label. To slant one, select it and press Italic; your
+choice is kept.
+
 A label without its own formatting, such as one in an older drawing, keeps
 its historical look: an underscore starts a subscript, so `M_1` is drawn as
 M₁, and a name ending in `_bar` is drawn with an overbar. The name itself

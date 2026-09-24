@@ -826,6 +826,12 @@
   text-decoration: none;
 }
 
+/* Scripts are upright, as the drawing renders them; italic set inside stays. */
+.rich-text-editable sub,
+.rich-text-editable sup {
+  font-style: normal;
+}
+
 .rich-text-editable [data-rich-text-script-stack] {
   display: inline-grid;
   margin-left: 0.046em;

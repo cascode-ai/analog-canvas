@@ -1,6 +1,11 @@
 import { expect, it } from "vitest";
 import { createEmptyDocument } from "./factories.js";
-import { flattenRichText } from "./rich-text.js";
+import type { RichTextDocument, RichTextRun, RichTextStyle } from "./schema.js";
+import {
+  flattenRichText,
+  hasItalicScripts,
+  uprightScripts,
+} from "./rich-text.js";
 import {
   identifierTextDocument,
   richTextIdentifier,
@@ -18,7 +23,7 @@ import {
   labelTextDocument,
   renamedLabelFormat,
   roleLabelFormat,
-  standardLabelLookChanges,
+  labelLookChanges,
   supplyLabelFormat,
 } from "./label-typography.js";
 
@@ -479,30 +484,138 @@ it("lists the standard looks an existing drawing's unformatted labels would take
       visible: false,
     },
   );
-  expect(standardLabelLookChanges(document)).toEqual([
+  expect(labelLookChanges(document)).toEqual({
+    labels: [
+      {
+        annotationId: "label-M1",
+        kind: "standard",
+        role: "device-reference",
+        name: "M1",
+        format: roleLabelFormat("device-reference", "M1"),
+      },
+      {
+        annotationId: "label-vddh",
+        kind: "standard",
+        role: "supply",
+        name: "VDDH",
+        format: supplyLabelFormat("VDDH"),
+      },
+      {
+        annotationId: "label-vbp",
+        kind: "standard",
+        role: "voltage-node",
+        name: "VBP",
+        format: roleLabelFormat("voltage-node", "VBP"),
+      },
+      {
+        annotationId: "label-vcasn",
+        kind: "standard",
+        role: "voltage-node",
+        name: "VcasN",
+        format: roleLabelFormat("voltage-node", "VcasN"),
+      },
+    ],
+    uprightSubscripts: false,
+  });
+});
+
+const run = (value: string, ...styles: RichTextStyle[]): RichTextRun =>
+  styles.reduceRight<RichTextRun>(
+    (child, style) => ({ kind: "span", style, children: [child] }),
+    { kind: "text", value },
+  );
+
+it("draws scripts upright by default and keeps a script slanted inside it only on request", () => {
+  // Subscripting part of an italic name used to carry the italic along.
+  const carried = {
+    runs: [
+      run("V", "italic", "bold"),
+      run("BST", "subscript", "italic", "bold"),
+    ],
+  };
+  expect(hasItalicScripts(carried)).toBe(true);
+  expect(uprightScripts(carried)).toEqual({
+    runs: [run("V", "italic", "bold"), run("BST", "subscript", "bold")],
+  });
+  // Italic outside a script does not slant it.
+  const outside = {
+    runs: [run("V", "italic"), run("out", "italic", "subscript")],
+  };
+  expect(hasItalicScripts(outside)).toBe(false);
+  expect(flattenRichText(uprightScripts(carried))).toBe("VBST");
+});
+
+it("restyles looks stored before the standards only when asked, and keeps an author's choice", () => {
+  const document = createEmptyDocument("a", "A");
+  delete document.presentation.labelSubscriptItalic;
+  const placement = {
+    position: { x: 0, y: 0 },
+    rotation: 0 as const,
+    mirror: "none" as const,
+  };
+  const pins = ["V_b3", "VIN", "Vout", "VBP"];
+  document.netlist = {
+    name: "A",
+    terminals: pins.map((name, index) => ({
+      id: `t${index}`,
+      name,
+      netId: `n${index}`,
+      direction: "inout" as const,
+      interfaceInstanceIds: [`P${index}`],
+    })),
+    formalParameters: [],
+  };
+  const formats: (RichTextDocument | undefined)[] = [
+    undefined,
+    // A subscript that took the surrounding italic along.
     {
-      annotationId: "label-M1",
-      role: "device-reference",
-      name: "M1",
-      format: roleLabelFormat("device-reference", "M1"),
+      runs: [
+        run("V", "italic", "bold"),
+        run("IN", "subscript", "italic", "bold"),
+      ],
     },
-    {
-      annotationId: "label-vddh",
-      role: "supply",
-      name: "VDDH",
-      format: supplyLabelFormat("VDDH"),
-    },
-    {
-      annotationId: "label-vbp",
-      role: "voltage-node",
-      name: "VBP",
-      format: roleLabelFormat("voltage-node", "VBP"),
-    },
-    {
-      annotationId: "label-vcasn",
-      role: "voltage-node",
-      name: "VcasN",
-      format: roleLabelFormat("voltage-node", "VcasN"),
-    },
+    // A stored copy of the historical bold italic look.
+    { runs: [run("Vout", "italic", "bold")] },
+    // An author who turned V_BP's subscript off.
+    { runs: [run("V", "italic", "bold"), run("BP", "bold")] },
+  ];
+  pins.forEach((_, index) => {
+    document.instances.push({ id: `P${index}`, symbolId: "port", placement });
+    document.annotations.push({
+      id: `label-${index}`,
+      kind: "instance-label",
+      binding: { kind: "cell-terminal-name", terminalId: `t${index}` },
+      ...(formats[index] ? { formatOverride: formats[index] } : {}),
+      anchor: {
+        kind: "object",
+        objectId: `P${index}`,
+        localOffset: { x: 10, y: 0 },
+        fallbackPosition: { x: 10, y: 0 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+  });
+  // The drawing never chose a slant, so its unformatted V_b3 turns upright.
+  expect(labelLookChanges(document)).toEqual({
+    labels: [],
+    uprightSubscripts: true,
+  });
+  const legacy = labelLookChanges(document, { legacyLooks: true });
+  expect(
+    legacy.labels.map(({ annotationId, kind }) => [annotationId, kind]),
+  ).toEqual([
+    ["label-1", "upright"],
+    ["label-2", "standard"],
   ]);
+  expect(legacy.labels[0]!.format).toEqual({
+    runs: [run("V", "italic", "bold"), run("IN", "subscript", "bold")],
+  });
+  expect(legacy.labels[1]!.format).toEqual(
+    roleLabelFormat("voltage-node", "Vout"),
+  );
+  // A drawing that chose italic subscripts keeps them.
+  document.presentation.labelSubscriptItalic = true;
+  expect(labelLookChanges(document).uprightSubscripts).toBe(false);
 });

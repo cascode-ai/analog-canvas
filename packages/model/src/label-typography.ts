@@ -15,9 +15,11 @@ import {
 } from "./identifier-text.js";
 import {
   flattenRichText,
+  hasItalicScripts,
   normalizeRichText,
   rewriteRichTextPlainText,
   sameStyledText,
+  uprightScripts,
 } from "./rich-text.js";
 import {
   deviceReferenceTextDocument,
@@ -266,38 +268,97 @@ export function formatPresentingName(
     : rewriteRichTextPlainText(format, name);
 }
 
-/** One existing label that would take its stored standard look. */
-export interface StandardLabelLookChange {
+/** One existing label a look pass would restyle. */
+export interface LabelLookChange {
   readonly annotationId: string;
-  readonly role: LabelRole;
   readonly name: string;
   readonly format: RichTextDocument;
+  /**
+   * `standard`: the role's standard look (V_DD, M₁, V_in), for a label with
+   * no look of its own or one whose stored look only repeats its historical
+   * look. `upright`: the label's own look with its scripts upright.
+   */
+  readonly kind: "standard" | "upright";
+  readonly role?: LabelRole;
 }
 
+export interface LabelLookChanges {
+  readonly labels: LabelLookChange[];
+  /**
+   * The drawing never chose a subscript slant, so the historical default
+   * slants the subscripts of labels without a look of their own; setting
+   * `labelSubscriptItalic` to false draws them upright.
+   */
+  readonly uprightSubscripts: boolean;
+}
+
+export interface LabelLookChangeOptions {
+  /**
+   * Also restyle looks the editor stored before these standards: a stored
+   * copy of a label's historical look takes its standard look, and a script
+   * slanted by the surrounding italic is drawn upright. Only for drawings
+   * made before scripts defaulted to upright, since an author may now slant
+   * a script on purpose.
+   */
+  readonly legacyLooks?: boolean;
+}
+
+const drawsScripts = (document: RichTextDocument): boolean =>
+  JSON.stringify(document).includes('"subscript"') ||
+  JSON.stringify(document).includes('"superscript"');
+
 /**
- * The standard looks an existing drawing's unformatted supply, device
- * Reference, Cell Pin and Net labels would take. Names never change, an
- * author's own format is never replaced, and a label that is not drawn is
- * left as it is.
+ * How an existing drawing's labels would reach the standard: drawn supply,
+ * device Reference, Cell Pin and Net labels without a look of their own take
+ * their standard look, and subscripts default to upright. Names never change,
+ * an author's own look is kept, and a label that is not drawn is left as it
+ * is. `legacyLooks` also restyles looks stored before these standards.
  */
-export function standardLabelLookChanges(
+export function labelLookChanges(
   document: SchematicDocument,
-): StandardLabelLookChange[] {
-  const changes: StandardLabelLookChange[] = [];
+  options: LabelLookChangeOptions = {},
+): LabelLookChanges {
+  const labels: LabelLookChange[] = [];
+  let slantedUnformatted = false;
   for (const annotation of document.annotations) {
-    if (
-      annotation.formatOverride ||
-      !annotation.binding ||
-      annotation.visible === false
-    )
-      continue;
-    const role = labelRole(annotation);
-    if (!role) continue;
+    if (!annotation.binding || annotation.visible === false) continue;
     const name = boundAnnotationName(document, annotation)?.trim();
     if (!name) continue;
-    const format = roleLabelFormat(role, name);
-    if (format)
-      changes.push({ annotationId: annotation.id, role, name, format });
+    const role = labelRole(annotation);
+    const standard = role ? roleLabelFormat(role, name) : undefined;
+    const format = annotation.formatOverride;
+    const historical = labelTextDocument(name, document.presentation);
+    if (
+      role &&
+      standard &&
+      (!format ||
+        (options.legacyLooks === true && sameStyledText(format, historical)))
+    ) {
+      labels.push({
+        annotationId: annotation.id,
+        name,
+        format: standard,
+        kind: "standard",
+        role,
+      });
+      continue;
+    }
+    if (format) {
+      if (options.legacyLooks === true && hasItalicScripts(format))
+        labels.push({
+          annotationId: annotation.id,
+          name,
+          format: uprightScripts(format),
+          kind: "upright",
+          ...(role ? { role } : {}),
+        });
+    } else if (drawsScripts(historical)) slantedUnformatted = true;
   }
-  return changes;
+  return {
+    labels,
+    // An explicit `true` is the drawing's own choice and stays.
+    uprightSubscripts:
+      slantedUnformatted &&
+      document.presentation.labelSubscriptItalic === undefined,
+  };
 }

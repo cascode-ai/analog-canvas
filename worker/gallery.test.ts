@@ -8,8 +8,11 @@ import {
   createEmptyDocument,
   createEmptyProject,
   createRoutePath,
+  flattenRichText,
+  hasItalicScripts,
   roleLabelFormat,
 } from "@icm/model";
+import type { RichTextDocument, RichTextRun } from "@icm/model";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { hierarchicalSymbolId } from "@icm/symbols";
 
@@ -5722,6 +5725,69 @@ describe("durable Shelf publication sources", () => {
 });
 
 /** One drawing whose device and supply labels have no format of their own. */
+/**
+ * An older drawing: it never chose a subscript slant, one Net is named V_b,
+ * and another label's subscript took the surrounding italic along.
+ */
+function legacyLabelLookProjectText(): string {
+  const project = parseProject(labelLookProjectText());
+  const document = project.documents[0]!;
+  delete document.presentation.labelSubscriptItalic;
+  const italic = (
+    value: string,
+    ...styles: ("bold" | "subscript")[]
+  ): RichTextRun => ({
+    kind: "span",
+    style: "italic",
+    children: [
+      styles.reduceRight<RichTextRun>(
+        (child, style) => ({ kind: "span", style, children: [child] }),
+        { kind: "text", value },
+      ),
+    ],
+  });
+  const labels: [string, string, RichTextDocument | undefined][] = [
+    ["b", "V_b", undefined],
+    [
+      "in",
+      "VIN",
+      {
+        runs: [
+          italic("V", "bold"),
+          {
+            kind: "span",
+            style: "subscript",
+            children: [italic("IN", "bold")],
+          },
+        ],
+      },
+    ],
+  ];
+  for (const [id, name, formatOverride] of labels) {
+    document.nets.push({ id: `net-${id}`, terminals: [] });
+    document.connectivityEvidence.push({
+      id: `claim-${id}`,
+      kind: "name-claim",
+      netId: `net-${id}`,
+      name,
+      scope: "local",
+      owner: { kind: "net-label", annotationId: `net-label-${id}` },
+    });
+    document.annotations.push({
+      id: `net-label-${id}`,
+      kind: "net-label",
+      binding: { kind: "net-name", netId: `net-${id}` },
+      netId: `net-${id}`,
+      ...(formatOverride ? { formatOverride } : {}),
+      anchor: { kind: "free", position: { x: 300, y: id === "b" ? 100 : 160 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+  }
+  return serializeProject(project);
+}
+
 function labelLookProjectText(): string {
   const project = createEmptyProject("label-looks", "Label looks");
   const document = project.documents[0]!;
@@ -5973,5 +6039,60 @@ describe("label-look maintenance", () => {
       stored.annotations.find((item) => item.id === "power-label-vdd1")
         ?.formatOverride,
     ).toEqual(roleLabelFormat("supply", "VDD"));
+  });
+
+  it("draws subscripts upright and straightens stored slants only when asked", async () => {
+    const env = environment();
+    const cookie = await adminOf(env);
+    const id = await submitOne(env, "Legacy looks", {
+      cookie,
+      text: legacyLabelLookProjectText(),
+    });
+    const send = async (body: unknown) =>
+      (await (
+        await route(
+          env,
+          new Request(endpoint, {
+            method: "POST",
+            headers: {
+              ...cookieHeaders(cookie),
+              "content-type": "application/json",
+            },
+            body: JSON.stringify(body),
+          }),
+        )
+      ).json()) as { results: Array<Record<string, any>> };
+    const documentId = parseProject(entryRow(env, id).project_text)
+      .documents[0]!.id;
+
+    // By default: standard looks for unformatted labels, and the drawing's
+    // own subscript default turns upright. A stored look is left alone.
+    const plain = (await send({ ids: [id] })).results[0]!;
+    expect(plain.uprightDocuments).toEqual([documentId]);
+    expect(plain.labels.map((label: { id: string }) => label.id)).toEqual([
+      "instance-label-M1",
+      "power-label-vdd1",
+    ]);
+
+    const legacy = (await send({ ids: [id], legacyLooks: true })).results[0]!;
+    expect(legacy.labels).toContainEqual(
+      expect.objectContaining({ id: "net-label-in", kind: "upright" }),
+    );
+    await send({
+      ids: [id],
+      apply: true,
+      legacyLooks: true,
+      expected: { [id]: legacy.sha },
+    });
+    const stored = parseProject(entryRow(env, id).project_text).documents[0]!;
+    expect(stored.presentation.labelSubscriptItalic).toBe(false);
+    const inFormat = stored.annotations.find(
+      (item) => item.id === "net-label-in",
+    )?.formatOverride;
+    expect(inFormat && hasItalicScripts(inFormat)).toBe(false);
+    expect(inFormat && flattenRichText(inFormat)).toBe("VIN");
+    expect(
+      (await send({ ids: [id], legacyLooks: true })).results[0],
+    ).toMatchObject({ changed: false });
   });
 });
