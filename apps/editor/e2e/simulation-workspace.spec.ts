@@ -1683,7 +1683,10 @@ test("human simulation uses saved folder, survives minimizing, recovers a bad in
     .getByRole("treeitem", { name: "Run", exact: true })
     .click({ button: "right" });
   await page
-    .getByRole("menuitem", { name: "Archive current run", exact: true })
+    .getByRole("menuitem", {
+      name: "Archive current run (latest 30 saved)",
+      exact: true,
+    })
     .click();
   pending = new Promise<void>((r) => {
     release = r;

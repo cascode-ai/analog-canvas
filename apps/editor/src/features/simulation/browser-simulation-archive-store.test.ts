@@ -42,6 +42,98 @@ function archive(id: string, createdAt: string): SimulationRunArchiveV1 {
 }
 
 describe("browser simulation archive store", () => {
+  it("keeps 30 automatic runs across archived and catalog-only results", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArchiveStore({ idbFactory: factory });
+    const evidence = createBrowserSimulationArtifactStore("project", factory)!;
+    for (let index = 0; index < 20; index++)
+      expect(
+        await store.save({
+          ...archive(`cache-${index}`, new Date(index * 1000).toISOString()),
+          retention: "cache",
+        }),
+      ).toMatchObject({ ok: true });
+    for (let index = 20; index < 40; index++)
+      await evidence.saveCatalog!({
+        catalog: {
+          schemaVersion: 1,
+          runId: `cache-${index}`,
+          preparedId: "prepared",
+          inputRevision: "revision",
+          retentionPolicy: "cache",
+          execution: "completed",
+          collection: "complete",
+          files: [],
+          datasets: [],
+        },
+        storedAt: index * 1000,
+      });
+    expect(await store.pruneCache("project")).toEqual({
+      ok: true,
+      value: Array.from({ length: 10 }, (_, index) => `cache-${9 - index}`),
+    });
+    const archives = await store.list("project");
+    expect(archives.ok && archives.value).toHaveLength(10);
+    expect(await evidence.catalogs!()).toHaveLength(20);
+    expect(await store.read("cache-0")).toEqual({ ok: true, value: null });
+    store.close();
+  });
+
+  it("atomically evicts the oldest explicit Save after 30 per Project", async () => {
+    const factory = new IDBFactory();
+    const store = createBrowserSimulationArchiveStore({ idbFactory: factory });
+    for (let index = 0; index < 30; index++)
+      expect(
+        await store.save({
+          ...archive(`saved-${index}`, new Date(index * 1000).toISOString()),
+          retention: "saved",
+        }),
+      ).toMatchObject({ ok: true });
+    expect(
+      await store.save(archive("legacy", new Date(0).toISOString())),
+    ).toMatchObject({ ok: true });
+    expect(
+      await store.save({
+        ...archive("invalid", new Date(30000).toISOString()),
+        retention: "saved",
+        artifacts: [
+          {
+            originalId: "invalid-body",
+            name: "invalid.raw",
+            mediaType: "text/plain",
+            byteLength: 100,
+            sha256: "a".repeat(64),
+            text: "data",
+          },
+        ],
+      }),
+    ).toMatchObject({ ok: false });
+    expect(await store.read("saved-0")).toMatchObject({ ok: true, value: {} });
+    expect(
+      await store.save({
+        ...archive("saved-30", new Date(30000).toISOString()),
+        retention: "saved",
+      }),
+    ).toMatchObject({ ok: true });
+    expect(await store.read("saved-0")).toEqual({ ok: true, value: null });
+    expect(await store.pendingRemovalCount("project")).toEqual({
+      ok: true,
+      value: 1,
+    });
+    expect(await store.read("saved-30")).toMatchObject({
+      ok: true,
+      value: { retention: "saved" },
+    });
+    const listed = await store.list("project");
+    if (!listed.ok) throw new Error(listed.message);
+    expect(
+      listed.value.filter((entry) => entry.id.startsWith("saved-")),
+    ).toHaveLength(30);
+    expect(listed.value.find((entry) => entry.id === "legacy")).toBeDefined();
+    expect(await store.pruneSaved("project")).toEqual({ ok: true, value: [] });
+    store.close();
+  });
+
   it("rotates only explicitly generated cache and preserves legacy and saved archives", async () => {
     const factory = new IDBFactory();
     const store = createBrowserSimulationArchiveStore({ idbFactory: factory });

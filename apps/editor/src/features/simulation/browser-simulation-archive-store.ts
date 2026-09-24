@@ -16,6 +16,8 @@ const DATABASE_VERSION = 3;
 const STORE_NAME = "runs";
 const DIRECTORY_NAME = "run-directory";
 const PENDING_REMOVALS = "pending-removals";
+const RETAINED_CACHE_RUNS = 30;
+const RETAINED_SAVED_RUNS = 30;
 
 // Internal storage only. Portable archives still contain their full evidence.
 type StoredArchive = Omit<SimulationRunArchiveV1, "artifacts"> & {
@@ -74,6 +76,10 @@ export interface BrowserSimulationArchiveStore {
   ): Promise<SimulationArchiveStoreResult<number>>;
   /** Only archives explicitly marked as generated cache are eligible. */
   pruneCache(
+    projectId: string,
+  ): Promise<SimulationArchiveStoreResult<readonly string[]>>;
+  /** Explicit saves are bounded separately; unmarked legacy records are not evicted. */
+  pruneSaved(
     projectId: string,
   ): Promise<SimulationArchiveStoreResult<readonly string[]>>;
   /** Protect pre-reference-registry archives before any physical reclamation. */
@@ -376,7 +382,6 @@ export function createBrowserSimulationArchiveStore(
               transactionDone(pending),
             ]);
             const evidence = evidenceStore(projectId);
-            await evidence.pruneCatalogCache(runIds);
             for (const removal of removals)
               await evidence.queueRunRemoval(removal.runId);
             const reclaimed = await evidence.reclaim(keys, runIds);
@@ -485,11 +490,92 @@ export function createBrowserSimulationArchiveStore(
       try {
         const listed = await api.list(projectId);
         if (!listed.ok) return listed;
-        // A small rolling cache leaves historical/manual archives alone. The
-        // physical bodies are reclaimed by the existing reference-aware GC.
-        const excess = listed.value
-          .filter((entry) => entry.retention === "cache")
-          .slice(30);
+        const evidence = evidenceStore(projectId);
+        const catalogs = await evidence.catalogs!();
+        const owners = await api.runEntries(projectId);
+        if (!owners.ok) return owners;
+        const savedRuns = new Set(
+          owners.value
+            .filter((entry) => entry.retention === "saved")
+            .map((entry) => entry.runId),
+        );
+        const candidates = new Map<
+          string,
+          {
+            at: number;
+            archiveIds: string[];
+            catalog?: { runId: string; storedAt: number };
+          }
+        >();
+        for (const entry of listed.value) {
+          if (entry.retention !== "cache" || savedRuns.has(entry.runId ?? ""))
+            continue;
+          const key = entry.runId ?? entry.id;
+          const current = candidates.get(key);
+          const at = Date.parse(entry.createdAt) || 0;
+          if (current) {
+            current.at = Math.max(current.at, at);
+            current.archiveIds.push(entry.id);
+          } else candidates.set(key, { at, archiveIds: [entry.id] });
+        }
+        for (const { catalog, storedAt } of catalogs) {
+          if (
+            catalog.retentionPolicy !== "cache" ||
+            savedRuns.has(catalog.runId)
+          )
+            continue;
+          const current = candidates.get(catalog.runId);
+          const locator = { runId: catalog.runId, storedAt };
+          if (current) {
+            current.at = Math.max(current.at, storedAt);
+            current.catalog = locator;
+          } else
+            candidates.set(catalog.runId, {
+              at: storedAt,
+              archiveIds: [],
+              catalog: locator,
+            });
+        }
+        const excess = [...candidates.entries()]
+          .sort((a, b) => b[1].at - a[1].at || a[0].localeCompare(b[0]))
+          .slice(RETAINED_CACHE_RUNS);
+        const removedIds: string[] = [];
+        for (const [, entry] of excess) {
+          for (const id of entry.archiveIds) {
+            const removed = await api.delete(id);
+            if (!removed.ok) return removed;
+            removedIds.push(id);
+          }
+        }
+        await evidence.removeCachedCatalogs(
+          excess.flatMap(([, entry]) => (entry.catalog ? [entry.catalog] : [])),
+        );
+        return { ok: true, value: removedIds };
+      } catch (error) {
+        return failure(error);
+      }
+    },
+    async pruneSaved(projectId) {
+      try {
+        const listed = await api.list(projectId);
+        if (!listed.ok) return listed;
+        const db = await open();
+        const read = db.transaction(STORE_NAME, "readonly");
+        const possible = listed.value.filter(
+          (entry) => entry.retention === "saved",
+        );
+        const records = await Promise.all(
+          possible.map(
+            (entry) =>
+              requestValue(
+                read.objectStore(STORE_NAME).get(entry.id),
+              ) as Promise<StoredArchive | undefined>,
+          ),
+        );
+        await transactionDone(read);
+        const excess = possible
+          .filter((_, index) => records[index]?.retention === "saved")
+          .slice(RETAINED_SAVED_RUNS);
         for (const entry of excess) {
           const removed = await api.delete(entry.id);
           if (!removed.ok) return removed;
@@ -517,6 +603,7 @@ export function createBrowserSimulationArchiveStore(
     },
     async save(archive) {
       let stored: StoredArchive | undefined;
+      const evicted: StoredArchive[] = [];
       const lease = new ProjectEvidenceLease(archive.projectId, options.locks);
       try {
         await lease.acquire();
@@ -525,7 +612,7 @@ export function createBrowserSimulationArchiveStore(
         stored = await retain(archive);
         const db = await open();
         const transaction = db.transaction(
-          [STORE_NAME, DIRECTORY_NAME],
+          [STORE_NAME, DIRECTORY_NAME, PENDING_REMOVALS],
           "readwrite",
         );
         const directory = transaction.objectStore(DIRECTORY_NAME);
@@ -543,12 +630,53 @@ export function createBrowserSimulationArchiveStore(
           return { ok: true, value: protectedSummary };
         }
         const summary = summarizeSimulationRunArchive(archive);
+        if (archive.retention === "saved") {
+          const all = (await requestValue(
+            directory.index("projectId").getAll(archive.projectId),
+          )) as SimulationRunArchiveSummary[];
+          const possible = all.filter(
+            (entry) => entry.retention === "saved" && entry.id !== archive.id,
+          );
+          const records = await Promise.all(
+            possible.map(
+              (entry) =>
+                requestValue(store.get(entry.id)) as Promise<
+                  StoredArchive | undefined
+                >,
+            ),
+          );
+          const excess = possible
+            .flatMap((entry, index) =>
+              records[index]?.retention === "saved"
+                ? [{ entry, old: records[index]! }]
+                : [],
+            )
+            .sort(
+              (a, b) =>
+                b.entry.createdAt.localeCompare(a.entry.createdAt) ||
+                a.entry.id.localeCompare(b.entry.id),
+            )
+            .slice(RETAINED_SAVED_RUNS - 1);
+          for (const { entry, old } of excess) {
+            if (old.projectId !== archive.projectId) continue;
+            store.delete(entry.id);
+            directory.delete(entry.id);
+            transaction
+              .objectStore(PENDING_REMOVALS)
+              .put(
+                { projectId: archive.projectId, runId: old.run.id },
+                crypto.randomUUID(),
+              );
+            evicted.push(old);
+          }
+        }
         store.put(stored, archive.id);
         directory.put(summary, archive.id);
         await done;
         // Old references can safely leak if cleanup fails; the new archive is
         // already committed and must not be reported as a failed save.
         await release(previous);
+        for (const old of evicted) await release(old);
         return { ok: true, value: summary };
       } catch (error) {
         await release(stored);
