@@ -1,4 +1,8 @@
-import { createEmptyDocument, supplyLabelFormat } from "@icm/model";
+import {
+  createEmptyDocument,
+  roleLabelFormat,
+  supplyLabelFormat,
+} from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
@@ -50,7 +54,7 @@ function rail(
 const label = (document: SchematicDocument) =>
   document.annotations.find((annotation) => annotation.id === "label-VDD1")!;
 
-describe("supply label format", () => {
+describe("standard label looks", () => {
   it("draws a new rail label as italic V over an upright DD", () => {
     for (const scope of ["local", "global"] as const) {
       const document = apply(createEmptyDocument("document-main", "Main"), [
@@ -109,5 +113,35 @@ describe("supply label format", () => {
       },
     ]);
     expect(label(renamed).formatOverride).toEqual(supplyLabelFormat("VCC"));
+  });
+  it("keeps a device label's stored M₁ look in step with its Reference", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.instances.push({
+      id: "M1",
+      reference: "M1",
+      symbolId: "nmos",
+      placement: null,
+    });
+    document.annotations.push({
+      id: "instance-label-M1",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "M1" },
+      formatOverride: roleLabelFormat("device-reference", "M1")!,
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    const renamed = apply(document, [
+      { kind: "set_instance_reference", instanceId: "M1", reference: "M3" },
+    ]);
+    expect(renamed.annotations[0]!.formatOverride).toEqual(
+      roleLabelFormat("device-reference", "M3"),
+    );
+    // A Reference without an index returns to the ordinary rules.
+    const tail = apply(renamed, [
+      { kind: "set_instance_reference", instanceId: "M1", reference: "MTAIL" },
+    ]);
+    expect(tail.annotations[0]!.formatOverride).toBeUndefined();
   });
 });

@@ -27,11 +27,7 @@ import type {
   Point,
   SchematicDocument,
 } from "@icm/model";
-import {
-  defaultDraftTextDocument,
-  formatLabelIdentifier,
-  labelTypography,
-} from "@icm/model";
+import { defaultDraftTextDocument, roleLabelFormat } from "@icm/model";
 import { hierarchicalSymbolId, type SymbolResolver } from "@icm/symbols";
 
 import type { ComponentInsertRequest } from "./component-insert-request";
@@ -483,12 +479,10 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
             new Set(),
             symbolId === "port-filled" ? "filled" : "hollow",
           ));
-    const formalName = supply
-      ? authoredName
-      : formatLabelIdentifier(
-          authoredName,
-          labelTypography(options.document.presentation),
-        );
+    // The Pin Name is exactly what was typed, connected or generated; the
+    // label's look never inserts characters into it.
+    const formalName = authoredName;
+    const generatedName = !requestedName && !connectedName && !supply;
     const baseNetId = `net-cell-pin-${id.toLowerCase()}`;
     let netId = contact.netId ?? baseNetId;
     let netSuffix = 2;
@@ -550,7 +544,14 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
             options.resolver,
             options.styleProfile,
             { formalTerminalId: terminalId },
-          );
+          ).map((label) => {
+            // Only a name the editor generated has a known voltage-node
+            // look; a typed or connected name is shown as written.
+            const format = generatedName
+              ? roleLabelFormat("voltage-node", formalName)
+              : undefined;
+            return format ? { ...label, formatOverride: format } : label;
+          });
     const annotation = annotations[0];
     const committed = options.transactProject(
       "place-cell-pin",

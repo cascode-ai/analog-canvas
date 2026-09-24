@@ -1228,7 +1228,7 @@ test("Cell Pin deletion releases its interface and Base Net lifecycle", async ({
   ]);
   expect(saved.documents[0]!.connectivityEvidence).toEqual([]);
   expect(saved.documents[0]!.netlist.terminals).toEqual([
-    expect.objectContaining({ name: "B_US", interfaceInstanceIds: ["P1"] }),
+    expect.objectContaining({ name: "BUS", interfaceInstanceIds: ["P1"] }),
   ]);
 
   await page.getByTestId("hit-P1").click();
@@ -3235,7 +3235,7 @@ test("edits instance, electrical Net, and free text with bounded label handles",
   expect(afterBox?.x).not.toBe(beforeBox.x);
 });
 
-test("synchronizes a Net Label subscript with its electrical underscore name", async ({
+test("keeps a Net Label subscript as the label's look without renaming the Net", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -3282,10 +3282,11 @@ test("synchronizes a Net Label subscript with its electrical underscore name", a
     "Export Project File…",
   );
   const saved = parseSavedProject(projectBytes.toString("utf8"));
+  // Subscripting B is styling: the Net keeps its name VB.
   expect(saved.documents[0].connectivityEvidence).toContainEqual(
     expect.objectContaining({
       kind: "name-claim",
-      name: "V_B",
+      name: "VB",
       owner: {
         kind: "net-label",
         annotationId: "net-label-route-ui-1",
@@ -6592,7 +6593,7 @@ test("keeps the chosen corner shape when the wire tool is picked again", async (
   expect(dx).not.toBe(dy);
 });
 
-test("Net Label overbars synchronize a trailing _bar through source edits, undo and reload", async ({
+test("Net Label overbars stay the label's look through source edits, undo and reload", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -6628,8 +6629,9 @@ test("Net Label overbars synchronize a trailing _bar through source edits, undo 
   await expect(label).toHaveText("F");
   const saved = await downloadBytes(page, "File", "Export Project File…");
   const document = parseSavedProject(saved.toString()).documents[0];
+  // The bar is how the label is drawn; the Net keeps its name F.
   expect(document.connectivityEvidence).toContainEqual(
-    expect.objectContaining({ kind: "name-claim", name: "F_bar" }),
+    expect.objectContaining({ kind: "name-claim", name: "F" }),
   );
   await page.getByTestId("draw-tool-undo").click();
   await expect(bar).toHaveCount(0);
@@ -6654,18 +6656,19 @@ test("Net Label overbars synchronize a trailing _bar through source edits, undo 
   )
     await page.getByTestId("netlist-panel-toggle").click();
   const code = page.getByLabel("Netlist code", { exact: true });
-  await expect(code).toContainText("F_bar");
+  await expect(code).not.toContainText("F_bar");
   await page
     .getByLabel("Netlist format", { exact: true })
     .selectOption("spice");
-  await expect(code).toContainText("F_bar");
+  await expect(code).not.toContainText("F_bar");
   await page
     .getByLabel("Netlist format", { exact: true })
     .selectOption("spectre");
   await clickRoute(page, "route-ui-1", 0.5, 0);
   await openSelectionShelf(page);
+  // Renaming keeps the author's bar on the new name.
   await editComponentPropertyCode(page, (code) => {
-    code.name = "Q_bar";
+    code.name = "Q";
   });
   await expect(label).toHaveText("Q");
   await expect(bar).toHaveCount(1);
@@ -6676,6 +6679,9 @@ test("Net Label overbars synchronize a trailing _bar through source edits, undo 
   await expect(bar).toHaveCount(0);
   await clickRoute(page, "route-ui-1", 0.5, 0);
   await openSelectionShelf(page);
+  // Removing the bar returned the label to its default look, so it has no
+  // formatting of its own: a name ending in _bar with an underscore keeps the
+  // historical overbar and subscript, and the name keeps both.
   await editComponentPropertyCode(page, (code) => {
     code.name = "Q_in_bar";
   });

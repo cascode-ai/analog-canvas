@@ -102,7 +102,8 @@ describe("one visual annotation, one electrical authority", () => {
     );
     expect(session.displayAlias).toBe(false);
     const after = edit(before, text("R8"), false);
-    expect(after.instances[0]!.reference).toBe("R_8");
+    // The Reference is exactly what was typed.
+    expect(after.instances[0]!.reference).toBe("R8");
     expect(after.annotations[0]!.binding).toEqual({
       kind: "instance-reference",
       instanceId: "device-1",

@@ -10,10 +10,14 @@ import {
 import {
   formatLabelFirstLetter,
   formatLabelIdentifier,
+  formatPresentingName,
+  isRoleLabelFormat,
   isSupplyLabelFormat,
+  labelRole,
   labelTypography,
   labelTextDocument,
   renamedLabelFormat,
+  roleLabelFormat,
   supplyLabelFormat,
 } from "./label-typography.js";
 
@@ -200,4 +204,107 @@ it("lets an untouched supply default follow a rename", () => {
   expect(
     renamedLabelFormat({ kind: "power-label" }, "VDD", "VCC", presentation),
   ).toBeUndefined();
+});
+
+it("stores a device Reference as italic letters over an upright index", () => {
+  const format = roleLabelFormat("device-reference", "M1")!;
+  expect(format).toEqual({
+    runs: [
+      {
+        kind: "span",
+        style: "italic",
+        children: [
+          {
+            kind: "span",
+            style: "bold",
+            children: [{ kind: "text", value: "M" }],
+          },
+        ],
+      },
+      {
+        kind: "span",
+        style: "subscript",
+        children: [
+          {
+            kind: "span",
+            style: "bold",
+            children: [{ kind: "text", value: "1" }],
+          },
+        ],
+      },
+    ],
+  });
+  expect(flattenRichText(roleLabelFormat("device-reference", "R12")!)).toBe(
+    "R12",
+  );
+  // Only letters followed by an index have a standard look; nothing is guessed.
+  for (const name of ["MTAIL", "RL", "M_1", "M1a", "1M", ""])
+    expect(roleLabelFormat("device-reference", name)).toBeUndefined();
+});
+
+it("assigns standard looks by what a label shows, not by its spelling", () => {
+  expect(labelRole({ kind: "power-label" })).toBe("supply");
+  expect(
+    labelRole({
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "M1" },
+    }),
+  ).toBe("device-reference");
+  expect(
+    labelRole({
+      kind: "instance-label",
+      binding: { kind: "cell-terminal-name", terminalId: "t" },
+    }),
+  ).toBe("voltage-node");
+  expect(
+    labelRole({ kind: "net-label", binding: { kind: "net-name", netId: "n" } }),
+  ).toBeUndefined();
+});
+
+it("recognises a standard look however its spans are nested", () => {
+  const regrouped = {
+    runs: [
+      {
+        kind: "span" as const,
+        style: "bold" as const,
+        children: [
+          {
+            kind: "span" as const,
+            style: "italic" as const,
+            children: [{ kind: "text" as const, value: "M" }],
+          },
+          {
+            kind: "span" as const,
+            style: "subscript" as const,
+            children: [{ kind: "text" as const, value: "1" }],
+          },
+        ],
+      },
+    ],
+  };
+  expect(isRoleLabelFormat(regrouped, "device-reference", "M1")).toBe(true);
+  expect(isRoleLabelFormat(regrouped, "device-reference", "M2")).toBe(false);
+});
+
+it("lets a stored M₁ look follow a device rename", () => {
+  const presentation = createEmptyDocument("a", "A").presentation;
+  const label = {
+    kind: "instance-label" as const,
+    binding: { kind: "instance-reference" as const, instanceId: "M1" },
+    formatOverride: roleLabelFormat("device-reference", "M1")!,
+  };
+  expect(renamedLabelFormat(label, "M1", "M10", presentation)).toEqual(
+    roleLabelFormat("device-reference", "M10"),
+  );
+  expect(
+    renamedLabelFormat(label, "M1", "MTAIL", presentation),
+  ).toBeUndefined();
+});
+
+it("shows a hidden underscore again when restyling leaves nothing to hide it", () => {
+  const flat = { runs: [{ kind: "text" as const, value: "Mload" }] };
+  expect(flattenRichText(formatPresentingName(flat, "M_load"))).toBe("M_load");
+  // A format that already spells its name is kept as it is.
+  const scripted = identifierTextDocument("M_load");
+  expect(formatPresentingName(scripted, "M_load")).toBe(scripted);
 });

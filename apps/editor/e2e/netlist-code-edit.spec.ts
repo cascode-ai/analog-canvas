@@ -528,10 +528,11 @@ test("bound labels retain typography on rename and support manual scripts withou
   await expect(
     label(page).locator('[data-text-run="subscript"]'),
   ).toContainText("7");
-  expect(saved.documents[0].instances[0].reference).toBe("R_7");
+  // Subscripting the 7 is styling: the Reference stays R7.
+  expect(saved.documents[0].instances[0].reference).toBe("R7");
   const code = page.getByLabel("Netlist code", { exact: true });
-  await expect(code).toContainText("R_7");
-  await code.fill((await code.innerText()).replace("R_7 ", "R_8 "));
+  await expect(code).toContainText("R7");
+  await code.fill((await code.innerText()).replace("R7 ", "R8 "));
   await code.press("Enter");
   await expect(label(page)).toHaveText("R8");
   expect(
@@ -547,17 +548,18 @@ test("bound labels retain typography on rename and support manual scripts withou
   await page.getByRole("button", { name: "Bold", exact: true }).click();
   await page.getByRole("button", { name: "Italic", exact: true }).click();
   await page.getByRole("button", { name: "Apply text changes" }).click();
-  await expect(code).toContainText("R_8");
+  await expect(code).toContainText("R8");
   expect(
     (await typefaces()).every(
       (face) => face.weight === "400" && face.style === "normal",
     ),
   ).toBe(true);
-  await code.fill((await code.innerText()).replace("R_8 ", "R9 "));
+  await code.fill((await code.innerText()).replace("R8 ", "R9 "));
   await code.press("Enter");
   await expect(label(page)).toHaveText("R9");
-  await expect(label(page).locator('[data-text-run="subscript"]')).toHaveCount(
-    0,
+  // The author's subscript stays on the index through the rename.
+  await expect(label(page).locator('[data-text-run="subscript"]')).toHaveText(
+    "9",
   );
   expect(
     (await typefaces()).every(
@@ -889,7 +891,7 @@ test("opening and reopening a PDK BJT adds X only to SPICE, never its canvas nam
   ).toHaveText("Q1");
 });
 
-test("Cell Pin overbars rename the exported interface and follow source renames", async ({
+test("Cell Pin overbars are the label's look and keep the exported name", async ({
   page,
 }) => {
   const project = fixture();
@@ -943,7 +945,8 @@ test("Cell Pin overbars rename the exported interface and follow source renames"
     label.locator("..").locator('[data-text-decoration="overbar"]'),
   ).toHaveCount(1);
   const code = page.getByLabel("Netlist code", { exact: true });
-  await expect(code).toContainText("F_bar");
+  // The bar is how the label is drawn; the exported Pin Name stays F.
+  await expect(code).not.toContainText("F_bar");
   const saved = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
@@ -951,7 +954,7 @@ test("Cell Pin overbars rename the exported interface and follow source renames"
     saved.documents[0].netlist.terminals.find(
       (item: { id: string }) => item.id === "output",
     ).name,
-  ).toBe("F_bar");
+  ).toBe("F");
   // Device names are writable in the netlist; the marker must round trip there too.
   await code.fill((await code.innerText()).replace("R1 ", "R1_bar "));
   await code.press("Enter");
@@ -969,19 +972,14 @@ test("Cell Pin overbars rename the exported interface and follow source renames"
   );
   await page.getByTestId("hit-P1").click();
   await openSelectionShelf(page);
+  // Renaming the Pin keeps the author's bar on the new name.
   await editComponentPropertyCode(page, (code) => {
-    code.name = "Q_bar";
+    code.name = "Q";
   });
   await expect(label).toHaveText("Q");
   await expect(
     label.locator("..").locator('[data-text-decoration="overbar"]'),
   ).toHaveCount(1);
-  await editComponentPropertyCode(page, (code) => {
-    code.name = "Q";
-  });
-  await expect(
-    label.locator("..").locator('[data-text-decoration="overbar"]'),
-  ).toHaveCount(0);
   const renamed = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );

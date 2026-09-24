@@ -188,26 +188,32 @@ bold italic. Bold, italic, upright text, color and superscript remain
 independent of the electrical name; changing a name preserves those choices.
 `Use display alias` is off by default. Enable it only for a canvas-only name.
 
-By default an underscore introduces a subscript: `M_1` is displayed as M₁,
-while `M1` stays on the baseline. Applying or removing subscript in the text editor adds
-or removes the underscore in the netlist name. Netlist edits update the label
-in the other direction. Historical explicit label formatting is preserved on
-open; editing that label's text adopts this naming convention.
+A label's name and its look are separate. The name is what the netlist,
+simulation and Agents use; it is always exactly what you typed. Changing the
+characters on a label renames it exactly as typed, with no underscore added
+or removed. Applying or removing a subscript, overbar, slant or weight only
+changes how the label is drawn, never its name. See
+[names and labels](../specs/names-and-labels.md) for the full rules.
 
-An overbar on a bound name uses the suffix `_bar`: F with a bar is `F_bar`,
-and a barred F with subscript in is `F_in_bar`. Applying or removing the bar
-updates the netlist. A source name ending in `_bar` renders with an overbar;
-removing that suffix when renaming the source removes the bar. Subscript case
-changes leave this reserved suffix as `_bar`. Free text and explicit display
-aliases remain presentation-only.
+New parts start in their standard look, saved with the label:
 
-VDD Power and a drawn VDD Rail start in the standard supply look: an italic V
-with an upright subscript, as V_DD. The look is saved with the label when you
-place it, so the drawing's `labels` settings do not redraw it, and the netlist
-name stays `VDD`. Typing on the label renames the supply exactly as typed and
-keeps the look for any name that starts with V, such as `VDDA` or `VCC`; a name
-such as `AVDD` uses the ordinary label rules. Restyling the label never renames
-it, and a restyled label keeps your formatting.
+- VDD Power and a drawn VDD Rail: an italic V with an upright subscript, as
+  V_DD. A supply named `VDDH` or `VCC` keeps that look; `AVDD` is shown as
+  written.
+- A device name such as `M1` or `R12`: italic letters with an upright
+  subscript index, as M₁. `MTAIL` or `RL` is shown as written.
+- A Pin name the editor chooses for you, such as `Vinp` or `VB1`: an italic V
+  with an upright subscript. A Pin or Net name you type yourself is shown as
+  written until you format it.
+
+Renaming keeps a standard look in step with the new name. Once you restyle a
+label, your formatting is kept instead.
+
+A label without its own formatting, such as one in an older drawing, keeps
+its historical look: an underscore starts a subscript, so `M_1` is drawn as
+M₁, and a name ending in `_bar` is drawn with an overbar. The name itself
+keeps the underscore. Free text and explicit display aliases remain
+presentation-only.
 
 Clear the selection and open **Properties** to change the current drawing's
 `labels` settings. Each field has a dropdown in the editable code. Valid changes

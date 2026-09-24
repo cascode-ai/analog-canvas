@@ -10,9 +10,18 @@ import {
   identifierTextDocument,
   identifierSubscriptCase,
   rewriteRichTextIdentifier,
+  richTextPresentsIdentifier,
 } from "./identifier-text.js";
-import { normalizeRichText } from "./rich-text.js";
-import { voltageNodeTextDocument } from "./semantic-text.js";
+import {
+  flattenRichText,
+  normalizeRichText,
+  rewriteRichTextPlainText,
+  sameStyledText,
+} from "./rich-text.js";
+import {
+  deviceReferenceTextDocument,
+  voltageNodeTextDocument,
+} from "./semantic-text.js";
 
 /** Current drawing's naming typography, shared by labels, pins and block text. */
 export function labelTypography(
@@ -147,16 +156,57 @@ export function labelTextDocument(
 }
 
 /**
- * The format a supply marker's label is created with: an italic leading V
- * over an upright subscript, as in V_DD. Placement stores it on the label, so
- * a later rule or drawing-setting change never redraws a supply the author
- * has already seen, and the electrical name keeps its exact spelling. Other
- * spellings (AVDD, VDD_1V8) keep the ordinary label rules.
+ * Labels whose standard look comes from what they label, not from guessing
+ * at their spelling: supply markers, device References and the voltage-node
+ * names the editor generates for new Cell Pins.
  */
-export function supplyLabelFormat(name: string): RichTextDocument | undefined {
+export type LabelRole = "supply" | "device-reference" | "voltage-node";
+
+/** The role that gives a bound label a standard look, if any. */
+export function labelRole(
+  annotation: Pick<Annotation, "kind" | "binding">,
+): LabelRole | undefined {
+  if (annotation.kind === "power-label") return "supply";
+  if (annotation.kind !== "instance-label") return undefined;
+  if (annotation.binding?.kind === "instance-reference")
+    return "device-reference";
+  if (annotation.binding?.kind === "cell-terminal-name") return "voltage-node";
+  return undefined;
+}
+
+/**
+ * The standard look a role-labelled name is created with, stored on the
+ * label so later rule or drawing-setting changes never redraw it. The name
+ * keeps its exact spelling; a spelling without a standard form gets none.
+ * - supply, voltage node: italic V over an upright subscript (V_DD, V_inp)
+ * - device reference: italic letters over an upright index (M₁, R₁₂)
+ */
+export function roleLabelFormat(
+  role: LabelRole,
+  name: string,
+): RichTextDocument | undefined {
+  if (role === "device-reference")
+    return /^\p{L}+\p{N}+$/u.test(name)
+      ? deviceReferenceTextDocument(name)
+      : undefined;
   return /^[Vv][\p{L}\p{N}]+$/u.test(name)
     ? voltageNodeTextDocument(name)
     : undefined;
+}
+
+/** Whether a stored format is still exactly the standard look for `name`. */
+export function isRoleLabelFormat(
+  format: RichTextDocument,
+  role: LabelRole,
+  name: string,
+): boolean {
+  const expected = roleLabelFormat(role, name);
+  return expected !== undefined && sameStyledText(format, expected);
+}
+
+/** The standard look of a supply marker's label (VDD Power, drawn rails). */
+export function supplyLabelFormat(name: string): RichTextDocument | undefined {
+  return roleLabelFormat("supply", name);
 }
 
 /** Whether a stored format is still exactly the supply default for `name`. */
@@ -164,35 +214,50 @@ export function isSupplyLabelFormat(
   format: RichTextDocument,
   name: string,
 ): boolean {
-  const expected = supplyLabelFormat(name);
-  return (
-    expected !== undefined &&
-    JSON.stringify(normalizeRichText(format)) ===
-      JSON.stringify(normalizeRichText(expected))
-  );
+  return isRoleLabelFormat(format, "supply", name);
 }
 
 /**
- * The format a bound label keeps when its name changes. An untouched supply
- * default follows the new spelling, or is dropped when that spelling has no
- * supply form; an authored format keeps its styling around the new text.
+ * The format a bound label keeps when its name changes. An untouched
+ * standard look follows the new spelling, or is dropped when that spelling
+ * has no standard form; an authored format keeps its styling around the new
+ * text.
  */
 export function renamedLabelFormat(
-  annotation: Pick<Annotation, "kind" | "formatOverride">,
+  annotation: Pick<Annotation, "kind" | "binding" | "formatOverride">,
   previousName: string,
   nextName: string,
   presentation: SchematicDocument["presentation"],
 ): RichTextDocument | undefined {
   const format = annotation.formatOverride;
   if (!format) return undefined;
-  if (
-    annotation.kind === "power-label" &&
-    isSupplyLabelFormat(format, previousName)
-  )
-    return supplyLabelFormat(nextName);
+  const role = labelRole(annotation);
+  if (role && isRoleLabelFormat(format, role, previousName))
+    return roleLabelFormat(role, nextName);
+  // A format that spells its name character by character keeps each
+  // character's style, so an authored subscript survives the rename. A new
+  // name with an underscore places its subscript at that underscore, the
+  // historical encoding a stored display may use to spell its name.
+  if (!nextName.includes("_") && flattenRichText(format) === previousName)
+    return rewriteRichTextPlainText(format, nextName);
   return rewriteRichTextIdentifier(
     format,
     nextName,
     labelIdentifierOptions(presentation),
   );
+}
+
+/**
+ * A format that still spells `name`. Restyling never renames, so when a
+ * styling change leaves a character the old look hid (an underscore that
+ * began a removed subscript), that character is shown again rather than
+ * dropped from the electrical name.
+ */
+export function formatPresentingName(
+  format: RichTextDocument,
+  name: string,
+): RichTextDocument {
+  return richTextPresentsIdentifier(format, name)
+    ? format
+    : rewriteRichTextPlainText(format, name);
 }

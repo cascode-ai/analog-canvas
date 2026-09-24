@@ -3,9 +3,11 @@ import {
   rewriteRichTextIdentifier,
   labelTypography,
   labelTextDocument,
-  formatLabelIdentifier,
-  isSupplyLabelFormat,
-  supplyLabelFormat,
+  formatPresentingName,
+  isRoleLabelFormat,
+  labelRole,
+  roleLabelFormat,
+  type LabelRole,
 } from "@icm/model";
 import type { SchematicEdit } from "@icm/edit-engine";
 import { flattenRichText, semanticTextDocument } from "@icm/model";
@@ -98,51 +100,106 @@ function uniformTextStyle(
 }
 
 /**
- * The supply name a label still shows in its stored default format, or
- * undefined once the author has restyled it (or for any other label).
+ * The role and name of a label that still shows its stored standard look
+ * (V_DD, M₁, V_inp), or undefined once the author has restyled it or for a
+ * label without a role.
  */
-export function supplyLabelDefault(
+export function roleLabelDefault(
   document: SchematicDocument,
   annotation: Annotation,
-): string | undefined {
-  if (annotation.kind !== "power-label" || !annotation.formatOverride)
-    return undefined;
+): { role: LabelRole; name: string } | undefined {
+  const role = labelRole(annotation);
+  if (!role || !annotation.formatOverride) return undefined;
   const name = resolveAnnotationName(document, annotation).trim();
-  return isSupplyLabelFormat(annotation.formatOverride, name)
-    ? name
+  return isRoleLabelFormat(annotation.formatOverride, role, name)
+    ? { role, name }
     : undefined;
 }
 
 /**
- * Commit an edit of a supply label that still shows its default format.
- * Changed characters rename the supply exactly as typed; styling never
- * does, so V_DD's subscript cannot turn VDD into V_DD. A plain text edit
- * keeps the default for the new spelling, and a restyled label keeps the
- * author's format.
+ * The format an edited role label keeps: its standard look regenerated for
+ * the new name after a plain text edit, or the author's own formatting once
+ * restyled. Undefined when the label is not showing a standard look.
  */
-export function supplyLabelEdit(
+export function editedRoleLabelFormat(
   document: SchematicDocument,
   annotation: Annotation,
   session: TextEditingSession,
-): { name: string; format: RichTextDocument | undefined } | undefined {
-  const currentName = supplyLabelDefault(document, annotation);
-  if (currentName === undefined) return undefined;
-  const typed = flattenRichText(session.content).trim();
-  const name =
-    session.contentEdited && typed !== currentName ? typed : currentName;
+  name: string,
+): { format: RichTextDocument | undefined } | undefined {
+  const current = roleLabelDefault(document, annotation);
+  if (!current) return undefined;
   return {
-    name,
     format:
       session.formatEdited && flattenRichText(session.content) === name
         ? session.content
-        : supplyLabelFormat(name),
+        : roleLabelFormat(current.role, name),
   };
 }
 
 /**
- * Interpret an edited bound label as a name once, regardless of whether its
- * owner is an Instance, a Net, or a Cell terminal. Each owner still commits
- * that name through its own electrical transaction boundary.
+ * Apply the change between two visible spellings of a label to the name it
+ * shows. Characters the old look hid, such as an underscore before a
+ * subscript or a trailing `_bar` under an overbar, stay where they were.
+ */
+export function spliceVisibleEdit(
+  name: string,
+  before: string,
+  after: string,
+): string {
+  const nameCharacters = [...name];
+  const beforeCharacters = [...before];
+  const afterCharacters = [...after];
+  const positions: number[] = [];
+  let cursor = 0;
+  for (const character of beforeCharacters) {
+    while (
+      cursor < nameCharacters.length &&
+      nameCharacters[cursor] !== character
+    )
+      cursor += 1;
+    if (cursor >= nameCharacters.length) return after;
+    positions.push(cursor);
+    cursor += 1;
+  }
+  let prefix = 0;
+  while (
+    prefix < beforeCharacters.length &&
+    prefix < afterCharacters.length &&
+    beforeCharacters[prefix] === afterCharacters[prefix]
+  )
+    prefix += 1;
+  let suffix = 0;
+  while (
+    suffix < beforeCharacters.length - prefix &&
+    suffix < afterCharacters.length - prefix &&
+    beforeCharacters[beforeCharacters.length - 1 - suffix] ===
+      afterCharacters[afterCharacters.length - 1 - suffix]
+  )
+    suffix += 1;
+  const replacedEnd = beforeCharacters.length - suffix;
+  // A replacement spans its first to last visible character; a pure
+  // insertion lands before the next visible character, or after the last.
+  const start =
+    prefix < replacedEnd || prefix < beforeCharacters.length
+      ? positions[prefix]!
+      : prefix > 0
+        ? positions[prefix - 1]! + 1
+        : 0;
+  const end = prefix < replacedEnd ? positions[replacedEnd - 1]! + 1 : start;
+  return [
+    ...nameCharacters.slice(0, start),
+    ...afterCharacters.slice(prefix, afterCharacters.length - suffix),
+    ...nameCharacters.slice(end),
+  ].join("");
+}
+
+/**
+ * The name an edited bound label now spells, for an Instance, Net or Cell
+ * terminal alike. Changed characters rename exactly as typed: nothing is
+ * inserted, removed or re-cased. A styling-only edit (subscript, slant,
+ * overbar) never renames. Each owner still commits the name through its own
+ * electrical transaction boundary.
  */
 export function editedBoundAnnotationName(
   document: SchematicDocument,
@@ -151,16 +208,10 @@ export function editedBoundAnnotationName(
   currentName: string,
 ): string {
   if (!session.contentEdited) return currentName;
-  const identifier = richTextIdentifier(session.content);
-  if (
-    identifier ===
-    richTextIdentifier(resolveAnnotationText(document, annotation))
-  )
-    return currentName;
-  const typed = identifier.trim();
-  return session.formatEdited
-    ? typed
-    : formatLabelIdentifier(typed, labelTypography(document.presentation));
+  const before = flattenRichText(resolveAnnotationText(document, annotation));
+  const after = flattenRichText(session.content);
+  if (after === before) return currentName;
+  return spliceVisibleEdit(currentName, before, after).trim();
 }
 
 export function createTextEditingSession(
@@ -185,11 +236,11 @@ export function createTextEditingSession(
           "formal-port",
         ),
       );
-    // The supply format placement stores is a default, not the author's
-    // styling: editing starts from it the way it starts from the name.
-    const automaticSupplyFormat =
+    // A standard look stored at placement (V_DD, M₁) is a default, not the
+    // author's styling: editing starts from it the way it starts from a name.
+    const automaticRoleFormat =
       document !== undefined &&
-      supplyLabelDefault(document, annotation) !== undefined;
+      roleLabelDefault(document, annotation) !== undefined;
     const instanceId =
       annotation.binding?.kind === "instance-reference"
         ? annotation.binding.instanceId
@@ -210,7 +261,7 @@ export function createTextEditingSession(
       ...(annotation.binding ? { bindingKind: annotation.binding.kind } : {}),
       ...(annotation.formatOverride &&
       !automaticTerminalOverride &&
-      !automaticSupplyFormat
+      !automaticRoleFormat
         ? { formatEdited: true }
         : {}),
       ...(annotation.kind === "route-marker"
@@ -573,16 +624,21 @@ export function proposeTextEditingCommit(
           ? [{ kind: "set_instance_reference", instanceId, reference: name }]
           : [];
       const defaultContent = labelTextDocument(name, document.presentation);
-      const presentation =
-        session.contentEdited &&
-        (flattenRichText(session.content).includes("_") ||
-          (typography.subscriptAfterFirst && !session.formatEdited))
+      const roleFormat = follows
+        ? editedRoleLabelFormat(document, annotation, session, name)
+        : undefined;
+      const styled = roleFormat
+        ? (roleFormat.format ?? defaultContent)
+        : session.contentEdited &&
+            (flattenRichText(session.content).includes("_") ||
+              (typography.subscriptAfterFirst && !session.formatEdited))
           ? rewriteRichTextIdentifier(session.content, name, {
               underscoreSubscript:
                 typography.subscriptAfterFirst ||
                 typography.underscoreSubscript,
             })
           : session.content;
+      const presentation = formatPresentingName(styled, name);
       const next: Annotation = {
         ...rest,
         sizeScale: session.sizeScale,

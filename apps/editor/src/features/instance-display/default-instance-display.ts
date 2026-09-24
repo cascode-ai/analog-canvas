@@ -4,7 +4,7 @@ import {
   resolveDocumentStyleProfile,
   type SchematicStyleProfile,
 } from "@icm/derived";
-import { plainNameDocument } from "@icm/model";
+import { plainNameDocument, roleLabelFormat } from "@icm/model";
 import type { Annotation, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -86,9 +86,15 @@ export function defaultInstanceDisplayAnnotations(
   );
   const showsDesignator = options.showDesignator !== false && Boolean(label);
   if (showsDesignator && label) {
+    // A Reference such as M1 is placed in its standard look (M₁), stored on
+    // the label; the Reference itself keeps its exact spelling.
+    const format = instance.reference
+      ? roleLabelFormat("device-reference", instance.reference)
+      : undefined;
     annotations.push({
       ...label,
       binding: { kind: "instance-reference", instanceId: instance.id },
+      ...(format ? { formatOverride: format } : {}),
     });
   }
   if (options.masterName) {

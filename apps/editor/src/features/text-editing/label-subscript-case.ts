@@ -78,10 +78,13 @@ export function applyLabelSubscriptCase(
         flattenRichText(annotation.formatOverride) === name &&
         richTextIdentifier(annotation.formatOverride) !== name,
     );
+    // Only turning the first-letter convention on inserts its separator; a
+    // case change alone never adds characters to a name.
     return formatLabelIdentifier(
       legacy?.formatOverride ? richTextIdentifier(legacy.formatOverride) : name,
       {
-        subscriptAfterFirst: nextTypography.subscriptAfterFirst,
+        subscriptAfterFirst:
+          changeAfterFirst && nextTypography.subscriptAfterFirst,
         subscriptCase: mode,
       },
     );

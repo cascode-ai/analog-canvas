@@ -1,8 +1,7 @@
-import { labelIdentifierOptions } from "@icm/model";
 import {
   inverseTransformPoint,
   mirrorScale,
-  rewriteRichTextIdentifier,
+  renamedLabelFormat,
   snapGridPoint,
   transformPoint,
 } from "@icm/model";
@@ -233,11 +232,16 @@ export function refreshInstanceReferenceAnnotation(
       continue;
     }
     if (annotation.formatOverride) {
-      annotation.formatOverride = rewriteRichTextIdentifier(
-        annotation.formatOverride,
+      // A stored M₁ look follows the new Reference; an authored format keeps
+      // its styling around the new text.
+      const format = renamedLabelFormat(
+        annotation,
+        previousReference,
         nextReference,
-        labelIdentifierOptions(draft.presentation),
+        draft.presentation,
       );
+      if (format) annotation.formatOverride = format;
+      else delete annotation.formatOverride;
     }
     changedObjectIds.add(annotation.id);
   }

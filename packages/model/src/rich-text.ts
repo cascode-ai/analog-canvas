@@ -99,6 +99,27 @@ function collectStyledCharacters(
   return true;
 }
 
+/**
+ * Whether two presentations draw the same characters with the same styles,
+ * regardless of how their spans happen to be nested or split.
+ */
+export function sameStyledText(
+  left: RichTextDocument,
+  right: RichTextDocument,
+): boolean {
+  const a: StyledCharacter[] = [];
+  const b: StyledCharacter[] = [];
+  if (
+    !collectStyledCharacters(left.runs, [], a) ||
+    !collectStyledCharacters(right.runs, [], b) ||
+    a.length !== b.length
+  )
+    return false;
+  const key = (character: StyledCharacter) =>
+    `${character.value}\u0000${[...new Set(character.styles)].sort().join(",")}`;
+  return a.every((character, index) => key(character) === key(b[index]!));
+}
+
 function styledTextRun(
   value: string,
   styles: readonly RichTextStyle[],

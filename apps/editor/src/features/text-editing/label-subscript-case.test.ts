@@ -80,12 +80,35 @@ it("updates old formatted labels and module body names together, preserving colo
   });
 });
 
+it("changes subscript case without inserting separators into plain names", () => {
+  const source = fixture(),
+    doc = source.documents[0]!;
+  doc.instances[0]!.reference = "Rload";
+  delete doc.annotations[0]!.formatOverride;
+  doc.netlist!.terminals[0]!.name = "out";
+  doc.presentation.labelSubscriptAfterFirst = true;
+  const next = applyLabelSubscriptCase(
+    source,
+    doc.id,
+    "uppercase",
+    resolver,
+    [],
+    false,
+    { ...layout, subscriptAfterFirst: true },
+  );
+  expect(next.documents[0]!.netlist!.terminals[0]!.name).toBe("out");
+  expect(next.documents[0]!.instances[0]!.reference).toBe("Rload");
+});
+
 it("applies first-letter subscripts to plain names and aliases as one consistent naming action", () => {
   const source = fixture(),
     doc = source.documents[0]!;
   doc.instances[0]!.reference = "Rload";
   delete doc.annotations[0]!.formatOverride;
   doc.netlist!.terminals[0]!.name = "Vin";
+  // Explicitly turning the convention on is what applies it; a case change
+  // alone never inserts separators.
+  doc.presentation.labelSubscriptAfterFirst = false;
   const next = applyLabelSubscriptCase(
     source,
     doc.id,
