@@ -38,13 +38,20 @@ describe("persistent simulation evidence", () => {
       },
       storedAt: 0,
     });
-    expect(await store.pruneCatalogCache([])).toEqual(["cache-1", "cache-0"]);
+    const archives = createBrowserSimulationArchiveStore({
+      idbFactory: factory,
+    });
+    expect(await archives.pruneCache("project")).toEqual({
+      ok: true,
+      value: [],
+    });
     const retained = (await store.catalogs!()).map(
       (entry) => entry.catalog.runId,
     );
     expect(retained).toContain("legacy");
     expect(retained).not.toContain("cache-0");
     expect(retained).toHaveLength(31);
+    archives.close();
   });
   it("reports actual Project usage and deletes an exact catalog without losing shared evidence", async () => {
     const factory = new IDBFactory();

@@ -823,7 +823,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       },
     },
     {
-      label: "Archive current run",
+      label: "Archive current run (latest 30 saved)",
       disabled: !run || !!artifactBusy,
       run: () => void archiveCurrentRun(),
     },
