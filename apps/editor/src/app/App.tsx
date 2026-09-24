@@ -4286,7 +4286,9 @@ function WorkspaceEditor({
         target instanceof Element ? target : target.parentElement;
       if (
         textEditing &&
-        !targetElement?.closest('[data-testid="canvas-text-editor"]')
+        !targetElement?.closest(
+          '[data-testid="canvas-text-editor"], [data-canvas-text-editor-part]',
+        )
       ) {
         // Leaving the canvas text editor commits the session; emptying the
         // text still deletes the annotation, matching the Apply button.

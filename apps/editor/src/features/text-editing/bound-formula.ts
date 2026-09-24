@@ -1,5 +1,6 @@
 import { flattenRichText, normalizeRichText } from "@icm/model";
 import type { RichTextDocument, RichTextRun } from "@icm/model";
+import { GREEK_COMMANDS } from "./greek-letters";
 
 /** Presentation-equivalent formulas for electrical Net/Cell terminal names. */
 export function boundFormulaPresentation(
@@ -14,22 +15,6 @@ export function boundFormulaPresentation(
     ? document
     : null;
 }
-
-const GREEK_COMMANDS: Readonly<Record<string, string>> = {
-  alpha: "α",
-  beta: "β",
-  gamma: "γ",
-  delta: "δ",
-  epsilon: "ε",
-  theta: "θ",
-  lambda: "λ",
-  mu: "μ",
-  pi: "π",
-  phi: "φ",
-  omega: "ω",
-  Delta: "Δ",
-  Omega: "Ω",
-};
 
 /**
  * Deliberately small LaTeX projection for a bound electrical name. It accepts
