@@ -11,10 +11,13 @@ Call `connect` with the Claim once, or omit it to resume the saved connector.
 Its reply already includes lightweight authoritative context. Capabilities and
 that bootstrap Snapshot are fetched in parallel. Use the returned identity,
 counts and revisions immediately; no duplicate `get_context` is required. Use
-`inspect` when you need objects or pins. Unchanged reads reuse the clean full
-Snapshot after its first load; set `refresh:true` after a known human change or
-when explicitly reconciling. MCP manages credentials, request IDs and expected
-revisions.
+`inspect` when you need objects or pins. For only current placement, route,
+annotation-anchor or drafting geometry, use
+`inspect({"target":{"kind":"geometry","objectIds":["<stable-id>"]}})`;
+this reads selected authored objects without constructing a full Snapshot.
+Other inspections reuse the clean full Snapshot after its first load;
+`refresh:true` forces a reread after a known human change or for reconciliation.
+MCP manages credentials, request IDs and expected revisions.
 
 Choose only the guidance needed for the task:
 

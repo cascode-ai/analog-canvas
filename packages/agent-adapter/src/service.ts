@@ -44,6 +44,7 @@ import { buildProjectConnectivityIndex, traceHierarchyNet } from "@icm/derived";
 import {
   buildAgentBootstrapSnapshot,
   buildAgentSessionSnapshot,
+  selectAgentGeometry,
 } from "./snapshot.js";
 import { terminalConnectivity } from "./terminal-connectivity.js";
 
@@ -309,6 +310,38 @@ export function createAgentCircuitService(
         context: ReturnType<typeof buildAgentBootstrapSnapshot>;
       }
     | undefined;
+  let diagnosticsCache:
+    | {
+        project: CircuitProject | undefined;
+        document: SchematicDocument;
+        resolver: SymbolResolver;
+        diagnostics: AgentDiagnostic[];
+      }
+    | undefined;
+  const diagnosticsFor = (
+    project: CircuitProject | undefined,
+    document: SchematicDocument,
+    resolver: SymbolResolver,
+  ): AgentDiagnostic[] => {
+    const cached = diagnosticsCache;
+    if (
+      cached &&
+      cached.project === project &&
+      cached.document === document &&
+      cached.resolver === resolver
+    )
+      return cached.diagnostics;
+    const diagnostics = project
+      ? agentProjectDiagnostics(
+          project,
+          resolver,
+          document.id,
+          document.revision,
+        )
+      : agentVisualDiagnostics(document, resolver);
+    diagnosticsCache = { project, document, resolver, diagnostics };
+    return diagnostics;
+  };
   const response = (input: unknown): AgentCircuitResponse =>
     AgentCircuitResponseSchema.parse(input);
   const useHost = "host" in options;
@@ -444,6 +477,43 @@ export function createAgentCircuitService(
             document.revision,
           );
         }
+        if (
+          (request.projection === "geometry") !==
+            (request.geometryIds !== undefined) ||
+          (request.projection === "geometry" &&
+            (request.includeSourceSpans === true ||
+              request.traceNet !== undefined))
+        ) {
+          return fail(
+            "snapshot",
+            "INVALID_REQUEST",
+            "Geometry Snapshot requires geometryIds and cannot include source spans or a Net trace",
+            document.revision,
+          );
+        }
+        if (request.projection === "geometry") {
+          const selected = selectAgentGeometry(document, request.geometryIds!);
+          const result = {
+            apiVersion: request.apiVersion,
+            requestId: request.requestId,
+            operation: "snapshot" as const,
+            ok: true as const,
+            projection: "geometry" as const,
+            projectId: project?.id ?? `project-${document.id}`,
+            structureRevision: project?.structureRevision ?? 0,
+            documentId: document.id,
+            revision: document.revision,
+            ...selected,
+          };
+          if (utf8ByteLength(JSON.stringify(result)) > limits.maxSnapshotBytes)
+            return fail(
+              "snapshot",
+              "SNAPSHOT_TOO_LARGE",
+              `Geometry Snapshot content exceeds ${limits.maxSnapshotBytes} bytes`,
+              document.revision,
+            );
+          return response(result);
+        }
         const includeSourceSpans = request.includeSourceSpans === true;
         if (includeSourceSpans && !options.permissions.sourceSpans) {
           return fail(
@@ -503,6 +573,12 @@ export function createAgentCircuitService(
           resolver,
           includeSourceSpans,
           snapshot,
+        };
+        diagnosticsCache = {
+          project,
+          document,
+          resolver,
+          diagnostics: snapshot.document.diagnostics,
         };
         if (snapshot.byteLength > limits.maxSnapshotBytes) {
           return fail(
@@ -669,14 +745,7 @@ export function createAgentCircuitService(
               document.revision,
             );
           }
-          const diagnostics = project
-            ? agentProjectDiagnostics(
-                project,
-                resolver,
-                document.id,
-                document.revision,
-              )
-            : agentVisualDiagnostics(document, resolver);
+          const diagnostics = diagnosticsFor(project, document, resolver);
           return response({
             apiVersion: request.apiVersion,
             requestId: request.requestId,
@@ -816,11 +885,10 @@ export function createAgentCircuitService(
             result.proposedProject,
             builtInSymbols,
           );
-          const diagnostics = agentProjectDiagnostics(
+          const diagnostics = diagnosticsFor(
             result.proposedProject,
+            proposedDocument,
             effectiveResolver,
-            proposedDocument.id,
-            proposedDocument.revision,
           );
           return response({
             apiVersion: request.apiVersion,
@@ -993,22 +1061,12 @@ export function createAgentCircuitService(
                 ),
               }
             : undefined);
-        const diagnostics = proposedProject
-          ? agentProjectDiagnostics(
-              proposedProject,
-              committedResolver,
-              result.document.id,
-              result.proposedRevision,
-            )
-          : agentVisualDiagnostics(result.document, committedResolver);
-        const beforeDiagnostics = project
-          ? agentProjectDiagnostics(
-              project,
-              resolver,
-              document.id,
-              document.revision,
-            )
-          : agentVisualDiagnostics(document, resolver);
+        const beforeDiagnostics = diagnosticsFor(project, document, resolver);
+        const diagnostics = diagnosticsFor(
+          proposedProject,
+          result.document,
+          committedResolver,
+        );
         const beforeIds = new Set(
           beforeDiagnostics.map(agentDiagnosticIdentity),
         );
@@ -1074,14 +1132,7 @@ export function createAgentCircuitService(
           request,
           document,
           resolver,
-          project
-            ? agentProjectDiagnostics(
-                project,
-                resolver,
-                document.id,
-                document.revision,
-              )
-            : agentVisualDiagnostics(document, resolver),
+          diagnosticsFor(project, document, resolver),
         );
         const byteLength = utf8ByteLength(rendered.svg);
         if (byteLength > limits.maxRenderBytes) {

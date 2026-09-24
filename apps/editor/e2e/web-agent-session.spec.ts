@@ -206,6 +206,23 @@ test("real relay batches labels and moves bound text with shared undo", async ({
     },
   ]);
   expect(moved.ok, moved.message).toBe(true);
+  const geometry = await client.geometrySnapshot([
+    label.id,
+    snapshot.snapshot.document.routes[0]!.id,
+  ]);
+  expect(geometry).toMatchObject({
+    projection: "geometry",
+    revision: moved.revision,
+    missingObjectIds: [],
+    objects: [
+      {
+        kind: "annotation",
+        id: label.id,
+        anchor: { kind: "free", position: { x: 153, y: 43 } },
+      },
+      { kind: "route", id: snapshot.snapshot.document.routes[0]!.id },
+    ],
+  });
   const updated = await client.refreshSnapshot();
   expect(
     updated.snapshot.document.annotations.find((a) => a.id === label.id),

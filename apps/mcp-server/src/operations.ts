@@ -320,6 +320,10 @@ const InspectArgs = z.strictObject({
       name: z.string().min(1).optional(),
     }),
     z.strictObject({ kind: z.literal("diagnostics") }),
+    z.strictObject({
+      kind: z.literal("geometry"),
+      objectIds: z.array(z.string().min(1)).min(1).max(64),
+    }),
     z.strictObject({ kind: z.literal("activity") }),
     z.strictObject({
       kind: z.literal("trace"),
@@ -1028,6 +1032,11 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
               ? { hierarchyPath: parsed.target.hierarchyPath }
               : {}),
           },
+          parsed.documentId,
+        );
+      if (parsed.target.kind === "geometry")
+        return session.client.geometrySnapshot(
+          parsed.target.objectIds,
           parsed.documentId,
         );
       const entry = await session.client.snapshot(parsed.documentId, {

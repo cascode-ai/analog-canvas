@@ -854,6 +854,55 @@ describe("mcp tool surface", () => {
     ).toHaveLength(3);
   });
 
+  it("inspects selected geometry without requesting a full Snapshot", async () => {
+    const { session, http } = await toolSession();
+    await callTool("connect", { claimCode: "session-1.code" }, session);
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation !== "snapshot" || request.projection !== "geometry")
+        throw new Error(`unexpected ${request.operation} request`);
+      return {
+        apiVersion: "3.0",
+        requestId: request.requestId,
+        operation: "snapshot",
+        ok: true,
+        projection: "geometry",
+        projectId: "project-1",
+        structureRevision: 0,
+        documentId: "main",
+        revision: 5,
+        objects: [
+          {
+            kind: "instance",
+            id: "instance-1",
+            placement: {
+              position: { x: 100, y: 200 },
+              rotation: 0,
+              mirror: "none",
+            },
+          },
+        ],
+        missingObjectIds: [],
+      };
+    };
+    const result = parseText(
+      await callTool(
+        "inspect",
+        { target: { kind: "geometry", objectIds: ["instance-1"] } },
+        session,
+      ),
+    );
+    expect(result).toMatchObject({
+      projection: "geometry",
+      revision: 5,
+      objects: [{ kind: "instance", id: "instance-1" }],
+    });
+    expect(
+      http.circuitCalls.flatMap(({ request }) =>
+        request.operation === "snapshot" ? [request.projection] : [],
+      ),
+    ).toEqual(["bootstrap", "geometry"]);
+  });
+
   it("apply_actions rejects a hidden multi-transaction batch before committing", async () => {
     const http = new FakeAgentHttp();
     const { session } = await toolSession(http);

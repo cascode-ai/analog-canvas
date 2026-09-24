@@ -289,7 +289,9 @@ describe("current Agent Circuit API service", () => {
     expect(JSON.stringify(AgentCircuitResponseJsonSchema).length).toBeLessThan(
       180_000,
     );
-    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(501_000);
+    // The bounded geometry projection is a new documented response variant;
+    // its typed object union adds about 4 KiB to the published OpenAPI.
+    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(506_000);
   });
 
   it("publishes the flat Snapshot workflow and returns complete facts", () => {
@@ -435,6 +437,78 @@ describe("current Agent Circuit API service", () => {
       operation: "snapshot",
       error: { code: "INVALID_REQUEST" },
     });
+  });
+
+  it("reads only selected authored geometry without resolving the full circuit", () => {
+    let resolveCalls = 0;
+    const countingResolver: SymbolResolver = {
+      resolve(symbolId, variantId) {
+        resolveCalls += 1;
+        return resolver.resolve(symbolId, variantId);
+      },
+    };
+    const fixture = serviceFixture(allPermissions, {}, countingResolver);
+    const documentId = fixture.getDocument().id;
+    const read = (requestId: string) =>
+      fixture.service.handle({
+        apiVersion: "3.0",
+        requestId,
+        operation: "snapshot",
+        documentId,
+        projection: "geometry",
+        geometryIds: ["M1", "route-vinp", "absent"],
+      });
+    expect(read("geometry-before")).toMatchObject({
+      ok: true,
+      projection: "geometry",
+      revision: 0,
+      objects: [
+        { kind: "instance", id: "M1" },
+        { kind: "route", id: "route-vinp", legs: expect.any(Array) },
+      ],
+      missingObjectIds: ["absent"],
+    });
+    expect(resolveCalls).toBe(0);
+    expect(
+      fixture.service.handle({
+        apiVersion: "3.0",
+        requestId: "geometry-move",
+        operation: "transact",
+        documentId,
+        transactionId: "geometry-move",
+        expectedRevision: 0,
+        edits: [
+          {
+            kind: "move_instance",
+            instanceId: "M1",
+            position: { x: 200, y: 220 },
+          },
+        ],
+      }),
+    ).toMatchObject({ ok: true, revision: 1 });
+    expect(read("geometry-after")).toMatchObject({
+      ok: true,
+      revision: 1,
+      objects: [
+        {
+          kind: "instance",
+          id: "M1",
+          placement: { position: { x: 200, y: 220 } },
+        },
+        { kind: "route", id: "route-vinp", legs: expect.any(Array) },
+      ],
+    });
+    expect(
+      fixture.service.handle({
+        apiVersion: "3.0",
+        requestId: "geometry-invalid",
+        operation: "snapshot",
+        documentId,
+        projection: "geometry",
+        geometryIds: ["M1"],
+        traceNet: { netId: "net-vinp" },
+      }),
+    ).toMatchObject({ ok: false, error: { code: "INVALID_REQUEST" } });
   });
 
   it("rejects Snapshots above the server-owned byte limit", () => {

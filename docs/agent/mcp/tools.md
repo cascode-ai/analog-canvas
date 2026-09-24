@@ -160,13 +160,19 @@ For example, a formula annotation:
 
 ## Verify and recover
 
-Mutation receipts already include authoritative changed objects, edit kinds,
+Mutation receipts already include authoritative changed-object IDs, edit kinds,
 diagnostics and diagnostic deltas. Do not reconstruct the change from a partial
 Snapshot or count the same diagnostics twice. Use `verify` for a fresh check
 when needed and `render` when visual review matters. On `STATE_CHANGED`,
 refresh and re-plan; never blindly replay a changed payload.
 
 `inspect` with `detail:"full"` returns complete Document facts.
+`inspect` with `target:{kind:"geometry",objectIds:["…"]}` reads up to 64
+specific authored objects (placement, routes, junctions, annotation anchors,
+drafting and no-connect objects). It returns current revision and missing IDs
+without resolving the full circuit. Use it after local movement; use the full
+inspection for pins, Nets, connectivity and diagnostics. An older Editor may
+fall back to the full read while the deployment rolls out.
 `target:{kind:"activity"}` returns recent successful receipts in the current
 MCP process, not persistent history or other people's edits.
 `search` with `scope:"project"` searches currently authorized Cells.
