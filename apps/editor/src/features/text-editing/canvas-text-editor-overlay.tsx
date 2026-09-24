@@ -38,10 +38,9 @@ export interface CanvasTextEditorOverlayProps {
  * text — are laid out at this size and then scaled as one, so the panel keeps
  * its proportions instead of reflowing as the camera moves.
  */
-// The full formatting row is the widest part of the editor. Keep only its
-// normal trailing padding instead of stretching the panel into a long empty
-// box after the A+ control.
-const EDITOR_LAYOUT_WIDTH = 332;
+// Leave the formatting row enough room for the grouped A−/A+ controls while
+// keeping Apply/Cancel on their separate row at normal toolbar spacing.
+const EDITOR_LAYOUT_WIDTH = 344;
 const EDITOR_LAYOUT_MIN_HEIGHT = 150;
 
 /**

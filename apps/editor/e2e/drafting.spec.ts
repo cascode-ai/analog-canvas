@@ -282,7 +282,7 @@ test("adds formatted drafting text and undo/redo restores it", async ({
   expect(editorBounds.x + editorBounds.width).toBeLessThanOrEqual(
     canvasBounds.x + canvasBounds.width + 1,
   );
-  expect(editorBounds.width).toBeCloseTo(332, 0);
+  expect(editorBounds.width).toBeCloseTo(344, 0);
   const [boldTop, decreaseTop, increaseTop, applyTop, cancelTop, deleteTop] =
     await Promise.all([
       controlTop(page.getByRole("button", { name: "Bold" })),
@@ -293,7 +293,7 @@ test("adds formatted drafting text and undo/redo restores it", async ({
       controlTop(page.getByRole("button", { name: "Delete text" })),
     ]);
   expect(Math.abs(increaseTop - decreaseTop)).toBeLessThan(1);
-  expect(increaseTop).toBeGreaterThan(boldTop);
+  expect(Math.abs(increaseTop - boldTop)).toBeLessThan(1);
   expect(Math.abs(cancelTop - applyTop)).toBeLessThan(1);
   expect(Math.abs(deleteTop - applyTop)).toBeLessThan(1);
   expect(applyTop).toBeGreaterThan(increaseTop);
@@ -307,17 +307,20 @@ test("adds formatted drafting text and undo/redo restores it", async ({
         .boundingBox()
         .then((bounds) => bounds?.width),
     )
-    .toBeCloseTo(332, 0);
+    .toBeCloseTo(344, 0);
   // Chromium may report one intermediate foreignObject layout immediately
-  // after the viewport changes. Assert both toolbar rows after that layout
-  // settles rather than sampling a transient frame.
+  // after the viewport changes. Assert the formatting row after layout settles.
   await expect
     .poll(async () => {
-      const [decreaseTop, increaseTop] = await Promise.all([
+      const [boldTop, decreaseTop, increaseTop] = await Promise.all([
+        controlTop(page.getByRole("button", { name: "Bold" })),
         controlTop(page.getByRole("button", { name: "Decrease text size" })),
         controlTop(page.getByRole("button", { name: "Increase text size" })),
       ]);
-      return Math.abs(increaseTop - decreaseTop);
+      return Math.max(
+        Math.abs(increaseTop - decreaseTop),
+        Math.abs(increaseTop - boldTop),
+      );
     })
     .toBeLessThan(1);
   const narrowSizeTop = await controlTop(
@@ -701,7 +704,7 @@ for (const zoomedOut of [false, true]) {
         .toBe(true);
       await expect(canvas).toHaveAttribute("viewBox", viewBox!);
       const bounds = (await frame.boundingBox())!;
-      expect(bounds.width).toBeCloseTo(332, 0);
+      expect(bounds.width).toBeCloseTo(344, 0);
     };
     const apply = async (expectedLatex: string) => {
       await dialog.getByRole("button", { name: "Insert", exact: true }).click();
