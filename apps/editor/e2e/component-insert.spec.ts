@@ -1908,7 +1908,13 @@ test("sets MOS parameters and orientation through the ghost and Properties", asy
   );
 });
 
-for (const symbolId of ["dac", "adc", "transconductance", "d-flip-flop"]) {
+for (const symbolId of [
+  "battery",
+  "dac",
+  "adc",
+  "transconductance",
+  "d-flip-flop",
+]) {
   test(`places ${symbolId} on the first click with slight pointer drift over its preview`, async ({
     page,
   }) => {
@@ -1942,7 +1948,13 @@ for (const symbolId of ["dac", "adc", "transconductance", "d-flip-flop"]) {
     // Upright formulas and pin names must be as transparent to input as the
     // body, including names away from the cursor at the symbol origin.
     const previewText = canvas.locator('[data-layer="editor-overlay"] text');
-    expect(await previewText.count()).toBeGreaterThan(0);
+    if (symbolId === "battery") {
+      // This reviewed drawing-only Symbol has no electrical descriptor or
+      // default component annotation to put in the placement preview.
+      expect(await previewText.count()).toBe(0);
+    } else {
+      expect(await previewText.count()).toBeGreaterThan(0);
+    }
     for (const text of await previewText.all()) {
       await expect(text).toHaveCSS("pointer-events", "none");
     }

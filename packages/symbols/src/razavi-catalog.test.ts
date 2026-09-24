@@ -158,6 +158,7 @@ describe("Razavi symbol catalog", () => {
       ]),
     ).toEqual([
       ["and-gate", "reviewed", "razavi-reference-v1"],
+      ["battery", "reviewed", "razavi-reference-v1"],
       ["buffer", "reviewed", "razavi-reference-v1"],
       ["capacitor", "reviewed", "razavi-reference-v1"],
       ["closed-switch", "reviewed", "razavi-reference-v1"],
@@ -293,6 +294,49 @@ describe("Razavi symbol catalog", () => {
         entry.assetHash,
       );
     }
+  });
+
+  it("keeps the PDF-scaled battery a drawing-only symbol", () => {
+    const component = JSON.parse(
+      readFileSync(resolve(assetRoot, "battery.json"), "utf8"),
+    );
+    const battery = requireRazaviCatalogSymbol("battery");
+    const voltage = requireRazaviCatalogSymbol("voltage-source");
+    const circle = voltage.primitives.find(
+      (primitive) => primitive.kind === "circle",
+    );
+    const plates = battery.primitives.filter(
+      (primitive) => primitive.kind === "polygon",
+    );
+    expect(component.electrical).toBeNull();
+    expect(battery.pins.map((pin) => [pin.name, pin.at])).toEqual([
+      ["+", { x: 0, y: -20 }],
+      ["-", { x: 0, y: 20 }],
+    ]);
+    expect(circle?.kind).toBe("circle");
+    expect(plates).toHaveLength(2);
+    const [longPlate, shortPlate] = plates;
+    if (circle?.kind !== "circle" || !longPlate || !shortPlate) return;
+    const width = (plate: (typeof plates)[number]) =>
+      Math.max(...plate.points.map((point) => point.x)) -
+      Math.min(...plate.points.map((point) => point.x));
+    const centerY = (plate: (typeof plates)[number]) =>
+      (Math.max(...plate.points.map((point) => point.y)) +
+        Math.min(...plate.points.map((point) => point.y))) /
+      2;
+    // Figure 3.11(a): 15.477/8.061-pt plates and a 3.388-pt gap,
+    // normalized using its adjacent 10.842-pt voltage-source circle.
+    expect(width(longPlate) / (2 * circle.radius)).toBeCloseTo(
+      15.477 / 10.842,
+      3,
+    );
+    expect(width(shortPlate) / (2 * circle.radius)).toBeCloseTo(
+      8.061 / 10.842,
+      3,
+    );
+    expect(
+      (centerY(shortPlate) - centerY(longPlate)) / (2 * circle.radius),
+    ).toBeCloseTo(3.388 / 10.842, 3);
   });
 
   it("uses semantic roles except where pinned PDF evidence requires an exact stroke", () => {
@@ -768,7 +812,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(82);
+    expect(razaviCatalogSymbols).toHaveLength(83);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -781,6 +825,7 @@ describe("Razavi symbol catalog", () => {
   it("lists only reviewed Reference-calibrated assets in the product library", () => {
     expect(razaviProductSymbols.map((symbol) => symbol.id)).toEqual([
       "and-gate",
+      "battery",
       "buffer",
       "capacitor",
       "closed-switch",
