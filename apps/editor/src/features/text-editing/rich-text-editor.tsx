@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 
 import { flattenRichText, soleRichTextMathRun } from "@icm/model";
 import {
@@ -15,6 +16,11 @@ import {
 import type { RichTextDocument, RichTextRun } from "@icm/model";
 
 import { boundFormulaPresentation } from "./bound-formula";
+import {
+  GREEK_LOWERCASE,
+  GREEK_UPPERCASE,
+  greekCommandBefore,
+} from "./greek-letters";
 import {
   editableDocument,
   isElement,
@@ -276,27 +282,28 @@ const FORMULA_KEYCAPS = [
   { label: "∞", title: "Infinity", latex: "\\infty" },
 ] as const;
 
-const FORMULA_MORE_GROUPS = [
+/** "Phi" for Φ and "Phi lowercase" for φ, as screen readers announce them. */
+function greekLetterTitle(name: string, glyph: string): string {
+  const title = name[0]!.toUpperCase() + name.slice(1);
+  return glyph === glyph.toLowerCase() &&
+    GREEK_UPPERCASE.some(([capital]) => capital === title)
+    ? `${title} lowercase`
+    : title;
+}
+
+/** Circuit symbols offered beside the Greek letters. */
+const CIRCUIT_SYMBOLS = ["±", "≈", "≤", "≥", "∞", "°", "·", "→"] as const;
+
+const FORMULA_MORE_GROUPS: readonly {
+  title: string;
+  items: readonly (readonly [label: string, title: string, latex: string])[];
+}[] = [
   {
     title: "Greek",
-    items: [
-      ["α", "Alpha", "\\alpha"],
-      ["β", "Beta", "\\beta"],
-      ["γ", "Gamma", "\\gamma"],
-      ["δ", "Delta lowercase", "\\delta"],
-      ["ε", "Epsilon", "\\epsilon"],
-      ["θ", "Theta", "\\theta"],
-      ["λ", "Lambda", "\\lambda"],
-      ["μ", "Mu", "\\mu"],
-      ["π", "Pi", "\\pi"],
-      ["ρ", "Rho", "\\rho"],
-      ["σ", "Sigma lowercase", "\\sigma"],
-      ["τ", "Tau", "\\tau"],
-      ["φ", "Phi", "\\phi"],
-      ["ω", "Omega lowercase", "\\omega"],
-      ["Δ", "Delta", "\\Delta"],
-      ["Ω", "Omega", "\\Omega"],
-    ],
+    items: [...GREEK_LOWERCASE, ...GREEK_UPPERCASE].map(
+      ([name, glyph]) =>
+        [glyph, greekLetterTitle(name, glyph), `\\${name}`] as const,
+    ),
   },
   {
     title: "Relations & operators",
@@ -336,7 +343,7 @@ const FORMULA_MORE_GROUPS = [
       ["⟨x⟩", "Angle brackets", "\\left\\langle#0\\right\\rangle"],
     ],
   },
-] as const;
+];
 
 export function RichTextEditor({
   targetKey,
@@ -715,6 +722,85 @@ export function RichTextEditor({
     return true;
   };
 
+  // The symbol menu floats over the page rather than inside the canvas
+  // editor: the editor's foreignObject is sized to its own controls, so a
+  // menu hanging below them would be clipped.
+  const [symbolMenuOpen, setSymbolMenuOpen] = useState(false);
+  const symbolButtonRef = useRef<HTMLButtonElement | null>(null);
+  const symbolMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    const menu = symbolMenuRef.current;
+    const button = symbolButtonRef.current;
+    const shell = shellRef.current;
+    if (!symbolMenuOpen || !menu || !button || !shell) return;
+    // Right-aligned with the Ω button within the editor's own width, and
+    // below the whole editor so the text being typed stays in view; above it
+    // when the window has no room below.
+    const anchor = button.getBoundingClientRect();
+    const frame = shell.getBoundingClientRect();
+    const size = menu.getBoundingClientRect();
+    const right = Math.min(anchor.right, frame.right);
+    menu.style.left = `${Math.max(frame.left, right - size.width)}px`;
+    const below = frame.bottom + 4;
+    const above = frame.top - size.height - 4;
+    menu.style.top = `${
+      below + size.height <= window.innerHeight - 8 || above < 8 ? below : above
+    }px`;
+  }, [symbolMenuOpen]);
+
+  useEffect(() => {
+    if (!symbolMenuOpen) return;
+    const close = (): void => setSymbolMenuOpen(false);
+    const closeOutside = (event: PointerEvent): void => {
+      const target = event.target as Node | null;
+      if (
+        target &&
+        (symbolMenuRef.current?.contains(target) ||
+          symbolButtonRef.current?.contains(target))
+      )
+        return;
+      close();
+    };
+    document.addEventListener("pointerdown", closeOutside, true);
+    // Zooming or panning moves the editor away from a fixed menu.
+    window.addEventListener("wheel", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside, true);
+      window.removeEventListener("wheel", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [symbolMenuOpen]);
+
+  // `\phi` then Space spells φ, the way LaTeX names it. Anything else before
+  // the caret leaves Space to type an ordinary space.
+  const replaceGreekCommand = (): boolean => {
+    const selection = window.getSelection();
+    if (disabled || !selection?.isCollapsed || selection.rangeCount === 0)
+      return false;
+    const caret = selection.getRangeAt(0);
+    const node = caret.startContainer;
+    if (
+      node.nodeType !== Node.TEXT_NODE ||
+      !editableRef.current?.contains(node)
+    )
+      return false;
+    const command = greekCommandBefore(
+      (node.textContent ?? "").slice(0, caret.startOffset),
+    );
+    if (!command) return false;
+    const spelled = document.createRange();
+    spelled.setStart(node, caret.startOffset - command.length);
+    spelled.setEnd(node, caret.startOffset);
+    selection.removeAllRanges();
+    selection.addRange(spelled);
+    document.execCommand("insertText", false, command.glyph);
+    rememberSelection();
+    sync();
+    return true;
+  };
+
   const insertSymbol = (symbol: string): void => {
     if (disabled || !editableRef.current) return;
     editableRef.current.focus();
@@ -892,45 +978,73 @@ export function RichTextEditor({
           : null}
         {!sourceOnly && !compact ? (
           <>
-            <details className="rich-text-symbol-menu">
-              <summary aria-label="Insert circuit symbol">Ω</summary>
-              <div role="menu" aria-label="Circuit symbols">
-                {[
-                  "α",
-                  "β",
-                  "γ",
-                  "δ",
-                  "θ",
-                  "λ",
-                  "μ",
-                  "π",
-                  "φ",
-                  "ω",
-                  "Δ",
-                  "Ω",
-                  "±",
-                  "≈",
-                  "≤",
-                  "≥",
-                  "∞",
-                  "°",
-                  "·",
-                  "→",
-                ].map((symbol) => (
-                  <button
-                    key={symbol}
-                    type="button"
-                    role="menuitem"
-                    aria-label={`Insert ${symbol}`}
-                    disabled={disabled}
+            <button
+              ref={symbolButtonRef}
+              className="rich-text-symbol-button"
+              type="button"
+              aria-label="Insert circuit symbol"
+              aria-haspopup="menu"
+              aria-expanded={symbolMenuOpen}
+              title="Greek letters and symbols · or type \phi then Space"
+              disabled={disabled}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => setSymbolMenuOpen((open) => !open)}
+            >
+              Ω
+            </button>
+            {symbolMenuOpen
+              ? createPortal(
+                  <div
+                    ref={symbolMenuRef}
+                    className="rich-text-symbol-menu"
+                    // Part of the canvas text editor: clicking it is not
+                    // leaving the text, which would commit and close it.
+                    data-canvas-text-editor-part=""
+                    role="menu"
+                    aria-label="Circuit symbols"
                     onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => insertSymbol(symbol)}
                   >
-                    {symbol}
-                  </button>
-                ))}
-              </div>
-            </details>
+                    {(
+                      [
+                        ["Lowercase Greek letters", GREEK_LOWERCASE],
+                        ["Capital Greek letters", GREEK_UPPERCASE],
+                        [
+                          "Symbols",
+                          CIRCUIT_SYMBOLS.map(
+                            (symbol) => [null, symbol] as const,
+                          ),
+                        ],
+                      ] as const
+                    ).map(([group, symbols]) => (
+                      <div
+                        key={group}
+                        role="group"
+                        aria-label={group}
+                        className="rich-text-symbol-grid"
+                      >
+                        {symbols.map(([name, symbol]) => (
+                          <button
+                            key={symbol}
+                            type="button"
+                            role="menuitem"
+                            aria-label={`Insert ${symbol}`}
+                            title={name ? `${symbol}  \\${name}` : symbol}
+                            disabled={disabled}
+                            onClick={() => insertSymbol(symbol)}
+                          >
+                            {symbol}
+                          </button>
+                        ))}
+                      </div>
+                    ))}
+                    <p className="rich-text-symbol-hint">
+                      Type <kbd>\phi</kbd> then Space for φ, <kbd>\Phi</kbd> for
+                      Φ
+                    </p>
+                  </div>,
+                  document.body,
+                )
+              : null}
             <button
               className="rich-text-latex-button"
               type="button"
@@ -1210,7 +1324,16 @@ export function RichTextEditor({
           onKeyUp={rememberSelection}
           onPointerUp={rememberSelection}
           onKeyDown={(event) => {
-            if (event.key === "Tab" && moveThroughFraction(event.shiftKey)) {
+            if (
+              event.key === " " &&
+              !event.nativeEvent.isComposing &&
+              replaceGreekCommand()
+            ) {
+              event.preventDefault();
+            } else if (
+              event.key === "Tab" &&
+              moveThroughFraction(event.shiftKey)
+            ) {
               event.preventDefault();
             } else if (event.key === "Escape") {
               event.preventDefault();

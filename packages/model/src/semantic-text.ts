@@ -123,6 +123,19 @@ export function voltageNodeTextDocument(value: string): RichTextDocument {
 }
 
 /**
+ * Presentation for a current's name such as Iout, IREF or I1, read the way a
+ * voltage node's is: a bold italic leading I over a smaller bold upright
+ * subscript, with letter case kept exactly.
+ */
+export function currentNodeTextDocument(value: string): RichTextDocument {
+  const head = value.slice(0, 1);
+  const tail = value.slice(1);
+  if (head.toLowerCase() !== "i" || tail.length === 0 || /\s/u.test(value))
+    return { runs: [{ kind: "text", value }] };
+  return { runs: [mathBase(head), uprightMathSubscript(tail)] };
+}
+
+/**
  * Presentation for a device Reference written as letters followed by an
  * index, such as M1 or R12: bold italic letters over a smaller bold upright
  * index subscript. Any other spelling stays the name itself.
