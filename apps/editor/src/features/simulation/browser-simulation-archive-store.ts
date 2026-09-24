@@ -61,6 +61,21 @@ export interface BrowserSimulationArchiveStore {
     archive: SimulationRunArchiveV1,
   ): Promise<SimulationArchiveStoreResult<SimulationRunArchiveSummary>>;
   delete(id: string): Promise<SimulationArchiveStoreResult<boolean>>;
+  /** Metadata-only Run ownership lookup; no evidence bodies are loaded. */
+  runEntries(
+    projectId: string,
+  ): Promise<
+    SimulationArchiveStoreResult<
+      readonly { id: string; runId: string; retention: "cache" | "saved" }[]
+    >
+  >;
+  pendingRemovalCount(
+    projectId: string,
+  ): Promise<SimulationArchiveStoreResult<number>>;
+  /** Only archives explicitly marked as generated cache are eligible. */
+  pruneCache(
+    projectId: string,
+  ): Promise<SimulationArchiveStoreResult<readonly string[]>>;
   /** Protect pre-reference-registry archives before any physical reclamation. */
   reconcileReferences(
     projectId: string,
@@ -361,6 +376,7 @@ export function createBrowserSimulationArchiveStore(
               transactionDone(pending),
             ]);
             const evidence = evidenceStore(projectId);
+            await evidence.pruneCatalogCache(runIds);
             for (const removal of removals)
               await evidence.queueRunRemoval(removal.runId);
             const reclaimed = await evidence.reclaim(keys, runIds);
@@ -401,6 +417,88 @@ export function createBrowserSimulationArchiveStore(
         return failure(error);
       }
     },
+    async runEntries(projectId) {
+      try {
+        const listed = await api.list(projectId);
+        if (!listed.ok) return listed;
+        const db = await open();
+        const entries: {
+          id: string;
+          runId: string;
+          retention: "cache" | "saved";
+        }[] = [];
+        const missing = listed.value.filter((summary) => !summary.runId);
+        const legacy = new Map<string, StoredArchive | undefined>();
+        if (missing.length) {
+          // One bounded IndexedDB transaction, not one round trip per older Run.
+          const tx = db.transaction(STORE_NAME, "readonly");
+          const records = await Promise.all(
+            missing.map(
+              (summary) =>
+                requestValue(
+                  tx.objectStore(STORE_NAME).get(summary.id),
+                ) as Promise<StoredArchive | undefined>,
+            ),
+          );
+          await transactionDone(tx);
+          missing.forEach((summary, index) =>
+            legacy.set(summary.id, records[index]),
+          );
+        }
+        for (const summary of listed.value) {
+          if (summary.runId) {
+            entries.push({
+              id: summary.id,
+              runId: summary.runId,
+              retention: summary.retention ?? "saved",
+            });
+            continue;
+          }
+          // Older directories lacked Run identity; no bodies are hydrated.
+          const record = legacy.get(summary.id);
+          if (record)
+            entries.push({
+              id: summary.id,
+              runId: record.run.id,
+              retention: record.retention ?? "saved",
+            });
+        }
+        return { ok: true, value: entries };
+      } catch (error) {
+        return failure(error);
+      }
+    },
+    async pendingRemovalCount(projectId) {
+      try {
+        const db = await open();
+        const tx = db.transaction(PENDING_REMOVALS, "readonly");
+        const count = await requestValue(
+          tx.objectStore(PENDING_REMOVALS).index("projectId").count(projectId),
+        );
+        await transactionDone(tx);
+        return { ok: true, value: count };
+      } catch (error) {
+        return failure(error);
+      }
+    },
+    async pruneCache(projectId) {
+      try {
+        const listed = await api.list(projectId);
+        if (!listed.ok) return listed;
+        // A small rolling cache leaves historical/manual archives alone. The
+        // physical bodies are reclaimed by the existing reference-aware GC.
+        const excess = listed.value
+          .filter((entry) => entry.retention === "cache")
+          .slice(30);
+        for (const entry of excess) {
+          const removed = await api.delete(entry.id);
+          if (!removed.ok) return removed;
+        }
+        return { ok: true, value: excess.map((entry) => entry.id) };
+      } catch (error) {
+        return failure(error);
+      }
+    },
     async read(id) {
       try {
         const db = await open();
@@ -435,6 +533,15 @@ export function createBrowserSimulationArchiveStore(
         const store = transaction.objectStore(STORE_NAME);
         const previous = (await requestValue(store.get(archive.id))) as
           StoredArchive | undefined;
+        if (previous?.retention === "saved" && archive.retention === "cache") {
+          const protectedSummary = (await requestValue(
+            directory.get(archive.id),
+          )) as SimulationRunArchiveSummary | undefined;
+          if (!protectedSummary) throw new Error("ARCHIVE_DIRECTORY_MISSING");
+          await done;
+          await release(stored);
+          return { ok: true, value: protectedSummary };
+        }
         const summary = summarizeSimulationRunArchive(archive);
         store.put(stored, archive.id);
         directory.put(summary, archive.id);

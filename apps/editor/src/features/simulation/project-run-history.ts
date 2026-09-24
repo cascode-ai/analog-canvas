@@ -44,6 +44,11 @@ export class ProjectRunHistory {
     }
     this.notify();
   }
+  forgetRun(runId: string) {
+    this.records.delete(runId);
+    // Also refresh a mounted history panel for a Run from an older session.
+    this.notify();
+  }
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
     return () => {
@@ -119,6 +124,7 @@ export class ProjectRunHistory {
           const archive: SimulationRunArchiveV1 = {
             ...captured.value,
             id: `run-${run.id}`,
+            retention: "cache",
             ...(input.projectFile && byteLength <= MAX_SIMULATION_ARCHIVE_BYTES
               ? { projectFile: input.projectFile, byteLength }
               : {}),
@@ -127,7 +133,19 @@ export class ProjectRunHistory {
             record.error =
               "Project snapshot exceeds the archive size limit; result-only export is available";
           const saved = await this.store.save(archive);
-          record.archive = summarizeSimulationRunArchive(archive);
+          if (saved.ok)
+            void this.store
+              .pruneCache(this.projectId)
+              .then(async (pruned) => {
+                if (pruned.ok)
+                  for (const archiveId of pruned.value)
+                    this.forgetArchive(archiveId);
+                await this.store?.cleanup(this.projectId);
+              })
+              .catch(() => {});
+          record.archive = saved.ok
+            ? saved.value
+            : summarizeSimulationRunArchive(archive);
           if (!saved.ok) {
             record.memoryArchive = archive;
             record.error = `Result available for this session only: ${saved.message}`;

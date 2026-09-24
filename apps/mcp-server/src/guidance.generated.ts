@@ -9,7 +9,7 @@ export const agentToolHelp = {
   simulation_plot:
     "Generate editable local Python/config for registered results using panels or presets. This does not execute Python; check matplotlib once, then run locally. Existing plot files are not overwritten. Complex panel fields: describe_tool with this tool and a field path.",
   simulation_results:
-    "Discover run catalogs/history or retry evidence export without rerunning. Use simulation_data to download complete registered files, not repeated read previews. Receipts never inline samples.",
+    "Discover run history, evidence usage and catalogs; delete an exact completed run with dry-run and saved-result protection, or retry evidence export without rerunning. Use simulation_data for complete files. Receipts never inline samples.",
   simulation_run:
     "Normally submit run with a revisioned source; preparation is internal. For project-folder use the latest simulation_edit source.revision as expectedStructureRevision. Optional prepare/start supports inspection or frozen-input reuse. run/start/read accept waitMs 0–20000; resume via read with the same runId. One hosted slot. Retry uncertain submissions with the same requestId and payload. Results summarize collection and diagnostics; files are registered separately.",
   simulation_batch:

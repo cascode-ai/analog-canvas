@@ -11,6 +11,7 @@ export function resultCatalog(
   },
   collection: ResultCatalog["collection"],
   signalTargets?: ResultCatalog["signalTargets"],
+  source?: ResultCatalog["source"],
 ): ResultCatalog {
   const data = run.result?.data;
   return {
@@ -18,6 +19,8 @@ export function resultCatalog(
     runId: run.id,
     preparedId: run.preparedId,
     inputRevision: run.inputRevision,
+    retentionPolicy: "cache",
+    ...(source ? { source: structuredClone(source) } : {}),
     ...(signalTargets ? { signalTargets: structuredClone(signalTargets) } : {}),
     execution:
       run.state === "cancelled" || run.state === "lost"

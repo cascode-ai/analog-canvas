@@ -52,7 +52,8 @@ Project-folder simulations share a read-only run history with the GUI. Starting
 an Agent run does not open the simulation panel, change its active folder, or
 replace a human run. In the selected folder's results area, **Project runs**
 shows the owner and state; **Open result** restores a completed result into the
-GUI without executing it again.
+GUI without executing it again. Run history defaults to all Project folders;
+the folder filter remains available.
 
 The originating session still owns execution and cancellation. A project-scoped
 observer polls individual and batch runs even if the Agent does not call read.
@@ -62,8 +63,11 @@ human run. Revocation before handoff is reported as unavailable, not success.
 Session-workspace inputs remain private to that session because they have no
 Project folder to attach to.
 
-Archives are local to this browser/origin, not Cloud Save. Older runs are not
-automatically pruned by count. The limit is 512 MiB per archive, subject to browser quota
+Archives are local to this browser/origin, not Cloud Save. New automatically
+captured results are explicitly marked as cache; the newest 30 archived and
+30 unarchived cache runs are retained per Project when cleanup can run.
+Manual Save protects an archive. Older records without a cache marker are
+conservatively protected until explicitly deleted. The limit is 512 MiB per archive, subject to browser quota
 and the shared 1 GiB Project evidence budget (256 MiB per file). A storage failure leaves
 the in-memory result available with an explicit session-only warning. Refresh
 can recover successful archives under **Saved results**; deleting one removes
@@ -74,7 +78,9 @@ Deleting an archive records pending cleanup durably. At the next file-session
 startup, cleanup first reconciles all remaining archives and run catalogs, then
 reclaims unreferenced evidence. Shared files stay until their last reference is
 gone. Active Project consumers in any tab hold shared browser locks; cleanup
-skips a busy Project instead of waiting or interrupting it. Hosts without Web
+skips a busy Project instead of waiting or interrupting it. Logical removal
+can precede physical reclamation; Agent deletion reports which happened.
+Hosts without Web
 Locks also defer physical cleanup. Failed cleanup can retry on a later startup;
 it does not block ordinary simulation access. Storage quota failures remain
 explicit. Downloaded local files are never deleted by browser cleanup.
