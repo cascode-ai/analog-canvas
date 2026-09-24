@@ -24,8 +24,10 @@ export interface BrowserSimulationArtifactStore extends SimulationArtifactStore 
   releaseReferences(owner: string): Promise<void>;
   referencedArtifactIds(): Promise<string[]>;
   queueRunRemoval(runId: string): Promise<void>;
-  /** Caller holds the Project exclusive lock; legacy records are protected. */
-  pruneCatalogCache(archivedRunIds: readonly string[]): Promise<string[]>;
+  /** Remove selected cache-only directories; recheck identity in the write transaction. */
+  removeCachedCatalogs(
+    entries: readonly { runId: string; storedAt: number }[],
+  ): Promise<string[]>;
   /** Caller must hold the Project exclusive lock and reconcile every archive. */
   reclaim(
     archiveKeys: readonly string[],
@@ -80,6 +82,7 @@ export function createBrowserSimulationArtifactStore(
         });
         try {
           await archives.pruneCache(projectId);
+          await archives.pruneSaved(projectId);
           await archives.cleanup(projectId);
         } finally {
           archives.close();
@@ -107,7 +110,8 @@ export function createBrowserSimulationArtifactStore(
     return value(request);
   }
   return {
-    async pruneCatalogCache(archivedRunIds) {
+    async removeCachedCatalogs(entries) {
+      if (!entries.length) return [];
       const db = await open();
       try {
         const tx = db.transaction([CATALOGS, REFERENCES], "readwrite");
@@ -115,32 +119,24 @@ export function createBrowserSimulationArtifactStore(
         void done.catch(() => {});
         try {
           const catalogs = tx.objectStore(CATALOGS);
-          const records = (await value(
-            catalogs.index("projectId").getAll(projectId),
-          )) as StoredResultCatalog[];
-          const archived = new Set(archivedRunIds);
-          const excess = records
-            .filter(
-              (record) =>
-                record.catalog.retentionPolicy === "cache" &&
-                !archived.has(record.catalog.runId),
+          const removed: string[] = [];
+          for (const { runId, storedAt } of entries) {
+            const record = (await value(catalogs.get([projectId, runId]))) as
+              StoredResultCatalog | undefined;
+            if (
+              record?.catalog.retentionPolicy !== "cache" ||
+              record.storedAt !== storedAt
             )
-            .sort(
-              (a, b) =>
-                b.storedAt - a.storedAt ||
-                a.catalog.runId.localeCompare(b.catalog.runId),
-            )
-            .slice(30);
-          for (const record of excess) {
-            const runId = record.catalog.runId;
+              continue;
             catalogs.delete([projectId, runId]);
             tx.objectStore(REFERENCES).put(
               { projectId, kind: "removal", runId, artifactIds: [] },
               [projectId, `removal:${runId}`],
             );
+            removed.push(runId);
           }
           await done;
-          return excess.map((record) => record.catalog.runId);
+          return removed;
         } catch (error) {
           tx.abort();
           await done.catch(() => {});
