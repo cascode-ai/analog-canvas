@@ -1,6 +1,7 @@
 import { parseSavedProject } from "./editor-fixtures";
 import { expect, test, type Page } from "@playwright/test";
 import { createEmptyProject } from "@icm/model";
+import { serializeProject } from "@icm/project-protocol";
 
 import {
   revealPropertiesShelf,
@@ -52,7 +53,9 @@ test("digital gates align from their left outline and keep wired terminals throu
   await page.getByTestId("project-file").setInputFiles({
     name: "digital-grid.icproj.json",
     mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(project)),
+    // Written as a current Project file, so the editor opens it instead of
+    // announcing a schema upgrade.
+    buffer: Buffer.from(serializeProject(project)),
   });
   await expect(page.getByTestId("status")).toContainText(
     "Opened digital-grid.icproj.json",
