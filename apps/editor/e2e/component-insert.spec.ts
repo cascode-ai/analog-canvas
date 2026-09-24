@@ -2137,7 +2137,7 @@ test("shows the complete foldable categorized Library, quick-places a device, an
     page
       .getByTestId("shapes-category-power-and-ports")
       .locator('[data-testid^="shapes-chip-"]'),
-  ).toHaveCount(5);
+  ).toHaveCount(6);
   await expect(
     page
       .getByTestId("shapes-category-passives")
