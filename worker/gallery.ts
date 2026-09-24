@@ -194,6 +194,63 @@ async function isAdmin(request: Request, env: GalleryEnv): Promise<boolean> {
   return user?.isAdmin === true;
 }
 
+/**
+ * The dedicated read-only Gallery credential. It authorizes only the bounded
+ * Gallery reads that name it (the automated backup and the netlist pages):
+ * never admin writes, unbounded dumps, or private Cloud Projects. Do not add
+ * it to isAdmin.
+ */
+function hasGalleryReadToken(request: Request, env: GalleryEnv): boolean {
+  const expected = env.GALLERY_BACKUP_TOKEN;
+  const supplied = request.headers
+    .get("Authorization")
+    ?.replace(/^Bearer /, "");
+  let difference = 0;
+  if (expected && supplied?.length === expected.length) {
+    for (let i = 0; i < expected.length; i++)
+      difference |= expected.charCodeAt(i) ^ supplied.charCodeAt(i);
+  } else difference = 1;
+  return difference === 0;
+}
+
+/**
+ * One entry of the netlist read: the netlist its drawing prints, or null when
+ * the export is blocked, with every finding either way, so a reader sees a
+ * wire that reaches no peer beside the netlist it did not stop.
+ */
+function galleryNetlist(
+  projectText: string,
+  format: "spice" | "spectre",
+): {
+  netlist: string | null;
+  diagnostics: { severity: string; code: string; message: string }[];
+} {
+  let project: CircuitProject;
+  try {
+    project = parseProject(projectText);
+  } catch (error) {
+    return {
+      netlist: null,
+      diagnostics: [
+        {
+          severity: "error",
+          code: "PROJECT_UNREADABLE",
+          message: error instanceof Error ? error.message : String(error),
+        },
+      ],
+    };
+  }
+  const result = createDesignNetlistExport(project, { format });
+  return {
+    netlist: result.status === "ready" ? result.file.text : null,
+    diagnostics: result.diagnostics.map(({ severity, code, message }) => ({
+      severity,
+      code,
+      message,
+    })),
+  };
+}
+
 /** Curation authority: an admin or an appointed moderator. */
 async function canReview(request: Request, env: GalleryEnv): Promise<boolean> {
   const user = await sessionUserOf(request, env);
@@ -1587,18 +1644,7 @@ export async function routeGalleryRequest(
     segments[0] === "maintenance" &&
     segments[1] === "automated-backup"
   ) {
-    // A dedicated credential authorizes this GET only: never admin writes,
-    // unbounded dumps, or private Cloud Projects. Do not add it to isAdmin.
-    const expected = env.GALLERY_BACKUP_TOKEN;
-    const supplied = request.headers
-      .get("Authorization")
-      ?.replace(/^Bearer /, "");
-    let difference = 0;
-    if (expected && supplied?.length === expected.length) {
-      for (let i = 0; i < expected.length; i++)
-        difference |= expected.charCodeAt(i) ^ supplied.charCodeAt(i);
-    } else difference = 1;
-    if (difference !== 0)
+    if (!hasGalleryReadToken(request, env))
       return Response.json(
         { error: "unauthorized" },
         { status: 401, headers: { "cache-control": "no-store" } },
@@ -1627,6 +1673,60 @@ export async function routeGalleryRequest(
       status,
       headers: { "cache-control": "no-store" },
     });
+  }
+  if (
+    segments.length === 2 &&
+    segments[0] === "maintenance" &&
+    segments[1] === "netlists"
+  ) {
+    // The public Gallery's netlists for a reader elsewhere: a script with the
+    // read-only Gallery credential, or an admin's browser session. Pages run
+    // in entry-id order; pass `nextCursor` back as `after` until it is null.
+    const noStore = { "cache-control": "no-store" };
+    if (!hasGalleryReadToken(request, env) && !(await isAdmin(request, env)))
+      return Response.json(
+        { error: "unauthorized" },
+        { status: 401, headers: noStore },
+      );
+    if (request.method !== "GET")
+      return Response.json(
+        { error: "method-not-allowed" },
+        { status: 405, headers: { Allow: "GET", ...noStore } },
+      );
+    const format = url.searchParams.get("format") ?? "spice";
+    if (format !== "spice" && format !== "spectre")
+      return Response.json(
+        { error: "invalid-format" },
+        { status: 400, headers: noStore },
+      );
+    const id = url.searchParams.get("id");
+    const { status, payload } = await callGallery<{
+      entries?: (Record<string, unknown> & { projectText: string })[];
+      nextCursor?: string | null;
+    }>(env, "netlist-sources", {
+      id,
+      after: url.searchParams.get("after"),
+      limit: url.searchParams.get("limit"),
+    });
+    if (status !== 200 || !payload.entries)
+      return Response.json(payload, { status, headers: noStore });
+    if (id && payload.entries.length === 0)
+      return Response.json(
+        { error: "not-found" },
+        { status: 404, headers: noStore },
+      );
+    return Response.json(
+      {
+        format: "analog-canvas-gallery-netlists-v1",
+        netlistFormat: format,
+        entries: payload.entries.map(({ projectText, ...entry }) => ({
+          ...entry,
+          ...galleryNetlist(projectText, format),
+        })),
+        nextCursor: payload.nextCursor ?? null,
+      },
+      { headers: noStore },
+    );
   }
   if (
     segments.length === 2 &&
@@ -1750,7 +1850,19 @@ export async function routeGalleryRequest(
     segments[0] === "tags" &&
     request.method === "GET"
   ) {
+    // Tag counts follow the wall's filters. The personal two need the
+    // session; the public counts stay a plain read.
+    const attention = url.searchParams.get("attention") === "1";
+    const liked = url.searchParams.get("liked") === "1";
+    const viewer =
+      attention || liked ? await sessionUserOf(request, env) : null;
+    if (attention && !viewer)
+      return Response.json({ error: "unauthorized" }, { status: 401 });
     const { payload } = await callGallery(env, "tags", {
+      isAdmin: viewer?.isAdmin === true,
+      viewerId: viewer?.id ?? "",
+      attention,
+      liked,
       netlistable: url.searchParams.get("netlistable") === "1",
     });
     return Response.json(payload, { headers: { "cache-control": "no-store" } });

@@ -373,6 +373,109 @@ export function placeUprightInstanceLabel(
   }
 }
 
+/**
+ * A Cell Pin's name sits squarely beside its artwork on the side away from its
+ * wire: left, right, above or below, centred across that side. Capitals are
+ * centred on the Pin, so a subscript hangs below the way it does on a device.
+ * The text is not snapped to the connection grid, which used to pull it up
+ * to half a grid off centre, and a vertical Pin's name is no longer pushed to
+ * one side at the height of its rotated anchor.
+ */
+function portLabelPlacement(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  grid: number,
+  rowOffset: number,
+): InstanceLabelPlacement | null {
+  const pin = resolved.definition.pins[0];
+  const bounds = transformedBounds(
+    visibleSymbolInkBounds(resolved, instance.signalFlowParameters),
+    instance,
+  );
+  if (!pin || !bounds || !instance.placement) return null;
+  const pinWorld = transformPoint(
+    pin.at,
+    instance.placement.position,
+    instance.placement,
+  );
+  const centreX = bounds.x + bounds.width / 2;
+  const centreY = bounds.y + bounds.height / 2;
+  const towardWireX = pinWorld.x - centreX;
+  const towardWireY = pinWorld.y - centreY;
+  const fontSize = profile.typography.instanceFontSize;
+  const gap = grid;
+  if (Math.abs(towardWireX) >= Math.abs(towardWireY)) {
+    const baseline = Math.round(centreY + fontSize * 0.35 + rowOffset);
+    return towardWireX > 0
+      ? {
+          position: { x: Math.round(bounds.x - gap), y: baseline },
+          alignment: "end",
+        }
+      : {
+          position: {
+            x: Math.round(bounds.x + bounds.width + gap),
+            y: baseline,
+          },
+          alignment: "start",
+        };
+  }
+  const x = Math.round(centreX);
+  return towardWireY > 0
+    ? {
+        // Above: leave room for a subscript's descent under the baseline.
+        position: {
+          x,
+          y: Math.round(bounds.y - gap - fontSize * 0.3 + rowOffset),
+        },
+        alignment: "middle",
+      }
+    : {
+        position: {
+          x,
+          y: Math.round(
+            bounds.y + bounds.height + gap + fontSize * 0.7 + rowOffset,
+          ),
+        },
+        alignment: "middle",
+      };
+}
+
+/**
+ * Where a Cell Pin's name was placed before 2026-09-24: always beside the
+ * Pin, snapped to the grid, at the height of its rotated anchor. Labels still
+ * sitting there count as untouched, so they keep following their Pin.
+ */
+export function legacyPortLabelPlacement(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  grid: number,
+): InstanceLabelPlacement | null {
+  if (!instance.placement) return null;
+  const localBounds = visibleSymbolInkBounds(
+    resolved,
+    instance.signalFlowParameters,
+  );
+  return placeUprightInstanceLabel(
+    instance,
+    resolved,
+    profile,
+    {
+      x: localBounds.x - grid,
+      y:
+        localBounds.y +
+        localBounds.height / 2 +
+        profile.typography.instanceFontSize * 0.35,
+    },
+    "left",
+    grid,
+    1,
+    0,
+    true,
+  );
+}
+
 /** Supplies canonical placement for renderer-owned instance labels. */
 export function defaultInstanceLabelPlacement(
   instance: SchematicDocument["instances"][number],
@@ -391,28 +494,13 @@ export function defaultInstanceLabelPlacement(
   // A label gap is a grid-space visual rule, measured from drawn ink rather
   // than the padded hit envelope.
   const compactSideGap = grid;
-  const baselineOffset = profile.typography.instanceFontSize * 0.35;
   // The value slot is the second upright row under the reference on the same
   // side; see instanceLabelRowOffset.
   const rowOffset =
     slot === "value" ? instanceLabelRowOffset(profile, grid) : 0;
 
   if (instance.symbolId === "port" || instance.symbolId === "port-filled") {
-    const localPosition = {
-      x: localBounds.x - compactSideGap,
-      y: middleY + baselineOffset,
-    };
-    return placeUprightInstanceLabel(
-      instance,
-      resolved,
-      profile,
-      localPosition,
-      "left",
-      grid,
-      1,
-      rowOffset,
-      true,
-    );
+    return portLabelPlacement(instance, resolved, profile, grid, rowOffset);
   }
 
   if (

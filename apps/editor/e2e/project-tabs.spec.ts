@@ -1,10 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
+  awaitEditorReady,
   chooseComponent,
   downloadBytes,
   parseSavedProject,
 } from "./editor-fixtures";
-import type { CircuitProject } from "@icm/model";
+import { createEmptyProject, type CircuitProject } from "@icm/model";
+import { serializeProject } from "@icm/project-protocol";
 
 async function insert(page: Page, symbol: string, x: number, y: number) {
   await chooseComponent(page, symbol);
@@ -69,6 +71,16 @@ test("project tabs append a partial selection and retain independent history, ca
     { steps: 5 },
   );
   await page.mouse.up();
+  // The destination already holds a part; the copy must append beside it.
+  await page
+    .getByRole("button", { name: "New project tab", exact: true })
+    .click();
+  await expect(page.getByRole("tab")).toHaveCount(2);
+  await expect(page.getByTestId("active-instance-count")).toHaveText("0");
+  await insert(page, "resistor", 260, 400);
+  const before = await saved(page);
+  await page.getByRole("tab").first().click();
+  await expect(page.getByTestId("active-instance-count")).toHaveText("3");
   await page.evaluate(() => navigator.clipboard.writeText("external text"));
   await page.keyboard.press("c");
   await expect(page.getByTestId("status")).toContainText("Circuit copied");
@@ -80,14 +92,10 @@ test("project tabs append a partial selection and retain independent history, ca
   );
   const sourceView = await canvas.getAttribute("viewBox");
   const source = await saved(page);
-  await page
-    .getByRole("button", { name: "New project tab", exact: true })
-    .click();
-  await expect(page.getByRole("tab")).toHaveCount(2);
-  await expect(page.getByTestId("active-instance-count")).toHaveText("0");
-  await insert(page, "resistor", 260, 400);
-  const before = await saved(page);
-  await page.keyboard.press("v");
+  // C in one tab, a click in another: the copy stays in hand across tabs.
+  await page.getByRole("tab").nth(1).click();
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
   await expect(page.getByTestId("status")).toContainText("click to place");
   await canvas.click({ position: { x: 480, y: 230 } });
   await page.keyboard.press("Escape");
@@ -141,6 +149,103 @@ test("project tabs append a partial selection and retain independent history, ca
   await page.getByRole("tab").first().click();
   await expect(page.getByTestId("active-instance-count")).toHaveText("3");
   await page.screenshot({ path: "plan/project-tabs.png" });
+});
+
+test("C carries a fresh copy into another tab, and V after C pastes the same", async ({
+  page,
+}) => {
+  // M1's gate is on the Net a Cell Pin names O; its source goes to ground.
+  const project = createEmptyProject("fresh-tab-copy", "Fresh tab copy");
+  const document = project.documents[0]!;
+  const placement = (x: number, y: number) => ({
+    position: { x, y },
+    rotation: 0 as const,
+    mirror: "none" as const,
+  });
+  document.instances.push(
+    {
+      id: "M1",
+      reference: "M1",
+      symbolId: "nmos",
+      placement: placement(300, 200),
+      netlist: {
+        binding: { kind: "model", deviceClass: "mos", name: "NMOS" },
+        parameters: { w: "1u", l: "150n", nf: "1", m: "1" },
+      },
+    },
+    { id: "P1", symbolId: "port", placement: placement(200, 200) },
+    { id: "GND1", symbolId: "ground", placement: placement(320, 300) },
+  );
+  document.nets.push(
+    {
+      id: "net-o",
+      terminals: [
+        { instanceId: "M1", pinName: "G" },
+        { instanceId: "P1", pinName: "P" },
+      ],
+    },
+    {
+      id: "net-gnd",
+      terminals: [
+        { instanceId: "M1", pinName: "S" },
+        { instanceId: "GND1", pinName: "0" },
+      ],
+    },
+  );
+  document.netlist!.terminals.push({
+    id: "terminal-o",
+    name: "O",
+    netId: "net-o",
+    direction: "input",
+    interfaceInstanceIds: ["P1"],
+  });
+  await page.goto("/editor?new=1");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "fresh-tab-copy.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(project)),
+  });
+  await expect(page.getByTestId("hit-M1")).toBeVisible();
+  const canvas = page.getByTestId("schematic-canvas");
+  const ghost = page.getByTestId("copy-placement-preview");
+  const netLabels = page.locator(
+    '[data-layer="annotations"] [data-kind="net-label"]',
+  );
+
+  await page.getByTestId("hit-M1").click();
+  await page.keyboard.press("c");
+  await expect(ghost).toBeVisible();
+  await page.keyboard.press("r");
+  await page
+    .getByRole("button", { name: "New project tab", exact: true })
+    .click();
+  await expect(page.getByRole("tab")).toHaveCount(2);
+  // Still in hand, still turned, and nothing from the source circuit rides
+  // along: no O, no ground name.
+  await expect(ghost).toBeVisible();
+  await expect(ghost.locator('[data-kind="net-label"]')).toHaveCount(0);
+  await canvas.click({ position: { x: 400, y: 300 } });
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  await expect(netLabels).toHaveCount(0);
+  const carried = (await saved(page)).documents[0]!;
+  expect(carried.instances[0]!.placement?.rotation).toEqual(expect.any(Number));
+  expect(carried.instances[0]!.placement?.rotation).not.toBe(0);
+  expect(carried.nets.flatMap((net) => net.terminals)).toEqual([]);
+
+  // V pastes what C copied: the same fresh insertion, not the outside names.
+  await page.keyboard.press("v");
+  await expect(ghost).toBeVisible();
+  await expect(ghost.locator('[data-kind="net-label"]')).toHaveCount(0);
+  await canvas.click({ position: { x: 560, y: 300 } });
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("2");
+  await expect(netLabels).toHaveCount(0);
+
+  await page.getByRole("tab").first().click();
+  await expect(page.getByTestId("active-instance-count")).toHaveText("3");
+  await expect(ghost).toHaveCount(0);
 });
 
 test("tab file opening is additive and closing unsaved projects can be cancelled", async ({

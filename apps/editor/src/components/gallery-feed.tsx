@@ -11,6 +11,7 @@ import {
   galleryPreviewUrl,
   loadGalleryAuthors,
   loadGalleryFeed,
+  galleryTagScope,
   loadGalleryTagSummary,
   loadGalleryTags,
   localhostExamplesEnabled,
@@ -351,10 +352,18 @@ export function GalleryFeed({
   const [tagGroupCounts, setTagGroupCounts] = useState<Record<string, number>>(
     {},
   );
-  const [tagCountsNetlistable, setTagCountsNetlistable] = useState<
-    boolean | null
-  >(null);
+  // Which wall filters the shown tag counts answer; counts for any other
+  // combination show as loading rather than as stale numbers.
+  const [tagCountsScope, setTagCountsScope] = useState<string | null>(null);
+  const tagScope = galleryTagScope({
+    netlistable: netlistableOnly,
+    liked: likedOnly,
+    attention: attentionOnly,
+  });
   const [refreshSignal, setRefreshSignal] = useState(0);
+  // A like taken back under Liked removes its drawing from the wall without
+  // reloading it; this recounts the tags beside it.
+  const [tagCountsRefresh, setTagCountsRefresh] = useState(0);
   const [bundledFallback, setBundledFallback] = useState<{
     status: "idle" | "loading" | "ready" | "failed";
     tiles: BundledGalleryTile[];
@@ -413,12 +422,22 @@ export function GalleryFeed({
 
   useEffect(() => {
     let cancelled = false;
+    const scope = galleryTagScope({
+      netlistable: netlistableOnly,
+      liked: likedOnly,
+      attention: attentionOnly,
+    });
     const request =
       refreshSignal === 0 &&
+      tagCountsRefresh === 0 &&
       preload &&
-      (preload.tagsNetlistable ?? false) === netlistableOnly
+      (preload.tagsScope ?? "") === scope
         ? preload.tags
-        : loadGalleryTagSummary(fetch, { netlistable: netlistableOnly });
+        : loadGalleryTagSummary(fetch, {
+            netlistable: netlistableOnly,
+            liked: likedOnly,
+            attention: attentionOnly,
+          });
     void request.then((payload) => {
       if (!cancelled) {
         setTagOptions(payload.tags);
@@ -427,13 +446,20 @@ export function GalleryFeed({
             payload.groups.map(({ group, count }) => [group, count]),
           ),
         );
-        setTagCountsNetlistable(netlistableOnly);
+        setTagCountsScope(scope);
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [preload, refreshSignal, netlistableOnly]);
+  }, [
+    preload,
+    refreshSignal,
+    tagCountsRefresh,
+    netlistableOnly,
+    likedOnly,
+    attentionOnly,
+  ]);
   const [state, setState] = useState<GalleryFeedState>({
     status: "loading",
     entries: [],
@@ -539,6 +565,7 @@ export function GalleryFeed({
           : {}),
       };
     });
+    if (likedOnly) setTagCountsRefresh((previous) => previous + 1);
     announceGalleryChange({ entryId });
   }
 
@@ -922,7 +949,7 @@ export function GalleryFeed({
           <GalleryTagSidebar
             tags={tagOptions}
             groupCounts={tagGroupCounts}
-            countsLoading={tagCountsNetlistable !== netlistableOnly}
+            countsLoading={tagCountsScope !== tagScope}
             selected={selectedTags}
             onChange={(tags) => updateFilters({ tags })}
             search={searchQuery}

@@ -24,11 +24,16 @@ type Selection = ExplicitCopyRoutingSelection & {
   draftingIds: readonly string[];
 };
 
-/** A closed Project fragment, never a reference to another tab's mutable state. */
+/**
+ * A closed Project fragment, never a reference to another tab's mutable state.
+ * Ctrl/Cmd+C keeps the selection's outside electrical context; C encodes the
+ * fresh insertion it places (`preserveElectrical: false`).
+ */
 export function encodeCircuitClipboard(
   project: CircuitProject,
   document: SchematicDocument,
   selection: Selection,
+  preserveElectrical = true,
 ): string | null {
   const includes = (items: readonly { id: string }[], ids: readonly string[]) =>
     items.every((item) => ids.includes(item.id));
@@ -42,7 +47,7 @@ export function encodeCircuitClipboard(
     project,
     document,
     whole ? undefined : selection,
-    true,
+    preserveElectrical,
   );
   if (!copied?.context) return null;
   const context = copied.context;

@@ -13,11 +13,15 @@ import {
   roleLabelFormat,
 } from "@icm/model";
 import type { RichTextDocument, RichTextRun } from "@icm/model";
+import { createDesignNetlistExport } from "@icm/netlist";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { hierarchicalSymbolId } from "@icm/symbols";
 
 import { CLOUD_PROJECT_LIMIT as EDITOR_CLOUD_PROJECT_LIMIT } from "../apps/editor/src/features/editor-shell/cloud-projects";
-import { CLOUD_PROJECT_LIMIT } from "./gallery-do";
+import {
+  CLOUD_PROJECT_LIMIT,
+  GALLERY_NETLIST_PAGE_CHARACTERS,
+} from "./gallery-do";
 import {
   GALLERY_DAILY_SUBMISSION_LIMIT,
   galleryReadableDocument,
@@ -250,6 +254,170 @@ describe("off-site Gallery backup credential", () => {
         )
       ).status,
     ).toBe(401);
+  });
+});
+
+describe("Gallery netlist read", () => {
+  const endpoint = `${ORIGIN}/api/gallery/maintenance/netlists`;
+  const bearer = { Authorization: "Bearer backup-only-secret" };
+  type NetlistPage = {
+    format: string;
+    netlistFormat: string;
+    entries: {
+      id: string;
+      name: string;
+      netlistable: boolean;
+      netlist: string | null;
+      diagnostics: { severity: string; code: string; message: string }[];
+    }[];
+    nextCursor: string | null;
+  };
+  async function read(
+    env: Harness,
+    query = "",
+    headers: Record<string, string> = bearer,
+  ): Promise<{ status: number; page: NetlistPage }> {
+    const response = await route(
+      env,
+      new Request(`${endpoint}${query}`, { headers }),
+    );
+    return {
+      status: response.status,
+      page: (await response.json()) as NetlistPage,
+    };
+  }
+  function exported(env: Harness, id: string, format: "spice" | "spectre") {
+    const result = createDesignNetlistExport(
+      parseProject(
+        env.gallerySql
+          .exec<{ project_text: string }>(
+            "SELECT project_text FROM gallery_entries WHERE id = ?",
+            id,
+          )
+          .one().project_text,
+      ),
+      { format },
+    );
+    return result.status === "ready" ? result.file.text : null;
+  }
+
+  it("pages the public Gallery's netlists for the read-only credential or an admin", async () => {
+    const env = environment();
+    env.GALLERY_BACKUP_TOKEN = "backup-only-secret";
+    const cookie = await adminOf(env);
+    // An ideal switch has no reviewed netlist definition, so this one blocks.
+    const sketch = createEmptyProject("sketch", "Sketch");
+    sketch.documents[0]!.instances.push({
+      id: "S1",
+      symbolId: "ideal-switch",
+      reference: "S1",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    const blocked = await submitOne(env, "Sketch", {
+      cookie,
+      text: serializeProject(sketch),
+    });
+    const ready = await submitOne(env, "Extractable", { cookie });
+    const withdrawn = await submitOne(env, "Withdrawn", { cookie });
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET status = 'recycled' WHERE id = ?",
+      withdrawn,
+    );
+    const publicIds = [blocked, ready].sort();
+
+    const { status, page } = await read(env);
+    expect(status).toBe(200);
+    expect(page.format).toBe("analog-canvas-gallery-netlists-v1");
+    expect(page.netlistFormat).toBe("spice");
+    expect(page.entries.map((entry) => entry.id)).toEqual(publicIds);
+    expect(page.nextCursor).toBeNull();
+    expect(JSON.stringify(page)).not.toContain("projectText");
+    const byId = new Map(page.entries.map((entry) => [entry.id, entry]));
+    expect(exported(env, ready, "spice")).toEqual(expect.any(String));
+    expect(byId.get(ready)).toMatchObject({
+      name: "Extractable",
+      netlistable: true,
+      netlist: exported(env, ready, "spice"),
+    });
+    expect(byId.get(blocked)).toMatchObject({
+      netlistable: false,
+      netlist: null,
+    });
+    expect(
+      byId.get(blocked)!.diagnostics.some((item) => item.severity === "error"),
+    ).toBe(true);
+
+    const spectre = await read(env, `?format=spectre&id=${ready}`);
+    expect(spectre.page.entries.map((entry) => entry.netlist)).toEqual([
+      exported(env, ready, "spectre"),
+    ]);
+    const first = await read(env, "?limit=1");
+    expect(first.page.entries).toHaveLength(1);
+    expect(first.page.nextCursor).toBe(first.page.entries[0]!.id);
+    const second = await read(env, `?limit=1&after=${first.page.nextCursor}`);
+    expect(
+      [...first.page.entries, ...second.page.entries].map((entry) => entry.id),
+    ).toEqual(publicIds);
+    expect(second.page.nextCursor).toBeNull();
+
+    // An admin's browser session reads the same pages without the token.
+    expect(await read(env, "", { Cookie: cookie })).toEqual({ status, page });
+  });
+
+  it("ends a page before its Project Code outgrows one response", async () => {
+    const env = environment();
+    env.GALLERY_BACKUP_TOKEN = "backup-only-secret";
+    for (const id of ["~large-1", "~large-2"])
+      env.gallerySql.exec(
+        `INSERT INTO gallery_entries
+         (id, name, author, description, created_at, schema_version, status,
+          project_text, svg_text)
+         VALUES (?, ?, 'Author', '', '2026-09-24T00:00:00.000Z', 1, 'public', ?, '')`,
+        id,
+        id,
+        "x".repeat(GALLERY_NETLIST_PAGE_CHARACTERS / 2 + 1),
+      );
+    const first = await read(env);
+    expect(first.page.entries.map((entry) => entry.id)).toEqual(["~large-1"]);
+    expect(first.page.entries[0]!.diagnostics[0]!.code).toBe(
+      "PROJECT_UNREADABLE",
+    );
+    expect(first.page.nextCursor).toBe("~large-1");
+    const second = await read(env, "?after=~large-1");
+    expect(second.page.entries.map((entry) => entry.id)).toEqual(["~large-2"]);
+    expect(second.page.nextCursor).toBeNull();
+  });
+
+  it("refuses other readers, writes, unknown formats and entries off the wall", async () => {
+    const env = environment();
+    expect((await read(env)).status).toBe(401);
+    env.GALLERY_BACKUP_TOKEN = "backup-only-secret";
+    expect((await read(env, "", {})).status).toBe(401);
+    expect(
+      (await read(env, "", { Authorization: "Bearer wrong" })).status,
+    ).toBe(401);
+    expect((await read(env, "", { Cookie: await makerOf(env) })).status).toBe(
+      401,
+    );
+    expect(
+      (
+        await route(
+          env,
+          new Request(endpoint, {
+            method: "POST",
+            headers: bearer,
+            body: "{}",
+          }),
+        )
+      ).status,
+    ).toBe(405);
+    expect((await read(env, "?format=verilog")).status).toBe(400);
+    const withdrawn = await submitOne(env, "Withdrawn");
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET status = 'rejected' WHERE id = ?",
+      withdrawn,
+    );
+    expect((await read(env, `?id=${withdrawn}`)).status).toBe(404);
   });
 });
 
@@ -5188,6 +5356,36 @@ describe("Gallery visual curation", () => {
       expect.arrayContaining([...mineAuthors, ...otherAuthors]),
     );
     expect((await feed(maker, "?attention=1&tags=absent")).authors).toEqual([]);
+    // The tag counts beside the wall narrow with it: Needs attention counts
+    // only what this viewer may see needing attention, Liked only their likes.
+    const otaCount = async (cookie: string, query = "") => {
+      const response = await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/tags${query}`, {
+          headers: cookieHeaders(cookie),
+        }),
+      );
+      if (response.status !== 200) return response.status;
+      const { tags } = (await response.json()) as {
+        tags: { tag: string; count: number }[];
+      };
+      return tags.find((item) => item.tag === "ota")?.count ?? 0;
+    };
+    expect(await otaCount("")).toBe(2);
+    expect(await otaCount(admin, "?attention=1")).toBe(2);
+    expect(await otaCount(maker, "?attention=1")).toBe(1);
+    expect(await otaCount(maker, "?liked=1")).toBe(0);
+    expect(await otaCount("", "?attention=1")).toBe(401);
+    const like = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${mine}/like`, {
+        method: "POST",
+        headers: { Origin: ORIGIN, Cookie: other },
+      }),
+    );
+    expect(like.status).toBe(200);
+    expect(await otaCount(other, "?liked=1")).toBe(1);
+    expect(await otaCount("", "?liked=1")).toBe(0);
     expect(
       (await feed(other)).entries.find((e) => e.id === mine)?.attention,
     ).toBeUndefined();
@@ -5211,6 +5409,8 @@ describe("Gallery visual curation", () => {
     expect((await feed(maker, "?attention=1")).authors).toEqual([]);
     expect((await feed(maker)).filterCounts.attention).toBe(0);
     expect((await feed(admin)).filterCounts.attention).toBe(1);
+    expect(await otaCount(maker, "?attention=1")).toBe(0);
+    expect(await otaCount(admin, "?attention=1")).toBe(1);
     expect((await update(env, mine, maker)).status).toBe(200);
     expect((await feed(maker, "?attention=1")).total).toBe(1);
   });

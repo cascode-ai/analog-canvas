@@ -155,6 +155,8 @@ export type InteractionAction<TClipboard = never> =
       type: "begin-copy-placement";
       clipboard: TClipboard;
       anchor: Point;
+      /** Turns and flips a copy already had, when it moves to another tab. */
+      orientationOperations?: readonly PlacementOrientationOperation[];
     }
   | { type: "set-copy-preview"; point: Point | null }
   | { type: "advance-copy-placement" }
@@ -330,7 +332,7 @@ export function interactionReducer<TClipboard>(
           anchor: action.anchor,
           sequence: 1,
           previewPoint: null,
-          orientationOperations: [],
+          orientationOperations: [...(action.orientationOperations ?? [])],
         },
       };
     case "set-copy-preview":
@@ -536,8 +538,17 @@ export function useInteractionState<TClipboard>() {
     setVddRailPreviewPoint: (point: Point | null) =>
       dispatch({ type: "set-vdd-rail-preview", point }),
     completeVddRailPlacement: () => dispatch({ type: "complete-vdd-rail" }),
-    beginCopyPlacement: (clipboard: TClipboard, anchor: Point) =>
-      dispatch({ type: "begin-copy-placement", clipboard, anchor }),
+    beginCopyPlacement: (
+      clipboard: TClipboard,
+      anchor: Point,
+      orientationOperations?: readonly PlacementOrientationOperation[],
+    ) =>
+      dispatch({
+        type: "begin-copy-placement",
+        clipboard,
+        anchor,
+        ...(orientationOperations ? { orientationOperations } : {}),
+      }),
     setCopyPreviewPoint: (point: Point | null) =>
       dispatch({ type: "set-copy-preview", point }),
     advanceCopyPlacement: () => dispatch({ type: "advance-copy-placement" }),

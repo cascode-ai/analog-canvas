@@ -196,6 +196,10 @@ export const GALLERY_MAX_TAG_LENGTH = 32;
 export const GALLERY_MAX_VERSIONS_PER_ENTRY = 3;
 export const GALLERY_DEFAULT_LIST_LIMIT = 30;
 export const GALLERY_MAX_LIST_LIMIT = 60;
+/** Entries per netlist page, and the Project Code characters one may carry. */
+export const GALLERY_NETLIST_PAGE_LIMIT = 100;
+export const GALLERY_NETLIST_MAX_PAGE_LIMIT = 200;
+export const GALLERY_NETLIST_PAGE_CHARACTERS = 8_000_000;
 
 export interface SvgPreviewDimensions {
   width: number;
@@ -282,7 +286,10 @@ export type GalleryNamespaceLike = {
 };
 
 export type GalleryEnv = {
-  /** Read-only, Gallery-only credential for the private off-site backup job. */
+  /**
+   * Read-only, Gallery-only credential for the private off-site backup job
+   * and for reading the public Gallery's netlists by script.
+   */
   GALLERY_BACKUP_TOKEN?: string;
   GALLERY: GalleryNamespaceLike;
   /** Sessions are the only identity: publishing requires one. */
@@ -470,6 +477,10 @@ function advanceCurationRevision(row: EntryRow, at: string): string {
     revision: (previous?.revision ?? 0) + 1,
   });
 }
+
+/** An entry whose curation asks its author to look again. */
+const NEEDS_ATTENTION =
+  "json_extract(CASE WHEN e.curation_json = '' THEN '{}' ELSE e.curation_json END, '$.attention.status') = 'needs-attention'";
 
 /** Storage-only Durable Object; policy lives in `routeGalleryRequest`. */
 export class GalleryDO {
@@ -793,7 +804,7 @@ export class GalleryDO {
       case "curate":
         return this.curate(body);
       case "tags":
-        return this.tagCounts(body.netlistable === true);
+        return this.tagCounts(body);
       case "authors":
         return this.authorCounts();
       case "rename-owner":
@@ -802,6 +813,8 @@ export class GalleryDO {
         return this.updateEntry(body);
       case "label-looks-read":
         return this.labelLooksRead(String(body.id));
+      case "netlist-sources":
+        return this.netlistSources(body);
       case "label-looks-store":
         return this.labelLooksStore(body);
       case "replace-entry":
@@ -1069,12 +1082,20 @@ export class GalleryDO {
     return Response.json({ id: entry.id, previewRevision });
   }
 
-  private list(body: Record<string, unknown>): Response {
-    const limit = Math.min(
-      Math.max(Number(body.limit) || GALLERY_DEFAULT_LIST_LIMIT, 1),
-      GALLERY_MAX_LIST_LIMIT,
-    );
-    const cursor = typeof body.cursor === "string" ? body.cursor : null;
+  /**
+   * The wall's narrowing, shared by the feed and its tag counts so a filter
+   * means the same in both: Needs attention, With netlist and Liked narrow
+   * the counts exactly as they narrow the wall. The tag counts leave out the
+   * tag selection itself, or checking one tag would zero every other.
+   */
+  private feedConditions(
+    body: Record<string, unknown>,
+    options: { tags: boolean },
+  ): {
+    conditions: string[];
+    bindings: (string | number)[];
+    viewerId: string;
+  } {
     const author =
       typeof body.author === "string" && body.author.length > 0
         ? body.author
@@ -1083,7 +1104,6 @@ export class GalleryDO {
       typeof body.ownerUserId === "string" && body.ownerUserId.length > 0
         ? body.ownerUserId
         : null;
-    // The viewer id leads the bindings because its sub-select comes first.
     const viewerId = typeof body.viewerId === "string" ? body.viewerId : "";
     const conditions = ["e.status = 'public'"];
     const bindings: (string | number)[] = [];
@@ -1094,15 +1114,15 @@ export class GalleryDO {
       conditions.push("e.author = ?");
       bindings.push(author);
     }
-    const tags = sanitizeGalleryTags(body.tags, 256);
-    if (tags.length > 0) {
-      conditions.push(`(${tags.map(() => "e.tags LIKE ?").join(" OR ")})`);
-      for (const tag of tags) bindings.push(`%,${tag},%`);
+    if (options.tags) {
+      const tags = sanitizeGalleryTags(body.tags, 256);
+      if (tags.length > 0) {
+        conditions.push(`(${tags.map(() => "e.tags LIKE ?").join(" OR ")})`);
+        for (const tag of tags) bindings.push(`%,${tag},%`);
+      }
     }
-    const needsAttention =
-      "json_extract(CASE WHEN e.curation_json = '' THEN '{}' ELSE e.curation_json END, '$.attention.status') = 'needs-attention'";
     if (body.attention === true) {
-      conditions.push(needsAttention);
+      conditions.push(NEEDS_ATTENTION);
       if (body.isAdmin !== true) {
         conditions.push("e.owner_user_id = ?");
         bindings.push(viewerId);
@@ -1118,6 +1138,19 @@ export class GalleryDO {
       );
       bindings.push(viewerId);
     }
+    return { conditions, bindings, viewerId };
+  }
+
+  private list(body: Record<string, unknown>): Response {
+    const limit = Math.min(
+      Math.max(Number(body.limit) || GALLERY_DEFAULT_LIST_LIMIT, 1),
+      GALLERY_MAX_LIST_LIMIT,
+    );
+    const cursor = typeof body.cursor === "string" ? body.cursor : null;
+    // The viewer id leads the bindings because its sub-select comes first.
+    const { conditions, bindings, viewerId } = this.feedConditions(body, {
+      tags: true,
+    });
     // The whole filtered wall's size, not the page's: counted before the
     // cursor narrows the query, so every page carries the same total.
     const counts = this.sql
@@ -1132,7 +1165,7 @@ export class GalleryDO {
            COUNT(CASE WHEN EXISTS (SELECT 1 FROM gallery_likes
              WHERE entry_id = e.id AND user_id = ?) THEN 1 END) AS liked,
            COUNT(CASE WHEN ? != '' AND (? = 1 OR e.owner_user_id = ?)
-             AND ${needsAttention} THEN 1 END) AS attention
+             AND ${NEEDS_ATTENTION} THEN 1 END) AS attention
          FROM gallery_entries e WHERE ${conditions.join(" AND ")}`,
         viewerId,
         viewerId,
@@ -2869,10 +2902,14 @@ export class GalleryDO {
   }
 
   /** Public tag counts plus deduplicated circuit totals for each visual group. */
-  private tagCounts(netlistableOnly = false): Response {
+  private tagCounts(body: Record<string, unknown>): Response {
+    const { conditions, bindings } = this.feedConditions(body, {
+      tags: false,
+    });
     const rows = this.sql
       .exec<{ tags: string | null }>(
-        `SELECT tags FROM gallery_entries WHERE status = 'public'${netlistableOnly ? " AND netlistable = 1" : ""}`,
+        `SELECT e.tags FROM gallery_entries e WHERE ${conditions.join(" AND ")}`,
+        ...bindings,
       )
       .toArray();
     const counts = new Map<string, number>();
@@ -3019,6 +3056,74 @@ export class GalleryDO {
       .toArray()[0];
     if (!row) return Response.json({ error: "not-found" }, { status: 404 });
     return Response.json({ status: row.status, projectText: row.project_text });
+  }
+
+  /**
+   * One page of public entries' Project Code, in id order, for the netlist
+   * read. A page ends at `limit` entries or once its Project Code passes the
+   * size budget, so one response stays well inside a Worker's memory however
+   * large the drawings are. Sizes are read first and the page's text second,
+   * by id range, so the rows past the budget are never loaded.
+   */
+  private netlistSources(body: Record<string, unknown>): Response {
+    const limit = Math.min(
+      Math.max(Math.trunc(Number(body.limit)) || GALLERY_NETLIST_PAGE_LIMIT, 1),
+      GALLERY_NETLIST_MAX_PAGE_LIMIT,
+    );
+    const id = typeof body.id === "string" && body.id ? body.id : null;
+    const sizes = this.sql
+      .exec<{ id: string; size: number }>(
+        `SELECT id, LENGTH(project_text) AS size FROM gallery_entries
+         WHERE status = 'public' AND id ${id ? "=" : ">"} ?
+         ORDER BY id LIMIT ?`,
+        id ?? (typeof body.after === "string" ? body.after : ""),
+        limit + 1,
+      )
+      .toArray();
+    let count = 0;
+    let characters = 0;
+    while (
+      count < Math.min(limit, sizes.length) &&
+      (count === 0 ||
+        characters + sizes[count]!.size <= GALLERY_NETLIST_PAGE_CHARACTERS)
+    ) {
+      characters += sizes[count]!.size;
+      count += 1;
+    }
+    const last = sizes[count - 1]?.id;
+    const rows =
+      last === undefined
+        ? []
+        : this.sql
+            .exec<{
+              id: string;
+              name: string;
+              author: string;
+              tags: string | null;
+              created_at: string;
+              netlistable: number;
+              project_text: string;
+            }>(
+              `SELECT id, name, author, tags, created_at, netlistable,
+                 project_text
+               FROM gallery_entries
+               WHERE status = 'public' AND id >= ? AND id <= ? ORDER BY id`,
+              sizes[0]!.id,
+              last,
+            )
+            .toArray();
+    return Response.json({
+      entries: rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        author: row.author,
+        tags: unwrapTags(row.tags),
+        createdAt: row.created_at,
+        netlistable: row.netlistable === 1,
+        projectText: row.project_text,
+      })),
+      nextCursor: count < sizes.length ? last : null,
+    });
   }
 
   /**

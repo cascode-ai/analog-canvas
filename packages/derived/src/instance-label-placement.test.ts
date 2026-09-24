@@ -195,10 +195,35 @@ describe("instance label placement", () => {
       alignment: "middle",
     });
     expect(placedDefaultLabel("port")).toMatchObject({
-      position: { x: 80, y: 110 },
+      position: { x: 80, y: 105 },
       alignment: "end",
     });
   });
+
+  it.each(["port", "port-filled"])(
+    "puts a %s name squarely beside it, away from its wire",
+    (symbolId) => {
+      // The Pin sits at (100, 100) with its wire at the Symbol origin; the
+      // capitals are centred on it (baseline 0.35 em low) and not snapped.
+      expect(placedDefaultLabel(symbolId, 0)).toEqual({
+        position: { x: 80, y: 105 },
+        alignment: "end",
+      });
+      expect(placedDefaultLabel(symbolId, 180)).toEqual({
+        position: { x: 120, y: 105 },
+        alignment: "start",
+      });
+      // Vertical Pins take the name directly above or below, centred.
+      expect(placedDefaultLabel(symbolId, 90)).toEqual({
+        position: { x: 100, y: 76 },
+        alignment: "middle",
+      });
+      expect(placedDefaultLabel(symbolId, 270)).toEqual({
+        position: { x: 100, y: 130 },
+        alignment: "middle",
+      });
+    },
+  );
 
   it("centers quarter-turned passive labels with the same five-unit clearance", () => {
     const resistor = resolver.resolve("resistor");

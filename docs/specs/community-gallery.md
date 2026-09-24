@@ -421,6 +421,18 @@ header buys nothing. Without such a session every admin route answers
 - `GET /api/gallery/maintenance/automated-backup` — bounded Gallery-only pages
   for the dedicated read-only backup credential; no Cloud Projects or writes.
   See [off-site backups and recovery](../gallery-backup.md).
+- `GET /api/gallery/maintenance/netlists` — the public entries' netlists, in
+  entry-id order, for an administrator session or the same read-only
+  credential. `format=spice|spectre` (default `spice`), `limit=1..200`
+  (default 100) and `after=<nextCursor>` page through the wall; `id=<entry>`
+  reads one entry. Each entry carries its name, author, tags, creation time
+  and stored netlistable mark, then the design netlist its drawing prints
+  (the editor's netlist printer), or `null` when printing is blocked, with
+  every diagnostic. A drawing the editor calls unfinished (a wire that
+  reaches no peer) still prints; its `DEAD_END_NET` finding says so and its
+  netlistable mark is false. A page also ends once its Project Code reaches
+  8,000,000 characters; `nextCursor` is `null` on the last page. Recycled and
+  rejected entries are not included.
 - `POST /api/gallery/maintenance/schema-current` — validate or transactionally
   converge every stored Project to `CURRENT_PROJECT_FILE_VERSION`. The
   request body is `{ "apply": false }` for a dry run and `{ "apply": true }`
