@@ -331,6 +331,28 @@ test("writes an Instance Reference through post-placement Properties", async ({
     .toContain('"reference": "R7"');
 });
 
+test("Battery receives a visible editable name without a simulation binding", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await chooseComponent(page, "battery");
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.click({ position: { x: 360, y: 220 } });
+  await page.keyboard.press("Escape");
+  await expect(canvas.getByText("B1", { exact: true })).toBeVisible();
+
+  await page.getByTestId("hit-B1").click();
+  await revealPropertiesShelf(page);
+  await page.getByTestId("selection-shelf").click();
+  await editComponentPropertyCode(page, (code) => {
+    code.netlistName = "B7";
+  });
+  await expect(canvas.getByText("B7", { exact: true })).toBeVisible();
+  await expect
+    .poll(() => recoveryProjectTexts(page))
+    .toContain('"reference": "B7"');
+});
+
 test("keeps the Placement Tray out of the manual component workflow", async ({
   page,
 }) => {
@@ -1949,8 +1971,8 @@ for (const symbolId of [
     // body, including names away from the cursor at the symbol origin.
     const previewText = canvas.locator('[data-layer="editor-overlay"] text');
     if (symbolId === "battery") {
-      // This reviewed drawing-only Symbol has no electrical descriptor or
-      // default component annotation to put in the placement preview.
+      // The placement ghost omits text, while the committed Instance gets a
+      // live B-series Reference label (covered by the naming test above).
       expect(await previewText.count()).toBe(0);
     } else {
       expect(await previewText.count()).toBeGreaterThan(0);

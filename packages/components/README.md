@@ -80,10 +80,10 @@ The product set is exactly the reviewed, Reference-calibrated entries:
 - `battery`, the drawing-only single-cell plate symbol extracted from
   _Fundamentals of Microelectronics_ Figure 3.11(a). Its long/short plate
   lengths, spacing, and stroke ratio use the circular voltage source in the
-  same panel as the scale reference. It has `electrical: null`: placing it does
-  not silently create a DC source or a physical battery model, and netlist
-  export reports a missing reviewed definition until an explicit binding is
-  authored;
+  same panel as the scale reference. Its authoring-only descriptor assigns an
+  editable `B`-series Reference and a side annotation, with `targetPolicy:
+  "none"`: placing it does not create a DC source or physical battery model,
+  and netlist export still requires an explicit electrical mapping;
 - `resistor`, `capacitor`, `inductor-compact`, their adjustable siblings
   `variable-resistor`, `variable-capacitor`, and `variable-inductor` (the base
   body plus one diagonal adjustment arrow), `port`, and `port-filled`;

@@ -160,6 +160,31 @@ describe("built-in device registry", () => {
     });
   });
 
+  it("names Battery instances without assigning a netlist target", () => {
+    const battery = deviceDescriptor("battery");
+    expect(battery).toMatchObject({
+      deviceClass: "voltage-source",
+      referencePrefix: "B",
+      pinOrder: ["+", "-"],
+      targetPolicy: "none",
+      parameters: [],
+      capabilities: { supportsValueAnnotation: false },
+    });
+    if (!battery) throw new Error("Missing Battery descriptor");
+    expect(validateDeviceDescriptors([battery])).toEqual([]);
+    expect(
+      validateDeviceDescriptors([{ ...battery, targetPolicy: "builtin" }]),
+    ).toContainEqual({
+      deviceId: "battery",
+      message: "Independent sources require a waveform default",
+    });
+    expect(referencePolicyForSymbol("battery")).toEqual({
+      kind: "required",
+      prefix: "B",
+    });
+    expect(subcircuitDescriptor("battery")).toBeUndefined();
+  });
+
   it("registers Analog Blocks as semantic black-box subcircuits", () => {
     expect(builtInSubcircuitDescriptors).toHaveLength(48);
     expect(

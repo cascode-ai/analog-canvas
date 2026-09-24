@@ -119,6 +119,7 @@
     "zener-diode",
     "npn",
     "pnp",
+    "battery",
     "voltage-source",
     "pulse-voltage-source",
     "current-source",
