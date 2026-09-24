@@ -57,14 +57,28 @@ overbar, subject to the drawing's `labels` settings. This rule is kept so
 existing drawings keep their look; it is display only and never changes a
 name.
 
-Existing Gallery drawings are moved to stored standard looks by an
-administrator maintenance pass
-([Community Gallery](community-gallery.md#administration)). It changes only
-unformatted supply, device Reference, Cell Pin and Net labels that are drawn,
-may nudge a restyled label a few grid units clear of its neighbours or leave
-one that cannot stay as clear as it was, and refuses any change to an
-electrical name or netlist. Pin labels keep the historical rule, because an
-older drawing cannot tell a generated Pin name from a typed one.
+### Scripts
+
+Subscripts and superscripts are upright by default: in every standard look,
+in the historical rule of any drawing made from now on (`labelSubscriptItalic`
+is false), and when the editor applies Subscript or Superscript to italic
+text, which never carries the italic into the script. An author may still
+slant a script on purpose, by setting Italic inside it or choosing italic
+subscripts for the whole drawing, and that choice is kept.
+
+### Existing drawings
+
+Existing Gallery drawings are moved to the standard by an administrator
+maintenance pass ([Community Gallery](community-gallery.md#administration)).
+It gives drawn supply, device Reference, Cell Pin and Net labels without a
+look of their own their standard look, may nudge a restyled label a few grid
+units clear of its neighbours or leave one that cannot stay as clear as it
+was, sets `labelSubscriptItalic` to false in a drawing that never chose a
+subscript slant, and refuses any change to an electrical name or netlist.
+For drawings made before these standards, `legacyLooks` also gives a label
+whose stored look only copies its historical look its standard look, and
+straightens a script that took the surrounding italic along. It is not for
+later drawings, where a slanted script is the author's choice.
 
 ### Editing
 
@@ -127,6 +141,9 @@ redraws a drawing its author has already seen.
 - `apps/editor/src/features/instance-display/default-instance-display.test.ts`
   and `apps/editor/src/features/properties/property-edit-planner.test.ts`: new
   Pin and Net labels take the voltage-node look for V-led names only.
+- `packages/model/src/label-typography.test.ts` and
+  `apps/editor/e2e/manual-editor.spec.ts`: a new subscript is upright, an
+  author's slanted subscript is kept, and legacy looks change only on request.
 - `worker/gallery.test.ts` (label-look maintenance): a dry run writes
   nothing; an apply needs the checked content, keeps names, netlists and
   history, and leaves nothing for a second pass.

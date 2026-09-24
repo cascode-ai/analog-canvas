@@ -167,7 +167,13 @@ function readNode(node: Node, bold = false, italic = false): RichTextRun[] {
       },
     ];
   }
-  const children = readChildren(node, bold, italic);
+  // A script is upright by default: it does not take the surrounding italic,
+  // but an italic set inside it is the author's choice and is kept.
+  const children = readChildren(
+    node,
+    bold,
+    tag === "sub" || tag === "sup" ? false : italic,
+  );
   if (children.length === 0 && tag !== "div" && tag !== "p") return [];
   if (tag === "strong" || tag === "b") {
     return children;

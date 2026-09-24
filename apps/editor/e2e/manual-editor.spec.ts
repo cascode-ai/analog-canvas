@@ -3317,6 +3317,47 @@ test("starts a V-led Net Label subscripted and lets the author turn it off witho
   ).toHaveCount(0);
 });
 
+test("draws a new subscript upright and keeps one the author slants", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 280, y: 180 });
+  await placeComponent(page, "resistor", { x: 480, y: 180 });
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-R1-2").click();
+  await page.getByTestId("terminal-R2-1").click();
+  await page.keyboard.press("Escape");
+  await clickRoute(page, "route-ui-1", 0.5, 0);
+  await openSelectionShelf(page);
+  await editComponentPropertyCode(page, (code) => {
+    code.name = "CLKE";
+  });
+  const hit = page.getByTestId("annotation-hit-net-label-route-ui-1");
+  const rendered = page.locator('[data-object-id="net-label-route-ui-1"]');
+  const editor = page.getByRole("textbox", { name: "Canvas text editor" });
+
+  // Subscripting part of the bold italic label does not slant the script.
+  await hit.dblclick();
+  await selectRichTextOffsets(editor, 3, 4);
+  await page.getByRole("button", { name: "Subscript" }).click();
+  await expect(editor.locator("sub")).toHaveCSS("font-style", "normal");
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  const subscript = rendered.locator('[data-text-run="subscript"]');
+  await expect(subscript).toHaveText("E");
+  await expect(subscript).toHaveCSS("font-style", "normal");
+
+  // The author may still slant it on purpose, and that choice is kept.
+  await hit.dblclick();
+  await selectRichTextOffsets(editor, 3, 4);
+  await page.getByRole("button", { name: "Italic" }).click();
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  await expect(subscript.locator('[data-text-run="span"]').first()).toHaveCSS(
+    "font-style",
+    "italic",
+  );
+  await expect(rendered).toHaveText("CLKE");
+});
+
 test("keeps literal text line breaks and overbars visible while editing", async ({
   page,
 }) => {

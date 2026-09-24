@@ -438,13 +438,17 @@ unreadable, ruleVersion, remaining}`). Every entry stores the rule version
   The same pass runs on a schedule (`triggers.crons` in both channels'
   Wrangler configs), so a deployed rule change converges without anybody
   pressing anything; the route stays for when somebody wants it now.
-- `POST /api/gallery/maintenance/label-looks` — give up to 20 entries'
-  unformatted, drawn supply, device Reference, Cell Pin and Net labels their
-  stored standard look (V_DD, M₁, V_BP; see
-  [names and labels](names-and-labels.md)). The body is
+- `POST /api/gallery/maintenance/label-looks` — bring up to 20 entries'
+  labels to the standard (see [names and labels](names-and-labels.md)):
+  drawn supply, device Reference, Cell Pin and Net labels without a look of
+  their own take their standard look (V_DD, M₁, V_BP), and a drawing that
+  never chose a subscript slant draws subscripts upright. The body is
   `{ "ids": [...], "apply"?: true, "expected"?: {<id>: <sha256>}, "nudges"?:
-{<id>: [{label, dx, dy}]}, "keep"?: {<id>: [label]} }`. The server computes
-  the change itself; a nudge may only move a label it restyles, by at most
+{<id>: [{label, dx, dy}]}, "keep"?: {<id>: [label]}, "legacyLooks"?: true }`.
+  `legacyLooks` also restyles looks stored before these standards (stored
+  copies of a historical look, scripts slanted by the surrounding italic) and
+  is only for drawings made before them. The server computes the change
+  itself; a nudge may only move a label given its standard look, by at most
   16 × 12 units, and `keep` names standard-look candidates to leave exactly as
   they are (for a label that cannot stay as clear as it was). Without
   `apply` it reports, per entry, the labels, the SHA-256 of the stored Project

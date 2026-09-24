@@ -18,7 +18,7 @@ import {
 } from "@icm/symbols";
 import {
   CircuitProjectSchema,
-  standardLabelLookChanges,
+  labelLookChanges,
   type CircuitProject,
 } from "@icm/model";
 
@@ -310,10 +310,10 @@ function designNetlists(project: CircuitProject): string {
 }
 
 /**
- * Give one existing entry's unformatted supply and device labels their
- * stored standard look (V_DD, M₁), with the planner's bounded nudges. The
- * server recomputes the change itself and refuses anything that would alter
- * a name, a netlist or the Project beyond those labels.
+ * Bring one existing entry's labels to the standard (V_DD, M₁, V_in, upright
+ * subscripts), with the planner's bounded nudges. The server recomputes the
+ * change itself and refuses anything that would alter a name, a netlist or
+ * the Project beyond those labels and the drawing's subscript slant.
  */
 async function labelLookEntry(
   env: GalleryEnv,
@@ -323,6 +323,7 @@ async function labelLookEntry(
     expected?: string;
     nudges: LabelLookNudge[];
     keep: string[];
+    legacyLooks: boolean;
   },
 ): Promise<Record<string, unknown>> {
   const read = await callGallery<{ status?: string; projectText?: string }>(
@@ -342,17 +343,26 @@ async function labelLookEntry(
   } catch {
     return { id, sha, skipped: "unreadable" };
   }
-  const labels: { id: string; name: string; role: string }[] = [];
+  const labels: {
+    id: string;
+    name: string;
+    kind: "standard" | "upright";
+    role?: string;
+  }[] = [];
   const changed = new Map<
     string,
     CircuitProject["documents"][number]["annotations"][number]
   >();
   const keep = new Set(options.keep);
   const kept: string[] = [];
+  const uprightDocuments: string[] = [];
   for (const document of project.documents) {
-    for (const change of standardLabelLookChanges(document)) {
-      // A label the planner could not keep clear stays as it is.
-      if (keep.has(change.annotationId)) {
+    const changes = labelLookChanges(document, {
+      legacyLooks: options.legacyLooks,
+    });
+    for (const change of changes.labels) {
+      // A label the planner could not keep clear keeps its current look.
+      if (change.kind === "standard" && keep.has(change.annotationId)) {
         kept.push(change.annotationId);
         continue;
       }
@@ -360,13 +370,23 @@ async function labelLookEntry(
         (candidate) => candidate.id === change.annotationId,
       )!;
       annotation.formatOverride = change.format;
-      changed.set(annotation.id, annotation);
-      labels.push({ id: annotation.id, name: change.name, role: change.role });
+      // Only a new standard look changes a label's extent, so only it moves.
+      if (change.kind === "standard") changed.set(annotation.id, annotation);
+      labels.push({
+        id: annotation.id,
+        name: change.name,
+        kind: change.kind,
+        ...(change.role ? { role: change.role } : {}),
+      });
+    }
+    if (changes.uprightSubscripts) {
+      document.presentation.labelSubscriptItalic = false;
+      uprightDocuments.push(document.id);
     }
   }
   const unknownKeep = options.keep.find((label) => !kept.includes(label));
   if (unknownKeep) return { id, sha, skipped: `invalid-keep:${unknownKeep}` };
-  if (!labels.length)
+  if (!labels.length && !uprightDocuments.length)
     return {
       id,
       sha,
@@ -419,6 +439,7 @@ async function labelLookEntry(
     sha,
     status: read.payload.status,
     labels,
+    uprightDocuments,
     nudged: options.nudges.length,
     kept: kept.length,
     namesUnchanged,
@@ -470,6 +491,7 @@ async function handleLabelLooks(
     expected?: unknown;
     nudges?: unknown;
     keep?: unknown;
+    legacyLooks?: unknown;
   } | null;
   const ids = body?.ids;
   if (
@@ -513,6 +535,7 @@ async function handleLabelLooks(
         keep: Array.isArray(keep[id])
           ? (keep[id] as unknown[]).map((label) => String(label))
           : [],
+        legacyLooks: body?.legacyLooks === true,
       }),
     );
   }

@@ -535,11 +535,11 @@ test("bound labels retain typography on rename and support manual scripts withou
   await code.fill((await code.innerText()).replace("R7 ", "R8 "));
   await code.press("Enter");
   await expect(label(page)).toHaveText("R8");
-  expect(
-    (await typefaces()).every(
-      (face) => face.weight === "700" && face.style === "italic",
-    ),
-  ).toBe(true);
+  // The script keeps the label's weight but, like every script, is upright.
+  expect(await typefaces()).toEqual([
+    { weight: "700", style: "italic" },
+    { weight: "700", style: "normal" },
+  ]);
   await page.getByTestId("annotation-hit-label-R1").dblclick();
   await expect(alias).not.toBeChecked();
   await expect(editor.locator("sub")).toHaveText("8");

@@ -77,6 +77,19 @@ function selectionItalic(range: Range): boolean {
   return !!element && getComputedStyle(element).fontStyle !== "normal";
 }
 
+/** Whether the first text a selection covers is drawn italic. */
+function selectionStartItalic(range: Range): boolean {
+  let node: Node | null =
+    range.startContainer.nodeType === Node.TEXT_NODE
+      ? range.startContainer
+      : (range.startContainer.childNodes[range.startOffset] ??
+        range.startContainer);
+  while (node && node.nodeType !== Node.TEXT_NODE && node.firstChild)
+    node = node.firstChild;
+  const element = node && (isElement(node) ? node : node.parentElement);
+  return !!element && getComputedStyle(element).fontStyle !== "normal";
+}
+
 function allTextBold(runs: RichTextRun[], bold = false): boolean {
   return runs.every((run) => {
     if (run.kind === "text") return !run.value.trim() || bold;
@@ -89,6 +102,30 @@ function allTextBold(runs: RichTextRun[], bold = false): boolean {
       );
     return true;
   });
+}
+
+function withoutItalic(runs: RichTextRun[]): RichTextRun[] {
+  return runs.flatMap((run): RichTextRun[] => {
+    if (run.kind === "span") {
+      const children = withoutItalic(run.children);
+      return run.style === "italic" ? children : [{ ...run, children }];
+    }
+    if (run.kind === "fraction")
+      return [
+        {
+          ...run,
+          numerator: { runs: withoutItalic(run.numerator.runs) },
+          denominator: { runs: withoutItalic(run.denominator.runs) },
+        },
+      ];
+    return [run];
+  });
+}
+
+/** The subscript or superscript a node sits in, if any. */
+function enclosingScript(node: Node): HTMLElement | null {
+  const element = isElement(node) ? node : node.parentElement;
+  return element?.closest<HTMLElement>("sub, sup") ?? null;
 }
 
 function withoutBold(runs: RichTextRun[]): RichTextRun[] {
@@ -518,6 +555,41 @@ export function RichTextEditor({
       next.selectNodeContents(wrapper);
       selection?.removeAllRanges();
       selection?.addRange(next);
+    } else if (
+      name === "italic" &&
+      range &&
+      !range.collapsed &&
+      selectionStartItalic(range) &&
+      !enclosingScript(range.commonAncestorContainer)
+    ) {
+      // Scripts are upright, so italic text with its subscript is only partly
+      // italic, which native editing toggles differently on each platform
+      // (macOS by the start of the selection, others by all of it). Remove
+      // italic from a selection that starts italic directly, the same way
+      // everywhere. Every run carries its own weight and slant, so the
+      // insertion, which may land outside the selection's own wrapper,
+      // cancels whatever it would inherit.
+      const selected = document.createElement("div");
+      selected.append(range.cloneContents());
+      const current = editableDocument(
+        selected,
+        selectionBold(range),
+        selectionItalic(range),
+      );
+      const inserted = insertEditableContent({
+        runs: withoutItalic(current.runs),
+      });
+      if (inserted) {
+        inserted.style.fontStyle = "normal";
+        inserted.style.fontWeight = "normal";
+        const nextRange = document.createRange();
+        nextRange.selectNodeContents(inserted);
+        selection?.removeAllRanges();
+        selection?.addRange(nextRange);
+      }
+      rememberSelection();
+      sync();
+      return;
     } else {
       document.execCommand(name);
     }

@@ -99,6 +99,43 @@ function collectStyledCharacters(
   return true;
 }
 
+const isScript = (style: RichTextStyle): boolean =>
+  style === "subscript" || style === "superscript";
+
+/**
+ * Whether any subscript or superscript is drawn italic. A script is drawn
+ * upright unless an italic span sits inside it.
+ */
+export function hasItalicScripts(document: RichTextDocument): boolean {
+  const visit = (runs: readonly RichTextRun[], inScript: boolean): boolean =>
+    runs.some(
+      (run) =>
+        run.kind === "span" &&
+        ((inScript && run.style === "italic") ||
+          visit(run.children, inScript || isScript(run.style))),
+    );
+  return visit(document.runs, false);
+}
+
+/**
+ * The same text with every subscript and superscript upright: an italic span
+ * inside a script is removed, and every other style is kept.
+ */
+export function uprightScripts(document: RichTextDocument): RichTextDocument {
+  const visit = (
+    runs: readonly RichTextRun[],
+    inScript: boolean,
+  ): RichTextRun[] =>
+    runs.flatMap((run): RichTextRun[] => {
+      if (run.kind !== "span") return [run];
+      const children = visit(run.children, inScript || isScript(run.style));
+      return inScript && run.style === "italic"
+        ? children
+        : [{ ...run, children }];
+    });
+  return normalizeRichText({ runs: visit(document.runs, false) });
+}
+
 /**
  * Whether two presentations draw the same characters with the same styles,
  * regardless of how their spans happen to be nested or split.
