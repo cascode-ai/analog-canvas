@@ -14,23 +14,31 @@ import {
 import { isDeepStrictEqual } from "node:util";
 import { deriveWideAmplifier } from "./lib/wide-amplifier.mjs";
 import { deriveMultiInputAndGate } from "./lib/derived-and-gate.mjs";
+import { deriveMultiInputLogicGate } from "./lib/derived-logic-gate.mjs";
 
 const { index, byId } = await loadComponentLibrary();
 const root = resolve(import.meta.dirname, "..");
 const check = process.argv.includes("--check");
 for (const [id, component] of byId) {
-  if (component.catalog.generation?.kind !== "derived-multi-input-and-gate")
+  const kind = component.catalog.generation?.kind;
+  if (
+    kind !== "derived-multi-input-and-gate" &&
+    kind !== "derived-multi-input-logic-gate"
+  )
     continue;
   const source = byId.get(component.catalog.generation.sourceSymbolId);
-  const symbol = deriveMultiInputAndGate(
-    source,
-    component.catalog.generation.inputCount,
-  );
-  if (symbol.id !== id) throw new Error(`${id}: invalid AND source`);
+  const symbol =
+    kind === "derived-multi-input-and-gate"
+      ? deriveMultiInputAndGate(source, component.catalog.generation.inputCount)
+      : deriveMultiInputLogicGate(
+          source,
+          component.catalog.generation.inputCount,
+        );
+  if (symbol.id !== id) throw new Error(`${id}: invalid logic source`);
   if (!isDeepStrictEqual(component.symbol, symbol)) {
     if (check)
       throw new Error(
-        `${id}: derived AND geometry is stale; run pnpm components:generate`,
+        `${id}: derived logic geometry is stale; run pnpm components:generate`,
       );
     await writeComponentProjection(
       resolve(definitionRoot, `${id}.json`),

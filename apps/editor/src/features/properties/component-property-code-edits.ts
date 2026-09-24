@@ -6,7 +6,10 @@ import { semanticTextDocument, type SchematicDocument } from "@icm/model";
 import { snapCoordinate } from "../../snap/engine";
 import type { ComponentPropertyCodeValue } from "./component-property-code";
 import { instanceLabelAnnotationFor } from "../instance-display/default-instance-display";
-import { andGateInputCount, andGateSymbolId } from "./and-gate-input-count";
+import {
+  logicGateInputInfo,
+  logicGateSymbolId,
+} from "./logic-gate-input-count";
 import {
   NO_INTERNAL_MARK,
   symbolForInputPolarity,
@@ -172,19 +175,20 @@ export function planComponentPropertyCodeEdits(
       symbolForOutputsSwapped(nextSymbolId, value.appearance.outputsSwapped) ??
       nextSymbolId;
   if (value.inputs !== undefined) {
-    if (andGateInputCount(instance.symbolId) === null)
-      throw new Error("inputs is available only for AND gates");
-    nextSymbolId = andGateSymbolId(value.inputs);
+    const gate = logicGateInputInfo(instance.symbolId);
+    if (!gate)
+      throw new Error("inputs is available only for configurable logic gates");
+    nextSymbolId = logicGateSymbolId(gate.family, value.inputs);
   }
-  const oldAndInputs = andGateInputCount(instance.symbolId);
+  const oldGate = logicGateInputInfo(instance.symbolId);
   if (
     value.inputs !== undefined &&
-    oldAndInputs !== null &&
-    value.inputs < oldAndInputs
+    oldGate !== null &&
+    value.inputs < oldGate.count
   ) {
     for (const pinName of ["A", "B", "C", "D"].slice(
       value.inputs,
-      oldAndInputs,
+      oldGate.count,
     )) {
       if (!removableOrphanInput(document, instance, pinName)) continue;
       edits.push({
@@ -203,14 +207,14 @@ export function planComponentPropertyCodeEdits(
     const oldTarget = subcircuitDescriptor(instance.symbolId)?.target;
     const nextTarget = subcircuitDescriptor(nextSymbolId)?.target;
     if (!oldTarget || !nextTarget)
-      throw new Error("AND subcircuit interface is missing");
+      throw new Error("Logic gate subcircuit interface is missing");
     const binding = instance.netlist?.binding;
     if (
       binding &&
       (binding.kind !== "unresolved-subcircuit" || binding.name !== oldTarget)
     )
       throw new Error(
-        "Restore the default AND target before changing input count",
+        "Restore the default logic gate target before changing input count",
       );
     const nextBinding = {
       kind: "unresolved-subcircuit" as const,

@@ -192,8 +192,12 @@ describe("Razavi symbol catalog", () => {
       ["xfmr", "reviewed", "razavi-reference-v1"],
       ["inverter", "reviewed", "razavi-reference-v1"],
       ["nand-gate", "reviewed", "razavi-reference-v1"],
+      ["nand-gate-3", "reviewed", "house"],
+      ["nand-gate-4", "reviewed", "house"],
       ["nmos", "reviewed", "razavi-reference-v1"],
       ["nor-gate", "reviewed", "razavi-reference-v1"],
+      ["nor-gate-3", "reviewed", "house"],
+      ["nor-gate-4", "reviewed", "house"],
       ["npn", "reviewed", "razavi-reference-v1"],
       ["opamp", "reviewed", "razavi-reference-v1"],
       ["opamp-wide", "reviewed", "razavi-reference-v1"],
@@ -256,6 +260,8 @@ describe("Razavi symbol catalog", () => {
         "razavi-reference-v1",
       ],
       ["or-gate", "reviewed", "razavi-reference-v1"],
+      ["or-gate-3", "reviewed", "house"],
+      ["or-gate-4", "reviewed", "house"],
       ["pmos", "reviewed", "razavi-reference-v1"],
       ["pnp", "reviewed", "razavi-reference-v1"],
       ["port", "reviewed", "razavi-reference-v1"],
@@ -274,7 +280,11 @@ describe("Razavi symbol catalog", () => {
       ["voltage-controlled-switch", "reviewed", "house"],
       ["voltage-source", "reviewed", "razavi-reference-v1"],
       ["xnor-gate", "reviewed", "razavi-reference-v1"],
+      ["xnor-gate-3", "reviewed", "house"],
+      ["xnor-gate-4", "reviewed", "house"],
       ["xor-gate", "reviewed", "razavi-reference-v1"],
+      ["xor-gate-3", "reviewed", "house"],
+      ["xor-gate-4", "reviewed", "house"],
       ["zener-diode", "reviewed", "razavi-reference-v1"],
       ["adc", "reviewed", "house"],
       ["dac", "reviewed", "house"],
@@ -819,7 +829,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(85);
+    expect(razaviCatalogSymbols).toHaveLength(95);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -2175,6 +2185,50 @@ describe("logic-gate and comparator family", () => {
       ).toBe(false);
     }
   });
+  it.each(["nand-gate", "or-gate", "nor-gate", "xor-gate", "xnor-gate"])(
+    "derives straight 3/4-input leads without resizing the %s body or bubble",
+    (family) => {
+      const base = requireRazaviCatalogSymbol(family);
+      for (const [count, inputYs] of [
+        [3, [-10, 0, 10]],
+        [4, [-12, -4, 4, 12]],
+      ] as const) {
+        const id = `${family}-${count}`;
+        const symbol = requireRazaviCatalogSymbol(id);
+        expect(symbol.viewBox).toEqual(base.viewBox);
+        expect(symbol.primitives.slice(count)).toEqual(
+          base.primitives.slice(2),
+        );
+        expect(symbol.pins.map((pin) => pin.name)).toEqual([
+          ...["A", "B", "C", "D"].slice(0, count),
+          "Y",
+        ]);
+        expect(symbol.pins.slice(0, count).map((pin) => pin.at.y)).toEqual(
+          inputYs,
+        );
+        for (const [index, lead] of symbol.primitives
+          .slice(0, count)
+          .entries()) {
+          expect(lead.kind).toBe("line");
+          if (lead.kind !== "line") continue;
+          expect(lead.from).toEqual({ x: -30, y: inputYs[index] });
+          expect(lead.to.y).toBe(inputYs[index]);
+          expect(lead.to.x).toBeGreaterThanOrEqual(-20);
+          expect(lead.to.x).toBeLessThanOrEqual(
+            family === "nand-gate" ? -20 : -12,
+          );
+        }
+        expect(getRazaviCatalogEntry(id)).toMatchObject({
+          provenance: "house",
+          palette: false,
+          generation: { sourceSymbolId: family, inputCount: count },
+        });
+        expect(
+          razaviProductSymbols.some((candidate) => candidate.id === id),
+        ).toBe(false);
+      }
+    },
+  );
   const twoInputGates = [
     "and-gate",
     "or-gate",

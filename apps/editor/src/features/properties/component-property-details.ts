@@ -13,9 +13,9 @@ import { differentialInputSibling } from "../editor-shell/differential-input-swa
 import { differentialOutputSibling } from "../editor-shell/differential-output-swap";
 import { switchContactStyleSibling } from "../editor-shell/switch-contact-style";
 import {
-  andGateInputCount,
-  type AndGateInputCount,
-} from "./and-gate-input-count";
+  logicGateInputInfo,
+  type LogicGateInputCount,
+} from "./logic-gate-input-count";
 import type { CanvasPropertyField } from "./component-property-fields";
 import { componentInternalMark } from "./component-visual-variants";
 
@@ -26,7 +26,7 @@ export interface ComponentPropertyDetailsContext {
 }
 
 export interface ComponentPropertyDetailsValue {
-  inputs?: AndGateInputCount;
+  inputs?: LogicGateInputCount;
   netlistName?: string;
   parameters?: Record<string, string>;
   netlistTarget?: string;
@@ -54,8 +54,8 @@ export function componentPropertyDetailsValue(
 ): ComponentPropertyDetailsValue {
   if (!context) return {};
   return {
-    ...(andGateInputCount(instance.symbolId) !== null
-      ? { inputs: andGateInputCount(instance.symbolId)! }
+    ...(logicGateInputInfo(instance.symbolId) !== null
+      ? { inputs: logicGateInputInfo(instance.symbolId)!.count }
       : {}),
     ...(instance.reference ? { netlistName: instance.reference } : {}),
     ...(instance.netlist
@@ -186,7 +186,7 @@ export function componentDetailFields(
 ): CanvasPropertyField[] {
   if (!context) return [];
   return [
-    ...(andGateInputCount(instance.symbolId) !== null
+    ...(logicGateInputInfo(instance.symbolId) !== null
       ? [
           {
             path: "inputs",

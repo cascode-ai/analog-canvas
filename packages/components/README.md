@@ -142,21 +142,21 @@ The product set is exactly the reviewed, Reference-calibrated entries:
   in `scripts/lib/anchor-logic-body.mjs`; raw PDF evidence and the DFF/delay
   geometry are unchanged. Pin names and order stay fixed, but changed pin
   columns can require manual repair of historical routes;
-- `and-gate-3` and `and-gate-4` are internal, house-provenance AND arities
-  derived from the reviewed two-input outline without resizing its body. The
-  three-input leads fit on the ordinary grid inside the body; four-input leads
-  use the shared 2-unit electrical lattice at y=-12,-4,4,12 and run straight
-  from their external pin anchors to the body. Ordinary placement and free
-  drawing still snap to 10 units, and existing 10-unit ports remain unchanged.
-  Interior Symbol geometry may be off-grid; electrical anchors are not. They do
-  not claim an exact textbook 3/4-input witness. The Library still offers one
-  AND tile; each Instance selects 2, 3 or 4 inputs through Properties JSON.
-  The Symbol and black-box subcircuit ports are separate per arity, while the
-  editor switches both the Symbol and its default target in one transaction.
-  Existing pin names and Nets survive an upgrade; a downgrade with an authored
-  connection, Route, No Connect or import mapping on a removed pin is rejected
-  rather than silently losing electrical information. These black-box targets
-  still require an external implementation to simulate;
+- the AND, NAND, OR, NOR, XOR and XNOR gates each have internal,
+  house-provenance 3/4-input siblings derived from their reviewed two-input
+  outlines without resizing the body or changing an output bubble. Three-input
+  leads use y=-10,0,10; four-input leads use the shared 2-unit electrical
+  lattice at y=-12,-4,4,12. All leads run straight into the existing body;
+  curved OR/XOR-family connection points are calculated from the reviewed
+  rear Bézier contour. Ordinary placement and free drawing still snap to 10
+  units. These siblings do not claim an exact textbook 3/4-input witness.
+  The Library retains one tile per gate family, and each Instance selects
+  2, 3 or 4 inputs in Properties. Every arity has its own Symbol and ordered
+  black-box subcircuit ports; switching updates the Symbol and default target
+  atomically. Existing pins and Nets survive an upgrade. A downgrade retires
+  only a deleted wire's anonymous singleton Net; authored connections, Routes,
+  No Connects and import/interface owners on removed pins still block it.
+  Black-box targets require an external implementation to simulate;
 - triangular Analog Blocks (`opamp`, fully differential amps, voltage amps,
   comparators, and their lettered/polarity variants) share a user-requested
   equilateral outline with three 60-unit sides and a 60-degree apex. Its left

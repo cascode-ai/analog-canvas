@@ -1,0 +1,259 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "nor-gate-4",
+    "name": "NOR Gate (4 inputs)",
+    "viewBox": {
+      "x": -44,
+      "y": -24,
+      "width": 88,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "A",
+        "role": "input",
+        "at": {
+          "x": -30,
+          "y": -12
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 15
+        }
+      },
+      {
+        "name": "B",
+        "role": "input",
+        "at": {
+          "x": -30,
+          "y": -4
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 15
+        }
+      },
+      {
+        "name": "C",
+        "role": "input",
+        "at": {
+          "x": -30,
+          "y": 4
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 15
+        }
+      },
+      {
+        "name": "D",
+        "role": "input",
+        "at": {
+          "x": -30,
+          "y": 12
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 15
+        }
+      },
+      {
+        "name": "Y",
+        "role": "output",
+        "at": {
+          "x": 30,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 7
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -30,
+          "y": -12
+        },
+        "to": {
+          "x": -16.06749,
+          "y": -12
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -30,
+          "y": -4
+        },
+        "to": {
+          "x": -12.714012,
+          "y": -4
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -30,
+          "y": 4
+        },
+        "to": {
+          "x": -12.909141,
+          "y": 4
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -30,
+          "y": 12
+        },
+        "to": {
+          "x": -16.264942,
+          "y": 12
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "path",
+        "data": "M 15.757259 0.002616 C 15.757259 0.002616 15.757259 0.002616 13.373442 2.213794 C 10.989624 4.426715 6.22199 8.849071 0.263319 11.829279 C -5.697096 14.809486 -12.850292 16.345802 -16.425146 17.114831 C -20 17.882117 -20 17.882117 -20 17.882117 C -20 17.882117 -20 17.882117 -18.139332 14.786817 C -16.275176 11.689772 -12.550353 5.497428 -12.550353 -0.438574 C -12.550353 -6.374575 -16.275176 -12.055977 -18.139332 -14.896678 C -20 -17.735635 -20 -17.735635 -20 -17.735635 C -20 -17.735635 -20 -17.735635 -16.425146 -16.991019 C -12.850292 -16.246403 -5.697096 -14.757172 0.263319 -11.799634 C 6.22199 -8.84384 10.989624 -4.41974 13.373442 -2.208562 C 15.757259 0.002616 15.757259 0.002616 15.757259 0.002616",
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter",
+          "miterLimit": 4
+        },
+        "bounds": {
+          "x": -20,
+          "y": -17.735635,
+          "width": 35.757259,
+          "height": 35.617752
+        }
+      },
+      {
+        "kind": "circle",
+        "center": {
+          "x": 19.96338,
+          "y": -0.121196
+        },
+        "radius": 3.374313,
+        "part": "negation-bubble",
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter",
+          "miterLimit": 4
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 23.337693,
+          "y": 0
+        },
+        "to": {
+          "x": 30,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": null,
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "nor-gate-4",
+    "name": "NOR Gate (4 inputs)",
+    "category": "logic",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "4-input product derivation from the calibrated two-input nor-gate; the cited reference does not contain this exact arity.",
+    "pinOrder": ["A", "B", "C", "D", "Y"],
+    "palette": false,
+    "automaticMappings": [],
+    "manualOnlyReason": "Select through the NOR Gate input-count property; behavioral SPICE realization requires an explicit subcircuit or PDK mapping.",
+    "assetPath": "nor-gate-4.json",
+    "generation": {
+      "kind": "derived-multi-input-logic-gate",
+      "sourceSymbolId": "nor-gate",
+      "inputCount": 4,
+      "converterPath": "scripts/lib/derived-logic-gate.mjs",
+      "converterVersion": 1
+    }
+  },
+  "subcircuit": {
+    "id": "nor-gate-4",
+    "symbolId": "nor-gate-4",
+    "target": "nor_gate_4",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "A",
+        "direction": "input",
+        "pinName": "A"
+      },
+      {
+        "name": "B",
+        "direction": "input",
+        "pinName": "B"
+      },
+      {
+        "name": "C",
+        "direction": "input",
+        "pinName": "C"
+      },
+      {
+        "name": "D",
+        "direction": "input",
+        "pinName": "D"
+      },
+      {
+        "name": "Y",
+        "direction": "output",
+        "pinName": "Y"
+      }
+    ]
+  }
+}
