@@ -22,6 +22,7 @@ import {
   uprightScripts,
 } from "./rich-text.js";
 import {
+  currentNodeTextDocument,
   deviceReferenceTextDocument,
   voltageNodeTextDocument,
 } from "./semantic-text.js";
@@ -179,12 +180,17 @@ export function labelRole(
   return undefined;
 }
 
+/** I then letters or digits, but not an input (IN, INP, INN) or IO. */
+const CURRENT_NAME = /^[Ii](?![Nn])(?![Oo]$)[\p{L}\p{N}]+$/u;
+
 /**
  * The standard look a role-labelled name is created with, stored on the
  * label so later rule or drawing-setting changes never redraw it. The name
  * keeps its exact spelling; a spelling without a standard form gets none.
  * - supply, voltage node (Cell Pin, Net label): italic V over an upright
  *   subscript (V_DD, V_in, V_BP, V_casP)
+ * - a Cell Pin or Net label named for a current: italic I over an upright
+ *   subscript (I_out, I_REF, I₁), except an input's IN… or an IO pin
  * - device reference: italic letters over an upright index (M₁, R₁₂)
  */
 export function roleLabelFormat(
@@ -195,8 +201,9 @@ export function roleLabelFormat(
     return /^\p{L}+\p{N}+$/u.test(name)
       ? deviceReferenceTextDocument(name)
       : undefined;
-  return /^[Vv][\p{L}\p{N}]+$/u.test(name)
-    ? voltageNodeTextDocument(name)
+  if (/^[Vv][\p{L}\p{N}]+$/u.test(name)) return voltageNodeTextDocument(name);
+  return role === "voltage-node" && CURRENT_NAME.test(name)
+    ? currentNodeTextDocument(name)
     : undefined;
 }
 

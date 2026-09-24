@@ -35,16 +35,18 @@ identifier encoding). The schema refuses any other stored display.
 Labels whose look follows from what they label, never from guessing at a
 spelling, are created with a stored standard look:
 
-| Role                                             | Names                          | Stored look                                            |
-| ------------------------------------------------ | ------------------------------ | ------------------------------------------------------ |
-| Supply (VDD Power, drawn rail)                   | `V` followed by letters/digits | Italic `V`, upright subscript rest: V_DD, V_DDH        |
-| Device Reference                                 | letters followed by digits     | Italic letters, upright subscript index: M₁, R₁₂       |
-| Voltage node (Cell Pin, Bias Voltage, Net label) | `V` followed by letters/digits | Italic `V`, upright subscript rest: V_in, V_BP, V_casP |
+| Role                                             | Names                                                 | Stored look                                            |
+| ------------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------ |
+| Supply (VDD Power, drawn rail)                   | `V` followed by letters/digits                        | Italic `V`, upright subscript rest: V_DD, V_DDH        |
+| Device Reference                                 | letters followed by digits                            | Italic letters, upright subscript index: M₁, R₁₂       |
+| Voltage node (Cell Pin, Bias Voltage, Net label) | `V` followed by letters/digits                        | Italic `V`, upright subscript rest: V_in, V_BP, V_casP |
+| Current (Cell Pin, Net label)                    | `I` followed by letters/digits, except `IN…` and `IO` | Italic `I`, upright subscript rest: I_out, I_REF, I₁   |
 
 The look applies whether the name was typed, connected or generated. Any other
-spelling (`AVDD`, `MTAIL`, `RL`, `M_1`, `CLK`, `Vin-`) gets no standard look
-and is shown as written. A stored standard look is recognised by comparing its
-styled characters with the standard look of the label's current name; only a
+spelling (`AVDD`, `MTAIL`, `RL`, `M_1`, `CLK`, `Vin-`, an input such as `IN`,
+`INP` or `INN`, an `IO` pin) gets no standard look and is shown as written. A
+stored standard look is recognised by comparing its styled characters with
+the standard look of the label's current name; only a
 label still carrying it is treated as a default. An author's own format always
 wins and is never replaced by a default: removing V_BP's subscript stores
 `VBP` drawn flat as the author's look, which later renames keep.
@@ -143,7 +145,8 @@ redraws a drawing its author has already seen.
   renames, styling that never renames, and hidden-character splicing.
 - `apps/editor/src/features/instance-display/default-instance-display.test.ts`
   and `apps/editor/src/features/properties/property-edit-planner.test.ts`: new
-  Pin and Net labels take the voltage-node look for V-led names only.
+  Pin and Net labels take the voltage-node look for V-led names and the
+  current look for I-led names only.
 - `packages/model/src/label-typography.test.ts` and
   `apps/editor/e2e/manual-editor.spec.ts`: a new subscript is upright, an
   author's slanted subscript is kept, and legacy looks change only on request.
