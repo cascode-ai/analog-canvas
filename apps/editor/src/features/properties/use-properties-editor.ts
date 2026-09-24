@@ -737,13 +737,13 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       name,
       options.document.presentation,
     );
-    return {
-      name,
-      content,
-      ...(JSON.stringify(content) === JSON.stringify(semanticContent)
-        ? {}
-        : { formatOverride: content }),
-    };
+    if (JSON.stringify(content) !== JSON.stringify(semanticContent))
+      return { name, content, formatOverride: content };
+    // Typed without styling: a V-led name takes its voltage-node look.
+    const standard = roleLabelFormat("voltage-node", name);
+    return standard
+      ? { name, content: standard, formatOverride: standard }
+      : { name, content };
   };
 
   const commitNetLabelAtTarget = (

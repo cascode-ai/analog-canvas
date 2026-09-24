@@ -3235,7 +3235,7 @@ test("edits instance, electrical Net, and free text with bounded label handles",
   expect(afterBox?.x).not.toBe(beforeBox.x);
 });
 
-test("keeps a Net Label subscript as the label's look without renaming the Net", async ({
+test("starts a V-led Net Label subscripted and lets the author turn it off without renaming the Net", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -3251,6 +3251,12 @@ test("keeps a Net Label subscript as the label's look without renaming the Net",
   await editComponentPropertyCode(page, (code) => {
     code.name = "VB";
   });
+  // A V-led Net name starts in its voltage-node look: V with subscript B.
+  const renderedLabel = page.locator('[data-object-id="net-label-route-ui-1"]');
+  await expect(renderedLabel).toHaveText("VB");
+  await expect(renderedLabel.locator('[data-text-run="subscript"]')).toHaveText(
+    "B",
+  );
   const label = page.getByTestId("annotation-hit-net-label-route-ui-1");
   await label.dblclick();
   const editor = page.getByRole("textbox", { name: "Canvas text editor" });
@@ -3266,15 +3272,15 @@ test("keeps a Net Label subscript as the label's look without renaming the Net",
     page.getByRole("button", { name: "Insert fraction" }),
   ).toBeDisabled();
 
+  // Turning the subscript off is the author's own look.
   await selectRichTextOffsets(editor, 1, 2);
   await page.getByRole("button", { name: "Subscript" }).click();
-  await expect(editor.locator("sub")).toHaveText("B");
+  await expect(editor.locator("sub")).toHaveCount(0);
   await page.getByRole("button", { name: "Apply text changes" }).click();
-
-  const renderedLabel = page.locator('[data-object-id="net-label-route-ui-1"]');
-  await expect(renderedLabel.locator('[data-text-run="subscript"]')).toHaveText(
-    "B",
-  );
+  await expect(
+    renderedLabel.locator('[data-text-run="subscript"]'),
+  ).toHaveCount(0);
+  await expect(renderedLabel).toHaveText("VB");
 
   const projectBytes = await downloadBytes(
     page,
@@ -3282,7 +3288,7 @@ test("keeps a Net Label subscript as the label's look without renaming the Net",
     "Export Project File…",
   );
   const saved = parseSavedProject(projectBytes.toString("utf8"));
-  // Subscripting B is styling: the Net keeps its name VB.
+  // Styling never renames: the Net keeps its name VB.
   expect(saved.documents[0].connectivityEvidence).toContainEqual(
     expect.objectContaining({
       kind: "name-claim",
@@ -3308,7 +3314,7 @@ test("keeps a Net Label subscript as the label's look without renaming the Net",
     page
       .locator('[data-object-id="net-label-route-ui-1"]')
       .locator('[data-text-run="subscript"]'),
-  ).toHaveText("B");
+  ).toHaveCount(0);
 });
 
 test("keeps literal text line breaks and overbars visible while editing", async ({

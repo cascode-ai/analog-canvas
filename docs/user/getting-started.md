@@ -202,12 +202,14 @@ New parts start in their standard look, saved with the label:
   written.
 - A device name such as `M1` or `R12`: italic letters with an upright
   subscript index, as M₁. `MTAIL` or `RL` is shown as written.
-- A Pin name the editor chooses for you, such as `Vinp` or `VB1`: an italic V
-  with an upright subscript. A Pin or Net name you type yourself is shown as
-  written until you format it.
+- A Pin or Net name that is a V followed by letters or digits, such as `Vin`,
+  `Vout`, `VBP`, `VBN` or `VcasP`, whether you typed it or the editor chose
+  it: an italic V with an upright subscript, as V_BP. Any other name, such as
+  `CLK` or `OUT`, is shown as written.
 
 Renaming keeps a standard look in step with the new name. Once you restyle a
-label, your formatting is kept instead.
+label, your formatting is kept instead: to show `VBP` without a subscript,
+select `BP` in the label and turn Subscript off. The name stays `VBP`.
 
 A label without its own formatting, such as one in an older drawing, keeps
 its historical look: an underscore starts a subscript, so `M_1` is drawn as

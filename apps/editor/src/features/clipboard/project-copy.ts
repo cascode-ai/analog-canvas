@@ -2,6 +2,7 @@ import {
   createEmptyProject,
   ComponentDefinitionSchema,
   deriveStableId,
+  roleLabelFormat,
   routeEnd,
   type CircuitProject,
   type Point,
@@ -264,11 +265,13 @@ export function captureProjectCopy(
         clipboard.instances.find((i) => i.id === terminal?.instanceId)
           ?.placement?.position ?? { x: 0, y: 0 };
       const id = deriveStableId("copy-net-name", net.id);
+      const format = roleLabelFormat("voltage-node", logical.name);
       clipboard.annotations.push({
         id,
         kind: "net-label",
         netId: net.id,
         binding: { kind: "net-name", netId: net.id },
+        ...(format ? { formatOverride: format } : {}),
         anchor: { kind: "free", position: { ...position } },
         alignment: "start",
         rotation: 0,

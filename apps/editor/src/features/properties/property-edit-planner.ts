@@ -5,6 +5,7 @@ import { planEnsureNamedNet, type SchematicEdit } from "@icm/edit-engine";
 import {
   deriveStableId,
   renamedLabelFormat,
+  roleLabelFormat,
   snapGridPoint,
   type Annotation,
   type CircuitProject,
@@ -129,17 +130,22 @@ export function createPropertyEditPlanner({
     }
     const targetNetId = namedNetPlan.netId;
     // A rename that brings no new look keeps the label's own format, which
-    // follows the new name; it is never silently dropped.
+    // follows the new name; it is never silently dropped. A new label takes
+    // its voltage-node look (V_in, V_BP) when its name has one.
     const carriedFormat =
       presentation?.formatOverride ??
-      (presentation === undefined && existingLabel?.formatOverride
-        ? renamedLabelFormat(
-            existingLabel,
-            resolveAnnotationName(document, existingLabel),
-            name,
-            document.presentation,
-          )
-        : undefined);
+      (presentation !== undefined
+        ? undefined
+        : existingLabel?.formatOverride
+          ? renamedLabelFormat(
+              existingLabel,
+              resolveAnnotationName(document, existingLabel),
+              name,
+              document.presentation,
+            )
+          : existingLabel
+            ? undefined
+            : roleLabelFormat("voltage-node", name));
     const geometry = routeGeometryRecords.find(
       ({ route: candidate }) => candidate.id === route.id,
     )?.geometry;

@@ -21,6 +21,8 @@ export interface DefaultInstanceDisplayOptions {
   readonly showValue?: boolean;
   readonly masterName?: string;
   readonly formalTerminalId?: string;
+  /** The Cell terminal's name, which picks the Pin label's standard look. */
+  readonly formalName?: string;
 }
 
 /** Find the visual annotation, without mistaking older hidden defaults for it. */
@@ -68,12 +70,18 @@ export function defaultInstanceDisplayAnnotations(
       styleProfile,
     );
     if (terminalName) {
+      // A V-led Pin name, typed, connected or generated, is placed in its
+      // voltage-node look (V_in, V_BP); any other name is shown as written.
+      const format = options.formalName
+        ? roleLabelFormat("voltage-node", options.formalName)
+        : undefined;
       annotations.push({
         ...terminalName,
         binding: {
           kind: "cell-terminal-name",
           terminalId: options.formalTerminalId,
         },
+        ...(format ? { formatOverride: format } : {}),
       });
     }
     return annotations;
@@ -135,15 +143,17 @@ export function missingDefaultInstanceDisplayAnnotations(
   styleProfile: SchematicStyleProfile,
 ): readonly Annotation[] {
   if (!instance.placement) return [];
-  const formalTerminalId = document.netlist?.terminals.find((terminal) =>
+  const formalTerminal = document.netlist?.terminals.find((terminal) =>
     terminal.interfaceInstanceIds.includes(instance.id),
-  )?.id;
+  );
   const candidates = defaultInstanceDisplayAnnotations(
     document,
     instance,
     resolver,
     styleProfile,
-    formalTerminalId ? { formalTerminalId } : {},
+    formalTerminal
+      ? { formalTerminalId: formalTerminal.id, formalName: formalTerminal.name }
+      : {},
   );
   return candidates.filter(
     (candidate) =>

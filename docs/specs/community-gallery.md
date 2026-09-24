@@ -439,8 +439,9 @@ unreadable, ruleVersion, remaining}`). Every entry stores the rule version
   Wrangler configs), so a deployed rule change converges without anybody
   pressing anything; the route stays for when somebody wants it now.
 - `POST /api/gallery/maintenance/label-looks` — give up to 20 entries'
-  unformatted supply and device Reference labels their stored standard look
-  (V_DD, M₁; see [names and labels](names-and-labels.md)). The body is
+  unformatted, drawn supply, device Reference, Cell Pin and Net labels their
+  stored standard look (V_DD, M₁, V_BP; see
+  [names and labels](names-and-labels.md)). The body is
   `{ "ids": [...], "apply"?: true, "expected"?: {<id>: <sha256>}, "nudges"?:
 {<id>: [{label, dx, dy}]}, "keep"?: {<id>: [label]} }`. The server computes
   the change itself; a nudge may only move a label it restyles, by at most

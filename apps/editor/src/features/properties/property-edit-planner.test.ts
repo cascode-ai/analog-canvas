@@ -1,6 +1,6 @@
 import { createRoutePath } from "@icm/model";
 import { resolveDocumentRoutingGeometry } from "@icm/derived";
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, roleLabelFormat } from "@icm/model";
 import type { Annotation } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it, vi } from "vitest";
@@ -210,6 +210,35 @@ describe("property edit planner", () => {
         }),
       ]),
     );
+  });
+
+  it("gives a new V-led Net Label its voltage-node look and shows other names as written", () => {
+    const route = routedFixture().document.routes[0]!;
+    const labelFor = (name: string, input = routedFixture()) =>
+      createPropertyEditPlanner(input)
+        .netLabelEditsForRoute(route, name)
+        ?.flatMap((edit) =>
+          edit.kind === "upsert_schematic_annotation" ? [edit.annotation] : [],
+        )[0];
+    expect(labelFor("VBP")?.formatOverride).toEqual(
+      roleLabelFormat("voltage-node", "VBP"),
+    );
+    expect(labelFor("Vcasn")?.formatOverride).toEqual(
+      roleLabelFormat("voltage-node", "Vcasn"),
+    );
+    expect(labelFor("OUT")?.formatOverride).toBeUndefined();
+    // An existing label without a look of its own keeps the historical rule.
+    const imported = routedFixture();
+    imported.document.annotations.push({
+      id: "imported-label",
+      kind: "net-label",
+      netId: "net",
+      anchor: { kind: "free", position: { x: 80, y: 20 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    expect(labelFor("VBP", imported)?.formatOverride).toBeUndefined();
   });
 
   it("commits the same route attachment resolved by the L-command preview", () => {

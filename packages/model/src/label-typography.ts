@@ -157,9 +157,8 @@ export function labelTextDocument(
 }
 
 /**
- * Labels whose standard look comes from what they label, not from guessing
- * at their spelling: supply markers, device References and the voltage-node
- * names the editor generates for new Cell Pins.
+ * Labels whose standard look comes from what they label: supply markers,
+ * device References, and the voltage nodes Cell Pins and Net labels name.
  */
 export type LabelRole = "supply" | "device-reference" | "voltage-node";
 
@@ -168,6 +167,9 @@ export function labelRole(
   annotation: Pick<Annotation, "kind" | "binding">,
 ): LabelRole | undefined {
   if (annotation.kind === "power-label") return "supply";
+  // A Net label names a voltage node, as a Cell Pin does (V_in, V_BP).
+  if (annotation.kind === "net-label")
+    return annotation.binding?.kind === "net-name" ? "voltage-node" : undefined;
   if (annotation.kind !== "instance-label") return undefined;
   if (annotation.binding?.kind === "instance-reference")
     return "device-reference";
@@ -179,7 +181,8 @@ export function labelRole(
  * The standard look a role-labelled name is created with, stored on the
  * label so later rule or drawing-setting changes never redraw it. The name
  * keeps its exact spelling; a spelling without a standard form gets none.
- * - supply, voltage node: italic V over an upright subscript (V_DD, V_inp)
+ * - supply, voltage node (Cell Pin, Net label): italic V over an upright
+ *   subscript (V_DD, V_in, V_BP, V_casP)
  * - device reference: italic letters over an upright index (M₁, R₁₂)
  */
 export function roleLabelFormat(
@@ -272,19 +275,24 @@ export interface StandardLabelLookChange {
 }
 
 /**
- * The standard looks an existing drawing's unformatted supply and device
- * Reference labels would take. Names never change, and an author's own
- * format is never replaced. Older drawings cannot tell a generated Pin name
- * from a typed one, so Pin labels are left as they are.
+ * The standard looks an existing drawing's unformatted supply, device
+ * Reference, Cell Pin and Net labels would take. Names never change, an
+ * author's own format is never replaced, and a label that is not drawn is
+ * left as it is.
  */
 export function standardLabelLookChanges(
   document: SchematicDocument,
 ): StandardLabelLookChange[] {
   const changes: StandardLabelLookChange[] = [];
   for (const annotation of document.annotations) {
-    if (annotation.formatOverride || !annotation.binding) continue;
+    if (
+      annotation.formatOverride ||
+      !annotation.binding ||
+      annotation.visible === false
+    )
+      continue;
     const role = labelRole(annotation);
-    if (role !== "supply" && role !== "device-reference") continue;
+    if (!role) continue;
     const name = boundAnnotationName(document, annotation)?.trim();
     if (!name) continue;
     const format = roleLabelFormat(role, name);
