@@ -18,11 +18,13 @@ Local commits do not publish the hosted site. A requested remote branch backup
 also remains local-stage work. Review the combined risk of everything a pull
 request carries. Documentation-only merges deploy nothing.
 
-Each pull request receives one complete required CI pass. A current branch
-merges directly after that pass; it does not enter a second merge-queue run. If
-another change reaches `main` first, update the branch and rerun because the
-candidate has changed. The required Core and Browser checks protect the merge;
-Production's own verification and rollback protect the hosted release.
+Each pull request receives one required CI pass, then enters the merge queue.
+The queue re-runs the same path-planned checks on the candidate merged with
+current `main`, up to four candidates at a time, and squash-merges each one that
+passes. Nobody updates a branch by hand when another change reaches `main`
+first; only a real conflict needs a manual update. The required Core and Browser
+checks protect the merge; Production's own verification and rollback protect
+the hosted release.
 
 Prepare any release version before merging so the deployed candidate needs no
 follow-up code change. See

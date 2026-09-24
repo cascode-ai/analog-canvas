@@ -2,6 +2,9 @@ name: CI
 
 on:
   pull_request:
+  # The merge queue validates each queued candidate against current main, so
+  # nobody has to update a pull request by hand when main moves.
+  merge_group:
   workflow_dispatch:
   schedule:
     # PRs already validate every change. One weekly full-browser audit is
@@ -28,21 +31,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Pull requests need their complete commit range for Test-Impact.
+          # Pull requests need their complete commit range for Test-Impact,
+          # and a queued group its range from the main it was queued on.
           # Scheduled and manual runs inspect only the checked-out commit, so
           # two commits avoid an unbounded all-ref fetch.
-          fetch-depth: ${{ github.event_name == 'pull_request' && '0' || '2' }}
+          fetch-depth: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '0' || '2' }}
       - id: plan
         name: Plan CI validation
         env:
           EVENT_NAME: ${{ github.event_name }}
           PULL_REQUEST_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
         shell: bash
         run: |
           force_args=()
           case "$EVENT_NAME" in
             pull_request)
               base="$PULL_REQUEST_BASE_SHA"
+              ;;
+            merge_group)
+              # Planned by its changed paths like a pull request, not forced
+              # full: the queue re-checks the combination, not the whole suite.
+              base="$MERGE_GROUP_BASE_SHA"
               ;;
             *)
               base="$(git rev-parse HEAD^ 2>/dev/null || git rev-parse HEAD)"
@@ -100,7 +110,7 @@ jobs:
   browser_shard:
     name: Browser tests (${{ matrix.shard }})
     needs: changes
-    if: github.event_name == 'pull_request' && needs.changes.outputs.browser == 'true'
+    if: (github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
@@ -132,7 +142,7 @@ jobs:
     needs:
       - changes
       - browser_shard
-    if: always() && github.event_name == 'pull_request' && needs.changes.outputs.browser == 'true'
+    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Confirm every selected browser shard passed
@@ -143,7 +153,8 @@ jobs:
   full_browser_audit:
     name: Full browser audit (${{ matrix.shard }})
     needs: changes
-    if: github.event_name != 'pull_request'
+    # Weekly and manual only: a queued group runs its mapped browser specs.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome

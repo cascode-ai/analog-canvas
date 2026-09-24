@@ -64,9 +64,10 @@ function e2eCoveredPaths(plan) {
 
 /**
  * Convert the repository gate plan into the intentionally smaller PR choice.
- * Core contracts still run for every implementation change. Pull requests run
- * affected browser contracts, with a small product fallback for unmapped
- * browser paths; scheduled and manual audits alone force the complete suite.
+ * Core contracts still run for every implementation change. Pull requests and
+ * their merge-queue groups run affected browser contracts, with a small product
+ * fallback for unmapped browser paths; scheduled and manual audits alone force
+ * the complete suite.
  */
 export function planCiValidation(plan, { forceFull = false } = {}) {
   if (forceFull) {

@@ -6,16 +6,22 @@ const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
 const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 
 describe("CI workflow", () => {
-  it("validates each current pull-request candidate once", () => {
+  it("validates pull requests and their merge-queue groups by changed paths", () => {
     expect(workflow).toContain("  pull_request:\n");
-    expect(workflow).not.toContain("merge_group");
+    expect(workflow).toContain("  merge_group:\n");
+    // A queued group is planned from the main it was queued on, not forced
+    // full: the full browser audit stays weekly and manual.
+    expect(workflow).toContain('base="$MERGE_GROUP_BASE_SHA"');
+    expect(workflow).toContain(
+      "if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'",
+    );
   });
 
   it("uses runner Chrome for one core and one affected-browser job", () => {
     for (const name of ["Core contracts", "Browser tests"])
       expect(workflow).toContain(`name: ${name}`);
     expect(workflow).toContain(
-      "if: github.event_name == 'pull_request' && needs.changes.outputs.browser == 'true'",
+      "if: (github.event_name == 'pull_request' || github.event_name == 'merge_group') && needs.changes.outputs.browser == 'true'",
     );
     expect(workflow).toContain(
       "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome",

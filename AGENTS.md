@@ -212,11 +212,13 @@ Before a non-document change is merged or pushed to `main`:
    `Core contracts` runs static contracts, the complete unit/module suite, and
    the release/performance checks on one shared runner. `Browser tests` runs
    only the mapped affected specs, or a small insertion/runtime fallback for
-   an unmapped product path. The branch must still be based on current `main`;
-   if `main` changes while checks run, update once and revalidate. Current
-   branches merge directly after this one CI pass. Weekly scheduled and manual
-   CI runs retain the complete four-shard browser audit; the scheduled audit
-   does not repeat Core contracts for a commit that already passed them.
+   an unmapped product path. Once both pass, `gh pr merge <number>` adds the
+   pull request to the merge queue, which re-runs the same path-planned checks
+   on the candidate merged with current `main` and then squash-merges it. A
+   branch needs a manual update only when it conflicts with `main`, not merely
+   because `main` moved. Weekly scheduled and manual CI runs retain the
+   complete four-shard browser audit; the scheduled audit does not repeat Core
+   contracts for a commit that already passed them.
 5. If a remote check fails, keep the target active: inspect its log, repair the
    reported cause, and repeat verification. A successful `git push` is not a
    completed delivery.
