@@ -100,8 +100,15 @@ Ordinary authored JSON files are not hidden.
 
 Native loops are one program and one Run. Running selected folders creates a
 bounded sequential Batch; all selected drafts are applied before preparation.
-Version-2 inputs reject managed execution variants. The current analysis and
-corner qualification comes from the Profile, not a GUI analysis enumeration.
+For ngspice and VACASK, an explicit `prepare-sweep` request may instead project
+corner, ambient temperature, one unambiguous root source parameter, or an exact
+Canvas Instance parameter onto immutable prepared copies. Native source remains
+the nominal authority; these points are never saved back to the folder or
+Project. A native variable axis addresses the source parameter by name, not a
+second JSON descriptor. Ambiguous or conditional source targets reject the
+point. Native loops remain part of each point's program; they are not expanded
+into another managed axis. The current analysis and corner qualification comes
+from the Profile, not a GUI analysis enumeration.
 
 ### Compatibility
 

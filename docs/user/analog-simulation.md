@@ -149,10 +149,12 @@ Input errors affect that operation, not the Project or Agent session. Correct
 the code and run again. A missing local executor is a configuration issue;
 it does not block editing or saving.
 
-Legacy version-1 configurations retain `runPlan` sweeps over corner,
+Legacy version-1 configurations retain saved `runPlan` sweeps over corner,
 temperature, named variable or exact Instance parameter axes; preview shows
-combinations before execution. New version-2 experiments own parameter and
-temperature sweeps in native SPICE. Multi-experiment batch selection,
+combinations before execution. New version-2 experiments can author loops in
+native SPICE. Agents can also request execution-only corner, temperature,
+unambiguous source-parameter or exact Instance points through the same Batch
+service without changing the saved source. Multi-experiment batch selection,
 cancel/retry and ordinary per-item results reuse the same Run service.
 
 The current qualified analysis/corner set comes from capabilities/Profile.

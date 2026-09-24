@@ -432,8 +432,7 @@ continue. Cancellation terminates the active member and marks queued members
 cancelled. Batch start follows the same request-ID idempotency rule as a normal
 start.
 
-For legacy version-1 experiment configurations, `prepare-sweep` is the shared
-execution primitive used by a saved Run Plan
+`prepare-sweep` is the shared execution primitive used by a legacy saved Run Plan
 over corner, temperature, Design Variable, or one or more exact
 instance-parameter axes. It
 expands the Cartesian product into the same bounded 1–16 member batch before
@@ -443,9 +442,17 @@ Instance, and netlist parameter. Variable axes address a stable Setup-local
 variable ID; preparation fans each point value out to all of that variable's
 exact bindings. Sweep members keep their ordinary prepared
 identity, result, and artifact interfaces, so no second executor or result
-protocol is introduced. Source-native version-2 folders reject these run-only
-variants: their control flow belongs in native SPICE. Saved-folder batches
-remain available independently of the configuration version.
+protocol is introduced. Source-native version-2 folders also accept explicit
+run-only points without persisting a second nominal configuration. A native
+variable axis names one reachable, unconditional top-level source parameter;
+corner and temperature points require an unambiguous qualified model section
+and ambient declaration. Exact Instance axes project through the ordinary
+Canvas parameter contract. For ngspice, a corner point changes only the
+Profile model dependency's section-selected `.lib` in the prepared source; it
+does not rewrite unrelated model loads or silently reinterpret a plain
+`.include`. Native control loops remain one program inside each Batch member.
+Saved-folder batches remain available independently of the configuration
+version.
 
 ## Resources and presentation
 
