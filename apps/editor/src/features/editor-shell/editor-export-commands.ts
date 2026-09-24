@@ -6,11 +6,7 @@ import {
   createDesignNetlistExport,
   unfinishedDrawingDiagnostics,
 } from "@icm/netlist";
-import type {
-  NetlistFormat,
-  NetlistNamingProfile,
-  NetlistPortCase,
-} from "@icm/netlist";
+import type { NetlistFormat, NetlistNamingProfile } from "@icm/netlist";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import { prepareDocumentFormulaArtifacts } from "../text-editing/formula-artifacts";
@@ -68,14 +64,12 @@ export function planDesignNetlistExport({
   format,
   project,
   namingProfile = "native",
-  portCase,
   electricalWarningsPresent = false,
   rootDocumentId,
 }: {
   format: NetlistFormat;
   project: CircuitProject;
   namingProfile?: NetlistNamingProfile;
-  portCase?: NetlistPortCase;
   electricalWarningsPresent?: boolean;
   rootDocumentId?: string;
 }): DesignNetlistExportPlan {
@@ -83,7 +77,6 @@ export function planDesignNetlistExport({
     format,
     namingProfile,
     ...(rootDocumentId ? { rootDocumentId } : {}),
-    ...(portCase ? { portCase } : {}),
   });
   if (result.status === "blocked") {
     return {

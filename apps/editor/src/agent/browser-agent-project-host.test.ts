@@ -286,6 +286,23 @@ describe("BrowserAgentProjectHost", () => {
 
   it("reads the live netlist and accepts an unchanged replacement without a commit", async () => {
     const destination = createEmptyProject("destination", "Netlist Project");
+    const document = destination.documents[0]!;
+    document.instances.push({
+      id: "port-vb1",
+      symbolId: "port",
+      placement: null,
+    });
+    document.nets.push({
+      id: "net-vb1",
+      terminals: [{ instanceId: "port-vb1", pinName: "P" }],
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-vb1",
+      name: "Vb1",
+      netId: "net-vb1",
+      direction: "input",
+      interfaceInstanceIds: ["port-vb1"],
+    });
     const host = new BrowserAgentProjectHost({
       getProjectSessionId: () => "session",
       getProject: () => destination,
@@ -312,6 +329,7 @@ describe("BrowserAgentProjectHost", () => {
     ) {
       throw new Error("unexpected netlist result");
     }
+    expect(read.netlist.text).toContain(".subckt dut Vb1");
     await expect(
       host.handle({
         apiVersion: AGENT_API_VERSION,

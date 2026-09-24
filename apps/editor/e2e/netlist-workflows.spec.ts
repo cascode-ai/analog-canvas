@@ -585,17 +585,13 @@ test("shows and copies a live MOS netlist with explicitly connected bulk termina
   await expect(codeViewport.locator(".cm-lineNumbers")).toBeVisible();
   await expect(panel.getByLabel("Netlist process")).toBeVisible();
   await expect(panel.getByLabel("NMOS netlist target")).toBeVisible();
-  const portCase = panel.getByRole("button", {
-    name: "Port names: uppercase",
-  });
   const defaultButton = panel.getByRole("button", {
     name: "Default",
     exact: true,
   });
-  await portCase.click();
-  await expect(
-    panel.getByRole("button", { name: "Port names: lowercase" }),
-  ).toBeVisible();
+  await expect(panel.getByRole("button", { name: /Port names:/u })).toHaveCount(
+    0,
+  );
   const codeViewportBox = await codeViewport.boundingBox();
   const optionsBarBox = await panel
     .getByLabel("Netlist output options")
@@ -612,15 +608,15 @@ test("shows and copies a live MOS netlist with explicitly connected bulk termina
       .getAttribute("aria-pressed")) !== "true"
   )
     await page.getByTestId("netlist-panel-toggle").click();
-  await expect(
-    panel.getByRole("button", { name: "Port names: lowercase" }),
-  ).toBeVisible();
+  await expect(panel.getByRole("button", { name: /Port names:/u })).toHaveCount(
+    0,
+  );
   await expect(panel.getByRole("alert")).toHaveCount(0);
   await defaultButton.click();
   await expect(panel.getByLabel("Netlist format")).toHaveValue("spice");
-  await expect(
-    panel.getByRole("button", { name: "Port names: uppercase" }),
-  ).toBeVisible();
+  await expect(panel.getByRole("button", { name: /Port names:/u })).toHaveCount(
+    0,
+  );
   await expect(panel.getByLabel("Netlist code")).toContainText(".subckt dut\n");
   await page.reload();
   if (
@@ -770,11 +766,10 @@ test("edits output configuration without creating another electrical authority",
   const config = JSON.parse(await code.inputValue());
   expect(config).toMatchObject({
     format: "spice",
-    portCase: "upper",
     selected: "sky130",
   });
+  expect(config).not.toHaveProperty("portCase");
   config.format = "spectre";
-  config.portCase = "lower";
   await code.fill(JSON.stringify(config, null, 2));
   await page.reload();
   // The workspace restores the open configuration panel. Wait for that
@@ -1045,12 +1040,13 @@ test("exports a MOS pair without bulk wiring or supply symbols", async ({
   await expect(page.getByLabel("Netlist code", { exact: true })).toContainText(
     "M1",
   );
+  // Port names print as authored, never re-cased.
   const scs = await copyNetlistText(page, "spectre");
-  expect(scs).toContain("subckt dut (VDD VSS VIN VIN2)");
-  expect(scs).toMatch(/M1 \(\S+ VIN \S+ VSS\) NMOS/u);
-  expect(scs).toMatch(/M2 \(\S+ VIN2 \S+ VSS\) NMOS/u);
+  expect(scs).toContain("subckt dut (VDD VSS Vin Vin2)");
+  expect(scs).toMatch(/M1 \(\S+ Vin \S+ VSS\) NMOS/u);
+  expect(scs).toMatch(/M2 \(\S+ Vin2 \S+ VSS\) NMOS/u);
   const spice = await copyNetlistText(page, "spice");
-  expect(spice).toContain(".subckt dut VDD VSS VIN VIN2");
+  expect(spice).toContain(".subckt dut VDD VSS Vin Vin2");
   expect(spice).not.toContain(".global");
   const saved = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(

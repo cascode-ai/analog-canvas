@@ -4243,7 +4243,6 @@ function WorkspaceEditor({
       // electrical verdict belongs to.
       electricalWarningsPresent: () =>
         requestElectricalDiagnostics().length > 0,
-      netlistPortCase: netlistPreferences.portCase,
       netlistRootDocumentId,
       netlistConfigurationError: netlistPreferences.error,
       guardDirtyReplacement,
@@ -5662,7 +5661,6 @@ function WorkspaceEditor({
                 open: netlistPreflightOpen,
                 project,
                 format: netlistPreferences.format,
-                portCase: netlistPreferences.portCase,
                 rootDocumentId: netlistRootDocumentId,
                 // The dialog only renders while open, so this IS the
                 // explicit check the author asked for.
@@ -6223,9 +6221,7 @@ function WorkspaceEditor({
                       )
                     }
                     namingProfile={netlistNamingProfile}
-                    portCase={netlistPreferences.portCase}
                     onFormatChange={netlistPreferences.selectFormat}
-                    onPortCaseChange={netlistPreferences.selectPortCase}
                     profiles={netlistPreferences.preferences.profiles}
                     selectedProcess={netlistPreferences.selected}
                     onProcessChange={netlistPreferences.selectProfile}

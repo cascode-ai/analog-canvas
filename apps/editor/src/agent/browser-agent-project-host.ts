@@ -467,7 +467,7 @@ export class BrowserAgentProjectHost {
     const baseline = createDesignNetlistExport(project, {
       format: request.format ?? "spice",
       namingProfile: request.namingProfile ?? "native",
-      portCase: request.portCase ?? "upper",
+      ...(request.portCase ? { portCase: request.portCase } : {}),
       includeLocations: true,
       ...(request.rootDocumentId
         ? { rootDocumentId: request.rootDocumentId }
@@ -539,7 +539,7 @@ export class BrowserAgentProjectHost {
     const result = createDesignNetlistExport(project, {
       format,
       namingProfile: options.namingProfile ?? "native",
-      portCase: options.portCase ?? "upper",
+      ...(options.portCase ? { portCase: options.portCase } : {}),
       ...(options.rootDocumentId
         ? { rootDocumentId: options.rootDocumentId }
         : {}),

@@ -8,7 +8,7 @@ import {
   type NetlistProfileId,
   type NetlistQuickTargetFamily,
 } from "./netlist-process-presets";
-import type { NetlistFormat, NetlistPortCase } from "@icm/netlist";
+import type { NetlistFormat } from "@icm/netlist";
 
 export const NETLIST_EXPORT_PREFERENCES_KEY = "icm.netlist-export.v1";
 
@@ -27,7 +27,6 @@ export interface NetlistExportPreferences {
   /** The default-process generation this preference has been moved to. */
   defaultProcess?: number;
   format: NetlistFormat;
-  portCase: NetlistPortCase;
   profiles: Record<NetlistProfileId, NetlistExportProfile>;
 }
 
@@ -36,7 +35,6 @@ export function createDefaultNetlistExportPreferences(): NetlistExportPreference
     selected: "sky130",
     defaultProcess: DEFAULT_PROCESS_GENERATION,
     format: "spice",
-    portCase: "upper",
     profiles: Object.fromEntries(
       NETLIST_PROFILE_IDS.map((id) => [id, createNetlistExportProfile(id)]),
     ) as NetlistExportPreferences["profiles"],
@@ -44,9 +42,13 @@ export function createDefaultNetlistExportPreferences(): NetlistExportPreference
 }
 
 function migrateStoredNetlistExportPreferences(raw: string): string {
-  const parsed = JSON.parse(raw) as Partial<NetlistExportPreferences> | null;
+  const parsed = JSON.parse(raw) as
+    (Partial<NetlistExportPreferences> & { portCase?: unknown }) | null;
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
     return raw;
+  // Old browsers saved an implicit upper/lower export transformation. Retire
+  // that preference without losing the author's process and model choices.
+  delete parsed.portCase;
   if (!parsed.profiles)
     return JSON.stringify({
       ...createDefaultNetlistExportPreferences(),
@@ -65,7 +67,6 @@ function migrateStoredNetlistExportPreferences(raw: string): string {
     parsed.selected === "abstract";
   return JSON.stringify({
     format: "spice",
-    portCase: "upper",
     ...parsed,
     ...(moved ? { selected: "sky130" as const } : {}),
     defaultProcess: DEFAULT_PROCESS_GENERATION,
@@ -83,8 +84,8 @@ export function parseNetlistExportPreferences(
     );
   if (parsed.format !== "spice" && parsed.format !== "spectre")
     throw new Error("format must be spice or spectre.");
-  if (parsed.portCase !== "upper" && parsed.portCase !== "lower")
-    throw new Error("portCase must be upper or lower.");
+  if ("portCase" in parsed)
+    throw new Error("Port names keep their authored case; remove portCase.");
   if (
     !NETLIST_PROFILE_IDS.every(
       (id) =>
@@ -121,13 +122,6 @@ export function selectNetlistExportFormat(
   format: NetlistFormat,
 ): NetlistExportPreferences {
   return { ...preferences, format };
-}
-
-export function selectNetlistPortCase(
-  preferences: NetlistExportPreferences,
-  portCase: NetlistPortCase,
-): NetlistExportPreferences {
-  return { ...preferences, portCase };
 }
 
 export function setNetlistExportDeviceTarget(
@@ -198,13 +192,6 @@ export function useNetlistExportPreferences() {
     setText(source);
     setError(null);
   };
-  const selectPortCase = (portCase: NetlistPortCase) => {
-    const next = selectNetlistPortCase(preferences, portCase);
-    const source = JSON.stringify(next, null, 2);
-    setPreferences(next);
-    setText(source);
-    setError(null);
-  };
   const setDeviceTarget = (
     family: NetlistQuickTargetFamily,
     target: string,
@@ -231,14 +218,12 @@ export function useNetlistExportPreferences() {
     preferences,
     selected: preferences.selected,
     format: preferences.format,
-    portCase: preferences.portCase,
     profile: preferences.profiles[preferences.selected],
     text,
     error,
     changeText,
     selectProfile,
     selectFormat,
-    selectPortCase,
     setDeviceTarget,
     reset,
   };
