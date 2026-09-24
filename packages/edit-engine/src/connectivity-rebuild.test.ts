@@ -111,6 +111,33 @@ describe("connectivity reconstructed from final wire topology", () => {
       groups(commit(before, [{ kind: "cut_connection", routeId: "bc" }])),
     ).toEqual(["a,b", "c,d"]);
   });
+  it("names a split-off network from the revision, not the transaction ID", () => {
+    // Planners preview a step under one transaction ID and commit it under
+    // another; later steps must still find the Net this one creates.
+    const before = commit(fixture(), [
+      wire("ab", "a", "b"),
+      wire("bc", "b", "c"),
+      wire("cd", "c", "d"),
+    ]);
+    const cutUnder = (transactionId: string) => {
+      const result = executeTransaction(
+        before,
+        {
+          transactionId,
+          documentId: before.id,
+          expectedRevision: before.revision,
+          actor: { kind: "human", id: "test" },
+          edits: [{ kind: "cut_connection", routeId: "bc" }],
+        },
+        { symbolResolver: resolver },
+      );
+      if (!result.ok) throw new Error(result.error.message);
+      return result.document.nets.map((net) => net.id).sort();
+    };
+    const preview = cutUnder("preview-cut");
+    expect(preview).toHaveLength(2);
+    expect(cutUnder("commit-cut")).toEqual(preview);
+  });
   it("does not treat a stale netId hint as an invisible wire", () => {
     expect(
       groups(commit(fixture(), [wire("ab", "a", "b"), wire("cd", "c", "d")])),

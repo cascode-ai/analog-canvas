@@ -210,10 +210,14 @@ export function preferredPhysicalMergeTarget(
     : [rightNetId, leftNetId];
 }
 
+/**
+ * Derived from the Document revision the transaction starts from, never its
+ * transaction ID: a planner that previews a step under one ID and commits it
+ * under another must still address the objects that step creates.
+ */
 export function uniquePhysicalContactId(
   draft: SchematicDocument,
   kind: "net" | "route",
-  transactionId: string,
   seed: string,
 ): string {
   const occupied = new Set([
@@ -235,7 +239,7 @@ export function uniquePhysicalContactId(
       kind,
       draft.id,
       "physical-contact",
-      transactionId,
+      String(draft.revision),
       seed,
       String(attempt),
     );

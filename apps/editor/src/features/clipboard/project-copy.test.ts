@@ -5,6 +5,7 @@ import {
   createRoutePath,
   type CircuitProject,
 } from "@icm/model";
+import { executeProjectTransaction } from "@icm/edit-engine";
 import { parseProject } from "@icm/project-protocol";
 import {
   externalSubcircuitSymbolId,
@@ -785,4 +786,72 @@ describe("one Project copy path", () => {
     target.documents[0]!.presentation.styleOverrides = { symbolStrokeScale: 2 };
     expect(() => place(target, fragment)).toThrow(/preserve appearance/);
   });
+
+  it("commits a whole-circuit copy plan under any transaction ID", () => {
+    // Its contact steps address Wires and Nets that the placement step creates,
+    // while planning previews that step under a different transaction ID.
+    const { project, document, clipboard } = bundledExampleCopy(
+      "current-mirror-loaded-differential-pair",
+    );
+    const plan = planProjectCopyPlacement(
+      project,
+      document,
+      clipboard,
+      { x: -20, y: -40 },
+      1,
+    );
+    for (const transactionId of ["copy-placement", "agent-command-plan-3"]) {
+      const result = executeProjectTransaction(plan.baseProject, {
+        transactionId,
+        projectId: plan.baseProject.id,
+        expectedStructureRevision: plan.baseProject.structureRevision,
+        actor: { kind: "human", id: "test" },
+        edits: plan.edits,
+      });
+      expect(result.ok ? "committed" : result.error.message).toBe("committed");
+    }
+  });
+
+  it("claims each copied supply on the Net that survives its contact merges", () => {
+    const { project, document, clipboard } = bundledExampleCopy(
+      "common-source-amplifier",
+    );
+    for (const offset of [
+      { x: 4000, y: 0 },
+      { x: -160, y: -60 },
+    ]) {
+      const placed = applyProjectCopyPlacement(
+        planProjectCopyPlacement(project, document, clipboard, offset, 1),
+      ).documents.find((candidate) => candidate.id === document.id)!;
+      expect(placed.instances).toHaveLength(document.instances.length * 2);
+      const claimedNetIds = placed.connectivityEvidence.flatMap((evidence) =>
+        evidence.kind === "name-claim" && evidence.owner.kind === "power-marker"
+          ? [evidence.netId]
+          : [],
+      );
+      expect(claimedNetIds.length).toBeGreaterThan(0);
+      expect(
+        claimedNetIds.filter(
+          (netId) => !placed.nets.some((net) => net.id === netId),
+        ),
+      ).toEqual([]);
+    }
+  });
 });
+
+function bundledExampleCopy(name: string) {
+  const project = parseProject(
+    readFileSync(`apps/editor/src/examples/${name}.icproj.json`, "utf8"),
+  );
+  const document = project.documents.find(
+    (candidate) => candidate.id === project.topDocumentId,
+  )!;
+  const clipboard = captureProjectCopy(project, document, {
+    instanceIds: document.instances.map((instance) => instance.id),
+    routeIds: document.routes.map((route) => route.id),
+    junctionIds: document.junctions.map((junction) => junction.id),
+    annotationIds: [],
+    draftingIds: [],
+  })!;
+  return { project, document, clipboard };
+}
