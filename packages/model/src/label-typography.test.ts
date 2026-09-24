@@ -259,7 +259,26 @@ it("assigns standard looks by what a label shows, not by its spelling", () => {
   ).toBe("voltage-node");
   expect(
     labelRole({ kind: "net-label", binding: { kind: "net-name", netId: "n" } }),
-  ).toBeUndefined();
+  ).toBe("voltage-node");
+  expect(labelRole({ kind: "net-label" })).toBeUndefined();
+  expect(labelRole({ kind: "route-marker" })).toBeUndefined();
+});
+
+it("gives V-led node names V with an upright subscript and leaves others alone", () => {
+  for (const [name, subscript] of [
+    ["VBP", "BP"],
+    ["VBN", "BN"],
+    ["Vin", "in"],
+    ["Vout", "out"],
+    ["VcasP", "casP"],
+    ["VCASN", "CASN"],
+  ] as const) {
+    const format = roleLabelFormat("voltage-node", name)!;
+    expect(flattenRichText(format)).toBe(name);
+    expect(JSON.stringify(format)).toContain(`"value":"${subscript}"`);
+  }
+  for (const name of ["OUT", "CLK", "V_ref", "Vin-", "V"])
+    expect(roleLabelFormat("voltage-node", name)).toBeUndefined();
 });
 
 it("recognises a standard look however its spans are nested", () => {
@@ -325,7 +344,7 @@ it("lists the standard looks an existing drawing's unformatted labels would take
   });
   const label = (
     id: string,
-    kind: "instance-label" | "power-label",
+    kind: "instance-label" | "power-label" | "net-label",
     binding: NonNullable<(typeof document.annotations)[number]["binding"]>,
     objectId: string,
     formatOverride?: ReturnType<typeof identifierTextDocument>,
@@ -345,8 +364,46 @@ it("lists the standard looks an existing drawing's unformatted labels would take
     { id: "M2", reference: "M2", symbolId: "nmos", placement },
     { id: "VDD1", symbolId: "vdd-port", placement },
     { id: "VDD2", symbolId: "vdd-port", placement },
+    { id: "P1", symbolId: "port-filled", placement },
+    { id: "P2", symbolId: "port", placement },
   );
+  document.netlist = {
+    name: "A",
+    terminals: [
+      {
+        id: "t-vbp",
+        name: "VBP",
+        netId: "net-vbp",
+        direction: "inout",
+        interfaceInstanceIds: ["P1"],
+      },
+      {
+        id: "t-clk",
+        name: "CLK",
+        netId: "net-clk",
+        direction: "input",
+        interfaceInstanceIds: ["P2"],
+      },
+    ],
+    formalParameters: [],
+  };
   document.connectivityEvidence.push(
+    {
+      id: "claim-vcasn",
+      kind: "name-claim",
+      netId: "net-vcasn",
+      name: "VcasN",
+      scope: "local",
+      owner: { kind: "net-label", annotationId: "label-vcasn" },
+    },
+    {
+      id: "claim-vhidden",
+      kind: "name-claim",
+      netId: "net-vhidden",
+      name: "VSUB",
+      scope: "local",
+      owner: { kind: "net-label", annotationId: "label-vhidden" },
+    },
     {
       id: "claim-vddh",
       kind: "name-claim",
@@ -393,6 +450,34 @@ it("lists the standard looks an existing drawing's unformatted labels would take
       { kind: "net-name", netId: "net-avdd" },
       "VDD2",
     ),
+    label(
+      "label-vbp",
+      "instance-label",
+      { kind: "cell-terminal-name", terminalId: "t-vbp" },
+      "P1",
+    ),
+    label(
+      "label-clk",
+      "instance-label",
+      { kind: "cell-terminal-name", terminalId: "t-clk" },
+      "P2",
+    ),
+    label(
+      "label-vcasn",
+      "net-label",
+      { kind: "net-name", netId: "net-vcasn" },
+      "M1",
+    ),
+    // A label that is not drawn has no look to change.
+    {
+      ...label(
+        "label-vhidden",
+        "net-label",
+        { kind: "net-name", netId: "net-vhidden" },
+        "M1",
+      ),
+      visible: false,
+    },
   );
   expect(standardLabelLookChanges(document)).toEqual([
     {
@@ -406,6 +491,18 @@ it("lists the standard looks an existing drawing's unformatted labels would take
       role: "supply",
       name: "VDDH",
       format: supplyLabelFormat("VDDH"),
+    },
+    {
+      annotationId: "label-vbp",
+      role: "voltage-node",
+      name: "VBP",
+      format: roleLabelFormat("voltage-node", "VBP"),
+    },
+    {
+      annotationId: "label-vcasn",
+      role: "voltage-node",
+      name: "VcasN",
+      format: roleLabelFormat("voltage-node", "VcasN"),
     },
   ]);
 });

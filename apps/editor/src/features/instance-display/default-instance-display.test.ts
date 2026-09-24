@@ -224,6 +224,33 @@ describe("default instance display annotations", () => {
     ]);
   });
 
+  it("places a V-led Pin name in its voltage-node look and any other name as written", () => {
+    const document = createEmptyDocument("main", "Main");
+    const instance = {
+      id: "P1",
+      symbolId: "port-filled",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+    };
+    const pinLabel = (formalName: string) =>
+      defaultInstanceDisplayAnnotations(
+        document,
+        instance,
+        resolver,
+        resolveSchematicStyleProfile(document.presentation.styleProfileId),
+        { formalTerminalId: "terminal-p1", formalName },
+      )[0];
+    for (const name of ["VBP", "VBN", "Vin", "Vout", "VcasP", "VCASN"])
+      expect(pinLabel(name)?.formatOverride).toEqual(
+        roleLabelFormat("voltage-node", name),
+      );
+    expect(pinLabel("CLK")?.formatOverride).toBeUndefined();
+    expect(pinLabel("V_ref")?.formatOverride).toBeUndefined();
+  });
+
   it("materializes an imported reference once when a retained Instance is placed", () => {
     const document = createEmptyDocument("main", "Main");
     const instance = {

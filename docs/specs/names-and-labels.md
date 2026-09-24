@@ -35,18 +35,19 @@ identifier encoding). The schema refuses any other stored display.
 Labels whose look follows from what they label, never from guessing at a
 spelling, are created with a stored standard look:
 
-| Role                                                                  | Names                          | Stored look                                      |
-| --------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------ |
-| Supply (VDD Power, drawn rail)                                        | `V` followed by letters/digits | Italic `V`, upright subscript rest: V_DD, V_DDH  |
-| Device Reference                                                      | letters followed by digits     | Italic letters, upright subscript index: M₁, R₁₂ |
-| Cell Pin name the editor generated (`Vinp`, `Vinn`, `Vout`, `VB1`, …) | `V` followed by letters/digits | Italic `V`, upright subscript rest: V_inp        |
+| Role                                             | Names                          | Stored look                                            |
+| ------------------------------------------------ | ------------------------------ | ------------------------------------------------------ |
+| Supply (VDD Power, drawn rail)                   | `V` followed by letters/digits | Italic `V`, upright subscript rest: V_DD, V_DDH        |
+| Device Reference                                 | letters followed by digits     | Italic letters, upright subscript index: M₁, R₁₂       |
+| Voltage node (Cell Pin, Bias Voltage, Net label) | `V` followed by letters/digits | Italic `V`, upright subscript rest: V_in, V_BP, V_casP |
 
-Any other spelling (`AVDD`, `MTAIL`, `RL`, `M_1`) gets no standard look, and a
-name the user typed for a Pin or Net is shown as written. A stored standard
-look is recognised by comparing its styled characters with the standard look
-of the label's current name; only a label still carrying it is treated as a
-default. An author's own format always wins and is never replaced by a
-default.
+The look applies whether the name was typed, connected or generated. Any other
+spelling (`AVDD`, `MTAIL`, `RL`, `M_1`, `CLK`, `Vin-`) gets no standard look
+and is shown as written. A stored standard look is recognised by comparing its
+styled characters with the standard look of the label's current name; only a
+label still carrying it is treated as a default. An author's own format always
+wins and is never replaced by a default: removing V_BP's subscript stores
+`VBP` drawn flat as the author's look, which later renames keep.
 
 ### Labels without a stored display
 
@@ -59,9 +60,10 @@ name.
 Existing Gallery drawings are moved to stored standard looks by an
 administrator maintenance pass
 ([Community Gallery](community-gallery.md#administration)). It changes only
-unformatted supply and device Reference labels, may nudge a restyled label a
-few grid units clear of its neighbours or leave one that cannot stay as clear
-as it was, and refuses any change to an electrical name or netlist. Pin labels keep the historical rule, because an
+unformatted supply, device Reference, Cell Pin and Net labels that are drawn,
+may nudge a restyled label a few grid units clear of its neighbours or leave
+one that cannot stay as clear as it was, and refuses any change to an
+electrical name or netlist. Pin labels keep the historical rule, because an
 older drawing cannot tell a generated Pin name from a typed one.
 
 ### Editing
@@ -90,16 +92,18 @@ inside that export and are never written back to a name.
 
 ### Examples
 
-| Name    | Label              | Drawn as                          | Netlist |
-| ------- | ------------------ | --------------------------------- | ------- |
-| `VDD`   | VDD Power          | V_DD                              | `VDD`   |
-| `VDDH`  | VDD Power          | V_DDH                             | `VDDH`  |
-| `AVDD`  | VDD Power          | AVDD                              | `AVDD`  |
-| `M1`    | device             | M₁                                | `M1`    |
-| `MTAIL` | device             | MTAIL                             | `MTAIL` |
-| `CLK1`  | typed Pin          | CLK1; subscripting 1 keeps `CLK1` | `CLK1`  |
-| `V_ref` | Pin without format | V with subscript ref              | `V_ref` |
-| `D_bar` | Pin without format | D with an overbar                 | `D_bar` |
+| Name    | Label              | Drawn as                                    | Netlist |
+| ------- | ------------------ | ------------------------------------------- | ------- |
+| `VDD`   | VDD Power          | V_DD                                        | `VDD`   |
+| `VDDH`  | VDD Power          | V_DDH                                       | `VDDH`  |
+| `AVDD`  | VDD Power          | AVDD                                        | `AVDD`  |
+| `M1`    | device             | M₁                                          | `M1`    |
+| `VBP`   | Bias Voltage Pin   | V_BP; turning the subscript off keeps `VBP` | `VBP`   |
+| `Vout`  | Net label          | V_out                                       | `Vout`  |
+| `MTAIL` | device             | MTAIL                                       | `MTAIL` |
+| `CLK1`  | typed Pin          | CLK1; subscripting 1 keeps `CLK1`           | `CLK1`  |
+| `V_ref` | Pin without format | V with subscript ref                        | `V_ref` |
+| `D_bar` | Pin without format | D with an overbar                           | `D_bar` |
 
 ## Design rationale
 
@@ -120,12 +124,16 @@ redraws a drawing its author has already seen.
   Pin, claim, marker and device renames keep stored looks valid.
 - `apps/editor/src/features/text-editing/text-editing.test.ts`: verbatim text
   renames, styling that never renames, and hidden-character splicing.
+- `apps/editor/src/features/instance-display/default-instance-display.test.ts`
+  and `apps/editor/src/features/properties/property-edit-planner.test.ts`: new
+  Pin and Net labels take the voltage-node look for V-led names only.
 - `worker/gallery.test.ts` (label-look maintenance): a dry run writes
   nothing; an apply needs the checked content, keeps names, netlists and
   history, and leaves nothing for a second pass.
 - `apps/editor/e2e/component-insert.spec.ts` and
   `apps/editor/e2e/manual-editor.spec.ts`: placed supplies in their standard
-  look and verbatim canvas renames.
+  look, a V-led Net label whose subscript the author turns off without
+  renaming the Net, and verbatim canvas renames.
 
 Custom display text that differs from its name (for example Q′ for `Q_prime`),
 one-click formatting presets, and a literal default for typed names are not

@@ -168,7 +168,7 @@ export function planBrowserAgentCommand(
             port,
             resolver,
             resolveDocumentStyleProfile(document.presentation),
-            { formalTerminalId: terminalId },
+            { formalTerminalId: terminalId, formalName: reference.trim() },
           )[0];
           const plan = planCreateCellPin(project, documentId, {
             instance: port,
