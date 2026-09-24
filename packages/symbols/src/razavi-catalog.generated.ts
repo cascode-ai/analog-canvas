@@ -48,6 +48,40 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "battery",
+    name: "Battery",
+    category: "source",
+    reviewStatus: "reviewed",
+    pinOrder: ["+", "-"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "The Razavi battery plate symbol records visual supply intent only; no voltage-source or physical-battery netlist model is inferred.",
+    assetPath: "battery.json",
+    assetHash:
+      "ac5a89ba8b959ffd557ab8335ac2c86caf8a5ac0105b2cdc5c2bbd9a62166b3a",
+    visualAuthority: {
+      kind: "razavi-reference-v1",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePaths: [
+        "fixtures/visual-reference/razavi-reference-v1/battery-vector-source.json",
+        "fixtures/visual-reference/razavi-reference-v1/battery-reference.png",
+      ],
+      calibrationPath:
+        "fixtures/visual-reference/razavi-reference-v1/battery-geometry.json",
+    },
+    generation: {
+      kind: "razavi-pdf-vector-reference",
+      referenceManifestPath:
+        "fixtures/visual-reference/razavi-reference-v1/manifest.json",
+      referencePath:
+        "fixtures/visual-reference/razavi-reference-v1/battery-vector-source.json",
+      converterPath: "scripts/generate-razavi-battery-asset.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
     symbolId: "buffer",
     name: "Buffer",
     category: "logic",
@@ -2548,6 +2582,174 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: 20,
           y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "battery",
+    name: "Battery",
+    viewBox: {
+      x: -24,
+      y: -24,
+      width: 48,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "+",
+        role: "positive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 17,
+        },
+      },
+      {
+        name: "-",
+        role: "negative",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 17,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -20,
+        },
+        to: {
+          x: 0,
+          y: -3.361068,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 3.361068,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -15.341072,
+            y: -4.959888,
+          },
+          {
+            x: 15.366866,
+            y: -4.959888,
+          },
+          {
+            x: 15.366866,
+            y: -1.762248,
+          },
+          {
+            x: -15.341072,
+            y: -1.762248,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -7.987992,
+            y: 1.762248,
+          },
+          {
+            x: 8.005849,
+            y: 1.762248,
+          },
+          {
+            x: 8.005849,
+            y: 4.959888,
+          },
+          {
+            x: -7.987992,
+            y: 4.959888,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 7.918549,
+          y: -13.416494,
+        },
+        to: {
+          x: 15.985905,
+          y: -13.416494,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 11.952227,
+          y: -17.450172,
+        },
+        to: {
+          x: 11.952227,
+          y: -9.3848,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 7.918549,
+          y: 13.472049,
+        },
+        to: {
+          x: 15.985905,
+          y: 13.472049,
         },
         style: {
           strokeRole: "normal",

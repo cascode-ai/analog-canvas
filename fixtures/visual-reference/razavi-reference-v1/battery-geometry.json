@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "referenceId": "razavi-reference-v1",
+  "symbols": {
+    "battery": {
+      "assetPath": "battery-reference.png",
+      "pixelsPerLogical": 2.4,
+      "originPx": {
+        "x": 43.705943,
+        "y": 53.512341
+      },
+      "window": {
+        "width": 90,
+        "height": 106,
+        "minX": -18,
+        "minY": -22
+      }
+    }
+  }
+}
