@@ -14,6 +14,7 @@ describe("approved simulation Code layout", () => {
           activePath="run.cir"
           files={[{ path: "run.cir", kind: "authored" }]}
           onSelectFile={() => {}}
+          onSave={() => {}}
           folders={{
             folders: [
               { id: "a", name: "OTA AC" },
@@ -58,6 +59,7 @@ describe("approved simulation Code layout", () => {
             { path: "experiment.json", kind: "authored" },
           ]}
           onSelectFile={() => {}}
+          onSave={() => {}}
           actions={<button>Run</button>}
           outputPane="console"
           onSelectOutputPane={() => {}}
@@ -109,6 +111,7 @@ describe("approved simulation Code layout", () => {
             },
           ]}
           onSelectFile={() => {}}
+          onSave={() => {}}
           folders={{
             folders: [{ id: "a", name: "Untitled" }],
             activeId: "a",
