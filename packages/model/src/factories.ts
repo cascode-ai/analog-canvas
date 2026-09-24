@@ -43,6 +43,19 @@ export function createEmptyDocument(
   };
 }
 
+/** Inherit drawing preferences, never another Cell's terminal-bound symbol. */
+export function createCellDocument(
+  id: string,
+  name: string,
+  presentation: SchematicDocument["presentation"],
+): SchematicDocument {
+  const child = createEmptyDocument(id, name);
+  child.netlist!.name = name;
+  child.presentation = structuredClone(presentation);
+  delete child.presentation.cellSymbol;
+  return child;
+}
+
 export function createEmptyProject(
   id: string,
   name: string,

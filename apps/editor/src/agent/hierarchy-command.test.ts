@@ -9,6 +9,57 @@ import { AgentAuthoringCommandSchema } from "@icm/agent-adapter";
 import { expect, it } from "vitest";
 import { planBrowserAgentCommand } from "./browser-agent-command";
 
+it("creates a Cell from a pinned Cell without inheriting foreign pin placements", () => {
+  const project = createEmptyProject("p", "Project");
+  const source = project.documents[0]!;
+  source.presentation.grid = 20;
+  source.instances.push({ id: "P1", symbolId: "port", placement: null });
+  source.nets.push({
+    id: "net-in",
+    terminals: [{ instanceId: "P1", pinName: "P" }],
+  });
+  source.netlist!.terminals.push({
+    id: "old-terminal",
+    name: "IN",
+    netId: "net-in",
+    direction: "input",
+    interfaceInstanceIds: ["P1"],
+  });
+  source.presentation.cellSymbol = {
+    pinPlacements: [{ terminalId: "old-terminal", side: "west", offset: 0 }],
+  };
+  const resolver = new InMemorySymbolResolver(builtInSymbols);
+  const plan = planBrowserAgentCommand(project, source.id, resolver, {
+    kind: "create-cell",
+    id: "new-cell",
+    name: "New Cell",
+  });
+  if (!("structureEdits" in plan)) throw new Error("expected structure edits");
+  expect(plan.structureEdits).toMatchObject([
+    {
+      kind: "add_document",
+      document: {
+        id: "new-cell",
+        presentation: { grid: 20 },
+        netlist: { terminals: [] },
+      },
+    },
+  ]);
+  const first = plan.structureEdits?.[0];
+  expect(first?.kind).toBe("add_document");
+  if (first?.kind !== "add_document") return;
+  expect(first.document.presentation.cellSymbol).toBeUndefined();
+  expect(
+    executeProjectTransaction(project, {
+      transactionId: "agent-create-cell-test",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "agent", id: "test" },
+      edits: plan.structureEdits!,
+    }).ok,
+  ).toBe(true);
+});
+
 it.each([false, true])(
   "passes explicit Port merge intent to the shared planner (%s)",
   (mergeExistingPort) => {

@@ -19,7 +19,7 @@ import {
 } from "@icm/edit-engine";
 import type { ProjectStructureEdit, SchematicEdit } from "@icm/edit-engine";
 import {
-  createEmptyDocument,
+  createCellDocument,
   createId,
   CircuitProjectSchema,
   semanticTextDocument,
@@ -175,9 +175,11 @@ export function createProjectStructureCommands({
   const createCell = (inputName: string): void => {
     const name = inputName.trim();
     if (!name) return;
-    const child = createEmptyDocument(createDocumentId(), name);
-    child.netlist!.name = name;
-    child.presentation = structuredClone(activeDocument.presentation);
+    const child = createCellDocument(
+      createDocumentId(),
+      name,
+      activeDocument.presentation,
+    );
     if (commitStructure("create-cell", planCreateCell(child), child.id)) {
       onCellCreated();
       setStatus(`Created Cell ${name}`);

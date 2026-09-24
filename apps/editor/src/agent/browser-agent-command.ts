@@ -28,7 +28,7 @@ import {
   type TransformOperation,
 } from "@icm/edit-engine";
 import {
-  createEmptyDocument,
+  createCellDocument,
   deriveStableId,
   flattenRichText,
   type CircuitProject,
@@ -487,9 +487,11 @@ export function planBrowserAgentCommand(
         ),
       };
     case "create-cell": {
-      const child = createEmptyDocument(command.id, command.name);
-      child.netlist!.name = command.name;
-      child.presentation = structuredClone(document.presentation);
+      const child = createCellDocument(
+        command.id,
+        command.name,
+        document.presentation,
+      );
       return { structureEdits: planCreateCell(child) };
     }
     case "rename-cell":
