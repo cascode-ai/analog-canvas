@@ -471,6 +471,10 @@ function advanceCurationRevision(row: EntryRow, at: string): string {
   });
 }
 
+/** An entry whose curation asks its author to look again. */
+const NEEDS_ATTENTION =
+  "json_extract(CASE WHEN e.curation_json = '' THEN '{}' ELSE e.curation_json END, '$.attention.status') = 'needs-attention'";
+
 /** Storage-only Durable Object; policy lives in `routeGalleryRequest`. */
 export class GalleryDO {
   private readonly sql: SqlStorage;
@@ -793,7 +797,7 @@ export class GalleryDO {
       case "curate":
         return this.curate(body);
       case "tags":
-        return this.tagCounts(body.netlistable === true);
+        return this.tagCounts(body);
       case "authors":
         return this.authorCounts();
       case "rename-owner":
@@ -1069,12 +1073,20 @@ export class GalleryDO {
     return Response.json({ id: entry.id, previewRevision });
   }
 
-  private list(body: Record<string, unknown>): Response {
-    const limit = Math.min(
-      Math.max(Number(body.limit) || GALLERY_DEFAULT_LIST_LIMIT, 1),
-      GALLERY_MAX_LIST_LIMIT,
-    );
-    const cursor = typeof body.cursor === "string" ? body.cursor : null;
+  /**
+   * The wall's narrowing, shared by the feed and its tag counts so a filter
+   * means the same in both: Needs attention, With netlist and Liked narrow
+   * the counts exactly as they narrow the wall. The tag counts leave out the
+   * tag selection itself, or checking one tag would zero every other.
+   */
+  private feedConditions(
+    body: Record<string, unknown>,
+    options: { tags: boolean },
+  ): {
+    conditions: string[];
+    bindings: (string | number)[];
+    viewerId: string;
+  } {
     const author =
       typeof body.author === "string" && body.author.length > 0
         ? body.author
@@ -1083,7 +1095,6 @@ export class GalleryDO {
       typeof body.ownerUserId === "string" && body.ownerUserId.length > 0
         ? body.ownerUserId
         : null;
-    // The viewer id leads the bindings because its sub-select comes first.
     const viewerId = typeof body.viewerId === "string" ? body.viewerId : "";
     const conditions = ["e.status = 'public'"];
     const bindings: (string | number)[] = [];
@@ -1094,15 +1105,15 @@ export class GalleryDO {
       conditions.push("e.author = ?");
       bindings.push(author);
     }
-    const tags = sanitizeGalleryTags(body.tags, 256);
-    if (tags.length > 0) {
-      conditions.push(`(${tags.map(() => "e.tags LIKE ?").join(" OR ")})`);
-      for (const tag of tags) bindings.push(`%,${tag},%`);
+    if (options.tags) {
+      const tags = sanitizeGalleryTags(body.tags, 256);
+      if (tags.length > 0) {
+        conditions.push(`(${tags.map(() => "e.tags LIKE ?").join(" OR ")})`);
+        for (const tag of tags) bindings.push(`%,${tag},%`);
+      }
     }
-    const needsAttention =
-      "json_extract(CASE WHEN e.curation_json = '' THEN '{}' ELSE e.curation_json END, '$.attention.status') = 'needs-attention'";
     if (body.attention === true) {
-      conditions.push(needsAttention);
+      conditions.push(NEEDS_ATTENTION);
       if (body.isAdmin !== true) {
         conditions.push("e.owner_user_id = ?");
         bindings.push(viewerId);
@@ -1118,6 +1129,19 @@ export class GalleryDO {
       );
       bindings.push(viewerId);
     }
+    return { conditions, bindings, viewerId };
+  }
+
+  private list(body: Record<string, unknown>): Response {
+    const limit = Math.min(
+      Math.max(Number(body.limit) || GALLERY_DEFAULT_LIST_LIMIT, 1),
+      GALLERY_MAX_LIST_LIMIT,
+    );
+    const cursor = typeof body.cursor === "string" ? body.cursor : null;
+    // The viewer id leads the bindings because its sub-select comes first.
+    const { conditions, bindings, viewerId } = this.feedConditions(body, {
+      tags: true,
+    });
     // The whole filtered wall's size, not the page's: counted before the
     // cursor narrows the query, so every page carries the same total.
     const counts = this.sql
@@ -1132,7 +1156,7 @@ export class GalleryDO {
            COUNT(CASE WHEN EXISTS (SELECT 1 FROM gallery_likes
              WHERE entry_id = e.id AND user_id = ?) THEN 1 END) AS liked,
            COUNT(CASE WHEN ? != '' AND (? = 1 OR e.owner_user_id = ?)
-             AND ${needsAttention} THEN 1 END) AS attention
+             AND ${NEEDS_ATTENTION} THEN 1 END) AS attention
          FROM gallery_entries e WHERE ${conditions.join(" AND ")}`,
         viewerId,
         viewerId,
@@ -2869,10 +2893,14 @@ export class GalleryDO {
   }
 
   /** Public tag counts plus deduplicated circuit totals for each visual group. */
-  private tagCounts(netlistableOnly = false): Response {
+  private tagCounts(body: Record<string, unknown>): Response {
+    const { conditions, bindings } = this.feedConditions(body, {
+      tags: false,
+    });
     const rows = this.sql
       .exec<{ tags: string | null }>(
-        `SELECT tags FROM gallery_entries WHERE status = 'public'${netlistableOnly ? " AND netlistable = 1" : ""}`,
+        `SELECT e.tags FROM gallery_entries e WHERE ${conditions.join(" AND ")}`,
+        ...bindings,
       )
       .toArray();
     const counts = new Map<string, number>();

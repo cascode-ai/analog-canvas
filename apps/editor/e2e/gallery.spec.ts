@@ -1699,6 +1699,139 @@ test("netlist tag counts honor linked and remembered filters on first load", asy
   }
 });
 
+test("needs attention and liked narrow the category and tag counts", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "maker-1",
+          displayName: "Maker",
+          email: "maker@example.com",
+          provider: "github",
+          isAdmin: false,
+          role: "user",
+        },
+      },
+    }),
+  );
+  const needsAttention = { status: "needs-attention", issues: [] };
+  let entries = [
+    {
+      ...ENTRY,
+      id: "amp",
+      name: "Amplifier",
+      ownerUserId: "maker-1",
+      tags: ["amplifier", "ota"],
+      likedByViewer: true,
+      attention: needsAttention,
+    },
+    {
+      ...ENTRY,
+      id: "ota",
+      name: "OTA",
+      ownerUserId: "maker-1",
+      tags: ["ota"],
+      likedByViewer: true,
+      attention: undefined,
+    },
+    {
+      ...ENTRY,
+      id: "cmp",
+      name: "Comparator",
+      ownerUserId: "maker-1",
+      tags: ["comparator"],
+      likedByViewer: false,
+      attention: needsAttention,
+    },
+  ];
+  // The wall and its tag counts answer the same filters from one list.
+  await page.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/like")) {
+      const id = url.pathname.split("/")[3];
+      entries = entries.map((entry) =>
+        entry.id === id
+          ? { ...entry, likedByViewer: !entry.likedByViewer }
+          : entry,
+      );
+      const liked = entries.find((entry) => entry.id === id)!.likedByViewer;
+      return route.fulfill({
+        json: { likes: Number(liked), likedByViewer: liked },
+      });
+    }
+    if (url.pathname.endsWith("/preview.svg"))
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"/>',
+      });
+    const matching = entries.filter(
+      (entry) =>
+        (url.searchParams.get("attention") !== "1" ||
+          entry.attention?.status === "needs-attention") &&
+        (url.searchParams.get("liked") !== "1" || entry.likedByViewer),
+    );
+    const count = (tags: string[]) =>
+      matching.filter((entry) => entry.tags.some((tag) => tags.includes(tag)))
+        .length;
+    if (url.pathname === "/api/gallery/tags")
+      return route.fulfill({
+        json: {
+          tags: ["amplifier", "ota", "comparator"]
+            .map((tag) => ({ tag, count: count([tag]) }))
+            .filter((option) => option.count > 0),
+          groups: [
+            { group: "Amplifiers", count: count(["amplifier", "ota"]) },
+            { group: "Conversion", count: count(["comparator"]) },
+          ].filter((group) => group.count > 0),
+        },
+      });
+    if (url.pathname === "/api/gallery")
+      return route.fulfill({
+        json: { entries: matching, nextCursor: null, total: matching.length },
+      });
+    return route.fallback();
+  });
+  await page.goto("/");
+  const sidebar = page.getByTestId("gallery-tag-sidebar");
+  const categoryCount = (name: string) =>
+    sidebar
+      .getByRole("checkbox", { name, exact: true })
+      .locator(".gallery-sidebar-count");
+  const counts = async (
+    amplifiers: string,
+    ota: string,
+    conversion: string,
+  ) => {
+    await expect(categoryCount("Amplifiers")).toHaveText(amplifiers);
+    await expect(
+      page
+        .getByTestId("gallery-tag-option-ota")
+        .locator(".gallery-sidebar-count"),
+    ).toHaveText(ota);
+    await expect(categoryCount("Conversion")).toHaveText(conversion);
+  };
+  const attention = page.getByTestId("gallery-filter-attention");
+  const liked = page.getByTestId("gallery-filter-liked");
+  await sidebar
+    .getByRole("button", { name: "Expand Amplifiers", exact: true })
+    .click();
+  await counts("2", "2", "1");
+  await attention.click();
+  await counts("1", "1", "1");
+  await liked.click();
+  await counts("1", "1", "0");
+  await attention.click();
+  await counts("2", "2", "0");
+  // Taking a like back under Liked removes that drawing from the counts too.
+  await page.getByTestId("gallery-like-ota").click();
+  await expect(page.getByTestId("gallery-tile-ota")).toHaveCount(0);
+  await counts("1", "1", "0");
+  await liked.click();
+  await counts("2", "2", "1");
+});
+
 test("keeps the reader's filter when they leave the wall and come back", async ({
   page,
 }) => {

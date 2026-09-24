@@ -5188,6 +5188,36 @@ describe("Gallery visual curation", () => {
       expect.arrayContaining([...mineAuthors, ...otherAuthors]),
     );
     expect((await feed(maker, "?attention=1&tags=absent")).authors).toEqual([]);
+    // The tag counts beside the wall narrow with it: Needs attention counts
+    // only what this viewer may see needing attention, Liked only their likes.
+    const otaCount = async (cookie: string, query = "") => {
+      const response = await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/tags${query}`, {
+          headers: cookieHeaders(cookie),
+        }),
+      );
+      if (response.status !== 200) return response.status;
+      const { tags } = (await response.json()) as {
+        tags: { tag: string; count: number }[];
+      };
+      return tags.find((item) => item.tag === "ota")?.count ?? 0;
+    };
+    expect(await otaCount("")).toBe(2);
+    expect(await otaCount(admin, "?attention=1")).toBe(2);
+    expect(await otaCount(maker, "?attention=1")).toBe(1);
+    expect(await otaCount(maker, "?liked=1")).toBe(0);
+    expect(await otaCount("", "?attention=1")).toBe(401);
+    const like = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${mine}/like`, {
+        method: "POST",
+        headers: { Origin: ORIGIN, Cookie: other },
+      }),
+    );
+    expect(like.status).toBe(200);
+    expect(await otaCount(other, "?liked=1")).toBe(1);
+    expect(await otaCount("", "?liked=1")).toBe(0);
     expect(
       (await feed(other)).entries.find((e) => e.id === mine)?.attention,
     ).toBeUndefined();
@@ -5211,6 +5241,8 @@ describe("Gallery visual curation", () => {
     expect((await feed(maker, "?attention=1")).authors).toEqual([]);
     expect((await feed(maker)).filterCounts.attention).toBe(0);
     expect((await feed(admin)).filterCounts.attention).toBe(1);
+    expect(await otaCount(maker, "?attention=1")).toBe(0);
+    expect(await otaCount(admin, "?attention=1")).toBe(1);
     expect((await update(env, mine, maker)).status).toBe(200);
     expect((await feed(maker, "?attention=1")).total).toBe(1);
   });

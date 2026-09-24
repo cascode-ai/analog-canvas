@@ -1750,7 +1750,19 @@ export async function routeGalleryRequest(
     segments[0] === "tags" &&
     request.method === "GET"
   ) {
+    // Tag counts follow the wall's filters. The personal two need the
+    // session; the public counts stay a plain read.
+    const attention = url.searchParams.get("attention") === "1";
+    const liked = url.searchParams.get("liked") === "1";
+    const viewer =
+      attention || liked ? await sessionUserOf(request, env) : null;
+    if (attention && !viewer)
+      return Response.json({ error: "unauthorized" }, { status: 401 });
     const { payload } = await callGallery(env, "tags", {
+      isAdmin: viewer?.isAdmin === true,
+      viewerId: viewer?.id ?? "",
+      attention,
+      liked,
       netlistable: url.searchParams.get("netlistable") === "1",
     });
     return Response.json(payload, { headers: { "cache-control": "no-store" } });

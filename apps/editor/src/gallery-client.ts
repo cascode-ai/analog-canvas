@@ -333,7 +333,24 @@ export interface GalleryTagSummary {
 export interface GalleryLandingPreload {
   feed?: Promise<GalleryFeedPage | null>;
   tags: Promise<GalleryTagSummary>;
-  tagsNetlistable?: boolean;
+  /** The filters the preloaded tag counts answer; see galleryTagScope. */
+  tagsScope?: string;
+}
+
+/** The wall filters that also narrow the tag counts beside it. */
+export interface GalleryTagFilters {
+  netlistable?: boolean;
+  liked?: boolean;
+  attention?: boolean;
+}
+
+/** One stable key per combination of the filters that narrow tag counts. */
+export function galleryTagScope(filters: GalleryTagFilters): string {
+  return new URLSearchParams([
+    ...(filters.netlistable ? [["netlistable", "1"]] : []),
+    ...(filters.liked ? [["liked", "1"]] : []),
+    ...(filters.attention ? [["attention", "1"]] : []),
+  ]).toString();
 }
 
 /** One public byline and its contribution to the current Gallery results. */
@@ -488,11 +505,14 @@ export async function loadGalleryAuthors(
 /** The grouped tag menu. An unreachable worker leaves the menu empty. */
 export async function loadGalleryTagSummary(
   fetchLike: typeof fetch = fetch,
-  options: { netlistable?: boolean } = {},
+  options: GalleryTagFilters = {},
 ): Promise<GalleryTagSummary> {
   try {
+    // Needs attention, With netlist and Liked narrow the tag counts exactly
+    // as they narrow the wall.
+    const scope = galleryTagScope(options);
     const response = await fetchLike(
-      `/api/gallery/tags${options.netlistable ? "?netlistable=1" : ""}`,
+      `/api/gallery/tags${scope ? `?${scope}` : ""}`,
       {
         credentials: "same-origin",
       },

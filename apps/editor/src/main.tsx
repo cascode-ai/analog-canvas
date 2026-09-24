@@ -6,6 +6,7 @@ import { EditorErrorBoundary } from "./components/editor-error-boundary";
 import { guardedRouteChunk } from "./components/route-chunk-loader";
 import {
   loadGalleryFeed,
+  galleryTagScope,
   loadGalleryTagSummary,
   type GalleryLandingPreload,
 } from "./gallery-client";
@@ -38,14 +39,16 @@ function galleryLandingPreload(): GalleryLandingPreload | undefined {
   } catch {
     // An explicit URL filter still works when browser storage is disabled.
   }
-  const tagsNetlistable = resolveGalleryFilters(
-    window.location.search,
-    storedFilters,
-  ).netlistable;
-  const tags = loadGalleryTagSummary(fetch, { netlistable: tagsNetlistable });
+  const filters = resolveGalleryFilters(window.location.search, storedFilters);
+  const tagFilters = {
+    netlistable: filters.netlistable,
+    liked: filters.liked,
+    attention: filters.attention,
+  };
+  const tags = loadGalleryTagSummary(fetch, tagFilters);
   return {
     tags,
-    tagsNetlistable,
+    tagsScope: galleryTagScope(tagFilters),
     ...(!window.location.search && !storedFilters
       ? { feed: loadGalleryFeed() }
       : {}),
