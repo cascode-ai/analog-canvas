@@ -161,6 +161,12 @@ export class BrowserSimulationSession {
         reply.ok
       ) {
         if (
+          operation.operation === "history-delete" &&
+          "deletion" in reply &&
+          reply.deletion.deleted
+        )
+          this.options.runHistory.forgetRun(operation.runId);
+        if (
           (operation.operation === "prepare-batch" ||
             operation.operation === "prepare-sweep") &&
           "batch" in reply &&

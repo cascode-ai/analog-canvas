@@ -56,6 +56,23 @@ async function fixture() {
 }
 
 describe("Project result handoff", () => {
+  it("forgets an Agent-deleted Run and refreshes mounted history views", async () => {
+    const input = await fixture();
+    const history = new ProjectRunHistory(
+      "project",
+      createBrowserSimulationArchiveStore({ idbFactory: new IDBFactory() }),
+    );
+    history.track(input);
+    await vi.waitFor(() =>
+      expect(history.snapshot()[0]?.archive).toBeDefined(),
+    );
+    const listener = vi.fn();
+    history.subscribe(listener);
+    history.forgetRun("run");
+    expect(history.snapshot()).toEqual([]);
+    expect(listener).toHaveBeenCalled();
+    history.dispose();
+  });
   it.each([false, true])(
     "retains more than ten page results when persistence failure is %s",
     async (fail) => {

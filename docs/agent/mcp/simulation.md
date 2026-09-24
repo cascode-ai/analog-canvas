@@ -62,6 +62,21 @@ Run summaries reference the catalog instead of repeating its file list; outer
 `detail:"full"` retains the complete run metadata response.
 `export` retries failed evidence saving on the same run without executing again.
 
+For history management, `simulation_results` `history` lists Run IDs, source
+ownership (when recorded), logical evidence bytes, and whether each run is
+saved, generated cache, catalog-only, or session-only. An unavailable archive
+index is reported as `unverified`: history stays readable, but deletion cannot
+assume the Run is unprotected. `history-usage` reports actual Project evidence
+file count/bytes, unreferenced bodies and limits; unreferenced does not imply
+immediate reclaim while an Editor holds a lease. `history-delete` with
+`runId` and `dryRun:true` previews an exact deletion; omit `dryRun` to remove
+it. Saved or unclassified legacy archives require explicit
+`includeSaved:true`. Deletion does not remove Agent-local downloads and may
+report deferred physical reclamation while an Editor tab holds evidence.
+New automatically captured Project-run archives and new unarchived Run catalogs
+each retain the latest 30 per Project when cleanup can run; manually saved
+results and older unclassified archives are not automatically pruned.
+
 Internal folder creation reuses matching capability discovery for at most
 30 seconds. Sync/plot reuse only complete, finished directories for that window;
 pending/partial directories are fetched again. Explicit capabilities/catalog calls

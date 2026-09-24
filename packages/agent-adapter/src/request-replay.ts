@@ -30,6 +30,7 @@ export function isReadOnlySimulationRequest(
     "read",
     "catalog",
     "history",
+    "history-usage",
     "read-batch",
   ].includes(request.operation);
 }

@@ -207,6 +207,75 @@ export class SimulationService {
           );
         }
       }
+      if (op.operation === "history-usage") {
+        try {
+          return { ok: true, usage: await this.files.usage() };
+        } catch {
+          return problem(
+            "RUN_HISTORY_UNAVAILABLE",
+            "Evidence usage could not be read; no simulation was started",
+            "read",
+            "retry-after",
+          );
+        }
+      }
+      if (op.operation === "history-delete") {
+        const active = this.runs.get(op.runId);
+        if (
+          active &&
+          ["running", "cancelling", "queued"].includes(active.view.state)
+        )
+          return problem(
+            "RUN_HISTORY_ACTIVE",
+            "Wait for this run to finish before deleting its history",
+            "export",
+            "retry-after",
+          );
+        // A terminal receipt may precede its final catalog write. Do not let
+        // a late save resurrect a Run just deleted from this session.
+        if (active) await active.done;
+        try {
+          const deletion = await this.files.deleteHistory(op.runId, op);
+          if (deletion.deleted) this.runs.delete(op.runId);
+          return { ok: true, deletion };
+        } catch (error) {
+          const code = error instanceof Error ? error.message : "";
+          if (code === "RUN_HISTORY_NOT_FOUND")
+            return problem(
+              code,
+              "No retained run has this ID",
+              "export",
+              "fix-input",
+            );
+          if (code === "RUN_HISTORY_ACTIVE")
+            return problem(
+              code,
+              "Wait for this run to finish before deleting its history",
+              "export",
+              "retry-after",
+            );
+          if (code === "RUN_HISTORY_SAVED")
+            return problem(
+              code,
+              "This run has a saved or unclassified archive. Pass includeSaved:true to delete it explicitly",
+              "export",
+              "fix-input",
+            );
+          if (code === "RUN_HISTORY_DELETE_UNAVAILABLE")
+            return problem(
+              code,
+              "This host does not provide persistent Run deletion; no evidence was removed",
+              "export",
+              "not-retryable",
+            );
+          return problem(
+            "RUN_HISTORY_DELETE_FAILED",
+            "Run evidence was not fully removed; inspect history before retrying with a new request ID",
+            "export",
+            "retry-after",
+          );
+        }
+      }
       if (op.operation === "capabilities") {
         const capabilities = await this.executor.capabilities(op.profileId);
         const profiles = capabilities.profiles.filter(
@@ -317,7 +386,12 @@ export class SimulationService {
         if (op.operation === "catalog")
           return this.catalogReply(
             run.view.catalog ??
-              resultCatalog(run.view, "pending", run.prepared.signalTargets),
+              resultCatalog(
+                run.view,
+                "pending",
+                run.prepared.signalTargets,
+                run.source,
+              ),
             op,
           );
         if (
@@ -408,19 +482,22 @@ export class SimulationService {
             op.operation === "capabilities" ||
             op.operation === "authoring-help" ||
             op.operation === "history" ||
+            op.operation === "history-usage" ||
             op.operation === "catalog"
               ? "read"
-              : op.operation === "prepare-batch"
-                ? "prepare"
-                : op.operation === "prepare-sweep"
+              : op.operation === "history-delete"
+                ? "export"
+                : op.operation === "prepare-batch"
                   ? "prepare"
-                  : op.operation === "start-batch" || op.operation === "run"
-                    ? "start"
-                    : op.operation === "read-batch"
-                      ? "read"
-                      : op.operation === "cancel-batch"
-                        ? "cancel"
-                        : op.operation,
+                  : op.operation === "prepare-sweep"
+                    ? "prepare"
+                    : op.operation === "start-batch" || op.operation === "run"
+                      ? "start"
+                      : op.operation === "read-batch"
+                        ? "read"
+                        : op.operation === "cancel-batch"
+                          ? "cancel"
+                          : op.operation,
           recovery: "not-retryable",
           correlationId: crypto.randomUUID(),
         },
@@ -1245,6 +1322,7 @@ export class SimulationService {
         { ...run.view, state: output.cancelled ? "cancelled" : "finished" },
         collectionStatus,
         run.prepared.signalTargets,
+        run.source,
       );
       const evidenceArtifacts = run.view.artifacts.map((item) => ({ ...item }));
       await this.publishArtifacts(
@@ -1340,6 +1418,7 @@ export class SimulationService {
             run.view,
             "partial",
             run.prepared.signalTargets,
+            run.source,
           );
           if (!(await this.files.saveCatalog(run.view.catalog)))
             throw new Error("ARTIFACT_STORAGE_UNAVAILABLE");
@@ -1351,6 +1430,7 @@ export class SimulationService {
       { ...run.view, state: terminalState },
       run.view.error ? "partial" : collectionStatus,
       run.prepared.signalTargets,
+      run.source,
     );
     const catalogSaveStarted = performance.now();
     if (!(await this.files.saveCatalog(run.view.catalog))) {

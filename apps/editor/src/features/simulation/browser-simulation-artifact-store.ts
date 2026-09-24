@@ -24,6 +24,8 @@ export interface BrowserSimulationArtifactStore extends SimulationArtifactStore 
   releaseReferences(owner: string): Promise<void>;
   referencedArtifactIds(): Promise<string[]>;
   queueRunRemoval(runId: string): Promise<void>;
+  /** Caller holds the Project exclusive lock; legacy records are protected. */
+  pruneCatalogCache(archivedRunIds: readonly string[]): Promise<string[]>;
   /** Caller must hold the Project exclusive lock and reconcile every archive. */
   reclaim(
     archiveKeys: readonly string[],
@@ -77,6 +79,7 @@ export function createBrowserSimulationArtifactStore(
           ...(options.locks ? { locks: options.locks } : {}),
         });
         try {
+          await archives.pruneCache(projectId);
           await archives.cleanup(projectId);
         } finally {
           archives.close();
@@ -104,6 +107,169 @@ export function createBrowserSimulationArtifactStore(
     return value(request);
   }
   return {
+    async pruneCatalogCache(archivedRunIds) {
+      const db = await open();
+      try {
+        const tx = db.transaction([CATALOGS, REFERENCES], "readwrite");
+        const done = completed(tx);
+        void done.catch(() => {});
+        try {
+          const catalogs = tx.objectStore(CATALOGS);
+          const records = (await value(
+            catalogs.index("projectId").getAll(projectId),
+          )) as StoredResultCatalog[];
+          const archived = new Set(archivedRunIds);
+          const excess = records
+            .filter(
+              (record) =>
+                record.catalog.retentionPolicy === "cache" &&
+                !archived.has(record.catalog.runId),
+            )
+            .sort(
+              (a, b) =>
+                b.storedAt - a.storedAt ||
+                a.catalog.runId.localeCompare(b.catalog.runId),
+            )
+            .slice(30);
+          for (const record of excess) {
+            const runId = record.catalog.runId;
+            catalogs.delete([projectId, runId]);
+            tx.objectStore(REFERENCES).put(
+              { projectId, kind: "removal", runId, artifactIds: [] },
+              [projectId, `removal:${runId}`],
+            );
+          }
+          await done;
+          return excess.map((record) => record.catalog.runId);
+        } catch (error) {
+          tx.abort();
+          await done.catch(() => {});
+          throw error;
+        }
+      } finally {
+        db.close();
+      }
+    },
+    async usage() {
+      const db = await open();
+      try {
+        const tx = db.transaction(
+          [DIRECTORY, CATALOGS, REFERENCES],
+          "readonly",
+        );
+        const [files, catalogs, owners] = await Promise.all([
+          value(
+            tx.objectStore(DIRECTORY).index("projectId").getAll(projectId),
+          ) as Promise<Array<{ ref: ArtifactRef }>>,
+          value(
+            tx.objectStore(CATALOGS).index("projectId").getAll(projectId),
+          ) as Promise<StoredResultCatalog[]>,
+          value(
+            tx.objectStore(REFERENCES).index("projectId").getAll(projectId),
+          ) as Promise<Array<{ kind?: string; artifactIds: string[] }>>,
+          completed(tx),
+        ]);
+        const protectedIds = new Set([
+          ...catalogs.flatMap((record) =>
+            record.catalog.files.map((file) => file.id),
+          ),
+          ...owners
+            .filter((owner) => owner.kind !== "removal")
+            .flatMap((owner) => owner.artifactIds),
+        ]);
+        const unreferenced = files.filter(
+          (file) => !protectedIds.has(file.ref.id),
+        );
+        const { createBrowserSimulationArchiveStore } =
+          await import("./browser-simulation-archive-store");
+        const archives = createBrowserSimulationArchiveStore({
+          idbFactory: factory!,
+          ...(options.locks ? { locks: options.locks } : {}),
+        });
+        let pendingArchiveRemovals = 0;
+        try {
+          const pending = await archives.pendingRemovalCount(projectId);
+          if (!pending.ok) throw new Error(pending.message);
+          pendingArchiveRemovals = pending.value;
+        } finally {
+          archives.close();
+        }
+        return {
+          fileCount: files.length,
+          byteLength: files.reduce((sum, file) => sum + file.ref.byteLength, 0),
+          unreferencedFileCount: unreferenced.length,
+          unreferencedBytes: unreferenced.reduce(
+            (sum, file) => sum + file.ref.byteLength,
+            0,
+          ),
+          catalogCount: catalogs.length,
+          cleanupDeferred:
+            pendingArchiveRemovals > 0 ||
+            unreferenced.length > 0 ||
+            owners.some((owner) => owner.kind === "removal"),
+        };
+      } finally {
+        db.close();
+      }
+    },
+    async runArchives() {
+      const { createBrowserSimulationArchiveStore } =
+        await import("./browser-simulation-archive-store");
+      const archives = createBrowserSimulationArchiveStore({
+        idbFactory: factory!,
+        ...(options.locks ? { locks: options.locks } : {}),
+      });
+      try {
+        const listed = await archives.runEntries(projectId);
+        if (!listed.ok) throw new Error(listed.message);
+        return listed.value.map(({ runId, retention }) => ({
+          runId,
+          retention,
+        }));
+      } finally {
+        archives.close();
+      }
+    },
+    async deleteRun(runId, includeSaved) {
+      const { createBrowserSimulationArchiveStore } =
+        await import("./browser-simulation-archive-store");
+      const archives = createBrowserSimulationArchiveStore({
+        idbFactory: factory!,
+        ...(options.locks ? { locks: options.locks } : {}),
+      });
+      try {
+        const listed = await archives.runEntries(projectId);
+        if (!listed.ok) throw new Error(listed.message);
+        const owned = listed.value.filter((entry) => entry.runId === runId);
+        if (!includeSaved && owned.some((entry) => entry.retention === "saved"))
+          throw new Error("RUN_HISTORY_SAVED");
+        for (const entry of owned) {
+          const removed = await archives.delete(entry.id);
+          if (!removed.ok) throw new Error(removed.message);
+        }
+        const db = await open();
+        try {
+          const tx = db.transaction([CATALOGS, REFERENCES], "readwrite");
+          tx.objectStore(CATALOGS).delete([projectId, runId]);
+          tx.objectStore(REFERENCES).put(
+            { projectId, kind: "removal", runId, artifactIds: [] },
+            [projectId, `removal:${runId}`],
+          );
+          await completed(tx);
+        } finally {
+          db.close();
+        }
+        const reclaimed = await archives.cleanup(projectId);
+        return {
+          archiveCount: owned.length,
+          reclaimedFiles: reclaimed.ok ? reclaimed.value.files : 0,
+          reclaimedBytes: reclaimed.ok ? reclaimed.value.bytes : 0,
+          cleanupDeferred: !reclaimed.ok || reclaimed.value.deferred,
+        };
+      } finally {
+        archives.close();
+      }
+    },
     async queueRunRemoval(runId) {
       const db = await open();
       try {
