@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import { isTypingTarget } from "../../app/editor-runtime-helpers";
 import type { SchematicClipboard } from "./clipboard";
+import { captureProjectCopy } from "./project-copy";
 import {
   CIRCUIT_CLIPBOARD_MIME,
   decodeCircuitClipboard,
@@ -49,7 +50,16 @@ export function useCircuitClipboard(options: Options) {
         "Circuit copied · switch to another canvas and paste to place",
       );
       if (placeImmediately) {
-        const clipboard = decodeCircuitClipboard(text);
+        // C places a fresh insertion, exactly as if the parts were inserted
+        // anew: the copy keeps the selection's own wiring and labels, but no
+        // connection or name from outside it (a Net name owned by an
+        // unselected label or Port, a Bulk override, a No Connect). Only
+        // Ctrl/Cmd+C carries that electrical context to another canvas.
+        const clipboard = captureProjectCopy(
+          owner.project,
+          owner.document,
+          selection ?? owner.selection,
+        );
         if (!clipboard) throw new Error("Copied selection cannot be placed");
         // C starts the cursor preview synchronously, even if the optional
         // system clipboard write is waiting for permission or never resolves.
