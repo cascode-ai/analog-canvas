@@ -214,8 +214,13 @@ export interface GalleryFeedPage {
   authors?: GalleryAuthorOption[];
 }
 
+/** A Gallery read's answer when only signed-in readers may see the Gallery. */
+export const GALLERY_SIGN_IN_REQUIRED = "sign-in-required";
+export type GalleryFeedResult =
+  GalleryFeedPage | null | typeof GALLERY_SIGN_IN_REQUIRED;
+
 export interface GalleryFeedState {
-  status: "loading" | "ready" | "unavailable";
+  status: "loading" | "ready" | "unavailable" | "signed-out";
   entries: GalleryFeedEntry[];
   nextCursor: string | null;
   total: number | null;
@@ -331,7 +336,7 @@ export interface GalleryTagSummary {
 }
 
 export interface GalleryLandingPreload {
-  feed?: Promise<GalleryFeedPage | null>;
+  feed?: Promise<GalleryFeedResult>;
   tags: Promise<GalleryTagSummary>;
   /** The filters the preloaded tag counts answer; see galleryTagScope. */
   tagsScope?: string;
@@ -427,7 +432,7 @@ export async function loadGalleryFeed(
     limit?: number;
     attention?: boolean;
   } = {},
-): Promise<GalleryFeedPage | null> {
+): Promise<GalleryFeedResult> {
   const params = new URLSearchParams();
   if (options.attention) params.set("attention", "1");
   if (options.author) params.set("author", options.author);
@@ -445,6 +450,8 @@ export async function loadGalleryFeed(
       `/api/gallery${query ? `?${query}` : ""}`,
       { credentials: "same-origin" },
     );
+    // The Gallery is for signed-in readers; say so instead of "unavailable".
+    if (response.status === 401) return GALLERY_SIGN_IN_REQUIRED;
     if (!response.ok) return null;
     const payload = (await response.json()) as {
       entries?: GalleryFeedEntry[];

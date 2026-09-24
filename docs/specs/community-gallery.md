@@ -15,6 +15,21 @@ never stored, echoed, or served. Previews are rendered by `@icm/render-svg`
 from the entry's top document and served as `image/svg+xml` with a
 restrictive content-security-policy.
 
+## Reader access
+
+The Gallery is for signed-in readers. Every Gallery read (the list, tags,
+authors, an entry and its Project, its preview and its history) needs a
+signed-in session or the read-only Gallery credential (`GALLERY_BACKUP_TOKEN`
+as a Bearer token). Without either, each read answers
+`401 {"error":"sign-in-required"}` with `cache-control: no-store`, and the
+landing page shows a sign-in prompt instead of the wall. "Public" below means
+published on the wall for those readers, not readable anonymously. Admin and
+owner-only routes keep their own, stricter checks, and writes keep theirs.
+A reader's preview is served `private`, so a shared cache never keeps it; the
+Worker's edge cache keeps the immutable bytes behind the reader check. A valid
+session is remembered for a minute per Worker isolate, so a wall of previews
+asks the AuthDO once.
+
 ## Public surface
 
 - `GET /api/gallery` — newest-first `public` entries

@@ -12,6 +12,7 @@ import {
 } from "./gallery-feed";
 
 import {
+  GALLERY_SIGN_IN_REQUIRED,
   galleryAuthorsOf,
   removeGalleryAuthorEntry,
   type GalleryFeedEntry,
@@ -46,6 +47,14 @@ describe("Gallery landing preload", () => {
   });
 });
 
+function fetchStatus(status: number): typeof fetch {
+  return (async () =>
+    new Response(JSON.stringify({ error: "x" }), {
+      status,
+      headers: { "content-type": "application/json" },
+    })) as typeof fetch;
+}
+
 function fetchReturning(payload: unknown, ok = true): typeof fetch {
   return (async () =>
     new Response(JSON.stringify(payload), {
@@ -54,22 +63,35 @@ function fetchReturning(payload: unknown, ok = true): typeof fetch {
     })) as typeof fetch;
 }
 
+/** A page, or null for anything that is not one. */
+const pageOf = (result: Awaited<ReturnType<typeof loadGalleryFeed>>) =>
+  typeof result === "string" ? null : result;
+
 describe("loadGalleryFeed", () => {
+  it("says a signed-out reader must sign in instead of calling the Gallery unavailable", async () => {
+    expect(await loadGalleryFeed(fetchStatus(401))).toBe(
+      GALLERY_SIGN_IN_REQUIRED,
+    );
+    expect(await loadGalleryFeed(fetchStatus(503))).toBeNull();
+  });
+
   it("returns a page of entries with its cursor", async () => {
-    const page = await loadGalleryFeed(
-      fetchReturning({
-        entries: [
-          {
-            id: "g1",
-            name: "Ring",
-            author: "tz",
-            description: "",
-            createdAt: "2026-08-21T00:00:00.000Z",
-            schemaVersion: 23,
-          },
-        ],
-        nextCursor: "2026-08-21T00:00:00.000Z|g1",
-      }),
+    const page = pageOf(
+      await loadGalleryFeed(
+        fetchReturning({
+          entries: [
+            {
+              id: "g1",
+              name: "Ring",
+              author: "tz",
+              description: "",
+              createdAt: "2026-08-21T00:00:00.000Z",
+              schemaVersion: 23,
+            },
+          ],
+          nextCursor: "2026-08-21T00:00:00.000Z|g1",
+        }),
+      ),
     );
     expect(page?.entries.map((entry) => entry.id)).toEqual(["g1"]);
     expect(page?.nextCursor).toBe("2026-08-21T00:00:00.000Z|g1");
@@ -105,24 +127,30 @@ describe("loadGalleryFeed", () => {
   });
 
   it("passes the server's total through and tolerates its absence", async () => {
-    const withTotal = await loadGalleryFeed(
-      fetchReturning({ entries: [], nextCursor: null, total: 42 }),
+    const withTotal = pageOf(
+      await loadGalleryFeed(
+        fetchReturning({ entries: [], nextCursor: null, total: 42 }),
+      ),
     );
     expect(withTotal?.total).toBe(42);
     // An older worker without totals must read as "unknown", never as zero.
-    const withoutTotal = await loadGalleryFeed(fetchReturning({ entries: [] }));
+    const withoutTotal = pageOf(
+      await loadGalleryFeed(fetchReturning({ entries: [] })),
+    );
     expect(withoutTotal?.total).toBeNull();
   });
 
   it("keeps full quick-filter totals distinct from the loaded page", async () => {
     const filterCounts = { attention: 15, netlistable: 240, liked: 3 };
-    const page = await loadGalleryFeed(
-      fetchReturning({
-        entries: [],
-        nextCursor: "next",
-        total: 500,
-        filterCounts,
-      }),
+    const page = pageOf(
+      await loadGalleryFeed(
+        fetchReturning({
+          entries: [],
+          nextCursor: "next",
+          total: 500,
+          filterCounts,
+        }),
+      ),
     );
     expect(page?.filterCounts).toEqual(filterCounts);
     for (const invalid of [
@@ -132,10 +160,10 @@ describe("loadGalleryFeed", () => {
       { ...filterCounts, liked: "3" },
     ]) {
       expect(
-        (
+        pageOf(
           await loadGalleryFeed(
             fetchReturning({ entries: [], filterCounts: invalid }),
-          )
+          ),
         )?.filterCounts,
       ).toBeUndefined();
     }
@@ -144,15 +172,16 @@ describe("loadGalleryFeed", () => {
   it("reads filtered contributor aggregates while tolerating older or invalid payloads", async () => {
     const authors = [{ author: "Alice", ownerUserId: "owner-a", count: 7 }];
     expect(
-      (
+      pageOf(
         await loadGalleryFeed(
           fetchReturning({ entries: [], authors, nextCursor: "next" }),
-        )
+        ),
       )?.authors,
     ).toEqual(authors);
     expect(
-      (await loadGalleryFeed(fetchReturning({ entries: [], authors: [] })))
-        ?.authors,
+      pageOf(
+        await loadGalleryFeed(fetchReturning({ entries: [], authors: [] })),
+      )?.authors,
     ).toEqual([]);
     for (const invalid of [
       undefined,
@@ -162,10 +191,10 @@ describe("loadGalleryFeed", () => {
       [{ author: "Alice", count: "1" }],
     ]) {
       expect(
-        (
+        pageOf(
           await loadGalleryFeed(
             fetchReturning({ entries: [], authors: invalid }),
-          )
+          ),
         )?.authors,
       ).toBeUndefined();
     }

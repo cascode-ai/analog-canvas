@@ -105,6 +105,7 @@ function environment(): Harness {
     ADMIN_EMAILS: "owner@example.com",
   } as AuthEnv);
   return {
+    GALLERY_BACKUP_TOKEN: READER_TOKEN,
     GALLERY: {
       getByName: () => ({
         fetch: (input: string, init?: RequestInit) =>
@@ -126,6 +127,89 @@ function environment(): Harness {
 }
 
 const ORIGIN = "https://gallery.test";
+
+describe("Gallery readers", () => {
+  // Every read the Gallery serves, for one published entry.
+  async function reads(env: Harness) {
+    const cookie = await adminOf(env);
+    const id = await submitOne(env, "Readers only", { cookie });
+    const { entry } = (await (
+      await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${id}`, {
+          headers: cookieHeaders(cookie),
+        }),
+      )
+    ).json()) as { entry: { previewRevision: string } };
+    return [
+      "/api/gallery",
+      "/api/gallery?netlistable=1",
+      "/api/gallery/tags",
+      "/api/gallery/authors",
+      `/api/gallery/${id}`,
+      `/api/gallery/${id}/versions`,
+      `/api/gallery/${id}/preview.svg?v=${entry.previewRevision}`,
+    ];
+  }
+  const direct = async (env: Harness, path: string, headers?: HeadersInit) =>
+    (await routeGalleryRequest(
+      new Request(`${ORIGIN}${path}`, headers ? { headers } : {}),
+      env,
+    ))!;
+
+  it("gives a visitor without a session or the read credential nothing", async () => {
+    const env = environment();
+    for (const path of await reads(env)) {
+      for (const headers of [
+        undefined,
+        { Authorization: "Bearer wrong" },
+        { Cookie: "session=forged" },
+      ]) {
+        const response = await direct(env, path, headers);
+        expect(response.status, `${path} ${JSON.stringify(headers)}`).toBe(401);
+        expect(response.headers.get("cache-control")).toBe("no-store");
+        expect(await response.json()).toEqual({ error: "sign-in-required" });
+      }
+      expect(
+        (
+          await routeGalleryRequest(
+            new Request(`${ORIGIN}${path}`, { method: "HEAD" }),
+            env,
+          )
+        )?.status,
+      ).toBe(401);
+    }
+  });
+
+  it("serves a signed-in member and the read credential every read", async () => {
+    const env = environment();
+    const paths = await reads(env);
+    const member = await makerOf(env);
+    for (const path of paths) {
+      // History stays its owner's or an admin's; the rest is any reader's.
+      const expected = path.endsWith("/versions") ? 401 : 200;
+      const read = await direct(env, path, cookieHeaders(member));
+      expect(read.status, path).toBe(expected);
+      if (expected === 401)
+        expect(((await read.json()) as { error: string }).error).not.toBe(
+          "sign-in-required",
+        );
+      expect(
+        (
+          await direct(env, path, {
+            Authorization: `Bearer ${READER_TOKEN}`,
+          })
+        ).status,
+        path,
+      ).toBe(expected);
+    }
+    const preview = await direct(env, paths.at(-1)!, cookieHeaders(member));
+    // A reader's browser may keep the image; a shared cache may not.
+    expect(preview.headers.get("cache-control")).toBe(
+      "private, max-age=31536000, immutable",
+    );
+  });
+});
 
 describe("off-site Gallery backup credential", () => {
   const endpoint = `${ORIGIN}/api/gallery/maintenance/automated-backup`;
@@ -527,8 +611,27 @@ function previousRouteVersionText(): string {
   return JSON.stringify(raw);
 }
 
+/**
+ * The Gallery answers only signed-in readers or the read-only credential. A
+ * test that reads without a session means "no account": it reads with the
+ * credential, which the Gallery treats exactly like that.
+ */
+const READER_TOKEN = "gallery-reader-test-token";
+function asReader(request: Request): Request {
+  if (
+    (request.method !== "GET" && request.method !== "HEAD") ||
+    !new URL(request.url).pathname.startsWith("/api/gallery") ||
+    request.headers.get("Cookie") ||
+    request.headers.get("Authorization")
+  )
+    return request;
+  const headers = new Headers(request.headers);
+  headers.set("Authorization", `Bearer ${READER_TOKEN}`);
+  return new Request(request, { headers });
+}
+
 async function route(env: GalleryEnv, request: Request) {
-  const response = await routeGalleryRequest(request, env);
+  const response = await routeGalleryRequest(asReader(request), env);
   if (!response) throw new Error("gallery route did not match");
   return response;
 }
@@ -2163,7 +2266,7 @@ describe("gallery submissions", () => {
     const cache = memoryPreviewCache();
     await cache.put(request, new Response(legacy));
     clearFormulaArtifactCacheForTests();
-    const repaired = await routeGalleryRequest(request, env, {
+    const repaired = await routeGalleryRequest(asReader(request), env, {
       previewCache: cache,
     });
     expect(repaired!.status).toBe(200);
@@ -2178,7 +2281,7 @@ describe("gallery submissions", () => {
         .one().count,
     ).toBe(0);
     env.galleryQueries.length = 0;
-    const cached = await routeGalleryRequest(request, env, {
+    const cached = await routeGalleryRequest(asReader(request), env, {
       previewCache: cache,
     });
     expect(await cached!.text()).toBe(current.svg_text);
@@ -2190,8 +2293,9 @@ describe("gallery submissions", () => {
       id,
     );
     expect(
-      (await routeGalleryRequest(request, env, { previewCache: cache }))!
-        .status,
+      (await routeGalleryRequest(asReader(request), env, {
+        previewCache: cache,
+      }))!.status,
     ).toBe(404);
   });
 
@@ -2241,7 +2345,7 @@ describe("gallery submissions", () => {
       ),
     );
     expect(immutablePreview.headers.get("cache-control")).toBe(
-      "public, max-age=31536000, immutable",
+      "private, max-age=31536000, immutable",
     );
   });
 
@@ -2259,9 +2363,13 @@ describe("gallery submissions", () => {
     const cache = memoryPreviewCache();
 
     env.galleryQueries.length = 0;
-    const first = await routeGalleryRequest(new Request(previewUrl), env, {
-      previewCache: cache,
-    });
+    const first = await routeGalleryRequest(
+      asReader(new Request(previewUrl)),
+      env,
+      {
+        previewCache: cache,
+      },
+    );
     expect(first?.status).toBe(200);
     const firstSvg = await first!.text();
     expect(firstSvg).toContain("<svg");
@@ -2273,9 +2381,13 @@ describe("gallery submissions", () => {
     expect(coldQuery).not.toContain("project_text");
 
     env.galleryQueries.length = 0;
-    const second = await routeGalleryRequest(new Request(previewUrl), env, {
-      previewCache: cache,
-    });
+    const second = await routeGalleryRequest(
+      asReader(new Request(previewUrl)),
+      env,
+      {
+        previewCache: cache,
+      },
+    );
     expect(await second!.text()).toBe(firstSvg);
     expect(cache.putCalls).toHaveLength(1);
     expect(env.galleryQueries.some((query) => query.includes("svg_text"))).toBe(
@@ -2296,9 +2408,13 @@ describe("gallery submissions", () => {
       }),
     );
     expect(recycled.status).toBe(200);
-    const hidden = await routeGalleryRequest(new Request(previewUrl), env, {
-      previewCache: cache,
-    });
+    const hidden = await routeGalleryRequest(
+      asReader(new Request(previewUrl)),
+      env,
+      {
+        previewCache: cache,
+      },
+    );
     expect(hidden?.status).toBe(404);
     expect(hidden?.headers.get("cache-control")).toBe("no-store");
   });
@@ -3475,7 +3591,7 @@ describe("gallery owner editing", () => {
       ),
     );
     expect(freshPreview.headers.get("cache-control")).toBe(
-      "public, max-age=31536000, immutable",
+      "private, max-age=31536000, immutable",
     );
 
     const mine = await route(
@@ -3869,7 +3985,7 @@ describe("gallery administration", () => {
     const restoredPreview = await route(env, new Request(previewUrl));
     expect(restoredPreview.status).toBe(200);
     expect(restoredPreview.headers.get("cache-control")).toBe(
-      "public, max-age=31536000, immutable",
+      "private, max-age=31536000, immutable",
     );
     const back = await route(env, new Request(`${ORIGIN}/api/gallery`));
     expect(

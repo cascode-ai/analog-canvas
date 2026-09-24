@@ -1699,6 +1699,28 @@ test("netlist tag counts honor linked and remembered filters on first load", asy
   }
 });
 
+test("a signed-out visitor sees a sign-in prompt instead of the Gallery", async ({
+  page,
+}) => {
+  // The Gallery answers only signed-in readers: every read is refused.
+  const reads: string[] = [];
+  await page.route("**/api/gallery**", (route) => {
+    reads.push(new URL(route.request().url()).pathname);
+    return route.fulfill({
+      status: 401,
+      json: { error: "sign-in-required" },
+    });
+  });
+  await page.goto("/");
+  const prompt = page.getByTestId("gallery-sign-in");
+  await expect(prompt).toContainText("signed-in members");
+  await expect(prompt).toContainText("Sign in (top right)");
+  await expect(page.getByTestId("gallery-tag-sidebar")).toHaveCount(0);
+  await expect(page.locator('[data-testid^="gallery-tile-"]')).toHaveCount(0);
+  await expect(page.getByTestId("gallery-empty")).toHaveCount(0);
+  expect(reads).toContain("/api/gallery");
+});
+
 test("needs attention and liked narrow the category and tag counts", async ({
   page,
 }) => {
