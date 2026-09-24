@@ -10,10 +10,10 @@ describe("CI workflow", () => {
     expect(workflow).toContain("  pull_request:\n");
     expect(workflow).toContain("  merge_group:\n");
     // A queued group is planned from the main it was queued on, not forced
-    // full: the full browser audit stays weekly and manual.
+    // full: the full browser audit stays manual.
     expect(workflow).toContain('base="$MERGE_GROUP_BASE_SHA"');
     expect(workflow).toContain(
-      "if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'",
+      "if: github.event_name == 'workflow_dispatch'\n",
     );
   });
 
@@ -55,14 +55,12 @@ describe("CI workflow", () => {
     expect(workflow).toContain('test "$SHARD_RESULT" = "success"');
   });
 
-  it("keeps a weekly browser audit and manual complete validation", () => {
+  it("runs the complete browser audit only by hand, never on a schedule", () => {
     expect(workflow).toContain("workflow_dispatch:");
-    expect(workflow).toContain("schedule:");
-    expect(workflow).toContain('cron: "23 18 * * 0"');
+    expect(workflow).not.toContain("schedule:");
+    expect(workflow).not.toContain("cron:");
     expect(workflow).toContain("force_args+=(--force-full)");
-    expect(workflow).toContain(
-      "needs.changes.outputs.heavy == 'true' && github.event_name != 'schedule'",
-    );
+    expect(workflow).toContain("if: needs.changes.outputs.heavy == 'true'\n");
     expect(workflow).toContain("Full browser audit (${{ matrix.shard }})");
     for (const shard of ["1/4", "2/4", "3/4", "4/4"])
       expect(workflow).toContain(shard);

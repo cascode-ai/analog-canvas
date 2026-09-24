@@ -5,11 +5,9 @@ on:
   # The merge queue validates each queued candidate against current main, so
   # nobody has to update a pull request by hand when main moves.
   merge_group:
+  # Nothing runs on a schedule. Pull requests and queued groups run their
+  # mapped browser specs; the complete four-shard audit is started by hand.
   workflow_dispatch:
-  schedule:
-    # PRs already validate every change. One weekly full-browser audit is
-    # enough to catch latent cross-suite drift without repeating it every day.
-    - cron: "23 18 * * 0"
 
 permissions:
   contents: read
@@ -33,7 +31,7 @@ jobs:
         with:
           # Pull requests need their complete commit range for Test-Impact,
           # and a queued group its range from the main it was queued on.
-          # Scheduled and manual runs inspect only the checked-out commit, so
+          # Manual runs inspect only the checked-out commit, so
           # two commits avoid an unbounded all-ref fetch.
           fetch-depth: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && '0' || '2' }}
       - id: plan
@@ -81,9 +79,7 @@ jobs:
   core:
     name: Core contracts
     needs: changes
-    # A scheduled run audits the browser suite against a commit that already
-    # passed Core contracts as a PR. Manual runs still execute both layers.
-    if: needs.changes.outputs.heavy == 'true' && github.event_name != 'schedule'
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
@@ -153,8 +149,8 @@ jobs:
   full_browser_audit:
     name: Full browser audit (${{ matrix.shard }})
     needs: changes
-    # Weekly and manual only: a queued group runs its mapped browser specs.
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # Manual only: pull requests and queued groups run their mapped specs.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
@@ -162,7 +158,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Full coverage is a weekly/manual audit, not a per-PR tax. Four shards
+        # Full coverage is a manual audit, not a per-PR tax. Four shards
         # retain its wall-clock speed without charging every candidate for the
         # complete browser suite.
         shard:

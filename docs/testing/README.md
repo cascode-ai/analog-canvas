@@ -47,8 +47,8 @@ shipped product paths into focused browser contracts. Unit tests, package
 manifests, the Node-only local host and Node platform package stay in Core
 contracts instead of allocating a browser. An unmapped browser path gets a
 small insertion/runtime-safety fallback alongside all mapped contracts; an
-unmapped path never removes another changed path's selected tests. The complete browser suite remains a
-weekly scheduled and manual audit.
+unmapped path never removes another changed path's selected tests. The complete
+browser suite runs only as a manual audit.
 
 `gate:preflight` runs cheap static contracts and cross-checks the commit's test
 impact declaration. `gate:affected` runs the catalog's bounded unit, focused
@@ -82,8 +82,8 @@ affected selection contains at least twelve spec files, with three workers
 per runner. A lightweight `Browser tests` aggregation job preserves the required
 check name and succeeds only after all selected shards pass. This keeps broad but
 legitimate focused selections within the PR wall-clock budget without raising
-per-runner Chromium contention; weekly scheduled and manual audits retain their
-separate four-shard full-suite route.
+per-runner Chromium contention; the manual audit keeps its separate four-shard
+full-suite route.
 
 ## Local iteration and batch validation
 
@@ -132,10 +132,9 @@ Every implementation pull request keeps two required checks:
   configuration and the Node-side specs load; Vite serves the editor sources
   directly because the Core job already owns the production build.
 
-Weekly scheduled and manual workflows run the complete browser suite in four
-shards. The scheduled audit skips Core contracts because the audited `main`
-commit already passed them in its pull request; manual full validation retains
-both layers.
+Nothing runs on a schedule. A manual `CI` run (`gh workflow run ci.yml`, or Run
+workflow in GitHub Actions) executes Core contracts and the complete browser
+suite in four shards.
 A PR enters the merge queue after its two required checks pass. The queue runs
 the same path-planned checks on the PR merged with current `main`, never the
 complete browser suite, and merges it. CI does not repeat on the subsequent

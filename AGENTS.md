@@ -216,9 +216,8 @@ Before a non-document change is merged or pushed to `main`:
    pull request to the merge queue, which re-runs the same path-planned checks
    on the candidate merged with current `main` and then squash-merges it. A
    branch needs a manual update only when it conflicts with `main`, not merely
-   because `main` moved. Weekly scheduled and manual CI runs retain the
-   complete four-shard browser audit; the scheduled audit does not repeat Core
-   contracts for a commit that already passed them.
+   because `main` moved. The complete four-shard browser audit runs only when
+   started by hand (`gh workflow run ci.yml`); nothing runs on a schedule.
 5. If a remote check fails, keep the target active: inspect its log, repair the
    reported cause, and repeat verification. A successful `git push` is not a
    completed delivery.
