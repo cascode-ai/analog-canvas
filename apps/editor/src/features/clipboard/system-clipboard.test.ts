@@ -240,6 +240,81 @@ describe("portable system circuit clipboard", () => {
     ).toBe(true);
   });
 
+  it("encodes C's fresh insertion without the selection's outside context", () => {
+    // M1's gate is on the Net a Cell Pin names O; its source goes to ground.
+    const source = createEmptyProject("source", "Fresh");
+    const document = source.documents[0]!;
+    const placement = (x: number, y: number) => ({
+      position: { x, y },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    });
+    document.instances.push(
+      {
+        id: "M1",
+        reference: "M1",
+        symbolId: "nmos",
+        placement: placement(300, 200),
+        netlist: {
+          binding: { kind: "model", deviceClass: "mos", name: "NMOS" },
+          parameters: { w: "1u", l: "150n", nf: "1", m: "1" },
+        },
+      },
+      { id: "P1", symbolId: "port", placement: placement(200, 200) },
+      { id: "GND1", symbolId: "ground", placement: placement(320, 300) },
+    );
+    document.nets.push(
+      {
+        id: "net-o",
+        terminals: [
+          { instanceId: "M1", pinName: "G" },
+          { instanceId: "P1", pinName: "P" },
+        ],
+      },
+      {
+        id: "net-gnd",
+        terminals: [
+          { instanceId: "M1", pinName: "S" },
+          { instanceId: "GND1", pinName: "0" },
+        ],
+      },
+    );
+    document.netlist!.terminals.push({
+      id: "terminal-o",
+      name: "O",
+      netId: "net-o",
+      direction: "input",
+      interfaceInstanceIds: ["P1"],
+    });
+    const selection = {
+      instanceIds: ["M1"],
+      routeIds: [],
+      junctionIds: [],
+      annotationIds: [],
+      draftingIds: [],
+    };
+    const placed = (preserveElectrical: boolean) =>
+      paste(
+        createEmptyProject("target", "Target"),
+        encodeCircuitClipboard(
+          source,
+          document,
+          selection,
+          preserveElectrical,
+        )!,
+      ).documents[0]!;
+    const claims = (copied: ReturnType<typeof placed>) =>
+      copied.connectivityEvidence.flatMap((item) =>
+        item.kind === "name-claim" ? [item.name] : [],
+      );
+    // Ctrl/Cmd+C composes with the context; C lands as if newly inserted.
+    expect(claims(placed(true))).toContain("O");
+    const fresh = placed(false);
+    expect(fresh.instances.map((item) => item.reference)).toEqual(["M1"]);
+    expect(claims(fresh)).toEqual([]);
+    expect(fresh.nets.flatMap((net) => net.terminals)).toEqual([]);
+  });
+
   it("isolates different same-ID custom definitions and restores dependencies with undo/redo", () => {
     let source = createEmptyProject("source", "Custom");
     source.documents[0]!.instances.push({

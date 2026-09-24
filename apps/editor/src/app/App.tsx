@@ -380,7 +380,10 @@ import {
   EMPTY_WIRE_DRAFT_PREVIEW,
   resolveWireDraftPreview,
 } from "../features/wiring/wire-draft-preview";
-import type { ScreenFlip } from "../interaction/shortcut-orientation";
+import type {
+  PlacementOrientationOperation,
+  ScreenFlip,
+} from "../interaction/shortcut-orientation";
 import { buildSceneSnapTargetIndex } from "../snap/candidates";
 import { snapCoordinate } from "../snap/engine";
 import type { SnapGuideLine } from "../snap/engine";
@@ -1628,6 +1631,10 @@ function WorkspaceEditor({
    * so it seeds its preview from here instead of waiting for the next move.
    */
   const lastCanvasPointRef = useRef<Point | null>(null);
+  const carriedCopyRef = useRef<{
+    clipboard: SchematicClipboard;
+    orientation: readonly PlacementOrientationOperation[];
+  } | null>(null);
 
   /** Show a placement ghost under the cursor without waiting for a move. */
   function seedComponentPreviewFromPointer(
@@ -3542,22 +3549,31 @@ function WorkspaceEditor({
       !interfaceConfirmation &&
       !versionHistoryOpen,
     setStatus,
-    beginPaste: (clipboard) => {
-      if (getCurrentInteractionState().kind !== "idle") {
-        setStatus("Finish or cancel the active tool before pasting");
-        return;
-      }
-      prepareProjectCopy(project, document, clipboard);
-      const anchor = clipboardPlacementAnchor(clipboard);
-      if (!anchor) throw new Error("Copied objects have no placeable origin");
-      cancelAllTransientInteraction();
-      beginCopyPlacementInteraction(clipboard, anchor);
-      seedCopyPreviewFromPointer();
-      setStatus(
-        `Paste ${clipboard.instances.length} components · click to place · Esc cancels`,
-      );
-    },
+    beginPaste: (clipboard) => beginClipboardPlacement(clipboard),
   });
+
+  /**
+   * Put a copied fragment in the pointer's hand on this canvas. A copy carried
+   * in from another project tab keeps the turns and flips it already had.
+   */
+  function beginClipboardPlacement(
+    clipboard: SchematicClipboard,
+    orientation?: readonly PlacementOrientationOperation[],
+  ): void {
+    if (getCurrentInteractionState().kind !== "idle") {
+      setStatus("Finish or cancel the active tool before pasting");
+      return;
+    }
+    prepareProjectCopy(project, document, clipboard);
+    const anchor = clipboardPlacementAnchor(clipboard);
+    if (!anchor) throw new Error("Copied objects have no placeable origin");
+    cancelAllTransientInteraction();
+    beginCopyPlacementInteraction(clipboard, anchor, orientation);
+    seedCopyPreviewFromPointer();
+    setStatus(
+      `Paste ${clipboard.instances.length} components · click to place · Esc cancels`,
+    );
+  }
 
   function selectAllObjects(): void {
     replaceSelection(selectionPolicy.selectAll());
@@ -4984,6 +5000,16 @@ function WorkspaceEditor({
       }
       const snapshot = await captureAuthoredProject();
       if (!snapshot) return false;
+      // A copy in hand (C, or a paste not yet placed) follows the pointer
+      // into the tab that opens next, as if the tabs were one canvas.
+      const interaction = getCurrentInteractionState();
+      carriedCopyRef.current =
+        interaction.kind === "copy-placement"
+          ? {
+              clipboard: interaction.copy.clipboard,
+              orientation: interaction.copy.orientationOperations,
+            }
+          : null;
       cancelAllTransientInteraction();
       stageRecovery(snapshot, {
         cloudBinding,
@@ -4994,6 +5020,18 @@ function WorkspaceEditor({
     },
     onError: (message) => setStatus(message),
   });
+  useEffect(() => {
+    // Runs once the next tab's Project is the one rendered, so the copy is
+    // prepared against, and placed into, that Project.
+    const carried = carriedCopyRef.current;
+    carriedCopyRef.current = null;
+    if (!carried) return;
+    try {
+      beginClipboardPlacement(carried.clipboard, carried.orientation);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
+  }, [projectTabs.activeId]);
   openProjectInTabRef.current = (next, view, options) =>
     projectTabs.open(
       () => createTabSession(next, view, options),

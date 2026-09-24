@@ -35,10 +35,13 @@ export function useCircuitClipboard(options: Options) {
     const action = ++operation.current;
     if (!owner.enabled) return;
     try {
+      // What V pastes later is what this gesture copied: C's fresh insertion,
+      // or Ctrl/Cmd+C's selection with its outside context.
       const text = encodeCircuitClipboard(
         owner.project,
         owner.document,
         selection ?? owner.selection,
+        !placeImmediately,
       );
       if (!text) {
         owner.setStatus("Select components or wires before copying");
@@ -65,7 +68,7 @@ export function useCircuitClipboard(options: Options) {
         // system clipboard write is waiting for permission or never resolves.
         owner.beginPaste(clipboard);
         owner.setStatus(
-          "Circuit copied · click to place · R rotates · Esc cancels",
+          "Circuit copied · click to place, here or in another tab · R rotates · Esc cancels",
         );
         // Direct C is an internal placement gesture, not a request to access
         // the OS clipboard. Ctrl/Cmd+C remains the cross-window copy path.

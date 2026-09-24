@@ -592,6 +592,11 @@ hover and preview are not electrical mutations.
 Internal `C`, Gallery canvas insertion, and the existing Agent copy command
 use the same Project-aware copy planner. C retains its pointer-following ghost,
 rotation/reflection shortcuts, repeated click placement, and Escape cancellation.
+A copy in hand stays in hand across project tabs: activating or opening another
+tab prepares the same capsule against that tab's Project and keeps its turns and
+flips, so `C` in one tab and a click in another places it there. Plain `V` after
+`C` pastes the same fresh insertion; only `Ctrl/Cmd+C` composes with the
+selection's outside context.
 Gallery selects the source top Cell body; referenced child Cells remain hierarchy
 and are imported as dependencies. Inserting a nonempty hierarchical Gallery entry
 does not replace the current Project.

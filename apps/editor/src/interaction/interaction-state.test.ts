@@ -263,6 +263,39 @@ describe("editor interaction state", () => {
     });
   });
 
+  it("resumes a copy carried from another tab with its turns and flips", () => {
+    const operations = [
+      { kind: "rotate", deltaDegrees: 90 },
+      { kind: "reflect", direction: "top-bottom" },
+    ] as const;
+    const resumed = interactionReducer<{ ids: string[] }>(
+      { kind: "idle" },
+      {
+        type: "begin-copy-placement",
+        clipboard: { ids: ["M1"] },
+        anchor: { x: 10, y: 20 },
+        orientationOperations: operations,
+      },
+    );
+    expect(resumed).toMatchObject({
+      kind: "copy-placement",
+      copy: {
+        sequence: 1,
+        previewPoint: null,
+        orientationOperations: operations,
+      },
+    });
+    const rotated = interactionReducer(resumed, {
+      type: "rotate-copy",
+      deltaDegrees: -90,
+    });
+    // The carried list is copied, never shared with the tab it came from.
+    expect(operations).toHaveLength(2);
+    expect(
+      rotated.kind === "copy-placement" && rotated.copy.orientationOperations,
+    ).toHaveLength(3);
+  });
+
   it("does not republish an unchanged snapped copy preview point", () => {
     const copying = interactionReducer<{ ids: string[] }>(
       { kind: "idle" },
