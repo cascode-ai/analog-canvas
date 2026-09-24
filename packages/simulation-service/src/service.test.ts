@@ -1131,6 +1131,77 @@ describe("shared simulation lifecycle", () => {
     expect(f.executor.execute).not.toHaveBeenCalled();
   });
 
+  it("prepares native ngspice PVT and source-parameter points through the existing batch", async () => {
+    const project = CircuitProjectSchema.parse(
+      currentFiveTransistorOtaCircuitSource(),
+    );
+    const folder = createSimulationFolder({
+      id: SETUP_ID,
+      name: "ngspice PVT",
+      profileId: "test",
+      engine: "ngspice",
+      documentId: project.topDocumentId,
+    });
+    const entry = folder.input.files.find(
+      (file) => file.path === folder.input.entry,
+    )!;
+    entry.text = entry.text.replace(
+      '.include "circuit.spice"',
+      '.param BIAS=0.9\n.include "circuit.spice"',
+    );
+    project.simulationFolders = [folder];
+    const document = project.documents.find((item) =>
+      item.instances.some((instance) => instance.netlist?.parameters.w),
+    )!;
+    const instance = document.instances.find(
+      (item) => item.netlist?.parameters.w,
+    )!;
+    const before = structuredClone(project);
+    const f = fixture("ngspice");
+    f.executor.capabilities = async () => ({
+      ...caps,
+      rawfileCollection: "declared-single-ascii",
+      profiles: [{ ...caps.profiles[0]!, corners: ["tt", "ff"] }],
+      modelLibrary: { path: "models.lib", section: "tt" },
+    });
+    const service = new SimulationService(f.files, f.executor, () => project);
+    const reply = await service.handle(
+      {
+        operation: "prepare-sweep",
+        folderId: folder.id,
+        expectedStructureRevision: project.structureRevision,
+        axes: [
+          { kind: "corner", values: ["tt", "ff"] },
+          { kind: "temperature", values: [27, 125] },
+          { kind: "variable", variableId: "BIAS", values: ["0.8", "0.9"] },
+          {
+            kind: "parameter",
+            documentId: document.id,
+            instanceId: instance.id,
+            parameter: "w",
+            values: ["33u", "44u"],
+          },
+        ],
+      },
+      "ngspice-native-pvt",
+    );
+    if (!reply.ok || !("batch" in reply)) throw Error(JSON.stringify(reply));
+    expect(reply.batch.items).toHaveLength(16);
+    expect(
+      new Set(reply.batch.items.map((item) => item.prepared.digest)).size,
+    ).toBe(16);
+    expect(reply.batch.items[0]!.prepared.environment).toMatchObject({
+      corner: "tt",
+      temperatureC: 27,
+    });
+    expect(reply.batch.items[15]!.prepared.environment).toMatchObject({
+      corner: "ff",
+      temperatureC: 125,
+    });
+    expect(project).toEqual(before);
+    expect(f.executor.execute).not.toHaveBeenCalled();
+  });
+
   it("expands corner, Design Variable and instance parameter axes into one batch", async () => {
     const project = CircuitProjectSchema.parse(
       currentFiveTransistorOtaCircuitSource(),

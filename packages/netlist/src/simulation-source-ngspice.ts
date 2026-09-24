@@ -127,6 +127,7 @@ export function compileNgspiceSourceSimulation(
     parsedConfig.config,
     graph,
     variant,
+    parsedConfig.authority,
   );
   const effective = projection.project;
   const config = projection.config;
@@ -134,11 +135,6 @@ export function compileNgspiceSourceSimulation(
     const native = nativeSourceCollection(graph);
     config.collection = native.collection;
     diagnostics.push(...native.diagnostics);
-    if (variant && Object.values(variant).some((value) => value !== undefined))
-      fail(
-        "SIMULATION_NATIVE_VARIANT_UNSUPPORTED",
-        "Native experiments define sweeps and overrides in Code. Batch selects folders; it does not override their parameters.",
-      );
   }
   diagnostics.push(...projection.diagnostics);
   const reachable = new Set(graph.paths);

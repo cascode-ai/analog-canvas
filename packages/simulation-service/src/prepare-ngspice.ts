@@ -8,6 +8,8 @@ import {
   ngspiceSignals as simulationSignals,
   inspectSimulationSourceGraph,
   insertSimulationText,
+  locateSimulationText,
+  replaceSimulationText,
   type SimulationSourceDiagnostic,
 } from "@icm/netlist";
 import {
@@ -22,6 +24,22 @@ import {
   literalSourceAnalyses,
   sourceOutputVolumeWarning,
 } from "./source-analysis.js";
+
+function librarySectionRange(
+  text: string,
+  startOffset: number,
+  endOffset: number,
+  section: string | undefined,
+): { start: number; end: number } | null {
+  const line = text.slice(startOffset, endOffset);
+  const match =
+    /^[ \t]*\.lib[ \t]+(?:"[^"\r\n]+"|'[^'\r\n]+'|[^\s\r\n]+)[ \t]+([^\s\r\n;]+)/iu.exec(
+      line,
+    );
+  if (!match || match[1]!.toLowerCase() !== section?.toLowerCase()) return null;
+  const start = startOffset + match[0].length - match[1]!.length;
+  return { start, end: start + match[1]!.length };
+}
 
 async function sourceCompilationProblem(
   diagnostics: SimulationSourceDiagnostic[],
@@ -122,7 +140,11 @@ export async function prepareNgspiceExecutionInput(
   const sourceMaps = structuredClone(compiled.sourceMaps);
   const entryIndex = files.findIndex((file) => file.path === compiled.entry);
   const entry = files[entryIndex]!;
-  if (compiled.generated.some((file) => deckNeedsModelLibrary(file.text))) {
+  const needsCanvasModels = compiled.generated.some((file) =>
+    deckNeedsModelLibrary(file.text),
+  );
+  const requestedCorner = variant?.environment?.corner;
+  if (needsCanvasModels || requestedCorner !== undefined) {
     // Profile-owned models are mounted by identity/digest. Neither the client
     // nor the author needs to know the host's absolute model-library path.
     const libraries = profile.dependencies ?? [];
@@ -134,7 +156,7 @@ export async function prepareNgspiceExecutionInput(
       );
     const library = libraries[0]!;
     let dependency = dependencies.find((item) => item.id === library.id);
-    if (!dependency) {
+    if (!dependency && needsCanvasModels) {
       const occupied = new Set([
         ...files.map((file) => file.path),
         ...dependencies.map((item) => item.mountPath),
@@ -151,34 +173,123 @@ export async function prepareNgspiceExecutionInput(
       dependency = { ...library, mountPath };
       dependencies.push(dependency);
     }
+    if (!dependency)
+      return problem(
+        "SIMULATION_CORNER_TARGET_MISSING",
+        "This run has no declared Profile model library to receive the requested corner",
+        "prepare",
+      );
     const existingLoads = compiled.includes.filter(
       (include) => include.target === dependency.mountPath,
     );
     const selectedCorner =
-      compiled.authority === "code" && existingLoads.length
+      requestedCorner ??
+      (compiled.authority === "code" && existingLoads.length
         ? existingLoads[0]!.section
-        : (config.environment.corner ?? caps.modelLibrary?.section);
+        : (config.environment.corner ?? caps.modelLibrary?.section));
     if (!selectedCorner || !profile.corners.includes(selectedCorner))
       return problem(
         "SIMULATION_CORNER_UNSUPPORTED",
         "Select a qualified model corner before preparation",
         "prepare",
       );
+    const nominalSection = existingLoads[0]?.section;
+    if (existingLoads.some((load) => load.section === undefined))
+      return compilationProblem(
+        existingLoads
+          .filter((load) => load.section === undefined)
+          .map((load) => ({
+            code: "SIMULATION_MODEL_CORNER_CONFLICT",
+            severity: "error",
+            message:
+              "A Profile model corner requires a section-selected .lib; plain .include cannot receive a corner point",
+            path: load.path,
+            sourceRef: load.sourceRef,
+          })),
+      );
     if (
       existingLoads.some(
-        (load) => load.section?.toLowerCase() !== selectedCorner.toLowerCase(),
+        (load) => load.section?.toLowerCase() !== nominalSection?.toLowerCase(),
       )
     )
       return compilationProblem(
         existingLoads.map((load) => ({
           code: "SIMULATION_MODEL_CORNER_CONFLICT",
           severity: "error",
-          message: `Canvas models require .lib section ${selectedCorner}; this authored load selects a different model contract`,
+          message:
+            "The same Profile model library is loaded with conflicting sections",
           path: load.path,
           sourceRef: load.sourceRef,
         })),
       );
+    if (requestedCorner !== undefined && existingLoads.length) {
+      // A repeated include can reach one physical .lib card more than once.
+      // Rewrite each card in the prepared copy exactly once, retaining its
+      // authored neighbours and their source-map offsets.
+      const projectedLoads = inspectSimulationSourceGraph({
+        ...folder.input,
+        files,
+      }).includes.filter((load) => load.target === dependency.mountPath);
+      const uniqueLoads = new Map(
+        projectedLoads.map((load) => [
+          JSON.stringify([load.path, load.sourceRef.start.offset]),
+          load,
+        ]),
+      );
+      for (const load of [...uniqueLoads.values()].sort(
+        (left, right) =>
+          right.sourceRef.start.offset - left.sourceRef.start.offset,
+      )) {
+        const index = files.findIndex((file) => file.path === load.path);
+        const file = files[index];
+        const map = sourceMaps[index];
+        const range =
+          file &&
+          librarySectionRange(
+            file.text,
+            load.sourceRef.start.offset,
+            load.sourceRef.end.offset,
+            load.section,
+          );
+        if (!file || !map || !range)
+          return problem(
+            "SIMULATION_CORNER_SOURCE_RANGE",
+            "Cannot locate the Profile .lib section in the prepared source",
+            "prepare",
+          );
+        const origin = locateSimulationText(map, range.start);
+        if (origin?.kind !== "authored")
+          return problem(
+            "SIMULATION_CORNER_SOURCE_RANGE",
+            "The Profile .lib section is not an authored source token",
+            "prepare",
+          );
+        const mapped = replaceSimulationText(
+          { ...file, ...map },
+          range.start,
+          range.end,
+          selectedCorner,
+          {
+            kind: "generated",
+            purpose: "run-variant",
+            nominal: {
+              path: file.path,
+              startOffset: origin.startOffset,
+              endOffset: origin.startOffset + range.end - range.start,
+            },
+          },
+        );
+        files[index] = { path: mapped.path, text: mapped.text };
+        sourceMaps[index] = { path: mapped.path, segments: mapped.segments };
+      }
+    }
     if (!existingLoads.length) {
+      if (!needsCanvasModels)
+        return problem(
+          "SIMULATION_CORNER_TARGET_MISSING",
+          "The requested corner has no Profile model-library load in this source",
+          "prepare",
+        );
       // Entry includes resolve relative to the entry's directory in ngspice 46.
       const relative =
         "../".repeat(compiled.entry.split("/").length - 1) +
@@ -270,7 +381,12 @@ export async function prepareNgspiceExecutionInput(
     testbench: preparedDeck,
     preparedDeck,
     inputRevision,
-    environment: config.environment,
+    environment: {
+      ...config.environment,
+      ...(variant?.environment?.temperatureC === undefined
+        ? {}
+        : { temperatureC: variant.environment.temperatureC }),
+    },
     entryPath: compiled.entry,
     files,
     dependencies,

@@ -28,6 +28,7 @@ export function projectSourceSimulation(
   config: SimulationExperimentConfig,
   graph: SimulationSourceGraph,
   variant?: SimulationRunVariant,
+  authority: "code" | "legacy-config" = "legacy-config",
 ) {
   const effective = structuredClone(project);
   config = structuredClone(config);
@@ -91,18 +92,22 @@ export function projectSourceSimulation(
   const overrides = new Map<string, string>();
   for (const point of variant.variables ?? []) {
     const variable = config.variables.find((v) => v.id === point.variableId);
-    if (!variable) {
+    if (authority === "legacy-config" && !variable) {
       issue(
         "SIMULATION_VARIABLE_MISSING",
         `Design Variable does not exist: ${point.variableId}`,
       );
       continue;
     }
-    const name = variable.name.toLowerCase();
+    // Native Code owns its root .param names; no second descriptor table is
+    // persisted just to make an execution-only point addressable.
+    const name = (
+      authority === "code" ? point.variableId : variable!.name
+    ).toLowerCase();
     if (overrides.has(name)) {
       issue(
         "SIMULATION_VARIABLE_DUPLICATE",
-        `More than one point supplied for ${variable.name}`,
+        `More than one point supplied for ${variable?.name ?? point.variableId}`,
       );
       continue;
     }
@@ -112,11 +117,14 @@ export function projectSourceSimulation(
       items.length !== 1 ||
       !declaration ||
       declaration.conditional ||
-      declaration.path !== variable.sourcePath
+      (authority === "legacy-config" &&
+        declaration.path !== variable!.sourcePath)
     ) {
       issue(
         "SIMULATION_VARIABLE_DECLARATION",
-        `Variable ${variable.name} requires one reachable top-level .param at ${variable.sourcePath}`,
+        authority === "code"
+          ? `Native parameter ${point.variableId} requires one reachable unconditional top-level .param`
+          : `Variable ${variable!.name} requires one reachable top-level .param at ${variable!.sourcePath}`,
         declaration,
       );
       continue;
@@ -127,7 +135,7 @@ export function projectSourceSimulation(
     if (!range) {
       issue(
         "SIMULATION_VARIABLE_RANGE",
-        `Cannot locate a reversible value range for ${variable.name}`,
+        `Cannot locate a reversible value range for ${point.variableId}`,
         declaration,
       );
       continue;
@@ -136,7 +144,7 @@ export function projectSourceSimulation(
     if (/[\r\n;]/u.test(point.value)) {
       issue(
         "SIMULATION_VARIABLE_POINT",
-        `Use one scalar expression for ${variable.name}`,
+        `Use one scalar expression for ${point.variableId}`,
         declaration,
       );
       continue;

@@ -146,9 +146,13 @@ never an implicit managed Batch.
 ### Batch and evidence
 
 `prepare-batch` freezes 1–16 saved-setup items at one structure revision.
-`prepare-sweep` uses saved Run Plan axes or explicit corner, temperature,
-variable or exact-parameter axes. Nominal values come from source; point
-projections do not mutate the Project. Both become an ordinary sequential
+`prepare-sweep` uses a legacy saved Run Plan or explicit corner, temperature,
+variable or exact-parameter axes for native ngspice/VACASK folders. In native
+source, `variableId` names one unconditional top-level `.param` (ngspice) or
+`parameters` declaration (VACASK); it is not a JSON descriptor ID. Corner
+points target only the selected Profile model library, and ambiguous native
+declarations are rejected before execution. Nominal values come from source;
+point projections do not mutate the Project. Both become an ordinary sequential
 batch consumed by `start-batch`, `read-batch`, `cancel-batch` and per-run
 `read`/`export`. Reuse start request identity after an uncertain response.
 

@@ -76,6 +76,44 @@ function projectPoint(
 }
 
 describe("native source run projection", () => {
+  it("addresses a native root .param by name without a legacy variable descriptor", () => {
+    const f = fixture();
+    f.folder.input.files.find(
+      (file) => file.path === f.folder.input.configPath,
+    )!.text = JSON.stringify({
+      version: 2,
+      environment: { profileId: "test" },
+    });
+    const before = structuredClone(f.folder);
+    const graph = inspectSimulationSourceGraph(f.folder.input);
+    const point = projectSourceSimulation(
+      f.project,
+      f.folder,
+      f.config,
+      graph,
+      { variables: [{ variableId: "BASE", value: "15u" }] },
+      "code",
+    );
+    expect(point.diagnostics).toEqual([]);
+    expect(
+      point.mappedFiles.find((file) => file.path === "bias.spice")!.text,
+    ).toContain(".param BASE=15u $ BASE is the starting value");
+    expect(f.folder).toEqual(before);
+    f.folder.input.files.find((file) => file.path === "bias.spice")!.text +=
+      ".param BASE=22u\n";
+    expect(
+      projectSourceSimulation(
+        f.project,
+        f.folder,
+        f.config,
+        inspectSimulationSourceGraph(f.folder.input),
+        { variables: [{ variableId: "BASE", value: "15u" }] },
+        "code",
+      ).diagnostics,
+    ).toContainEqual(
+      expect.objectContaining({ code: "SIMULATION_VARIABLE_DECLARATION" }),
+    );
+  });
   it("reports stale variable binding parameters without mutating the saved input", () => {
     const f = fixture();
     const instance = f.document.instances.find(
