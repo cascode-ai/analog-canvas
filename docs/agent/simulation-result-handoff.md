@@ -39,6 +39,7 @@ the complete registered files to analyze them; keeping a page open does not
 extend access credentials automatically beyond the session's existing rules.
 
 ## Download preparation
+
 For transfer metadata, File `simulation-input` accepts `action:"downloads"`
 with 1–32 `artifactIds`. Its `downloads` array preserves request order and gives
 each file's ready descriptor or pending/error result independently. A successful
@@ -64,10 +65,13 @@ Session-workspace inputs remain private to that session because they have no
 Project folder to attach to.
 
 Archives are local to this browser/origin, not Cloud Save. New automatically
-captured results are explicitly marked as cache; the newest 30 archived and
-30 unarchived cache runs are retained per Project when cleanup can run.
-Manual Save protects an archive. Older records without a cache marker are
-conservatively protected until explicitly deleted. The limit is 512 MiB per archive, subject to browser quota
+captured results are explicitly marked as cache; the newest 30 cache runs
+are retained per Project across archived and catalog-only results. Manual
+Save has a separate 30-result rolling limit: saving the 31st evicts the
+oldest explicitly saved run in that Project. Older records without a retention
+marker remain protected until explicitly deleted, and do not count toward
+either rolling limit. Rolling removal affects browser history, not downloaded
+Agent files. The limit is 512 MiB per archive, subject to browser quota
 and the shared 1 GiB Project evidence budget (256 MiB per file). A storage failure leaves
 the in-memory result available with an explicit session-only warning. Refresh
 can recover successful archives under **Saved results**; deleting one removes

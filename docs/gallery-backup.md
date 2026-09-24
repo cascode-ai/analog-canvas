@@ -53,3 +53,13 @@ absent from the last snapshot. GitHub repository administrators control Actions
 failure notifications. A private repository protects confidentiality through
 access control; it is not an offline or immutable archive, so keep the existing
 local recovery copies as a second destination.
+
+For an already-authorized Mac, run `node scripts/gallery-private-snapshot.mjs`
+from the main repository to start a fresh capture, wait for its verified
+private Release, and download its SQLite database under
+`~/Library/Application Support/Analog Canvas/gallery/` (outside iCloud
+Documents). Use `--cached` to download the latest existing Release without
+contacting Production. Use
+`--directory PATH` for another private (mode 0700) destination. The helper uses the existing
+GitHub CLI login and never reads or stores the backup token. It keeps each
+dated snapshot separately and never overwrites a prior capture.
