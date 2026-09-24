@@ -1,11 +1,112 @@
 import { describe, expect, it } from "vitest";
 
 import { createEmptyDocument, plainNameDocument } from "@icm/model";
+import { executeTransaction } from "@icm/edit-engine";
+import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 
 import { planComponentPropertyCodeEdits } from "./component-property-code-edits";
 import { componentPropertyCodeValue } from "./component-property-code";
 
 describe("planComponentPropertyCodeEdits", () => {
+  it("retires only a cut wire's anonymous singleton input before shrinking AND", () => {
+    const document = createEmptyDocument("main", "Main");
+    const instance = {
+      id: "X1",
+      symbolId: "and-gate-4",
+      reference: "X1",
+      placement: null,
+      netlist: {
+        binding: { kind: "unresolved-subcircuit" as const, name: "and_gate_4" },
+        parameters: {},
+      },
+    };
+    document.instances.push(instance);
+    document.nets.push({
+      id: "orphan-D",
+      terminals: [{ instanceId: "X1", pinName: "D" }],
+    });
+    const value = {
+      ...componentPropertyCodeValue({
+        instance,
+        referenceVisible: null,
+        valueVisible: null,
+        details: { parameters: [] },
+      }),
+      inputs: 2 as const,
+    };
+    const edits = planComponentPropertyCodeEdits(document, instance, value);
+    expect(edits).toEqual([
+      {
+        kind: "disconnect_endpoint",
+        endpoint: {
+          kind: "terminal",
+          instanceId: "X1",
+          pinName: "D",
+        },
+      },
+      { kind: "set_instance_symbol", instanceId: "X1", symbolId: "and-gate" },
+      {
+        kind: "set_instance_binding",
+        instanceId: "X1",
+        binding: {
+          kind: "unresolved-subcircuit",
+          name: "and_gate",
+        },
+      },
+    ]);
+    const applied = executeTransaction(
+      document,
+      {
+        transactionId: "and-shrink",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits,
+      },
+      { symbolResolver: new InMemorySymbolResolver(builtInSymbols) },
+    );
+    expect(applied.ok).toBe(true);
+    if (!applied.ok) return;
+    expect(applied.document.instances[0]?.symbolId).toBe("and-gate");
+    expect(applied.document.nets).toEqual([]);
+
+    for (const protectedDocument of [
+      {
+        ...document,
+        junctions: [{ id: "J1", netId: "orphan-D", position: { x: 0, y: 0 } }],
+      },
+      {
+        ...document,
+        noConnects: [
+          {
+            id: "NC1",
+            endpoint: {
+              kind: "terminal" as const,
+              instanceId: "X1",
+              pinName: "D",
+            },
+          },
+        ],
+      },
+      {
+        ...document,
+        connectivityEvidence: [
+          {
+            id: "source-D",
+            kind: "spice-source" as const,
+            netId: "orphan-D",
+            sourceNetId: "imported-D",
+          },
+        ],
+      },
+    ]) {
+      expect(
+        planComponentPropertyCodeEdits(protectedDocument, instance, value).some(
+          (edit) => edit.kind === "disconnect_endpoint",
+        ),
+      ).toBe(false);
+    }
+  });
   it("switches AND arity and its default black-box target in one edit batch", () => {
     const document = createEmptyDocument("main", "Main");
     const instance = {

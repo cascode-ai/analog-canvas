@@ -63,6 +63,61 @@ test("AND input count changes the drawn pins and black-box target together", asy
   await expectComponentCodeField(page, "inputs", 3);
 });
 
+test("AND can shrink after its extra input wire is deleted", async ({
+  page,
+}) => {
+  const project = createEmptyProject("and-shrink", "AND shrink");
+  const document = project.documents[0]!;
+  document.instances.push({
+    id: "X1",
+    symbolId: "and-gate-4",
+    reference: "X1",
+    placement: { position: { x: 200, y: 100 }, rotation: 0, mirror: "none" },
+    netlist: {
+      binding: { kind: "unresolved-subcircuit", name: "and_gate_4" },
+      parameters: {},
+    },
+  });
+  document.nets.push({
+    id: "net-D",
+    terminals: [{ instanceId: "X1", pinName: "D" }],
+  });
+  document.junctions.push({
+    id: "J-D",
+    netId: "net-D",
+    position: { x: 140, y: 112 },
+  });
+  document.routes.push(
+    createRoutePath({
+      id: "wire-D",
+      netId: "net-D",
+      start: { kind: "junction", junctionId: "J-D" },
+      end: { kind: "terminal", instanceId: "X1", pinName: "D" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "and-shrink.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("route-hit-wire-D").click({ force: true });
+  await page.keyboard.press("Delete");
+  await expect(page.getByTestId("route-hit-wire-D")).toHaveCount(0);
+  await page.getByTestId("hit-X1").click({ force: true });
+  await openSelectionShelf(page);
+  await editComponentPropertyCode(page, (code) => {
+    code.inputs = 2;
+  });
+  await expect(page.getByTestId("terminal-X1-D")).toHaveCount(0);
+  await expectComponentCodeField(page, "inputs", 2);
+  await expect
+    .poll(() => recoveryProjectTexts(page))
+    .toContain('"name": "and_gate"');
+});
+
 test("C copy shows alignment guides, commits the preview and clears guides on Escape", async ({
   page,
 }) => {

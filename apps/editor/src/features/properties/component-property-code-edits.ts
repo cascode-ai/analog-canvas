@@ -17,6 +17,57 @@ import {
 
 type Instance = SchematicDocument["instances"][number];
 
+/** A cut wire can leave a lone, anonymous Net membership on its former pin. */
+function removableOrphanInput(
+  document: SchematicDocument,
+  instance: Instance,
+  pinName: string,
+): boolean {
+  const net = document.nets.find((candidate) =>
+    candidate.terminals.some(
+      (terminal) =>
+        terminal.instanceId === instance.id && terminal.pinName === pinName,
+    ),
+  );
+  if (
+    !net ||
+    net.terminals.length !== 1 ||
+    instance.importProvenance?.terminalMapping?.some(
+      (terminal) => terminal.pinName === pinName,
+    ) ||
+    document.noConnects.some(
+      (item) =>
+        item.endpoint.instanceId === instance.id &&
+        item.endpoint.pinName === pinName,
+    )
+  )
+    return false;
+  const netId = net.id;
+  return !(
+    document.routes.some((route) => route.netId === netId) ||
+    document.junctions.some((junction) => junction.netId === netId) ||
+    document.netlist?.terminals.some((terminal) => terminal.netId === netId) ||
+    document.annotations.some(
+      (annotation) =>
+        annotation.netId === netId ||
+        (annotation.binding?.kind === "net-name" &&
+          annotation.binding.netId === netId),
+    ) ||
+    document.connectivityEvidence.some(
+      (evidence) => evidence.netId === netId,
+    ) ||
+    document.layoutGroups.some((group) => group.objectIds.includes(netId)) ||
+    document.constraints.some((constraint) =>
+      constraint.objectIds.includes(netId),
+    ) ||
+    document.instances.some(
+      (candidate) => candidate.mosBulkBinding?.netId === netId,
+    ) ||
+    document.mosBulkDefaults?.nmosNetId === netId ||
+    document.mosBulkDefaults?.pmosNetId === netId
+  );
+}
+
 function sameStyle(
   left: Instance["styleOverride"] | null,
   right: Instance["styleOverride"] | null,
@@ -124,6 +175,23 @@ export function planComponentPropertyCodeEdits(
     if (andGateInputCount(instance.symbolId) === null)
       throw new Error("inputs is available only for AND gates");
     nextSymbolId = andGateSymbolId(value.inputs);
+  }
+  const oldAndInputs = andGateInputCount(instance.symbolId);
+  if (
+    value.inputs !== undefined &&
+    oldAndInputs !== null &&
+    value.inputs < oldAndInputs
+  ) {
+    for (const pinName of ["A", "B", "C", "D"].slice(
+      value.inputs,
+      oldAndInputs,
+    )) {
+      if (!removableOrphanInput(document, instance, pinName)) continue;
+      edits.push({
+        kind: "disconnect_endpoint",
+        endpoint: { kind: "terminal", instanceId: instance.id, pinName },
+      });
+    }
   }
   if (nextSymbolId !== instance.symbolId)
     edits.push({
