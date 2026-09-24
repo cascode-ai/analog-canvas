@@ -1,4 +1,4 @@
-/** Schema 61: named parameter labels may hide their live value presentation. */
+/** Schema 62: a Symbol's body text may keep an authored RichText look. */
 import { createProjectSymbolResolver } from "@icm/symbols";
 import type { CircuitProject } from "@icm/model";
 import { ProjectFormatError } from "./diagnostics.js";
@@ -15,7 +15,7 @@ import {
   materializeSourceConnectivity,
   type SourceConnectivity,
 } from "./source-connectivity.js";
-export const CURRENT_PROJECT_FILE_VERSION = 61;
+export const CURRENT_PROJECT_FILE_VERSION = 62;
 type Value = Record<string, any>;
 
 export function encodeProjectFile(project: CircuitProject): Value {
@@ -58,6 +58,7 @@ export function decodeProjectFile(raw: Value): Value {
     }
     const decoded = decodeOwned(owned, {
       allowParameterShowValue: raw.schemaVersion >= 61,
+      allowFormulaFormat: raw.schemaVersion >= 62,
     }) as unknown as CircuitProject;
     const resolver = createProjectSymbolResolver(decoded, []);
     decoded.documents.forEach((document, index) =>

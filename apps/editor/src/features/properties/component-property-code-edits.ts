@@ -86,6 +86,20 @@ function sameStyle(
  * annotations are appended by the caller because they need the live Symbol
  * resolver and annotation policy.
  */
+/** Parameters compare by value, whatever order their keys were written in. */
+function sameParameters(
+  left: Record<string, unknown>,
+  right: Record<string, unknown>,
+): boolean {
+  const keys = Object.keys(left);
+  return (
+    keys.length === Object.keys(right).length &&
+    keys.every(
+      (key) => JSON.stringify(left[key]) === JSON.stringify(right[key]),
+    )
+  );
+}
+
 export function planComponentPropertyCodeEdits(
   document: SchematicDocument,
   instance: Instance,
@@ -244,10 +258,20 @@ export function planComponentPropertyCodeEdits(
       delete nextSignalFlow.formula;
     else nextSignalFlow.formula = value.appearance.internalMark;
   }
+  // The body text keeps its look while its characters stay the same; new
+  // characters start from the Symbol's own look again.
+  const format = instance.signalFlowParameters?.formulaFormat;
+  if (nextSignalFlow) {
+    const plain = { ...nextSignalFlow };
+    delete plain.formulaFormat;
+    nextSignalFlow =
+      format && plain.formula === instance.signalFlowParameters?.formula
+        ? { ...plain, formulaFormat: format }
+        : plain;
+  }
   if (
     nextSignalFlow &&
-    JSON.stringify(nextSignalFlow) !==
-      JSON.stringify(instance.signalFlowParameters ?? {})
+    !sameParameters(nextSignalFlow, instance.signalFlowParameters ?? {})
   )
     edits.push({
       kind: "set_instance_signal_flow_parameters",

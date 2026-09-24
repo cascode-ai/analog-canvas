@@ -10,7 +10,16 @@ import {
   type LabelRole,
 } from "@icm/model";
 import type { SchematicEdit } from "@icm/edit-engine";
-import { flattenRichText, semanticTextDocument } from "@icm/model";
+import {
+  flattenRichText,
+  normalizeRichText,
+  semanticTextDocument,
+} from "@icm/model";
+import {
+  signalFlowBodyTextDocument,
+  signalFlowFormulaSource,
+} from "@icm/symbols";
+import type { SymbolFormulaPresentation } from "@icm/symbols";
 import { resolveAnnotationText, resolveAnnotationName } from "@icm/derived";
 import { deviceDescriptor } from "@icm/devices";
 import type {
@@ -31,15 +40,14 @@ export type EditableTextTarget =
   | { owner: "drafting"; object: DraftingTextObject }
   /**
    * The text a Symbol draws inside its own body — a DAC's "DAC", an
-   * integrator's transfer function, the letter in a lettered op-amp. It is a
-   * plain string in the Symbol's own compact script syntax (`z^-1`, `1/(1-z)`),
-   * not a RichText document, and `defaultFormula` is what the Symbol draws
-   * when the Instance overrides nothing.
+   * integrator's transfer function, the letter in a lettered op-amp. It edits
+   * like any label: `presentation` is where the Symbol draws it and what it
+   * says by default, and the Instance keeps the text and the author's look.
    */
   | {
       owner: "instance-formula";
       object: Instance;
-      defaultFormula: string;
+      presentation: SymbolFormulaPresentation;
     };
 
 export interface TextEditingSession {
@@ -63,8 +71,8 @@ export interface TextEditingSession {
   visualInstanceId?: string;
   /** False follows/edits the electrical Reference; true owns display text. */
   displayAlias?: boolean;
-  /** Symbol body text only: what the Symbol draws with no override. */
-  defaultFormula?: string;
+  /** Symbol body text only: where and what the Symbol draws by default. */
+  formulaPresentation?: SymbolFormulaPresentation;
 }
 
 export type TextEditingCommitProposal =
@@ -277,19 +285,38 @@ export function createTextEditingSession(
     };
   }
   if (target.owner === "instance-formula") {
-    // Carried as one text run so the canvas overlay can host it unchanged.
-    // The overlay shows this as a plain source field, with no rich-text or
-    // formula affordances, because the field cannot store them.
-    const value =
-      target.object.signalFlowParameters?.formula ?? target.defaultFormula;
+    // Opens on the text exactly as it draws — the author's look, or the
+    // Symbol's own — so the editor shows what the canvas shows.
+    const content = (document &&
+      signalFlowBodyTextDocument(
+        target.presentation,
+        target.object.signalFlowParameters,
+        document.presentation,
+      )) ?? {
+      runs: [
+        {
+          kind: "text",
+          value:
+            target.object.signalFlowParameters?.formula ??
+            target.presentation.defaultFormula,
+        },
+      ],
+    };
     return {
       owner: "instance-formula",
       id: target.object.id,
-      content: { runs: [{ kind: "text", value }] },
+      content,
+      defaultBold: uniformTextStyle(content.runs, "bold"),
+      defaultItalic: uniformTextStyle(content.runs, "italic"),
       sizeScale: 1,
       alignment: "middle",
       bound: true,
-      defaultFormula: target.defaultFormula,
+      formulaPresentation: target.presentation,
+      // A stored look is the author's, and keeps being edited as one.
+      ...(target.object.signalFlowParameters?.formula &&
+      target.object.signalFlowParameters.formulaFormat
+        ? { formatEdited: true }
+        : {}),
     };
   }
   return {
@@ -341,11 +368,11 @@ export function resolveTextEditingTarget(
     const object = document.instances.find(
       (candidate) => candidate.id === session.id,
     );
-    return object
+    return object && session.formulaPresentation
       ? {
           owner: "instance-formula",
           object,
-          defaultFormula: session.defaultFormula ?? "",
+          presentation: session.formulaPresentation,
         }
       : null;
   }
@@ -520,21 +547,49 @@ export function proposeTextEditingCommit(
     const instance = document.instances.find(
       (candidate) => candidate.id === session.id,
     );
-    if (!instance) return { kind: "blocked" };
-    const edited = flattenRichText(session.content).trim();
-    const current = instance.signalFlowParameters?.formula;
-    // Typing the Symbol's own default back is not an override: storing it
-    // would freeze a copy of a default the Symbol is allowed to change. The
-    // Properties panel reads the same rule, so the two surfaces agree.
-    const nextFormula =
-      edited && edited !== session.defaultFormula ? edited : undefined;
-    if (nextFormula === current) return { kind: "unchanged" };
-    const rest = { ...instance.signalFlowParameters };
-    delete rest.formula;
-    const parameters = {
-      ...rest,
-      ...(nextFormula ? { formula: nextFormula } : {}),
+    const presentation = session.formulaPresentation;
+    if (!instance || !presentation) return { kind: "blocked" };
+    const content = normalizeRichText(session.content);
+    const drawn = (formula?: string): RichTextDocument | undefined => {
+      const look = signalFlowBodyTextDocument(
+        presentation,
+        formula ? { formula } : undefined,
+        document.presentation,
+      );
+      return look && normalizeRichText(look);
     };
+    // Typed text is source, as a label's name is: slant and weight come from
+    // the Symbol's look and scripts or a fraction are spelled `^`, `_`, `/`,
+    // so the drawing's label rules keep applying. Only a look the author set
+    // with a formatting command is stored beside the text.
+    const source = signalFlowFormulaSource(content)?.trim();
+    const plainLook = source ? drawn(source) : undefined;
+    const keepsOwnLook =
+      source !== undefined &&
+      (!session.formatEdited ||
+        (plainLook !== undefined && richTextEqual(content, plainLook)));
+    const ownDefault = drawn();
+    // The Symbol's own text in its own look is not an override: storing it
+    // would freeze a copy of a default the Symbol is allowed to change.
+    const isDefault =
+      !flattenRichText(content).trim() ||
+      (ownDefault !== undefined && richTextEqual(content, ownDefault)) ||
+      (keepsOwnLook && source === presentation.defaultFormula);
+    const nextFormula = isDefault
+      ? undefined
+      : keepsOwnLook
+        ? source
+        : flattenRichText(content).trim();
+    const nextFormat = isDefault || keepsOwnLook ? undefined : content;
+    const current = instance.signalFlowParameters;
+    // Edited in place, so unchanged parameters keep their order and compare equal.
+    const parameters = { ...current };
+    if (nextFormula) parameters.formula = nextFormula;
+    else delete parameters.formula;
+    if (nextFormat) parameters.formulaFormat = nextFormat;
+    else delete parameters.formulaFormat;
+    if (JSON.stringify(parameters) === JSON.stringify(current ?? {}))
+      return { kind: "unchanged" };
     return {
       kind: "update",
       id: session.id,

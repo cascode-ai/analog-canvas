@@ -83,7 +83,8 @@ describe("mcp resources single-source projection", () => {
   it("bounds discovery size while retaining complete contracts and runtime validation", async () => {
     const tools = listToolDefinitions();
     // Compatibility entries keep a near-existing budget. The optional bounded
-    // geometry inspection selector adds about 0.3 KiB to this directory.
+    // geometry inspection selector adds about 0.3 KiB to this directory, and
+    // a Symbol body text's RichText look (schema 62) about 0.2 KiB.
     // Focused additions have
     // a stricter per-tool host-compaction budget in focused-tools.test.ts.
     // Total directory bytes are no longer the host's per-tool context boundary.
@@ -91,7 +92,7 @@ describe("mcp resources single-source projection", () => {
       (t) => !FOCUSED_TOOLS.some((f) => f.name === t.name),
     );
     expect(Buffer.byteLength(JSON.stringify(compatibility))).toBeLessThan(
-      100_500,
+      100_800,
     );
     for (const tool of tools) {
       const complete = JSON.parse(

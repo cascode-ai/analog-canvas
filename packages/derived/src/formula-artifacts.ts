@@ -30,6 +30,9 @@ export function formulaRequestsForDocument(document: SchematicDocument) {
     add(annotation.content);
     add(annotation.formatOverride);
   }
+  for (const instance of document.instances)
+    if (instance.signalFlowParameters?.formula)
+      add(instance.signalFlowParameters.formulaFormat);
   for (const object of document.drafting?.objects ?? []) {
     if (object.kind === "text" || object.kind === "callout") {
       add(

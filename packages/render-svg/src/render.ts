@@ -63,6 +63,7 @@ import type {
 import {
   resolveAdaptiveSignalFlowBlockLayout,
   resolveSignalFlowPinAt,
+  signalFlowBodyUsesLabelTypography,
 } from "@icm/symbols";
 import type {
   AdaptiveSignalFlowBlockLayout,
@@ -1328,8 +1329,10 @@ export function buildSvgScene(
         {
           foreground: foregroundOverride ?? profile.foreground,
           profile,
-          ...(!resolved.definition.formulaPresentation?.supportsCoefficient &&
-          !resolved.definition.formulaPresentation?.adaptiveFrame
+          ...(resolved.definition.formulaPresentation &&
+          signalFlowBodyUsesLabelTypography(
+            resolved.definition.formulaPresentation,
+          )
             ? { labels: { presentation: document.presentation, profile } }
             : {}),
         },

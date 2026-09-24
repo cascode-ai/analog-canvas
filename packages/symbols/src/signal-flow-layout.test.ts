@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 
+import { createEmptyDocument, flattenRichText } from "@icm/model";
+
 import {
+  parseSignalFlowInline,
   resolveAdaptiveSignalFlowBlockLayout,
   resolveSignalFlowFormulaLayout,
   resolveSignalFlowPinAt,
+  signalFlowBodyTextDocument,
+  signalFlowBodyWordDocument,
+  signalFlowFormulaSource,
 } from "./signal-flow-layout.js";
 
 const definition = {
@@ -180,5 +186,154 @@ describe("signal-flow layout", () => {
     expect(east.x).toBe(layout!.pinSpan);
     expect(west.y).toBe(0);
     expect(east.y).toBe(0);
+  });
+});
+
+describe("Symbol body text as RichText", () => {
+  const presentation = definition.formulaPresentation;
+  const drawing = createEmptyDocument("main", "Main").presentation;
+
+  it("reads compact syntax into literal text and scripts", () => {
+    expect(parseSignalFlowInline("z^-1+g_m")).toEqual([
+      { kind: "text", value: "z" },
+      { kind: "superscript", value: "-1" },
+      { kind: "text", value: "+g" },
+      { kind: "subscript", value: "m" },
+    ]);
+    // More than one underscore stays literal, as it always drew.
+    expect(parseSignalFlowInline("a_b_c")).toEqual([
+      { kind: "text", value: "a_b_c" },
+    ]);
+  });
+
+  // Typed body text is stored as compact source, so the scripts and fraction
+  // an editor shows must spell back to the same drawing.
+  it("spells RichText back into compact source when it can", () => {
+    for (const formula of ["z^-1", "g_m", "1/s", "z^-1/(1-z^-1)", "K(s+1)"]) {
+      const look = signalFlowBodyTextDocument(
+        presentation,
+        { formula },
+        drawing,
+      )!;
+      const source = signalFlowFormulaSource(look)!;
+      expect(source).toBe(formula);
+      expect(
+        signalFlowBodyTextDocument(presentation, { formula: source }, drawing),
+      ).toEqual(look);
+    }
+    const text = (value: string) => ({ kind: "text" as const, value });
+    expect(
+      signalFlowFormulaSource({
+        runs: [{ kind: "span", style: "overbar", children: [text("Q")] }],
+      }),
+    ).toBeNull();
+    expect(
+      signalFlowFormulaSource({
+        runs: [
+          text("K + "),
+          {
+            kind: "fraction",
+            numerator: { runs: [text("1")] },
+            denominator: { runs: [text("s")] },
+          },
+        ],
+      }),
+    ).toBeNull();
+  });
+
+  // Textbook notation: a quantity such as an amplifier's A slants; a word or
+  // an abbreviation such as ADC or DAC stands upright.
+  it("slants a single-letter quantity and stands a word upright", () => {
+    const slants = (formula: string) =>
+      JSON.stringify(signalFlowBodyWordDocument(formula, drawing)).includes(
+        '"italic"',
+      );
+    for (const quantity of ["A", "A1", "A_v", "G_m"])
+      expect(slants(quantity)).toBe(true);
+    for (const word of ["ADC", "DAC", "LPF", "ADCaa", "Zz"])
+      expect(slants(word)).toBe(false);
+    expect(flattenRichText(signalFlowBodyWordDocument("ADC", drawing)!)).toBe(
+      "ADC",
+    );
+  });
+
+  it("gives a transfer function the look it draws in, fraction and all", () => {
+    expect(
+      signalFlowBodyTextDocument(presentation, { formula: "1/s" }, drawing),
+    ).toEqual({
+      runs: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [
+            {
+              kind: "fraction",
+              numerator: { runs: [{ kind: "text", value: "1" }] },
+              denominator: { runs: [{ kind: "text", value: "s" }] },
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("returns the author's look as it is stored", () => {
+    const formulaFormat = {
+      runs: [{ kind: "text" as const, value: "H(s)" }],
+    };
+    expect(
+      signalFlowBodyTextDocument(
+        presentation,
+        { formula: "H(s)", formulaFormat },
+        drawing,
+      ),
+    ).toBe(formulaFormat);
+  });
+
+  // The frame and pins size an authored look by the same conservative metric
+  // as the compact text, so restyling never jumps the pins by more than the
+  // text itself changed.
+  it("sizes an authored look like the same characters in compact text", () => {
+    const plain = resolveSignalFlowFormulaLayout(presentation, {
+      formula: "Hm",
+    })!;
+    const formatted = resolveSignalFlowFormulaLayout(presentation, {
+      formula: "Hm",
+      formulaFormat: {
+        runs: [
+          { kind: "text", value: "H" },
+          {
+            kind: "span",
+            style: "subscript",
+            children: [{ kind: "text", value: "m" }],
+          },
+        ],
+      },
+    })!;
+    expect(formatted.format).toBeDefined();
+    expect(formatted.formulaWidth).toBe(plain.formulaWidth);
+    expect(formatted.contentHeight).toBe(plain.contentHeight);
+
+    const stacked = resolveSignalFlowFormulaLayout(presentation, {
+      formula: "1/s",
+      formulaFormat: {
+        runs: [
+          {
+            kind: "fraction",
+            numerator: { runs: [{ kind: "text", value: "1" }] },
+            denominator: { runs: [{ kind: "text", value: "s" }] },
+          },
+        ],
+      },
+    })!;
+    expect(stacked.contentHeight).toBe(presentation.fontSize * 3);
+  });
+
+  it("ignores a look left without authored text", () => {
+    const layout = resolveSignalFlowFormulaLayout(presentation, {
+      formulaFormat: { runs: [{ kind: "text", value: "stray" }] },
+    })!;
+    expect(layout.format).toBeUndefined();
+    expect(layout.formula).toBe(presentation.defaultFormula);
   });
 });

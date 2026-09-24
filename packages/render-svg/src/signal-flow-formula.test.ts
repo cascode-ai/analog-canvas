@@ -1,3 +1,4 @@
+import { razaviTextbookProfile } from "@icm/derived";
 import { createEmptyDocument } from "@icm/model";
 import { InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
@@ -51,8 +52,13 @@ const formulaDefinition = {
 };
 
 const profile = {
-  typography: { fontFamily: "serif", mathWeight: 600 },
-  strokes: { annotation: 1 },
+  ...razaviTextbookProfile,
+  typography: {
+    ...razaviTextbookProfile.typography,
+    fontFamily: "serif",
+    mathWeight: 600,
+  },
+  strokes: { ...razaviTextbookProfile.strokes, annotation: 1 },
 };
 
 describe("Signal Flow formula renderer", () => {
@@ -110,6 +116,54 @@ describe("Signal Flow formula renderer", () => {
     );
     expect(fallback).toContain("&lt;script&gt;");
     expect(fallback).not.toContain("<script>");
+  });
+
+  // An authored look draws as a label with the same RichText would, not
+  // through the compact syntax: `^` stays a caret, the look carries scripts.
+  it("draws an authored look through the label renderer", () => {
+    const formatted = renderSignalFlowFormula(
+      formulaDefinition.formulaPresentation,
+      {
+        formula: "H1^x",
+        formulaFormat: {
+          runs: [
+            { kind: "text", value: "H" },
+            {
+              kind: "span",
+              style: "subscript",
+              children: [{ kind: "text", value: "1" }],
+            },
+            { kind: "text", value: "^x" },
+          ],
+        },
+      },
+      { foreground: "#000000", profile },
+    );
+    expect(formatted).toContain('data-formatted="true"');
+    expect(formatted).toContain(
+      `font-weight:${profile.typography.plainWeight}`,
+    );
+    expect(formatted).toContain(">1</tspan>");
+    expect(formatted).toContain("^x");
+    expect(formatted).not.toContain('data-role="formula-superscript"');
+
+    const fraction = renderSignalFlowFormula(
+      formulaDefinition.formulaPresentation,
+      {
+        formula: "1/s",
+        formulaFormat: {
+          runs: [
+            {
+              kind: "fraction",
+              numerator: { runs: [{ kind: "text", value: "1" }] },
+              denominator: { runs: [{ kind: "text", value: "s" }] },
+            },
+          ],
+        },
+      },
+      { foreground: "#000000", profile },
+    );
+    expect(fraction).toMatch(/<line [^>]*data-role="[^"]*"/u);
   });
 
   it("moves body text with a mirrored rotation while leaving its glyphs upright", () => {

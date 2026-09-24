@@ -81,10 +81,19 @@ export function componentPropertyDetailsValue(
     ...(switchContactStyleSibling(instance.symbolId)
       ? { symbol: instance.symbolId }
       : {}),
+    // The body text's look is edited on the canvas, not as JSON here.
     ...(context.signalFlow && componentInternalMark(instance) === undefined
-      ? { signalFlow: instance.signalFlowParameters ?? {} }
+      ? { signalFlow: withoutFormulaFormat(instance.signalFlowParameters) }
       : {}),
   };
+}
+
+function withoutFormulaFormat(
+  parameters: Instance["signalFlowParameters"],
+): NonNullable<Instance["signalFlowParameters"]> {
+  const shown = { ...parameters };
+  delete shown.formulaFormat;
+  return shown;
 }
 
 export function parseComponentPropertyDetails(

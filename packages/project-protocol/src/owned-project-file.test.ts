@@ -105,7 +105,7 @@ describe("instance-owned portable source", () => {
     );
   });
 
-  it("round-trips a label-only named parameter display in schema 61", () => {
+  it("round-trips a label-only named parameter display from schema 61", () => {
     const before = createEmptyProject("parameter-display", "Parameter display");
     const document = before.documents[0]!;
     const instance = {
@@ -143,7 +143,7 @@ describe("instance-owned portable source", () => {
     const portable = withProjectComponentDefinitions(before);
 
     const source = JSON.parse(serializeProject(portable));
-    expect(source.schemaVersion).toBe(61);
+    expect(source.schemaVersion).toBe(62);
     const encodedInstance = source.documents[0].instances.find(
       (item: any) => item.id === instance.id,
     );
@@ -166,6 +166,50 @@ describe("instance-owned portable source", () => {
     source.schemaVersion = 60;
     expect(() => parseProject(JSON.stringify(source))).toThrow(
       /Unknown field: showValue/,
+    );
+  });
+
+  it("round-trips a Symbol body text's authored look in schema 62", () => {
+    const before = createEmptyProject("body-text", "Body text");
+    const formulaFormat = {
+      runs: [
+        {
+          kind: "span" as const,
+          style: "bold" as const,
+          children: [
+            { kind: "text" as const, value: "ADC" },
+            {
+              kind: "span" as const,
+              style: "subscript" as const,
+              children: [{ kind: "text" as const, value: "1" }],
+            },
+          ],
+        },
+      ],
+    };
+    before.documents[0]!.instances.push({
+      id: "X1",
+      symbolId: "adc",
+      reference: "X1",
+      signalFlowParameters: { formula: "ADC1", formulaFormat },
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    const source = JSON.parse(
+      serializeProject(withProjectComponentDefinitions(before)),
+    );
+    expect(source.schemaVersion).toBe(62);
+    expect(
+      parseProject(JSON.stringify(source)).documents[0]!.instances[0]!
+        .signalFlowParameters,
+    ).toEqual({ formula: "ADC1", formulaFormat });
+
+    source.schemaVersion = 61;
+    expect(() => parseProject(JSON.stringify(source))).toThrow(
+      /requires Project schema 62/,
     );
   });
 
