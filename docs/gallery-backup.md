@@ -11,11 +11,13 @@ retention deletion is deliberately disabled initially.
 The read-only `GALLERY_BACKUP_TOKEN` is stored as a GitHub Actions secret in
 both repositories. Production deployment syncs it to the Worker. Rotation
 requires updating both secrets and deploying; never commit or print its value.
-It authorizes only `GET /api/gallery/maintenance/automated-backup` with
-`table=inventory|galleryEntries|galleryEntryVersions|galleryLikes`. Pages contain
-one raw record and an opaque continuation cursor. The credential grants no
-admin session, mutation, restore or private Cloud Project access. Preview does
-not receive the secret. Responses are never publicly cached.
+It authorizes only two reads: `GET /api/gallery/maintenance/automated-backup`
+with `table=inventory|galleryEntries|galleryEntryVersions|galleryLikes`, whose
+pages contain one raw record and an opaque continuation cursor, and
+`GET /api/gallery/maintenance/netlists`, the public entries' netlists (see
+below). The credential grants no admin session, mutation, restore or private
+Cloud Project access. Preview does not receive the secret. Responses are never
+publicly cached.
 
 Every capture includes all Gallery statuses, retained historical versions,
 likes, raw project text, previews, ownership and moderation metadata. The
@@ -31,6 +33,26 @@ Private Cloud Projects, accounts, analytics and the shared component catalog
 are outside this Gallery-only backup. Included Project Code already carries
 the definitions its drawings reference. The existing manual full-store
 schema-backup and schema-restore APIs have a different scope.
+
+## Reading netlists from another machine
+
+The Gallery stores each drawing's Project Code, not its netlist. The netlist
+read prints them on the server, so another machine needs only the credential
+and `curl`, not a checkout of this repository:
+
+```bash
+curl -H "Authorization: Bearer $GALLERY_BACKUP_TOKEN" \
+  "https://analog-canvas.tokenzhang.com/api/gallery/maintenance/netlists?format=spice"
+```
+
+Each page holds up to 100 public entries (`limit` up to 200) in entry-id
+order. Pass the response's `nextCursor` back as `after` until it is `null`.
+`format=spectre` prints Spectre instead, and `id=<entry>` reads one entry. An
+entry whose export is blocked carries `netlist: null` and the diagnostics that
+blocked it. A signed-in administrator can open the same URL in a browser
+without the token. The
+[Gallery specification](specs/community-gallery.md#administration) owns the
+response fields.
 
 ## Recovery
 

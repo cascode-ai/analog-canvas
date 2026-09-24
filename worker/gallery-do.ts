@@ -196,6 +196,10 @@ export const GALLERY_MAX_TAG_LENGTH = 32;
 export const GALLERY_MAX_VERSIONS_PER_ENTRY = 3;
 export const GALLERY_DEFAULT_LIST_LIMIT = 30;
 export const GALLERY_MAX_LIST_LIMIT = 60;
+/** Entries per netlist page, and the Project Code characters one may carry. */
+export const GALLERY_NETLIST_PAGE_LIMIT = 100;
+export const GALLERY_NETLIST_MAX_PAGE_LIMIT = 200;
+export const GALLERY_NETLIST_PAGE_CHARACTERS = 8_000_000;
 
 export interface SvgPreviewDimensions {
   width: number;
@@ -282,7 +286,10 @@ export type GalleryNamespaceLike = {
 };
 
 export type GalleryEnv = {
-  /** Read-only, Gallery-only credential for the private off-site backup job. */
+  /**
+   * Read-only, Gallery-only credential for the private off-site backup job
+   * and for reading the public Gallery's netlists by script.
+   */
   GALLERY_BACKUP_TOKEN?: string;
   GALLERY: GalleryNamespaceLike;
   /** Sessions are the only identity: publishing requires one. */
@@ -806,6 +813,8 @@ export class GalleryDO {
         return this.updateEntry(body);
       case "label-looks-read":
         return this.labelLooksRead(String(body.id));
+      case "netlist-sources":
+        return this.netlistSources(body);
       case "label-looks-store":
         return this.labelLooksStore(body);
       case "replace-entry":
@@ -3047,6 +3056,74 @@ export class GalleryDO {
       .toArray()[0];
     if (!row) return Response.json({ error: "not-found" }, { status: 404 });
     return Response.json({ status: row.status, projectText: row.project_text });
+  }
+
+  /**
+   * One page of public entries' Project Code, in id order, for the netlist
+   * read. A page ends at `limit` entries or once its Project Code passes the
+   * size budget, so one response stays well inside a Worker's memory however
+   * large the drawings are. Sizes are read first and the page's text second,
+   * by id range, so the rows past the budget are never loaded.
+   */
+  private netlistSources(body: Record<string, unknown>): Response {
+    const limit = Math.min(
+      Math.max(Math.trunc(Number(body.limit)) || GALLERY_NETLIST_PAGE_LIMIT, 1),
+      GALLERY_NETLIST_MAX_PAGE_LIMIT,
+    );
+    const id = typeof body.id === "string" && body.id ? body.id : null;
+    const sizes = this.sql
+      .exec<{ id: string; size: number }>(
+        `SELECT id, LENGTH(project_text) AS size FROM gallery_entries
+         WHERE status = 'public' AND id ${id ? "=" : ">"} ?
+         ORDER BY id LIMIT ?`,
+        id ?? (typeof body.after === "string" ? body.after : ""),
+        limit + 1,
+      )
+      .toArray();
+    let count = 0;
+    let characters = 0;
+    while (
+      count < Math.min(limit, sizes.length) &&
+      (count === 0 ||
+        characters + sizes[count]!.size <= GALLERY_NETLIST_PAGE_CHARACTERS)
+    ) {
+      characters += sizes[count]!.size;
+      count += 1;
+    }
+    const last = sizes[count - 1]?.id;
+    const rows =
+      last === undefined
+        ? []
+        : this.sql
+            .exec<{
+              id: string;
+              name: string;
+              author: string;
+              tags: string | null;
+              created_at: string;
+              netlistable: number;
+              project_text: string;
+            }>(
+              `SELECT id, name, author, tags, created_at, netlistable,
+                 project_text
+               FROM gallery_entries
+               WHERE status = 'public' AND id >= ? AND id <= ? ORDER BY id`,
+              sizes[0]!.id,
+              last,
+            )
+            .toArray();
+    return Response.json({
+      entries: rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        author: row.author,
+        tags: unwrapTags(row.tags),
+        createdAt: row.created_at,
+        netlistable: row.netlistable === 1,
+        projectText: row.project_text,
+      })),
+      nextCursor: count < sizes.length ? last : null,
+    });
   }
 
   /**
