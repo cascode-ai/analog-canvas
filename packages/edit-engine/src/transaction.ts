@@ -688,7 +688,6 @@ export function executeTransaction(
         document,
         draft,
         resolver,
-        transaction.transactionId,
         changedObjectIds,
         {
           explicitlyAuthoredRouteIds,
@@ -808,7 +807,6 @@ export function executeTransaction(
           const netId = uniquePhysicalContactId(
             draft,
             "net",
-            transaction.transactionId,
             [endpointKey(operation.left), endpointKey(operation.right)]
               .sort((left, right) => left.localeCompare(right, "en"))
               .join("--"),
@@ -929,7 +927,6 @@ export function executeTransaction(
       const secondRouteId = uniquePhysicalContactId(
         draft,
         "route",
-        transaction.transactionId,
         `${seed}:second`,
       );
       const split = splitRoute(

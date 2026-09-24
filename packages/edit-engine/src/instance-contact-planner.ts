@@ -5,6 +5,7 @@ import {
 import { createContactPlanningDraft } from "./contact-planning-draft.js";
 import { planElectricalMarkerRename } from "./net-name-operation-planner.js";
 import { planEnsurePowerNet } from "./power-net-planner.js";
+import { endpointOwnerNetId } from "./transaction-routing.js";
 import {
   proposeEndpointRouteAttachment,
   proposeEndpointsRouteAttachment,
@@ -388,23 +389,28 @@ export function proposePlacementContact(
     };
   }
   edits.push(...contactDraft.edits);
+  // A contact may merge the target's Net away (the survivor can be the pin's
+  // own Net), so every later edit names the Net the pin ended up in.
+  const joinedNetId = (source: WireSource) =>
+    endpointOwnerNetId(connected, source.endpoint) ??
+    connections.get(source)!.netId;
   let powerNetId: string | undefined;
-  let powerCandidateState: "existing" | "pending-connection" | undefined;
+  let powerTarget:
+    { netId: string; state: "existing" | "pending-connection" } | undefined;
   let powerEndpoint: RouteEndpoint | undefined;
   let netId: string | undefined;
   for (const contact of contacts) {
     const { source, target } = contact;
     if (target.endpoint) {
-      const { newNetId } = connections.get(source)!;
-      const createsNet = target.endpoint.netId === null;
-      if (power && createsNet) powerNetId = newNetId;
-      else if (power && target.endpoint.netId) {
-        powerNetId = target.endpoint.netId;
-      }
-      if (power) {
-        powerCandidateState = createsNet ? "pending-connection" : "existing";
-      }
-      netId = target.endpoint.netId ?? newNetId;
+      if (power)
+        powerTarget = target.endpoint.netId
+          ? { netId: target.endpoint.netId, state: "existing" }
+          : {
+              netId: connections.get(source)!.newNetId,
+              state: "pending-connection",
+            };
+      netId = joinedNetId(source);
+      if (power) powerNetId = netId;
     } else if (target.route) {
       const group = routeContactGroups.get(target.route.routeId) ?? [];
       if (group[0]?.source === source) {
@@ -437,16 +443,19 @@ export function proposePlacementContact(
           ).edits,
         );
       }
-      if (power) powerNetId = target.route.netId;
-      if (power) powerCandidateState = "existing";
-      netId = target.route.netId;
+      if (power) powerTarget = { netId: target.route.netId, state: "existing" };
+      netId = joinedNetId(source);
+      if (power) powerNetId = netId;
     }
     if (power) powerEndpoint = source.endpoint;
   }
-  if (power && powerNetId && powerCandidateState) {
-    const plan = planEnsurePowerNet(document, {
-      candidateNetId: powerNetId,
-      candidateState: powerCandidateState,
+  if (power && powerNetId && powerTarget) {
+    const request = (
+      candidateNetId: string,
+      candidateState: "existing" | "pending-connection",
+    ) => ({
+      candidateNetId,
+      candidateState,
       domain: power.domain,
       name: power.name,
       scope: power.scope,
@@ -455,10 +464,19 @@ export function proposePlacementContact(
         document.id,
         "power-marker",
         instance.id,
-        powerNetId,
+        candidateNetId,
       ),
-      owner: { kind: "power-marker", objectId: instance.id },
+      owner: { kind: "power-marker" as const, objectId: instance.id },
     });
+    // The Net the marker was dropped on decides whether its name may attach…
+    const check = planEnsurePowerNet(
+      document,
+      request(powerTarget.netId, powerTarget.state),
+    );
+    // …but the claim itself must name the Net that survives the merges.
+    const plan = check.ok
+      ? planEnsurePowerNet(connected, request(powerNetId, "existing"))
+      : check;
     if (!plan.ok) {
       return {
         edits: [],

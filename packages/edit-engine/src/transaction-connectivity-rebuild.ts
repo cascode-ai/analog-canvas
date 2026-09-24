@@ -32,7 +32,6 @@ function partitionNet(
   draft: SchematicDocument,
   net: Net,
   groups: string[][],
-  transactionId: string,
   changed: Set<string>,
 ): void {
   if (groups.length < 2) return;
@@ -53,12 +52,7 @@ function partitionNet(
     const id =
       index === 0
         ? net.id
-        : uniquePhysicalContactId(
-            draft,
-            "net",
-            transactionId,
-            `split:${net.id}:${group[0]}`,
-          );
+        : uniquePhysicalContactId(draft, "net", `split:${net.id}:${group[0]}`);
     ids.push(id);
     for (const key of group) byEndpoint.set(key, id);
     const members = terminals.filter((t) =>
@@ -253,7 +247,7 @@ export function rebuildEditedConnectivity(
       .find((index) => index >= 0);
     if (primary !== undefined && primary > 0)
       groups.unshift(...groups.splice(primary, 1));
-    partitionNet(draft, net, groups, transaction.transactionId, changed);
+    partitionNet(draft, net, groups, changed);
   }
   // Existing Net IDs choose stable identities only after the graph is known.
   // Two unconnected paths carrying the same stale hint remain separate.
@@ -285,12 +279,7 @@ export function rebuildEditedConnectivity(
     if (!netId) {
       const hint = routes[0]!.netId;
       netId = occupiedHints.has(hint)
-        ? uniquePhysicalContactId(
-            draft,
-            "net",
-            transaction.transactionId,
-            keys[0]!,
-          )
+        ? uniquePhysicalContactId(draft, "net", keys[0]!)
         : hint;
       occupiedHints.add(netId);
       draft.nets.push({ id: netId, terminals: [] });

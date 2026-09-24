@@ -143,9 +143,9 @@ function endpointsSharePhysicalComponent(
   );
 }
 
+/** Revision-derived for the same reason as `uniquePhysicalContactId`. */
 function uniqueDerivedId(
   document: SchematicDocument,
-  transactionId: string,
   pairId: string,
   kind: "route" | "junction" = "route",
 ): string {
@@ -168,7 +168,7 @@ function uniqueDerivedId(
       kind,
       document.id,
       "direct-contact",
-      transactionId,
+      String(document.revision),
       pairId,
       String(attempt),
     );
@@ -275,7 +275,6 @@ export function reconcileTransformDirectContacts(
   before: SchematicDocument,
   draft: SchematicDocument,
   resolver: SymbolResolver,
-  transactionId: string,
   changedObjectIds: Set<string>,
   topologyContext: Omit<
     RouteTopologyEditContext,
@@ -341,7 +340,7 @@ export function reconcileTransformDirectContacts(
       { connection: leftConnection },
       { connection: rightConnection },
     );
-    const routeId = uniqueDerivedId(draft, transactionId, pair.id);
+    const routeId = uniqueDerivedId(draft, pair.id);
     draft.routes.push(
       createRoutePath({
         id: routeId,
@@ -431,12 +430,7 @@ export function reconcileTransformDirectContacts(
           return point?.x === contact.point.x && point.y === contact.point.y;
         });
         if (!anchor) {
-          const junctionId = uniqueDerivedId(
-            draft,
-            transactionId,
-            contact.id,
-            "junction",
-          );
+          const junctionId = uniqueDerivedId(draft, contact.id, "junction");
           anchor = { kind: "junction", junctionId };
           draft.junctions.push({
             id: junctionId,
@@ -445,11 +439,7 @@ export function reconcileTransformDirectContacts(
             role: "route-anchor",
           });
           changedObjectIds.add(junctionId);
-          const secondRouteId = uniqueDerivedId(
-            draft,
-            transactionId,
-            `${contact.id}:split`,
-          );
+          const secondRouteId = uniqueDerivedId(draft, `${contact.id}:split`);
           const attached = applyRouteTopologyEdit(
             {
               kind: "attach_endpoint_to_route",
@@ -483,7 +473,6 @@ export function reconcileTransformDirectContacts(
         );
         const routeId = uniqueDerivedId(
           draft,
-          transactionId,
           `${contact.id}:${endpointKey(endpoint)}`,
         );
         draft.routes.push(
