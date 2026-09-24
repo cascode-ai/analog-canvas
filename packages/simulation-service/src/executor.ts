@@ -56,6 +56,7 @@ export const ExecutionOutputSchema = z
           upstreamMs: z.number().nonnegative().optional(),
           resultCommitMs: z.number().nonnegative().optional(),
           resultFetchMs: z.number().nonnegative(),
+          serverWaitMs: z.number().nonnegative().optional(),
           clientWaitMs: z.number().nonnegative(),
           pollCount: z.number().int().nonnegative(),
           pollSleepMs: z.number().nonnegative(),
