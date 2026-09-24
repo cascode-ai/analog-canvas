@@ -6,7 +6,10 @@ import {
 import { RichTextDocumentSchema } from "./rich-text.js";
 import { z } from "zod";
 
-export const SYMBOL_CONNECTION_GRID = 10;
+/** Smallest legal electrical pin pitch; ordinary placement still uses the Document grid. */
+export const SYMBOL_CONNECTION_GRID = 2;
+/** Existing symbols and free placement retain this coarser visual pitch. */
+export const SYMBOL_STANDARD_GRID = 10;
 const SymbolGeometryPointSchema = SymbolLocalPointSchema;
 
 function routingLandingIssue(pin: {

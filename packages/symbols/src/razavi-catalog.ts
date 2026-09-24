@@ -71,6 +71,21 @@ export interface RazaviSymbolCatalogEntry {
         sourceSymbolId: string;
         converterPath: string;
         converterVersion: number;
+      }
+    | {
+        kind: "derived-multi-input-and-gate";
+        sourceSymbolId: "and-gate";
+        inputCount: 3 | 4;
+        converterPath: string;
+        converterVersion: number;
+      }
+    | {
+        kind: "derived-multi-input-logic-gate";
+        sourceSymbolId:
+          "nand-gate" | "or-gate" | "nor-gate" | "xor-gate" | "xnor-gate";
+        inputCount: 3 | 4;
+        converterPath: string;
+        converterVersion: number;
       };
 }
 

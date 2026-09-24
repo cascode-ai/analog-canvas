@@ -1,0 +1,210 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "or-gate-3",
+    "name": "OR Gate (3 inputs)",
+    "viewBox": {
+      "x": -44,
+      "y": -24,
+      "width": 88,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "A",
+        "role": "input",
+        "at": {
+          "x": -30,
+          "y": -10
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 15
+        }
+      },
+      {
+        "name": "B",
+        "role": "input",
+        "at": {
+          "x": -30,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 15
+        }
+      },
+      {
+        "name": "C",
+        "role": "input",
+        "at": {
+          "x": -30,
+          "y": 10
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 15
+        }
+      },
+      {
+        "name": "Y",
+        "role": "output",
+        "at": {
+          "x": 20,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 4
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -30,
+          "y": -10
+        },
+        "to": {
+          "x": -14.966749,
+          "y": -10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -30,
+          "y": 0
+        },
+        "to": {
+          "x": -12.307069,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -30,
+          "y": 10
+        },
+        "to": {
+          "x": -15.215411,
+          "y": 10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "path",
+        "data": "M 15.757259 0.002616 C 15.757259 0.002616 15.757259 0.002616 13.373442 2.213794 C 10.989624 4.426715 6.22199 8.849071 0.263319 11.829279 C -5.697096 14.809486 -12.850292 16.345802 -16.425146 17.114831 C -20 17.882117 -20 17.882117 -20 17.882117 C -20 17.882117 -20 17.882117 -18.139332 14.786817 C -16.275176 11.689772 -12.550353 5.497428 -12.550353 -0.438574 C -12.550353 -6.374575 -16.275176 -12.055977 -18.139332 -14.896678 C -20 -17.735635 -20 -17.735635 -20 -17.735635 C -20 -17.735635 -20 -17.735635 -16.425146 -16.991019 C -12.850292 -16.246403 -5.697096 -14.757172 0.263319 -11.799634 C 6.22199 -8.84384 10.989624 -4.41974 13.373442 -2.208562 C 15.757259 0.002616 15.757259 0.002616 15.757259 0.002616",
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter",
+          "miterLimit": 4
+        },
+        "bounds": {
+          "x": -20,
+          "y": -17.735635,
+          "width": 35.757259,
+          "height": 35.617752
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 15.757259,
+          "y": 0
+        },
+        "to": {
+          "x": 20,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": null,
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "or-gate-3",
+    "name": "OR Gate (3 inputs)",
+    "category": "logic",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "3-input product derivation from the calibrated two-input or-gate; the cited reference does not contain this exact arity.",
+    "pinOrder": ["A", "B", "C", "Y"],
+    "palette": false,
+    "automaticMappings": [],
+    "manualOnlyReason": "Select through the OR Gate input-count property; behavioral SPICE realization requires an explicit subcircuit or PDK mapping.",
+    "assetPath": "or-gate-3.json",
+    "generation": {
+      "kind": "derived-multi-input-logic-gate",
+      "sourceSymbolId": "or-gate",
+      "inputCount": 3,
+      "converterPath": "scripts/lib/derived-logic-gate.mjs",
+      "converterVersion": 1
+    }
+  },
+  "subcircuit": {
+    "id": "or-gate-3",
+    "symbolId": "or-gate-3",
+    "target": "or_gate_3",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "A",
+        "direction": "input",
+        "pinName": "A"
+      },
+      {
+        "name": "B",
+        "direction": "input",
+        "pinName": "B"
+      },
+      {
+        "name": "C",
+        "direction": "input",
+        "pinName": "C"
+      },
+      {
+        "name": "Y",
+        "direction": "output",
+        "pinName": "Y"
+      }
+    ]
+  }
+}

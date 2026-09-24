@@ -12,6 +12,10 @@ import {
 import { differentialInputSibling } from "../editor-shell/differential-input-swap";
 import { differentialOutputSibling } from "../editor-shell/differential-output-swap";
 import { switchContactStyleSibling } from "../editor-shell/switch-contact-style";
+import {
+  logicGateInputInfo,
+  type LogicGateInputCount,
+} from "./logic-gate-input-count";
 import type { CanvasPropertyField } from "./component-property-fields";
 import { componentInternalMark } from "./component-visual-variants";
 
@@ -22,6 +26,7 @@ export interface ComponentPropertyDetailsContext {
 }
 
 export interface ComponentPropertyDetailsValue {
+  inputs?: LogicGateInputCount;
   netlistName?: string;
   parameters?: Record<string, string>;
   netlistTarget?: string;
@@ -49,6 +54,9 @@ export function componentPropertyDetailsValue(
 ): ComponentPropertyDetailsValue {
   if (!context) return {};
   return {
+    ...(logicGateInputInfo(instance.symbolId) !== null
+      ? { inputs: logicGateInputInfo(instance.symbolId)!.count }
+      : {}),
     ...(instance.reference ? { netlistName: instance.reference } : {}),
     ...(instance.netlist
       ? {
@@ -96,6 +104,7 @@ export function parseComponentPropertyDetails(
   const baseline = componentPropertyDetailsValue(instance, context);
   const result: ComponentPropertyDetailsValue = {};
   for (const key of [
+    "inputs",
     "netlistName",
     "parameters",
     "netlistTarget",
@@ -108,7 +117,11 @@ export function parseComponentPropertyDetails(
       continue;
     }
     const value = decoded[key];
-    if (key === "parameters") {
+    if (key === "inputs") {
+      if (value !== 2 && value !== 3 && value !== 4)
+        throw new Error("inputs must be 2, 3, or 4");
+      result.inputs = value;
+    } else if (key === "parameters") {
       if (typeof value !== "object" || value === null || Array.isArray(value))
         throw new Error("parameters must be an object of raw string values");
       if (Object.keys(value).length > 128)
@@ -182,6 +195,21 @@ export function componentDetailFields(
 ): CanvasPropertyField[] {
   if (!context) return [];
   return [
+    ...(logicGateInputInfo(instance.symbolId) !== null
+      ? [
+          {
+            path: "inputs",
+            label: "Inputs",
+            kind: "choice" as const,
+            options: [2, 3, 4].map((count) => ({
+              value: count,
+              label: String(count),
+            })),
+            description: "",
+            help: "Changing input count preserves shared pins; connected removed pins must be disconnected first.",
+          },
+        ]
+      : []),
     {
       path: "placement",
       label: "Placement",

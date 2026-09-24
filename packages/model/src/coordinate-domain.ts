@@ -1,4 +1,13 @@
 import type { DerivedPoint, GridPoint, GridRect } from "./schema.js";
+import { SYMBOL_CONNECTION_GRID } from "./schema/symbol-definition.js";
+
+/** The common lattice of a Document's placement pitch and fine Symbol pins. */
+export function electricalConnectionGrid(documentGrid: number): number {
+  let left = documentGrid;
+  let right = SYMBOL_CONNECTION_GRID;
+  while (right !== 0) [left, right] = [right, left % right];
+  return left;
+}
 
 /**
  * Read-only geometry (text metrics, curves, pointer previews) can be

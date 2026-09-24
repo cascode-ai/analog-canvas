@@ -37,6 +37,7 @@ import type {
 } from "@icm/model";
 import {
   createRoutePath,
+  electricalConnectionGrid,
   routeBends,
   routeEnd,
   routeEndpoints,
@@ -1965,6 +1966,7 @@ export function createRouteWireAnchor(
         firstRouteId: string;
         secondRouteId: string;
       },
+  resolver?: SymbolResolver,
 ): WireSource {
   const ids =
     typeof suffixOrIds === "number"
@@ -1975,9 +1977,26 @@ export function createRouteWireAnchor(
         }
       : suffixOrIds;
   const junctionId = ids.junctionId;
+  // Preserve a fine-grid tap only when the conductor itself has a fine-grid
+  // endpoint. A normal conductor tapped at x=196 must still land at x=200.
+  const fineGrid = electricalConnectionGrid(grid);
+  const segment = resolver
+    ? resolveRouteGeometry(document, resolver, route)?.segments[segmentIndex]
+    : undefined;
+  const segmentUsesFineGrid =
+    segment &&
+    [segment.from, segment.to].some(
+      (end) => end.x % grid !== 0 || end.y % grid !== 0,
+    );
+  const tapIsFine =
+    segmentUsesFineGrid &&
+    (point.x % grid !== 0 || point.y % grid !== 0) &&
+    point.x % fineGrid === 0 &&
+    point.y % fineGrid === 0;
+  const pitch = tapIsFine ? fineGrid : grid;
   const splitPoint = {
-    x: Math.round(point.x / grid) * grid,
-    y: Math.round(point.y / grid) * grid,
+    x: Math.round(point.x / pitch) * pitch,
+    y: Math.round(point.y / pitch) * pitch,
   };
   return {
     endpoint: { kind: "junction", junctionId },
@@ -2099,6 +2118,7 @@ export function proposeWireIntent(
           firstRouteId: `${route.id}-a-${intent.id}-${side}`,
           secondRouteId: `${route.id}-b-${intent.id}-${side}`,
         },
+        resolver,
       );
     }
     const netId = existingNetId ?? newNetId;

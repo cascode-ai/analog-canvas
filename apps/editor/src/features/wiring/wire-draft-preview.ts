@@ -78,6 +78,7 @@ export function wireSourceForTarget(
   target: WireDraftTarget,
   activeNetId: string | null,
   nextIds: () => WireDraftTargetIds,
+  resolver?: SymbolResolver,
 ): WireSource | null {
   switch (target.kind) {
     case "endpoint":
@@ -94,6 +95,7 @@ export function wireSourceForTarget(
         target.segmentIndex,
         document.presentation.grid,
         nextIds(),
+        resolver,
       );
     }
     case "free": {
@@ -277,6 +279,7 @@ export function resolveWireDraftPreview({
     target,
     source.netId,
     () => PREVIEW_TARGET_IDS,
+    resolver,
   );
   if (!to) return EMPTY_WIRE_DRAFT_PREVIEW;
   const shape = resolveWireDraftShape(

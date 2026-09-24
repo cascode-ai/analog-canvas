@@ -43,8 +43,8 @@ export function validateComponentDefinition(component, id) {
     if (
       !Number.isFinite(pin.at?.x) ||
       !Number.isFinite(pin.at?.y) ||
-      pin.at.x % 10 ||
-      pin.at.y % 10
+      pin.at.x % 2 ||
+      pin.at.y % 2
     )
       fail(`${id}: off-grid pin ${pin.name}`);
   }

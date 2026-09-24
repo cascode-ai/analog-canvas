@@ -1,6 +1,9 @@
 import { createRoutePath } from "@icm/model";
 import { createEmptyDocument } from "@icm/model";
-import { resolveDocumentLogicalNets } from "@icm/derived";
+import {
+  resolveDocumentLogicalNets,
+  resolveDocumentRoutingGeometry,
+} from "@icm/derived";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
@@ -34,6 +37,250 @@ function addInstance(id: string, symbolId: string, x: number) {
 }
 
 describe("semantic authoring", () => {
+  it("routes straight to one dense input without joining its neighbors", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.instances.push({
+      id: "X1",
+      symbolId: "and-gate-4",
+      placement: { position: { x: 200, y: 100 }, rotation: 0, mirror: "none" },
+    });
+    document.nets.push({ id: "N1", terminals: [] });
+    document.junctions.push({
+      id: "J1",
+      netId: "N1",
+      position: { x: 140, y: 88 },
+    });
+    const route = createRoutePath({
+      id: "R1",
+      netId: "N1",
+      start: { kind: "junction", junctionId: "J1" },
+      end: { kind: "terminal", instanceId: "X1", pinName: "A" },
+      bends: [],
+      modes: ["manual"],
+    });
+    const result = executeTransaction(
+      document,
+      transaction([{ kind: "set_route_path", route }]),
+      { symbolResolver: resolver },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.document.nets.flatMap((net) => net.terminals)).toEqual([
+      { instanceId: "X1", pinName: "A" },
+    ]);
+    expect(
+      resolveDocumentRoutingGeometry(result.document, resolver).routes.get("R1")
+        ?.centerline,
+    ).toEqual([
+      { x: 140, y: 88 },
+      { x: 170, y: 88 },
+    ]);
+    const moved = executeTransaction(
+      result.document,
+      transaction(
+        [
+          {
+            kind: "move_instance",
+            instanceId: "X1",
+            position: { x: 210, y: 100 },
+          },
+        ],
+        result.revision,
+      ),
+      { symbolResolver: resolver },
+    );
+    expect(moved.ok).toBe(true);
+    if (!moved.ok) return;
+    expect(
+      resolveDocumentRoutingGeometry(moved.document, resolver)
+        .routes.get("R1")
+        ?.centerline.at(-1),
+    ).toEqual({ x: 180, y: 88 });
+    const rotated = executeTransaction(
+      moved.document,
+      transaction(
+        [
+          {
+            kind: "rotate_instance",
+            instanceId: "X1",
+            rotation: 90,
+          },
+        ],
+        moved.revision,
+      ),
+      { symbolResolver: resolver },
+    );
+    expect(rotated.ok).toBe(true);
+    if (!rotated.ok) return;
+    expect(rotated.document.nets.flatMap((net) => net.terminals)).toEqual([
+      { instanceId: "X1", pinName: "A" },
+    ]);
+    expect(
+      resolveDocumentRoutingGeometry(rotated.document, resolver)
+        .routes.get("R1")
+        ?.centerline.at(-1),
+    ).toEqual({ x: 222, y: 70 });
+  });
+  it("keeps AND Nets on upgrade and rejects a connected input on downgrade atomically", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.instances.push({
+      id: "X1",
+      symbolId: "and-gate",
+      placement: { position: { x: 200, y: 100 }, rotation: 0, mirror: "none" },
+      reference: "X1",
+      netlist: {
+        binding: { kind: "unresolved-subcircuit", name: "and_gate" },
+        parameters: {},
+      },
+    });
+    for (const pinName of ["A", "B", "Y"]) {
+      document.nets.push({
+        id: `net-${pinName}`,
+        terminals: [{ instanceId: "X1", pinName }],
+      });
+    }
+    const upgraded = executeTransaction(
+      document,
+      transaction([
+        {
+          kind: "set_instance_symbol",
+          instanceId: "X1",
+          symbolId: "and-gate-4",
+        },
+        {
+          kind: "set_instance_binding",
+          instanceId: "X1",
+          binding: { kind: "unresolved-subcircuit", name: "and_gate_4" },
+        },
+      ]),
+      { symbolResolver: resolver },
+    );
+    expect(upgraded.ok).toBe(true);
+    if (!upgraded.ok) return;
+    expect(upgraded.document.nets).toEqual(document.nets);
+    expect(upgraded.document.instances[0]).toMatchObject({
+      symbolId: "and-gate-4",
+      netlist: { binding: { name: "and_gate_4" } },
+    });
+    const connected = structuredClone(upgraded.document);
+    connected.nets.push({
+      id: "net-D",
+      terminals: [{ instanceId: "X1", pinName: "D" }],
+    });
+    connected.junctions.push({
+      id: "J-D",
+      netId: "net-D",
+      position: { x: 140, y: 112 },
+    });
+    connected.routes.push(
+      createRoutePath({
+        id: "route-D",
+        netId: "net-D",
+        start: { kind: "junction", junctionId: "J-D" },
+        end: { kind: "terminal", instanceId: "X1", pinName: "D" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const rejected = executeTransaction(
+      connected,
+      transaction(
+        [
+          {
+            kind: "set_instance_symbol",
+            instanceId: "X1",
+            symbolId: "and-gate",
+          },
+        ],
+        connected.revision,
+      ),
+      { symbolResolver: resolver },
+    );
+    expect(rejected).toMatchObject({ ok: false, applied: false });
+    expect(rejected.document).toBe(connected);
+    expect(connected.instances[0]!.symbolId).toBe("and-gate-4");
+    const cut = executeTransaction(
+      connected,
+      transaction(
+        [{ kind: "cut_connection", routeId: "route-D" }],
+        connected.revision,
+      ),
+      { symbolResolver: resolver },
+    );
+    expect(cut.ok).toBe(true);
+    if (!cut.ok) return;
+    expect(cut.document.routes).toHaveLength(0);
+    expect(
+      cut.document.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === "X1" && terminal.pinName === "D",
+        ),
+      )?.terminals,
+    ).toEqual([{ instanceId: "X1", pinName: "D" }]);
+    const rawDowngrade = executeTransaction(
+      cut.document,
+      transaction(
+        [
+          {
+            kind: "set_instance_symbol",
+            instanceId: "X1",
+            symbolId: "and-gate",
+          },
+        ],
+        cut.revision,
+      ),
+      { symbolResolver: resolver },
+    );
+    expect(rawDowngrade).toMatchObject({ ok: false, applied: false });
+    const downgraded = executeTransaction(
+      cut.document,
+      transaction(
+        [
+          {
+            kind: "disconnect_endpoint",
+            endpoint: { kind: "terminal", instanceId: "X1", pinName: "D" },
+          },
+          {
+            kind: "set_instance_symbol",
+            instanceId: "X1",
+            symbolId: "and-gate",
+          },
+        ],
+        cut.revision,
+      ),
+      { symbolResolver: resolver },
+    );
+    expect(downgraded.ok).toBe(true);
+    if (!downgraded.ok) return;
+    expect(downgraded.document.instances[0]?.symbolId).toBe("and-gate");
+    expect(
+      downgraded.document.nets.some((net) =>
+        net.terminals.some((terminal) => terminal.pinName === "D"),
+      ),
+    ).toBe(false);
+    const marked = structuredClone(upgraded.document);
+    marked.noConnects.push({
+      id: "NC-D",
+      endpoint: { kind: "terminal", instanceId: "X1", pinName: "D" },
+    });
+    const noConnectRejected = executeTransaction(
+      marked,
+      transaction(
+        [
+          {
+            kind: "set_instance_symbol",
+            instanceId: "X1",
+            symbolId: "and-gate",
+          },
+        ],
+        marked.revision,
+      ),
+      { symbolResolver: resolver },
+    );
+    expect(noConnectRejected).toMatchObject({ ok: false, applied: false });
+    expect(marked.noConnects).toHaveLength(1);
+  });
   it("rejects an integer typed-edit point that is not aligned to the Document grid", () => {
     const document = createEmptyDocument("document-main", "Main");
     const result = executeTransaction(

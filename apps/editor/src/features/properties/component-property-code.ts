@@ -74,6 +74,7 @@ export type ComponentPropertyCodeParseResult =
   | { ok: false; message: string };
 
 const ROOT_KEYS = new Set([
+  "inputs",
   "placement",
   "display",
   "displayName",
