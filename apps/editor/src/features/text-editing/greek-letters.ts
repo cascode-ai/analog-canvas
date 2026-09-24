@@ -1,53 +1,26 @@
+import { GREEK_LETTERS } from "@icm/model";
+
 /**
  * Greek letters by their LaTeX command names, so `\phi` spells φ and
  * `\Omega` spells Ω. Capitals that look like Latin letters (A, B, E …) have
- * no command in LaTeX either and are typed as those letters.
+ * no command in LaTeX either and are typed as those letters. The shared table
+ * also gives the names a netlist writes every Greek letter with.
  */
+function latexCommands(capital: boolean) {
+  return GREEK_LETTERS.filter(
+    ({ glyph, latex }) => latex && (glyph !== glyph.toLowerCase()) === capital,
+  ).map(({ name, glyph }) => [name, glyph] as const);
+}
+
 export const GREEK_LOWERCASE: readonly (readonly [
   name: string,
   glyph: string,
-])[] = [
-  ["alpha", "α"],
-  ["beta", "β"],
-  ["gamma", "γ"],
-  ["delta", "δ"],
-  ["epsilon", "ε"],
-  ["zeta", "ζ"],
-  ["eta", "η"],
-  ["theta", "θ"],
-  ["iota", "ι"],
-  ["kappa", "κ"],
-  ["lambda", "λ"],
-  ["mu", "μ"],
-  ["nu", "ν"],
-  ["xi", "ξ"],
-  ["pi", "π"],
-  ["rho", "ρ"],
-  ["sigma", "σ"],
-  ["tau", "τ"],
-  ["upsilon", "υ"],
-  ["phi", "φ"],
-  ["chi", "χ"],
-  ["psi", "ψ"],
-  ["omega", "ω"],
-];
+])[] = latexCommands(false);
 
 export const GREEK_UPPERCASE: readonly (readonly [
   name: string,
   glyph: string,
-])[] = [
-  ["Gamma", "Γ"],
-  ["Delta", "Δ"],
-  ["Theta", "Θ"],
-  ["Lambda", "Λ"],
-  ["Xi", "Ξ"],
-  ["Pi", "Π"],
-  ["Sigma", "Σ"],
-  ["Upsilon", "Υ"],
-  ["Phi", "Φ"],
-  ["Psi", "Ψ"],
-  ["Omega", "Ω"],
-];
+])[] = latexCommands(true);
 
 export const GREEK_COMMANDS: Readonly<Record<string, string>> =
   Object.fromEntries([...GREEK_LOWERCASE, ...GREEK_UPPERCASE]);

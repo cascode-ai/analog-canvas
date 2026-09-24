@@ -1,6 +1,10 @@
 import { resolveDocumentLogicalNets } from "@icm/derived";
 import { deviceDescriptor } from "@icm/devices";
-import type { CircuitProject, SchematicDocument } from "@icm/model";
+import {
+  spellGreekLetters,
+  type CircuitProject,
+  type SchematicDocument,
+} from "@icm/model";
 import {
   analyzeDesignNetlist,
   printSpiceCellInstances,
@@ -78,9 +82,11 @@ function nodeTokens(
       : undefined;
     return {
       pinName,
-      netName:
-        logicalNet?.name ??
-        (baseNet ? `<unnamed:${pinName}>` : `<unconnected:${pinName}>`),
+      netName: logicalNet?.name
+        ? spellGreekLetters(logicalNet.name)
+        : baseNet
+          ? `<unnamed:${pinName}>`
+          : `<unconnected:${pinName}>`,
     };
   });
 }
@@ -136,7 +142,7 @@ function fallbackSpiceCard(
     !descriptor || descriptor.targetPolicy === "none";
   const preview: DesignNetlistInstance = {
     id: instance.id,
-    reference: instance.reference ?? instance.id,
+    reference: spellGreekLetters(instance.reference ?? instance.id),
     invocationKind: useSubcircuitTemplate ? "subcircuit" : "primitive",
     deviceClass: useSubcircuitTemplate
       ? "hierarchical"

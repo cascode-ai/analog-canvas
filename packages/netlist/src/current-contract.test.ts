@@ -1037,6 +1037,70 @@ describe("current formal cell interface", () => {
     );
   });
 
+  it.each(["spice", "spectre"] as const)(
+    "writes Greek letters in %s Net, device and Cell names as their standard names",
+    (format) => {
+      const project = resistorProject({ value: "1k" });
+      const document = project.documents[0]!;
+      document.netlist!.name = "Φgen";
+      document.instances[0]!.reference = "Rθ";
+      for (const evidence of document.connectivityEvidence)
+        if (evidence.kind === "name-claim")
+          evidence.name = evidence.netId === "net-in" ? "φ1" : "Ω";
+      const before = structuredClone(project);
+
+      const result = analyzeDesignNetlist(project, { format });
+
+      expect(
+        result.diagnostics.filter((item) => item.severity === "error"),
+      ).toEqual([]);
+      const cell = result.ir!.cells[0]!;
+      expect(cell.name).toBe("Phigen");
+      expect(cell.instances.map((instance) => instance.reference)).toEqual([
+        "Rtheta",
+      ]);
+      expect(cell.instances[0]!.nodes.map((node) => node.netName)).toEqual([
+        "phi1",
+        "Omega",
+      ]);
+      expect(project).toEqual(before);
+    },
+  );
+
+  it("blocks names that only differ until their Greek letters are written out", () => {
+    const project = resistorProject({ value: "1k" });
+    const document = project.documents[0]!;
+    document.instances.push({
+      ...structuredClone(document.instances[0]!),
+      id: "R2",
+      reference: "Rtheta",
+    });
+    document.instances[0]!.reference = "Rθ";
+    document.nets.push(
+      { id: "net-greek", terminals: [] },
+      { id: "net-latin", terminals: [] },
+    );
+    claimNet(document, "net-greek", "φ1");
+    claimNet(document, "net-latin", "phi1");
+
+    const result = analyzeDesignNetlist(project);
+
+    expect(result.ir).toBeNull();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "DIALECT_NAME_COLLISION",
+        objectIds: expect.arrayContaining(["net-greek", "net-latin"]),
+      }),
+    );
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "DUPLICATE_INSTANCE_REFERENCE",
+        message: "References Rtheta and Rθ both export as Rtheta",
+        objectIds: ["R2", "R1"],
+      }),
+    );
+  });
+
   it("applies the selected dialect codec after semantic Net resolution", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;

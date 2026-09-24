@@ -168,8 +168,9 @@ is defined.
 - Use **Ω** in the text toolbar for Greek letters (every lowercase letter and
   the capitals Γ Δ Θ Λ Ξ Π Σ Υ Φ Ψ Ω) and common circuit symbols. Faster
   still, type a LaTeX name such as `\phi` or `\Omega` and press Space: it
-  turns into φ or Ω where you typed it. A Net or Pin name is also written to
-  the netlist, and SPICE cannot read a Greek letter there.
+  turns into φ or Ω where you typed it. In a Net, Pin or device name the
+  netlist writes the letter as its name, keeping its case: a Net drawn as φ₁
+  is `phi1` in the netlist, and Ω is `Omega`.
 - Press `R` to rotate, `F` to fit,
   `Ctrl+Z` to undo, and `Ctrl+Y` or `Ctrl+Shift+Z` to redo. Shortcuts do not
   fire while typing in a field.
