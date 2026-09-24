@@ -131,7 +131,7 @@ test("formats a Symbol's body text like any label", async ({ page }) => {
     await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
   await expect(page.getByLabel("Insert circuit symbol")).toBeVisible();
 
-  // Upright ADC, then a subscript 1 after it.
+  // A slanted ADC — a look its text alone cannot ask for — then a subscript.
   await editor.click();
   await page.keyboard.press("ControlOrMeta+A");
   await page.getByRole("button", { name: "Italic", exact: true }).click();
@@ -150,7 +150,7 @@ test("formats a Symbol's body text like any label", async ({ page }) => {
         (node) => getComputedStyle(node).fontStyle === "italic",
       ),
     ),
-  ).toBe(false);
+  ).toBe(true);
 
   const saved = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -170,6 +170,28 @@ test("formats a Symbol's body text like any label", async ({ page }) => {
   // Reopening edits the stored look, subscript and all.
   await page.getByTestId("hit-X1").dblclick();
   await expect(editor.locator("sub")).toHaveText("1");
+});
+
+// Textbook notation, as the owner asked: a converter's word stands upright,
+// an amplifier's single-letter gain slants.
+async function slanted(page: Page): Promise<boolean> {
+  return bodyText(page).evaluate((element) =>
+    [element, ...element.querySelectorAll("text, tspan")].some(
+      (node) => getComputedStyle(node).fontStyle === "italic",
+    ),
+  );
+}
+
+test("stands a converter's word upright", async ({ page }) => {
+  await placeSymbol(page, "adc");
+  await expect(bodyText(page)).toHaveText("ADC");
+  expect(await slanted(page)).toBe(false);
+});
+
+test("slants an amplifier's single-letter gain", async ({ page }) => {
+  await placeBodyTextSymbol(page, "opamp-lettered");
+  await expect(bodyText(page)).toHaveText("A");
+  expect(await slanted(page)).toBe(true);
 });
 
 // The owner reported this on a DAC and said several other circuits have it

@@ -721,8 +721,9 @@ describe("Symbol body text edits like a label", () => {
   });
   const text = (value: string): RichTextRun => ({ kind: "text", value });
 
-  // What the editor opens on is what the canvas draws, word or formula.
-  it("opens on a body word in the drawing's label look", () => {
+  // What the editor opens on is what the canvas draws, word or formula. A
+  // converter's word stands upright; only a single-letter quantity slants.
+  it("opens on a body word in the drawing's label look, upright", () => {
     const document = drawingWith(block("dac"));
     const session = open(document, dacPresentation);
 
@@ -734,7 +735,7 @@ describe("Symbol body text edits like a label", () => {
       ),
     );
     expect(flattenRichText(session.content)).toBe("DAC");
-    expect(session).toMatchObject({ defaultBold: true, defaultItalic: true });
+    expect(session).toMatchObject({ defaultBold: true, defaultItalic: false });
   });
 
   it("opens on a transfer function with its superscript", () => {
@@ -813,16 +814,21 @@ describe("Symbol body text edits like a label", () => {
   // keeps, the body text keeps too, once the author sets them.
   it("stores the author's look beside its text and reopens on it", () => {
     const document = drawingWith(block("dac"));
-    const look = bold(text("DAC"), {
+    const italic = (...children: RichTextRun[]): RichTextDocument => ({
+      runs: [
+        { kind: "span", style: "italic", children: bold(...children).runs },
+      ],
+    });
+    const look = italic(text("DAC"), {
       kind: "span",
       style: "subscript",
       children: [text("1")],
     });
-    // An upright DAC first (a formatting command), then its subscript.
-    const upright = updateTextEditingSession(open(document, dacPresentation), {
-      content: bold(text("DAC")),
+    // A slanted DAC first (a formatting command), then its subscript.
+    const slanted = updateTextEditingSession(open(document, dacPresentation), {
+      content: italic(text("DAC")),
     });
-    const session = updateTextEditingSession(upright, { content: look });
+    const session = updateTextEditingSession(slanted, { content: look });
 
     expect(proposeTextEditingCommit(document, session)).toMatchObject({
       kind: "update",

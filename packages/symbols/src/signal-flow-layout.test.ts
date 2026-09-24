@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, flattenRichText } from "@icm/model";
 
 import {
   parseSignalFlowInline,
@@ -8,6 +8,7 @@ import {
   resolveSignalFlowFormulaLayout,
   resolveSignalFlowPinAt,
   signalFlowBodyTextDocument,
+  signalFlowBodyWordDocument,
   signalFlowFormulaSource,
 } from "./signal-flow-layout.js";
 
@@ -238,6 +239,22 @@ describe("Symbol body text as RichText", () => {
         ],
       }),
     ).toBeNull();
+  });
+
+  // Textbook notation: a quantity such as an amplifier's A slants; a word or
+  // an abbreviation such as ADC or DAC stands upright.
+  it("slants a single-letter quantity and stands a word upright", () => {
+    const slants = (formula: string) =>
+      JSON.stringify(signalFlowBodyWordDocument(formula, drawing)).includes(
+        '"italic"',
+      );
+    for (const quantity of ["A", "A1", "A_v", "G_m"])
+      expect(slants(quantity)).toBe(true);
+    for (const word of ["ADC", "DAC", "LPF", "ADCaa", "Zz"])
+      expect(slants(word)).toBe(false);
+    expect(flattenRichText(signalFlowBodyWordDocument("ADC", drawing)!)).toBe(
+      "ADC",
+    );
   });
 
   it("gives a transfer function the look it draws in, fraction and all", () => {

@@ -765,8 +765,11 @@ atomic Formula continues to use its existing editor.
 A Symbol's body text (a converter's ADC, a transfer function, a lettered
 amplifier's A) is a label like any other: double-clicking it opens the same
 floating RichText editor, on the text exactly as it draws, with every format a
-label offers. A look that differs from the Symbol's own is stored beside the
-text; returning to the Symbol's own text and look removes the override. Text
+label offers. As in textbook notation, a body word or abbreviation such as
+ADC or DAC stands upright by default, while a single-letter quantity such as
+an amplifier's A (or A_v) slants. A look that differs from the Symbol's own is
+stored beside the text; returning to the Symbol's own text and look removes
+the override. Text
 without a stored look keeps drawing as before, including the compact syntax
 (`z^-1`, `g_m`, `1/(1-z)`) that Agents and the Properties JSON write.
 

@@ -438,13 +438,38 @@ export function signalFlowBodyUsesLabelTypography(
 
 const BODY_WORD = /^[\p{L}][\p{L}\p{N}_]*$/u;
 
-/** A body word drawn in the drawing's label typography, when it is one. */
+/** A single letter, with an index or a subscript: A, A1, A_v, G_m. */
+const BODY_QUANTITY = /^\p{L}(?:\p{N}*|_[\p{L}\p{N}]+)$/u;
+
+function withoutItalic(runs: readonly RichTextRun[]): RichTextRun[] {
+  return runs.flatMap((run): RichTextRun[] =>
+    run.kind === "span"
+      ? run.style === "italic"
+        ? withoutItalic(run.children)
+        : [{ ...run, children: withoutItalic(run.children) }]
+      : run.kind === "fraction"
+        ? [
+            {
+              ...run,
+              numerator: { runs: withoutItalic(run.numerator.runs) },
+              denominator: { runs: withoutItalic(run.denominator.runs) },
+            },
+          ]
+        : [run],
+  );
+}
+
+/**
+ * A body word drawn in the drawing's label typography, when it is one. As in
+ * textbook notation, a single-letter quantity (an amplifier's A, A_v) slants
+ * like a label, while a word or abbreviation (ADC, DAC, LPF) stands upright.
+ */
 export function signalFlowBodyWordDocument(
   formula: string,
   drawing: SchematicDocument["presentation"],
 ): RichTextDocument | undefined {
   if (!BODY_WORD.test(formula)) return undefined;
-  return labelTextDocument(
+  const look = labelTextDocument(
     formatLabelIdentifier(formula, {
       ...labelTypography(drawing),
       // A Symbol's body word is a name, not a designator with an implicit
@@ -454,6 +479,9 @@ export function signalFlowBodyWordDocument(
     }),
     drawing,
   );
+  return BODY_QUANTITY.test(formula)
+    ? look
+    : normalizeRichText({ runs: withoutItalic(look.runs) });
 }
 
 /**

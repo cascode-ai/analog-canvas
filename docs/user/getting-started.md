@@ -154,7 +154,9 @@ is defined.
   switch selected text to normal weight; that choice survives saving and reopening.
 - Double-click the text inside a block, such as an ADC, a transfer function or
   a lettered amplifier, to edit it like any label: upright or italic, bold,
-  subscripts and superscripts, overbars, fractions and formulas.
+  subscripts and superscripts, overbars, fractions and formulas. A word such
+  as ADC or DAC is upright by default; an amplifier's single letter, such as A,
+  is italic.
 - To mix a stacked fraction with other text, use **Insert fraction** (the
   a-over-b button) in the text toolbar. Type the numerator, press `Tab` for the
   denominator, then `Tab` again to continue the line, for example `+ R₁`.
