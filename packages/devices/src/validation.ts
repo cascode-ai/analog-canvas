@@ -195,6 +195,7 @@ export function validateDeviceDescriptors(
     if (
       (descriptor.deviceClass === "voltage-source" ||
         descriptor.deviceClass === "current-source") &&
+      descriptor.targetPolicy !== "none" &&
       descriptor.sourceWaveformDefault === undefined
     ) {
       issues.push({

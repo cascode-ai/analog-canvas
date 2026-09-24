@@ -645,6 +645,21 @@ export const componentDeviceDescriptors: readonly DeviceDescriptor[] = [
     },
   },
   {
+    id: "battery",
+    symbolId: "battery",
+    deviceClass: "voltage-source",
+    referencePrefix: "B",
+    pinOrder: ["+", "-"],
+    targetPolicy: "none",
+    parameters: [],
+    dialects: ["spice", "spectre"],
+    capabilities: {
+      supportsModel: false,
+      supportsBulkBinding: false,
+      supportsValueAnnotation: false,
+    },
+  },
+  {
     id: "voltage-source",
     symbolId: "voltage-source",
     deviceClass: "voltage-source",

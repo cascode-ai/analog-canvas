@@ -36,6 +36,7 @@ const SIDE_LABEL_SYMBOLS = new Set([
   "inductor",
   "inductor-compact",
   "variable-inductor",
+  "battery",
   "voltage-source",
   "current-source",
   "ac-voltage-source",
