@@ -16,13 +16,15 @@ generated `circuit.spice` binding is native VACASK despite its stable filename.
 | 07 Noise | TT native noise, 1 Hz–1 GHz, 30 points/decade; input/output density and explicitly labelled sampled-PSD integral |
 | 08 feedback | Canvas emits only the `ota_5t` subcircuit; native text TB owns sources, unity feedback and load; AC plus ≤1 ns-step 6 us transient |
 
-The text TB preserves port order `vss ibias vdd vinn vinp vout`. Its pulse is
+The text TB preserves port order `vdd vss ibias vinn vinp vout`. Its pulse is
 intentionally different from the visible open-loop TB: width 2 us, period 5 us.
 Do not substitute the Canvas top-level circuit into this folder. Its measurements
 remain low-frequency gain, output at 2 us and output peak over 1–3 us.
 
-The Canvas bias Net currently exports as `N0001`, not `ibias`. The OP source
-uses that real IR name; it does not invent a new Net or change the drawing.
+The Canvas bias Net is unnamed, so it exports as the ordinal `net0`, not
+`ibias`. The OP source uses that real IR name; it does not invent a new Net or
+change the drawing. `simulation-examples.test.ts` fails if a saved node stops
+existing in the compiled circuit.
 Native model `vgs/vds/id` retain their **intrinsic model** meanings, not falsely
 labelled terminal voltages/currents. Native helper selectors are checked against
 the converter-derived primitive inventory.

@@ -264,7 +264,7 @@ function assertOtaResult(id, data, measurements) {
     );
     expect(parameters).toHaveLength(54);
     expect(parameters.every((p) => Number.isFinite(p.value))).toBe(true);
-    for (const name of ["vout", "N0001", "XDUT:tail", "XDUT:nleft"]) {
+    for (const name of ["vout", "net0", "XDUT:tail", "XDUT:nleft"]) {
       expect(get(op, name).value).toBeGreaterThan(0);
       expect(get(op, name).value).toBeLessThan(1.8);
     }
