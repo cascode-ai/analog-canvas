@@ -162,6 +162,8 @@ export function applyLabelSubscriptCase(
     const formula =
       instance.signalFlowParameters?.formula ?? presentation?.defaultFormula;
     if (
+      // A body text the author formatted keeps its own case, like a label.
+      !instance.signalFlowParameters?.formulaFormat &&
       presentation &&
       !presentation.supportsCoefficient &&
       !presentation.adaptiveFrame &&

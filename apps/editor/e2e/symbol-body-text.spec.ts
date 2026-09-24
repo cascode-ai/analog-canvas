@@ -65,8 +65,7 @@ test("double-clicking a Symbol's body text edits it on the canvas", async ({
   await page.getByTestId("hit-X1").dblclick();
   const editor = page.getByRole("textbox", { name: "Canvas text editor" });
   await expect(editor).toBeVisible();
-  await expect(editor).toHaveValue("DAC");
-  await expect(editor).toHaveAttribute("wrap", "soft");
+  await expect(editor).toHaveText("DAC");
 
   await editor.fill(
     "A deliberately long plain-text symbol formula that wraps while it is edited",
@@ -120,24 +119,57 @@ test("the Properties field shows what the canvas edit committed", async ({
   );
 });
 
-// The Symbol's own text is a plain string in a compact script syntax, so the
-// canvas editor offers no rich-text or formula affordances on it. Offering
-// them would promise formatting the field cannot store — the shape of defect
-// that #495 was.
-test("the Symbol body editor offers no formatting it cannot keep", async ({
-  page,
-}) => {
-  await placeSymbol(page, "integrator");
+// The owner's request: the text inside a block takes every format a label
+// takes — upright or italic, scripts, Greek letters — and keeps it.
+test("formats a Symbol's body text like any label", async ({ page }) => {
+  await placeSymbol(page, "adc");
 
   await page.getByTestId("hit-X1").dblclick();
-  await expect(
-    page.getByRole("textbox", { name: "Canvas text editor" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Insert formula" }),
-  ).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Overbar" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Bold" })).toHaveCount(0);
+  const editor = page.getByRole("textbox", { name: "Canvas text editor" });
+  await expect(editor).toHaveText("ADC");
+  for (const name of ["Bold", "Italic", "Subscript", "Insert formula"])
+    await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
+  await expect(page.getByLabel("Insert circuit symbol")).toBeVisible();
+
+  // Upright ADC, then a subscript 1 after it.
+  await editor.click();
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.getByRole("button", { name: "Italic", exact: true }).click();
+  await page.keyboard.press("End");
+  await page.keyboard.type("1");
+  await page.keyboard.press("Shift+ArrowLeft");
+  await page.getByRole("button", { name: "Subscript", exact: true }).click();
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+
+  const drawn = bodyText(page);
+  await expect(drawn).toHaveAttribute("data-formatted", "true");
+  await expect(drawn).toContainText("ADC1");
+  expect(
+    await drawn.evaluate((element) =>
+      [...element.querySelectorAll("text, tspan")].some(
+        (node) => getComputedStyle(node).fontStyle === "italic",
+      ),
+    ),
+  ).toBe(false);
+
+  const saved = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  ) as {
+    documents: Array<{
+      instances: Array<{
+        signalFlowParameters?: { formula?: string; formulaFormat?: unknown };
+      }>;
+    }>;
+  };
+  const parameters = saved.documents[0]!.instances[0]!.signalFlowParameters;
+  expect(parameters?.formula).toBe("ADC1");
+  expect(parameters?.formulaFormat).toBeDefined();
+
+  // Reopening edits the stored look, subscript and all.
+  await page.getByTestId("hit-X1").dblclick();
+  await expect(editor.locator("sub")).toHaveText("1");
 });
 
 // The owner reported this on a DAC and said several other circuits have it
@@ -159,7 +191,7 @@ for (const symbolId of [
     await page.getByTestId("hit-X1").dblclick();
     const editor = page.getByRole("textbox", { name: "Canvas text editor" });
     await expect(editor).toBeVisible();
-    await expect(editor).not.toHaveValue("");
+    await expect(editor).not.toHaveText("");
 
     await editor.fill("Zz");
     await page.getByRole("button", { name: "Apply text changes" }).click();

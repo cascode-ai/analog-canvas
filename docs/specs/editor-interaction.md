@@ -135,7 +135,8 @@ project format or parallel netlist authority is introduced.
 
 The optional `symbol` enum exposes only the existing pin-compatible input,
 output, or switch-contact variants. `signalFlow` owns formula presentation
-overrides. Setting `placement` to null uses the retained-instance unplacement
+overrides; the body text's authored look is edited on the canvas and is kept
+while the JSON leaves its characters unchanged. Setting `placement` to null uses the retained-instance unplacement
 planner; coordinates re-place the retained instance. Electrical connectivity
 and Cell-level interface/layout operations retain their existing typed
 authoring surfaces; removing a component remains an explicit Delete action.
@@ -760,6 +761,14 @@ Their bars are formal SVG line elements, so canvas and exported artwork agree.
 The existing W/L projection retains its established geometry. Source-only fields
 and bound electrical names do not gain arbitrary fraction formatting, and an
 atomic Formula continues to use its existing editor.
+
+A Symbol's body text (a converter's ADC, a transfer function, a lettered
+amplifier's A) is a label like any other: double-clicking it opens the same
+floating RichText editor, on the text exactly as it draws, with every format a
+label offers. A look that differs from the Symbol's own is stored beside the
+text; returning to the Symbol's own text and look removes the override. Text
+without a stored look keeps drawing as before, including the compact syntax
+(`z^-1`, `g_m`, `1/(1-z)`) that Agents and the Properties JSON write.
 
 The floating RichText editor has one formula action for editable text content.
 It opens a MathLive math field plus the exact LaTeX source, lets the author

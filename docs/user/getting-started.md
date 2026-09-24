@@ -152,6 +152,9 @@ is defined.
   placement. Label handles may be dragged near their owner, while plain text moves freely.
   Text notes and text inside drawn boxes default to **bold**. Use **B** to
   switch selected text to normal weight; that choice survives saving and reopening.
+- Double-click the text inside a block, such as an ADC, a transfer function or
+  a lettered amplifier, to edit it like any label: upright or italic, bold,
+  subscripts and superscripts, overbars, fractions and formulas.
 - To mix a stacked fraction with other text, use **Insert fraction** (the
   a-over-b button) in the text toolbar. Type the numerator, press `Tab` for the
   denominator, then `Tab` again to continue the line, for example `+ R₁`.

@@ -7364,10 +7364,7 @@ function WorkspaceEditor({
                   instance.symbolVariantId,
                 )?.definition.formulaPresentation;
                 if (presentation) {
-                  beginInstanceFormulaEditing(
-                    instance,
-                    presentation.defaultFormula,
-                  );
+                  beginInstanceFormulaEditing(instance, presentation);
                   return;
                 }
                 inspectInstance(instance.id);

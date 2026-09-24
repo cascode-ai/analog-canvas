@@ -26,7 +26,7 @@ import type {
   Rotation,
   SchematicDocument,
 } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import type { SymbolFormulaPresentation, SymbolResolver } from "@icm/symbols";
 
 import {
   componentParameters,
@@ -863,14 +863,13 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
    */
   const beginInstanceFormulaEditing = (
     instance: Instance,
-    defaultFormula: string,
+    presentation: SymbolFormulaPresentation,
   ): void => {
     setTextEditing(
-      createTextEditingSession({
-        owner: "instance-formula",
-        object: instance,
-        defaultFormula,
-      }),
+      createTextEditingSession(
+        { owner: "instance-formula", object: instance, presentation },
+        options.document,
+      ),
     );
   };
 

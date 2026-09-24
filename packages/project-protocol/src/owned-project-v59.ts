@@ -306,7 +306,10 @@ export function encodeProjectFile(project: CircuitProject): ObjectValue {
 /** Decode once into the existing validated runtime model. Unknown fields stay errors. */
 export function decodeProjectFile(
   raw: ObjectValue,
-  options: { allowParameterShowValue?: boolean } = {},
+  options: {
+    allowParameterShowValue?: boolean;
+    allowFormulaFormat?: boolean;
+  } = {},
 ): ObjectValue {
   if (raw.componentDefinitions !== undefined)
     array(raw.componentDefinitions, ["componentDefinitions"]);
@@ -437,6 +440,16 @@ export function decodeProjectFile(
               fail(
                 instancePath,
                 "An unplaced instance cannot have rotation or mirror overrides",
+              );
+            if (
+              options.allowFormulaFormat !== true &&
+              rest.signalFlowParameters !== null &&
+              typeof rest.signalFlowParameters === "object" &&
+              Object.hasOwn(rest.signalFlowParameters, "formulaFormat")
+            )
+              fail(
+                [...instancePath, "signalFlowParameters", "formulaFormat"],
+                "A formatted body text requires Project schema 62",
               );
             if (ownedLabels !== undefined)
               array(ownedLabels, [...instancePath, "labels"]).forEach(

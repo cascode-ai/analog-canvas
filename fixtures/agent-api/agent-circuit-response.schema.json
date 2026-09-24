@@ -1109,6 +1109,9 @@
                             "minLength": 1,
                             "maxLength": 256
                           },
+                          "formulaFormat": {
+                            "$ref": "#/$defs/__schema18"
+                          },
                           "coefficient": {
                             "type": "string",
                             "minLength": 1,

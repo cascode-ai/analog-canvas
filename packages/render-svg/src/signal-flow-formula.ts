@@ -1,16 +1,16 @@
 import type { SchematicStyleProfile } from "@icm/derived";
-import {
-  transformPoint,
-  labelTextDocument,
-  formatLabelIdentifier,
-  labelTypography,
-} from "@icm/model";
+import { transformPoint } from "@icm/model";
+import { renderFormulaDocument } from "./formula.js";
+import { renderFractionText } from "./fraction-text.js";
+import { renderPositionedOverbarScriptDocument } from "./positioned-rich-text.js";
 import { renderRichTextDocument } from "./rich-text.js";
-import type { SchematicDocument } from "@icm/model";
+import type { RichTextDocument, SchematicDocument } from "@icm/model";
 import {
   normalizeSignalFlowFormula,
   parseSignalFlowFraction,
+  parseSignalFlowInline,
   resolveSignalFlowFormulaLayout,
+  signalFlowBodyWordDocument,
 } from "@icm/symbols";
 import type {
   SignalFlowLayoutParameters,
@@ -30,13 +30,7 @@ export interface SignalFlowFormulaRenderOptions {
   };
   /** Instance foreground overrides apply to renderer-owned presentation too. */
   foreground: string;
-  profile: {
-    typography: Pick<
-      SchematicStyleProfile["typography"],
-      "fontFamily" | "mathWeight"
-    >;
-    strokes: Pick<SchematicStyleProfile["strokes"], "annotation">;
-  };
+  profile: SchematicStyleProfile;
 }
 
 function escapeXml(value: string): string {
@@ -47,59 +41,48 @@ function escapeXml(value: string): string {
     .replaceAll(">", "&gt;");
 }
 
-function scriptEnd(value: string, start: number): number {
-  if (value[start] === "(") {
-    const close = value.indexOf(")", start + 1);
-    return close === -1 ? start : close + 1;
-  }
-  let end = start;
-  // A sign may prefix a script (z^-1 or z^+1), but a later sign starts the
-  // next formula term and must not be swallowed into the superscript/subscript.
-  if (value[end] === "+" || value[end] === "-") end += 1;
-  while (end < value.length && /[A-Za-z0-9]/u.test(value[end]!)) end += 1;
-  return end;
-}
-
 /** Render ordinary formula text plus true SVG super/subscript tspans. */
 export function renderSignalFlowInlineFormula(value: string): string {
-  const normalized = normalizeSignalFlowFormula(value);
-  let markup = "";
-  let cursor = 0;
-  const underscoreCount = [...normalized].filter(
-    (character) => character === "_",
-  ).length;
-  while (cursor < normalized.length) {
-    const superscript = normalized.indexOf("^", cursor);
-    const subscript =
-      underscoreCount === 1 ? normalized.indexOf("_", cursor) : -1;
-    const marker =
-      superscript === -1
-        ? subscript
-        : subscript === -1
-          ? superscript
-          : Math.min(superscript, subscript);
-    if (marker === -1 || marker === normalized.length - 1) {
-      markup += escapeXml(normalized.slice(cursor));
-      break;
-    }
-    markup += escapeXml(normalized.slice(cursor, marker));
-    const start = marker + 1;
-    const end = scriptEnd(normalized, start);
-    if (end === start) {
-      markup += normalized[marker];
-      cursor = start;
-      continue;
-    }
-    const rawScript = normalized.slice(start, end);
-    const script =
-      rawScript.startsWith("(") && rawScript.endsWith(")")
-        ? rawScript.slice(1, -1)
-        : rawScript;
-    const kind = normalized[marker] === "^" ? "superscript" : "subscript";
-    markup += `<tspan data-role="formula-${kind}" baseline-shift="${kind === "superscript" ? "super" : "sub"}" font-size="70%">${escapeXml(script)}</tspan>`;
-    cursor = end;
-  }
-  return markup;
+  return parseSignalFlowInline(value)
+    .map((part) =>
+      part.kind === "text"
+        ? escapeXml(part.value)
+        : `<tspan data-role="formula-${part.kind}" baseline-shift="${part.kind === "superscript" ? "super" : "sub"}" font-size="70%">${escapeXml(part.value)}</tspan>`,
+    )
+    .join("");
+}
+
+/**
+ * An authored look draws exactly as a label with the same RichText would:
+ * fractions keep their bars, a formula typesets, overbars and scripts keep
+ * their positions. Unstyled runs are upright at the plain weight.
+ */
+function renderBodyRichText(
+  format: RichTextDocument,
+  profile: SchematicStyleProfile,
+  options: { x: number; y: number; fontSize: number; color: string },
+): string {
+  const fractions = renderFractionText(format, profile, {
+    ...options,
+    alignment: "middle",
+  });
+  if (fractions) return fractions;
+  const formula = renderFormulaDocument(format, profile, {
+    x: options.x,
+    baselineY: options.y,
+    fontSize: options.fontSize,
+    alignment: "middle",
+    color: options.color,
+  });
+  if (formula) return formula;
+  const plain = `font-size="${options.fontSize}" style="font-style:normal;font-weight:${profile.typography.plainWeight}"`;
+  const positioned = renderPositionedOverbarScriptDocument(format, profile, {
+    ...options,
+    alignment: "middle",
+  });
+  if (positioned)
+    return `<text data-role="formula-text" x="${options.x}" y="${options.y}" text-anchor="start" ${plain}>${positioned.tspans}</text>${positioned.decorations}`;
+  return `<text data-role="formula-text" x="${options.x}" y="${options.y}" text-anchor="middle" ${plain}>${renderRichTextDocument(format, profile, { fontSize: options.fontSize, lineOriginX: options.x })}</text>`;
 }
 
 /** Formula bounds consumed by formal export crop and adaptive frame layout. */
@@ -122,31 +105,35 @@ export function renderSignalFlowFormula(
   const layout = resolveSignalFlowFormulaLayout(presentation, parameters);
   if (!presentation || !layout) return "";
   const family = escapeXml(options.profile.typography.fontFamily);
-  const common = `fill="${escapeXml(options.foreground)}" stroke="none" font-family="${family}" font-weight="${options.profile.typography.mathWeight}"`;
-  const inline =
-    options.labels && /^[\p{L}][\p{L}\p{N}_]*$/u.test(layout.formula)
-      ? renderRichTextDocument(
-          labelTextDocument(
-            formatLabelIdentifier(layout.formula, {
-              ...labelTypography(options.labels.presentation),
-              // A Symbol's body word is a name, not a designator with an
-              // implicit index. Keep ADC, DAC and authored words whole;
-              // an explicit underscore still requests a subscript.
-              subscriptAfterFirst: false,
-            }),
-            options.labels.presentation,
-          ),
-          options.labels.profile,
-          { fontSize: layout.fontSize },
-        )
-      : renderSignalFlowInlineFormula(layout.formula);
+  const paint = `fill="${escapeXml(options.foreground)}" stroke="none" font-family="${family}"`;
+  const common = `${paint} font-weight="${options.profile.typography.mathWeight}"`;
+  const coefficientText = layout.coefficient
+    ? `<text data-role="formula-coefficient" x="${layout.coefficientX}" y="${layout.inlineBaseline}" text-anchor="end" font-size="${layout.fontSize}">${renderSignalFlowInlineFormula(layout.coefficient)}·</text>`
+    : "";
+  if (layout.format) {
+    const body = renderBodyRichText(layout.format, options.profile, {
+      x: layout.formulaX,
+      y: layout.inlineBaseline,
+      fontSize: layout.fontSize,
+      color: options.foreground,
+    });
+    const coefficient = coefficientText
+      ? `<g font-weight="${options.profile.typography.mathWeight}">${coefficientText}</g>`
+      : "";
+    return `<g data-role="signal-flow-formula" data-formatted="true" ${paint}>${coefficient}${body}</g>`;
+  }
+  const word = options.labels
+    ? signalFlowBodyWordDocument(layout.formula, options.labels.presentation)
+    : undefined;
+  const inline = word
+    ? renderRichTextDocument(word, options.labels!.profile, {
+        fontSize: layout.fontSize,
+      })
+    : renderSignalFlowInlineFormula(layout.formula);
   const body = layout.fraction
     ? `<g data-role="signal-flow-fraction"><text data-role="formula-numerator" x="${layout.formulaX}" y="${layout.numeratorBaseline}" text-anchor="middle" font-size="${layout.fontSize}">${renderSignalFlowInlineFormula(layout.fraction.numerator)}</text><line data-role="formula-fraction-bar" x1="${layout.formulaX - layout.formulaWidth / 2}" y1="${layout.fractionBarY}" x2="${layout.formulaX + layout.formulaWidth / 2}" y2="${layout.fractionBarY}" stroke="${escapeXml(options.foreground)}" stroke-width="${options.profile.strokes.annotation}"/><text data-role="formula-denominator" x="${layout.formulaX}" y="${layout.denominatorBaseline}" text-anchor="middle" font-size="${layout.fontSize}">${renderSignalFlowInlineFormula(layout.fraction.denominator)}</text></g>`
     : `<text data-role="formula-text" x="${layout.formulaX}" y="${layout.inlineBaseline}" text-anchor="middle" font-size="${layout.fontSize}">${inline}</text>`;
-  const coefficientMarkup = layout.coefficient
-    ? `<text data-role="formula-coefficient" x="${layout.coefficientX}" y="${layout.inlineBaseline}" text-anchor="end" font-size="${layout.fontSize}">${renderSignalFlowInlineFormula(layout.coefficient)}·</text>`
-    : "";
-  return `<g data-role="signal-flow-formula" ${common}>${coefficientMarkup}${body}</g>`;
+  return `<g data-role="signal-flow-formula" ${common}>${coefficientText}${body}</g>`;
 }
 
 /**
