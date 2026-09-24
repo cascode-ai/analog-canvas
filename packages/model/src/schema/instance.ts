@@ -7,6 +7,7 @@ import {
   RotationSchema,
   StableIdSchema,
 } from "./common.js";
+import { RichTextDocumentSchema } from "./rich-text.js";
 import { SourceSpanSchema } from "./source.js";
 
 /**
@@ -33,6 +34,12 @@ export const InstanceStyleOverrideSchema = z.strictObject({
  */
 export const SignalFlowParametersSchema = z.strictObject({
   formula: z.string().min(1).max(256).optional(),
+  /**
+   * The author's look for `formula` — slant, weight, scripts, Greek letters,
+   * fractions — edited like any label. It spells the same characters as
+   * `formula`; without it the text draws in the Symbol's own look.
+   */
+  formulaFormat: RichTextDocumentSchema.optional(),
   coefficient: z.string().min(1).max(64).optional(),
   /** User-authored minimum frame size; automatic content fit may exceed it. */
   bodyWidth: z.number().int().min(20).max(1000).multipleOf(10).optional(),

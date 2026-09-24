@@ -236,14 +236,13 @@ export function CanvasTextEditorOverlay({
     viewBox,
     pixelsPerUnit,
   );
+  // A bound value (a parameter or a device value) edits its source text.
+  // A Symbol's body text is a label like any other and keeps every format.
   const sourceOnly =
-    // A Symbol's body text is a plain string in the Symbol's own script
-    // syntax. Offering bold, an overbar or the formula tool on a field that
-    // cannot store any of them would promise formatting the commit drops.
-    session.owner === "instance-formula" ||
-    (session.bound &&
-      session.bindingKind !== "net-name" &&
-      session.bindingKind !== "cell-terminal-name");
+    session.owner === "annotation" &&
+    session.bound &&
+    session.bindingKind !== "net-name" &&
+    session.bindingKind !== "cell-terminal-name";
 
   if (session.plainTextKind) {
     return (
@@ -338,7 +337,7 @@ export function CanvasTextEditorOverlay({
           onDelete={onDelete}
           {...(deleteLabel ? { deleteLabel } : {})}
           {...(showDelete !== undefined ? { showDelete } : {})}
-          {...(session.bound && !sourceOnly
+          {...(session.owner === "annotation" && session.bound && !sourceOnly
             ? { formulaSemanticText: flattenRichText(session.content) }
             : {})}
           {...(session.visualInstanceId && onDisplayAliasChange

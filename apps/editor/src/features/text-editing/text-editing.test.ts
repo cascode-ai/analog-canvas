@@ -2,12 +2,21 @@ import { describe, expect, it } from "vitest";
 
 import {
   createEmptyDocument,
+  flattenRichText,
   semanticTextDocument,
   defaultDraftTextDocument,
   roleLabelFormat,
   supplyLabelFormat,
 } from "@icm/model";
-import type { Annotation, DraftingObject } from "@icm/model";
+import type {
+  Annotation,
+  DraftingObject,
+  Instance,
+  RichTextDocument,
+  RichTextRun,
+  SchematicDocument,
+} from "@icm/model";
+import { signalFlowBodyTextDocument } from "@icm/symbols";
 
 import {
   createTextEditingSession,
@@ -659,59 +668,95 @@ describe("unified text editing", () => {
   });
 });
 
-describe("Symbol body text edits in place", () => {
-  const dac = (formula?: string) => ({
+describe("Symbol body text edits like a label", () => {
+  const dacPresentation = {
+    defaultFormula: "DAC",
+    supportsCoefficient: false,
+    center: { x: 0, y: 0 },
+    fontSize: 12,
+  };
+  const delayPresentation = {
+    defaultFormula: "z^-1",
+    supportsCoefficient: true,
+    center: { x: 0, y: 0 },
+    fontSize: 12,
+    adaptiveFrame: {
+      minBodyWidth: 40,
+      minBodyHeight: 30,
+      horizontalPadding: 8,
+      verticalPadding: 4,
+      leadLength: 10,
+    },
+  };
+  type Parameters = NonNullable<Instance["signalFlowParameters"]>;
+  const block = (symbolId: string, signalFlowParameters?: Parameters) => ({
     id: "X1",
-    symbolId: "dac",
+    symbolId,
     placement: {
       position: { x: 100, y: 100 },
       rotation: 0 as const,
       mirror: "none" as const,
     },
-    ...(formula ? { signalFlowParameters: { formula } } : {}),
+    ...(signalFlowParameters ? { signalFlowParameters } : {}),
   });
-
-  // The text inside a Symbol body is a plain string with its own compact
-  // script syntax, not a RichText document. It rides the same session so the
-  // canvas overlay can host it, carried as one text run.
-  it("opens a session on the Symbol's own default text", () => {
-    const session = createTextEditingSession({
-      owner: "instance-formula",
-      object: dac(),
-      defaultFormula: "DAC",
-    });
-
-    expect(session).toMatchObject({
-      owner: "instance-formula",
-      id: "X1",
-      content: { runs: [{ kind: "text", value: "DAC" }] },
-    });
-  });
-
-  it("opens a session on the override once the person has set one", () => {
-    const session = createTextEditingSession({
-      owner: "instance-formula",
-      object: dac("8-bit"),
-      defaultFormula: "DAC",
-    });
-
-    expect(session.content).toEqual({
-      runs: [{ kind: "text", value: "8-bit" }],
-    });
-  });
-
-  // Editing in place writes the same field the Properties panel writes, so the
-  // two surfaces cannot drift: there is one value, not two copies of it.
-  it("commits the edited text as a signal-flow parameter override", () => {
+  const drawingWith = (instance: Instance) => {
     const document = createEmptyDocument("main", "Main");
-    document.instances.push(dac());
-    const session = updateTextEditingSession(
-      createTextEditingSession({
+    document.instances.push(instance);
+    return document;
+  };
+  const open = (
+    document: SchematicDocument,
+    presentation: typeof dacPresentation | typeof delayPresentation,
+  ) =>
+    createTextEditingSession(
+      {
         owner: "instance-formula",
-        object: dac(),
-        defaultFormula: "DAC",
+        object: document.instances[0]!,
+        presentation,
+      },
+      document,
+    );
+  const bold = (...children: RichTextRun[]): RichTextDocument => ({
+    runs: [{ kind: "span", style: "bold", children }],
+  });
+  const text = (value: string): RichTextRun => ({ kind: "text", value });
+
+  // What the editor opens on is what the canvas draws, word or formula. A
+  // converter's word stands upright; only a single-letter quantity slants.
+  it("opens on a body word in the drawing's label look, upright", () => {
+    const document = drawingWith(block("dac"));
+    const session = open(document, dacPresentation);
+
+    expect(session.content).toEqual(
+      signalFlowBodyTextDocument(
+        dacPresentation,
+        undefined,
+        document.presentation,
+      ),
+    );
+    expect(flattenRichText(session.content)).toBe("DAC");
+    expect(session).toMatchObject({ defaultBold: true, defaultItalic: false });
+  });
+
+  it("opens on a transfer function with its superscript", () => {
+    const session = open(drawingWith(block("unit-delay")), delayPresentation);
+
+    expect(session.content).toEqual(
+      bold(text("z"), {
+        kind: "span",
+        style: "superscript",
+        children: [text("-1")],
       }),
-      { content: { runs: [{ kind: "text", value: "8-bit DAC" }] } },
+    );
+  });
+
+  it("stores only the text when it keeps the look plain text draws in", () => {
+    const document = drawingWith(block("unit-delay"));
+    const session = updateTextEditingSession(
+      open(document, delayPresentation),
+      {
+        content: bold(text("H(s)")),
+      },
     );
 
     expect(proposeTextEditingCommit(document, session)).toEqual({
@@ -720,24 +765,109 @@ describe("Symbol body text edits in place", () => {
       edit: {
         kind: "set_instance_signal_flow_parameters",
         instanceId: "X1",
-        parameters: { formula: "8-bit DAC" },
+        parameters: { formula: "H(s)" },
       },
     });
   });
 
-  // Typing the Symbol's own default back is not an override: storing it would
-  // freeze a copy of a default that is allowed to change.
-  it("clears the override when the text returns to the Symbol default", () => {
-    const document = createEmptyDocument("main", "Main");
-    document.instances.push(dac("8-bit"));
+  // Typed text is source, as a label's name is: the drawing's label rules
+  // keep drawing it, so a typed underscore becomes a subscript by rule.
+  it("stores typed text as source that the drawing's rules keep drawing", () => {
+    const lettered = {
+      defaultFormula: "A",
+      supportsCoefficient: false,
+      center: { x: 0, y: 0 },
+      fontSize: 16,
+    };
+    const document = drawingWith(block("opamp-lettered"));
+    const session = updateTextEditingSession(open(document, lettered), {
+      content: { runs: [text("A_gain")] },
+    });
+
+    expect(proposeTextEditingCommit(document, session)).toMatchObject({
+      edit: { parameters: { formula: "A_gain" } },
+    });
+    expect(proposeTextEditingCommit(document, session)).not.toMatchObject({
+      edit: { parameters: { formulaFormat: expect.anything() } },
+    });
+  });
+
+  it("spells a transfer function's scripts back into its source", () => {
+    const document = drawingWith(block("unit-delay"));
     const session = updateTextEditingSession(
-      createTextEditingSession({
-        owner: "instance-formula",
-        object: dac("8-bit"),
-        defaultFormula: "DAC",
-      }),
-      { content: { runs: [{ kind: "text", value: "DAC" }] } },
+      open(document, delayPresentation),
+      {
+        content: bold(
+          text("z"),
+          { kind: "span", style: "superscript", children: [text("-1")] },
+          text("+1"),
+        ),
+      },
     );
+
+    expect(proposeTextEditingCommit(document, session)).toMatchObject({
+      edit: { parameters: { formula: "z^-1+1" } },
+    });
+  });
+
+  // The owner's request: slant, scripts and every other format a label
+  // keeps, the body text keeps too, once the author sets them.
+  it("stores the author's look beside its text and reopens on it", () => {
+    const document = drawingWith(block("dac"));
+    const italic = (...children: RichTextRun[]): RichTextDocument => ({
+      runs: [
+        { kind: "span", style: "italic", children: bold(...children).runs },
+      ],
+    });
+    const look = italic(text("DAC"), {
+      kind: "span",
+      style: "subscript",
+      children: [text("1")],
+    });
+    // A slanted DAC first (a formatting command), then its subscript.
+    const slanted = updateTextEditingSession(open(document, dacPresentation), {
+      content: italic(text("DAC")),
+    });
+    const session = updateTextEditingSession(slanted, { content: look });
+
+    expect(proposeTextEditingCommit(document, session)).toMatchObject({
+      kind: "update",
+      edit: { parameters: { formula: "DAC1", formulaFormat: look } },
+    });
+    const reopened = open(
+      drawingWith(block("dac", { formula: "DAC1", formulaFormat: look })),
+      dacPresentation,
+    );
+    expect(reopened.content).toEqual(look);
+    expect(reopened.formatEdited).toBe(true);
+  });
+
+  it("keeps the block's other parameters when its text changes", () => {
+    const document = drawingWith(
+      block("unit-delay", { formula: "z^-2", coefficient: "K", bodyWidth: 60 }),
+    );
+    const session = updateTextEditingSession(
+      open(document, delayPresentation),
+      {
+        content: bold(text("H(s)")),
+      },
+    );
+
+    expect(proposeTextEditingCommit(document, session)).toMatchObject({
+      edit: {
+        parameters: { coefficient: "K", bodyWidth: 60, formula: "H(s)" },
+      },
+    });
+  });
+
+  // The Symbol's own text in its own look is not an override: storing it
+  // would freeze a copy of a default that is allowed to change.
+  it("clears the override when the Symbol's own text and look return", () => {
+    const document = drawingWith(block("dac", { formula: "8-bit" }));
+    const own = open(drawingWith(block("dac")), dacPresentation).content;
+    const session = updateTextEditingSession(open(document, dacPresentation), {
+      content: own,
+    });
 
     expect(proposeTextEditingCommit(document, session)).toMatchObject({
       kind: "update",
@@ -746,18 +876,10 @@ describe("Symbol body text edits in place", () => {
   });
 
   it("reports no change when the text is untouched", () => {
-    const document = createEmptyDocument("main", "Main");
-    document.instances.push(dac("8-bit"));
+    const document = drawingWith(block("dac", { formula: "8-bit" }));
 
     expect(
-      proposeTextEditingCommit(
-        document,
-        createTextEditingSession({
-          owner: "instance-formula",
-          object: dac("8-bit"),
-          defaultFormula: "DAC",
-        }),
-      ),
+      proposeTextEditingCommit(document, open(document, dacPresentation)),
     ).toEqual({ kind: "unchanged" });
   });
 });

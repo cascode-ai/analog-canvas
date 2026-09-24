@@ -2,18 +2,18 @@
 
 Status: `accepted`
 
-Portable file schema: `61`; normalized editor model schema: `58`.
+Portable file schema: `62`; normalized editor model schema: `58`.
 
 Primary owner: `packages/project-protocol` (portable source and codec).
 `packages/model` validates the normalized editor indexes used by rendering,
 connectivity and transactions. The normalized indexes are decoded working data;
-serialization always writes the one schema-61 authoring representation.
+serialization always writes the one schema-62 authoring representation.
 
 An `.icproj.json` file contains a complete Project. The public `parseProject`
-boundary reads file schemas 24 through 61. Historical schemas pass through the
-existing explicit upgrades; schemas 59 through 61 decode through the
+boundary reads file schemas 24 through 62. Historical schemas pass through the
+existing explicit upgrades; schemas 59 through 62 decode through the
 owned-object codec. Schema 60 introduced derived network membership from
-connection facts. Both return the same validated editor model. File/envelope
+connection facts. Schema 62 lets a Symbol's body text keep an authored look. Both return the same validated editor model. File/envelope
 metadata must use `CURRENT_PROJECT_FILE_VERSION`, not the internal model
 version.
 
@@ -35,6 +35,11 @@ conversion never guesses that a visual attachment changes a text binding.
 Named parameter bindings may set `"showValue": false` to draw only the live
 parameter label while retaining the electrical value. Omitting it draws the
 usual `label = value` presentation.
+A Symbol's body text lives in the instance's `signalFlowParameters`: `formula`
+holds its characters and, from schema 62, `formulaFormat` holds the author's
+RichText look for them (slant, weight, scripts, overbars, fractions, formulas).
+Without `formulaFormat` the text draws in the Symbol's own look, reading
+`formula`'s compact syntax (`z^-1`, `g_m`, `1/(1-z)`) as before.
 Literal `text` and formatting `format` accept plain strings or complete RichText
 objects, retaining fractions, formulas, spans and line breaks. Every label has
 an `order` preserving the original annotation sequence across owned and free
@@ -124,7 +129,7 @@ atomic database snapshot. Separate local and private remote copies are retained.
 
 ## Included component definitions
 
-Schemas 58 through 61 save each referenced Symbol once in `componentDefinitions`.
+Schemas 58 through 62 save each referenced Symbol once in `componentDefinitions`.
 Portable `Instance.type` (decoded as `Instance.symbolId`) and drafting
 `floating-symbol.symbolId` reference these local classes. Each class contains
 the complete Symbol geometry, pins,
