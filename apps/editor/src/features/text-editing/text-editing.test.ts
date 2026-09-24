@@ -4,6 +4,7 @@ import {
   createEmptyDocument,
   semanticTextDocument,
   defaultDraftTextDocument,
+  roleLabelFormat,
   supplyLabelFormat,
 } from "@icm/model";
 import type { Annotation, DraftingObject } from "@icm/model";
@@ -12,8 +13,10 @@ import {
   createTextEditingSession,
   editedBoundAnnotationName,
   proposeTextEditingCommit,
+  editedRoleLabelFormat,
   resolveTextEditingTarget,
-  supplyLabelEdit,
+  roleLabelDefault,
+  spliceVisibleEdit,
   textDeletionEdit,
   updateTextEditingSession,
 } from "./text-editing";
@@ -69,9 +72,10 @@ describe("unified text editing", () => {
       id: "pin-label",
       binding: { kind: "cell-terminal-name", terminalId: "pin-vout" },
     };
+    // Names are exactly what was typed; no underscore is ever inserted.
     const cases = [
-      { label: instanceLabel, current: "M1", typed: "M2", expected: "M_2" },
-      { label: pinLabel, current: "Vout", typed: "Vin", expected: "V_in" },
+      { label: instanceLabel, current: "M1", typed: "M2", expected: "M2" },
+      { label: pinLabel, current: "Vout", typed: "Vin", expected: "Vin" },
     ];
     for (const { label, current, typed, expected } of cases) {
       const session = createTextEditingSession(
@@ -351,7 +355,7 @@ describe("unified text editing", () => {
     expect(manual.formatEdited).toBe(true);
   });
 
-  it("edits a stored supply look as a default whose text renames verbatim", () => {
+  it("keeps a stored standard look as a default whose text renames verbatim", () => {
     const document = createEmptyDocument("text", "Text");
     document.netlist!.terminals.push({
       id: "terminal-vdd",
@@ -359,6 +363,12 @@ describe("unified text editing", () => {
       netId: "net-vdd",
       direction: "inout",
       interfaceInstanceIds: [],
+    });
+    document.instances.push({
+      id: "M1",
+      reference: "M1",
+      symbolId: "nmos",
+      placement: null,
     });
     const supply: Annotation = {
       id: "label-VDD1",
@@ -371,49 +381,145 @@ describe("unified text editing", () => {
       rotation: 0,
       locked: false,
     };
-    const session = createTextEditingSession(
-      { owner: "annotation", object: supply },
-      document,
-    );
-    expect(session.formatEdited).toBeUndefined();
+    const device: Annotation = {
+      id: "instance-label-M1",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "M1" },
+      formatOverride: roleLabelFormat("device-reference", "M1")!,
+      anchor: { kind: "free", position: { x: 40, y: 20 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    };
+    const cases = [
+      { label: supply, role: "supply" as const, name: "VDD", typed: "VDDH" },
+      {
+        label: device,
+        role: "device-reference" as const,
+        name: "M1",
+        typed: "M12",
+      },
+    ];
+    for (const { label, role, name, typed } of cases) {
+      const session = createTextEditingSession(
+        { owner: "annotation", object: label },
+        document,
+      );
+      expect(session.formatEdited).toBeUndefined();
+      expect(roleLabelDefault(document, label)).toEqual({ role, name });
 
-    // Typing keeps the characters exactly and the look for the new name;
-    // the subscript never becomes an underscore in the netlist.
-    const typed = updateTextEditingSession(session, {
-      content: supplyLabelFormat("VDDA")!,
-    });
-    expect(supplyLabelEdit(document, supply, typed)).toEqual({
-      name: "VDDA",
-      format: supplyLabelFormat("VDDA"),
-    });
+      // Typing keeps the characters exactly and regenerates the look.
+      const edited = updateTextEditingSession(session, {
+        content: roleLabelFormat(role, typed)!,
+      });
+      const renamed = editedBoundAnnotationName(document, label, edited, name);
+      expect(renamed).toBe(typed);
+      expect(editedRoleLabelFormat(document, label, edited, renamed)).toEqual({
+        format: roleLabelFormat(role, typed),
+      });
+
+      // Restyling alone never renames, and the author's look is kept.
+      const flat = { runs: [{ kind: "text" as const, value: name }] };
+      const restyled = updateTextEditingSession(session, { content: flat });
+      expect(restyled.formatEdited).toBe(true);
+      expect(editedBoundAnnotationName(document, label, restyled, name)).toBe(
+        name,
+      );
+      expect(editedRoleLabelFormat(document, label, restyled, name)).toEqual({
+        format: flat,
+      });
+
+      // An author's own format is not treated as the default.
+      const authored = { ...label, formatOverride: flat };
+      expect(roleLabelDefault(document, authored)).toBeUndefined();
+      expect(
+        createTextEditingSession(
+          { owner: "annotation", object: authored },
+          document,
+        ).formatEdited,
+      ).toBe(true);
+    }
+    // A name without a standard form returns to the ordinary rules.
     expect(
-      supplyLabelEdit(
+      editedRoleLabelFormat(
         document,
         supply,
-        updateTextEditingSession(session, {
-          content: { runs: [{ kind: "text", value: "AVDD" }] },
-        }),
+        updateTextEditingSession(
+          createTextEditingSession(
+            { owner: "annotation", object: supply },
+            document,
+          ),
+          { content: { runs: [{ kind: "text", value: "AVDD" }] } },
+        ),
+        "AVDD",
       ),
-    ).toEqual({ name: "AVDD", format: undefined });
+    ).toEqual({ format: undefined });
+  });
 
-    // Restyling alone never renames, and the author's look is kept.
-    const flat = { runs: [{ kind: "text" as const, value: "VDD" }] };
-    const restyled = updateTextEditingSession(session, { content: flat });
-    expect(restyled.formatEdited).toBe(true);
-    expect(supplyLabelEdit(document, supply, restyled)).toEqual({
-      name: "VDD",
-      format: flat,
+  it("never turns a subscript or overbar into characters of the name", () => {
+    const document = createEmptyDocument("text", "Text");
+    document.netlist!.terminals.push({
+      id: "pin-clk",
+      name: "CLK1",
+      netId: "net-clk",
+      direction: "input",
+      interfaceInstanceIds: [],
     });
+    const pin: Annotation = {
+      ...annotation(),
+      kind: "instance-label",
+      content: undefined,
+      netId: undefined,
+      binding: { kind: "cell-terminal-name", terminalId: "pin-clk" },
+    };
+    const session = createTextEditingSession(
+      { owner: "annotation", object: pin },
+      document,
+    );
+    const text = (value: string) => ({ kind: "text" as const, value });
+    for (const content of [
+      // CLK with a subscript 1 is still CLK1, not CLK_1.
+      {
+        runs: [
+          text("CLK"),
+          {
+            kind: "span" as const,
+            style: "subscript" as const,
+            children: [text("1")],
+          },
+        ],
+      },
+      // An overbar is the label's look, not a _bar suffix.
+      {
+        runs: [
+          {
+            kind: "span" as const,
+            style: "overbar" as const,
+            children: [text("CLK1")],
+          },
+        ],
+      },
+    ])
+      expect(
+        editedBoundAnnotationName(
+          document,
+          pin,
+          updateTextEditingSession(session, { content }),
+          "CLK1",
+        ),
+      ).toBe("CLK1");
+  });
 
-    // An author's own format is not treated as the default.
-    const authored = { ...supply, formatOverride: flat };
-    expect(supplyLabelEdit(document, authored, typed)).toBeUndefined();
-    expect(
-      createTextEditingSession(
-        { owner: "annotation", object: authored },
-        document,
-      ).formatEdited,
-    ).toBe(true);
+  it("splices a text edit into the name around characters the look hid", () => {
+    // Plain names change exactly as typed.
+    expect(spliceVisibleEdit("VDD", "VDD", "VDDA")).toBe("VDDA");
+    expect(spliceVisibleEdit("M1", "M1", "M12")).toBe("M12");
+    // A hidden underscore before a subscript stays in place.
+    expect(spliceVisibleEdit("V_ref", "Vref", "Vrefx")).toBe("V_refx");
+    expect(spliceVisibleEdit("V_ref", "Vref", "Vout")).toBe("V_out");
+    // A hidden trailing _bar stays after the edited characters.
+    expect(spliceVisibleEdit("D_bar", "D", "Dx")).toBe("Dx_bar");
+    expect(spliceVisibleEdit("D_bar", "D", "E")).toBe("E_bar");
   });
 
   it("resolves only the tagged target kind", () => {
@@ -695,7 +801,7 @@ it("changing typography on a historical subscript does not rename the instance",
     expect(proposal.beforeEdits ?? []).toEqual([]);
 });
 
-it("overbars rename bound instances while display aliases keep their electrical identity", () => {
+it("keeps an overbar as the label's look without renaming the instance", () => {
   const document = createEmptyDocument("bar", "Bar");
   document.instances.push({
     id: "M1",
@@ -722,12 +828,16 @@ it("overbars rename bound instances while display aliases keep their electrical 
       ],
     },
   });
-  expect(proposeTextEditingCommit(document, edited)).toMatchObject({
-    kind: "update",
-    beforeEdits: [
-      { kind: "set_instance_reference", instanceId: "M1", reference: "M1_bar" },
-    ],
-  });
+  const barred = proposeTextEditingCommit(document, edited);
+  expect(barred.kind).toBe("update");
+  if (barred.kind === "update") {
+    // The Reference stays M1; the bar is stored as the label's format.
+    expect(barred.beforeEdits ?? []).toEqual([]);
+    expect(barred.edit).toMatchObject({
+      kind: "upsert_schematic_annotation",
+      annotation: { formatOverride: edited.content },
+    });
+  }
   const alias = proposeTextEditingCommit(document, {
     ...edited,
     displayAlias: true,
@@ -736,7 +846,7 @@ it("overbars rename bound instances while display aliases keep their electrical 
   if (alias.kind === "update") expect(alias.beforeEdits ?? []).toEqual([]);
 });
 
-it("lets a manual text edit remove subscripts even after the drawing convention was applied", () => {
+it("shows the underscore again when its subscript is removed, without renaming", () => {
   const document = createEmptyDocument("manual", "Manual");
   document.presentation.labelSubscriptAfterFirst = true;
   document.instances.push({
@@ -762,14 +872,16 @@ it("lets a manual text edit remove subscripts even after the drawing convention 
     document,
     updateTextEditingSession(session, { content }),
   );
-  expect(proposal).toMatchObject({
-    kind: "update",
-    beforeEdits: [
-      { kind: "set_instance_reference", instanceId: "M1", reference: "Mload" },
-    ],
-    edit: {
+  // Restyling never renames: M_load keeps its underscore, which is shown
+  // once no subscript hides it. Renaming goes through the name itself.
+  expect(proposal.kind).toBe("update");
+  if (proposal.kind === "update") {
+    expect(proposal.beforeEdits ?? []).toEqual([]);
+    expect(proposal.edit).toMatchObject({
       kind: "upsert_schematic_annotation",
-      annotation: { formatOverride: content },
-    },
-  });
+      annotation: {
+        formatOverride: { runs: [{ kind: "text", value: "M_load" }] },
+      },
+    });
+  }
 });

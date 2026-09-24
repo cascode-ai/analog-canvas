@@ -1,4 +1,3 @@
-import { labelIdentifierOptions } from "@icm/model";
 import type {
   Annotation,
   CellSymbolPresentation,
@@ -12,7 +11,7 @@ import {
   deriveStableId,
   foldNetName,
   projectCellInterface,
-  rewriteRichTextIdentifier,
+  renamedLabelFormat,
   routeEnd,
   semanticTextDocument,
 } from "@icm/model";
@@ -1323,20 +1322,20 @@ export function planRenameCellTerminal(
         const automaticFormat =
           JSON.stringify(annotation.formatOverride) ===
           JSON.stringify(semanticTextDocument(terminal.name, "formal-port"));
+        const format = automaticFormat
+          ? undefined
+          : renamedLabelFormat(
+              annotation,
+              terminal.name,
+              newName,
+              child.presentation,
+            );
         return [
           {
             kind: "upsert_schematic_annotation" as const,
             annotation: {
               ...rest,
-              ...(!automaticFormat
-                ? {
-                    formatOverride: rewriteRichTextIdentifier(
-                      annotation.formatOverride,
-                      newName,
-                      labelIdentifierOptions(child.presentation),
-                    ),
-                  }
-                : {}),
+              ...(format ? { formatOverride: format } : {}),
             },
           },
         ];

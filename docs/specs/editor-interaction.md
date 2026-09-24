@@ -724,10 +724,10 @@ save/reopen and when the same Project is entered through Project Code:
 | Free drafting text       | Drafting `content`                | Edits only the drawing                               | Edits only the drawing                                                |
 
 Automatic name typography, an authored override, and an explicit drawing-wide
-formatting action are different operations. `_` and `_bar` in a bound name can
-carry identifier meaning; a style change that preserves its interpreted name
-must not rename the electrical object. The explicit whole-drawing naming action
-may change names and is undoable. Newly created free drafting text uses the
+formatting action are different operations; [names and labels](names-and-labels.md)
+owns their rules. An ordinary text edit renames exactly as typed, and a style
+change never renames the electrical object. The explicit whole-drawing naming
+action may change names and is undoable. Newly created free drafting text uses the
 Razavi default, while a Cell/master name remains a whole word rather than a
 symbol with an index. The explicit **Format all Ports** command may change the
 visible suffix case or placement without changing any Port Name. These are

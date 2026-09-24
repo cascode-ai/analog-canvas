@@ -1,9 +1,8 @@
 import {
-  richTextIdentifier,
+  formatPresentingName,
   rewriteRichTextIdentifier,
   labelTypography,
   labelTextDocument,
-  formatLabelIdentifier,
 } from "@icm/model";
 import { resolveAnnotationName } from "@icm/derived";
 import { useEffect, useRef, useState } from "react";
@@ -13,7 +12,11 @@ import {
   gateRoutingOperationPlan,
   type SchematicEdit,
 } from "@icm/edit-engine";
-import { flattenRichText, semanticTextDocument } from "@icm/model";
+import {
+  flattenRichText,
+  roleLabelFormat,
+  semanticTextDocument,
+} from "@icm/model";
 import type {
   Annotation,
   DraftingObject,
@@ -38,9 +41,9 @@ import type { AdditionalParameterDraft } from "./additional-parameters";
 import {
   createTextEditingSession,
   editedBoundAnnotationName,
+  editedRoleLabelFormat,
   proposeTextEditingCommit,
   resolveTextEditingTarget,
-  supplyLabelEdit,
   textDeletionEdit,
   updateTextEditingSession,
 } from "../text-editing/text-editing";
@@ -718,9 +721,11 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     content: RichTextDocument;
     formatOverride?: RichTextDocument;
   } => {
-    const plainText = richTextIdentifier(placement.content);
+    // The Net's name is the characters typed; styling them (a subscript,
+    // an overbar) is the label's look and never inserts an underscore.
+    const plainText = flattenRichText(placement.content);
     const typography = labelTypography(options.document.presentation);
-    const name = formatLabelIdentifier(plainText.trim(), typography);
+    const name = plainText.trim();
     const content =
       plainText === name && !plainText.includes("_")
         ? placement.content
@@ -918,19 +923,18 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       boundAnnotation.binding.kind !== "instance-value"
     ) {
       const typography = labelTypography(options.document.presentation);
-      const supplyEdit = supplyLabelEdit(
+      const name = editedBoundAnnotationName(
         options.document,
         boundAnnotation,
         textEditing,
+        resolveAnnotationName(options.document, boundAnnotation),
       );
-      const name = supplyEdit
-        ? supplyEdit.name
-        : editedBoundAnnotationName(
-            options.document,
-            boundAnnotation,
-            textEditing,
-            resolveAnnotationName(options.document, boundAnnotation),
-          );
+      const roleFormat = editedRoleLabelFormat(
+        options.document,
+        boundAnnotation,
+        textEditing,
+        name,
+      );
       const currentName = resolveAnnotationName(
         options.document,
         boundAnnotation,
@@ -947,8 +951,8 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
         name,
         options.document.presentation,
       );
-      const editedPresentation = supplyEdit
-        ? (supplyEdit.format ?? semanticContent)
+      const editedPresentation = roleFormat
+        ? (roleFormat.format ?? semanticContent)
         : boundAnnotation.binding.kind === "cell-terminal-name" &&
             !textEditing.formatEdited
           ? semanticContent
@@ -960,10 +964,11 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
                   typography.underscoreSubscript,
               })
             : textEditing.content;
+      const presentedFormat = formatPresentingName(editedPresentation, name);
       const nextFormatOverride = formatOverrideAllowed
-        ? JSON.stringify(semanticContent) === JSON.stringify(editedPresentation)
+        ? JSON.stringify(semanticContent) === JSON.stringify(presentedFormat)
           ? undefined
-          : editedPresentation
+          : presentedFormat
         : boundAnnotation.formatOverride;
       const presentationEdit: SchematicEdit = {
         kind: "upsert_schematic_annotation",
@@ -1132,7 +1137,8 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     if (!reference) return;
     const content = enabled
       ? textEditing.content
-      : semanticTextDocument(reference, "instance-label");
+      : (roleLabelFormat("device-reference", reference) ??
+        semanticTextDocument(reference, "instance-label"));
     const next = { ...textEditing, content, displayAlias: enabled };
     const proposal = proposeTextEditingCommit(options.document, next);
     if (proposal.kind === "blocked" || proposal.kind === "delete") return;

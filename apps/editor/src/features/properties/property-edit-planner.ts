@@ -1,9 +1,10 @@
 import type { ResolvedRouteGeometry } from "@icm/derived";
-import { resolveNetLabelBinding } from "@icm/derived";
+import { resolveAnnotationName, resolveNetLabelBinding } from "@icm/derived";
 import { resolveReviewedExternalBinding } from "@icm/devices";
 import { planEnsureNamedNet, type SchematicEdit } from "@icm/edit-engine";
 import {
   deriveStableId,
+  renamedLabelFormat,
   snapGridPoint,
   type Annotation,
   type CircuitProject,
@@ -127,6 +128,18 @@ export function createPropertyEditPlanner({
       return null;
     }
     const targetNetId = namedNetPlan.netId;
+    // A rename that brings no new look keeps the label's own format, which
+    // follows the new name; it is never silently dropped.
+    const carriedFormat =
+      presentation?.formatOverride ??
+      (presentation === undefined && existingLabel?.formatOverride
+        ? renamedLabelFormat(
+            existingLabel,
+            resolveAnnotationName(document, existingLabel),
+            name,
+            document.presentation,
+          )
+        : undefined);
     const geometry = routeGeometryRecords.find(
       ({ route: candidate }) => candidate.id === route.id,
     )?.geometry;
@@ -195,9 +208,7 @@ export function createPropertyEditPlanner({
           : existingLabel?.sizeScale !== undefined
             ? { sizeScale: existingLabel.sizeScale }
             : {}),
-        ...(presentation?.formatOverride
-          ? { formatOverride: presentation.formatOverride }
-          : {}),
+        ...(carriedFormat ? { formatOverride: carriedFormat } : {}),
       },
     });
     return edits;

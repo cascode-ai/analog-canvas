@@ -1,5 +1,5 @@
 import { resolveSchematicStyleProfile } from "@icm/derived";
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, roleLabelFormat } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
@@ -51,6 +51,35 @@ describe("default instance display annotations", () => {
         kind: "instance-value",
       },
     ]);
+  });
+
+  it("places a device Reference in its standard look without changing it", () => {
+    const document = createEmptyDocument("main", "Main");
+    const profile = resolveSchematicStyleProfile(
+      document.presentation.styleProfileId,
+    );
+    const placed = (reference: string) =>
+      defaultInstanceDisplayAnnotations(
+        document,
+        {
+          id: "device-1",
+          symbolId: "nmos",
+          placement: {
+            position: { x: 100, y: 100 },
+            rotation: 0 as const,
+            mirror: "none" as const,
+          },
+          reference,
+        },
+        resolver,
+        profile,
+      )[0];
+    // M1 is stored as italic M over an upright subscript 1: M₁.
+    expect(placed("M1")?.formatOverride).toEqual(
+      roleLabelFormat("device-reference", "M1"),
+    );
+    // A Reference without an index is shown exactly as written.
+    expect(placed("MTAIL")?.formatOverride).toBeUndefined();
   });
 
   /**

@@ -122,6 +122,17 @@ export function voltageNodeTextDocument(value: string): RichTextDocument {
   };
 }
 
+/**
+ * Presentation for a device Reference written as letters followed by an
+ * index, such as M1 or R12: bold italic letters over a smaller bold upright
+ * index subscript. Any other spelling stays the name itself.
+ */
+export function deviceReferenceTextDocument(value: string): RichTextDocument {
+  const match = /^(\p{L}+)(\p{N}+)$/u.exec(value);
+  if (!match) return { runs: [{ kind: "text", value }] };
+  return { runs: [mathBase(match[1]!), uprightMathSubscript(match[2]!)] };
+}
+
 export type PortLabelSuffixCase = "preserve" | "uppercase" | "lowercase";
 export type PortLabelSuffixPlacement = "subscript" | "baseline";
 

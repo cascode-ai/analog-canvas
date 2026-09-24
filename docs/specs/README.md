@@ -18,6 +18,7 @@ against. They describe required behavior and invariants, not task history.
 | [`simulation-results.md`](simulation-results.md)             | accepted | Numeric evidence, rawfiles, units, measurements, and CSV                                    |
 | [`connectivity-and-routing.md`](connectivity-and-routing.md) | accepted | Physical/Logical Nets, Route graph, contacts, guidance, cuts, and locks                     |
 | [`visual-language.md`](visual-language.md)                   | accepted | Razavi visual tokens, annotations, overlays, golden output                                  |
+| [`names-and-labels.md`](names-and-labels.md)                 | accepted | Electrical names versus label display, standard looks, rename and editing rules             |
 | [`razavi-visual-contract.md`](razavi-visual-contract.md)     | accepted | Razavi authority, construction, interface-symbol semantics, exposure, and pixel fidelity    |
 | [`agent-api.md`](agent-api.md)                               | accepted | API 3.0 Snapshot, typed edits, render, permissions, and sibling resources                   |
 | [`persistence-and-recovery.md`](persistence-and-recovery.md) | accepted | Cloud Project save, browser recovery records, unsaved state, recovery migration             |
