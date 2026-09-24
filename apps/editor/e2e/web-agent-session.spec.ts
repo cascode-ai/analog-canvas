@@ -1306,7 +1306,8 @@ test("copies a working handoff through the normal local dev relay", async ({
     await panel.getByTestId("agent-copy-text").inputValue(),
   );
   expect(handoff).toContain(`Connect to Analog Canvas at ${baseURL}.`);
-  const kitUrl = handoff.match(/HTTP Agent Kit: (\S+)/u)![1]!;
+  const kitUrl = `${baseURL}/api/agent/kit`;
+  expect(handoff).toContain(kitUrl);
   expect((await request.get(kitUrl)).ok()).toBe(true);
   expect((await request.get(`${baseURL}/api/agent/openapi.json`)).ok()).toBe(
     true,
