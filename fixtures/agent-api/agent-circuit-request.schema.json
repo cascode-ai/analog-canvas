@@ -42,8 +42,17 @@
           "type": "string",
           "enum": [
             "full",
-            "bootstrap"
+            "bootstrap",
+            "geometry"
           ]
+        },
+        "geometryIds": {
+          "minItems": 1,
+          "maxItems": 64,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema1"
+          }
         },
         "includeSourceSpans": {
           "type": "boolean"
