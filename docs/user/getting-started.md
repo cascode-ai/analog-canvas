@@ -160,6 +160,11 @@ is defined.
   Double-click a note or visual annotation to edit its fractions again.
   Both parts stay centered under the same axis, and the bar follows the wider part.
   Use **ƒx** for a complete mathematical formula such as `\frac{1}{g_{mN}} + R_1`.
+- Use **Ω** in the text toolbar for Greek letters (every lowercase letter and
+  the capitals Γ Δ Θ Λ Ξ Π Σ Υ Φ Ψ Ω) and common circuit symbols. Faster
+  still, type a LaTeX name such as `\phi` or `\Omega` and press Space: it
+  turns into φ or Ω where you typed it. A Net or Pin name is also written to
+  the netlist, and SPICE cannot read a Greek letter there.
 - Press `R` to rotate, `F` to fit,
   `Ctrl+Z` to undo, and `Ctrl+Y` or `Ctrl+Shift+Z` to redo. Shortcuts do not
   fire while typing in a field.
@@ -206,8 +211,11 @@ New parts start in their standard look, saved with the label:
   subscript index, as M₁. `MTAIL` or `RL` is shown as written.
 - A Pin or Net name that is a V followed by letters or digits, such as `Vin`,
   `Vout`, `VBP`, `VBN` or `VcasP`, whether you typed it or the editor chose
-  it: an italic V with an upright subscript, as V_BP. Any other name, such as
-  `CLK` or `OUT`, is shown as written.
+  it: an italic V with an upright subscript, as V_BP.
+- A Pin or Net name for a current, an I followed by letters or digits such as
+  `Iout`, `IREF` or `I1`: an italic I with an upright subscript, as I_out.
+  Inputs such as `IN`, `INP` or `INN` and an `IO` pin are left alone. Any other
+  name, such as `CLK` or `OUT`, is shown as written.
 
 Renaming keeps a standard look in step with the new name. Once you restyle a
 label, your formatting is kept instead: to show `VBP` without a subscript,

@@ -1128,6 +1128,54 @@ test("text floating editor closes on Escape or an outside pointer", async ({
   await expect(page.getByTestId("canvas-text-editor")).toHaveCount(0);
 });
 
+test("types Greek letters by LaTeX name and from the symbol menu", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeText(page);
+  const editable = page.getByRole("textbox", { name: "Canvas text editor" });
+  await editable.click();
+  await page.keyboard.press("ControlOrMeta+A");
+  // A LaTeX name then Space spells the letter, lowercase or capital, and the
+  // Space is spent on it; an unknown name stays as typed.
+  await page.keyboard.type("\\phi");
+  await page.keyboard.press("Space");
+  await page.keyboard.type("1 \\Omega");
+  await page.keyboard.press("Space");
+  await page.keyboard.type("\\foo");
+  await page.keyboard.press("Space");
+  const typed = () =>
+    editable.evaluate((element) =>
+      (element.textContent ?? "").replace(/\u00a0/gu, " "),
+    );
+  await expect.poll(typed).toBe("φ1 Ω\\foo ");
+
+  // The menu floats over the page but belongs to the editor: picking from it
+  // keeps the text open, and the menu opens below the text being typed.
+  await page.getByLabel("Insert circuit symbol").click();
+  const menu = page.getByRole("menu", { name: "Circuit symbols" });
+  const [menuBounds, editorBounds] = await Promise.all([
+    menu.boundingBox(),
+    editable.boundingBox(),
+  ]);
+  if (!menuBounds || !editorBounds)
+    throw new Error("Symbol menu geometry is not measurable");
+  expect(menuBounds.y).toBeGreaterThanOrEqual(
+    editorBounds.y + editorBounds.height,
+  );
+  // Σ and σ differ only in case, which role names otherwise ignore.
+  await menu.getByRole("menuitem", { name: "Insert Σ", exact: true }).click();
+  await menu.getByRole("menuitem", { name: "Insert ψ", exact: true }).click();
+  await expect(page.getByTestId("canvas-text-editor")).toBeVisible();
+  await expect.poll(typed).toBe("φ1 Ω\\foo Σψ");
+
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  await expect(menu).toHaveCount(0);
+  await expect(page.locator('[data-kind="draft-text"]').first()).toHaveText(
+    /^φ1\sΩ\\foo\sΣψ$/u,
+  );
+});
+
 test("exports a newly created construction line through the File menu", async ({
   page,
 }) => {

@@ -293,6 +293,41 @@ it("gives V-led node names V with an upright subscript and leaves others alone",
     expect(roleLabelFormat("voltage-node", name)).toBeUndefined();
 });
 
+// A Pin or Net named for a current reads like a voltage node: I_out, I_REF,
+// I₁. Inputs (IN, INP, INN, IN1, INPUT) and an IO pin stay as written.
+it("gives a current's name an italic I over an upright subscript", () => {
+  for (const [name, subscript] of [
+    ["Iout", "out"],
+    ["IOUT", "OUT"],
+    ["Iref", "ref"],
+    ["iref", "ref"],
+    ["IBias", "Bias"],
+    ["I1", "1"],
+    ["Iin", "in"],
+  ] as const) {
+    const format = roleLabelFormat("voltage-node", name)!;
+    expect(flattenRichText(format)).toBe(name);
+    expect(JSON.stringify(format)).toContain(`"value":"${subscript}"`);
+    expect(JSON.stringify(format)).toContain('"subscript"');
+  }
+  for (const name of [
+    "IN",
+    "INP",
+    "INN",
+    "IN1",
+    "INF1",
+    "INPUT",
+    "inp",
+    "IO",
+    "I",
+    "I_ref",
+    "IN+",
+  ])
+    expect(roleLabelFormat("voltage-node", name)).toBeUndefined();
+  // Supplies and devices keep their own rules.
+  expect(roleLabelFormat("supply", "Iout")).toBeUndefined();
+});
+
 it("recognises a standard look however its spans are nested", () => {
   const regrouped = {
     runs: [
