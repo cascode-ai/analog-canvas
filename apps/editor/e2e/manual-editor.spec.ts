@@ -439,6 +439,24 @@ async function copySelectionAt(
   await expect(page.getByTestId("copy-placement-preview")).toHaveCount(0);
 }
 
+/** Ctrl/Cmd+C then V: the clipboard path, which keeps authored label text. */
+async function pasteSelectionAt(
+  page: Page,
+  position: { x: number; y: number },
+): Promise<void> {
+  const canvas = page.getByTestId("schematic-canvas");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Canvas is not measurable");
+  await page.keyboard.press("ControlOrMeta+c");
+  await page.keyboard.press("v");
+  await page.mouse.move(box.x + position.x, box.y + position.y);
+  await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
+  await canvas.click({ position });
+  await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("copy-placement-preview")).toHaveCount(0);
+}
+
 async function instanceLabelVector(
   page: Page,
   instanceId: string,
@@ -4028,7 +4046,7 @@ test("C/V preserves display aliases but detaches unselected connections and allo
     .fill("Old_alias");
   await page.getByRole("button", { name: "Apply text changes" }).click();
   await page.getByTestId("hit-R1").click();
-  await copySelectionAt(page, { x: 560, y: 420 });
+  await pasteSelectionAt(page, { x: 560, y: 420 });
   await expect(page.getByTestId("instance-count")).toHaveText("3");
   const saved = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(

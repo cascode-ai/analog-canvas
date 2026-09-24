@@ -198,7 +198,10 @@ Undo restores the whole committed document, including the derived membership.
 - `C` clones the selected internal electrical subgraph. Ordinary boundary
   Routes and terminal membership are not copied, so copied boundary pins are
   open. A selected Cell Pin, supply marker, or Net-label owner retains its own
-  naming evidence and rejoins a Logical Net only through `name + scope`.
+  naming evidence and rejoins a Logical Net only through `name + scope`; a
+  name owned by an unselected label, Pin or marker never travels, so the copy
+  lands as if newly inserted. Only `Ctrl/Cmd+C` composition carries that
+  outside context to another canvas.
   Imported `net-name-hint` and `spice-source` provenance may travel with a
   copied Base Net but never rejoins it by source spelling or source identity.
   Implicit MOS bulk binding remains the explicit Cell-policy exception.

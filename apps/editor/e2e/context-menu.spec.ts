@@ -471,9 +471,24 @@ test("multiple selected component annotations move as one text selection", async
       labelBoxes[0].y + labelBoxes[0].height,
       labelBoxes[1].y + labelBoxes[1].height,
     ) + 5;
-  await page.mouse.move(left, top);
+  // A left-to-right window selects only what it fully covers. Start it on
+  // empty canvas: the label's corner can sit on a pin's hit area, where the
+  // press would begin a wire instead of a window.
+  const startY = await page.evaluate(
+    ({ x, candidates }) =>
+      candidates.find(
+        (y) =>
+          !document
+            .elementFromPoint(x, y)
+            ?.closest(
+              '[data-testid^="terminal-"], [data-testid^="hit-"], [data-testid^="annotation-hit-"]',
+            ),
+      ) ?? candidates[0]!,
+    { x: left, candidates: [top, bottom, top - 8, bottom + 8] },
+  );
+  await page.mouse.move(left, startY);
   await page.mouse.down();
-  await page.mouse.move(right, bottom, { steps: 8 });
+  await page.mouse.move(right, startY >= bottom ? top : bottom, { steps: 8 });
   await page.mouse.up();
   await expect(first).toHaveClass(/selected/);
   await expect(second).toHaveClass(/selected/);

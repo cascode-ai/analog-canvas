@@ -45,7 +45,9 @@ is defined.
   `Esc` cancels; no `V` is needed.
   With nothing selected, press `C` first and click a component to pick up its
   copy; the following click places it. Further clicks place more copies until
-  `Esc` exits, just like copying an already selected component.
+  `Esc` exits, just like copying an already selected component. A copy lands
+  as if newly inserted: it keeps the wiring and labels inside the selection,
+  but no connection or Net name from the circuit around it.
 - To reuse an editable circuit in another tab or window, select it (or use
   `Ctrl/Cmd+A`), press `Ctrl/Cmd+C`, then switch to the destination canvas and
   press `Ctrl/Cmd+V`. Plain `C` also keeps the selection in the clipboard while
