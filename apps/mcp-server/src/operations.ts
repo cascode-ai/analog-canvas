@@ -263,6 +263,7 @@ const ImportFileArgs = z
       "inspect",
       "discard",
       "request-approval",
+      "open",
     ]),
     path: z.string().min(1).optional(),
     rootPath: z.string().min(1).optional(),

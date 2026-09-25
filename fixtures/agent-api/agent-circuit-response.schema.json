@@ -181,6 +181,7 @@
                           "inspect",
                           "discard",
                           "request-approval",
+                          "open",
                           "simulation-input"
                         ]
                       }

@@ -1078,6 +1078,105 @@ test("keeps pairing across Project tabs, rejects old writes and copies through t
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
 });
 
+test("opens an Agent-staged SPICE Project without browser confirmation or a new Claim", async ({
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(120_000);
+  await page.goto("/editor?new=1");
+  await page.getByTestId("open-agent").click();
+  const panel = page.getByTestId("connect-agent-panel");
+  const copyText = panel.getByTestId("agent-copy-text");
+  try {
+    await expect(copyText).toBeVisible({ timeout: 40_000 });
+  } catch {
+    await panel.getByRole("button", { name: "Connect Agent" }).click();
+    await expect(copyText).toBeVisible({ timeout: 40_000 });
+  }
+  const handoff = await copyText.inputValue();
+  const { claimCode } = JSON.parse(handoff.match(/Claim: (.+)/u)![1]!);
+  const client = new AgentHttpClient({ baseUrl: baseURL! });
+  const session = await client.claim(claimCode);
+  await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
+  const originalProjectId = session.projectId;
+  const bytes = Buffer.from(
+    ".subckt stage vin vout\nR1 vin vout 1k\n.ends stage\n",
+  );
+  const staged = await client.files(session.sessionId, session.agentToken, {
+    apiVersion: "3.0",
+    requestId: "stage-import-tab",
+    operation: "stage",
+    kind: "structural-spice",
+    entryPath: "stage.spi",
+    files: [
+      {
+        name: "stage.spi",
+        mediaType: "text/plain",
+        encoding: "base64",
+        data: bytes.toString("base64"),
+        byteLength: bytes.byteLength,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+      },
+    ],
+  });
+  if (!staged.ok || staged.operation !== "stage")
+    throw new Error(JSON.stringify(staged));
+  const opened = await client.files(session.sessionId, session.agentToken, {
+    apiVersion: "3.0",
+    requestId: "open-import-tab",
+    operation: "open",
+    candidateId: staged.candidate.candidateId,
+  });
+  if (!opened.ok || opened.operation !== "open")
+    throw new Error(JSON.stringify(opened));
+  await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
+  await expect(page.getByTestId("agent-file-approval")).toHaveCount(0);
+  await expect
+    .poll(
+      async () =>
+        (await client.status(session.sessionId, session.agentToken)).projectId,
+    )
+    .not.toBe(originalProjectId);
+  const current = await client.status(session.sessionId, session.agentToken);
+  const snapshot = await client.circuit(session.sessionId, session.agentToken, {
+    apiVersion: "3.0",
+    requestId: "snapshot-import-tab",
+    operation: "snapshot",
+    documentId: current.documentIds[0]!,
+  });
+  expect(snapshot).toMatchObject({ ok: true, operation: "snapshot" });
+  if (
+    !snapshot.ok ||
+    snapshot.operation !== "snapshot" ||
+    !("snapshot" in snapshot)
+  )
+    return;
+  expect(snapshot.snapshot.document.annotations).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        binding: expect.objectContaining({ kind: "instance-reference" }),
+      }),
+      expect.objectContaining({
+        binding: expect.objectContaining({ kind: "cell-terminal-name" }),
+      }),
+    ]),
+  );
+  const tabs = await client.projects(session.sessionId, session.agentToken, {
+    apiVersion: "3.0",
+    requestId: "list-after-import-tab",
+    operation: "workspace",
+    request: { action: "list" },
+  });
+  expect(tabs).toMatchObject({
+    ok: true,
+    result: {
+      projects: expect.arrayContaining([
+        expect.objectContaining({ projectId: originalProjectId }),
+      ]),
+    },
+  });
+});
+
 test("workspace Cloud operations reuse GUI open validation, save conflicts and Save As", async ({
   page,
   baseURL,

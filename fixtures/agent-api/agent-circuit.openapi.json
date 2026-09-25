@@ -400,7 +400,7 @@
     "/api/agent/sessions/{sessionId}/files": {
       "post": {
         "operationId": "agentSessionFileResource",
-        "description": "Export Project/Canvas files, stage imports, or access simulation source/evidence. Staging requires browser-human confirmation before replacement. Source updates are atomic and revisioned; receipts report paths/digests, and fileEdit locates rejected edits. Artifact access never grants arbitrary host files.",
+        "description": "Export Project/Canvas files, stage imports, or access simulation source/evidence. A staged candidate can open in a new Project tab under project.import without browser confirmation; replacing current work still requires browser-human confirmation. Source updates are atomic and revisioned; receipts report paths/digests, and fileEdit locates rejected edits. Artifact access never grants arbitrary host files.",
         "security": [
           {
             "bearerAuth": []
@@ -17196,6 +17196,7 @@
                                 "inspect",
                                 "discard",
                                 "request-approval",
+                                "open",
                                 "simulation-input"
                               ]
                             }
@@ -32468,6 +32469,31 @@
               "candidateId"
             ],
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
+                "const": "open"
+              },
+              "candidateId": {
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema1"
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation",
+              "candidateId"
+            ],
+            "additionalProperties": false
           }
         ],
         "$defs": {
@@ -33435,6 +33461,32 @@
               },
               "operation": {
                 "type": "string",
+                "const": "open"
+              },
+              "ok": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation",
+              "ok"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
                 "enum": [
                   "error",
                   "download",
@@ -33442,6 +33494,7 @@
                   "inspect",
                   "discard",
                   "request-approval",
+                  "open",
                   "simulation-input"
                 ]
               },

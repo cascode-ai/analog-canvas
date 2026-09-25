@@ -9,7 +9,7 @@ export const agentApiHelp = {
   agentSessionCircuit:
     "Send one Circuit API request over the session. The relay validates the strict payload and required token scopes, then forwards it to the live browser without applying or rewriting edits.",
   agentSessionFileResource:
-    "Export Project/Canvas files, stage imports, or access simulation source/evidence. Staging requires browser-human confirmation before replacement. Source updates are atomic and revisioned; receipts report paths/digests, and fileEdit locates rejected edits. Artifact access never grants arbitrary host files.",
+    "Export Project/Canvas files, stage imports, or access simulation source/evidence. A staged candidate can open in a new Project tab under project.import without browser confirmation; replacing current work still requires browser-human confirmation. Source updates are atomic and revisioned; receipts report paths/digests, and fileEdit locates rejected edits. Artifact access never grants arbitrary host files.",
   agentSessionSimulationResource:
     "Discover Profiles/help; run submits a revisioned source once, including preparation. Optional prepare/start supports inspection and reuse. Read/cancel or catalog/export runs and batches; history and history-usage discover retained evidence. history-delete targets one completed run, supports dryRun, and requires includeSaved for saved archives. Preserve request ID/payload for uncertain writes. Execution failure does not revoke authorization.",
   agentSessionProjectResource:

@@ -188,8 +188,12 @@ The client carries context stamps automatically and never redirects old writes.
 ## Files and boundaries
 
 `export_file` writes Project/SVG/PNG/PDF to an explicit local path.
-`import_file` stages a Project or structural SPICE bundle; inspect it and
-request browser approval. Staging is not a completed import.
+`import_file` stages a Project or structural SPICE bundle. Inspect the candidate,
+then use `action:"open"` to open it in a new Project tab without replacing the
+current work. Staging alone is not a completed import. Use
+`action:"request-approval"` only when the human wants to replace the current
+Project in the browser. After either Project switch, refresh connection status
+and read the new Document context; the existing pairing remains valid.
 For Cadence globals, use `action:"stage-spice", namingProfile:"cadence-bang"`.
 
 Exporting a Project file is not Cloud Save or Gallery publication. Account

@@ -100,6 +100,19 @@ it("uses existing Project write authorization for Project-owned simulation sourc
   ).toEqual(["simulation.run", "project.import"]);
 });
 
+it("opens a staged import under the Project import scope", () => {
+  expect(
+    fileOperationScopes(
+      AgentFileResourceRequestSchema.parse({
+        apiVersion: "3.0",
+        requestId: "open-candidate",
+        operation: "open",
+        candidateId: "candidate-1",
+      }),
+    ),
+  ).toEqual(["project.import"]);
+});
+
 it("authorizes Gallery, Project Code and Netlist operations by their real effects", () => {
   const scopes = (operation: Record<string, unknown>) =>
     projectOperationScopes(

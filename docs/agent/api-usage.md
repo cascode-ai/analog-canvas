@@ -115,8 +115,11 @@ invalidates earlier credentials.
 - Missing scope: ask for authority; do not use a second edit path.
 - Circuit failures: follow [response semantics](response-semantics.md).
 
-File staging never replaces the live Project. Inspect the candidate and request
-approval; only the browser human can confirm replacement. Then refresh context
-before further Project operations; pairing remains active.
+File staging never replaces the live Project. Inspect the candidate, then use
+File `operation:"open"` to create a new Project tab under the granted
+`project.import` scope without replacing the current work. To replace the
+current Project, request approval; only the browser human can confirm that
+replacement. Refresh context after either Project switch before further Project
+operations; pairing remains active and no new Claim is needed.
 The browser must be online for operations. Closing connection details does not
 revoke it.

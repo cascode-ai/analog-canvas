@@ -111,6 +111,10 @@ export const AgentFileResourceRequestSchema = z.discriminatedUnion(
       operation: z.literal("request-approval"),
       candidateId: StableIdSchema,
     }),
+    FileRequestBaseSchema.extend({
+      operation: z.literal("open"),
+      candidateId: StableIdSchema,
+    }),
   ],
 );
 
@@ -163,6 +167,10 @@ export const AgentFileResourceResponseSchema = z.union([
     approval: z.literal("pending-human"),
   }),
   FileResponseBaseSchema.extend({
+    operation: z.literal("open"),
+    ok: z.literal(true),
+  }),
+  FileResponseBaseSchema.extend({
     operation: z.enum([
       "error",
       "download",
@@ -170,6 +178,7 @@ export const AgentFileResourceResponseSchema = z.union([
       "inspect",
       "discard",
       "request-approval",
+      "open",
       "simulation-input",
     ]),
     ok: z.literal(false),

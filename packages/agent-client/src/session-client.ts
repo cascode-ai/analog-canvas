@@ -453,13 +453,17 @@ export class AgentSessionClient {
   ): Promise<AgentFileResourceResponse> {
     request = structuredClone(request);
     const changesProject =
-      request.operation === "simulation-input" &&
-      request.input.action === "update" &&
-      request.input.owner.kind === "project-folder";
+      request.operation === "open" ||
+      (request.operation === "simulation-input" &&
+        request.input.action === "update" &&
+        request.input.owner.kind === "project-folder");
     try {
-      return await this.resourceRequest("files", request, (session) =>
+      const response = await this.resourceRequest("files", request, (session) =>
         this.http.files(session.sessionId, session.agentToken, request),
       );
+      if (response.ok && response.operation === "open")
+        await this.status({ refresh: true }).catch(() => {});
+      return response;
     } finally {
       // A lost response can still have committed source or circuit edits.
       // Folder files share the Project revision used by cached Snapshots.
@@ -625,13 +629,45 @@ export class AgentSessionClient {
   }
 
   async refreshSnapshot(documentId?: string): Promise<CachedSnapshot> {
-    const target = await this.resolveDocumentId(documentId);
-    const requestId = this.newRequestId();
-    const response = await this.send({
-      ...baseRequest(requestId),
-      operation: "snapshot",
-      documentId: target,
-    });
+    let target = await this.resolveDocumentId(documentId);
+    const request = (id: string) =>
+      this.send({
+        ...baseRequest(this.newRequestId()),
+        operation: "snapshot",
+        documentId: id,
+      });
+    const contextBefore = this.http.contextRevision;
+    let response;
+    try {
+      response = await request(target);
+    } catch (error) {
+      if (
+        documentId !== undefined ||
+        !(error instanceof AgentSessionError) ||
+        !["PROJECT_CONTEXT_STALE", "DOCUMENT_NOT_FOUND"].includes(error.code)
+      )
+        throw error;
+      await this.status({ refresh: true });
+      const current = await this.resolveDocumentId();
+      if (current === target && this.http.contextRevision === contextBefore)
+        throw error;
+      target = current;
+      response = await request(target);
+    }
+    if (
+      documentId === undefined &&
+      !response.ok &&
+      ["PROJECT_CONTEXT_STALE", "DOCUMENT_NOT_FOUND"].includes(
+        response.error.code,
+      )
+    ) {
+      await this.status({ refresh: true });
+      const current = await this.resolveDocumentId();
+      if (current !== target || this.http.contextRevision !== contextBefore) {
+        target = current;
+        response = await request(target);
+      }
+    }
     if (
       !response.ok ||
       response.operation !== "snapshot" ||
@@ -660,7 +696,7 @@ export class AgentSessionClient {
       snapshot: snapshotResponse.snapshot,
       diagnostics: [...snapshotResponse.diagnostics],
       fetchedAt: this.now(),
-      requestId,
+      requestId: response.requestId,
       dirty: false,
     };
     this.cache.set(entry);

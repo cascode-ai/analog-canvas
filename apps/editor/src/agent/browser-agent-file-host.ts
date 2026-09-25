@@ -19,6 +19,7 @@ import { createBrowserFormalExportSource } from "@icm/exporters";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
+import { withImportedInstanceDisplays } from "../features/instance-display/imported-instance-displays";
 import type { SymbolResolver } from "@icm/symbols";
 import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formula-artifacts";
 import { importChunk } from "../components/chunk-import";
@@ -38,6 +39,7 @@ export interface BrowserAgentFileHostOptions {
   getDocument: (documentId: string) => SchematicDocument | null;
   getResolver: () => SymbolResolver;
   onApprovalRequested: (candidate: AgentFileCandidateSummary) => void;
+  openProjectInNewTab?: (project: CircuitProject) => Promise<boolean>;
   dispatchProjectTransaction?: (
     request: ProjectTransaction,
   ) => ProjectTransactionResult;
@@ -150,6 +152,34 @@ export class BrowserAgentFileHost {
           ok: true,
           candidate: candidate.summary,
           approval: "pending-human",
+        };
+      }
+      case "open": {
+        const candidate = this.candidates.get(request.candidateId);
+        if (!candidate)
+          return this.error(
+            request,
+            "FILE_CANDIDATE_NOT_FOUND",
+            "Candidate is unavailable or expired",
+          );
+        if (!this.options.openProjectInNewTab)
+          return this.error(
+            request,
+            "FILE_OPEN_UNAVAILABLE",
+            "Opening a new Project tab is unavailable in this editor",
+          );
+        if (!(await this.options.openProjectInNewTab(candidate.project)))
+          return this.error(
+            request,
+            "FILE_OPEN_BLOCKED",
+            "Finish the current edit before opening the imported Project",
+          );
+        this.candidates.delete(request.candidateId);
+        return {
+          apiVersion: AGENT_API_VERSION,
+          requestId: request.requestId,
+          operation: "open",
+          ok: true,
         };
       }
     }
@@ -310,7 +340,7 @@ export class BrowserAgentFileHost {
             diagnostics[0]?.message ?? "Structural SPICE import failed",
           );
         }
-        project = result.project;
+        project = withImportedInstanceDisplays(result.project);
       }
       const candidateId = `candidate-${crypto.randomUUID()}`;
       const expiresAt = new Date(

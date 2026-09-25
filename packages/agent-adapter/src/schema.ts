@@ -79,6 +79,7 @@ export const AgentFileResourceCapabilitySchema = z.strictObject({
       "inspect",
       "discard",
       "request-approval",
+      "open",
       "simulation-input",
     ]),
   ),

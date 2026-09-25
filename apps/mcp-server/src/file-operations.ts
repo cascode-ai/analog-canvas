@@ -24,7 +24,7 @@ export type ImportFileOperation =
       namingProfile?: "native" | "cadence-bang";
     }
   | {
-      action: "inspect" | "discard" | "request-approval";
+      action: "inspect" | "discard" | "request-approval" | "open";
       candidateId: string;
     };
 
