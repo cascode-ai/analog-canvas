@@ -16,6 +16,15 @@ interface SavedElement {
   points: string | null;
 }
 
+/** A label tether's line: each end moves with its own object's drag. */
+interface SavedTether {
+  element: Element;
+  labelId: string | null;
+  ownerId: string | null;
+  label: Point;
+  target: Point;
+}
+
 function pointList(points: readonly Point[]): string {
   return points.map((point) => `${point.x},${point.y}`).join(" ");
 }
@@ -46,6 +55,64 @@ export function startCanvasDragVisual(
     transform: element.getAttribute("transform"),
     points: element.getAttribute("points"),
   }));
+  // A tether joins a label to its owner. A drag moves one or both of them,
+  // so its line stretches end by end instead of moving whole. Pressing a
+  // label selects it, and its tether renders only after the drag begins, so
+  // each move also takes up tethers it has not seen yet.
+  const tethers = new Map<Element, SavedTether>();
+  const collectTethers = (): SavedTether[] => {
+    for (const element of Array.from(
+      root.querySelectorAll("[data-tether-label-id], [data-tether-owner-id]"),
+    )) {
+      if (tethers.has(element)) continue;
+      const labelId = element.getAttribute("data-tether-label-id");
+      const ownerId = element.getAttribute("data-tether-owner-id");
+      if (
+        !(labelId !== null && ids.has(labelId)) &&
+        !(ownerId !== null && ids.has(ownerId))
+      )
+        continue;
+      tethers.set(element, {
+        element,
+        labelId,
+        ownerId,
+        label: {
+          x: Number(element.getAttribute("x1")),
+          y: Number(element.getAttribute("y1")),
+        },
+        target: {
+          x: Number(element.getAttribute("x2")),
+          y: Number(element.getAttribute("y2")),
+        },
+      });
+    }
+    return [...tethers.values()];
+  };
+  const stretch = (
+    moved: (id: string | null) => Point | null,
+    seen: readonly SavedTether[] = collectTethers(),
+  ): void => {
+    for (const tether of seen) {
+      const label = moved(tether.labelId);
+      const target = moved(tether.ownerId);
+      tether.element.setAttribute(
+        "x1",
+        String(tether.label.x + (label?.x ?? 0)),
+      );
+      tether.element.setAttribute(
+        "y1",
+        String(tether.label.y + (label?.y ?? 0)),
+      );
+      tether.element.setAttribute(
+        "x2",
+        String(tether.target.x + (target?.x ?? 0)),
+      );
+      tether.element.setAttribute(
+        "y2",
+        String(tether.target.y + (target?.y ?? 0)),
+      );
+    }
+  };
 
   return {
     translate(delta) {
@@ -56,6 +123,7 @@ export function startCanvasDragVisual(
           item.transform ? `${prefix} ${item.transform}` : prefix,
         );
       }
+      stretch((id) => (id !== null && ids.has(id) ? delta : null));
     },
     translateObject(objectId, delta) {
       for (const item of saved) {
@@ -65,6 +133,16 @@ export function startCanvasDragVisual(
           "transform",
           item.transform ? `${prefix} ${item.transform}` : prefix,
         );
+      }
+      for (const tether of collectTethers()) {
+        if (tether.labelId === objectId) {
+          tether.element.setAttribute("x1", String(tether.label.x + delta.x));
+          tether.element.setAttribute("y1", String(tether.label.y + delta.y));
+        }
+        if (tether.ownerId === objectId) {
+          tether.element.setAttribute("x2", String(tether.target.x + delta.x));
+          tether.element.setAttribute("y2", String(tether.target.y + delta.y));
+        }
       }
     },
     scale(pivot, factor) {
@@ -91,6 +169,7 @@ export function startCanvasDragVisual(
       }
     },
     restore() {
+      stretch(() => null, [...tethers.values()]);
       for (const item of saved) {
         if (item.transform === null) item.element.removeAttribute("transform");
         else item.element.setAttribute("transform", item.transform);

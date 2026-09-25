@@ -17,6 +17,8 @@ export interface EditorSelectionHaloProps {
    * ignored here; routes and junctions mark themselves in their own layers.
    */
   wouldMoveIds: ReadonlySet<string>;
+  /** Parts whose selected label points at them: lit so the owner reads. */
+  labelOwnerIds?: readonly string[];
 }
 
 /**
@@ -38,6 +40,7 @@ export function EditorSelectionHalo({
   styleProfile,
   selectedInstanceIds,
   wouldMoveIds,
+  labelOwnerIds = [],
 }: EditorSelectionHaloProps) {
   const selected = useMemo(
     () =>
@@ -61,13 +64,39 @@ export function EditorSelectionHalo({
       ),
     [document, resolver, selectedInstanceIds, styleProfile, wouldMoveIds],
   );
-  if (selected === "" && wouldMove === "") return null;
+  const owners = useMemo(
+    () =>
+      renderInstanceOutlineGeometry(
+        document,
+        resolver,
+        labelOwnerIds.filter(
+          (id) => !selectedInstanceIds.includes(id) && !wouldMoveIds.has(id),
+        ),
+        styleProfile,
+      ),
+    [
+      document,
+      resolver,
+      labelOwnerIds,
+      selectedInstanceIds,
+      styleProfile,
+      wouldMoveIds,
+    ],
+  );
+  if (selected === "" && wouldMove === "" && owners === "") return null;
   return (
     <g
       data-layer="selection-halo"
       className="selection-halo"
       aria-hidden="true"
     >
+      {owners === "" ? null : (
+        <g
+          data-testid="selection-halo-label-owner"
+          className="selection-halo-body selection-halo-body--label-owner"
+          dangerouslySetInnerHTML={{ __html: owners }}
+        />
+      )}
       {wouldMove === "" ? null : (
         <g
           data-testid="selection-halo-would-move"

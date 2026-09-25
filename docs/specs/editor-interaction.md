@@ -719,7 +719,20 @@ visual anchor. A resolved anchor drives both the glyph and every text
 hit/marquee surface; its fallback is only for an orphaned target, never an
 editor-local alternate position. Dragging a route-anchored Net label re-anchors
 it along its own Route (segment, t, and a generous normal-offset band) instead
-of moving a fallback position. Selecting a `power-rail` together with its power
+of moving a fallback position. A new Net Label, placed with `L` or by naming a
+selected Wire, takes its Wire's standard side, whichever way the Wire was drawn.
+On a horizontal segment it sits above the Wire. On a vertical segment it sits to
+the right and starts at the Wire, so it never covers it. Each selected label
+draws a glowing tether to what it belongs to, and so do the labels of a lone
+selected part:
+
+- a Net Label to its Wire tap;
+- a pin's name to the pin;
+- a part's name or value to the part, whose outline lights.
+
+A part's labels can end up nearer another part once parts move; the tether
+still shows which part owns them. It stretches with whichever end a drag moves.
+Selecting a `power-rail` together with its power
 label is one visual deletion: the label removal is planned once, so the atomic
 transaction cannot reject a duplicated annotation removal. Drafting text has
 no electrical meaning.

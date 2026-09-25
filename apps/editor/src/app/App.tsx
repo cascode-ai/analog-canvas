@@ -87,7 +87,6 @@ import {
   supplyDefaultMosBulkNet,
   resolveDocumentStyleProfile,
   summarizeProjectCells,
-  resolveRouteAttachment,
 } from "@icm/derived";
 import type { HierarchyFrame } from "@icm/derived";
 import { createEmptyProject, createId } from "@icm/model";
@@ -370,13 +369,15 @@ import { EDGE_ALIGNMENT_MODES } from "../features/selection/align-selection";
 import type { VisualSelectionKind } from "../features/selection/visual-selection";
 import { planSelectionMove } from "../features/selection/selection-move-plan";
 import {
-  annotationAnchor,
   annotationHitBox,
-  closestNetConductorPoint,
   instanceValueAnnotation,
   isRoutedMarker,
   netLabelPlacementTargetAtPoint,
 } from "../features/wiring/route-interaction-geometry";
+import {
+  labelsOwnedBy,
+  resolveLabelTethers,
+} from "../features/wiring/label-tether";
 import type { NetLabelPlacementTarget } from "../features/wiring/route-interaction-geometry";
 import { useWireCanvasController } from "../features/wiring/use-wire-canvas-controller";
 import {
@@ -2529,51 +2530,35 @@ function WorkspaceEditor({
     for (const routeId of closure.boundaryRoutes) ids.add(routeId);
     return ids;
   }, [document, visualSelection]);
-  const netLabelTether = useMemo(() => {
-    const annotation = document.annotations.find(
-      (candidate) => candidate.id === selectedAnnotationId,
-    );
-    if (!annotation || annotation.kind !== "net-label") return null;
-    const anchor = annotation.anchor;
-    const record =
-      anchor.kind === "route"
-        ? routeGeometryRecords.find(
-            (candidate) => candidate.route.id === anchor.routeId,
-          )
-        : undefined;
-    const attachment =
-      record && anchor.kind === "route"
-        ? resolveRouteAttachment(record.geometry, anchor)
-        : null;
-    const label = annotationAnchor(
+  // Each selected label, or the labels of a lone selected part, draws a line
+  // to what it belongs to, so a label that ends up near another part still
+  // reads as its own.
+  const labelTethers = useMemo(
+    () =>
+      resolveLabelTethers(
+        { document, resolver, styleProfile, routeGeometryRecords, logicalNets },
+        visualSelection.annotationIds.length > 0
+          ? visualSelection.annotationIds
+          : visualSelection.instanceIds.length === 1
+            ? labelsOwnedBy(document, visualSelection.instanceIds[0]!)
+            : [],
+      ),
+    [
       document,
       resolver,
-      annotation,
-      routeGeometryRecords,
       styleProfile,
-    );
-    const conductor =
-      attachment?.conductorPoint ??
-      (annotation.netId
-        ? closestNetConductorPoint(
-            routeGeometryRecords,
-            annotation.netId,
-            label,
-          )
-        : null);
-    if (!conductor) return null;
-    return {
-      label,
-      conductor,
-      netName: annotation.netId ?? record?.route.netId ?? null,
-    };
-  }, [
-    document,
-    selectedAnnotationId,
-    routeGeometryRecords,
-    resolver,
-    styleProfile,
-  ]);
+      routeGeometryRecords,
+      logicalNets,
+      visualSelection,
+    ],
+  );
+  const labelOwnerIds = useMemo(
+    () =>
+      labelTethers.flatMap((tether) =>
+        tether.kind === "part" && tether.ownerId ? [tether.ownerId] : [],
+      ),
+    [labelTethers],
+  );
 
   const {
     sourceForTarget,
@@ -7533,6 +7518,7 @@ function WorkspaceEditor({
                   ]
                 : selectedIds,
             wouldMoveIds,
+            labelOwnerIds,
           }}
           cellSymbolLayout={
             selectedCellSymbolLayout
@@ -7572,7 +7558,7 @@ function WorkspaceEditor({
             markers: diagnosticMarkers,
             onSelectMarker: jumpToProjectDiagnostic,
           }}
-          netLabelTether={netLabelTether}
+          labelTethers={labelTethers}
           copyPreviewInnerHtml={copyPreviewInnerHtml}
           copyPreviewTransform={copyPreviewTransform}
           inputPlanes={{

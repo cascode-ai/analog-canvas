@@ -43,3 +43,26 @@ export function resolveRouteAttachment(
     rotation: rotation as Rotation,
   };
 }
+
+/**
+ * The normal offset that puts a Net Label on its wire's standard side,
+ * whichever way the wire was drawn. The label goes above a horizontal
+ * segment and right of a vertical one. A slanted segment counts as the
+ * nearer of the two. `resolveRouteAttachment` places the label at
+ * conductor + normal × offset, with normal = (−dy, dx) / length.
+ */
+export function netLabelSideOffset(
+  from: Point,
+  to: Point,
+  distance: number,
+): number {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const along = Math.abs(dx) >= Math.abs(dy) ? dx : dy;
+  return along > 0 ? -distance : distance;
+}
+
+/** Whether a segment runs closer to vertical than to horizontal. */
+export function isNearVerticalSegment(from: Point, to: Point): boolean {
+  return Math.abs(to.y - from.y) > Math.abs(to.x - from.x);
+}

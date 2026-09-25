@@ -760,7 +760,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     const prepared = preparedNetLabelPlacement(placement);
     const existingLabel = options.netLabelForRoute(route);
     const edits = options.netLabelEditsForRoute(route, prepared.name, {
-      alignment: placement.alignment,
+      alignment: target.alignment ?? placement.alignment,
       sizeScale: placement.sizeScale,
       ...(prepared.formatOverride
         ? { formatOverride: prepared.formatOverride }

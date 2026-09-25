@@ -1,5 +1,10 @@
 import type { ResolvedRouteGeometry } from "@icm/derived";
-import { resolveAnnotationName, resolveNetLabelBinding } from "@icm/derived";
+import {
+  isNearVerticalSegment,
+  netLabelSideOffset,
+  resolveAnnotationName,
+  resolveNetLabelBinding,
+} from "@icm/derived";
 import { resolveReviewedExternalBinding } from "@icm/devices";
 import { planEnsureNamedNet, type SchematicEdit } from "@icm/edit-engine";
 import {
@@ -159,14 +164,17 @@ export function createPropertyEditPlanner({
     );
     const from = geometry.centerline[segment]!;
     const to = geometry.centerline[segment + 1] ?? from;
+    // A new label takes the wire's standard side: above a horizontal wire,
+    // right of a vertical one, whichever way the wire was drawn.
+    const vertical = isNearVerticalSegment(from, to);
     const requestedPosition = presentation?.position ??
       (existingLabel
         ? existingLabel.anchor.kind === "free"
           ? existingLabel.anchor.position
           : existingLabel.anchor.fallbackPosition
         : undefined) ?? {
-        x: (from.x + to.x) / 2,
-        y: (from.y + to.y) / 2 - 8,
+        x: (from.x + to.x) / 2 + (vertical ? 8 : 0),
+        y: (from.y + to.y) / 2 - (vertical ? 0 : 8),
       };
     const position = presentation?.routeAttachment
       ? requestedPosition
@@ -200,13 +208,15 @@ export function createPropertyEditPlanner({
                   routeId: route.id,
                   legId: route.legs[segment]!.id,
                   t: 0.5,
-                  normalOffset: -8,
+                  normalOffset: netLabelSideOffset(from, to, 8),
                   direction: "forward",
                   orientation: "follow",
                   fallbackPosition: position,
                 },
         alignment:
-          presentation?.alignment ?? existingLabel?.alignment ?? "middle",
+          presentation?.alignment ??
+          existingLabel?.alignment ??
+          (vertical ? "start" : "middle"),
         rotation: 0,
         locked: false,
         ...(presentation?.sizeScale !== undefined
