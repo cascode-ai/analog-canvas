@@ -384,6 +384,95 @@ describe("one Project copy path", () => {
     ).toBe("VDD");
   });
 
+  // Drawings from before the Edit Engine removed zero-length steps still
+  // store Wires that re-created as they are would be rejected as degenerate.
+  function legacyWireFixture(gap: number, stepped: boolean) {
+    const project = createEmptyProject("legacy-wires", "Legacy wires");
+    const document = project.documents[0]!;
+    const resolver = new InMemorySymbolResolver(builtInSymbols);
+    const [first, second] = resolver.resolve("resistor")!.definition.pins;
+    const resistor = (id: string, x: number, y: number) => ({
+      id,
+      reference: id,
+      symbolId: "resistor",
+      placement: {
+        position: { x, y },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+      netlist: { parameters: { value: "1k" } },
+    });
+    // R2's first pin lies `gap` to the right of R1's second pin.
+    document.instances.push(
+      resistor("R1", 0, 0),
+      resistor(
+        "R2",
+        second!.at.x - first!.at.x + gap,
+        second!.at.y - first!.at.y,
+      ),
+    );
+    const from = {
+      kind: "terminal" as const,
+      instanceId: "R1",
+      pinName: second!.name,
+    };
+    const to = {
+      kind: "terminal" as const,
+      instanceId: "R2",
+      pinName: first!.name,
+    };
+    document.nets.push({
+      id: "joined",
+      terminals: [
+        { instanceId: "R1", pinName: second!.name },
+        { instanceId: "R2", pinName: first!.name },
+      ],
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "legacy",
+        netId: "joined",
+        start: from,
+        end: to,
+        // A first step of no length, from R1's pin to a bend on that pin.
+        bends: stepped ? [{ x: second!.at.x, y: second!.at.y }] : [],
+        modes: stepped ? ["manual", "manual"] : ["manual"],
+      }),
+    );
+    const copied = place(
+      project,
+      captureProjectCopy(
+        project,
+        document,
+        selection(["R1", "R2"], ["legacy"]),
+      )!,
+    ).documents[0]!;
+    const copies = copied.instances
+      .filter((instance) => instance.id !== "R1" && instance.id !== "R2")
+      .map((instance) => instance.id);
+    return { copied, copies };
+  }
+
+  it("copies a legacy Wire whose ends meet as the contact it is", () => {
+    const { copied, copies } = legacyWireFixture(0, false);
+    expect(copies).toHaveLength(2);
+    // The copied pins share their Net, and no empty Wire is re-created.
+    expect(copied.routes.map((route) => route.id)).toEqual(["legacy"]);
+    const net = copied.nets.find((candidate) =>
+      candidate.terminals.some((terminal) => terminal.instanceId === copies[0]),
+    )!;
+    expect(net.terminals.map((terminal) => terminal.instanceId).sort()).toEqual(
+      [...copies].sort(),
+    );
+  });
+
+  it("copies a legacy Wire without its zero-length step", () => {
+    const { copied } = legacyWireFixture(40, true);
+    const copy = copied.routes.find((route) => route.id !== "legacy")!;
+    expect(copy.legs).toHaveLength(1);
+    expect(copy.legs[0]!.to.kind).toBe("endpoint");
+  });
+
   it("undoes dependencies and placed objects together, with no writes from preparation", () => {
     const source = externalFixture();
     const controller = new EditorDocumentController(

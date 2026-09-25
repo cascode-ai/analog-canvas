@@ -1,5 +1,6 @@
 import {
   createEmptyProject,
+  createRoutePath,
   ComponentDefinitionSchema,
   deriveStableId,
   roleLabelFormat,
@@ -24,6 +25,7 @@ import {
   executeProjectTransaction,
   executeTransaction,
   gateRoutingOperationPlan,
+  normalizeRouteGeometry,
   planExternalCopyDependencies,
   planProjectCellImport,
   remapCopySourceFiles,
@@ -83,6 +85,69 @@ export function captureProjectCopy(
     const source = document.routes.find((r) => r.id === routeId);
     if (!source || clipboard.routes.some((r) => r.id === routeId)) continue;
     clipboard.routes.push(structuredClone(source));
+  }
+  // Drawings from before the Edit Engine removed zero-length steps still hold
+  // Wires with them, and re-creating such a Wire is rejected as degenerate,
+  // which failed the whole copy. The copy takes each Wire as the engine now
+  // leaves one: without its zero-length steps. A Wire whose ends meet is a
+  // direct contact, which the engine keeps as its ends' Net membership, never
+  // as a Route; the copy keeps that membership and any Junction the Wire
+  // ended on, which the pasted pin touches, and leaves the empty Wire behind.
+  const legAnchored = new Set(
+    [
+      ...clipboard.annotations.map((annotation) => annotation.anchor),
+      ...clipboard.draftingObjects.flatMap((object) => [
+        object.anchor,
+        ...(object.kind === "arrow" ? [object.from, object.to] : []),
+        ...(object.kind === "leader" || object.kind === "callout"
+          ? [object.target]
+          : []),
+      ]),
+    ].flatMap((anchor) => (anchor.kind === "route" ? [anchor.routeId] : [])),
+  );
+  const contacts = new Set<string>();
+  clipboard.routes = clipboard.routes.flatMap((route) => {
+    const centerline = geometry.routes.get(route.id)?.centerline;
+    if (!centerline?.length) return [route];
+    const points = [
+      centerline[0]!,
+      ...route.legs.flatMap((leg) =>
+        leg.to.kind === "bend" ? [leg.to.position] : [],
+      ),
+      centerline.at(-1)!,
+    ];
+    const normalized = normalizeRouteGeometry(
+      points,
+      route.legs.map((leg) => leg.mode),
+    );
+    if (normalized.points.length < 2) {
+      contacts.add(route.id);
+      return [];
+    }
+    if (normalized.points.length === points.length || legAnchored.has(route.id))
+      return [route];
+    return [
+      createRoutePath({
+        id: route.id,
+        netId: route.netId,
+        start: route.start,
+        end: routeEnd(route),
+        bends: normalized.points.slice(1, -1),
+        modes: normalized.segmentModes,
+        ...(route.presentation ? { presentation: route.presentation } : {}),
+        ...(route.styleOverride ? { styleOverride: route.styleOverride } : {}),
+      }),
+    ];
+  });
+  if (contacts.size) {
+    const whole = (ids: readonly string[]) =>
+      ids.every((id) => !contacts.has(id));
+    clipboard.layoutGroups = clipboard.layoutGroups.filter((group) =>
+      whole(group.objectIds),
+    );
+    clipboard.constraints = clipboard.constraints.filter((constraint) =>
+      whole(constraint.objectIds),
+    );
   }
   for (const route of clipboard.routes) {
     if (!netIds.has(route.netId)) {
