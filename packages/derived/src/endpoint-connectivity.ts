@@ -13,7 +13,7 @@ export interface EndpointConnectivityIntent {
   implicit: boolean;
   formalBoundary: boolean;
   globalSupply: boolean;
-  /** The imported source explicitly declared this otherwise-singleton node. */
+  /** Historical provenance only; never evidence that a current pin is connected. */
   sourceDeclared: boolean;
 }
 
@@ -113,8 +113,7 @@ export function createEndpointConnectivityClassifier(
         intent.explicitNoConnect ||
         intent.implicit ||
         intent.formalBoundary ||
-        intent.globalSupply ||
-        intent.sourceDeclared,
+        intent.globalSupply,
     };
   };
 

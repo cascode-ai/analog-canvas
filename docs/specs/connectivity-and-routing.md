@@ -356,19 +356,25 @@ result/navigation behavior; checks do not veto Save.
 
 ## Imported routing guidance
 
-SPICE import creates electrical membership before drawing and persists one
-`spice-source` provenance record per imported Base Net. Source provenance is
-not an electrical equivalence rule. When a cut partitions that Base Net, every
-surviving component retains the same source identity while remaining a
-separate electrical Base Net. `deriveRoutingGuidance` is a pure,
-device-neutral minimum-spanning tree over current visible components grouped
-by source identity: it does not read MOS/Bulk semantics, labels, or editor
-state. Symbol pin visibility, implicit terminals, and named-global-Net
-exemptions are adapter policy before this calculation.
+SPICE import creates electrical membership before drawing, archives the input,
+and freezes the original terminal groups in `importReference`. Mutable
+`spice-source` provenance remains lineage only. Merge/split can copy that lineage
+but cannot change reference membership. `deriveRoutingGuidance` remains a pure
+minimum-spanning tree; its adapter now supplies only each frozen group's mapped
+endpoints, never all terminals of their current Base Nets.
+
+Electrical comparison and drawing coverage are independent. Routes, contacts and
+current authoritative name owners can express a connection; unrouted membership
+alone cannot hide every guide immediately after import. Same-name Ports/Labels
+need no extra wire. Different child Ports may share one parent Net without losing
+their interface identities or changing another occurrence. Reference comparison
+is explicitly Cell-definition scoped, not a flattened occurrence verifier.
+Open/short/missing/unplaced reference findings are non-blocking routing observations
+in Issues. Source provenance never exempts a current singleton from ERC.
 
 A guide is transient presentation, never a Route, Junction, or electrical
 contact. A guide click starts the ordinary Wire interaction. Label, geometry,
-or transform edits cannot dismiss guidance; the current graph simply yields a
+or transform edits cannot rewrite reference membership; the current graph yields a
 new result. `remove_route_geometry` retains Net membership and therefore
 re-exposes unresolved imported components. A normal connection cut splits all
 physical components, including imported and global Base Nets; only the primary
@@ -376,10 +382,15 @@ component retains an unowned imported name projection, while owner-addressed
 markers follow their surviving component and source provenance is copied to
 every component. The editor may show
 focused, all, or hidden imported guides; each guide carries the actual Base
-Net at both endpoints, so clicking it uses the ordinary Wire merge path. Net
+Net at both endpoints (null for unbound terminals), so clicking it rechecks current
+ownership and uses the ordinary Wire path. Net
 highlight suppresses guides incident to the highlighted Net. Unplaced
 endpoints remain in the Placement Tray and do not receive invented page
 coordinates.
+
+Legacy imports without a frozen reference display an unavailable observation,
+not speculative flightlines. Hiding guidance does not change connectivity or
+export. Cut's existing whole-Net release of old unrouted intent remains unchanged.
 
 ## Net naming and lifecycle
 

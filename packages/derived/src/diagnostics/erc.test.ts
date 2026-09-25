@@ -339,7 +339,7 @@ describe("ERC engine", () => {
     });
   });
 
-  it("accepts an otherwise-singleton pin explicitly declared by imported SPICE", () => {
+  it("does not let source provenance exempt a currently singleton pin", () => {
     const project = emptyProject();
     const document = project.documents[0]!;
     document.instances = [instance("I1")];
@@ -358,7 +358,7 @@ describe("ERC engine", () => {
       endpoint: { kind: "terminal", instanceId: "I1", pinName: "R" },
     });
 
-    expect(run(project)).toEqual([]);
+    expect(codes(project)).toEqual(["ERC_UNCONNECTED_PIN"]);
   });
 
   it("does not flag an implicit pin even when unconnected", () => {
