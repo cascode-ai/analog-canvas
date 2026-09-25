@@ -20,6 +20,65 @@ import {
   openSelectionShelf,
 } from "./manual-editor-fixtures.js";
 
+test("Cell Pin Properties edits the formal name even without a canvas label", async ({
+  page,
+}) => {
+  const project = createEmptyProject("pin-name", "Pin name");
+  const document = project.documents[0]!;
+  document.instances.push({
+    id: "P2-copy-1",
+    symbolId: "port",
+    placement: {
+      position: { x: 300, y: 200 },
+      rotation: 0,
+      mirror: "none",
+    },
+  });
+  document.nets.push({
+    id: "net-voc",
+    terminals: [{ instanceId: "P2-copy-1", pinName: "P" }],
+  });
+  document.netlist = {
+    name: document.name,
+    formalParameters: [],
+    terminals: [
+      {
+        id: "terminal-voc",
+        name: "Voc",
+        netId: "net-voc",
+        direction: "passive",
+        interfaceInstanceIds: ["P2-copy-1"],
+      },
+    ],
+  };
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "pin-name.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(project)),
+  });
+  await page.getByTestId("hit-P2-copy-1").click();
+  await openSelectionShelf(page);
+  await expect(page.getByTestId("selection-shelf")).toContainText("Voc · port");
+  await expectComponentCodeField(page, "name", "Voc");
+  await editComponentPropertyCode(page, (code) => {
+    code.name = "Vcm";
+  });
+  await expectComponentCodeField(page, "name", "Vcm");
+  const saved = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(saved.documents[0]!.netlist!.terminals[0]).toMatchObject({
+    id: "terminal-voc",
+    name: "Vcm",
+    netId: "net-voc",
+  });
+  expect(saved.documents[0]!.instances[0]!.id).toBe("P2-copy-1");
+});
+
 test("property inspection and remounts keep canvas keyboard ownership", async ({
   page,
 }) => {

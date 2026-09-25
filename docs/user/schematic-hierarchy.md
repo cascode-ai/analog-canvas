@@ -107,8 +107,11 @@ To define a real Cell port:
 1. Press `P`, or place **Cell Pin** / **Bias Voltage Port** from the Library.
 2. Click an exact existing electrical contact to attach to its Net, or click
    empty grid space to create a new local Net.
-3. Double-click its default annotation to edit the interface name; use normal
-   **Properties** only for direction.
+3. Double-click its default annotation, or select the Pin and edit **Name** in
+   **Properties**, to change its formal Cell Pin name. Properties keeps this
+   name editable even if the canvas annotation is absent. The Pin's Instance ID
+   is an internal identifier, not its interface name; naming its Net separately
+   does not rename the Cell Pin.
 
 Formal-Pin placement commits the ordinary `port`/`port-filled` Instance, its
 pin-`P` connection, and the stable formal Cell terminal as one revision. Inputs
@@ -118,8 +121,8 @@ adapt without a separate interface editor.
 
 Each visible marker remains an ordinary Instance for selection, move, wiring,
 copy, and deletion. Copying a Cell Pin creates a new formal terminal with an
-independent stable identity and a freshly allocated interface name, with its
-direction preserved. Copy follows ordinary insertion: destination contacts
+independent stable identity while retaining the source's formal name and
+direction. Copy follows ordinary insertion: destination contacts
 determine connectivity; off-selection source connectivity is not inherited.
 Only explicitly selected wires travel with the copy. Markers keep independent
 canvas identities, but names have electrical meaning: equal case-insensitive

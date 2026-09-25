@@ -6599,13 +6599,19 @@ function WorkspaceEditor({
                   ? {
                       code: {
                         instance: selectedInstance,
-                        displayName: selectedDisplayName,
-                        itemName: selectedInstanceLabel
-                          ? resolveAnnotationName(
-                              document,
-                              selectedInstanceLabel,
-                            )
-                          : (selectedInstance.reference ?? selectedInstance.id),
+                        // A Cell Pin's authored interface name is independent
+                        // of its optional canvas annotation and opaque ID.
+                        displayName:
+                          selectedFormalTerminal?.name ?? selectedDisplayName,
+                        itemName:
+                          selectedFormalTerminal?.name ??
+                          (selectedInstanceLabel
+                            ? resolveAnnotationName(
+                                document,
+                                selectedInstanceLabel,
+                              )
+                            : (selectedInstance.reference ??
+                              selectedInstance.id)),
                         defaultForeground: styleProfile.foreground,
                         revision: document.revision,
                         referenceVisible:
