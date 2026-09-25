@@ -565,6 +565,30 @@ describe("current formal cell interface", () => {
     expect(project).toEqual(before);
   });
 
+  it("blocks export when a Net Label aliases a formal Port under a different name", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push({ id: "P1", symbolId: "port", placement: null });
+    document.nets.push({
+      id: "net-port",
+      terminals: [{ instanceId: "P1", pinName: "P" }],
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-vin",
+      name: "Vin",
+      netId: "net-port",
+      direction: "input",
+      interfaceInstanceIds: ["P1"],
+    });
+    claimNet(document, "net-port", "Bias");
+
+    const result = analyzeDesignNetlist(project);
+    expect(result.ir).toBeNull();
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "CONFLICTING_LOGICAL_NET_NAME" }),
+    );
+  });
+
   it("exports matching-name Base Nets as one logical node", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;

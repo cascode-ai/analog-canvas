@@ -270,6 +270,52 @@ describe("resolved logical Nets", () => {
     expect(document.connectivityEvidence).toHaveLength(1);
   });
 
+  it("reports a different Net Label on a formal Port even when both names resolve to one node", () => {
+    const document = createEmptyDocument("document", "Document");
+    document.nets.push(
+      { id: "net-port", terminals: [] },
+      { id: "net-remote", terminals: [] },
+    );
+    document.netlist!.terminals.push({
+      id: "terminal-vin",
+      name: "Vin",
+      netId: "net-port",
+      direction: "input",
+      interfaceInstanceIds: ["P1"],
+    });
+    document.connectivityEvidence.push(
+      {
+        id: "claim-on-port",
+        kind: "name-claim",
+        netId: "net-port",
+        name: "Bias",
+        owner: { kind: "net-label", annotationId: "label-on-port" },
+        scope: "local",
+      },
+      {
+        id: "claim-remote",
+        kind: "name-claim",
+        netId: "net-remote",
+        name: "BIAS",
+        owner: { kind: "net-label", annotationId: "label-remote" },
+        scope: "local",
+      },
+    );
+
+    expect(resolveDocumentLogicalNets(document).groups).toEqual([
+      expect.objectContaining({
+        baseNetIds: ["net-port", "net-remote"],
+        conflicts: ["name-conflict"],
+      }),
+    ]);
+    expect(validateLogicalNetContract(document)).toEqual([
+      {
+        code: "CONFLICTING_LOGICAL_NET_NAME",
+        netIds: ["net-port", "net-remote"],
+      },
+    ]);
+  });
+
   it("uses one visible formal Port spelling as the current Logical Net name", () => {
     const document = createEmptyDocument("document", "Document");
     document.nets.push({ id: "net-out", terminals: [] });
