@@ -2,6 +2,7 @@ import { parseSavedProject } from "./editor-fixtures";
 import { test, expect } from "@playwright/test";
 import { openSelectionShelf } from "./manual-editor-fixtures.js";
 import { createEmptyProject, semanticTextDocument } from "@icm/model";
+import { serializeProject } from "@icm/project-protocol";
 import {
   awaitEditorReady,
   clickCommand,
@@ -294,6 +295,64 @@ test("explicit inspectors yield to Netlist for a replacement while ordinary edit
     "Changed circuit name",
   );
   await expect(code).toHaveCount(0);
+});
+
+test("lists every netlist issue and shows each one on the canvas", async ({
+  page,
+}) => {
+  // Three parts no netlist can describe; the panel used to name only the first.
+  const project = createEmptyProject("netlist-issues", "Netlist issues");
+  const parts = [
+    ["D1", "delay-cell"],
+    ["D2", "delay-cell"],
+    ["S1", "ideal-switch"],
+  ] as const;
+  for (const [index, [id, symbolId]] of parts.entries())
+    project.documents[0]!.instances.push({
+      id,
+      reference: id,
+      symbolId,
+      placement: {
+        position: { x: 200 + index * 200, y: 200 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await expect(page.getByTestId("netlist-panel-toggle")).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.getByTestId("project-file").setInputFiles({
+    name: "netlist-issues.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(project)),
+  });
+  const list = page.getByTestId("netlist-issues");
+  const issues = page.getByTestId("netlist-issue");
+  await expect(list).toContainText("3 issues");
+  await expect(issues).toHaveCount(3);
+  await expect(issues.nth(1)).toContainText(
+    "Symbol delay-cell has no reviewed netlist definition",
+  );
+  await expect(issues.nth(1)).toContainText("D2");
+  await expect(issues.nth(2)).toContainText("ideal-switch");
+  const halo = page.getByTestId("selection-halo-selected");
+  for (const [index, [id]] of parts.entries()) {
+    await issues.nth(index).click();
+    await expect(halo.locator(`[data-object-id="${id}"]`)).toBeVisible();
+    for (const [other] of parts)
+      if (other !== id)
+        await expect(halo.locator(`[data-object-id="${other}"]`)).toHaveCount(
+          0,
+        );
+    // The list stays in the dock, one click from the next finding.
+    await expect(list).toBeVisible();
+  }
+  await expect(page.getByTestId("status")).toContainText(
+    "Netlist: Symbol ideal-switch is drawing-only and has no netlist form",
+  );
 });
 
 test("opens editable netlist by default, highlights a card, and synchronizes names and values with undo", async ({

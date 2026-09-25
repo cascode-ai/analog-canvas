@@ -6251,6 +6251,12 @@ function WorkspaceEditor({
                         selectDocumentFromHierarchy(instance.documentId);
                       setNetlistFocusedInstance(instance);
                     }}
+                    onNavigateDiagnostic={(diagnostic) =>
+                      navigateToNetlistDiagnostic(diagnostic, {
+                        from: "Netlist",
+                        keepPanel: true,
+                      })
+                    }
                     project={project}
                     format={netlistPreferences.format}
                     rootDocumentId={netlistRootDocumentId}

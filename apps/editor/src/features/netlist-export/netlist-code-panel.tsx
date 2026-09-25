@@ -16,8 +16,8 @@ import {
   planNetlistCodeEdit,
   netlistInstanceAtLine,
 } from "./netlist-code-edit";
-import type { PrintedNetlistInstance } from "@icm/netlist";
-import type { CircuitProject } from "@icm/model";
+import type { NetlistDiagnostic, PrintedNetlistInstance } from "@icm/netlist";
+import type { CircuitProject, ObjectLocator } from "@icm/model";
 import {
   inferNetlistProcess,
   netlistProcessPendingInstances,
@@ -46,6 +46,38 @@ const ProjectTextEditor = lazy(
   () => import("../project-code/project-text-editor"),
 );
 
+/**
+ * What a finding is about, to tell equal messages apart: the part (and pin)
+ * it names, and the Cell when that is not the one being exported.
+ */
+export function netlistIssueTarget(
+  project: CircuitProject,
+  locator: ObjectLocator,
+  rootDocumentId: string,
+): string | null {
+  const document = project.documents.find(
+    (item) => item.id === locator.documentId,
+  );
+  const endpoint = locator.endpoint;
+  const instanceId =
+    locator.kind === "instance"
+      ? locator.objectId
+      : endpoint?.kind === "terminal"
+        ? endpoint.instanceId
+        : null;
+  const instance = instanceId
+    ? document?.instances.find((item) => item.id === instanceId)
+    : undefined;
+  const part = instance
+    ? `${instance.reference ?? instance.id}${
+        endpoint?.kind === "terminal" ? `.${endpoint.pinName}` : ""
+      }`
+    : null;
+  const cell =
+    document && document.id !== rootDocumentId ? `in ${document.name}` : null;
+  return [part, cell].filter(Boolean).join(" ") || null;
+}
+
 /** Live structural output. Diagnostics belong outside the copyable code. */
 export function NetlistCodePanel({
   project,
@@ -59,6 +91,7 @@ export function NetlistCodePanel({
   configurationError,
   onApply,
   onFocusInstance,
+  onNavigateDiagnostic,
   profiles,
   selectedProcess,
   onProcessChange,
@@ -75,6 +108,8 @@ export function NetlistCodePanel({
   configurationError: string | null;
   onApply(edits: ProjectStructureEdit[]): boolean;
   onFocusInstance(instance: PrintedNetlistInstance | null): void;
+  /** Show a finding's object on the canvas. */
+  onNavigateDiagnostic?(diagnostic: NetlistDiagnostic): void;
   profiles: Record<NetlistProfileId, NetlistExportProfile>;
   selectedProcess: NetlistProfileId;
   onProcessChange(id: NetlistProfileId): void;
@@ -144,14 +179,20 @@ export function NetlistCodePanel({
   const unfinished = result
     ? unfinishedDrawingDiagnostics(result.diagnostics)
     : [];
+  // Every finding that keeps this netlist from being taken away, not only the
+  // first: blocking errors, or, when the text still prints, what makes the
+  // drawing unfinished. Each one leads to its object on the canvas.
+  const issues: NetlistDiagnostic[] = configurationError
+    ? []
+    : result?.status === "blocked"
+      ? result.diagnostics.filter((item) => item.severity === "error")
+      : unfinished;
   const error = configurationError
     ? `Fix Netlist configuration: ${configurationError}`
-    : result?.status === "blocked"
-      ? (result.diagnostics.find((item) => item.severity === "error")
-          ?.message ?? "Resolve the Check Report findings before copying")
-      : // The text below is still what the drawing says; it is just not a
-        // netlist anybody should take away yet.
-        (unfinished[0]?.message ?? null);
+    : result?.status === "blocked" && issues.length === 0
+      ? "Resolve the Check Report findings before copying"
+      : null;
+  const exportRoot = rootDocumentId ?? project.topDocumentId;
   const source = result?.status === "ready" ? result.file.text : "";
   const [draft, setDraft] = useState(source);
   const [editBaseline, setEditBaseline] = useState(source);
@@ -362,7 +403,7 @@ export function NetlistCodePanel({
             ariaLabel="Netlist code"
             language="netlist"
             value={draft}
-            invalid={!!error || !!editError}
+            invalid={!!error || issues.length > 0 || !!editError}
             onChange={(text) => {
               draftRef.current = text;
               setDraft(text);
@@ -485,6 +526,46 @@ export function NetlistCodePanel({
         Edit names, models and values · Enter to apply
       </p>
       {error ? <p role="alert">{error}</p> : null}
+      {issues.length ? (
+        <div
+          className="netlist-issues"
+          role="alert"
+          data-testid="netlist-issues"
+        >
+          <p className="netlist-issues-heading">
+            {issues.length === 1 ? "1 issue" : `${issues.length} issues`} ·
+            click one to show it on the canvas
+          </p>
+          <ul>
+            {issues.map((issue, index) => {
+              const target = netlistIssueTarget(
+                project,
+                issue.primary,
+                exportRoot,
+              );
+              return (
+                <li
+                  key={`${issue.code}\u0000${issue.primary.objectId}\u0000${index}`}
+                >
+                  <button
+                    type="button"
+                    className="netlist-issue"
+                    data-testid="netlist-issue"
+                    onClick={() => onNavigateDiagnostic?.(issue)}
+                  >
+                    <span className="netlist-issue-message">
+                      {issue.message}
+                    </span>
+                    {target ? (
+                      <span className="netlist-issue-target">{target}</span>
+                    ) : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
     </section>
   );
 }

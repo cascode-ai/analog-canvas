@@ -308,6 +308,55 @@
   font-size: 12px;
   color: var(--icm-text-dim);
 }
+/* Every finding that keeps the netlist from being taken away, each one a
+   button to its object on the canvas. */
+.netlist-issues {
+  display: grid;
+  gap: 4px;
+}
+.netlist-profile-code .netlist-issues-heading {
+  margin: 0;
+  color: var(--icm-error);
+}
+/* Six findings show at once and the rest scroll, so a drawing with dozens
+   of unfinished nets still leaves the code its room. */
+.netlist-issues ul {
+  display: grid;
+  gap: 2px;
+  max-height: 168px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.netlist-issue {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.netlist-issue:hover,
+.netlist-issue:focus-visible {
+  border-color: var(--icm-error);
+  background: var(--icm-surface-hover);
+}
+.netlist-issue-message {
+  flex: 1;
+  color: var(--icm-error);
+}
+.netlist-issue-target {
+  color: var(--icm-text-muted);
+  white-space: nowrap;
+}
 .project-source-editor,
 .project-code-panel > textarea,
 .netlist-profile-code > textarea,
