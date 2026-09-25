@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { assembleServer } from "./server.js";
-import { runHttpCommand } from "./http-cli.js";
+import { httpCommandReadsStdin, runHttpCommand } from "./http-cli.js";
 import { executeOperation, operationDefinitions } from "./operations.js";
 
 describe("HTTP executable adapter", () => {
+  it("does not wait for stdin on argument-less discovery", () => {
+    expect(httpCommandReadsStdin("list-tools")).toBe(false);
+    expect(httpCommandReadsStdin("resource")).toBe(true);
+    expect(httpCommandReadsStdin("circuit_place")).toBe(true);
+  });
   it("keeps one operation inventory and the same structured failures for both adapters", async () => {
     const server = assembleServer({
       apiBaseUrl: "https://relay.test",

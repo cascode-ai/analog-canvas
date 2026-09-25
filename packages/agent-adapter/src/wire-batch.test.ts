@@ -3,12 +3,20 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { expect, it } from "vitest";
 import { createAgentCircuitService } from "./service.js";
 
-function fixture(limit = 64) {
+function fixture(
+  limit = 64,
+  positions = [
+    [0, 100],
+    [100, 100],
+    [200, 100],
+    [300, 100],
+  ],
+) {
   let document = createEmptyDocument("doc", "Batch");
-  document.instances = [0, 100, 200, 300].map((x, i) => ({
+  document.instances = positions.map(([x, y], i) => ({
     id: `R${i}`,
     symbolId: "resistor",
-    placement: { position: { x, y: 100 }, rotation: 0, mirror: "none" },
+    placement: { position: { x: x!, y: y! }, rotation: 0, mirror: "none" },
   }));
   let commits = 0;
   const service = createAgentCircuitService({
@@ -76,6 +84,39 @@ it("plans shared endpoints against evolving state and commits one revision", () 
   expect(f.document.revision).toBe(before + 1);
   expect(f.document.nets).toHaveLength(1);
   expect(f.document.nets[0]!.terminals).toHaveLength(3);
+});
+
+it("rebases two taps on one original route within a single atomic batch", () => {
+  const f = fixture(64, [
+    [0, 100],
+    [100, 200],
+    [200, 200],
+    [300, 100],
+  ]);
+  expect(f.submit([f.wire("base", "R0", "R3")])).toMatchObject({ ok: true });
+  const route = f.document.routes[0]!;
+  const tap = (id: string, source: string, x: number) => ({
+    id,
+    from: {
+      kind: "endpoint",
+      endpoint: { kind: "terminal", instanceId: source, pinName: "1" },
+    },
+    to: {
+      kind: "route-segment",
+      routeId: route.id,
+      legId: route.legs[0]!.id,
+      point: { x, y: 80 },
+    },
+  });
+  const before = f.document.revision;
+  expect(
+    f.submit([tap("first", "R1", 100), tap("second", "R2", 200)]),
+  ).toMatchObject({ ok: true, applied: true });
+  expect(f.commits).toBe(2);
+  expect(f.document.revision).toBe(before + 1);
+  expect(f.document.junctions).toHaveLength(2);
+  expect(f.document.nets).toHaveLength(1);
+  expect(f.document.nets[0]!.terminals).toHaveLength(4);
 });
 it("leaves no partial wires when a later wire is invalid", () => {
   const f = fixture();

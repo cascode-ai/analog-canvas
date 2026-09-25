@@ -4,6 +4,11 @@ import { entryResult } from "./entry-result.js";
 import { listToolDefinitions } from "./tool-discovery.js";
 import { readResourceContent } from "./resources.js";
 
+/** No-argument commands must not wait for an open terminal/pipe to close. */
+export function httpCommandReadsStdin(command: string): boolean {
+  return command !== "list-tools";
+}
+
 /** A local executable adapter, not a second server or network protocol. */
 export async function runHttpCommand(
   server: { toolSession: OperationSession },

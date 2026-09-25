@@ -1,4 +1,8 @@
-import { resolveDocumentRoutingGeometry, sha256Hex } from "@icm/derived";
+import {
+  resolveDocumentRoutingGeometry,
+  resolveRouteGeometry,
+  sha256Hex,
+} from "@icm/derived";
 import {
   executeTransaction,
   executeProjectTransaction,
@@ -6,6 +10,7 @@ import {
   SchematicEditSchema,
 } from "@icm/edit-engine";
 import type { SchematicEdit } from "@icm/edit-engine";
+import { routeEnd } from "@icm/model";
 import type { CircuitProject, Point, SchematicDocument } from "@icm/model";
 import { buildSvgScene, renderDocumentSvg } from "@icm/render-svg";
 import {
@@ -64,8 +69,86 @@ function planWireBatch(
     return proposeWireIntent(document, resolver, input);
   let working = document;
   const edits: SchematicEdit[] = [];
+  const descendants = new Map(
+    document.routes.map((route) => [route.id, new Set([route.id])]),
+  );
+  const onSegment = (point: Point, from: Point, to: Point): boolean =>
+    (point.x - from.x) * (to.y - from.y) ===
+      (point.y - from.y) * (to.x - from.x) &&
+    point.x >= Math.min(from.x, to.x) &&
+    point.x <= Math.max(from.x, to.x) &&
+    point.y >= Math.min(from.y, to.y) &&
+    point.y <= Math.max(from.y, to.y);
+  const rebaseAnchor = (
+    anchor: Parameters<typeof proposeWireIntent>[2]["from"],
+  ): typeof anchor | string => {
+    if (
+      anchor.kind !== "route-segment" ||
+      working.routes.some((route) => route.id === anchor.routeId)
+    )
+      return anchor;
+    const original = document.routes.find(
+      (route) => route.id === anchor.routeId,
+    );
+    if (!original || !original.legs.some((leg) => leg.id === anchor.legId))
+      return `Wire route or leg does not exist: ${anchor.routeId}/${anchor.legId}`;
+    const originalSegment = resolveRouteGeometry(
+      document,
+      resolver,
+      original,
+    )?.segments.find((segment) => segment.address.legId === anchor.legId);
+    if (
+      !originalSegment ||
+      !onSegment(anchor.point, originalSegment.from, originalSegment.to)
+    )
+      return `Wire route point is not on the original leg: ${anchor.routeId}/${anchor.legId}`;
+    const candidates = [...(descendants.get(anchor.routeId) ?? [])].flatMap(
+      (routeId) => {
+        const route = working.routes.find((entry) => entry.id === routeId);
+        if (!route) return [];
+        const geometry = resolveRouteGeometry(working, resolver, route);
+        if (!geometry) return [];
+        return geometry.segments
+          .filter((segment) =>
+            onSegment(anchor.point, segment.from, segment.to),
+          )
+          .map((segment) => ({ route, segment, geometry }));
+      },
+    );
+    const junction = candidates.flatMap(({ route, geometry }) => {
+      const endpoints = [
+        { endpoint: route.start, point: geometry.centerline[0] },
+        { endpoint: routeEnd(route), point: geometry.centerline.at(-1) },
+      ];
+      return endpoints
+        .filter(
+          ({ endpoint, point }) =>
+            endpoint.kind === "junction" &&
+            point?.x === anchor.point.x &&
+            point.y === anchor.point.y,
+        )
+        .map(({ endpoint }) => endpoint);
+    })[0];
+    if (junction) return { kind: "endpoint", endpoint: junction };
+    if (candidates.length !== 1)
+      return `Wire route segment has ${candidates.length} descendants at the requested point: ${anchor.routeId}/${anchor.legId}`;
+    const match = candidates[0]!;
+    return {
+      ...anchor,
+      routeId: match.route.id,
+      legId: match.segment.address.legId,
+    };
+  };
   for (const [index, intent] of input.entries()) {
-    const planned = proposeWireIntent(working, resolver, intent);
+    const from = rebaseAnchor(intent.from);
+    if (typeof from === "string") return `Wire ${index + 1}: ${from}`;
+    const to = rebaseAnchor(intent.to);
+    if (typeof to === "string") return `Wire ${index + 1}: ${to}`;
+    const planned = proposeWireIntent(working, resolver, {
+      ...intent,
+      from,
+      to,
+    });
     if (typeof planned === "string") return `Wire ${index + 1}: ${planned}`;
     edits.push(...planned.edits);
     if (edits.length > limit)
@@ -84,6 +167,14 @@ function planWireBatch(
     );
     if (!preview.ok) return `Wire ${index + 1}: ${preview.error.message}`;
     working = preview.document;
+    for (const edit of planned.edits) {
+      if (edit.kind !== "add_junction" || !edit.split) continue;
+      for (const lineage of descendants.values()) {
+        if (!lineage.delete(edit.split.routeId)) continue;
+        lineage.add(edit.split.firstRouteId);
+        lineage.add(edit.split.secondRouteId);
+      }
+    }
   }
   return { edits };
 }
@@ -755,6 +846,10 @@ export function createAgentCircuitService(
       }
 
       if (request.operation === "transact") {
+        const placedInstanceIds =
+          request.command?.kind === "place-components"
+            ? request.command.instances.map((instance) => instance.id)
+            : null;
         if (request.command) {
           if (request.expectedRevision !== document.revision)
             return fail(
@@ -1123,10 +1218,30 @@ export function createAgentCircuitService(
               { symbolResolver: resolver },
             );
         if (!result.ok) {
+          const instanceIndexForPath = (
+            path: readonly (string | number)[] | undefined,
+          ): number | undefined => {
+            const editIndex =
+              path?.[0] === "edits" && typeof path[1] === "number"
+                ? path[1]
+                : undefined;
+            const edit = editIndex === undefined ? undefined : edits[editIndex];
+            const index =
+              edit?.kind === "add_instance"
+                ? placedInstanceIds?.indexOf(edit.instance.id)
+                : undefined;
+            return index !== undefined && index >= 0 ? index : undefined;
+          };
+          const placementOrigin = result.diagnostics.flatMap((item) => {
+            const index = instanceIndexForPath(item.path);
+            return index === undefined ? [] : [index];
+          })[0];
           return fail(
             "transact",
             result.error.code,
-            result.error.message,
+            placementOrigin === undefined
+              ? result.error.message
+              : `instances[${placementOrigin}]: ${result.error.message}`,
             result.revision,
             result.diagnostics.map((item) => ({
               code: item.code,
@@ -1135,8 +1250,16 @@ export function createAgentCircuitService(
               revision: result.revision,
               ...(item.objectIds ? { objectIds: [...item.objectIds] } : {}),
               ...(item.path ? { path: [...item.path] } : {}),
-              ...(item.parameters
-                ? { parameters: { ...item.parameters } }
+              ...(item.parameters ||
+              instanceIndexForPath(item.path) !== undefined
+                ? {
+                    parameters: {
+                      ...item.parameters,
+                      ...(instanceIndexForPath(item.path) === undefined
+                        ? {}
+                        : { instanceIndex: instanceIndexForPath(item.path)! }),
+                    },
+                  }
                 : {}),
             })),
           );

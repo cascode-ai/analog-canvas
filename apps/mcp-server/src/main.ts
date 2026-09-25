@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { McpStdioServer } from "./protocol.js";
 import { assembleServer } from "./server.js";
-import { runHttpCommand } from "./http-cli.js";
+import { httpCommandReadsStdin, runHttpCommand } from "./http-cli.js";
 import { installMcp } from "./install.js";
 import { createOperationSession } from "./operation-session.js";
 
@@ -19,16 +19,19 @@ if (process.argv[2] === "--install") {
 } else {
   if (process.argv[2] === "--http") {
     try {
+      const command = process.argv[3] ?? "connection_status";
       let input = "";
-      process.stdin.setEncoding("utf8");
-      for await (const chunk of process.stdin) {
-        input += chunk;
-        if (Buffer.byteLength(input) > 32_000_000)
-          throw new Error("Input too large");
+      if (httpCommandReadsStdin(command)) {
+        process.stdin.setEncoding("utf8");
+        for await (const chunk of process.stdin) {
+          input += chunk;
+          if (Buffer.byteLength(input) > 32_000_000)
+            throw new Error("Input too large");
+        }
       }
       const result = await runHttpCommand(
         { toolSession: createOperationSession() },
-        process.argv[3] ?? "connection_status",
+        command,
         input,
       );
       process.stdout.write(`${JSON.stringify(result)}\n`);

@@ -142,6 +142,44 @@ describe("bound annotation text", () => {
     expect(document.netlist.terminals[0]!.name).toBe("Vout");
   });
 
+  it("shows a same-text Value look but never a stale electrical value", () => {
+    const document = createEmptyDocument("value-look", "Value look");
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: null,
+      netlist: { parameters: { value: "RL" } },
+    });
+    const formatOverride = {
+      runs: [
+        { kind: "text" as const, value: "R" },
+        {
+          kind: "span" as const,
+          style: "subscript" as const,
+          children: [{ kind: "text" as const, value: "L" }],
+        },
+      ],
+    };
+    const annotation: Annotation = {
+      id: "R1-value",
+      kind: "instance-value",
+      binding: { kind: "instance-value", instanceId: "R1" },
+      formatOverride,
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    };
+    expect(resolveAnnotationText(document, annotation)).toEqual(formatOverride);
+    document.instances[0]!.netlist!.parameters.value = "RD";
+    expect(flattenRichText(resolveAnnotationText(document, annotation))).toBe(
+      "RD",
+    );
+    expect(resolveAnnotationText(document, annotation)).not.toEqual(
+      formatOverride,
+    );
+  });
+
   it("projects a Net name without touching its movable route anchor", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.nets.push({

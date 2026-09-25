@@ -51,6 +51,33 @@ async function folder() {
 }
 
 describe("MCP → API → shared editor parity", () => {
+  it("reports the input action behind a rejected placement edit", async () => {
+    const { client, controller } = await folder();
+    const before = structuredClone(controller.document);
+    const report = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "R1",
+        position: { x: 100, y: 100 },
+      },
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "R2",
+        position: { x: 155, y: 100 },
+      },
+    ]);
+    expect(report.ok).toBe(false);
+    expect(report.actionIndex).toBe(1);
+    expect(report.actionKind).toBe("place-component");
+    expect(report.message).toContain("actions[1]");
+    expect(report.diagnostics?.[0]).toMatchObject({
+      path: ["edits", 2, "instance", "placement", "position", "x"],
+      parameters: { instanceIndex: 1 },
+    });
+    expect(controller.document).toEqual(before);
+  });
   it("moves attached annotations through both entry points without moving their owner", async () => {
     const { client, controller, add } = await folder();
     const instanceId = await add();
@@ -331,6 +358,65 @@ describe("MCP → API → shared editor parity", () => {
       controller.document.nets.find((n) => n.id === terminals[0]!.netId)
         ?.terminals,
     ).toHaveLength(2);
+  });
+
+  it("restyles bound Port and Value labels without changing their electrical facts", async () => {
+    const { client, controller } = await folder();
+    const placed = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "port",
+        reference: "VIN",
+        position: { x: 100, y: 100 },
+      },
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "R1",
+        position: { x: 200, y: 100 },
+        parameters: { value: "1k" },
+      },
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    const pin = controller.document.annotations.find(
+      (annotation) => annotation.binding?.kind === "cell-terminal-name",
+    )!;
+    const resistor = controller.document.instances.find(
+      (i) => i.reference === "R1",
+    )!;
+    const value = controller.document.annotations.find(
+      (annotation) =>
+        annotation.binding?.kind === "instance-value" &&
+        annotation.binding.instanceId === resistor.id,
+    )!;
+    for (const [id, head, tail] of [
+      [pin.id, "V", "IN"],
+      [value.id, "1", "k"],
+    ]) {
+      const look = {
+        runs: [
+          { kind: "text" as const, value: head },
+          {
+            kind: "span" as const,
+            style: "subscript" as const,
+            children: [{ kind: "text" as const, value: tail }],
+          },
+        ],
+      };
+      const report = await client.applyActions([
+        { kind: "edit-text", target: { kind: "annotation", id }, text: look },
+      ]);
+      expect(report.ok, report.message).toBe(true);
+      expect(
+        controller.document.annotations.find((a) => a.id === id)
+          ?.formatOverride,
+      ).toEqual(look);
+    }
+    expect(controller.document.netlist!.terminals[0]!.name).toBe("VIN");
+    expect(
+      controller.document.instances.find((i) => i.id === resistor.id)?.netlist
+        ?.parameters.value,
+    ).toBe("1k");
   });
 
   it("controls schema-54 magnetic labels independently and preserves authored state", async () => {

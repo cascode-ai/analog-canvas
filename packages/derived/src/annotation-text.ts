@@ -61,7 +61,14 @@ export function resolveAnnotationText(
             binding.showValue === false ? { showValue: false } : {},
           )
         : displayableInstanceValue(instance);
-      return display.kind === "displayable" ? display.content : EMPTY_TEXT;
+      if (display.kind !== "displayable") return EMPTY_TEXT;
+      // A value's live parameter remains authoritative. A stale authored look
+      // must never display an old electrical value after an edit/import.
+      return annotation.formatOverride &&
+        flattenRichText(annotation.formatOverride) ===
+          flattenRichText(display.content)
+        ? annotation.formatOverride
+        : display.content;
     }
     case "net-name": {
       const ownerClaim = document.connectivityEvidence.find(

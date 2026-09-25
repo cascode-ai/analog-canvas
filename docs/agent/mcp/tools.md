@@ -46,6 +46,8 @@ private state and committed once, with one Undo; a failure leaves no partial
 wiring. The existing `wireIntent` transaction field accepts one intent or an
 ordered array (up to 64); the combined generated edits still obey the session's
 edit limit. Mixed placement/wire/command calls still need separate phases.
+Multiple taps on one original Route may use the same pre-batch Route/leg IDs;
+the planner follows the split children within that batch.
 
 `copy` follows GUI copy for internal wires and references. `detach-move` leaves
 wires behind; `unplace` retains electrical facts in the Placement Tray.
@@ -125,6 +127,9 @@ returns these fields, `signalFlowParameters`, Cell interfaces, and external
 Model definitions. Netlist parameter values are strings, for example `"1u"`.
 
 `annotate` and `edit-text` accept plain text or canonical RichText.
+For bound Cell Pin and Value labels, `edit-text` changes the look only and
+requires the same displayed characters. A Value look follows later parameter
+changes; the electrical parameter remains authoritative.
 
 `connect`/`disconnect` pin targets accept an Instance Reference string or
 `instance:{kind:"instance",id:"…"}`; use the latter for imported formal Cell Pins.
@@ -175,7 +180,8 @@ Snapshot or count the same diagnostics twice. Use `verify` for a fresh check
 when needed and `render` when visual review matters. On `STATE_CHANGED`,
 refresh and re-plan; never blindly replay a changed payload.
 
-`inspect` with `detail:"full"` returns complete Document facts.
+`inspect` with `target:{kind:"document"},detail:"full"` returns complete
+Document facts.
 `inspect` with `target:{kind:"geometry",objectIds:["…"]}` reads up to 64
 specific authored objects (placement, routes, junctions, annotation anchors,
 drafting and no-connect objects). It returns current revision and missing IDs

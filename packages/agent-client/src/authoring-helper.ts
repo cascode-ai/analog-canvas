@@ -4,7 +4,7 @@ import {
   type AgentSessionSnapshot,
 } from "@icm/agent-adapter";
 import { agentRazaviAuthoringCatalog } from "@icm/agent-adapter/kit";
-import type { RichTextDocument } from "@icm/model";
+import { flattenRichText, type RichTextDocument } from "@icm/model";
 import { z } from "zod";
 import {
   AuthoringActionSchema,
@@ -31,6 +31,8 @@ export interface CompiledTransaction {
   command?: import("@icm/agent-adapter").AgentAuthoringCommand;
   semanticIntent?: import("@icm/agent-adapter").AgentSemanticIntent;
   edits?: SchematicEdit[];
+  /** Input action index for each compiled primitive edit, in the same order. */
+  editActionIndices?: number[];
   wireIntent?: WireIntent;
   actionKinds: string[];
 }
@@ -361,23 +363,37 @@ export function compileActions(
   const transactions: CompiledTransaction[] = [];
   const openEdits = (
     kind: string,
-  ): { edits: SchematicEdit[]; actionKinds: string[] } => {
+  ): {
+    edits: SchematicEdit[];
+    actionKinds: string[];
+    editActionIndices: number[];
+  } => {
     const last = transactions[transactions.length - 1];
     if (
       last &&
       last.form === "edits" &&
       last.edits &&
+      last.editActionIndices &&
       last.edits.length < maxEdits &&
       (kind === "place-component") ===
         last.actionKinds.every((item) => item === "place-component")
     ) {
-      return { edits: last.edits, actionKinds: last.actionKinds };
+      return {
+        edits: last.edits,
+        actionKinds: last.actionKinds,
+        editActionIndices: last.editActionIndices,
+      };
     }
-    const entry = { edits: [] as SchematicEdit[], actionKinds: [] as string[] };
+    const entry = {
+      edits: [] as SchematicEdit[],
+      actionKinds: [] as string[],
+      editActionIndices: [] as number[],
+    };
     transactions.push({
       form: "edits",
       edits: entry.edits,
       actionKinds: entry.actionKinds,
+      editActionIndices: entry.editActionIndices,
     });
     return entry;
   };
@@ -394,6 +410,7 @@ export function compileActions(
     const slot = openEdits(kind);
     slot.edits.push(validated.data as SchematicEdit);
     slot.actionKinds.push(kind);
+    slot.editActionIndices.push(index);
   };
   const pushWireIntent = (
     index: number,
@@ -687,6 +704,9 @@ export function compileActions(
             ),
           },
           actionKinds: transaction.actionKinds,
+          ...(transaction.editActionIndices
+            ? { editActionIndices: transaction.editActionIndices }
+            : {}),
         };
       }
       return transaction;
@@ -1136,11 +1156,30 @@ function compileEditText(
       document.annotations.map((entry) => ({ id: String(entry.id), entry })),
       { id: reference },
     );
+    const { resolvedText, content: _content, ...source } = annotation.entry;
+    const nextText = richText(action.text);
+    if (source.binding) {
+      if (
+        typeof resolvedText !== "string" ||
+        flattenRichText(nextText) !== resolvedText
+      ) {
+        throw new ActionCompileError(
+          index,
+          action.kind,
+          "bound labels can only be restyled with edit-text; change their underlying name or value through its owning object",
+        );
+      }
+      pushEdit(index, action.kind, {
+        kind: "upsert_schematic_annotation",
+        annotation: { ...source, formatOverride: nextText },
+      });
+      return;
+    }
     pushEdit(index, action.kind, {
       kind: "upsert_schematic_annotation",
       annotation: {
-        ...annotation.entry,
-        content: richText(action.text),
+        ...source,
+        content: nextText,
       },
     });
     return;

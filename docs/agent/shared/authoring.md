@@ -58,10 +58,13 @@ ordinary transaction receipts compares document-local terminal equivalence;
 it does not assert unchanged parameters, bulk or hierarchy. Omitted means unknown.
 Use reset-placement only for intentional redraw, with its documented effects.
 
-Annotation `move` sets an absolute position; annotation `transform` supports
-translation. These preserve ownership and electrical binding. Use explicit
-annotation edits for rotation/anchor changes. Search uses resolved display text,
-including bound Net and device labels.
+The focused `circuit_text` action `move-annotation` sets an absolute position;
+the legacy `apply_actions` annotation `move` uses the same semantics, while
+`transform` supports translation. These preserve ownership and electrical
+binding. Use explicit annotation edits for rotation/anchor changes. Search uses
+resolved display text, including bound Net and device labels. `edit-text` on a
+bound Pin, Reference, Net, or Value label restyles the same visible characters;
+change the owning terminal, name claim, Reference, or parameter to change them.
 
 Cell interface/symbol edits use `structureEdits` with a nested
 `transact_document`, not top-level `edits`; the per-kind contract supplies that
