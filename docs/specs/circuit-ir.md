@@ -61,13 +61,16 @@ SourceBundle → lossless syntax + typed projections → elaboration
 ## Persistence boundary
 
 Circuit IR is transient memory and test-fixture data only. It is not written to
-`project.icproj.json`. The importer persists stable `spice-source` evidence for
-each live projected Base Net; re-import reparses the source snapshot. Deleting
+`project.icproj.json`. The importer persists a small immutable terminal reference
+and input text, not a second editable IR. It also persists `spice-source` evidence for
+each live projected Base Net. Deleting
 the final structural owner retires that Base Net and its source evidence, while
 the Document source binding remains available as provenance. Source identity
-never joins electrical Nets. Matching source identities may produce transient
+never joins electrical Nets. Frozen reference membership produces transient
 [routing guidance](connectivity-and-routing.md#imported-routing-guidance), not
-Logical-Net equivalence; a cut must remain electrically split.
+Logical-Net equivalence; mutable source identities cannot reconstruct that
+reference. A cut must remain electrically split unless current authoritative
+names independently establish equivalence.
 
 ## Valid example
 

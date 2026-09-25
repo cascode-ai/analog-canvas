@@ -9,6 +9,7 @@ import {
   clickCommand,
   downloadBytes,
   copyNetlistText,
+  clickNetlistWorkflowCommand,
   expectComponentCodeField,
   openMenu,
 } from "./editor-fixtures.js";
@@ -231,6 +232,56 @@ R7 IN OUT 10k
   await expect(
     page.getByTestId("annotation-hit-instance-label-R7"),
   ).toBeVisible();
+});
+
+test("preserves the original import reference through portable save and distinguishes legacy imports", async ({
+  page,
+}) => {
+  const source =
+    "* archived original\n.subckt top IN OUT\nR7 IN OUT 10k\n.ends top\n";
+  await page.goto("/editor");
+  await page.getByTestId("spice-files").setInputFiles({
+    name: "reference.spi",
+    mimeType: "application/x-spice",
+    buffer: Buffer.from(source),
+  });
+  await expect(page.getByTestId("status")).toContainText(
+    "Imported 1 Documents",
+  );
+  await expect(page.getByTestId("flightline")).toHaveCount(2);
+  const first = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(first.source.files[0]?.content?.text).toBe(source);
+  expect(first.documents[0]?.importReference?.nets).toHaveLength(2);
+  const beforeNetlist = await copyNetlistText(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "saved.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(first)),
+  });
+  await expect(page.getByTestId("flightline")).toHaveCount(2);
+  expect(await copyNetlistText(page)).toBe(beforeNetlist);
+  const legacy = structuredClone(first);
+  for (const document of legacy.documents) delete document.importReference;
+  for (const file of legacy.source.files) delete file.content;
+  await page.getByTestId("project-file").setInputFiles({
+    name: "legacy.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(legacy)),
+  });
+  await expect(page.getByTestId("flightline")).toHaveCount(0);
+  expect(await copyNetlistText(page)).toBe(beforeNetlist);
+  await clickNetlistWorkflowCommand(page, "check-and-save");
+  await page.getByTestId("statusbar-issues").click();
+  await page
+    .getByRole("button", { name: /Show non-blocking observations/ })
+    .click();
+  await expect(page.getByTestId("project-diagnostics")).toContainText(
+    "Original import reference is unavailable",
+  );
 });
 
 test("copies generated NoConnect nodes immediately and retains the optional Check Report", async ({

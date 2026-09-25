@@ -138,6 +138,10 @@ export function EditorWiringOverlay({
       ) : null}
       {flightlines.map((flightline) => (
         <g key={flightline.id}>
+          <title>
+            Original import routing reference, not a wire. Check Issues for
+            differences from the current circuit.
+          </title>
           <line
             data-testid="flightline-hit"
             className="flightline-hit"

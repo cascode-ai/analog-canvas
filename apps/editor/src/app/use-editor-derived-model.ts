@@ -80,7 +80,7 @@ export function displayedRoutingGuidance(
     view === "focused" && focusedNetIds.size > 0
       ? flightlines.filter((flightline) =>
           [flightline.netId, flightline.fromNetId, flightline.toNetId].some(
-            (netId) => focusedNetIds.has(netId),
+            (netId) => netId !== null && focusedNetIds.has(netId),
           ),
         )
       : flightlines;
@@ -290,9 +290,9 @@ export function useEditorDerivedModel({
   const flightlines = useMemo(
     () => [
       ...new Map(
-        [...(documentConnectivity?.logicalNets.values() ?? [])]
-          .flatMap((net) => net.routingGuidance)
-          .map((line) => [line.id, line] as const),
+        [...(documentConnectivity?.routingGuidance ?? [])].map(
+          (line) => [line.id, line] as const,
+        ),
       ).values(),
     ],
     [documentConnectivity],

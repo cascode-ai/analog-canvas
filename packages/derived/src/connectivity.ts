@@ -1,6 +1,7 @@
 import { deriveStableId, routeEnd } from "@icm/model";
 import type { Net, Point, RouteEndpoint, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
+import { assessImportReference } from "./import-reference.js";
 
 import {
   endpointKey,
@@ -327,26 +328,5 @@ export function deriveImportedRoutingGuidance(
   resolver: SymbolResolver,
   context = deriveNetConnectivityContext(document, resolver),
 ): RoutingGuide[] {
-  const sourceNetIdsByBase = new Map<string, Set<string>>();
-  for (const evidence of document.connectivityEvidence) {
-    if (evidence.kind !== "spice-source") continue;
-    const sourceIds = sourceNetIdsByBase.get(evidence.netId) ?? new Set();
-    sourceIds.add(evidence.sourceNetId);
-    sourceNetIdsByBase.set(evidence.netId, sourceIds);
-  }
-  // A source ID is provenance, not current electrical equivalence. Cut/split
-  // may copy it to multiple Base Nets, but must not guide a wire between them.
-  return [...document.nets]
-    .filter((net) => sourceNetIdsByBase.has(net.id))
-    .sort((left, right) => left.id.localeCompare(right.id, "en"))
-    .flatMap((net) => {
-      const graph = guidanceGraphForNet(document, resolver, net, context);
-      if (!graph) return [];
-      const sourceIds = sourceNetIdsByBase.get(net.id)!;
-      const sourceNetId = sourceIds.size === 1 ? [...sourceIds][0] : undefined;
-      return deriveRoutingGuidance({
-        ...graph,
-        ...(sourceNetId ? { sourceNetId } : {}),
-      });
-    });
+  return assessImportReference(document, resolver, context).guides;
 }

@@ -342,6 +342,19 @@ async function clickRouteWithScreenOffset(
 function markRoutingDemoNetsImported(
   project: ReturnType<typeof createRoutingDemoProject>,
 ): void {
+  // These Port symbols stand in for device endpoints in routing tests, not
+  // same-name formal interfaces (which legitimately need no extra wire).
+  for (const terminal of project.documents[0]!.netlist!.terminals)
+    terminal.name = terminal.interfaceInstanceIds[0]!;
+  project.documents[0]!.importReference = {
+    files: [],
+    nets: project.documents[0]!.nets.map((net) => ({
+      id: net.id,
+      name: net.id,
+      scope: "local",
+      terminals: structuredClone(net.terminals),
+    })),
+  };
   for (const net of project.documents[0]!.nets) {
     project.documents[0]!.connectivityEvidence.push({
       id: `evidence-spice-${net.id}`,
@@ -2258,11 +2271,7 @@ test("physically cuts an imported Route without reconnecting detached components
   await expect(page.getByTestId("source-status")).toHaveText(
     "connectivity-modified",
   );
-  await expect(page.getByTestId("flightline")).toHaveCount(1);
-  await expect(page.getByTestId("flightline")).toHaveAttribute(
-    "data-net-id",
-    "net-v",
-  );
+  await expect(page.getByTestId("flightline")).toHaveCount(3);
 });
 
 test("keeps remaining imported flightlines after routing one guided connection", async ({

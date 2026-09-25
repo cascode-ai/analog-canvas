@@ -69,7 +69,7 @@ describe("routing guidance", () => {
     ]);
   });
 
-  it("admits only imported Net provenance through the document adapter", () => {
+  it("admits only frozen imported membership through the document adapter", () => {
     const document = createEmptyDocument("main", "Main");
     document.instances.push(
       {
@@ -130,6 +130,17 @@ describe("routing guidance", () => {
       sourceNetId: "source-imported",
     });
 
+    document.importReference = {
+      files: [],
+      nets: [
+        {
+          id: "source-imported",
+          name: "imported",
+          scope: "local",
+          terminals: structuredClone(document.nets[0]!.terminals),
+        },
+      ],
+    };
     expect(
       deriveImportedRoutingGuidance(
         document,
@@ -150,7 +161,7 @@ describe("routing guidance", () => {
       new InMemorySymbolResolver(builtInSymbols),
     );
     expect(mergedGuides).toHaveLength(1);
-    expect(mergedGuides[0]?.sourceNetId).toBeUndefined();
+    expect(mergedGuides[0]?.sourceNetId).toBe("source-imported");
   });
 
   it("routes an imported explicit MOS body through the canonical auxiliary B anchor", () => {
@@ -190,6 +201,17 @@ describe("routing guidance", () => {
       sourceNetId: "source-body",
     });
 
+    document.importReference = {
+      files: [],
+      nets: [
+        {
+          id: "source-body",
+          name: "body",
+          scope: "local",
+          terminals: structuredClone(document.nets[0]!.terminals),
+        },
+      ],
+    };
     const guides = deriveImportedRoutingGuidance(
       document,
       new InMemorySymbolResolver(builtInSymbols),
@@ -203,7 +225,7 @@ describe("routing guidance", () => {
     });
   });
 
-  it("does not bridge split Base Nets that retain the same source provenance", () => {
+  it("does not fabricate a missing reference from shared split provenance", () => {
     const document = createEmptyDocument("main", "Main");
     document.instances.push(
       {
@@ -311,7 +333,7 @@ describe("routing guidance", () => {
         kind: "name-claim",
         netId: "base-a",
         name: "VDD",
-        owner: { kind: "net-label", annotationId: "test-net-label-1" },
+        owner: { kind: "global-declaration", sourceNetId: "VDD" },
         scope: "global",
         powerDomain: "vdd",
       },
@@ -320,12 +342,23 @@ describe("routing guidance", () => {
         kind: "name-claim",
         netId: "base-b",
         name: "VDD",
-        owner: { kind: "net-label", annotationId: "test-net-label-2" },
+        owner: { kind: "global-declaration", sourceNetId: "VDD" },
         scope: "global",
         powerDomain: "vdd",
       },
     );
 
+    document.importReference = {
+      files: [],
+      nets: [
+        {
+          id: "VDD",
+          name: "VDD",
+          scope: "global",
+          terminals: document.nets.flatMap((n) => n.terminals),
+        },
+      ],
+    };
     expect(
       deriveImportedRoutingGuidance(
         document,

@@ -358,7 +358,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
     }
     const from: WireSource = {
       endpoint: flightline.from,
-      netId: flightline.fromNetId,
+      netId: endpointNetId(options.document, flightline.from),
       connection: fromConnection,
       preludeEdits: [],
       ...(isMosBulkTerminal(options.document, flightline.from)
@@ -367,7 +367,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
     };
     const to: WireSource = {
       endpoint: flightline.to,
-      netId: flightline.toNetId,
+      netId: endpointNetId(options.document, flightline.to),
       connection: toConnection,
       preludeEdits: [],
       ...(isMosBulkTerminal(options.document, flightline.to)

@@ -69,13 +69,27 @@ test.each([
             ),
           );
           expect(inspection.document.id).toBe(doc.id);
+          const referenceNotes = inspection.document.diagnostics.filter(
+            (diagnostic) => diagnostic.code === "IMPORT_REFERENCE_UNAVAILABLE",
+          );
+          // Reviewed legacy drawings still export unchanged; missing original
+          // archives are now explicitly informational, never fabricated.
+          for (const diagnostic of referenceNotes)
+            expect(diagnostic).toMatchObject({
+              domain: "routing",
+              severity: "info",
+              gateEligible: false,
+            });
+          const drawingDiagnostics = inspection.document.diagnostics.filter(
+            (diagnostic) => diagnostic.code !== "IMPORT_REFERENCE_UNAVAILABLE",
+          );
           if (item.id !== "ota-library") {
-            expect(inspection.document.diagnostics).toEqual([]);
+            expect(drawingDiagnostics).toEqual([]);
           } else {
             // The reviewed Library drawing already has advisory label overlaps.
             // Preserve these diagnostics and the drawing, rather than treating
             // a low-confidence non-gating visual warning as electrical failure.
-            for (const diagnostic of inspection.document.diagnostics)
+            for (const diagnostic of drawingDiagnostics)
               expect(diagnostic).toMatchObject({
                 code: "VISUAL_LABEL_OVERLAP",
                 domain: "visual",
