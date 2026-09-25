@@ -162,6 +162,53 @@ it("uses the same Cadence bang naming profile as GUI SPICE import", async () => 
   expect(names).not.toContain("vdd!");
 });
 
+it("shows imported device references and formal Pin names like GUI import", async () => {
+  const { host } = setup();
+  const bytes = new TextEncoder().encode(
+    ".subckt stage vin vout\nR1 vin vout 1k\n.ends stage\n",
+  );
+  const stage = await host.handle({
+    apiVersion: AGENT_API_VERSION,
+    requestId: "stage-labelled-spice",
+    operation: "stage",
+    kind: "structural-spice",
+    entryPath: "stage.spi",
+    files: [
+      {
+        name: "stage.spi",
+        mediaType: "text/plain",
+        encoding: "base64",
+        data: base64EncodeBytes(bytes),
+        byteLength: bytes.byteLength,
+        sha256: await sha256(bytes),
+      },
+    ],
+  });
+  expect(stage).toMatchObject({ ok: true, operation: "stage" });
+  if (!stage.ok || stage.operation !== "stage") return;
+  const project = host.consumeApproved(stage.candidate.candidateId)!;
+  const document = project.documents.find(
+    (candidate) => candidate.netlist?.name === "stage",
+  )!;
+  const resistor = document.instances.find(
+    (instance) => instance.reference === "R1",
+  )!;
+  expect(document.annotations).toContainEqual(
+    expect.objectContaining({
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: resistor.id },
+    }),
+  );
+  for (const terminal of document.netlist!.terminals) {
+    expect(document.annotations).toContainEqual(
+      expect.objectContaining({
+        kind: "instance-label",
+        binding: { kind: "cell-terminal-name", terminalId: terminal.id },
+      }),
+    );
+  }
+});
+
 async function sha256(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest(
     "SHA-256",

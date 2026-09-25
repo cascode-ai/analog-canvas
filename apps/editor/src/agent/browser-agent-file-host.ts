@@ -19,6 +19,7 @@ import { createBrowserFormalExportSource } from "@icm/exporters";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
+import { withImportedInstanceDisplays } from "../features/instance-display/imported-instance-displays";
 import type { SymbolResolver } from "@icm/symbols";
 import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formula-artifacts";
 import { importChunk } from "../components/chunk-import";
@@ -310,7 +311,7 @@ export class BrowserAgentFileHost {
             diagnostics[0]?.message ?? "Structural SPICE import failed",
           );
         }
-        project = result.project;
+        project = withImportedInstanceDisplays(result.project);
       }
       const candidateId = `candidate-${crypto.randomUUID()}`;
       const expiresAt = new Date(
