@@ -3,10 +3,11 @@ import { describe, expect, it } from "vitest";
 import { GREEK_LETTERS, spellGreekLetters } from "./greek-letters.js";
 
 describe("Greek letter names", () => {
-  it("writes each letter as its standard name, keeping its case", () => {
+  it("writes each letter as its standard name, in its own case", () => {
     expect(spellGreekLetters("φ1")).toBe("phi1");
-    expect(spellGreekLetters("Φ1")).toBe("Phi1");
-    expect(spellGreekLetters("VΩ_out")).toBe("VOmega_out");
+    expect(spellGreekLetters("Φ1")).toBe("PHI1");
+    expect(spellGreekLetters("σΣ")).toBe("sigmaSIGMA");
+    expect(spellGreekLetters("VΩ_out")).toBe("VOMEGA_out");
     expect(spellGreekLetters("αβγ")).toBe("alphabetagamma");
   });
 
@@ -25,17 +26,22 @@ describe("Greek letter names", () => {
     for (const { glyph, name } of GREEK_LETTERS) {
       expect(name).toMatch(/^[A-Za-z]+$/u);
       const capital = glyph !== glyph.toLowerCase();
+      // LaTeX capitalises only a capital's first letter (\Phi); a netlist
+      // writes the whole name in the letter's own case (PHI, phi).
       expect(name[0] === name[0]!.toUpperCase()).toBe(capital);
+      expect(spellGreekLetters(glyph)).toBe(
+        capital ? name.toUpperCase() : name,
+      );
       expect(spellGreekLetters(glyph.toLowerCase())).toBe(name.toLowerCase());
     }
   });
 
   it("reads variant forms and the micro and ohm signs as their letters", () => {
     expect(spellGreekLetters("ςϵϑϰϖϱϕϴ")).toBe(
-      "sigmaepsilonthetakappapirhophiTheta",
+      "sigmaepsilonthetakappapirhophiTHETA",
     );
     expect(spellGreekLetters("µA")).toBe("muA");
-    expect(spellGreekLetters("RΩ")).toBe("ROmega");
+    expect(spellGreekLetters("RΩ")).toBe("ROMEGA");
   });
 
   it("leaves every other character as it is", () => {

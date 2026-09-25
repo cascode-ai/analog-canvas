@@ -8,7 +8,7 @@ import { subcircuitDescriptor } from "@icm/devices";
 
 /**
  * Shared exported Cell spelling for both checks and netlist generation. Greek
- * letters keep their meaning as standard names (Φgen is Phigen) before any
+ * letters keep their meaning as standard names (Φgen is PHIgen) before any
  * other character is folded away.
  */
 export function portableCellIdentifier(

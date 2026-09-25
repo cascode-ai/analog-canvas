@@ -46,8 +46,8 @@ describe("Net name codecs", () => {
     });
     expect(encodeNetName("VΦ", "global", "spectre")).toEqual({
       ok: true,
-      token: "VPhi",
-      collisionKey: "VPhi",
+      token: "VPHI",
+      collisionKey: "VPHI",
     });
   });
 

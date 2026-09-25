@@ -169,8 +169,9 @@ is defined.
   the capitals Γ Δ Θ Λ Ξ Π Σ Υ Φ Ψ Ω) and common circuit symbols. Faster
   still, type a LaTeX name such as `\phi` or `\Omega` and press Space: it
   turns into φ or Ω where you typed it. In a Net, Pin or device name the
-  netlist writes the letter as its name, keeping its case: a Net drawn as φ₁
-  is `phi1` in the netlist, and Ω is `Omega`.
+  netlist writes the letter as its name, a small letter in small letters and
+  a capital in capitals: a Net drawn as φ₁ is `phi1` in the netlist, Φ₁ is
+  `PHI1`, and Ω is `OMEGA`.
 - Press `R` to rotate, `F` to fit,
   `Ctrl+Z` to undo, and `Ctrl+Y` or `Ctrl+Shift+Z` to redo. Shortcuts do not
   fire while typing in a field.
@@ -470,7 +471,7 @@ code selectable for manual copy.
 A switch drawn with **Open**, **Closed** or **Simple** is controlled by the
 clock phase its label names. Write the phase on its label, such as `Φ₁`; the
 label becomes a display alias by itself. The SPICE netlist then writes the switch
-as `S1 a b Phi1 VSS ideal_switch`, with one `.model ideal_switch SW(…)` card in
+as `S1 a b PHI1 VSS ideal_switch`, with one `.model ideal_switch SW(…)` card in
 the same Cell. Draw the clock on a Net named `Φ1`, or give the Cell a Pin named
 `Φ1`, and the switch follows it; until then the netlist warns that nothing
 drives that phase. **Ctrl SW** takes its control from its CTRL pin instead.

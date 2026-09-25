@@ -1081,13 +1081,13 @@ describe("current formal cell interface", () => {
         result.diagnostics.filter((item) => item.severity === "error"),
       ).toEqual([]);
       const cell = result.ir!.cells[0]!;
-      expect(cell.name).toBe("Phigen");
+      expect(cell.name).toBe("PHIgen");
       expect(cell.instances.map((instance) => instance.reference)).toEqual([
         "Rtheta",
       ]);
       expect(cell.instances[0]!.nodes.map((node) => node.netName)).toEqual([
         "phi1",
-        "Omega",
+        "OMEGA",
       ]);
       expect(project).toEqual(before);
     },
@@ -2072,7 +2072,7 @@ describe("drawn switches", () => {
       "SWITCH_PHASE_NOT_DRIVEN",
     );
     const text = printSpiceNetlist(analysis.ir!);
-    expect(text).toContain("S1 in out Phi1 0 ideal_switch");
+    expect(text).toContain("S1 in out PHI1 0 ideal_switch");
     expect(text).toContain(
       ".model ideal_switch SW(RON=1 ROFF=1e12 VT=0.5 VH=0)",
     );
@@ -2108,8 +2108,8 @@ describe("drawn switches", () => {
       "SWITCH_PHASE_NOT_DRIVEN",
     );
     const text = printSpiceNetlist(analysis.ir!);
-    expect(text).toContain("S1 in out Phi2 0 ideal_switch");
-    expect(text).toContain("V1 Phi2 0");
+    expect(text).toContain("S1 in out PHI2 0 ideal_switch");
+    expect(text).toContain("V1 PHI2 0");
   });
 
   it("reads a single-ended CTRL pin against the Cell's own ground pin", () => {
@@ -2133,7 +2133,7 @@ describe("drawn switches", () => {
     const text = printSpiceWithLocations(analysis.ir!, true).text;
     expect(text).not.toContain(".subckt");
     expect(text.indexOf(".model ideal_switch")).toBeLessThan(
-      text.indexOf("S1 in out Phi1 0 ideal_switch"),
+      text.indexOf("S1 in out PHI1 0 ideal_switch"),
     );
   });
 

@@ -110,11 +110,12 @@ such as SPICE instance prefixes, escaping and refusals, are applied only
 inside that export and are never written back to a name.
 
 Netlist formats read only ASCII names, so a Greek letter in a Net, Pin, device
-or Cell name is written as its standard name, keeping its case: `φ1` exports
-as `phi1`, `Φ` as `Phi` and `Ω` as `Omega`. The capitals that look like Latin
-letters (`Α` is `Alpha`) and omicron are named the same way, as are the
-variant forms (`ς`, `ϕ`, `ϑ` …) and the micro and ohm signs keyboards type for
-`μ` and `Ω`. The drawing and the stored name keep the letter. Two names that
+or Cell name is written as its standard name in the letter's own case, a
+small letter in small letters and a capital in capitals: `φ1` exports as
+`phi1`, `Φ1` as `PHI1`, `σ` as `sigma` and `Σ` as `SIGMA`. The capitals that
+look like Latin letters (`Α` is `ALPHA`) and omicron are named the same way,
+as are the variant forms (`ς`, `ϕ`, `ϑ` …) and the micro and ohm signs
+keyboards type for `μ` and `Ω`. The drawing and the stored name keep the letter. Two names that
 become the same once written out, such as `φ1` and `phi1`, are refused rather
 than merged. Parameter names are not rewritten, because values refer to them.
 
