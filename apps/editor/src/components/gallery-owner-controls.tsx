@@ -56,6 +56,45 @@ export function GalleryOwnerMenu({
   );
 }
 
+/** A submitter's own tile: × takes it off the Gallery after a second step,
+ * and My submissions can bring it back. */
+export function GalleryWithdrawMenu({
+  entry,
+  busy,
+  onWithdraw,
+}: {
+  entry: GalleryFeedEntry;
+  busy: boolean;
+  onWithdraw: () => void | Promise<void>;
+}) {
+  return (
+    <details
+      className="gallery-owner-menu gallery-withdraw-menu"
+      data-testid={`gallery-withdraw-menu-${entry.id}`}
+    >
+      <summary
+        aria-label={`Withdraw ${entry.name}`}
+        title={`Withdraw ${entry.name}`}
+      >
+        ×
+      </summary>
+      <div className="gallery-owner-popover" data-inline-confirm-menu>
+        <p className="gallery-withdraw-note">
+          Takes it off the Gallery. Restore it any time from My submissions.
+        </p>
+        <InlineConfirm
+          disabled={busy}
+          data-testid={`gallery-withdraw-${entry.id}`}
+          confirmLabel="Really withdraw"
+          onConfirm={onWithdraw}
+        >
+          Withdraw
+        </InlineConfirm>
+      </div>
+    </details>
+  );
+}
+
 export function GalleryOwnerRejectButton({
   entry,
   busy,

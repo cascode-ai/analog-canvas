@@ -74,6 +74,11 @@ const GalleryOwnerMenu = lazy(() =>
     default: module.GalleryOwnerMenu,
   })),
 );
+const GalleryWithdrawMenu = lazy(() =>
+  import("./gallery-owner-controls").then((module) => ({
+    default: module.GalleryWithdrawMenu,
+  })),
+);
 const GalleryOwnerRejectButton = lazy(() =>
   import("./gallery-owner-controls").then((module) => ({
     default: module.GalleryOwnerRejectButton,
@@ -789,7 +794,11 @@ export function GalleryFeed({
       if (!response.ok) throw new Error();
       removeManagedEntry(entry);
       announceGalleryChange({ entryId: entry.id });
-      setOwnerNotice(`“${entry.name}” was moved to the recycle bin.`);
+      setOwnerNotice(
+        isOwner
+          ? `“${entry.name}” was moved to the recycle bin.`
+          : `“${entry.name}” was withdrawn. Restore it from My submissions.`,
+      );
     } catch {
       setOwnerNotice(`Could not withdraw “${entry.name}”.`);
       throw new Error("Could not withdraw this entry. Try again.");
@@ -1241,6 +1250,14 @@ export function GalleryFeed({
                                 onReject={() => setRejecting(entry)}
                               />
                               <GalleryOwnerMenu
+                                entry={entry}
+                                busy={ownerBusy === entry.id}
+                                onWithdraw={() => withdrawEntry(entry)}
+                              />
+                            </Suspense>
+                          ) : !!viewerId && viewerId === entry.ownerUserId ? (
+                            <Suspense fallback={null}>
+                              <GalleryWithdrawMenu
                                 entry={entry}
                                 busy={ownerBusy === entry.id}
                                 onWithdraw={() => withdrawEntry(entry)}

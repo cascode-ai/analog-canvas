@@ -2,6 +2,7 @@ import { type ReactNode, type ComponentProps } from "react";
 
 import { BugReportLink } from "../components/bug-report-link";
 import { ProjectMenu, type ProjectMenuProps } from "./project-menu";
+import { AccountMenu } from "../components/account";
 import { DrawingToolbar } from "../features/editor-shell/drawing-toolbar";
 import { EditorTestTelemetry } from "../features/editor-shell/editor-test-telemetry";
 import { FileCommandMenu } from "../features/editor-shell/file-command-menu";
@@ -285,7 +286,6 @@ export function EditorAppChrome({
             </details>
             <details className="command-menu" name="editor-command-menu">
               <summary aria-label="Netlist" title="Netlist commands">
-                <ToolIcon name="netlist" />
                 <span>Netlist</span>
               </summary>
               <div className="command-popover">
@@ -361,6 +361,8 @@ export function EditorAppChrome({
           </div>
         </nav>
         <div className="app-chrome-actions">
+          {/* Who is signed in, as the Gallery shows it; Sign in otherwise. */}
+          <AccountMenu showGalleryLinks={false} />
           <BugReportLink
             testId="editor-report-bug"
             surface="Editor"

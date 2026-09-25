@@ -289,7 +289,9 @@ Every community tile carries a Like toggle backed by
 one like per public entry, pressing again removes it, and the feed reports each
 entry's `likes` count and the viewer's `likedByViewer`. The Gallery feed gives
 the super-admin a direct Reject (`×`) control on every community tile, plus an
-Owner menu for Edit and replace and Withdraw.
+Owner menu for Edit and replace and Withdraw. A signed-in member's own tiles
+carry a `×` that withdraws the entry after a second step, the same owner
+withdrawal as `/mine`; My submissions restores it.
 Reject opens a multi-select form with common reasons (`too ugly`,
 `circuit incorrect`, `too simple`, `duplicate`) and an independent optional
 note/other-reason field. The editor surfaces the full administration lifecycle
@@ -378,7 +380,9 @@ the separate [save-history contract](persistence-and-recovery.md#private-save-hi
 behind `/api/auth/*`. Every provider is invisible until its Worker
 secrets exist (`GET /api/auth/providers` reports `{github, google,
 email}`); with no provider configured the site shows no sign-in UI at
-all. No passwords ever exist. The browser holds a random session token in
+all. Otherwise both the Gallery header and the editor's top bar show the
+signed-in display name with its account menu, or Sign in. No passwords ever
+exist. The browser holds a random session token in
 an HttpOnly `SameSite=Lax` cookie (`icm_session`, 30-day TTL); the
 database stores only SHA-256 hashes of session and login tokens.
 

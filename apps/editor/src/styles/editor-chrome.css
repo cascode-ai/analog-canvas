@@ -676,9 +676,9 @@
 .command-menu summary {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   height: var(--icm-control-h);
-  padding: 0 10px;
+  padding: 0 8px;
   cursor: pointer;
   list-style: none;
   white-space: nowrap;
@@ -1414,6 +1414,32 @@
   overflow: hidden;
   font-weight: 600;
   text-overflow: ellipsis;
+}
+
+/* The account (or Sign in) widens the right side. Its role chip and the bug
+   report's wording yield first, then the long publish label and the name's
+   width, so the commands never run under the account. */
+@media (max-width: 1320px) {
+  .app-chrome-actions:has(.account-menu, .account-signin) .account-owner-badge,
+  .app-chrome-actions:has(.account-menu, .account-signin) .bug-report-label {
+    display: none;
+  }
+
+  .app-chrome-actions:has(.account-menu, .account-signin) .bug-report-link {
+    width: var(--icm-control-h);
+    padding: 0;
+  }
+}
+
+@media (max-width: 1020px) {
+  .app-chrome:has(.app-chrome-actions :is(.account-menu, .account-signin))
+    .publish-label-long {
+    display: none;
+  }
+
+  .app-chrome-actions .account-name {
+    max-width: 7rem;
+  }
 }
 
 .app-chrome-actions .account-signin,

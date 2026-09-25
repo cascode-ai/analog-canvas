@@ -1144,6 +1144,63 @@ test("the Owner withdraws a Gallery entry into the recycle bin", async ({
   expect(withdrawn).toBe(1);
 });
 
+test("a member withdraws their own entry from its tile, and only their own", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "member-1",
+          displayName: "Member",
+          email: "member@example.com",
+          provider: "github",
+          role: "user",
+          isAdmin: false,
+        },
+      },
+    }),
+  );
+  const mine = { ...ENTRY, ownerUserId: "member-1" };
+  const theirs = {
+    ...ENTRY,
+    id: "g-other",
+    name: "Someone else's",
+    ownerUserId: "member-2",
+  };
+  await mockGallery(page, [mine, theirs]);
+  let withdrawn = 0;
+  await page.route(`**/api/gallery/${mine.id}/recycle`, (route) => {
+    withdrawn += 1;
+    return route.fulfill({ json: { id: mine.id, status: "recycled" } });
+  });
+
+  await page.goto("/");
+  await expect(page.getByTestId(`gallery-tile-${theirs.id}`)).toBeVisible();
+  await expect(
+    page.getByTestId(`gallery-withdraw-menu-${theirs.id}`),
+  ).toHaveCount(0);
+  await expect(page.getByTestId(`gallery-owner-reject-${mine.id}`)).toHaveCount(
+    0,
+  );
+  await page
+    .getByTestId(`gallery-withdraw-menu-${mine.id}`)
+    .getByLabel(`Withdraw ${mine.name}`)
+    .click();
+  await page.getByTestId(`gallery-withdraw-${mine.id}`).click();
+  expect(withdrawn).toBe(0);
+  await page
+    .getByRole("button", { name: "Really withdraw", exact: true })
+    .click();
+
+  await expect(page.getByTestId(`gallery-tile-${mine.id}`)).toHaveCount(0);
+  await expect(page.getByTestId(`gallery-tile-${theirs.id}`)).toBeVisible();
+  await expect(page.getByTestId("gallery-owner-notice")).toContainText(
+    "Restore it from My submissions",
+  );
+  expect(withdrawn).toBe(1);
+});
+
 test("masonry places the top row left-to-right in distinct columns", async ({
   page,
 }) => {
