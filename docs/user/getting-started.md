@@ -199,7 +199,10 @@ keep the last accepted drawing. Changing selection discards its pending draft.
 Double-click a bound label to edit its text and formatting. Labels default to
 bold italic. Bold, italic, upright text, color and superscript remain
 independent of the electrical name; changing a name preserves those choices.
-`Use display alias` is off by default. Enable it only for a canvas-only name.
+`Use display alias` is off by default. It turns on by itself when what you
+type cannot be the part's netlist name — a Greek letter such as `Φ2`, a space,
+another part's name, or the wrong first letter: the label shows your text and
+the netlist keeps the part's name, which the status bar tells you.
 
 A label's name and its look are separate. The name is what the netlist,
 simulation and Agents use; it is always exactly what you typed. Changing the
@@ -263,8 +266,8 @@ labels. Other drawings retain their own settings. Color and weight are
 preserved; individual labels remain freely editable afterwards. Style choices
 do not change electrical names. Same-name Nets
 and Pins denote one electrical connection. Instance names must remain unique:
-a collision keeps the draft open and suggests `Use display alias` in the status
-bar, without opening a blocking dialog.
+typing another part's name on a label shows it as a display alias and keeps
+this part's netlist name, without opening a blocking dialog.
 
 ## Arrow styles
 

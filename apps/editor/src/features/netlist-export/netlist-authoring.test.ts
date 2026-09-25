@@ -73,15 +73,26 @@ describe("netlist authoring", () => {
       direction: "input",
       interfaceInstanceIds: ["P2"],
     });
-    expect(nextCellPinName(document)).toBe("Vout");
+    expect(nextCellPinName(document)).toBe("Voutp");
     document.netlist.terminals.push({
       id: "terminal-out",
-      name: "Vout",
+      name: "Voutp",
       netId: "net-out",
       direction: "output",
       interfaceInstanceIds: ["P3"],
     });
+    expect(nextCellPinName(document)).toBe("Voutn");
+    document.netlist.terminals.push({
+      id: "terminal-out-n",
+      name: "Voutn",
+      netId: "net-out-n",
+      direction: "output",
+      interfaceInstanceIds: ["P5"],
+    });
     expect(nextCellPinName(document)).toBe("Vin2p");
+    expect(
+      nextCellPinName(document, new Set(["vin2p", "vin2n", "vout2p"])),
+    ).toBe("Vout2n");
     expect(nextCellPinName(document, new Set(), "filled")).toBe("VB1");
     expect(nextCellPinName(document, new Set(["vb1"]), "filled")).toBe("VB2");
 

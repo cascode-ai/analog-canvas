@@ -41,7 +41,8 @@ an Edit Engine operation, or an Agent API endpoint.
 hollow marker is the ordinary Pin, while the solid marker denotes a bias
 voltage entry. Both use the same formal-terminal storage and placement planner.
 `P`, the Library, and full Insert all enter the same placement planner. New
-hollow Pins allocate `Vinp`, `Vinn`, `Vout`, then numbered groups; solid Bias
+hollow Pins allocate `Vinp`, `Vinn`, `Voutp`, `Voutn`, then numbered groups
+(`Vin2p` … `Vout2n`), each drawn as V over an upright lowercase subscript; solid Bias
 Voltage Ports allocate `VB1`, `VB2`, and so on. A named contact or explicit
 text takes precedence, and the initial direction is `passive`.
 Duplicate Port Names are valid. Placement and rename always create or update
@@ -669,9 +670,15 @@ The canvas exposes **Visual annotation**. Instance labels follow
 Reference through the same prefix and uniqueness validation as Properties and
 the editable netlist; its Annotation ID, anchor and presentation stay intact.
 
-**Use display alias** is an explicit checkbox in the floating label editor.
+**Use display alias** is a checkbox in the floating label editor.
 Checking it keeps literal RichText on the same Annotation, independent of the
-netlist name. Existing literal annotations open with it checked. Alias mode
+netlist name. Existing literal annotations open with it checked. Applying text
+that cannot become the part's netlist name — not a portable identifier (a Greek
+letter, a space), the wrong device letter, or another part's Reference — checks
+it by itself: the label shows the typed text, the Reference is unchanged, and
+the status bar names the netlist name that stays. Such an alias typed without a
+look of its own is drawn in the Reference style (`Φ2` as Φ over a subscript 2).
+An unchanged name always stays bound, even when only its look was edited. Alias mode
 supports bold, italic, scripts, overbar, symbols, alignment, Shift+Enter and
 formulas. Plain synchronized names do not accept arbitrary formatted aliases.
 Unchecking immediately restores the live Reference binding and default content

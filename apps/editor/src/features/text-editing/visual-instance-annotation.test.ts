@@ -8,6 +8,7 @@ import {
   createEmptyDocument,
   flattenRichText,
   labelTextDocument,
+  roleLabelFormat,
   type Annotation,
   type RichTextDocument,
   type SchematicDocument,
@@ -170,6 +171,112 @@ describe("one visual annotation, one electrical authority", () => {
           resolveDocumentStyleProfile(after.presentation),
         ),
       ).toEqual([]);
+    },
+  );
+
+  // Text a part cannot be named becomes a display alias by itself: the label
+  // shows what was typed and the netlist keeps the Reference.
+  function commit(document: SchematicDocument, content: RichTextDocument) {
+    const session = updateTextEditingSession(
+      createTextEditingSession(
+        { owner: "annotation", object: document.annotations[0]! },
+        document,
+      ),
+      { content },
+    );
+    return proposeTextEditingCommit(document, session);
+  }
+  const secondResistor = (document: SchematicDocument) => {
+    document.instances.push({
+      ...structuredClone(document.instances[0]!),
+      id: "device-2",
+      reference: "R2",
+    });
+    return document;
+  };
+
+  it.each([
+    ["a Greek letter", "Φ2"],
+    ["a space", "Clock gen"],
+    ["another part's name", "R2"],
+    ["the wrong device letter", "C5"],
+  ])("shows %s as a display alias and keeps the Reference", (_, typed) => {
+    const before = secondResistor(fixture());
+    const proposal = commit(before, text(typed));
+    expect(proposal).toMatchObject({ kind: "update", aliasFor: "R1" });
+    if (proposal.kind !== "update") throw new Error(proposal.kind);
+    expect(proposal.beforeEdits).toBeUndefined();
+    const after = apply(before, [proposal.edit]);
+    expect(after.instances.map((item) => item.reference)).toEqual(["R1", "R2"]);
+    expect(after.annotations[0]).not.toHaveProperty("binding");
+    expect(flattenRichText(after.annotations[0]!.content!)).toBe(typed);
+    // Reopened, the label edits as the alias it now is.
+    expect(
+      createTextEditingSession(
+        { owner: "annotation", object: after.annotations[0]! },
+        after,
+      ).displayAlias,
+    ).toBe(true);
+  });
+
+  it("draws an automatic alias typed as a name the way a name is drawn", () => {
+    const proposal = commit(fixture(), text("Φ2"));
+    if (proposal.kind !== "update") throw new Error(proposal.kind);
+    const annotation = (
+      proposal.edit as { annotation: { content?: RichTextDocument } }
+    ).annotation;
+    expect(annotation.content).toEqual(
+      roleLabelFormat("device-reference", "Φ2"),
+    );
+    // A look of the author's own is kept as typed.
+    const styled: RichTextDocument = {
+      runs: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [{ kind: "text", value: "Φ" }],
+        },
+        {
+          kind: "span",
+          style: "subscript",
+          children: [{ kind: "text", value: "1p" }],
+        },
+      ],
+    };
+    const own = commit(fixture(), styled);
+    if (own.kind !== "update") throw new Error(own.kind);
+    expect(
+      (own.edit as { annotation: { content?: RichTextDocument } }).annotation
+        .content,
+    ).toEqual(styled);
+  });
+
+  it.each([
+    ["a name the label editor would not take as a new one", "Rθ", false],
+    ["a name another part already uses", "R2", true],
+  ])(
+    "keeps an unchanged name bound when only its look changes: %s",
+    (_, reference, duplicate) => {
+      const before = duplicate ? secondResistor(fixture()) : fixture();
+      before.instances[0]!.reference = reference;
+      const styled: RichTextDocument = {
+        runs: [
+          {
+            kind: "span",
+            style: "bold",
+            children: [{ kind: "text", value: reference }],
+          },
+        ],
+      };
+      const proposal = commit(before, styled);
+      expect(proposal).toMatchObject({ kind: "update" });
+      expect(proposal).not.toHaveProperty("aliasFor");
+      if (proposal.kind !== "update") throw new Error(proposal.kind);
+      expect(proposal.edit).toMatchObject({
+        annotation: {
+          binding: { kind: "instance-reference", instanceId: "device-1" },
+        },
+      });
     },
   );
 

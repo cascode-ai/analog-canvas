@@ -642,7 +642,7 @@ test("bound labels retain typography on rename and support manual scripts withou
   await expect(alias).not.toBeChecked();
 });
 
-test("instance name collisions suggest an alias in status without interrupting the text editor", async ({
+test("a name another part already has, or no part can have, becomes a display alias by itself", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -656,13 +656,18 @@ test("instance name collisions suggest an alias in status without interrupting t
   const editor = page.getByRole("textbox", { name: "Canvas text editor" });
   await editor.fill("R2");
   await page.getByRole("button", { name: "Apply text changes" }).click();
-  await expect(page.getByTestId("status")).toContainText("Use display alias");
-  await expect(editor).toHaveText("R2");
+  await expect(page.getByTestId("status")).toContainText(
+    "Showing R2 as a display alias; the netlist name stays R1",
+  );
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(label(page)).toHaveText("R1");
-  await page.getByRole("checkbox", { name: "Use display alias" }).check();
-  await page.getByRole("button", { name: "Apply text changes" }).click();
   await expect(label(page)).toHaveText("R2");
+  await page.getByTestId("annotation-hit-label-R1").dblclick();
+  await expect(
+    page.getByRole("checkbox", { name: "Use display alias" }),
+  ).toBeChecked();
+  await editor.fill("Φ2");
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  await expect(label(page)).toHaveText("Φ2");
   const saved = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
