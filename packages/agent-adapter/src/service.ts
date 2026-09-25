@@ -846,6 +846,10 @@ export function createAgentCircuitService(
       }
 
       if (request.operation === "transact") {
+        const placedInstanceIds =
+          request.command?.kind === "place-components"
+            ? request.command.instances.map((instance) => instance.id)
+            : null;
         if (request.command) {
           if (request.expectedRevision !== document.revision)
             return fail(
@@ -1214,10 +1218,30 @@ export function createAgentCircuitService(
               { symbolResolver: resolver },
             );
         if (!result.ok) {
+          const instanceIndexForPath = (
+            path: readonly (string | number)[] | undefined,
+          ): number | undefined => {
+            const editIndex =
+              path?.[0] === "edits" && typeof path[1] === "number"
+                ? path[1]
+                : undefined;
+            const edit = editIndex === undefined ? undefined : edits[editIndex];
+            const index =
+              edit?.kind === "add_instance"
+                ? placedInstanceIds?.indexOf(edit.instance.id)
+                : undefined;
+            return index !== undefined && index >= 0 ? index : undefined;
+          };
+          const placementOrigin = result.diagnostics.flatMap((item) => {
+            const index = instanceIndexForPath(item.path);
+            return index === undefined ? [] : [index];
+          })[0];
           return fail(
             "transact",
             result.error.code,
-            result.error.message,
+            placementOrigin === undefined
+              ? result.error.message
+              : `instances[${placementOrigin}]: ${result.error.message}`,
             result.revision,
             result.diagnostics.map((item) => ({
               code: item.code,
@@ -1226,8 +1250,16 @@ export function createAgentCircuitService(
               revision: result.revision,
               ...(item.objectIds ? { objectIds: [...item.objectIds] } : {}),
               ...(item.path ? { path: [...item.path] } : {}),
-              ...(item.parameters
-                ? { parameters: { ...item.parameters } }
+              ...(item.parameters ||
+              instanceIndexForPath(item.path) !== undefined
+                ? {
+                    parameters: {
+                      ...item.parameters,
+                      ...(instanceIndexForPath(item.path) === undefined
+                        ? {}
+                        : { instanceIndex: instanceIndexForPath(item.path)! }),
+                    },
+                  }
                 : {}),
             })),
           );

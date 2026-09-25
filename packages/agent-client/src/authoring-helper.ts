@@ -31,6 +31,8 @@ export interface CompiledTransaction {
   command?: import("@icm/agent-adapter").AgentAuthoringCommand;
   semanticIntent?: import("@icm/agent-adapter").AgentSemanticIntent;
   edits?: SchematicEdit[];
+  /** Input action index for each compiled primitive edit, in the same order. */
+  editActionIndices?: number[];
   wireIntent?: WireIntent;
   actionKinds: string[];
 }
@@ -361,23 +363,37 @@ export function compileActions(
   const transactions: CompiledTransaction[] = [];
   const openEdits = (
     kind: string,
-  ): { edits: SchematicEdit[]; actionKinds: string[] } => {
+  ): {
+    edits: SchematicEdit[];
+    actionKinds: string[];
+    editActionIndices: number[];
+  } => {
     const last = transactions[transactions.length - 1];
     if (
       last &&
       last.form === "edits" &&
       last.edits &&
+      last.editActionIndices &&
       last.edits.length < maxEdits &&
       (kind === "place-component") ===
         last.actionKinds.every((item) => item === "place-component")
     ) {
-      return { edits: last.edits, actionKinds: last.actionKinds };
+      return {
+        edits: last.edits,
+        actionKinds: last.actionKinds,
+        editActionIndices: last.editActionIndices,
+      };
     }
-    const entry = { edits: [] as SchematicEdit[], actionKinds: [] as string[] };
+    const entry = {
+      edits: [] as SchematicEdit[],
+      actionKinds: [] as string[],
+      editActionIndices: [] as number[],
+    };
     transactions.push({
       form: "edits",
       edits: entry.edits,
       actionKinds: entry.actionKinds,
+      editActionIndices: entry.editActionIndices,
     });
     return entry;
   };
@@ -394,6 +410,7 @@ export function compileActions(
     const slot = openEdits(kind);
     slot.edits.push(validated.data as SchematicEdit);
     slot.actionKinds.push(kind);
+    slot.editActionIndices.push(index);
   };
   const pushWireIntent = (
     index: number,
@@ -687,6 +704,9 @@ export function compileActions(
             ),
           },
           actionKinds: transaction.actionKinds,
+          ...(transaction.editActionIndices
+            ? { editActionIndices: transaction.editActionIndices }
+            : {}),
         };
       }
       return transaction;

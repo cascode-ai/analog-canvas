@@ -1454,10 +1454,42 @@ export class AgentSessionClient {
           : transaction.form === "semantic"
             ? { semanticIntent: transaction.semanticIntent }
             : { wireIntent: transaction.wireIntent };
-    return this.submitTransaction(this.revisionFromSnapshot(entry), payload, {
-      dryRun: options.dryRunOnly ?? false,
-      diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
-    });
+    const report = await this.submitTransaction(
+      this.revisionFromSnapshot(entry),
+      payload,
+      {
+        dryRun: options.dryRunOnly ?? false,
+        diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
+      },
+    );
+    if (report.ok) return report;
+    const editIndex = report.diagnostics?.flatMap((diagnostic) =>
+      diagnostic.path?.[0] === "edits" && typeof diagnostic.path[1] === "number"
+        ? [diagnostic.path[1]]
+        : [],
+    )[0];
+    const instanceIndex = report.diagnostics?.flatMap((diagnostic) =>
+      typeof diagnostic.parameters?.instanceIndex === "number"
+        ? [diagnostic.parameters.instanceIndex]
+        : [],
+    )[0];
+    const actionIndex =
+      transaction.form === "edits"
+        ? editIndex === undefined
+          ? undefined
+          : transaction.editActionIndices?.[editIndex]
+        : transaction.command?.kind === "place-components" &&
+            instanceIndex !== undefined
+          ? transaction.editActionIndices?.[instanceIndex]
+          : undefined;
+    if (actionIndex === undefined) return report;
+    const actionKind = direct[actionIndex]?.kind;
+    return {
+      ...report,
+      actionIndex,
+      ...(actionKind ? { actionKind } : {}),
+      message: `actions[${actionIndex}]${actionKind ? ` (${actionKind})` : ""}: ${report.message ?? "transaction rejected"}`,
+    };
   }
 
   /** Same four-operation API; the helper only supplies identity and revisions. */

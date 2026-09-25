@@ -51,6 +51,33 @@ async function folder() {
 }
 
 describe("MCP → API → shared editor parity", () => {
+  it("reports the input action behind a rejected placement edit", async () => {
+    const { client, controller } = await folder();
+    const before = structuredClone(controller.document);
+    const report = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "R1",
+        position: { x: 100, y: 100 },
+      },
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "R2",
+        position: { x: 155, y: 100 },
+      },
+    ]);
+    expect(report.ok).toBe(false);
+    expect(report.actionIndex).toBe(1);
+    expect(report.actionKind).toBe("place-component");
+    expect(report.message).toContain("actions[1]");
+    expect(report.diagnostics?.[0]).toMatchObject({
+      path: ["edits", 2, "instance", "placement", "position", "x"],
+      parameters: { instanceIndex: 1 },
+    });
+    expect(controller.document).toEqual(before);
+  });
   it("moves attached annotations through both entry points without moving their owner", async () => {
     const { client, controller, add } = await folder();
     const instanceId = await add();
