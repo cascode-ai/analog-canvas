@@ -434,7 +434,22 @@ A valid edit applies after a short typing pause or Enter (Shift+Enter inserts a
 line break). The printer supplies stable Document/Instance locations, including
 SPICE continuation lines; the caret highlights the corresponding canvas Instance
 and opens its Cell when necessary. It does not infer identity from Reference
-spelling, which may repeat across Cells.
+spelling, which may repeat across Cells. The link runs both ways:
+- Parts selected on the canvas light their printed cards, and a new selection
+  scrolls them into view.
+- A new selection on the canvas takes over from the caret's part.
+
+While the strict export is blocked, the panel shows a read-only draft printed
+from the authoring IR (`createDraftNetlistPreview`), so a part appears in the
+netlist as soon as it is placed. In the draft:
+- an unconnected pin, a missing model and a missing required value print as
+  `?`;
+- a part with no netlist form is named in a closing comment;
+- the first line says the text is a draft.
+The cards a blocking finding names are lit in yellow and keep the canvas link.
+A `?` is no identifier in either format, so a draft never passes for a
+netlist. Copy and export stay blocked until the strict export is ready, and
+`designExtractsNetlist` never reads the draft.
 Explicit inspector actions (Q, double-clicking a component, Issues and import
 review) replace the default netlist panel. Canvas editing never requires closing
 the netlist first. A project panel is closed by the control that opened it —

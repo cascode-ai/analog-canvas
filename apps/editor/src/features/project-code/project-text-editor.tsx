@@ -49,8 +49,11 @@ interface Props {
   onEnter?(): void;
   onCursorChange?(position: number): void;
   onBlur?(): void;
-  /** Spans lit line by line, such as the parts selected on the canvas. */
-  highlightedRanges?: readonly { from: number; to: number }[];
+  /**
+   * Spans lit line by line: the parts selected on the canvas, or in the
+   * `warning` tone, the lines a finding names.
+   */
+  highlightedRanges?: readonly HighlightedRange[];
   /**
    * Changes when a new selection should come into view. Typing moves the
    * lit spans without changing it, so the view does not jump.
@@ -60,25 +63,46 @@ interface Props {
 
 const externalUpdate = Annotation.define<boolean>();
 
-const setHighlight =
-  StateEffect.define<readonly { from: number; to: number }[]>();
-const highlightedLine = Decoration.line({ class: "cm-code-highlight" });
+export interface HighlightedRange {
+  from: number;
+  to: number;
+  tone?: "warning";
+}
+
+const setHighlight = StateEffect.define<readonly HighlightedRange[]>();
+const TONE_CLASS = {
+  selection: "cm-code-highlight",
+  warning: "cm-code-warning",
+};
 
 function highlightDecorations(
   state: EditorState,
-  ranges: readonly { from: number; to: number }[],
+  ranges: readonly HighlightedRange[],
 ): DecorationSet {
-  const lines = new Set<number>();
+  // A line can be both selected and flagged: it carries both classes.
+  const lines = new Map<number, Set<string>>();
   for (const range of ranges) {
     if (range.from > state.doc.length) continue;
     const first = state.doc.lineAt(range.from).number;
     const last = state.doc.lineAt(Math.min(range.to, state.doc.length)).number;
-    for (let line = first; line <= last; line++) lines.add(line);
+    for (let line = first; line <= last; line++)
+      lines.set(
+        line,
+        (lines.get(line) ?? new Set()).add(
+          TONE_CLASS[range.tone ?? "selection"],
+        ),
+      );
   }
   const builder = new RangeSetBuilder<Decoration>();
-  for (const line of [...lines].sort((left, right) => left - right)) {
+  for (const [line, classes] of [...lines].sort(
+    ([left], [right]) => left - right,
+  )) {
     const start = state.doc.line(line).from;
-    builder.add(start, start, highlightedLine);
+    builder.add(
+      start,
+      start,
+      Decoration.line({ class: [...classes].join(" ") }),
+    );
   }
   return builder.finish();
 }
@@ -222,7 +246,10 @@ export default function ProjectTextEditor(props: Props) {
 
   useLayoutEffect(() => {
     const view = viewRef.current;
-    const first = props.highlightedRanges?.[0];
+    // A selection comes into view; flagged lines stay where they are.
+    const first = props.highlightedRanges?.find(
+      (range) => range.tone !== "warning",
+    );
     if (!view || !first || first.from > view.state.doc.length) return;
     view.dispatch({
       effects: EditorView.scrollIntoView(first.from, {
@@ -247,10 +274,12 @@ export default function ProjectTextEditor(props: Props) {
 function configuredExtensions(props: Props): Extension[] {
   return [
     props.language === "json" ? json() : spiceCodeLanguage,
+    // Read-only text still takes focus and a cursor: a click on a line is how
+    // it names that line's part, and its text can be selected and copied.
     EditorState.readOnly.of(Boolean(props.readOnly)),
-    EditorView.editable.of(!props.readOnly),
     EditorView.contentAttributes.of({
       "aria-label": props.ariaLabel,
+      "aria-readonly": props.readOnly ? "true" : "false",
       "aria-invalid": props.invalid ? "true" : "false",
       spellcheck: "false",
       autocapitalize: "off",

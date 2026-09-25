@@ -401,10 +401,15 @@
 .project-source-editor .cm-editor.cm-focused {
   outline: none;
 }
-/* The whole JSON of each part selected on the canvas. */
+/* The code of each part selected on the canvas. */
 .project-source-editor .cm-code-highlight {
   background: rgb(var(--icm-accent-rgb) / 12%);
   box-shadow: inset 3px 0 0 rgb(var(--icm-accent-rgb) / 70%);
+}
+/* A line a finding names, such as a draft card with a ?. Selected too, it
+   keeps the yellow and gains the selection's bar. */
+.project-source-editor .cm-code-warning {
+  background: rgb(var(--icm-warning-rgb) / 24%);
 }
 .project-source-editor .cm-scroller {
   overflow: auto;

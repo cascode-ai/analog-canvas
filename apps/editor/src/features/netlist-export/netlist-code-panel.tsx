@@ -38,6 +38,7 @@ import {
 import { createDefaultNetlistExportPreferences } from "./netlist-export-preferences";
 import {
   createDesignNetlistExport,
+  createDraftNetlistPreview,
   unfinishedDrawingDiagnostics,
   type NetlistFormat,
   type NetlistNamingProfile,
@@ -183,6 +184,20 @@ export function NetlistCodePanel({
       compileRevision,
     ],
   );
+  // A drawing that does not extract yet still shows what it says: a draft,
+  // read-only, with ? where the drawing is silent and its flagged cards in
+  // yellow. Copy and export keep waiting for the strict netlist.
+  const draftPreview = useMemo(
+    () =>
+      result?.status === "blocked"
+        ? createDraftNetlistPreview(project, {
+            format,
+            namingProfile,
+            ...(rootDocumentId ? { rootDocumentId } : {}),
+          })
+        : null,
+    [project, format, namingProfile, rootDocumentId, result],
+  );
   const unfinished = result
     ? unfinishedDrawingDiagnostics(result.diagnostics)
     : [];
@@ -303,6 +318,14 @@ export function NetlistCodePanel({
     return () => clearTimeout(timer);
   }, [draft, dirty, conflict]);
   function focus(position: number) {
+    if (draftPreview)
+      return focusInstance(
+        netlistInstanceAtLine(
+          draftPreview.text,
+          position,
+          draftPreview.locations.instances,
+        ),
+      );
     if (result?.status !== "ready") return focusInstance(null);
     const plan = planNetlistCodeEdit(project, result, draftRef.current);
     focusInstance(
@@ -322,28 +345,39 @@ export function NetlistCodePanel({
     // Keyed by content: the same ids in a new array are the same pick.
   }, [selectionKey]);
   const highlightedRanges = useMemo(() => {
-    if (result?.status !== "ready") return [];
-    const plan = planNetlistCodeEdit(project, result, draft);
-    if (!plan.ok) return [];
+    let instances: readonly PrintedNetlistInstance[];
+    if (draftPreview) instances = draftPreview.locations.instances;
+    else {
+      if (result?.status !== "ready") return [];
+      const plan = planNetlistCodeEdit(project, result, draft);
+      if (!plan.ok) return [];
+      instances = plan.instances;
+    }
     return [
       ...(selection
         ? netlistInstanceRanges(
-            plan.instances,
+            instances,
             selection.documentId,
             selection.instanceIds,
           )
         : []),
       ...(cursorInstance
-        ? netlistInstanceRanges(plan.instances, cursorInstance.documentId, [
+        ? netlistInstanceRanges(instances, cursorInstance.documentId, [
             cursorInstance.instanceId,
           ])
         : []),
+      ...(draftPreview?.flagged ?? []).map((card) => ({
+        from: card.startOffset,
+        to: card.endOffset,
+        tone: "warning" as const,
+      })),
     ];
-  }, [project, result, draft, selectionKey, cursorInstance]);
+  }, [project, result, draft, draftPreview, selectionKey, cursorInstance]);
   const editError = conflict
     ? "The canvas or Agent changed the netlist. Reload before applying your draft."
     : applyError;
-  const lineCount = draft.split(/\r\n?|\n/u).length;
+  const shown = draftPreview ? draftPreview.text : draft;
+  const lineCount = shown.split(/\r\n?|\n/u).length;
   return (
     <section
       className="netlist-profile-code netlist-live-code"
@@ -428,8 +462,12 @@ export function NetlistCodePanel({
             className="netlist-code-copy"
             data-testid="copy-netlist-panel"
             aria-label="Copy netlist"
-            title="Copy netlist"
-            disabled={dirty}
+            title={
+              draftPreview
+                ? "Copy netlist · finish each ? first"
+                : "Copy netlist"
+            }
+            disabled={dirty || !!draftPreview}
             onClick={onCopy}
           >
             <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -458,7 +496,7 @@ export function NetlistCodePanel({
           fallback={
             <textarea
               aria-label="Loading Netlist code editor"
-              value={draft}
+              value={shown}
               readOnly
             />
           }
@@ -466,8 +504,11 @@ export function NetlistCodePanel({
           <ProjectTextEditor
             ariaLabel="Netlist code"
             language="netlist"
-            value={draft}
-            invalid={!!error || issues.length > 0 || !!editError}
+            value={shown}
+            readOnly={!!draftPreview}
+            invalid={
+              !draftPreview && (!!error || issues.length > 0 || !!editError)
+            }
             onChange={(text) => {
               draftRef.current = text;
               setDraft(text);
@@ -589,7 +630,9 @@ export function NetlistCodePanel({
       {editError ? <p role="alert">{editError}</p> : null}
       {processError ? <p role="alert">{processError}</p> : null}
       <p className="netlist-edit-hint">
-        Edit names, models and values · Enter to apply
+        {draftPreview
+          ? "Draft · each ? is something the drawing does not say yet"
+          : "Edit names, models and values · Enter to apply"}
       </p>
       {error ? <p role="alert">{error}</p> : null}
       {issues.length ? (

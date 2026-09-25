@@ -1,6 +1,9 @@
 import { parseSavedProject } from "./editor-fixtures";
 import { test, expect } from "@playwright/test";
-import { openSelectionShelf } from "./manual-editor-fixtures.js";
+import {
+  openSelectionShelf,
+  placeComponent,
+} from "./manual-editor-fixtures.js";
 import { createEmptyProject, semanticTextDocument } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 import {
@@ -516,7 +519,9 @@ test("opening and reopening Netlist preserves incomplete imported device data", 
     buffer: Buffer.from(JSON.stringify(project)),
   });
   const code = page.getByLabel("Netlist code", { exact: true });
-  await expect(code).toHaveText("");
+  // A netlist that cannot print yet shows its draft, with ? for the value.
+  await expect(code).toContainText("* Draft:");
+  await expect(code).toContainText("R1 net0 net1 ?");
   await expect(
     page.getByRole("region", { name: "Live netlist" }).getByRole("alert"),
   ).toContainText("requires parameter value");
@@ -524,7 +529,7 @@ test("opening and reopening Netlist preserves incomplete imported device data", 
   // The Netlist button closes the panel it opened, and opens it again.
   await page.getByTestId("netlist-panel-toggle").click();
   await page.getByTestId("netlist-panel-toggle").click();
-  await expect(code).toHaveText("");
+  await expect(code).toContainText("R1 net0 net1 ?");
   await expect(page.getByTestId("revision")).toHaveText(revision!);
   const saved = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -1091,4 +1096,42 @@ test("lights a part's card when it is picked on the canvas, and the part when it
   await expect(halo.locator('[data-object-id="R2"]')).toHaveCount(0);
   await expect(lit.filter({ hasText: /^R1 /u })).toHaveCount(1);
   await expect(lit.filter({ hasText: /^R2 /u })).toHaveCount(0);
+});
+
+test("shows two freshly placed parts as a draft with ? on yellow lines, linked to the canvas", async ({
+  page,
+}) => {
+  await page.goto("/editor?new=1");
+  await awaitEditorReady(page);
+  await placeComponent(page, "resistor", { x: 300, y: 200 });
+  await placeComponent(page, "resistor", { x: 460, y: 200 });
+  // Placing closes the project tools; open the Netlist again.
+  const toggle = page.getByTestId("netlist-panel-toggle");
+  if ((await toggle.getAttribute("aria-pressed")) !== "true")
+    await toggle.click();
+  const code = page.getByLabel("Netlist code", { exact: true });
+  await expect(code).toContainText("* Draft:");
+  const card = (reference: string) =>
+    code
+      .locator(".cm-line")
+      .filter({ hasText: new RegExp(`^${reference} `, "u") });
+  await expect(card("R1")).toHaveText("R1 ? ? 1k");
+  await expect(card("R2")).toHaveText("R2 ? ? 1k");
+  await expect(card("R1")).toHaveClass(/cm-code-warning/u);
+  await expect(card("R2")).toHaveClass(/cm-code-warning/u);
+  // A draft is for reading: it cannot be copied or edited.
+  await expect(page.getByTestId("copy-netlist-panel")).toBeDisabled();
+  await expect(code).toHaveAttribute("aria-readonly", "true");
+  await expect(page.locator(".netlist-edit-hint")).toContainText("Draft");
+
+  // The draft keeps the canvas link both ways.
+  await page.getByTestId("hit-R1").click();
+  await expect(card("R1")).toHaveClass(/cm-code-highlight/u);
+  await expect(card("R2")).not.toHaveClass(/cm-code-highlight/u);
+  await card("R2").click();
+  await expect(
+    page
+      .getByTestId("selection-halo-selected")
+      .locator('[data-object-id="R2"]'),
+  ).toBeVisible();
 });
