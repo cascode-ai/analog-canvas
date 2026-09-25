@@ -511,16 +511,24 @@ export function useAgentSession(
             });
           }
         };
-        // Keep revision-scoped derived Snapshot evidence for this live browser
-        // session. The host replaces Project/Document identities on commit, so
-        // the service's existing identity guards invalidate it automatically.
-        let serviceInstance: ReturnType<
-          typeof createAgentCircuitService
-        > | null = null;
-        const service = () =>
-          (serviceInstance ??= createAgentCircuitService({
+        // Pairing survives Project tab changes, but derived Snapshot evidence
+        // and the operation host belong to one active browser binding.
+        let serviceBinding: {
+          contextRevision: string;
+          host: AgentOperationHost;
+          instance: ReturnType<typeof createAgentCircuitService>;
+        } | null = null;
+        const service = () => {
+          const contextRevision = options.contextRevision;
+          const host = options.host;
+          if (
+            serviceBinding?.contextRevision === contextRevision &&
+            serviceBinding.host === host
+          )
+            return serviceBinding.instance;
+          const instance = createAgentCircuitService({
             agentId: `web-agent:${live.sessionId}`,
-            host: options.host,
+            host,
             permissions: permissionsFromScopes(scopes),
             ...(options.fileHost
               ? {
@@ -590,7 +598,10 @@ export function useAgentSession(
                     : {}),
                 }
               : {}),
-          }));
+          });
+          serviceBinding = { contextRevision, host, instance };
+          return instance;
+        };
         const bind = (socket: WebSocket) => {
           live.socket = socket;
           socket.addEventListener("message", (event) => {
@@ -722,7 +733,10 @@ export function useAgentSession(
                 parsed.data.payload,
               );
               const payloadHash = sha256Hex(
-                JSON.stringify(parsed.data.payload),
+                JSON.stringify([
+                  parsed.data.contextRevision,
+                  parsed.data.payload,
+                ]),
               );
               const knownHash = live.requestHashes.get(parsed.data.requestId);
               const sendFileResponse = (payload: unknown) => {
@@ -806,7 +820,10 @@ export function useAgentSession(
                 parsed.data.payload,
               );
               const payloadHash = sha256Hex(
-                JSON.stringify(parsed.data.payload),
+                JSON.stringify([
+                  parsed.data.contextRevision,
+                  parsed.data.payload,
+                ]),
               );
               const knownHash = live.requestHashes.get(parsed.data.requestId);
               const sendSimulationResponse = (payload: unknown) => {
@@ -930,7 +947,10 @@ export function useAgentSession(
                 return;
               }
               const payloadHash = sha256Hex(
-                JSON.stringify(parsed.data.payload),
+                JSON.stringify([
+                  parsed.data.contextRevision,
+                  parsed.data.payload,
+                ]),
               );
               const knownHash = live.requestHashes.get(parsed.data.requestId);
               if (knownHash) {
@@ -985,7 +1005,10 @@ export function useAgentSession(
             const circuitRequest = parseAgentCircuitRequest(
               parsed.data.payload,
             );
-            const payloadKey = JSON.stringify(parsed.data.payload);
+            const payloadKey = JSON.stringify([
+              parsed.data.contextRevision,
+              parsed.data.payload,
+            ]);
             const payloadHash = sha256Hex(payloadKey);
             const cached = live.requestCache.get(parsed.data.requestId);
             const sendResponse = (payload: unknown) => {
@@ -1052,7 +1075,40 @@ export function useAgentSession(
             // The relay already rejects malformed public payloads, but the
             // browser host repeats that same strict parse before it can touch
             // the live Project.
-            const result = service().handle(parsed.data.payload);
+            let result: ReturnType<
+              ReturnType<typeof createAgentCircuitService>["handle"]
+            >;
+            try {
+              result = service().handle(parsed.data.payload);
+            } catch (error) {
+              console.error("Agent circuit request failed", error);
+              sendResponse({
+                apiVersion: AGENT_API_VERSION,
+                requestId: parsed.data.requestId,
+                operation:
+                  circuitRequest.success &&
+                  ["snapshot", "transact", "render"].includes(
+                    circuitRequest.data.operation,
+                  )
+                    ? circuitRequest.data.operation
+                    : "error",
+                ok: false,
+                error: {
+                  code: "CIRCUIT_HOST_ERROR",
+                  message:
+                    "The Circuit operation failed; inspect the Project before retrying",
+                },
+                diagnostics: [],
+              });
+              if (
+                circuitRequest.success &&
+                isReadOnlyCircuitRequest(circuitRequest.data)
+              )
+                live.requestHashes.delete(parsed.data.requestId);
+              if (liveRef.current === live)
+                update({ status: live.paused ? "paused" : "connected" });
+              return;
+            }
             const responseBytes = new TextEncoder().encode(
               JSON.stringify(result),
             ).byteLength;

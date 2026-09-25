@@ -57,6 +57,15 @@ import {
 } from "./agent-session-runtime";
 import { AgentArtifacts } from "./agent-artifacts";
 
+// requestId is session-wide; identical payloads in different Project bindings
+// must never replay an earlier Project's cached result.
+function scopedRequestHash(
+  raw: string,
+  contextRevision: string | null | undefined,
+): Promise<string> {
+  return sha256Text(JSON.stringify([contextRevision, raw]));
+}
+
 /** Cloudflare Durable Object owning one temporary Agent session. */
 export class AgentSessionDO {
   private readonly artifacts: AgentArtifacts;
@@ -782,7 +791,7 @@ export class AgentSessionDO {
         }
       }
     }
-    const payloadHash = await sha256Text(raw);
+    const payloadHash = await scopedRequestHash(raw, observedContext);
     const readOnly = isReadOnlyCircuitRequest(circuitRequest);
     const begin = machine.beginRequest(
       circuitRequest.requestId,
@@ -933,7 +942,10 @@ export class AgentSessionDO {
     const begin = machine.beginRequest(
       fileRequest.requestId,
       Date.now(),
-      await sha256Text(raw),
+      await scopedRequestHash(
+        raw,
+        request.headers.get("x-agent-context") ?? machine.contextRevision,
+      ),
       readOnly ? "read" : "write",
     );
     if (begin.kind === "cached")
@@ -1068,7 +1080,10 @@ export class AgentSessionDO {
     const begin = machine.beginRequest(
       simulationRequest.requestId,
       Date.now(),
-      await sha256Text(raw),
+      await scopedRequestHash(
+        raw,
+        request.headers.get("x-agent-context") ?? machine.contextRevision,
+      ),
       readOnly ? "read" : "write",
     );
     if (begin.kind === "cached")
@@ -1201,7 +1216,10 @@ export class AgentSessionDO {
     const begin = machine.beginRequest(
       projectRequest.requestId,
       Date.now(),
-      await sha256Text(raw),
+      await scopedRequestHash(
+        raw,
+        request.headers.get("x-agent-context") ?? machine.contextRevision,
+      ),
       readOnly ? "read" : "write",
     );
     if (begin.kind === "cached") {

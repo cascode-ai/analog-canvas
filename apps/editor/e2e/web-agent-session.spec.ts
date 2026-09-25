@@ -1014,9 +1014,24 @@ test("keeps pairing across Project tabs, rejects old writes and copies through t
   expect(await rejected.json()).toMatchObject({
     error: { code: "PROJECT_CONTEXT_STALE" },
   });
+  const activeStatus = await client.status(
+    session.sessionId,
+    session.agentToken,
+  );
+  expect(activeStatus).toMatchObject({
+    authorization: "active",
+    editor: "attached",
+  });
+  const switchedContext = client.contextRevision;
   expect(
-    await client.status(session.sessionId, session.agentToken),
-  ).toMatchObject({ authorization: "active", editor: "attached" });
+    await client.circuit(session.sessionId, session.agentToken, {
+      apiVersion: "3.0",
+      requestId: "workspace-target-snapshot",
+      operation: "snapshot",
+      documentId: activeStatus.documentIds[0]!,
+    }),
+  ).toMatchObject({ ok: true, operation: "snapshot", revision: 0 });
+  expect(client.contextRevision).toBe(switchedContext);
   const list = await client.projects(session.sessionId, session.agentToken, {
     apiVersion: "3.0",
     requestId: "workspace-list",
@@ -1078,6 +1093,167 @@ test("keeps pairing across Project tabs, rejects old writes and copies through t
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
 });
 
+test("rebinds circuit reads and writes after an already-used Claim opens another Project", async ({
+  page,
+  baseURL,
+}) => {
+  await page.goto("/editor?new=1");
+  await page.getByTestId("open-agent").click();
+  const panel = page.getByTestId("connect-agent-panel");
+  const handoff = await panel.getByTestId("agent-copy-text").inputValue();
+  const { claimCode } = JSON.parse(handoff.match(/Claim: (.+)/u)![1]!);
+  const client = new AgentHttpClient({ baseUrl: baseURL! });
+  const session = await client.claim(claimCode);
+  await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
+  const firstContext = client.contextRevision;
+  const firstDocumentId = session.documentIds[0]!;
+  const snapshot = (requestId: string, documentId: string) =>
+    client.circuit(session.sessionId, session.agentToken, {
+      apiVersion: "3.0",
+      requestId,
+      operation: "snapshot",
+      documentId,
+    });
+  const place = (
+    requestId: string,
+    documentId: string,
+    expectedRevision: number,
+    instanceId: string,
+  ) =>
+    client.circuit(session.sessionId, session.agentToken, {
+      apiVersion: "3.0",
+      requestId,
+      operation: "transact",
+      transactionId: requestId,
+      documentId,
+      expectedRevision,
+      edits: [
+        {
+          kind: "add_instance",
+          instance: {
+            id: instanceId,
+            symbolId: "resistor",
+            placement: {
+              position: { x: 300, y: 200 },
+              rotation: 0,
+              mirror: "none",
+            },
+          },
+        },
+      ],
+    });
+
+  expect(await snapshot("first-snapshot", firstDocumentId)).toMatchObject({
+    ok: true,
+    revision: 0,
+  });
+  expect(
+    await place("first-place", firstDocumentId, 0, "first-R"),
+  ).toMatchObject({
+    ok: true,
+    applied: true,
+  });
+  const projectBytes = Buffer.from(
+    serializeProject(createEmptyProject("binding-second", "Second Project")),
+  );
+  const staged = await client.files(session.sessionId, session.agentToken, {
+    apiVersion: "3.0",
+    requestId: "stage-second-project",
+    operation: "stage",
+    kind: "project",
+    files: [
+      {
+        name: "second.icproj.json",
+        mediaType: "application/json",
+        encoding: "base64",
+        data: projectBytes.toString("base64"),
+        byteLength: projectBytes.byteLength,
+        sha256: createHash("sha256").update(projectBytes).digest("hex"),
+      },
+    ],
+  });
+  if (!staged.ok || staged.operation !== "stage")
+    throw new Error(JSON.stringify(staged));
+  expect(
+    await client.files(session.sessionId, session.agentToken, {
+      apiVersion: "3.0",
+      requestId: "open-second-project",
+      operation: "open",
+      candidateId: staged.candidate.candidateId,
+    }),
+  ).toMatchObject({ ok: true, operation: "open" });
+  await expect(page.getByTestId("active-instance-count")).toHaveText("0");
+  await expect
+    .poll(async () => {
+      await client.status(session.sessionId, session.agentToken);
+      return client.contextRevision;
+    })
+    .not.toBe(firstContext);
+  const secondContext = client.contextRevision;
+  const current = await client.status(session.sessionId, session.agentToken);
+  const secondDocumentId = current.documentIds[0]!;
+  expect(secondDocumentId).toBe(firstDocumentId);
+  await expect(
+    snapshot("first-snapshot", secondDocumentId),
+  ).rejects.toMatchObject({
+    code: "REQUEST_ID_REUSED",
+  });
+  expect(await snapshot("second-snapshot", secondDocumentId)).toMatchObject({
+    ok: true,
+    revision: 0,
+  });
+  expect(
+    await place("second-place", secondDocumentId, 0, "second-R"),
+  ).toMatchObject({
+    ok: true,
+    applied: true,
+  });
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+
+  const list = await client.projects(session.sessionId, session.agentToken, {
+    apiVersion: "3.0",
+    requestId: "list-switch-back",
+    operation: "workspace",
+    request: { action: "list" },
+  });
+  if (
+    !list.ok ||
+    list.operation !== "workspace" ||
+    list.result.action !== "list"
+  )
+    throw new Error(JSON.stringify(list));
+  const activeWorkspaceId = list.result.activeWorkspaceId;
+  const firstWorkspace = list.result.projects.find(
+    (project) => project.workspaceId !== activeWorkspaceId,
+  );
+  if (!firstWorkspace) throw new Error("First Project tab is missing");
+  expect(
+    await client.projects(session.sessionId, session.agentToken, {
+      apiVersion: "3.0",
+      requestId: "switch-back",
+      operation: "workspace",
+      request: { action: "activate", workspaceId: firstWorkspace.workspaceId },
+    }),
+  ).toMatchObject({ ok: true });
+  await expect
+    .poll(async () => {
+      await client.status(session.sessionId, session.agentToken);
+      return client.contextRevision;
+    })
+    .not.toBe(secondContext);
+  const returned = await snapshot("first-return-snapshot", firstDocumentId);
+  expect(returned).toMatchObject({ ok: true, revision: 1 });
+  if (
+    !returned.ok ||
+    returned.operation !== "snapshot" ||
+    !("snapshot" in returned)
+  )
+    throw new Error(JSON.stringify(returned));
+  expect(
+    returned.snapshot.document.instances.map((instance) => instance.id),
+  ).toEqual(["first-R"]);
+});
+
 test("opens an Agent-staged SPICE Project without browser confirmation or a new Claim", async ({
   page,
   baseURL,
@@ -1099,6 +1275,14 @@ test("opens an Agent-staged SPICE Project without browser confirmation or a new 
   const session = await client.claim(claimCode);
   await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
   const originalProjectId = session.projectId;
+  expect(
+    await client.circuit(session.sessionId, session.agentToken, {
+      apiVersion: "3.0",
+      requestId: "snapshot-before-import-tab",
+      operation: "snapshot",
+      documentId: session.documentIds[0]!,
+    }),
+  ).toMatchObject({ ok: true, operation: "snapshot" });
   const bytes = Buffer.from(
     ".subckt stage vin vout\nR1 vin vout 1k\n.ends stage\n",
   );
