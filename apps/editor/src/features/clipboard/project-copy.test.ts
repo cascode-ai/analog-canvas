@@ -1140,6 +1140,108 @@ describe("one Project copy path", () => {
       ).toEqual([]);
     }
   });
+
+  it("keeps the supply name a copied label claims on a Net no pin holds", () => {
+    // An old copy left a second V_DD label on a Net of its own, with no pins.
+    // The label keeps its claim. Without it the copy's V_DD look spelled a
+    // name its unnamed Net did not have, and the paste failed.
+    const project = createEmptyProject("stray-supply", "Stray supply");
+    const document = project.documents[0]!;
+    document.nets.push({ id: "stray", terminals: [] });
+    document.annotations.push({
+      id: "stray-label",
+      kind: "power-label",
+      netId: "stray",
+      binding: { kind: "net-name", netId: "stray" },
+      formatOverride: {
+        runs: [
+          {
+            kind: "span",
+            style: "italic",
+            children: [{ kind: "text", value: "V" }],
+          },
+          {
+            kind: "span",
+            style: "subscript",
+            children: [{ kind: "text", value: "DD" }],
+          },
+        ],
+      },
+      anchor: { kind: "free", position: { x: 100, y: 100 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    document.connectivityEvidence.push({
+      id: "stray-name",
+      kind: "name-claim",
+      netId: "stray",
+      name: "VDD",
+      scope: "global",
+      powerDomain: "vdd",
+      owner: { kind: "power-marker", objectId: "stray-label" },
+    });
+    const copied = place(
+      project,
+      captureProjectCopy(project, document, {
+        ...selection(),
+        annotationIds: ["stray-label"],
+      })!,
+    ).documents[0]!;
+    const label = copied.annotations.find((item) => item.id !== "stray-label")!;
+    expect(
+      resolveDocumentLogicalNets(copied).byBaseNetId.get(label.netId!)?.name,
+    ).toBe("VDD");
+  });
+
+  it("keeps a property pin on the Net its part's hidden label names", () => {
+    // The process tied R1's body B, a pin its symbol does not draw, to ground
+    // through a hidden label on R1. The copy keeps B on that Net, bound as a
+    // property. The label used to land on pin 1's Net instead and ground it.
+    const { document, pin, resistor, net, wire, copy } = connectivityFixture();
+    resistor("R1", "1", { x: 0, y: 100 });
+    resistor("R2", "1", { x: 200, y: 100 });
+    net("a-signal", [pin("R1", "1"), pin("R2", "1")]);
+    wire("a-signal-wire", "a-signal", pin("R1", "1"), pin("R2", "1"));
+    document.nets.push({
+      id: "substrate",
+      terminals: [{ instanceId: "R1", pinName: "B" }],
+    });
+    document.annotations.push({
+      id: "substrate-label",
+      kind: "net-label",
+      netId: "substrate",
+      binding: { kind: "net-name", netId: "substrate" },
+      visible: false,
+      anchor: {
+        kind: "object",
+        objectId: "R1",
+        localOffset: { x: 0, y: 0 },
+        fallbackPosition: { x: 0, y: 0 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    document.connectivityEvidence.push({
+      id: "substrate-name",
+      kind: "name-claim",
+      netId: "substrate",
+      name: "0",
+      scope: "global",
+      powerDomain: "ground",
+      owner: { kind: "net-label", annotationId: "substrate-label" },
+    });
+    const { copied, netOf } = copy();
+    const names = resolveDocumentLogicalNets(copied).byBaseNetId;
+    const body = copied.nets.find((candidate) =>
+      candidate.terminals.some(
+        (terminal) => terminal.pinName === "B" && terminal.instanceId !== "R1",
+      ),
+    );
+    expect(body && names.get(body.id)?.name).toBe("0");
+    expect(names.get(netOf("R1", "1")!)?.name).toBeUndefined();
+  });
 });
 
 function bundledExampleCopy(name: string) {
