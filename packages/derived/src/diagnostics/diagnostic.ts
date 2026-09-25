@@ -6,6 +6,7 @@ import { diagnoseVisualQuality } from "../visual.js";
 import type { CircuitProject } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import { runErcChecks } from "./erc.js";
+import { assessImportReference } from "../import-reference.js";
 
 /**
  * Unified diagnostic envelope and aggregation (Net connectivity rationale). Distinct producer domains — schema, spice, erc, routing, visual —
@@ -201,6 +202,38 @@ export function collectProjectDiagnosticEvidence(
   return {
     diagnostics: mergeDiagnostics(
       wanted.includes("erc") ? runErcChecks(project, index, resolver) : [],
+      wanted.includes("visual")
+        ? project.documents.flatMap((document) =>
+            assessImportReference(
+              document,
+              resolver,
+              index.documents.get(document.id),
+            ).issues.map((issue, ordinal): Diagnostic => ({
+              id: `import-reference:${document.id}:${issue.code}:${ordinal}`,
+              domain: "routing",
+              code: issue.code,
+              severity:
+                issue.code === "IMPORT_REFERENCE_UNAVAILABLE" ||
+                issue.code === "IMPORT_REFERENCE_UNPLACED"
+                  ? "info"
+                  : "warning",
+              confidence: "high",
+              gateEligible: false,
+              message: issue.message,
+              primary:
+                issue.instanceIds[0] &&
+                document.instances.some((i) => i.id === issue.instanceIds[0])
+                  ? directObjectLocator(
+                      document.id,
+                      "instance",
+                      issue.instanceIds[0],
+                    )
+                  : directObjectLocator(document.id, "document", document.id),
+              related: [],
+              parameters: { comparisonScope: "cell-definition" },
+            })),
+          )
+        : [],
       visual,
     ),
     visualByDocument,

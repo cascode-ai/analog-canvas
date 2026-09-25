@@ -36,6 +36,26 @@ describe("shared connectivity context (#17)", () => {
       { id: "vss", terminals: [{ instanceId: "M1", pinName: "B" }] },
       { id: "tail", terminals: [{ instanceId: "M1", pinName: "S" }] },
     );
+    // A source reference describes device/Port terminals, not subsequently
+    // drawn dangling junctions. Preserve the body-visibility contract with a
+    // real second original terminal.
+    document.instances.push({
+      id: "BIAS",
+      symbolId: "port",
+      placement: { position: { x: 200, y: 200 }, rotation: 0, mirror: "none" },
+    });
+    document.nets[0]!.terminals.push({ instanceId: "BIAS", pinName: "P" });
+    document.importReference = {
+      files: [],
+      nets: [
+        {
+          id: "source-vss",
+          name: "VSS",
+          scope: "local",
+          terminals: structuredClone(document.nets[0]!.terminals),
+        },
+      ],
+    };
     document.junctions.push({
       id: "J1",
       netId: "vss",

@@ -1,4 +1,4 @@
-/** Schema 62: a Symbol's body text may keep an authored RichText look. */
+/** Schema 63: immutable import reference and archived input content. */
 import { createProjectSymbolResolver } from "@icm/symbols";
 import type { CircuitProject } from "@icm/model";
 import { ProjectFormatError } from "./diagnostics.js";
@@ -15,7 +15,7 @@ import {
   materializeSourceConnectivity,
   type SourceConnectivity,
 } from "./source-connectivity.js";
-export const CURRENT_PROJECT_FILE_VERSION = 62;
+export const CURRENT_PROJECT_FILE_VERSION = 63;
 type Value = Record<string, any>;
 
 export function encodeProjectFile(project: CircuitProject): Value {

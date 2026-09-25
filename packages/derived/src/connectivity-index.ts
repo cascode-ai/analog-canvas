@@ -61,6 +61,8 @@ export interface NetConnectivityRecord {
 }
 
 export interface DocumentConnectivityIndex extends DocumentDerivedContext {
+  /** Also includes guides to extant but electrically unbound terminals. */
+  routingGuidance: readonly RoutingGuide[];
   /** Physical membership: endpoint key -> Base Net id. */
   endpointToBaseNetId: ReadonlyMap<string, string>;
   /** One canonical record per resolved Logical Net. */
@@ -147,7 +149,7 @@ function normalizeRoutingGuidance(line: RoutingGuide): RoutingGuide {
   return {
     id: deriveStableId(
       "routing-guidance",
-      line.netId,
+      line.sourceNetId ?? line.netId,
       endpointKey(from),
       endpointKey(to),
     ),
@@ -180,15 +182,16 @@ function buildDocumentIndex(
 
   const connectivityContext = deriveNetConnectivityContext(document, resolver);
   const routingGuidanceByNet = new Map<string, RoutingGuide[]>();
-  for (const line of deriveImportedRoutingGuidance(
+  const routingGuidance = deriveImportedRoutingGuidance(
     document,
     resolver,
     connectivityContext,
-  )) {
-    const normalized = normalizeRoutingGuidance(line);
+  ).map(normalizeRoutingGuidance);
+  for (const line of routingGuidance) {
     for (const netId of new Set([line.fromNetId, line.toNetId])) {
+      if (netId === null) continue;
       const lines = routingGuidanceByNet.get(netId) ?? [];
-      lines.push(normalized);
+      lines.push(line);
       routingGuidanceByNet.set(netId, lines);
     }
   }
@@ -237,6 +240,7 @@ function buildDocumentIndex(
 
   const index: DocumentConnectivityIndex = {
     ...connectivityContext,
+    routingGuidance,
     endpointToBaseNetId,
     logicalNets,
     logicalNetByBaseNetId,

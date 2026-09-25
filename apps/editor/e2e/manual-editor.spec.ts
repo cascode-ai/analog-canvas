@@ -342,6 +342,19 @@ async function clickRouteWithScreenOffset(
 function markRoutingDemoNetsImported(
   project: ReturnType<typeof createRoutingDemoProject>,
 ): void {
+  // These Port symbols stand in for device endpoints in routing tests, not
+  // same-name formal interfaces (which legitimately need no extra wire).
+  for (const terminal of project.documents[0]!.netlist!.terminals)
+    terminal.name = terminal.interfaceInstanceIds[0]!;
+  project.documents[0]!.importReference = {
+    files: [],
+    nets: project.documents[0]!.nets.map((net) => ({
+      id: net.id,
+      name: net.id,
+      scope: "local",
+      terminals: structuredClone(net.terminals),
+    })),
+  };
   for (const net of project.documents[0]!.nets) {
     project.documents[0]!.connectivityEvidence.push({
       id: `evidence-spice-${net.id}`,
@@ -2216,7 +2229,7 @@ test("keeps Wire active for consecutive independent routes until Escape", async 
   await expect(page.getByTestId("active-tool")).toHaveText("pointer");
 });
 
-test("physically cuts an imported Route and restores source guidance for every detached component", async ({
+test("physically cuts an imported Route without reconnecting detached components through source guidance", async ({
   page,
 }) => {
   const project = createRoutingDemoProject();

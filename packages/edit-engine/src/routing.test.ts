@@ -3048,6 +3048,19 @@ describe("routing Edit Engine", () => {
       netId: "net-h",
       sourceNetId: "source-horizontal",
     });
+    document.importReference = {
+      files: [],
+      nets: [
+        {
+          id: "source-horizontal",
+          name: "horizontal",
+          scope: "local",
+          terminals: structuredClone(
+            document.nets.find((n) => n.id === "net-h")!.terminals,
+          ),
+        },
+      ],
+    };
     document.routes = [
       createRoutePath({
         id: "route-partial",
@@ -3106,9 +3119,12 @@ describe("routing Edit Engine", () => {
       ),
     ).toHaveLength(3);
     expect(deriveFlightlines(result.document, resolver)).toHaveLength(1);
+    // Current electrical Nets split; frozen reference still guides the
+    // original three members without rejoining them electrically.
     expect(
       deriveImportedRoutingGuidance(result.document, resolver),
     ).toHaveLength(2);
+    expect(result.document.importReference).toEqual(document.importReference);
     expect(result.document.sourceStatus).toBe("connectivity-modified");
   });
 

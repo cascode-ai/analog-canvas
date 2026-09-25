@@ -12,8 +12,8 @@ export interface RoutingGuidanceNode {
 
 export interface RoutingGuidanceComponent {
   id: string;
-  /** Current electrical Base Net containing every node in this component. */
-  netId: string;
+  /** Representative Base Net; semantic drawing edges may span several Nets. */
+  netId: string | null;
   nodes: readonly RoutingGuidanceNode[];
 }
 
@@ -30,9 +30,9 @@ export interface RoutingGuide {
   id: string;
   /** Current representative Base Net used for grouping and focus. */
   netId: string;
-  /** Actual current Base Nets at the two endpoints. */
-  fromNetId: string;
-  toNetId: string;
+  /** Actual current Base Nets at the endpoints; null means electrically unbound. */
+  fromNetId: string | null;
+  toNetId: string | null;
   /** Original imported Net identity when this is source routing guidance. */
   sourceNetId?: string;
   from: RouteEndpoint;
