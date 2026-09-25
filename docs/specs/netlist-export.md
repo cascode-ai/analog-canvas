@@ -171,6 +171,18 @@ explicit Global marker claim. A local Power Rail has no Instance but its visible
 power-label annotation owns a formal Cell terminal, so its authored name appears
 in the `.subckt` interface. An explicitly global Power Rail has no formal
 terminal and is emitted through the dialect's global declaration.
+A drawn switch is an ngspice voltage-controlled `S` card. A two-terminal switch
+(Open, Closed, Simple) is controlled by the clock phase its display label
+names: a label drawn Φ₁ means phase `Φ1`, written `Phi1` like any Greek name.
+A single-ended switch is controlled by its CTRL pin. Both read the control
+against the Cell's ground (`VSS` in a structural netlist, `0` at a deck's top),
+so a Cell holding one states a ground. The phase node is the Net of that name
+in the same Cell, from a Net Label or a Cell Pin. A phase no Net supplies is a
+node of its own, reported as `SWITCH_PHASE_NOT_DRIVEN`. Every such switch
+closes through `ideal_switch`, an `SW` model card (RON 1 Ω, ROFF 1e12 Ω, VT
+0.5 V, VH 0) printed once inside each Cell that uses it. A two-terminal switch
+whose label shows its own name has no phase and blocks export. Switches are
+SPICE only (`SWITCH_SPICE_ONLY`), and the SPDT selector has no primitive.
 Decorative symbols never have a device definition. An unsupported electrical
 Symbol blocks export.
 
@@ -225,7 +237,8 @@ globals, and parameter names use deterministic ordering. Hierarchy cycles are
 errors. Net-marker instances are validated and omitted.
 
 The IR contains no geometry, Route, Junction, annotation, source text, include,
-analysis, PDK path, or renderer state.
+analysis, PDK path, or renderer state. A Cell may carry the model cards only
+its own instances use, such as the ideal switch.
 
 ## Printer contracts
 
@@ -234,7 +247,8 @@ Project, Symbol resolver, filesystem, network, or diagnostics repair path.
 
 SPICE `.spi` emits a generated-file/version comment, sorted `.global`
 declarations, dependency-first `.subckt`/`.ends` blocks, ordered defaulted
-formal parameters, structural device lines, and deterministic continuations.
+formal parameters, a Cell's own `.model` cards inside its body, structural
+device lines, and deterministic continuations.
 It emits no guessed `.include`, `.lib`, analysis, stimulus, or `.end` deck
 marker.
 

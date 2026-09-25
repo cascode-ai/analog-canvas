@@ -11,6 +11,8 @@ import {
   findExternalMasterCollisions,
   directObjectLocator,
   drawnSupplyNet,
+  drawnSwitchControl,
+  drawnSwitchPhase,
   mosBulkKind,
   resolveMosBulkConnection,
   resolveDocumentLogicalNets,
@@ -35,6 +37,7 @@ import {
   resolveReviewedExternalBinding,
   subcircuitDescriptor,
   type BuiltInSubcircuitDescriptor,
+  type DeviceDescriptor,
 } from "@icm/devices";
 
 import type {
@@ -42,6 +45,7 @@ import type {
   DesignNetlistAnalysisResult,
   DesignNetlistExternalMaster,
   DesignNetlistInstance,
+  DesignNetlistModel,
   NetlistDiagnostic,
 } from "./ir.js";
 import {
@@ -1229,11 +1233,149 @@ function extractBuiltInSubcircuitInstance(
   };
 }
 
+/**
+ * The ideal switch every drawn switch shares: an ngspice voltage-controlled
+ * switch closed above half a volt of control, whose resistances are
+ * negligible beside the circuit's own, as the ngspice manual advises for an
+ * ideal switch. Each Cell using it carries the card in its own body.
+ */
+export const IDEAL_SWITCH_MODEL: DesignNetlistModel = {
+  name: "ideal_switch",
+  type: "SW",
+  parameters: [
+    { name: "RON", rawValue: "1" },
+    { name: "ROFF", rawValue: "1e12" },
+    { name: "VT", rawValue: "0.5" },
+    { name: "VH", rawValue: "0" },
+  ],
+};
+
+/** Phase nodes no drawn Net supplies, per Cell: each switch on one is told. */
+const undrivenPhaseNodes = new WeakMap<CellNetContext, Set<string>>();
+
+/** Whether a Symbol is a drawn switch, whose control is read against ground. */
+function isDrawnSwitch(symbolId: string, project?: CircuitProject): boolean {
+  const definition = deviceDescriptor(symbolId, project);
+  return definition ? drawnSwitchControl(definition) !== null : false;
+}
+
+/**
+ * A drawn switch as the SPICE `S` card it means: its two switched nodes, then
+ * its control against the Cell's ground, closing through the ideal switch.
+ * A phase names its node the way a Net Label would, so the switch meets the
+ * clock drawn on a Net of that name, or a Cell Pin of that name.
+ */
+function extractDrawnSwitch(
+  document: SchematicDocument,
+  instance: Instance,
+  definition: DeviceDescriptor,
+  control: "phase" | "pin",
+  context: CellNetContext,
+  options: ResolvedDesignNetlistAnalysisOptions,
+  diagnostics: NetlistDiagnostic[],
+): DesignNetlistInstance | null {
+  const reference = instance.reference!;
+  if (options.format !== "spice") {
+    diagnostic(
+      diagnostics,
+      document.id,
+      "SWITCH_SPICE_ONLY",
+      `Switch ${reference} is written only in SPICE netlists; choose SPICE`,
+      [instance.id],
+    );
+    return null;
+  }
+  let controlNode: string | null;
+  if (control === "phase") {
+    const phase = drawnSwitchPhase(document, instance);
+    if (!phase) {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "NON_NETLISTABLE_DEVICE",
+        `Switch ${reference} has no phase: write the clock that drives it, such as Φ1, as its label`,
+        [instance.id],
+      );
+      return null;
+    }
+    const encoded = encodeCandidate(phase, "local", options);
+    if (!encoded.ok) {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "SWITCH_PHASE_UNREADABLE",
+        `Switch ${reference}'s label ${phase} cannot name a netlist node; write a phase such as Φ1`,
+        [instance.id],
+      );
+      return null;
+    }
+    const token = encoded.token;
+    const added = undrivenPhaseNodes.get(context) ?? new Set<string>();
+    undrivenPhaseNodes.set(context, added);
+    controlNode =
+      context.nameByAuthoredName.get(foldNetName(phase)) ??
+      context.nets.find((net) => net.name.toLowerCase() === token.toLowerCase())
+        ?.name ??
+      null;
+    if (!controlNode) {
+      controlNode = token;
+      added.add(token);
+      context.nets.push({
+        id: deriveStableId("netlist", "switch-phase", document.id, token),
+        name: token,
+        scope: "local",
+      });
+    }
+    if (added.has(controlNode))
+      diagnostic(
+        diagnostics,
+        document.id,
+        "SWITCH_PHASE_NOT_DRIVEN",
+        `No Net named ${phase} in this Cell drives switch ${reference}: name the clock's Net ${phase}, or add a Cell Pin ${phase}`,
+        [instance.id],
+        "warning",
+      );
+  } else {
+    controlNode = terminalNetName(
+      document,
+      instance,
+      "CTRL",
+      context,
+      diagnostics,
+    );
+    if (!controlNode) return null;
+  }
+  const switched = definition.pinOrder.filter((pinName) => pinName !== "CTRL");
+  const nodes = switched.map((pinName) => ({
+    pinName,
+    netName:
+      terminalNetName(document, instance, pinName, context, diagnostics) ??
+      `<unconnected:${pinName}>`,
+  }));
+  return {
+    id: instance.id,
+    reference,
+    invocationKind: "primitive",
+    deviceClass: "switch",
+    target: IDEAL_SWITCH_MODEL.name,
+    nodes: [
+      ...nodes,
+      { pinName: control === "pin" ? "CTRL" : "CP", netName: controlNode },
+      {
+        pinName: "CN",
+        netName: context.nameByAuthoredName.get(foldNetName("0")) ?? "0",
+      },
+    ],
+    parameters: [],
+  };
+}
+
 function extractDeviceInstance(
   project: CircuitProject,
   document: SchematicDocument,
   instance: Instance,
   context: CellNetContext,
+  options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
 ): DesignNetlistInstance | null {
   const definition = deviceDescriptor(instance.symbolId, project);
@@ -1284,11 +1426,22 @@ function extractDeviceInstance(
     }
     return null;
   }
+  const switchControl = drawnSwitchControl(definition);
+  if (switchControl)
+    return extractDrawnSwitch(
+      document,
+      instance,
+      definition,
+      switchControl,
+      context,
+      options,
+      diagnostics,
+    );
   // A device the registry designates but gives no netlist target is drawing
-  // only: the two-terminal Razavi switches are drawn, numbered, and read, but
-  // SPICE's `S` wants four nodes and a model card they cannot supply. Say so
-  // and emit nothing. Falling through would reach the printer with a null
-  // target where the model name belongs, and it throws there.
+  // only, such as a single-pole double-throw selector, which SPICE has no
+  // primitive for. Say so and emit nothing. Falling through would reach the
+  // printer with a null target where the model name belongs, and it throws
+  // there.
   if (definition.targetPolicy === "none") {
     diagnostic(
       diagnostics,
@@ -1467,6 +1620,9 @@ function cellReachesGround(
     withNetlistPowerMarkerClaims(document),
   ).groups.some((group) => group.powerDomain === "ground");
   if (groundOfItsOwn) return true;
+  // A drawn switch reads its control against ground, so its Cell needs one.
+  if (document.instances.some((instance) => isDrawnSwitch(instance.symbolId)))
+    return true;
   return document.instances.some((instance) => {
     const binding = instance.netlist?.binding;
     if (binding?.kind !== "subcircuit") return false;
@@ -1829,6 +1985,7 @@ function extractCell(
               document,
               instance,
               context,
+              options,
               diagnostics,
             );
     if (extracted) instances.push(extracted);
@@ -1841,6 +1998,13 @@ function extractCell(
     ports,
     nets: context.nets,
     instances,
+    ...(instances.some(
+      (instance) =>
+        instance.deviceClass === "switch" &&
+        instance.target === IDEAL_SWITCH_MODEL.name,
+    )
+      ? { models: [structuredClone(IDEAL_SWITCH_MODEL)] }
+      : {}),
     formalParameters: document.netlist.formalParameters.map((parameter) => ({
       name: parameter.name,
       ...(parameter.defaultValue === undefined

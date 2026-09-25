@@ -196,6 +196,55 @@ describe("simulatability", () => {
     ]);
   });
 
+  // A drawn switch simulates as an ideal S switch once something controls it.
+  it("lets a switch simulate once its phase or CTRL pin controls it", () => {
+    const project = createEmptyProject("project", "Project");
+    const top = project.documents[0]!;
+    top.instances.push(
+      {
+        id: "phased",
+        symbolId: "ideal-switch",
+        placement: null,
+        reference: "S1",
+        netlist: { parameters: {} },
+      },
+      {
+        id: "unphased",
+        symbolId: "closed-switch",
+        placement: null,
+        reference: "S2",
+        netlist: { parameters: {} },
+      },
+      {
+        id: "controlled",
+        symbolId: "externally-controlled-switch",
+        placement: null,
+        reference: "S3",
+        netlist: { parameters: {} },
+      },
+    );
+    top.annotations.push({
+      id: "label-phased",
+      kind: "instance-label",
+      anchor: {
+        kind: "object",
+        objectId: "phased",
+        localOffset: { x: 20, y: 0 },
+        fallbackPosition: { x: 20, y: 0 },
+      },
+      content: { runs: [{ kind: "text", value: "Φ1" }] },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+
+    const verdict = evaluateSimulatability(project);
+    expect(
+      verdict.blockers.map((blocker) => [blocker.reference, blocker.reason]),
+    ).toEqual([["S2", "not-simulatable-device"]]);
+    expect(verdict.blockers[0]!.message).toContain("has no phase");
+  });
+
   // A block buried in a child cell is still the thing to fix, so the verdict
   // has to say which cell it is in and how to reach it.
   it("names a blocker inside a child cell with the path to it", () => {

@@ -337,7 +337,7 @@ test("lists every netlist issue and shows each one on the canvas", async ({
     "Symbol delay-cell has no reviewed netlist definition",
   );
   await expect(issues.nth(1)).toContainText("D2");
-  await expect(issues.nth(2)).toContainText("ideal-switch");
+  await expect(issues.nth(2)).toContainText("Switch S1 has no phase");
   const halo = page.getByTestId("selection-halo-selected");
   for (const [index, [id]] of parts.entries()) {
     await issues.nth(index).click();
@@ -351,7 +351,7 @@ test("lists every netlist issue and shows each one on the canvas", async ({
     await expect(list).toBeVisible();
   }
   await expect(page.getByTestId("status")).toContainText(
-    "Netlist: Symbol ideal-switch is drawing-only and has no netlist form",
+    "Netlist: Switch S1 has no phase: write the clock that drives it",
   );
 });
 

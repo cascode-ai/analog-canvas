@@ -8,7 +8,9 @@ import {
 
 import {
   analyzeDesignNetlist as analyzeCurrentDesignNetlist,
+  createDesignNetlistExport,
   printSpiceNetlist,
+  printSpiceWithLocations,
   type DesignNetlistAnalysisOptions,
 } from "./index.js";
 
@@ -1859,12 +1861,10 @@ describe("voltage-controlled switch", () => {
     );
   });
 
-  // The two-terminal Razavi switches are drawn, designated, and read, but they
-  // are not simulable: SPICE's S wants four nodes and a model card that a
-  // two-terminal drawing cannot supply, which is why the Symbol catalog marks
-  // them manual-only. Emission must say so rather than print an S card with a
-  // missing target where the model name belongs.
-  it("refuses to emit a card for a drawing-only two-terminal switch", () => {
+  // A two-terminal switch takes its control from the clock phase its label
+  // names. With no phase there is nothing to control it, and emission must
+  // say so rather than print an S card with a node missing.
+  it("refuses to emit a card for a two-terminal switch with no phase", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;
     document.instances.push({
@@ -1998,5 +1998,174 @@ describe("voltage-controlled switch", () => {
     expect(
       analysis.ir?.cells[0]?.instances.map((instance) => instance.reference),
     ).toEqual(["XC1", "XM1", "XQ1", "XQ2", "XR1"]);
+  });
+});
+
+describe("drawn switches", () => {
+  // Φ over a subscript 1, as a label draws the phase Φ₁.
+  const phi = (subscript: string) => ({
+    runs: [
+      { kind: "text" as const, value: "Φ" },
+      {
+        kind: "span" as const,
+        style: "subscript" as const,
+        children: [{ kind: "text" as const, value: subscript }],
+      },
+    ],
+  });
+  function switched(
+    symbolId: "ideal-switch" | "closed-switch" | "externally-controlled-switch",
+    label?: ReturnType<typeof phi>,
+  ) {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "S1",
+      symbolId,
+      placement: null,
+      reference: "S1",
+      netlist: { parameters: {} },
+    });
+    const pins =
+      symbolId === "externally-controlled-switch"
+        ? [
+            ["P", "in"],
+            ["N", "out"],
+            ["CTRL", "clk"],
+          ]
+        : [
+            ["1", "in"],
+            ["2", "out"],
+          ];
+    for (const [pinName, name] of pins) {
+      document.nets.push({
+        id: `net-${name}`,
+        terminals: [{ instanceId: "S1", pinName: pinName! }],
+      });
+      claimNet(document, `net-${name}`, name!);
+    }
+    if (label)
+      document.annotations.push({
+        id: "label-S1",
+        kind: "instance-label",
+        anchor: {
+          kind: "object",
+          objectId: "S1",
+          localOffset: { x: 20, y: 0 },
+          fallbackPosition: { x: 20, y: 0 },
+        },
+        content: label,
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+    return project;
+  }
+
+  it("closes a two-terminal switch on the phase its label names", () => {
+    const analysis = analyzeDesignNetlist(switched("ideal-switch", phi("1")));
+    expect(
+      analysis.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    // No Net named Φ1 is drawn yet, so the phase is a node of its own.
+    expect(analysis.diagnostics.map((item) => item.code)).toContain(
+      "SWITCH_PHASE_NOT_DRIVEN",
+    );
+    const text = printSpiceNetlist(analysis.ir!);
+    expect(text).toContain("S1 in out Phi1 0 ideal_switch");
+    expect(text).toContain(
+      ".model ideal_switch SW(RON=1 ROFF=1e12 VT=0.5 VH=0)",
+    );
+    // The card sits inside the Cell that uses it, once.
+    expect(text.indexOf(".model")).toBeGreaterThan(text.indexOf(".subckt"));
+    expect(text.match(/\.model/gu)).toHaveLength(1);
+  });
+
+  it("meets the clock drawn on a Net of the phase's name, in either case", () => {
+    const project = switched("closed-switch", {
+      runs: [{ kind: "text", value: "φ2" }],
+    });
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "V1",
+      symbolId: "voltage-source",
+      placement: null,
+      reference: "V1",
+      netlist: { parameters: { dc: "1" } },
+    });
+    document.nets.push({
+      id: "net-clock",
+      terminals: [{ instanceId: "V1", pinName: "+" }],
+    });
+    claimNet(document, "net-clock", "Φ2");
+    document.nets.push({
+      id: "net-ground",
+      terminals: [{ instanceId: "V1", pinName: "-" }],
+    });
+    claimNet(document, "net-ground", "0", "global", "ground");
+    const analysis = analyzeDesignNetlist(project);
+    expect(analysis.diagnostics.map((item) => item.code)).not.toContain(
+      "SWITCH_PHASE_NOT_DRIVEN",
+    );
+    const text = printSpiceNetlist(analysis.ir!);
+    expect(text).toContain("S1 in out Phi2 0 ideal_switch");
+    expect(text).toContain("V1 Phi2 0");
+  });
+
+  it("reads a single-ended CTRL pin against the Cell's own ground pin", () => {
+    const analysis = analyzeDesignNetlist(
+      switched("externally-controlled-switch"),
+      { groundPin: "pin" },
+    );
+    expect(
+      analysis.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    const text = printSpiceNetlist(analysis.ir!);
+    // The switch needs a reference, so the Cell states its ground as a pin.
+    expect(text).toMatch(/^\.subckt \S+ .*\bVSS\b/mu);
+    expect(text).toContain("S1 in out clk VSS ideal_switch");
+  });
+
+  it("prints the card at the top of a deck whose root is printed flat", () => {
+    const analysis = analyzeDesignNetlist(switched("ideal-switch", phi("1")), {
+      rootAsTopLevel: true,
+    });
+    const text = printSpiceWithLocations(analysis.ir!, true).text;
+    expect(text).not.toContain(".subckt");
+    expect(text.indexOf(".model ideal_switch")).toBeLessThan(
+      text.indexOf("S1 in out Phi1 0 ideal_switch"),
+    );
+  });
+
+  it("keeps the ideal switch's name out of the editable fields", () => {
+    const result = createDesignNetlistExport(
+      switched("ideal-switch", phi("1")),
+      { includeLocations: true },
+    );
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    const fields = result.locations.fields.filter(
+      (field) => field.instanceId === "S1",
+    );
+    expect(fields.map((field) => field.kind)).toEqual(["reference"]);
+  });
+
+  it("writes switches only in SPICE", () => {
+    const analysis = analyzeDesignNetlist(switched("ideal-switch", phi("1")), {
+      format: "spectre",
+    });
+    expect(analysis.diagnostics.map((item) => item.code)).toContain(
+      "SWITCH_SPICE_ONLY",
+    );
+    expect(analysis.ir).toBeNull();
+  });
+
+  it("refuses a label that cannot name a node", () => {
+    const analysis = analyzeDesignNetlist(
+      switched("ideal-switch", { runs: [{ kind: "text", value: "Φ(1)" }] }),
+    );
+    expect(analysis.diagnostics.map((item) => item.code)).toContain(
+      "SWITCH_PHASE_UNREADABLE",
+    );
   });
 });

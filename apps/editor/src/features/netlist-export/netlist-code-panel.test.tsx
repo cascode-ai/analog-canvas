@@ -87,7 +87,7 @@ describe("live netlist controls", () => {
       "Symbol delay-cell has no reviewed netlist definition",
     );
     expect(markup).toContain(
-      "Symbol ideal-switch is drawing-only and has no netlist form",
+      "Switch S1 has no phase: write the clock that drives it, such as Φ1, as its label",
     );
     expect(markup).toContain('<span class="netlist-issue-target">D1</span>');
     expect(markup).toContain('<span class="netlist-issue-target">S1</span>');
