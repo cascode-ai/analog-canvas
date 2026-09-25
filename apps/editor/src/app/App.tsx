@@ -861,6 +861,13 @@ function WorkspaceEditor({
     documentId: string;
     instanceId: string;
   } | null>(null);
+  // The canvas and the Netlist light the same parts. A part picked on the
+  // canvas takes over from the one the netlist cursor named; an emptied
+  // selection, as when the netlist cursor opens another Cell, keeps it.
+  const canvasSelectionKey = visualSelection.instanceIds.join("\u0000");
+  useEffect(() => {
+    if (canvasSelectionKey) setNetlistFocusedInstance(null);
+  }, [canvasSelectionKey]);
   useEffect(() => {
     // Explicit inspector actions (Q, double-click, Issues, import review)
     // take precedence over the Netlist panel opened at startup.
@@ -6499,6 +6506,10 @@ function WorkspaceEditor({
                       if (instance && instance.documentId !== document.id)
                         selectDocumentFromHierarchy(instance.documentId);
                       setNetlistFocusedInstance(instance);
+                    }}
+                    selection={{
+                      documentId: document.id,
+                      instanceIds: visualSelection.instanceIds,
                     }}
                     onNavigateDiagnostic={(diagnostic) =>
                       navigateToNetlistDiagnostic(diagnostic, {

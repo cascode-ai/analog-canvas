@@ -209,3 +209,21 @@ export function netlistInstanceAtLine(
     ) ?? null
   );
 }
+
+/** Where the given parts of one Cell are printed, to light them in the code. */
+export function netlistInstanceRanges(
+  instances: readonly PrintedNetlistInstance[],
+  documentId: string,
+  instanceIds: readonly string[],
+): { from: number; to: number }[] {
+  const wanted = new Set(instanceIds);
+  return instances
+    .filter(
+      (instance) =>
+        instance.documentId === documentId && wanted.has(instance.instanceId),
+    )
+    .map((instance) => ({
+      from: instance.startOffset,
+      to: instance.endOffset,
+    }));
+}

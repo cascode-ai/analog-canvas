@@ -1059,3 +1059,36 @@ test("Cell Pin overbars are the label's look and keep the exported name", async 
     ).binding,
   ).toEqual({ kind: "cell-terminal-name", terminalId: "output" });
 });
+
+test("lights a part's card when it is picked on the canvas, and the part when its card is clicked", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "linked.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(fixture())),
+  });
+  const code = page.getByLabel("Netlist code", { exact: true });
+  await expect(code).toContainText("R2");
+  const lit = code.locator(".cm-code-highlight");
+  const halo = page.getByTestId("selection-halo-selected");
+  await expect(lit).toHaveCount(0);
+
+  // Canvas to netlist: the picked part's card lights, and only it.
+  await page.getByTestId("hit-R2").click();
+  await expect(lit.filter({ hasText: /^R2 /u })).toHaveCount(1);
+  await expect(lit.filter({ hasText: /^R1 /u })).toHaveCount(0);
+
+  // Netlist to canvas: the clicked card's part lights beside the pick.
+  await code.locator(".cm-line").filter({ hasText: /^R1 /u }).click();
+  await expect(halo.locator('[data-object-id="R1"]')).toBeVisible();
+  await expect(lit.filter({ hasText: /^R1 /u })).toHaveCount(1);
+
+  // A new pick on the canvas takes over from the cursor's part.
+  await page.getByTestId("hit-R1").click();
+  await expect(halo.locator('[data-object-id="R2"]')).toHaveCount(0);
+  await expect(lit.filter({ hasText: /^R1 /u })).toHaveCount(1);
+  await expect(lit.filter({ hasText: /^R2 /u })).toHaveCount(0);
+});
