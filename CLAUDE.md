@@ -49,6 +49,7 @@ pnpm gate:plan -- --base <base-ref>      # select validation by changed paths (-
 pnpm gate:preflight -- --base <base-ref> # preflight before selected gates
 pnpm gate:affected -- --base <base-ref>  # focused path, unless full-delivery selected
 pnpm gate:full                          # conservative full-delivery path (ci:check)
+pnpm gallery:census -- --base <base-ref> # local only: every Gallery drawing through copy, labels, netlist vs the base (AGENTS.md says when)
 ```
 
 Unit tests sit beside their implementation under one root `vitest.config.ts`: `*.test.ts(x)` in `apps/`, `packages/`, and `worker/`, and `*.test.mjs` in `scripts/` and `containers/` (exception: `packages/agent-routing/test/`). Workspace packages have no test scripts of their own. Playwright specs live in `apps/editor/e2e/`; the config auto-starts a Vite server on `127.0.0.1:4173` (`ICM_E2E_PORT`), reuses a running one unless `CI` or `ICM_E2E_ISOLATED=1` is set, and drives system Chrome locally (`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` overrides).

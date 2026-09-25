@@ -45,6 +45,7 @@
     "gate:preflight": "node scripts/gate-run.mjs --stage preflight",
     "gate:affected": "node scripts/gate-run.mjs --stage affected",
     "gate:full": "pnpm ci:check",
+    "gallery:census": "node scripts/gallery-census.mjs",
     "setup:e2e": "playwright install --with-deps chromium",
     "ci:static": "pnpm format:check && pnpm docs:check && pnpm agent-docs:generated:check && pnpm references:check && pnpm components:check && pnpm agent-kit:catalog:check && pnpm mcp:distribution:check && pnpm typecheck",
     "ci:unit": "pnpm test",
