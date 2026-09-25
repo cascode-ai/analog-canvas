@@ -333,6 +333,65 @@ describe("MCP → API → shared editor parity", () => {
     ).toHaveLength(2);
   });
 
+  it("restyles bound Port and Value labels without changing their electrical facts", async () => {
+    const { client, controller } = await folder();
+    const placed = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "port",
+        reference: "VIN",
+        position: { x: 100, y: 100 },
+      },
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "R1",
+        position: { x: 200, y: 100 },
+        parameters: { value: "1k" },
+      },
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    const pin = controller.document.annotations.find(
+      (annotation) => annotation.binding?.kind === "cell-terminal-name",
+    )!;
+    const resistor = controller.document.instances.find(
+      (i) => i.reference === "R1",
+    )!;
+    const value = controller.document.annotations.find(
+      (annotation) =>
+        annotation.binding?.kind === "instance-value" &&
+        annotation.binding.instanceId === resistor.id,
+    )!;
+    for (const [id, head, tail] of [
+      [pin.id, "V", "IN"],
+      [value.id, "1", "k"],
+    ]) {
+      const look = {
+        runs: [
+          { kind: "text" as const, value: head },
+          {
+            kind: "span" as const,
+            style: "subscript" as const,
+            children: [{ kind: "text" as const, value: tail }],
+          },
+        ],
+      };
+      const report = await client.applyActions([
+        { kind: "edit-text", target: { kind: "annotation", id }, text: look },
+      ]);
+      expect(report.ok, report.message).toBe(true);
+      expect(
+        controller.document.annotations.find((a) => a.id === id)
+          ?.formatOverride,
+      ).toEqual(look);
+    }
+    expect(controller.document.netlist!.terminals[0]!.name).toBe("VIN");
+    expect(
+      controller.document.instances.find((i) => i.id === resistor.id)?.netlist
+        ?.parameters.value,
+    ).toBe("1k");
+  });
+
   it("controls schema-54 magnetic labels independently and preserves authored state", async () => {
     const { client, controller } = await folder();
     for (const [symbol, reference, parameters] of [

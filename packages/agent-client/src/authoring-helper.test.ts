@@ -564,6 +564,70 @@ describe("authoring helper compilation", () => {
     });
   });
 
+  it("restyles bound Cell Pin and Value labels without adding literal content", () => {
+    const snapshot = testSnapshot();
+    snapshot.document.annotations.push(
+      {
+        id: "pin-name",
+        kind: "instance-label",
+        binding: { kind: "cell-terminal-name", terminalId: "pin-1" },
+        resolvedText: "VBP",
+        anchor: { kind: "free", position: { x: 0, y: 0 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      },
+      {
+        id: "value-name",
+        kind: "instance-value",
+        binding: { kind: "instance-value", instanceId: "instance-1" },
+        resolvedText: "RL",
+        anchor: { kind: "free", position: { x: 0, y: 0 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      },
+    );
+    const styled = (head: string, tail: string) => ({
+      runs: [
+        { kind: "text" as const, value: head },
+        {
+          kind: "span" as const,
+          style: "subscript" as const,
+          children: [{ kind: "text" as const, value: tail }],
+        },
+      ],
+    });
+    for (const [id, text] of [
+      ["pin-name", styled("V", "BP")],
+      ["value-name", styled("R", "L")],
+    ] as const) {
+      const [transaction] = compile(
+        [{ kind: "edit-text", target: { kind: "annotation", id }, text }],
+        snapshot,
+      );
+      expect(transaction?.edits?.[0]).toMatchObject({
+        kind: "upsert_schematic_annotation",
+        annotation: { id, formatOverride: text },
+      });
+      if (transaction?.edits?.[0]?.kind === "upsert_schematic_annotation") {
+        expect(transaction.edits[0].annotation.content).toBeUndefined();
+      }
+    }
+    expect(() =>
+      compile(
+        [
+          {
+            kind: "edit-text",
+            target: { kind: "annotation", id: "pin-name" },
+            text: "CHANGED",
+          },
+        ],
+        snapshot,
+      ),
+    ).toThrow("bound labels can only be restyled");
+  });
+
   it("preserves structured RichText instead of flattening it", () => {
     const content = {
       runs: [

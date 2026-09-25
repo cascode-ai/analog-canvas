@@ -4,7 +4,7 @@ import {
   type AgentSessionSnapshot,
 } from "@icm/agent-adapter";
 import { agentRazaviAuthoringCatalog } from "@icm/agent-adapter/kit";
-import type { RichTextDocument } from "@icm/model";
+import { flattenRichText, type RichTextDocument } from "@icm/model";
 import { z } from "zod";
 import {
   AuthoringActionSchema,
@@ -1136,11 +1136,30 @@ function compileEditText(
       document.annotations.map((entry) => ({ id: String(entry.id), entry })),
       { id: reference },
     );
+    const { resolvedText, content: _content, ...source } = annotation.entry;
+    const nextText = richText(action.text);
+    if (source.binding) {
+      if (
+        typeof resolvedText !== "string" ||
+        flattenRichText(nextText) !== resolvedText
+      ) {
+        throw new ActionCompileError(
+          index,
+          action.kind,
+          "bound labels can only be restyled with edit-text; change their underlying name or value through its owning object",
+        );
+      }
+      pushEdit(index, action.kind, {
+        kind: "upsert_schematic_annotation",
+        annotation: { ...source, formatOverride: nextText },
+      });
+      return;
+    }
     pushEdit(index, action.kind, {
       kind: "upsert_schematic_annotation",
       annotation: {
-        ...annotation.entry,
-        content: richText(action.text),
+        ...source,
+        content: nextText,
       },
     });
     return;

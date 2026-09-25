@@ -1,4 +1,5 @@
 import {
+  flattenRichText,
   inverseTransformPoint,
   mirrorScale,
   renamedLabelFormat,
@@ -193,11 +194,35 @@ export function refreshInstanceValueAnnotation(
       continue;
     }
     if (annotation.binding?.kind === "instance-value") {
+      const previousDisplay = annotation.binding.parameter
+        ? displayableInstanceParameter(
+            before,
+            annotation.binding.parameter,
+            annotation.binding.showValue === false ? { showValue: false } : {},
+          )
+        : previous;
       const next = annotation.binding.parameter
-        ? displayableInstanceParameter(instance, annotation.binding.parameter)
+        ? displayableInstanceParameter(
+            instance,
+            annotation.binding.parameter,
+            annotation.binding.showValue === false ? { showValue: false } : {},
+          )
         : displayableInstanceValue(instance);
       if (next.kind !== "displayable") {
         annotation.visible = false;
+      } else if (annotation.formatOverride) {
+        if (previousDisplay.kind === "displayable") {
+          const format = renamedLabelFormat(
+            annotation,
+            flattenRichText(previousDisplay.content),
+            flattenRichText(next.content),
+            draft.presentation,
+          );
+          if (format) annotation.formatOverride = format;
+          else delete annotation.formatOverride;
+        } else {
+          delete annotation.formatOverride;
+        }
       }
       changedObjectIds.add(annotation.id);
       continue;

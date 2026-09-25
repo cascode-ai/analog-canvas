@@ -1,9 +1,14 @@
 import {
   AnnotationSchema,
   DraftingObjectSchema,
+  flattenRichText,
   LayoutConstraintSchema,
   LayoutGroupSchema,
 } from "@icm/model";
+import {
+  displayableInstanceParameter,
+  displayableInstanceValue,
+} from "@icm/derived";
 import type { SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -87,6 +92,37 @@ export function applyPresentationLayoutEdit(
         };
       }
       const annotation = AnnotationSchema.parse(edit.annotation);
+      if (
+        annotation.binding?.kind === "instance-value" &&
+        annotation.formatOverride
+      ) {
+        const binding = annotation.binding;
+        const instance = draft.instances.find(
+          (item) => item.id === binding.instanceId,
+        );
+        const display = !instance
+          ? null
+          : binding.parameter
+            ? displayableInstanceParameter(
+                instance,
+                binding.parameter,
+                binding.showValue === false ? { showValue: false } : {},
+              )
+            : displayableInstanceValue(instance);
+        if (
+          display?.kind !== "displayable" ||
+          flattenRichText(annotation.formatOverride) !==
+            flattenRichText(display.content)
+        ) {
+          return {
+            ok: false,
+            rejection: reject(
+              "EDIT_PRECONDITION",
+              "A Value label's RichText look must preserve its current displayed characters",
+            ),
+          };
+        }
+      }
       const bindingError = validateNetLabelBinding(draft, annotation);
       if (bindingError) {
         return {

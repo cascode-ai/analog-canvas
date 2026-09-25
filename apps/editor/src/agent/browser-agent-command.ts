@@ -31,12 +31,15 @@ import {
   createCellDocument,
   deriveStableId,
   flattenRichText,
+  renamedLabelFormat,
+  roleLabelFormat,
   type CircuitProject,
 } from "@icm/model";
 import {
   resolveDocumentStyleProfile,
   resolveRouteGeometry,
   resolveDocumentLogicalNets,
+  resolveAnnotationName,
   magneticDisplayParameters,
 } from "@icm/derived";
 import {
@@ -377,6 +380,23 @@ export function planBrowserAgentCommand(
           item.owner.annotationId === command.annotationId,
       );
       const name = flattenRichText(command.text).trim();
+      const plainText =
+        command.text.runs.length === 1 && command.text.runs[0]?.kind === "text";
+      const labelFormat = plainText
+        ? existing
+          ? existing.formatOverride
+            ? renamedLabelFormat(
+                existing,
+                resolveAnnotationName(document, existing),
+                name,
+                document.presentation,
+              )
+            : undefined
+          : roleLabelFormat(
+              net.powerDomain === "none" ? "voltage-node" : "supply",
+              name,
+            )
+        : command.text;
       const plan = planEnsureNamedNet(document, {
         candidateNetId: netId,
         name,
@@ -470,7 +490,7 @@ export function planBrowserAgentCommand(
               content: undefined,
               netId,
               binding: { kind: "net-name", netId },
-              formatOverride: command.text,
+              formatOverride: labelFormat,
               anchor,
             },
           },
