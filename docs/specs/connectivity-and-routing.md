@@ -448,8 +448,12 @@ provide local-name isolation across Documents.
 - Multiple same-name Ports, supply markers and power rails are legal. `VDD`,
   `AVDD`, and `DVDD` are distinct names; `powerDomain: vdd` is a role, not a
   singleton object or reserved Net ID.
-- MOS bulk defaults are explicit Cell policy and do not imply a globally
-  unique VDD. Deleting the last marker or owner cannot leave a ghost Net that
+- MOS bulk defaults are Cell policy and do not imply a globally unique VDD.
+  SPICE import sets each polarity's Cell default when every imported MOS of
+  that polarity has its B terminal on the same Net, regardless of the Net's
+  name. Later MOSes in that Cell use that same default. A polarity with mixed
+  B Nets gets no inferred default; imported B membership stays intact.
+  Deleting the last marker or owner cannot leave a ghost Net that
   blocks later reuse of the same visible name or designator.
 
 ## Derived read models
