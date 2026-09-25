@@ -649,13 +649,17 @@ export function legacyPortLabelPlacement(
   );
 }
 
-/** Supplies canonical placement for renderer-owned instance labels. */
+/**
+ * Supplies canonical placement for renderer-owned instance labels, for a
+ * label of the given size (a label a person made smaller sits closer).
+ */
 export function defaultInstanceLabelPlacement(
   instance: SchematicDocument["instances"][number],
   resolved: ResolvedSymbol,
   profile: SchematicStyleProfile,
   grid: number,
   slot: InstanceLabelSlot = "reference",
+  sizeScale = 1,
 ): InstanceLabelPlacement | null {
   return defaultPlacementWith(
     placeUprightInstanceLabel,
@@ -664,6 +668,7 @@ export function defaultInstanceLabelPlacement(
     profile,
     grid,
     slot,
+    sizeScale,
   );
 }
 
@@ -678,6 +683,7 @@ export function legacyDefaultInstanceLabelPlacement(
   profile: SchematicStyleProfile,
   grid: number,
   slot: InstanceLabelSlot = "reference",
+  sizeScale = 1,
 ): InstanceLabelPlacement | null {
   return defaultPlacementWith(
     legacyPlaceUprightInstanceLabel,
@@ -686,6 +692,7 @@ export function legacyDefaultInstanceLabelPlacement(
     profile,
     grid,
     slot,
+    sizeScale,
   );
 }
 
@@ -696,6 +703,7 @@ function defaultPlacementWith(
   profile: SchematicStyleProfile,
   grid: number,
   slot: InstanceLabelSlot,
+  sizeScale: number,
 ): InstanceLabelPlacement | null {
   if (!instance.placement) return null;
   const localBounds = visibleSymbolInkBounds(
@@ -728,7 +736,7 @@ function defaultPlacementWith(
       { x: middleX, y: middleY },
       "right",
       grid,
-      1,
+      sizeScale,
       rowOffset,
     );
   }
@@ -741,7 +749,7 @@ function defaultPlacementWith(
       { x: middleX, y: localBounds.y - compactSideGap },
       "top",
       grid,
-      1,
+      sizeScale,
       rowOffset,
     );
   }
@@ -753,7 +761,7 @@ function defaultPlacementWith(
     { x: middleX, y: localBounds.y + localBounds.height + compactSideGap },
     "bottom",
     grid,
-    1,
+    sizeScale,
     rowOffset,
   );
 }
