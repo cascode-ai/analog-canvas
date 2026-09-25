@@ -415,12 +415,12 @@
         "http-cli",
         "repo-skill"
       ],
-      "task": "MCP editing and recovery",
+      "task": "MCP editing tools and local inspection",
       "load": "on-demand",
       "requires": [],
       "uri": "analog-canvas://reference/mcp-tools",
-      "name": "MCP editing and recovery",
-      "description": "MCP editing and recovery",
+      "name": "MCP editing tools and local inspection",
+      "description": "MCP tool calls, circuit edits and inspection; see Response semantics and recovery for cross-resource errors.",
       "mimeType": "text/markdown"
     },
     {

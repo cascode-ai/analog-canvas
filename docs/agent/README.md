@@ -8,15 +8,19 @@ records source and output hashes; it is evidence, not another editable registry.
 
 ## Consumer × task × document
 
-| Consumer | Task | Entry / required reading | On demand | Delivery |
+An entry is the starting point, not a requirement to read every linked
+reference. Choose task guidance only when the work calls for it; the registry's
+`load` field records the distribution role, not an authorization gate.
+
+| Consumer | Task | Entry | Task-selected guidance | Delivery |
 | --- | --- | --- | --- | --- |
-| Setup Agent | Install and verify callable MCP | [Connection message](entrypoints/connect.md), [installation](mcp-install.md) | Host manifest | Browser copied message |
-| MCP circuit Agent | Inspect, author and render | [Quickstart](mcp-quickstart.md), [authoring](shared/authoring.md) | Workflow, recovery, knowledge | MCP resources and tool descriptions |
-| MCP simulation Agent | Save, run, measure, hand off | [Quickstart](mcp-quickstart.md), [simulation calls](mcp/simulation.md) | [Detailed contracts](mcp/simulation-reference.md), [Specs](simulation-specs.md), [handoff](simulation-result-handoff.md); authoring only when editing circuits | MCP resources |
-| Raw HTTP Agent / integrator | Claim, resume, request and retry | [Kit README](http-kit/README.md), [boundary](http-kit/AGENTS.md), [API lifecycle](api-usage.md), published OpenAPI | [Request examples](examples.md), common knowledge | `GET /api/agent/kit` |
-| Shared-client CLI Agent / script | Invoke tools without MCP host | [CLI lifecycle](http-cli.md), authoring | `--http list-tools`, `--http resource` | Same package and operation registry as MCP |
-| Repository circuit Agent | Read, place, route, review | [Skill source](repo-skill/SKILL.md), task-selected workflow | Generated reading map | `skills/circuit-layout/` |
-| Product maintainer | Change, verify and release guidance | [Maintenance](maintenance.md), root working rules | Code contracts and release docs | Repository only |
+| Setup Agent | Install and verify callable MCP | [Connection message](entrypoints/connect.md) | [Installation](mcp-install.md) and host manifest when setup is needed | Browser copied message |
+| MCP circuit Agent | Inspect, author and render | [Quickstart](mcp-quickstart.md) | [Authoring](shared/authoring.md) for circuit edits; [MCP tools](mcp/tools.md) for less common calls; workflow, recovery and knowledge as needed | MCP resources and tool descriptions |
+| MCP simulation Agent | Save, run, measure, hand off | [Quickstart](mcp-quickstart.md) | [Simulation calls](mcp/simulation.md) for runs; [detailed contracts](mcp/simulation-reference.md), [Specs](simulation-specs.md) and [handoff](simulation-result-handoff.md) when needed; authoring for circuit edits | MCP resources |
+| Raw HTTP Agent / integrator | Claim, resume, request and retry | [Kit README](http-kit/README.md) | [Boundary](http-kit/AGENTS.md), [API lifecycle](api-usage.md) and published OpenAPI for requests; [examples](examples.md) as needed | `GET /api/agent/kit` |
+| Shared-client CLI Agent / script | Invoke tools without MCP host | [CLI lifecycle](http-cli.md) | Authoring, `--http list-tools` and `--http resource` as needed | Same package and operation registry as MCP |
+| Repository circuit Agent | Read, place, route, review | [Skill source](repo-skill/SKILL.md) | Task-selected workflow and generated reading map | `skills/circuit-layout/` |
+| Product maintainer | Change, verify and release guidance | [Maintenance](maintenance.md) | Root working rules, code contracts and release docs | Repository only |
 
 MCP is the default. Configuration success is not proof of callable tools. If a
 host cannot load the adapter, explain the failed stage and possible restart

@@ -1,7 +1,7 @@
 {
   "format": "analog-canvas-agent-distribution-v1",
   "version": 1,
-  "registrySha256": "5df4fe150bd022bdf346b5efd52a3173ceadade14c05409444777d404174d6fd",
+  "registrySha256": "584fe2291ef9264377b3969bd4f3482461ada6d5099765dc35de47b337bbeeab",
   "sources": [
     {
       "source": "docs/agent/simulation-specs.md",
@@ -9,7 +9,7 @@
     },
     {
       "source": "docs/agent/mcp-quickstart.md",
-      "sha256": "571f07ede56b001cf373745eb4fa32f98b078fda3ec340a0ab26448ef47f51c0"
+      "sha256": "9af71c6a79faa97ab93c4e3e3bff768e6323a4cebcdb4ca0a87d99573fcb34dd"
     },
     {
       "source": "docs/agent/http-kit/skills/icm-circuit-session/SKILL.md",
@@ -97,7 +97,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "d36034ecf032253a91a83379c4cd0f57d3120416539e1096e08ac4ca0242188d"
+      "sha256": "dc8d61ae070e128e4aeb5d906eb660e5c89d7ce9353e89e20b9cfde0d98e5395"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
@@ -485,7 +485,7 @@
         "http-cli",
         "repo-skill"
       ],
-      "task": "MCP editing and recovery",
+      "task": "MCP editing tools and local inspection",
       "load": "on-demand",
       "requires": [],
       "uri": "analog-canvas://reference/mcp-tools"
@@ -629,7 +629,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/knowledge/patterns.md"
       ],
-      "sha256": "32e42b8a2670081ffc7355c10923e38e8fc1df70babc3d78e9a78d3bf1af162b"
+      "sha256": "6bf65f188a08f5086914650100d62deaec1e1db0e294fe7a50b9386de90f8d1a"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -706,7 +706,7 @@
       "sources": [
         "docs/agent/distribution.json"
       ],
-      "sha256": "f1226b74efdc373c6da240b7dbe1139c64d7086ca9b44c4eefdcf113dc64e64a"
+      "sha256": "6bd9a5ee58f2197c08c03624701aa3d3a39080447c8d9c9b931cb55ad12ceccc"
     }
   ]
 }
