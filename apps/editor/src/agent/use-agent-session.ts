@@ -532,6 +532,7 @@ export function useAgentSession(
                       "inspect",
                       "discard",
                       "request-approval",
+                      "open",
                       "simulation-input",
                     ] as const,
                     maxBytes: AGENT_FILE_RESOURCE_MAX_BYTES,

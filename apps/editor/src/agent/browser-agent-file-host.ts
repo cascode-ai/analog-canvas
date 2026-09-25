@@ -39,6 +39,7 @@ export interface BrowserAgentFileHostOptions {
   getDocument: (documentId: string) => SchematicDocument | null;
   getResolver: () => SymbolResolver;
   onApprovalRequested: (candidate: AgentFileCandidateSummary) => void;
+  openProjectInNewTab?: (project: CircuitProject) => Promise<boolean>;
   dispatchProjectTransaction?: (
     request: ProjectTransaction,
   ) => ProjectTransactionResult;
@@ -151,6 +152,34 @@ export class BrowserAgentFileHost {
           ok: true,
           candidate: candidate.summary,
           approval: "pending-human",
+        };
+      }
+      case "open": {
+        const candidate = this.candidates.get(request.candidateId);
+        if (!candidate)
+          return this.error(
+            request,
+            "FILE_CANDIDATE_NOT_FOUND",
+            "Candidate is unavailable or expired",
+          );
+        if (!this.options.openProjectInNewTab)
+          return this.error(
+            request,
+            "FILE_OPEN_UNAVAILABLE",
+            "Opening a new Project tab is unavailable in this editor",
+          );
+        if (!(await this.options.openProjectInNewTab(candidate.project)))
+          return this.error(
+            request,
+            "FILE_OPEN_BLOCKED",
+            "Finish the current edit before opening the imported Project",
+          );
+        this.candidates.delete(request.candidateId);
+        return {
+          apiVersion: AGENT_API_VERSION,
+          requestId: request.requestId,
+          operation: "open",
+          ok: true,
         };
       }
     }

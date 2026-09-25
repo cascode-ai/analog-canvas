@@ -445,6 +445,7 @@ export function fileOperationScopes(
     case "inspect":
     case "discard":
     case "request-approval":
+    case "open":
       return ["project.import"];
   }
 }

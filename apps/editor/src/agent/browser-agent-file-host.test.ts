@@ -295,6 +295,58 @@ describe("BrowserAgentFileHost", () => {
     expect(host.consumeApproved(stage.candidate.candidateId)).toBeNull();
   });
 
+  it("opens a staged import in a new tab without replacing the current Project", async () => {
+    const live = createEmptyProject("live", "Live Project");
+    const staged = createEmptyProject("staged", "Staged Project");
+    const opened: string[] = [];
+    const approvals: string[] = [];
+    const host = new BrowserAgentFileHost({
+      getProjectSessionId: () => "live-session",
+      getProject: () => live,
+      getDocument: (id) =>
+        live.documents.find((document) => document.id === id) ?? null,
+      getResolver: () => ({}) as SymbolResolver,
+      onApprovalRequested: (candidate) => approvals.push(candidate.candidateId),
+      openProjectInNewTab: async (project) => {
+        opened.push(project.id);
+        return true;
+      },
+    });
+    const bytes = new TextEncoder().encode(serializeProject(staged));
+    const stage = await host.handle({
+      apiVersion: AGENT_API_VERSION,
+      requestId: "stage-for-new-tab",
+      operation: "stage",
+      kind: "project",
+      files: [
+        {
+          name: "staged.icproj.json",
+          mediaType: "application/json",
+          encoding: "base64",
+          data: base64EncodeBytes(bytes),
+          byteLength: bytes.byteLength,
+          sha256: await sha256(bytes),
+        },
+      ],
+    });
+    if (!stage.ok || stage.operation !== "stage")
+      throw new Error(JSON.stringify(stage));
+    const result = await host.handle({
+      apiVersion: AGENT_API_VERSION,
+      requestId: "open-new-tab",
+      operation: "open",
+      candidateId: stage.candidate.candidateId,
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      operation: "open",
+    });
+    expect(opened).toEqual([staged.id]);
+    expect(approvals).toEqual([]);
+    expect(live.name).toBe("Live Project");
+    expect(host.consumeApproved(stage.candidate.candidateId)).toBeNull();
+  });
+
   it("rejects traversal names and hash mismatches before parsing", async () => {
     const { host } = setup();
     const bytes = new TextEncoder().encode("{}");

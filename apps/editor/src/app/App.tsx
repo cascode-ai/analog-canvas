@@ -1000,6 +1000,10 @@ function WorkspaceEditor({
           ) ?? null,
         getResolver: () => editorDocumentController.resolver,
         onApprovalRequested: setAgentFileCandidate,
+        openProjectInNewTab: (candidate) =>
+          openProjectInTabRef.current(candidate, DEFAULT_VIEWBOX, {
+            source: "opened-file",
+          }),
         dispatchProjectTransaction: (request) =>
           browserAgentHost.dispatchProjectTransaction(request),
       }),

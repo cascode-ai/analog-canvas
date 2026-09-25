@@ -1263,6 +1263,46 @@ describe("agent session client", () => {
     ).toHaveLength(2);
   });
 
+  it("refreshes an implicit Snapshot after a Project switch without claiming again", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    const next = testSnapshot();
+    next.project.id = "project-2";
+    next.project.topDocumentId = "next-document";
+    next.project.documents[0]!.id = "next-document";
+    next.document.id = "next-document";
+    vi.spyOn(http, "status").mockImplementation(async () => {
+      http.contextRevision = "project-2-context";
+      return {
+        ok: true,
+        sessionId: "session-1",
+        projectId: "project-2",
+        documentIds: ["next-document"],
+        authorization: "active",
+        editor: "attached",
+        observedAt: 1000,
+        expiresAt: 999999,
+      };
+    });
+    http.circuitHandler = async ({ request }) =>
+      request.operation === "snapshot" && request.documentId === "main"
+        ? errorResponse(
+            request.requestId,
+            "snapshot",
+            "DOCUMENT_NOT_FOUND",
+            "Project changed",
+          )
+        : request.operation === "snapshot" &&
+            request.documentId === "next-document"
+          ? snapshotResponse(request.requestId, next)
+          : capabilitiesResponse(request.requestId);
+    expect((await client.refreshSnapshot()).documentId).toBe("next-document");
+    expect(http.claims).toHaveLength(1);
+    await expect(client.refreshSnapshot("main")).rejects.toMatchObject({
+      code: "DOCUMENT_NOT_FOUND",
+    });
+  });
+
   it("refreshes on a stale direct edit without replaying the mutation", async () => {
     const { client, http } = await freshClient();
     await client.connect("session-1.code");
