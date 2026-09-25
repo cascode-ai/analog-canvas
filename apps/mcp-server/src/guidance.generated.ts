@@ -17,7 +17,7 @@ export const agentToolHelp = {
   circuit_place:
     "Place built-in symbols, child Cells or existing instances and add power rails. actions is one atomic batch; obtain symbol IDs and resolved pins from catalog/inspect. Same planner and permissions as apply_actions.",
   circuit_wire:
-    "Connect/disconnect resolved pins, nets and routes in one supported atomic action batch. via gives interior points. Same connectivity planner as apply_actions; drawing contact alone does not establish a logical connection.",
+    "Connect/disconnect in an atomic batch; via gives interior points. Explicit instance IDs avoid a full-Snapshot name lookup; server routing/validation is unchanged. Artwork contact is not connectivity.",
   circuit_transform:
     "Move/rotate/mirror individual targets, arrange or detach-move instances using one supported action batch. Preserves original planner boundaries and topology semantics. For mixed action families use apply_actions.",
   circuit_selection:
@@ -51,21 +51,21 @@ export const agentToolHelp = {
   import_file:
     "Stage a local Analog Canvas project or structural SPICE bundle and inspect it. action:open opens the candidate in a new Project tab under project.import without replacing current work or requiring browser confirmation. request-approval is for browser-confirmed replacement. Refresh connection status after the Project switch; the pairing remains valid.",
   get_context:
-    "Compact document identity, revision, counts and diagnostic totals. Uses a lightweight server read or a clean cached Snapshot; refresh:true reconciles external changes. Connect already returns bootstrap context; do not repeat this call just to confirm pairing.",
+    "Read document identity/revision/counts with a lightweight request or clean cache. refresh:true reconciles external changes. Connect already returns context.",
   inspect:
-    "Inspect document facts, objects, nets, connectivity, diagnostics, cross-Cell traces or current-process activity. Geometry and diagnostics have lightweight server reads; full Document facts and topology remain available. Use resolved pins when planning wiring.",
+    "Read document/objects/nets/traces/activity. pins (instanceIds), geometry (objectIds) and diagnostics use targeted server projections; full Document facts remain available.",
   search:
     "Case-insensitive search, including LaTeX, over one authorized document or scope:project. Results include documentId. Reuses clean Snapshots by default and loads authorized Project documents concurrently.",
   apply_actions:
-    "Full high-level action entry for supported mixed families, Cell structure and history; focused circuit_* tools expose common families directly. Existing atomic planners/revision guards apply. If fields are hidden, describe_tool with tool:apply_actions and operations:[kind] returns that complete call contract. No lookup gate; all actions remain authorized as before.",
+    "Atomic high-level edits, Cell structure and history. circuit_* tools select common families. For unfamiliar fields use describe_tool operations:[kind]; no lookup prerequisite. detail:full includes removed diagnostic bodies.",
   advanced_transact:
-    "Full transaction access, not a higher permission tier. Submit exactly one of edits, structureEdits, wireIntent, semanticIntent or command. Client supplies revisions/IDs from the clean Snapshot; stale revisions require reconciliation. Look up only unfamiliar edit kinds; reading is optional.",
+    "Full transaction access: exactly one of edits, structureEdits, wireIntent, semanticIntent or command. Client supplies IDs/revisions; reconcile stale conflicts. Edit contracts are optional references.",
   verify:
-    "Force a fresh Snapshot and report revision, error/warning totals, and which object IDs changed since the cached full Snapshot. Use at a milestone, after a known external edit, or when a transaction reported STATE_CHANGED; not after every accepted edit.",
+    "Fresh full Snapshot plus revision, diagnostic counts and changed object IDs. For broad milestones/reconciliation, not confirmation after accepted edits.",
   render:
     "Render the current document to SVG and return it as an image content block (image/svg+xml) plus a compact text summary (revision, sha256, byteLength).",
   simulation_folder:
-    "List/get/create/clone/rename/remove saved source experiments. List reads metadata without source bodies; get/edit use full Project state. refresh:true reconciles a known external change. rootDocumentId binds the drawn Cell; dut adds a text testbench using its exported name and ordered ports. Edit native source with simulation_files, not parallel JSON analyses. See analog-canvas://reference/mcp-simulation.",
+    "Manage saved experiments. List is metadata-only. rootDocumentId binds a drawn Cell; dut generates a testbench with its exported name/port order. Edit native code with simulation_edit. refresh:true reconciles external changes.",
   simulation_output:
     "Legacy config v1 only: manage output ASTs. Native Code uses simulation_files for saves and postprocess Python; this tool cannot add parallel JSON rules. See analog-canvas://reference/mcp-simulation. Exact expression schema: analog-canvas://contract/tools/simulation_output.",
   simulation_measurement:

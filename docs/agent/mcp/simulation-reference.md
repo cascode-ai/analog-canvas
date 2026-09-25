@@ -160,6 +160,27 @@ Read `error.code`, `stage`, `recovery` and located diagnostics. Follow
 [response semantics](../response-semantics.md) for retries and conflicts; an
 uncertain accepted execution is never automatically resubmitted.
 
+## History and reuse
+
+`simulation_results` `history` defaults to 10 entries, with `nextCursor` for
+paging. It reports source ownership, logical evidence bytes and saved/cache/
+catalog-only/session-only status. `unverified` means archive protection could
+not be established; do not assume deletion is safe. `history-usage` reports
+Project file count/bytes, unreferenced bodies and configured limits.
+`history-delete` with `runId,dryRun:true` previews exact deletion; omit dryRun
+to delete. Saved or unclassified archives require `includeSaved:true`.
+Local downloads remain intact. Physical reclamation may be deferred while an
+Editor holds a lease. Use returned retention limits rather than assuming a
+historical default still applies.
+
+Folder creation reuses capability discovery for up to 30 seconds; sync/plot
+reuse complete, finished directories for that interval. Explicit capabilities/
+catalog calls refresh. `refresh:true` bypasses reuse. Pairing/Project changes
+invalidate caches; cached directories do not guarantee file availability.
+Download descriptor preparation batches up to 32 missing files; pending files
+release their slot. Existing local files need no remote descriptor. Partial
+failures preserve completed files and the index; unchanged indexes are not rewritten.
+
 ## Timing, Noise and plot details
 
 `sync.transfer` counts this request's selected, downloaded, reused and remaining

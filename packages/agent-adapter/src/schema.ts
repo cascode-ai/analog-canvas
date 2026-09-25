@@ -133,9 +133,17 @@ export const AgentSnapshotRequestSchema = RequestBaseSchema.extend({
   documentId: StableIdSchema,
   /** Full remains the default; lightweight projections never contain source text. */
   projection: z
-    .enum(["full", "bootstrap", "geometry", "state", "folder-directory"])
+    .enum([
+      "full",
+      "bootstrap",
+      "geometry",
+      "pins",
+      "state",
+      "folder-directory",
+    ])
     .optional(),
   geometryIds: z.array(StableIdSchema).min(1).max(64).optional(),
+  instanceIds: z.array(StableIdSchema).min(1).max(64).optional(),
   diagnosticDetail: z.enum(["counts", "items"]).optional(),
   includeSourceSpans: z.boolean().optional(),
   traceNet: z
@@ -307,6 +315,7 @@ export const AgentTransactRequestSchema = RequestBaseSchema.extend({
   expectedRevision: z.number().int().nonnegative(),
   expectedStructureRevision: z.number().int().nonnegative().optional(),
   dryRun: z.boolean().optional(),
+  diagnosticDeltaDetail: z.enum(["full", "compact"]).optional(),
   ...TransactionPayloadShape,
 }).superRefine((request, context) => {
   oneTransactionForm(request, context);
@@ -546,7 +555,9 @@ export const AgentSnapshotDocumentSchema = z.strictObject({
   routes: z.array(AgentSnapshotRouteSchema),
   junctions: z.array(AgentSnapshotJunctionSchema),
   noConnects: z.array(AgentSnapshotNoConnectSchema),
-  annotations: z.array(AnnotationSchema),
+  annotations: z.array(
+    AnnotationSchema.safeExtend({ resolvedText: z.string().optional() }),
+  ),
   // ADR 0010 WP-R4: each drafting object carries its canonical shape plus the
   // derived resolved geometry (position(s)/bounds/diagnostics) computed from
   // the single resolveDraftingObjectGeometry entry.
@@ -811,6 +822,19 @@ export const AgentGeometrySnapshotResponseSchema = ResponseBaseSchema.extend({
   missingObjectIds: z.array(StableIdSchema).max(64),
 });
 
+export const AgentPinsSnapshotResponseSchema = ResponseBaseSchema.extend({
+  operation: z.literal("snapshot"),
+  ok: z.literal(true),
+  projection: z.literal("pins"),
+  projectId: StableIdSchema,
+  structureRevision: z.number().int().nonnegative(),
+  documentId: StableIdSchema,
+  revision: z.number().int().nonnegative(),
+  instances: z.array(AgentSnapshotInstanceSchema).max(64),
+  mosBulkDefaults: AgentSnapshotDocumentSchema.shape.mosBulkDefaults,
+  missingInstanceIds: z.array(StableIdSchema).max(64),
+});
+
 export const AgentSemanticIntentResultSchema = z.strictObject({
   kind: z.enum([
     "activate-document",
@@ -837,6 +861,7 @@ export const AgentTransactSuccessResponseSchema = ResponseBaseSchema.extend({
     .strictObject({
       added: z.array(AgentDiagnosticSchema),
       removed: z.array(AgentDiagnosticSchema),
+      removedIds: z.array(z.string()).optional(),
     })
     .optional(),
   resolvedRoutes: z
@@ -890,6 +915,7 @@ export const AgentProductionCircuitResponseSchema = z.union([
   AgentDocumentStateResponseSchema,
   AgentFolderDirectoryResponseSchema,
   AgentGeometrySnapshotResponseSchema,
+  AgentPinsSnapshotResponseSchema,
   AgentSnapshotResponseSchema,
   AgentTransactSuccessResponseSchema,
   AgentRenderResponseSchema,

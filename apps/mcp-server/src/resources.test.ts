@@ -59,6 +59,21 @@ interface ManifestResource {
  * the registry declares, independently of the HTTP Kit projection.
  */
 describe("mcp resources single-source projection", () => {
+  it("selects exact symbols from the same catalog and rejects guessing", () => {
+    const full = readResourceContent("analog-canvas://catalog/builtins");
+    const selected = readResourceContent(
+      "analog-canvas://catalog/builtins?symbols=nmos,pmos",
+    );
+    expect(JSON.parse(selected.text).symbols).toEqual(
+      JSON.parse(full.text).symbols.filter((s: { symbolId: string }) =>
+        ["nmos", "pmos"].includes(s.symbolId),
+      ),
+    );
+    expect(selected.text.length).toBeLessThan(full.text.length / 4);
+    expect(() =>
+      readResourceContent("analog-canvas://catalog/builtins?symbols=not-real"),
+    ).toThrow();
+  });
   it("ships a compact complete offline schema without changing the HTTP Kit source", () => {
     const source = readFileSync(
       resolve(repoRoot, "fixtures/agent-api/agent-circuit-request.schema.json"),

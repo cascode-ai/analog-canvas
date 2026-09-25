@@ -23,6 +23,15 @@ export function runReceipt(view: Run): Run {
           execution: catalog.execution,
           collection: catalog.collection,
           datasetCount: catalog.datasets.length,
+          analyses: catalog.datasets.map(
+            ({ analysisIndex, analysis, plotName, pointCount, axis }) => ({
+              analysisIndex,
+              analysis,
+              plotName,
+              pointCount,
+              ...(axis ? { axis } : {}),
+            }),
+          ),
           fileCount: catalog.files.length,
         }
       : {}),

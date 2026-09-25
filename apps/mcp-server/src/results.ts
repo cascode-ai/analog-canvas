@@ -350,7 +350,8 @@ export function searchSnapshot(
     }
   }
   for (const annotation of document.annotations) {
-    const text = richTextToPlainText(annotation.content);
+    const text =
+      annotation.resolvedText ?? richTextToPlainText(annotation.content);
     if (
       annotation.id.toLowerCase().includes(needle) ||
       text.toLowerCase().includes(needle)

@@ -33,6 +33,90 @@ async function freshClient(
 }
 
 describe("agent session client", () => {
+  it("submits explicit-ID wiring in one atomic request without downloading a Snapshot", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    const before = http.circuitCalls.length;
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation !== "transact")
+        throw new Error("unexpected topology read");
+      expect(request.wireIntent).toMatchObject([
+        { from: { endpoint: { instanceId: "instance-1", pinName: "G" } } },
+        { to: { kind: "free", point: { x: 220, y: 200 } } },
+      ]);
+      return transactSuccessResponse(
+        request.requestId,
+        request.expectedRevision,
+      );
+    };
+    const from = {
+      kind: "pin",
+      instance: { kind: "instance", id: "instance-1" },
+      pin: "G",
+    };
+    expect(
+      await client.applyActions([
+        {
+          kind: "connect",
+          from,
+          to: {
+            kind: "pin",
+            instance: { kind: "instance", id: "instance-2" },
+            pin: "1",
+          },
+        },
+        { kind: "connect", from, to: { kind: "point", x: 220, y: 200 } },
+      ]),
+    ).toMatchObject({ ok: true });
+    expect(http.circuitCalls.length - before).toBe(1);
+  });
+  it("retries compact receipt projection only after an explicit pre-write schema rejection", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    let attempts = 0;
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation !== "transact") throw new Error("unexpected read");
+      attempts++;
+      if (attempts === 1) {
+        expect(request.diagnosticDeltaDetail).toBe("compact");
+        return {
+          ...errorResponse(
+            request.requestId,
+            "transact",
+            "INVALID_REQUEST",
+            "schema",
+          ),
+          diagnostics: [
+            {
+              code: "SCHEMA_VIOLATION",
+              severity: "error",
+              message: "Remove unsupported field: diagnosticDeltaDetail",
+            },
+          ],
+        };
+      }
+      expect(request).not.toHaveProperty("diagnosticDeltaDetail");
+      return transactSuccessResponse(
+        request.requestId,
+        request.expectedRevision,
+      );
+    };
+    expect(
+      await client.advancedTransact(
+        {
+          edits: [
+            {
+              kind: "set_instance_reference",
+              instanceId: "instance-1",
+              reference: "M2",
+            },
+          ],
+        },
+        { diagnosticDeltaDetail: "compact" },
+      ),
+    ).toMatchObject({ ok: true });
+    expect(attempts).toBe(2);
+  });
   it("binds one open working copy without changing the browser's active Project", async () => {
     const http = new FakeAgentHttp({
       projects: (request) => ({
@@ -1498,6 +1582,33 @@ describe("agent session client", () => {
         ({ request }) => request.operation === "transact",
       ),
     ).toHaveLength(1);
+  });
+
+  it("reads selected pins once and invalidates stale cached topology", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    await client.snapshot();
+    http.circuitHandler = async ({ request }) => ({
+      apiVersion: "3.0",
+      requestId: request.requestId,
+      operation: "snapshot",
+      ok: true,
+      projection: "pins",
+      projectId: "project-1",
+      structureRevision: 0,
+      documentId: "main",
+      revision: 6,
+      instances: [],
+      missingInstanceIds: ["absent"],
+    });
+    const before = http.circuitCalls.length;
+    expect(await client.pinsSnapshot(["absent"])).toMatchObject({
+      projection: "pins",
+      revision: 6,
+      missingInstanceIds: ["absent"],
+    });
+    expect(http.circuitCalls.length - before).toBe(1);
+    expect(client.cachedSnapshot()?.dirty).toBe(true);
   });
 
   it("falls back to a full read for geometry when an older Editor rejects the projection", async () => {

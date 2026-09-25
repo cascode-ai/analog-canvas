@@ -805,6 +805,58 @@ function compileAddPowerRail(
   });
 }
 
+/** Explicit endpoints need no client-side topology read. The existing server
+ * planner still validates pins, geometry, locks and revision atomically. */
+export function directConnectIntent(
+  action: AuthoringAction,
+  allocateId: AllocateId,
+): WireIntent | undefined {
+  if (action.kind !== "connect") return undefined;
+  const anchor = (target: ConnectTarget): WireIntent["from"] | undefined => {
+    if (target.kind === "route-segment") return target;
+    if (target.kind === "point")
+      return { kind: "free", point: { x: target.x, y: target.y } };
+    if (target.kind === "junction")
+      return {
+        kind: "endpoint",
+        endpoint: { kind: "junction", junctionId: target.junction },
+      };
+    if (
+      target.kind === "pin" &&
+      typeof target.instance !== "string" &&
+      target.instance.id
+    )
+      return {
+        kind: "endpoint",
+        endpoint: {
+          kind: "terminal",
+          instanceId: target.instance.id,
+          pinName: target.pin,
+        },
+      };
+    return undefined;
+  };
+  const from = anchor(action.from),
+    to = anchor(action.to);
+  return from && to ? connectIntent(action, from, to, allocateId) : undefined;
+}
+
+function connectIntent(
+  action: ActionOfKind<"connect">,
+  from: unknown,
+  to: unknown,
+  allocateId: AllocateId,
+): WireIntent {
+  return AgentWireIntentSchema.parse({
+    id: allocateId("wire"),
+    from,
+    to,
+    ...(action.via ? { waypoints: action.via } : {}),
+    ...(action.routingMode ? { routingMode: action.routingMode } : {}),
+    ...(action.cornerOrder ? { cornerOrder: action.cornerOrder } : {}),
+  });
+}
+
 function compileConnect(
   index: number,
   action: ActionOfKind<"connect">,
@@ -971,14 +1023,11 @@ function compileConnect(
     );
   };
 
-  pushWireIntent(index, action.kind, {
-    id: allocateId("wire"),
-    from: anchorFor(from),
-    to: anchorFor(to),
-    ...(action.via ? { waypoints: action.via } : {}),
-    ...(action.routingMode ? { routingMode: action.routingMode } : {}),
-    ...(action.cornerOrder ? { cornerOrder: action.cornerOrder } : {}),
-  });
+  pushWireIntent(
+    index,
+    action.kind,
+    connectIntent(action, anchorFor(from), anchorFor(to), allocateId),
+  );
 }
 
 function compileDisconnect(

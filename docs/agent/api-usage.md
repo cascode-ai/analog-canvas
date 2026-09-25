@@ -15,8 +15,9 @@ schemas, response envelopes and limits. The Kit does not replace that contract.
    **Capabilities does not contain a Project Index.** Choose a Document from
    claim/resume authorization. Use the `bootstrap` Snapshot for identities,
    `state` for revision and diagnostics, or `folder-directory` for experiment
-   names and bindings. Read the default full Snapshot when you need Project
-   editing context, resolved pins, Nets or locks.
+   names and bindings, or `pins` with `instanceIds` for selected resolved
+   endpoints and bulk. Read the default full Snapshot for broad Project
+   editing context, Nets or locks.
 4. Follow [task workflow](workflow.md) and [native authoring](shared/authoring.md).
    Use the [catalog](../../packages/agent-adapter/src/agent-authoring-catalog.generated.ts)
    for built-in placement; refresh Snapshot before wiring newly created pins.

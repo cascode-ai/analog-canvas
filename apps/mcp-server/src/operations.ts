@@ -328,6 +328,10 @@ const InspectArgs = z.strictObject({
     }),
     z.strictObject({ kind: z.literal("diagnostics") }),
     z.strictObject({
+      kind: z.literal("pins"),
+      instanceIds: z.array(z.string().min(1)).min(1).max(64),
+    }),
+    z.strictObject({
       kind: z.literal("geometry"),
       objectIds: z.array(z.string().min(1)).min(1).max(64),
     }),
@@ -368,11 +372,16 @@ const SearchArgs = z.strictObject({
 });
 
 const ApplyActionsArgs = z.strictObject({
+  detail: z
+    .enum(["compact", "full"])
+    .optional()
+    .describe("Default compact: removed diagnostic IDs; full: removed bodies."),
   documentId: z.string().min(1).optional(),
   actions: z.array(AuthoringActionSchema).min(1).max(256),
 });
 
 const AdvancedTransactArgs = z.strictObject({
+  detail: z.enum(["compact", "full"]).optional(),
   documentId: z.string().min(1).optional(),
   edits: z
     .array(z.unknown())
@@ -1049,6 +1058,11 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           },
           parsed.documentId,
         );
+      if (parsed.target.kind === "pins")
+        return session.client.pinsSnapshot(
+          parsed.target.instanceIds,
+          parsed.documentId,
+        );
       if (parsed.target.kind === "geometry")
         return session.client.geometrySnapshot(
           parsed.target.objectIds,
@@ -1133,6 +1147,7 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     handle: async (args, session) => {
       const parsed = ApplyActionsArgs.parse(args);
       const report = await session.client.applyActions(parsed.actions, {
+        diagnosticDeltaDetail: parsed.detail ?? "compact",
         ...(parsed.documentId ? { documentId: parsed.documentId } : {}),
       });
       return report;
@@ -1146,8 +1161,14 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     },
     handle: async (args, session) => {
       const parsed = AdvancedTransactArgs.parse(args);
-      const { documentId: _documentId, dryRun: _dryRun, ...payload } = parsed;
+      const {
+        documentId: _documentId,
+        dryRun: _dryRun,
+        detail: _detail,
+        ...payload
+      } = parsed;
       return session.client.advancedTransact(payload, {
+        diagnosticDeltaDetail: parsed.detail ?? "compact",
         ...(parsed.documentId ? { documentId: parsed.documentId } : {}),
         ...(parsed.dryRun !== undefined ? { dryRun: parsed.dryRun } : {}),
       });

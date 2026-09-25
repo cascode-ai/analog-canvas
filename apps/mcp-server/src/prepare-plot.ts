@@ -28,8 +28,18 @@ const Panel = z.strictObject({
   x: Vector.optional(),
   signals: z.array(Signal).min(1),
   title: z.string().optional(),
-  xLabel: z.string().optional(),
-  yLabel: z.string().optional(),
+  xLabel: z
+    .string()
+    .optional()
+    .describe(
+      "Axis title without units; units are appended from dataset metadata.",
+    ),
+  yLabel: z
+    .string()
+    .optional()
+    .describe(
+      "Axis title without units; units are appended from dataset metadata.",
+    ),
   xScale: z.enum(["linear", "log"]).optional(),
   yScale: z.enum(["linear", "log"]).optional(),
   xRange: z

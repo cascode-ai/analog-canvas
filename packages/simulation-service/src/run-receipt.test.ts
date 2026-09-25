@@ -3,6 +3,47 @@ import type { Run } from "./contract.js";
 import { runReceipt, releaseRunData } from "./run-receipt.js";
 const RUN_RECEIPT_MAX_BYTES = 96_000;
 
+it("includes only analysis routing metadata, without signals or file mappings", () => {
+  const receipt = runReceipt({
+    id: "r",
+    preparedId: "p",
+    inputRevision: "i",
+    state: "finished",
+    artifacts: [],
+    catalog: {
+      schemaVersion: 1,
+      runId: "r",
+      preparedId: "p",
+      inputRevision: "i",
+      execution: "completed",
+      collection: "complete",
+      files: [],
+      datasets: [
+        {
+          id: "d",
+          analysisIndex: 0,
+          analysis: "ac",
+          plotName: "AC",
+          pointCount: 100,
+          axis: { name: "frequency", unit: "Hz" },
+          signals: [{ name: "v(out)", quantity: "voltage", unit: "V" }],
+          representations: [],
+        },
+      ],
+    },
+  });
+  expect(receipt.details?.analyses).toEqual([
+    {
+      analysisIndex: 0,
+      analysis: "ac",
+      plotName: "AC",
+      pointCount: 100,
+      axis: { name: "frequency", unit: "Hz" },
+    },
+  ]);
+  expect(receipt).not.toHaveProperty("catalog");
+});
+
 it("bounds derived arrays even when there is no large raw result", () => {
   const run: Run = {
     id: "r",

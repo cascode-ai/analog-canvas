@@ -7,7 +7,8 @@ kinds; it does not return a Project Index. Snapshot has one protocol operation
 with several projections: `bootstrap` contains connection identities and counts;
 `state` contains the current Document revision, counts and optional diagnostic
 items; `folder-directory` lists saved experiment metadata without source text;
-`geometry` selects authored objects; and the default `full` projection contains
+`geometry` selects authored objects; `pins` resolves selected instances' endpoints
+and bulk; and the default `full` projection contains
 the selected Document and Project editing context. Use the current transport
 schema for exact fields.
 
@@ -20,6 +21,10 @@ schema for exact fields.
   not advance revision. Semantic focus changes do not mutate Project data.
 - Snapshot is read-only evidence, not a replacement Project payload. GUI and
   Agent changes use the same edit validation and locks.
+- `diagnosticDeltaDetail:"compact"` retains current and added diagnostics but
+  replaces removed bodies with `removedIds` (stable diagnostic identities).
+  Raw HTTP defaults to full; MCP edits default to compact and accept `detail:"full"`.
+  An empty compact `removed` array does not mean no diagnostics were removed.
 - Clean full Snapshots may be reused across unchanged reads and transaction
   planning. Every mutation still supplies `expectedRevision` (and structure
   revision when required); stale rejection, not a precautionary reread before

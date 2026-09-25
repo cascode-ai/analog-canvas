@@ -11,7 +11,8 @@ an unfamiliar field only; no full-contract or authoring-help prerequisite.
    Full capabilities (optionally `profileId`) are for detailed model facts.
 2. Create a saved `simulation_folder`, or reuse the current folder.
    Creation returns its source owner, revision and paths. Use `simulation_edit`
-   for native code; `simulation_source` reads only text you need to preserve.
+   for native code; `simulation_source` read `detail:"text"` reads code without
+   generated parameter mappings. Use `detail:"mapped"` for mapped Circuit edits.
    Reuse successful update revisions/digests without a confirmation reread.
 3. Normally call `simulation_run` with `request:{operation:"run",source:...}`
    and optional outer `waitMs:20000`. Use a project-folder source with `folderId`
@@ -28,14 +29,16 @@ an unfamiliar field only; no full-contract or authoring-help prerequisite.
    starts or `simulation_batch`.
 4. For a graph, call `simulation_plot` `prepare-plot` directly with `runId`,
    a new `name`, and `panels:[{analysisIndex:0,signals:[{signal:"v(out)"}]}]`
-   or a DC/AC/TRAN/Noise preset. It fetches the selected tables itself:
+   or a DC/AC/TRAN/Noise preset. Choose indices from `run.details.analyses`;
+   full signal/file mappings remain in the catalog when needed. Axis labels
+   omit units (the template appends them). It fetches selected tables itself:
    **no preceding sync is needed**. Check Python >=3.10 and matplotlib once per
    local environment, execute the returned argument vector, and inspect the image.
    `dataStatus`, `scriptStatus`, `imageStatus` distinguish downloaded data,
    prepared code and actual rendering. Nothing installs or executes automatically.
 5. For custom analysis use `simulation_data` `sync`, selecting `analysisIndex`
-   and `roles:["table"]` if appropriate. Omit selectors for complete final
-   handoff; `fileIds:[]` updates only the directory. Local files are reused.
+   and `roles:["table"]` if appropriate. Omit selectors when a complete evidence
+   archive is requested; `fileIds:[]` updates only the directory. Local files are reused.
    The default receipt keeps current-task counts and up to 16 file paths/timings;
    larger selections use `filesOmitted` and the local index. Outer `detail:"full"`
    retains every file and history. Explicit `workspace` lists local runs.
@@ -45,7 +48,8 @@ an unfamiliar field only; no full-contract or authoring-help prerequisite.
 
 Iteration: edit → run/wait → plot or selected sync. Do not repeat
 connection, discovery, folder creation, environment checks or full archive
-downloads when their inputs have not changed. Final sync archives all files.
+downloads when their inputs have not changed. Select the final files needed
+for the requested handoff; a complete archive is optional.
 For styling-only iterations, edit and execute the existing local plot script;
 no connection, sync or new plot preparation is needed.
 
@@ -62,41 +66,8 @@ Run summaries reference the catalog instead of repeating its file list; outer
 `detail:"full"` retains the complete run metadata response.
 `export` retries failed evidence saving on the same run without executing again.
 
-For history management, `simulation_results` `history` lists Run IDs, source
-ownership (when recorded), logical evidence bytes, and whether each run is
-saved, generated cache, catalog-only, or session-only. An unavailable archive
-index is reported as `unverified`: history stays readable, but deletion cannot
-assume the Run is unprotected. History defaults to 10 entries; continue with
-`nextCursor` or choose a larger `limit` when needed. `history-usage` reports
-actual Project evidence file count/bytes, unreferenced bodies and limits;
-unreferenced does not imply
-immediate reclaim while an Editor holds a lease. `history-delete` with
-`runId` and `dryRun:true` previews an exact deletion; omit `dryRun` to remove
-it. Saved or unclassified legacy archives require explicit
-`includeSaved:true`. Deletion does not remove Agent-local downloads and may
-report deferred physical reclamation while an Editor tab holds evidence.
-New automatically captured Project-run archives and new unarchived Run catalogs
-each retain the latest 30 per Project when cleanup can run; manually saved
-results and older unclassified archives are not automatically pruned.
-
-Internal folder creation reuses matching capability discovery for at most
-30 seconds. Sync/plot reuse only complete, finished directories for that window;
-pending/partial directories are fetched again. Explicit capabilities/catalog calls
-always refresh; outer `refresh:true` on sync/plot bypasses directory reuse, and
-folder `refresh:true` refreshes discovery too. Pairing/Project-context changes
-invalidate reuse. A cached directory does not assert remote file availability:
-actual downloads retain authorization, publication and integrity checks.
-
-Download preparation batches up to 32 missing-file descriptors, independently
-reporting ready/pending/failed files. Pending publication releases its slot so
-ready files proceed; bytes use up to eight rolling slots with a 32 MiB aggregate
-in-flight target. Large files automatically reduce concurrency and one oversized
-file can still progress. Existing files are verified
-locally once per sync, without descriptors; unchanged index records are not rewritten.
-Partial failures preserve completed files and the
-local index. `transfer` counts selected/downloaded/reused/remaining files in
-this sync; `workspaceFileCount` covers local history. Detailed timing definitions
-and advanced features are in [detailed contracts](simulation-reference.md).
+History deletion/retention, cache freshness and transfer details are in
+[detailed contracts](simulation-reference.md); they are not steps in an ordinary run.
 
 Prepare's default summary points to complete `preparation.json`; outer
 `detail:"full"` exposes it inline. OP mappings describe available vectors, not

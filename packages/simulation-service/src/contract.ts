@@ -804,6 +804,17 @@ export const RunSchema = z.strictObject({
       execution: ResultCatalogSchema.shape.execution.optional(),
       collection: ResultCatalogSchema.shape.collection.optional(),
       datasetCount: z.number().int().nonnegative().optional(),
+      analyses: z
+        .array(
+          ResultCatalogSchema.shape.datasets.element.pick({
+            analysisIndex: true,
+            analysis: true,
+            plotName: true,
+            pointCount: true,
+            axis: true,
+          }),
+        )
+        .optional(),
       fileCount: z.number().int().nonnegative().optional(),
       diagnostics: z
         .strictObject({

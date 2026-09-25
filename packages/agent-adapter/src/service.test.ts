@@ -112,6 +112,82 @@ function serviceFixture(
 }
 
 describe("current Agent Circuit API service", () => {
+  it("compacts removed diagnostic bodies without changing the preview or current diagnostics", () => {
+    const full = serviceFixture();
+    const compact = serviceFixture();
+    const placement = full
+      .getDocument()
+      .instances.find((i) => i.id === "M1")!.placement!;
+    full.getDocument().instances.find((i) => i.id === "M1")!.placement = null;
+    compact.getDocument().instances.find((i) => i.id === "M1")!.placement =
+      null;
+    full.getProject().documents[0] = full.getDocument();
+    compact.getProject().documents[0] = compact.getDocument();
+    const request = {
+      apiVersion: "3.0",
+      operation: "transact",
+      documentId: full.getDocument().id,
+      expectedRevision: 0,
+      dryRun: true,
+      edits: [{ kind: "place_instance", instanceId: "M1", placement }],
+    };
+    const a = full.service.handle({
+      ...request,
+      requestId: "full",
+      transactionId: "full",
+    });
+    const b = compact.service.handle({
+      ...request,
+      requestId: "compact",
+      transactionId: "compact",
+      diagnosticDeltaDetail: "compact",
+    });
+    expect(a).toMatchObject({ ok: true });
+    expect(b).toMatchObject({ ok: true });
+    if (
+      !a.ok ||
+      a.operation !== "transact" ||
+      !b.ok ||
+      b.operation !== "transact"
+    )
+      throw new Error("commit failed");
+    expect(a.diagnosticDelta!.removed.length).toBeGreaterThan(0);
+    expect(b.diagnosticDelta!.removed).toEqual([]);
+    expect(b.diagnosticDelta!.removedIds).toHaveLength(
+      a.diagnosticDelta!.removed.length,
+    );
+    expect(b.diagnostics).toEqual(a.diagnostics);
+    expect(b.diff).toEqual(a.diff);
+    expect(compact.getDocument()).toEqual(full.getDocument());
+  });
+  it("provides bounded real pin/bulk facts and rejects contradictory selectors", () => {
+    const fixture = serviceFixture();
+    const document = fixture.getDocument();
+    const request = {
+      apiVersion: "3.0",
+      requestId: "pins",
+      operation: "snapshot",
+      documentId: document.id,
+      projection: "pins",
+      instanceIds: [document.instances[0]!.id, "missing"],
+    };
+    const reply = fixture.service.handle(request);
+    expect(reply).toMatchObject({
+      ok: true,
+      projection: "pins",
+      revision: document.revision,
+      instances: [{ id: document.instances[0]!.id, pins: expect.any(Array) }],
+      missingInstanceIds: ["missing"],
+    });
+    expect(reply).not.toHaveProperty("snapshot");
+    expect(
+      fixture.service.handle({
+        ...request,
+        requestId: "pins-invalid",
+        projection: "full",
+      }),
+    ).toMatchObject({ ok: false, error: { code: "INVALID_REQUEST" } });
+  });
   it("rejects a schema-invalid request without changing the revision", () => {
     const fixture = serviceFixture();
     const before = fixture.getDocument().revision;
@@ -289,9 +365,8 @@ describe("current Agent Circuit API service", () => {
     expect(JSON.stringify(AgentCircuitResponseJsonSchema).length).toBeLessThan(
       180_000,
     );
-    // Lightweight state and folder-directory projections add bounded response
-    // contracts. Measured projection: 517,326 chars; retain a close ceiling.
-    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(517_850);
+    // Pins and compact/source projections: 519,555 chars measured, not tokens.
+    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(520_000);
   });
 
   it("publishes the flat Snapshot workflow and returns complete facts", () => {
