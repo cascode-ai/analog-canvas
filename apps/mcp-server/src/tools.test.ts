@@ -7,8 +7,10 @@ import { AgentSessionClient, AgentSessionError } from "@icm/agent-client";
 import {
   capabilitiesResponse,
   FakeAgentHttp,
+  folderDirectoryResponse,
   renderResponse,
   snapshotResponse,
+  stateSnapshotResponse,
   transactSuccessResponse,
 } from "../../../packages/agent-client/src/test-support/fake-relay.js";
 import { testSnapshot } from "../../../packages/agent-client/src/test-support/snapshot-fixture.js";
@@ -33,6 +35,70 @@ function parseText(result: {
 }
 
 describe("mcp tool surface", () => {
+  it("reads context, diagnostics and folder names through lightweight server projections", async () => {
+    const { session, http } = await toolSession();
+    await callTool("connect", { claimCode: "session-1.code" }, session);
+    const snapshot = testSnapshot();
+    snapshot.project.simulationFolders = [
+      createSimulationFolder({
+        id: "small-op",
+        name: "OP",
+        profileId: "test",
+        documentId: "main",
+      }),
+    ];
+    snapshot.project.simulationFolders[0]!.input.files[0]!.text =
+      "private-source-body";
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation === "snapshot" && request.projection === "state")
+        return stateSnapshotResponse(
+          request.requestId,
+          snapshot,
+          request.diagnosticDetail === "items",
+        );
+      if (
+        request.operation === "snapshot" &&
+        request.projection === "folder-directory"
+      )
+        return folderDirectoryResponse(request.requestId, snapshot);
+      if (request.operation === "snapshot")
+        return snapshotResponse(request.requestId, snapshot);
+      return capabilitiesResponse(request.requestId);
+    };
+    expect(parseText(await callTool("get_context", {}, session))).toMatchObject(
+      {
+        revision: 5,
+        instanceCount: snapshot.document.instances.length,
+      },
+    );
+    expect(
+      parseText(
+        await callTool("inspect", { target: { kind: "diagnostics" } }, session),
+      ),
+    ).toMatchObject({
+      revision: 5,
+      counts: { total: 1, warnings: 1 },
+      items: [{ code: "VISUAL_SPACING" }],
+    });
+    const folders = parseText(
+      await callTool("simulation_folder", { action: "list" }, session),
+    );
+    expect(folders).toMatchObject({
+      ok: true,
+      folders: [{ id: "small-op", name: "OP" }],
+    });
+    expect(JSON.stringify(folders)).not.toContain("private-source-body");
+    expect(
+      http.circuitCalls
+        .filter((call) => call.request.operation === "snapshot")
+        .map((call) =>
+          call.request.operation === "snapshot"
+            ? call.request.projection
+            : undefined,
+        ),
+    ).toEqual(["bootstrap", "state", "state", "folder-directory"]);
+  });
+
   it("classifies invalid arguments without dispatching or echoing submitted values", async () => {
     const { session, http } = await toolSession();
     const result = await callTool(

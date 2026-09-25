@@ -110,6 +110,57 @@ export function bootstrapSnapshotResponse(
   };
 }
 
+export function stateSnapshotResponse(
+  requestId: string,
+  snapshot = testSnapshot(),
+  includeDiagnostics = false,
+): Extract<AgentCircuitResponse, { projection: "state" }> {
+  const diagnostics = snapshot.document.diagnostics;
+  const errors = diagnostics.filter((item) => item.severity === "error").length;
+  const warnings = diagnostics.filter(
+    (item) => item.severity === "warning",
+  ).length;
+  return {
+    apiVersion: "3.0",
+    requestId,
+    operation: "snapshot",
+    ok: true,
+    projection: "state",
+    projectId: snapshot.project.id,
+    structureRevision: snapshot.project.structureRevision,
+    documentId: snapshot.document.id,
+    documentName: snapshot.document.name,
+    revision: snapshot.document.revision,
+    instanceCount: snapshot.document.instances.length,
+    netCount: snapshot.document.nets.length,
+    counts: { errors, warnings, total: diagnostics.length },
+    ...(includeDiagnostics ? { diagnostics } : {}),
+  };
+}
+
+export function folderDirectoryResponse(
+  requestId: string,
+  snapshot = testSnapshot(),
+): Extract<AgentCircuitResponse, { projection: "folder-directory" }> {
+  return {
+    apiVersion: "3.0",
+    requestId,
+    operation: "snapshot",
+    ok: true,
+    projection: "folder-directory",
+    projectId: snapshot.project.id,
+    structureRevision: snapshot.project.structureRevision,
+    documentId: snapshot.document.id,
+    revision: snapshot.document.revision,
+    folders: snapshot.project.simulationFolders.map((folder) => ({
+      id: folder.id,
+      name: folder.name,
+      entry: folder.input.entry,
+      circuitBindings: folder.input.circuitBindings,
+    })),
+  };
+}
+
 export function transactSuccessResponse(
   requestId: string,
   fromRevision: number,
@@ -240,9 +291,17 @@ export class FakeAgentHttp extends AgentHttpClient {
           case "capabilities":
             return capabilitiesResponse(request.requestId);
           case "snapshot":
-            return request.projection === "bootstrap"
-              ? bootstrapSnapshotResponse(request.requestId)
-              : snapshotResponse(request.requestId);
+            if (request.projection === "bootstrap")
+              return bootstrapSnapshotResponse(request.requestId);
+            if (request.projection === "state")
+              return stateSnapshotResponse(
+                request.requestId,
+                testSnapshot(),
+                request.diagnosticDetail === "items",
+              );
+            if (request.projection === "folder-directory")
+              return folderDirectoryResponse(request.requestId);
+            return snapshotResponse(request.requestId);
           case "render":
             return renderResponse(request.requestId);
           default:

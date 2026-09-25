@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { executeTransaction, SchematicEditSchema } from "@icm/edit-engine";
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, createSimulationFolder } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
 import type { CircuitProject } from "@icm/model";
 import {
@@ -289,9 +289,9 @@ describe("current Agent Circuit API service", () => {
     expect(JSON.stringify(AgentCircuitResponseJsonSchema).length).toBeLessThan(
       180_000,
     );
-    // File open and the explicit background-workspace headers add bounded
-    // contracts. Measured projection: 514,437 chars; retain a close ceiling.
-    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(514_950);
+    // Lightweight state and folder-directory projections add bounded response
+    // contracts. Measured projection: 517,326 chars; retain a close ceiling.
+    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(517_850);
   });
 
   it("publishes the flat Snapshot workflow and returns complete facts", () => {
@@ -506,6 +506,95 @@ describe("current Agent Circuit API service", () => {
         documentId,
         projection: "geometry",
         geometryIds: ["M1"],
+        traceNet: { netId: "net-vinp" },
+      }),
+    ).toMatchObject({ ok: false, error: { code: "INVALID_REQUEST" } });
+  });
+
+  it("reads current state and the saved folder directory without returning source bodies", () => {
+    const fixture = serviceFixture();
+    const documentId = fixture.getDocument().id;
+    const folder = createSimulationFolder({
+      id: "large-experiment",
+      name: "Large experiment",
+      profileId: "test-profile",
+      documentId,
+    });
+    folder.input.files[0]!.text = "source-sentinel-".repeat(12_000);
+    fixture.getProject().simulationFolders.push(folder);
+    const directory = fixture.service.handle({
+      apiVersion: "3.0",
+      requestId: "folder-directory",
+      operation: "snapshot",
+      documentId,
+      projection: "folder-directory",
+    });
+    expect(directory).toMatchObject({
+      ok: true,
+      projection: "folder-directory",
+      folders: [
+        {
+          id: folder.id,
+          name: folder.name,
+          entry: folder.input.entry,
+          circuitBindings: folder.input.circuitBindings,
+        },
+      ],
+    });
+    expect(JSON.stringify(directory)).not.toContain("source-sentinel-");
+    expect(JSON.stringify(directory)).not.toContain('"files"');
+
+    const state = fixture.service.handle({
+      apiVersion: "3.0",
+      requestId: "state-counts",
+      operation: "snapshot",
+      documentId,
+      projection: "state",
+    });
+    const detailed = fixture.service.handle({
+      apiVersion: "3.0",
+      requestId: "state-items",
+      operation: "snapshot",
+      documentId,
+      projection: "state",
+      diagnosticDetail: "items",
+    });
+    const full = fixture.service.handle({
+      apiVersion: "3.0",
+      requestId: "state-full-comparison",
+      operation: "snapshot",
+      documentId,
+    });
+    expect(state).toMatchObject({
+      ok: true,
+      projection: "state",
+      revision: fixture.getDocument().revision,
+      counts: { errors: expect.any(Number), warnings: expect.any(Number) },
+    });
+    expect(state).not.toHaveProperty("diagnostics");
+    if (
+      !detailed.ok ||
+      detailed.operation !== "snapshot" ||
+      !("projection" in detailed) ||
+      detailed.projection !== "state" ||
+      !full.ok ||
+      full.operation !== "snapshot" ||
+      !("snapshot" in full)
+    )
+      throw new Error("Expected state and full Snapshots");
+    expect(detailed.diagnostics).toEqual(full.diagnostics);
+    expect(detailed.netCount).toBe(full.snapshot.document.nets.length);
+    expect(JSON.stringify(detailed)).not.toContain("source-sentinel-");
+    expect(JSON.stringify(full).length).toBeGreaterThan(
+      JSON.stringify(detailed).length * 10,
+    );
+    expect(
+      fixture.service.handle({
+        apiVersion: "3.0",
+        requestId: "directory-trace-invalid",
+        operation: "snapshot",
+        documentId,
+        projection: "folder-directory",
         traceNet: { netId: "net-vinp" },
       }),
     ).toMatchObject({ ok: false, error: { code: "INVALID_REQUEST" } });

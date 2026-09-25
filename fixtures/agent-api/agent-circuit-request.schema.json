@@ -43,7 +43,9 @@
           "enum": [
             "full",
             "bootstrap",
-            "geometry"
+            "geometry",
+            "state",
+            "folder-directory"
           ]
         },
         "geometryIds": {
@@ -53,6 +55,13 @@
           "items": {
             "$ref": "#/$defs/__schema1"
           }
+        },
+        "diagnosticDetail": {
+          "type": "string",
+          "enum": [
+            "counts",
+            "items"
+          ]
         },
         "includeSourceSpans": {
           "type": "boolean"

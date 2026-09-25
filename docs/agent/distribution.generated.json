@@ -29,7 +29,7 @@
     },
     {
       "source": "docs/agent/tool-behavior.md",
-      "sha256": "aa72e843b246e99d2c8a5b6517a7337d23212ca9c153a8b5cf9a32c37fa06753"
+      "sha256": "27c51a8cbd0b21519ae2a07e0c4275673d17e9565a1c5390f95f4bc31a2095c6"
     },
     {
       "source": "docs/agent/response-semantics.md",
@@ -49,7 +49,7 @@
     },
     {
       "source": "fixtures/agent-api/agent-circuit-request.schema.json",
-      "sha256": "c20fecc7993af05d3a789b8a9fc32dbe93e763ba8e0706c96552f30d1bb43b10"
+      "sha256": "6e02a8859760390d8c7bde6cc27cdae324351374596b5bef998a555c7cb69b3b"
     },
     {
       "source": "docs/agent/http-kit/README.md",
@@ -85,7 +85,7 @@
     },
     {
       "source": "docs/agent/api-usage.md",
-      "sha256": "a76d95cfff5128ebf16db7f34055a461f0823255c77eea29e1dfc9743042dd40"
+      "sha256": "4d9394de0c75db79e0d53a6223dbd5da1cb79e22df327b9d8c8bcc3db59e94ad"
     },
     {
       "source": "docs/agent/examples.md",
@@ -97,7 +97,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "4591bf835dc9bd61a5b33f34a66ccef2af0f354a76273a3258bb633e387f68a6"
+      "sha256": "dc8d61ae070e128e4aeb5d906eb660e5c89d7ce9353e89e20b9cfde0d98e5395"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
@@ -121,7 +121,7 @@
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "6c4be3794ca24b92d9dadc58a4bdd78202ae9be5d0ee985cec468165ed4aaee9"
+      "sha256": "d749fe09917245a3820765c1045bb1f1eb8a3a61c1d95e70fe16e927a3e3fbe7"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
@@ -629,7 +629,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/knowledge/patterns.md"
       ],
-      "sha256": "afbe4288e549038f0415eab9c9212dda89e5d6d418bed55b280f6315b7e88857"
+      "sha256": "6bf65f188a08f5086914650100d62deaec1e1db0e294fe7a50b9386de90f8d1a"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -658,7 +658,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/knowledge/patterns.md"
       ],
-      "sha256": "e7628dc1ccb2ea7a8faffbaa788669640bd7314d2913a897f19d51ff5425fc47"
+      "sha256": "7b883502507f8319a2137dfecbb94452517a7281ed4834e5112b8e5f5475a255"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",
@@ -675,7 +675,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "653edc4b399a177959c9c50f57b9f6898faefeedafd7c564a9ed95546032725d"
+      "sha256": "dc92271e666a8c9267620fcf1d2740f74f3e9d96173883dc73a5bf54519e1543"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",

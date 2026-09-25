@@ -180,7 +180,10 @@ refresh and re-plan; never blindly replay a changed payload.
 specific authored objects (placement, routes, junctions, annotation anchors,
 drafting and no-connect objects). It returns current revision and missing IDs
 without resolving the full circuit. Use it after local movement; use the full
-inspection for pins, Nets, connectivity and diagnostics. An older Editor may
+inspection for pins, Nets and connectivity. `get_context` and
+`target:{kind:"diagnostics"}` use lightweight server reads for revision/counts
+and diagnostic items. `simulation_folder` list reads folder metadata without
+source bodies; get/edit still load the required Project. An older Editor may
 fall back to the full read while the deployment rolls out.
 `target:{kind:"activity"}` returns recent successful receipts in the current
 MCP process, not persistent history or other people's edits.

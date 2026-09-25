@@ -51,9 +51,9 @@ export const agentToolHelp = {
   import_file:
     "Stage a local Analog Canvas project or structural SPICE bundle and inspect it. action:open opens the candidate in a new Project tab under project.import without replacing current work or requiring browser confirmation. request-approval is for browser-confirmed replacement. Refresh connection status after the Project switch; the pairing remains valid.",
   get_context:
-    "Compact document identity, revision, counts and diagnostic totals. Reuses the clean Snapshot; refresh:true reconciles external changes. Connect already returns bootstrap context; do not repeat this call just to confirm pairing.",
+    "Compact document identity, revision, counts and diagnostic totals. Uses a lightweight server read or a clean cached Snapshot; refresh:true reconciles external changes. Connect already returns bootstrap context; do not repeat this call just to confirm pairing.",
   inspect:
-    "Inspect document facts, objects, nets, connectivity, diagnostics, cross-Cell traces or current-process activity. For local placement/routes use target kind geometry with stable objectIds; it avoids a full Snapshot. Use resolved pins when planning wiring.",
+    "Inspect document facts, objects, nets, connectivity, diagnostics, cross-Cell traces or current-process activity. Geometry and diagnostics have lightweight server reads; full Document facts and topology remain available. Use resolved pins when planning wiring.",
   search:
     "Case-insensitive search, including LaTeX, over one authorized document or scope:project. Results include documentId. Reuses clean Snapshots by default and loads authorized Project documents concurrently.",
   apply_actions:
@@ -65,7 +65,7 @@ export const agentToolHelp = {
   render:
     "Render the current document to SVG and return it as an image content block (image/svg+xml) plus a compact text summary (revision, sha256, byteLength).",
   simulation_folder:
-    "List/get/create/clone/rename/remove saved source experiments. Clean Project state is reused by default; refresh:true reconciles a known external change. rootDocumentId binds the drawn Cell; dut adds a text testbench using its exported name and ordered ports. Edit native source with simulation_files, not parallel JSON analyses. See analog-canvas://reference/mcp-simulation.",
+    "List/get/create/clone/rename/remove saved source experiments. List reads metadata without source bodies; get/edit use full Project state. refresh:true reconciles a known external change. rootDocumentId binds the drawn Cell; dut adds a text testbench using its exported name and ordered ports. Edit native source with simulation_files, not parallel JSON analyses. See analog-canvas://reference/mcp-simulation.",
   simulation_output:
     "Legacy config v1 only: manage output ASTs. Native Code uses simulation_files for saves and postprocess Python; this tool cannot add parallel JSON rules. See analog-canvas://reference/mcp-simulation. Exact expression schema: analog-canvas://contract/tools/simulation_output.",
   simulation_measurement:

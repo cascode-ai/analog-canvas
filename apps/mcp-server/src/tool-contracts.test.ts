@@ -163,6 +163,26 @@ describe("on-demand tool contracts", () => {
     ).toEqual(result);
   });
 
+  it("describes the shared legacy expression contract without expanding its DAG repeatedly", () => {
+    const full = describeToolContract({ tool: "simulation_output" }) as any;
+    expect(full.operations).toEqual(["list", "upsert", "remove"]);
+    expect(full.inputSchema).toBeDefined();
+    const upsert = describeToolContract({
+      tool: "simulation_output",
+      operations: ["upsert"],
+      field: "/expression",
+    }) as any;
+    expect(upsert).toMatchObject({
+      ok: false,
+      error: { code: "CONTRACT_SELECTION_TOO_BROAD" },
+      uri: "analog-canvas://contract/tools/simulation_output",
+    });
+    expect(
+      readResourceContent("analog-canvas://contract/tools/simulation_output")
+        .text,
+    ).toContain('"operand"');
+  });
+
   it.each([
     { operations: ["undo"] },
     { tool: "apply_actions", operations: ["not-an-action"] },
