@@ -62,8 +62,15 @@ import { AgentArtifacts } from "./agent-artifacts";
 function scopedRequestHash(
   raw: string,
   contextRevision: string | null | undefined,
+  workspaceId?: string | null,
 ): Promise<string> {
-  return sha256Text(JSON.stringify([contextRevision, raw]));
+  return sha256Text(
+    JSON.stringify([
+      workspaceId ?? null,
+      workspaceId ? null : contextRevision,
+      raw,
+    ]),
+  );
 }
 
 /** Cloudflare Durable Object owning one temporary Agent session. */
@@ -230,7 +237,14 @@ export class AgentSessionDO {
       const discovery =
         url.pathname === "/circuit" &&
         ["snapshot", "capabilities"].includes(input?.operation ?? "");
-      if (machine.documentIds.length === 0)
+      const workspaceId = request.headers.get("x-agent-workspace");
+      if (workspaceId && (workspaceId.length > 256 || !workspaceId.trim()))
+        return jsonResponse(
+          errorBody("PROJECT_CONTEXT_STALE", "Invalid workspace target"),
+          409,
+          allowedOrigin,
+        );
+      if (machine.documentIds.length === 0 && !workspaceId)
         return jsonResponse(
           errorBody("NO_ACTIVE_PROJECT", errorMessage("NO_ACTIVE_PROJECT")),
           409,
@@ -238,6 +252,7 @@ export class AgentSessionDO {
         );
       if (
         !discovery &&
+        !workspaceId &&
         request.headers.get("x-agent-context") !== machine.contextRevision
       )
         return jsonResponse(
@@ -772,7 +787,10 @@ export class AgentSessionDO {
         allowedOrigin,
       );
     }
-    if ("documentId" in circuitRequest) {
+    if (
+      !request.headers.has("x-agent-workspace") &&
+      "documentId" in circuitRequest
+    ) {
       const requestDocumentId = circuitRequest.documentId;
       if (requestDocumentId !== undefined) {
         const document = machine.assertDocument(
@@ -791,7 +809,11 @@ export class AgentSessionDO {
         }
       }
     }
-    const payloadHash = await scopedRequestHash(raw, observedContext);
+    const payloadHash = await scopedRequestHash(
+      raw,
+      observedContext,
+      request.headers.get("x-agent-workspace"),
+    );
     const readOnly = isReadOnlyCircuitRequest(circuitRequest);
     const begin = machine.beginRequest(
       circuitRequest.requestId,
@@ -827,6 +849,7 @@ export class AgentSessionDO {
         discovery
           ? observedContext
           : (request.headers.get("x-agent-context") ?? undefined),
+        request.headers.get("x-agent-workspace") ?? undefined,
       );
       machine.completeRequest(circuitRequest.requestId, result, Date.now());
       if (circuitRequest.operation !== "capabilities")
@@ -921,6 +944,7 @@ export class AgentSessionDO {
       );
     }
     if (
+      !request.headers.has("x-agent-workspace") &&
       fileRequest.operation === "download" &&
       fileRequest.documentId !== undefined
     ) {
@@ -945,6 +969,7 @@ export class AgentSessionDO {
       await scopedRequestHash(
         raw,
         request.headers.get("x-agent-context") ?? machine.contextRevision,
+        request.headers.get("x-agent-workspace"),
       ),
       readOnly ? "read" : "write",
     );
@@ -969,6 +994,7 @@ export class AgentSessionDO {
         fileRequest,
         "file-request",
         request.headers.get("x-agent-context") ?? undefined,
+        request.headers.get("x-agent-workspace") ?? undefined,
       );
       // Export blobs are explicitly one-shot: the DO retains only an unavailable
       // idempotency marker, never their bytes. Candidate summaries are safe to cache.
@@ -1083,6 +1109,7 @@ export class AgentSessionDO {
       await scopedRequestHash(
         raw,
         request.headers.get("x-agent-context") ?? machine.contextRevision,
+        request.headers.get("x-agent-workspace"),
       ),
       readOnly ? "read" : "write",
     );
@@ -1111,6 +1138,7 @@ export class AgentSessionDO {
         simulationRequest,
         "simulation-request",
         request.headers.get("x-agent-context") ?? undefined,
+        request.headers.get("x-agent-workspace") ?? undefined,
       );
       machine.completeRequest(simulationRequest.requestId, result, Date.now());
       if (
@@ -1219,6 +1247,7 @@ export class AgentSessionDO {
       await scopedRequestHash(
         raw,
         request.headers.get("x-agent-context") ?? machine.contextRevision,
+        request.headers.get("x-agent-workspace"),
       ),
       readOnly ? "read" : "write",
     );
@@ -1245,6 +1274,7 @@ export class AgentSessionDO {
         projectRequest,
         "project-request",
         request.headers.get("x-agent-context") ?? undefined,
+        request.headers.get("x-agent-workspace") ?? undefined,
       );
       machine.completeRequest(projectRequest.requestId, result, Date.now());
       machine.recordActivity(Date.now());
@@ -1423,6 +1453,7 @@ export class AgentSessionDO {
       | "simulation-request"
       | "project-request" = "circuit-request",
     contextRevision?: string,
+    workspaceId?: string,
   ): Promise<unknown> {
     const sockets = this.state.getWebSockets?.(EDITOR_SOCKET_TAG) ?? [];
     const socket = sockets.find(
@@ -1456,6 +1487,7 @@ export class AgentSessionDO {
         sentAt: new Date().toISOString(),
         kind,
         ...(contextRevision ? { contextRevision } : {}),
+        ...(workspaceId ? { workspaceId } : {}),
         payload,
       }),
     );

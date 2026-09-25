@@ -35,7 +35,7 @@ export const agentToolHelp = {
   connection_status:
     "Report runtime version, API origin and session observations. refresh:false is local-only. Attached means a browser socket exists, not verified execution readiness; unknown means the relay was not checked successfully.",
   project_cells:
-    "Cloud Cell discovery/import; workspace list/activate/open/save/copy. Live tabs include unsaved work; Cloud reads saved versions. Copy reuses GUI transactions and dependencies. Details: analog-canvas://reference/mcp-tools.",
+    "Cloud Cell discovery/import; workspace list/bind-workspace/activate/open/save/copy. Bind an open workspace to work without selecting the human's tab; open supports background:true. Live tabs include unsaved work; Cloud reads saved versions. Copy reuses GUI transactions and dependencies. Details: analog-canvas://reference/mcp-tools.",
   gallery_circuits:
     "Page through every public Gallery circuit, then read one or up to 12 entries' complete Project Code and generated SPICE/Spectre netlist. Follow nextCursor until null and any remainingEntryIds until empty; pass netlistFormat:null when only Project Code is needed.",
   project_code:

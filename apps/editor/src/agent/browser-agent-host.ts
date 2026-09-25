@@ -54,12 +54,16 @@ export class BrowserAgentHost implements AgentOperationHost {
     private readonly onSemanticIntent?: (
       request: AgentHostSemanticIntentRequest,
     ) => AgentHostSemanticIntentResult,
+    private readonly isAvailable: () => boolean = () => true,
   ) {
     this.boundProjectSessionId = controller.projectSessionId;
   }
 
   getDocument(documentId: string): SchematicDocument | null {
-    if (this.controller.projectSessionId !== this.boundProjectSessionId) {
+    if (
+      !this.isAvailable() ||
+      this.controller.projectSessionId !== this.boundProjectSessionId
+    ) {
       return null;
     }
     const document = this.controller.project.documents.find(
@@ -81,7 +85,10 @@ export class BrowserAgentHost implements AgentOperationHost {
   dispatchTransaction(
     request: AgentHostTransactionRequest,
   ): EditTransactionResult {
-    if (this.controller.projectSessionId !== this.boundProjectSessionId) {
+    if (
+      !this.isAvailable() ||
+      this.controller.projectSessionId !== this.boundProjectSessionId
+    ) {
       return rejectTransaction(
         this.controller.document,
         "DOCUMENT_MISMATCH",
@@ -98,7 +105,10 @@ export class BrowserAgentHost implements AgentOperationHost {
   dispatchProjectTransaction(
     request: ProjectTransaction,
   ): ProjectTransactionResult {
-    if (this.controller.projectSessionId !== this.boundProjectSessionId) {
+    if (
+      !this.isAvailable() ||
+      this.controller.projectSessionId !== this.boundProjectSessionId
+    ) {
       return rejectProjectStructureTransaction(
         this.controller.project,
         "PROJECT_MISMATCH",
@@ -113,7 +123,10 @@ export class BrowserAgentHost implements AgentOperationHost {
   applySemanticIntent(
     request: AgentHostSemanticIntentRequest,
   ): AgentHostSemanticIntentResult {
-    if (this.controller.projectSessionId !== this.boundProjectSessionId) {
+    if (
+      !this.isAvailable() ||
+      this.controller.projectSessionId !== this.boundProjectSessionId
+    ) {
       return {
         ok: false,
         code: "DOCUMENT_MISMATCH",
@@ -140,13 +153,17 @@ export class BrowserAgentHost implements AgentOperationHost {
 
   semanticControlAvailable(): boolean {
     return (
+      this.isAvailable() &&
       this.controller.projectSessionId === this.boundProjectSessionId &&
       this.onSemanticIntent !== undefined
     );
   }
 
   private assertBound(): void {
-    if (this.controller.projectSessionId !== this.boundProjectSessionId) {
+    if (
+      !this.isAvailable() ||
+      this.controller.projectSessionId !== this.boundProjectSessionId
+    ) {
       throw new Error("The Agent session Project has been replaced");
     }
   }

@@ -109,6 +109,10 @@ const SimulationArgs = z
   });
 const ProjectCellsArgs = z.discriminatedUnion("action", [
   z.strictObject({
+    action: z.literal("bind-workspace"),
+    workspaceId: z.string().min(1).max(256).nullable(),
+  }),
+  z.strictObject({
     action: z.literal("workspace"),
     request: AgentWorkspaceActionSchema,
   }),
@@ -220,8 +224,9 @@ async function localWorkspace(session: ToolSessionState, basePath?: string) {
   if (response.result.action !== "list")
     throw new Error("WORKSPACE_IDENTITY_UNAVAILABLE");
   const { activeWorkspaceId, projects } = response.result;
+  const selectedWorkspaceId = session.client.workspaceId ?? activeWorkspaceId;
   const active = projects.find(
-    (project) => project.workspaceId === activeWorkspaceId,
+    (project) => project.workspaceId === selectedWorkspaceId,
   );
   if (!active) throw new Error("WORKSPACE_IDENTITY_UNAVAILABLE");
   const scope = {
@@ -271,6 +276,7 @@ const ImportFileArgs = z
     includePaths: z.array(z.string().min(1)).max(23).optional(),
     namingProfile: z.enum(["native", "cadence-bang"]).optional(),
     candidateId: z.string().min(1).optional(),
+    background: z.boolean().optional(),
   })
   .superRefine((value, context) => {
     const required =
@@ -533,6 +539,8 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     },
     handle: async (args, session) => {
       const parsed = ProjectCellsArgs.parse(args);
+      if (parsed.action === "bind-workspace")
+        return session.client.bindWorkspace(parsed.workspaceId);
       if (parsed.action === "workspace")
         return session.client.projectResource({
           apiVersion: AGENT_API_VERSION,

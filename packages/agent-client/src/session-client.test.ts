@@ -31,6 +31,63 @@ async function freshClient(
 }
 
 describe("agent session client", () => {
+  it("binds one open working copy without changing the browser's active Project", async () => {
+    const http = new FakeAgentHttp({
+      projects: (request) => ({
+        apiVersion: "3.0",
+        requestId: request.requestId,
+        operation: "workspace",
+        ok: true,
+        result: {
+          action: "list",
+          activeWorkspaceId: "tab-a",
+          projects: [
+            {
+              workspaceId: "tab-a",
+              projectId: "project-a",
+              name: "Human",
+              cloudProjectId: null,
+              dirty: false,
+              structureRevision: 0,
+              cells: [{ documentId: "main", name: "A", revision: 0 }],
+            },
+            {
+              workspaceId: "tab-b",
+              projectId: "project-b",
+              name: "Agent",
+              cloudProjectId: null,
+              dirty: false,
+              structureRevision: 0,
+              cells: [{ documentId: "cell-b", name: "B", revision: 0 }],
+            },
+          ],
+        },
+      }),
+    });
+    const { client } = await freshClient({ http });
+    await client.connect("session-1.code");
+    expect(await client.bindWorkspace("tab-b")).toEqual({
+      workspaceId: "tab-b",
+      projectId: "project-b",
+      name: "Agent",
+    });
+    expect(http.workspaceId).toBe("tab-b");
+    expect((await client.status()).documentIds).toEqual(["cell-b"]);
+    const background = testSnapshot();
+    background.project.id = "project-b";
+    background.project.topDocumentId = "cell-b";
+    background.project.documents[0]!.id = "cell-b";
+    background.document.id = "cell-b";
+    http.circuitHandler = async ({ request }) =>
+      request.operation === "snapshot"
+        ? snapshotResponse(request.requestId, background)
+        : capabilitiesResponse(request.requestId);
+    expect((await client.snapshot()).documentId).toBe("cell-b");
+    await expect(client.bindWorkspace("missing")).rejects.toMatchObject({
+      code: "WORKSPACE_NOT_FOUND",
+    });
+    expect(client.workspaceId).toBe("tab-b");
+  });
   it("reuses exact recent metadata only internally, with explicit refresh, TTL and context isolation", async () => {
     let now = 1000;
     const { client, http } = await freshClient({ now: () => now });

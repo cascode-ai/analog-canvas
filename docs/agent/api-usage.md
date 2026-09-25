@@ -34,10 +34,14 @@ current examples use API `3.0`.
 The four-operation restriction applies to **Circuit**, not sibling resources.
 These routes do not grant arbitrary host files or shell access.
 
-Pairing belongs to the browser workspace, not one Project. Send `x-agent-context`
-with Project-bound requests; obtain it from claim/resume/status or a successful
-snapshot response header. After `PROJECT_CONTEXT_STALE`, refresh current context
-and re-plan; never redirect an old mutation automatically. Gallery returns
+Pairing belongs to the browser workspace, not one Project. For the human's
+active Project, send `x-agent-context` with Project-bound requests; obtain it
+from claim/resume/status or a successful snapshot response header. To address
+another open Project without changing the foreground tab, send its
+`x-agent-workspace` ID from `workspace.list` on each request. This explicit
+target remains valid across foreground tab changes and fails if that working
+copy closes. After `PROJECT_CONTEXT_STALE`, refresh current context and re-plan;
+never redirect an old mutation automatically. Gallery returns
 `NO_ACTIVE_PROJECT` without revoking the session. No per-operation status probe
 or full Snapshot is required.
 
@@ -48,6 +52,9 @@ and Cell IDs, source/target revisions and an offset; omit selection for the
 whole Cell. It reuses GUI copy/dependency handling and commits once with undo.
 `save` with `asNew:true` uses Cloud Save As. Existing `import-cell` imports a
 reusable Cell closure, not scene contents. Cloud actions retain account checks.
+`workspace.open` and File `open` accept `background:true` to create a Project
+tab without selecting it; the former returns its `workspaceId` for immediate
+targeting. Omitting the flag preserves the normal foreground open behavior.
 
 ## Transactions and request identity
 
