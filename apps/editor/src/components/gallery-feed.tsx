@@ -1197,7 +1197,10 @@ export function GalleryFeed({
                                 </button>
                               </span>
                               {entry.description ? (
-                                <span className="gallery-tile-description">
+                                <span
+                                  className="gallery-tile-description"
+                                  title={entry.description}
+                                >
                                   {entry.description}
                                 </span>
                               ) : null}
@@ -1295,7 +1298,10 @@ export function GalleryFeed({
                                   <span className="gallery-tile-name">
                                     {tile.name}
                                   </span>
-                                  <span className="gallery-tile-description">
+                                  <span
+                                    className="gallery-tile-description"
+                                    title={tile.description}
+                                  >
                                     {tile.description}
                                   </span>
                                 </span>

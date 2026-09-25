@@ -973,7 +973,14 @@
 }
 
 .gallery-tile-meta,
+/* A description can run to a full citation; the tile keeps three lines and
+   the title shows the rest, as does the entry's Notes in the editor. */
 .gallery-tile-description {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
   font-size: 12px;
   color: var(--icm-text-muted);
 }

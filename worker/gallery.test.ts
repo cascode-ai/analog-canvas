@@ -2229,6 +2229,40 @@ describe("private Cloud Projects", () => {
 });
 
 describe("gallery submissions", () => {
+  it("keeps a description up to 1000 characters, room for a full citation", async () => {
+    const env = environment();
+    const cookie = await adminOf(env);
+    const publish = (description: string) =>
+      route(
+        env,
+        submissionRequest(
+          {
+            name: "Cited circuit",
+            description,
+            projectText: projectText("Cited circuit"),
+          },
+          { ip: "203.0.113.7", cookie },
+        ),
+      );
+    const citation =
+      "Y. Liang, R. Ding and Z. Zhu, \u201cA 9.1ENOB 200MS/s Asynchronous SAR ADC With Hybrid Single-Ended/Differential DAC in 55-nm CMOS for Image Sensing Signals,\u201d in IEEE, ";
+    const longest = citation.repeat(8).slice(0, 1000);
+    const accepted = await publish(longest);
+    expect(accepted.status).toBe(201);
+    const { id } = (await accepted.json()) as { id: string };
+    expect(
+      env.gallerySql
+        .exec<{
+          description: string;
+        }>("SELECT description FROM gallery_entries WHERE id=?", id)
+        .one().description,
+    ).toBe(longest.trim());
+    // One more is refused whole, never stored cut.
+    const refused = await publish(`${longest}x`);
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toEqual({ error: "invalid-fields" });
+  });
+
   it("prepares formulas on cold publish and repairs legacy previews without changing publications", async () => {
     const env = environment();
     const cookie = await adminOf(env);

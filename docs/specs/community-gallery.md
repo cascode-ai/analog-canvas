@@ -180,7 +180,8 @@ inspection does not authorize publication or a production data rewrite.
 
 `POST /api/gallery/submissions` (same-origin) publishes immediately with:
 trimmed `name` (required, ≤120), `description`
-(≤300), and `tags` (array; normalized lowercase `[a-z0-9 +/-]`, ≤32
+(≤1000, room for a full citation; a Gallery tile shows its first three lines
+and the entry shows all of it), and `tags` (array; normalized lowercase `[a-z0-9 +/-]`, ≤32
 chars each, at most 12, deduplicated — `sanitizeGalleryTags` is the one
 normalization for writes and filters), `projectText` ≤2 MiB. The Worker validates, stamps the canonical
 serialization, renders the preview, and stores the entry as `public`.
@@ -511,7 +512,6 @@ identity is not public:
 
 What a visitor sees is the byline — the account's display name — which
 the account holder controls from the account menu.
-
 
 ## Current-cell duplicate tasks
 
