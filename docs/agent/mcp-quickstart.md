@@ -21,14 +21,12 @@ MCP manages credentials, request IDs and expected revisions.
 
 Choose only the guidance needed for the task:
 
-Use a focused tool's displayed parameters directly. If a field is hidden by the
-host or unfamiliar, `describe_tool` returns exact contracts offline: omit
-selectors for the directory, select `tool` + `operations` for complete call
-envelopes, or add `field` (argument JSON Pointer; `*` for array items). For example,
-`{"tool":"simulation_plot","field":"/request/formats"}` returns only the format
-field and its context. Reuse it within the returned `contractVersion`; fetching
-a contract is optional, never a prerequisite. Use `editKind` for one low-level
-edit. Existing resource URIs and broad tool entry points remain available.
+Use a focused tool's displayed parameters directly. For a hidden or unfamiliar
+field, `describe_tool` can select its exact offline contract by `tool`, optional
+`operations`, and `field` (argument JSON Pointer; `*` for array items).
+For example, `{"tool":"simulation_plot","field":"/request/formats"}`
+returns the format field and its context. Contract lookup is optional, not a
+prerequisite for calling a tool.
 
 - Circuit editing: [authoring](shared/authoring.md), then the built-in catalog
   before placing new symbols. [Tool details](mcp/tools.md) cover less common edits.
@@ -41,10 +39,8 @@ Sessions renew on Agent operations and manual edits, with a 30-minute idle
 deadline. Keep the editor open. Closing connection details does not disconnect.
 Read [session rules](shared/session.md) when investigating lifecycle behavior.
 HTTP fallback requires the user's explicit choice; it is not MCP acceptance.
-Resources describe capabilities; reading them is not an authorization gate.
 
-Transactions carry the revision of their planning Snapshot. Do not refresh just
-to confirm an accepted commit receipt. A stale-revision response causes a fresh
-read and replan; `verify` is for a milestone or reconciliation, not every small
-edit. Simulation `prepare` freezes one explicitly revisioned input, so
-start/read/download do not reread the circuit.
+Use the planning revision for transactions; accepted receipts need no
+confirmation reread. Replan after a stale-revision response and reserve
+`verify` for milestones. Simulation `prepare` freezes a revisioned input, so
+start/read/download need no circuit reread.
