@@ -14,6 +14,7 @@ import {
   resolveVisualAnchor,
   resolveDocumentRoutingGeometry,
   resolveDocumentLogicalNets,
+  resolveEndpointConnection,
 } from "@icm/derived";
 import {
   builtInSymbols,
@@ -214,6 +215,105 @@ export function captureProjectCopy(
         ),
       });
       netIds.add(id);
+    }
+  }
+  // What the source visibly connects among the copied parts travels as it
+  // is. The paste no longer joins pasted parts by where they touch (that
+  // joined a crossing's two wires), so the copy carries those joins itself:
+  // pins that meet another copied pin or Junction of their Net, or lie along
+  // a copied Wire of their Net. A pin on another Net's Wire stays apart, as
+  // it was. A pin's other links stay as the copy already decided (a Net its
+  // record alone holds is not carried, as Ports never shared one).
+  {
+    const copiedJunctions = new Set(clipboard.junctions.map((j) => j.id));
+    const placed = new Set(
+      clipboard.nets.flatMap((net) =>
+        net.terminals.map((t) => `${t.instanceId}\0${t.pinName}`),
+      ),
+    );
+    const key = (point: Point | undefined) =>
+      point ? `${point.x},${point.y}` : null;
+    for (const net of document.nets) {
+      const pins = net.terminals.filter((terminal) =>
+        selectedInstances.has(terminal.instanceId),
+      );
+      if (pins.length === 0) continue;
+      const pinPoints = pins.map((terminal) =>
+        key(
+          resolveEndpointConnection(document, resolver, {
+            kind: "terminal",
+            ...terminal,
+          })?.contactPoint,
+        ),
+      );
+      const points = [
+        ...pinPoints,
+        ...document.junctions
+          .filter((j) => j.netId === net.id && copiedJunctions.has(j.id))
+          .map((junction) => key(junction.position)),
+      ];
+      const wires = clipboard.routes
+        .filter((route) => route.netId === net.id)
+        .flatMap((route) => {
+          const line = geometry.routes.get(route.id)?.centerline ?? [];
+          return line.slice(1).map((end, index) => [line[index]!, end]);
+        });
+      const onWire = (point: Point) =>
+        wires.some(
+          ([a, b]) =>
+            Math.abs(
+              (b!.x - a!.x) * (point.y - a!.y) -
+                (b!.y - a!.y) * (point.x - a!.x),
+            ) < 0.5 &&
+            point.x >= Math.min(a!.x, b!.x) - 0.5 &&
+            point.x <= Math.max(a!.x, b!.x) + 0.5 &&
+            point.y >= Math.min(a!.y, b!.y) - 0.5 &&
+            point.y <= Math.max(a!.y, b!.y) + 0.5,
+        );
+      const attached = pins.filter((_, index) => {
+        const at = pinPoints[index];
+        if (!at) return false;
+        const [x, y] = at.split(",").map(Number);
+        return (
+          points.filter((point) => point === at).length > 1 ||
+          onWire({ x: x!, y: y! })
+        );
+      });
+      let copied = clipboard.nets.find((item) => item.id === net.id);
+      if (!copied) {
+        if (attached.length < 2) continue;
+        copied = { ...structuredClone(net), terminals: [] };
+        clipboard.nets.push(copied);
+        netIds.add(net.id);
+      }
+      for (const terminal of attached) {
+        const pin = `${terminal.instanceId}\0${terminal.pinName}`;
+        // A Port copySelection set apart, for sharing its Net with nothing
+        // visible, touches the Net's copied wiring here: it shares it visibly,
+        // so it goes back, and whatever was pointed at its own Net with it.
+        const splitId = `${net.id}-insert-${terminal.instanceId}`;
+        const split = clipboard.nets.find((item) => item.id === splitId);
+        if (split) {
+          clipboard.nets = clipboard.nets.filter((item) => item !== split);
+          netIds.delete(splitId);
+          for (const cell of clipboard.cellTerminals)
+            if (cell.netId === splitId) cell.netId = net.id;
+          for (const annotation of clipboard.annotations) {
+            if (annotation.netId === splitId) annotation.netId = net.id;
+            if (
+              annotation.binding?.kind === "net-name" &&
+              annotation.binding.netId === splitId
+            )
+              annotation.binding.netId = net.id;
+          }
+          for (const evidence of clipboard.connectivityEvidence)
+            if (evidence.netId === splitId) evidence.netId = net.id;
+          placed.delete(pin);
+        }
+        if (placed.has(pin)) continue;
+        copied.terminals.push({ ...terminal });
+        placed.add(pin);
+      }
     }
   }
   const copiedRoutes = new Set(clipboard.routes.map((r) => r.id));
@@ -751,10 +851,15 @@ export function planProjectCopyPlacement(
       const instance = projected.instances.find(
         (candidate) => candidate.id === id,
       )!;
+      // A pasted part meets the destination as an inserted one does, and
+      // only the destination: its links to the other pasted parts are the
+      // copied Nets, never where their drawings happen to touch.
       const connections = planInsertedInstanceConnections(
         projected,
         prepared.resolver,
         instance,
+        undefined,
+        { existing: document },
       );
       if (!connections.edits.length) continue;
       // Contact planning reads canonical endpoint bonds after insertion. Keep

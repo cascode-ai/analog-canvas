@@ -4,6 +4,7 @@ import {
   createEmptyDocument,
   createRoutePath,
   type CircuitProject,
+  type Point,
 } from "@icm/model";
 import { executeProjectTransaction } from "@icm/edit-engine";
 import { parseProject } from "@icm/project-protocol";
@@ -471,6 +472,181 @@ describe("one Project copy path", () => {
     const copy = copied.routes.find((route) => route.id !== "legacy")!;
     expect(copy.legs).toHaveLength(1);
     expect(copy.legs[0]!.to.kind).toBe("endpoint");
+  });
+
+  // Vertical resistors, pin 1 at the top and pin 2 at the bottom, so one
+  // part's pin can sit exactly on another part's pin or on a wire.
+  function connectivityFixture() {
+    const project = createEmptyProject("joins", "Joins");
+    const document = project.documents[0]!;
+    const resolver = new InMemorySymbolResolver(builtInSymbols);
+    const [first, second] = resolver.resolve("resistor")!.definition.pins;
+    const pin = (id: string, which: "1" | "2") => ({
+      kind: "terminal" as const,
+      instanceId: id,
+      pinName: (which === "1" ? first : second)!.name,
+    });
+    // Places a resistor so that its pin `which` lands on `at`.
+    const resistor = (id: string, which: "1" | "2", at: Point) => {
+      const local = (which === "1" ? first : second)!.at;
+      document.instances.push({
+        id,
+        reference: id,
+        symbolId: "resistor",
+        placement: {
+          position: { x: at.x - local.x, y: at.y - local.y },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: { parameters: { value: "1k" } },
+      });
+    };
+    const net = (id: string, ends: ReturnType<typeof pin>[]) =>
+      document.nets.push({
+        id,
+        terminals: ends.map(({ instanceId, pinName }) => ({
+          instanceId,
+          pinName,
+        })),
+      });
+    const wire = (
+      id: string,
+      netId: string,
+      from: ReturnType<typeof pin>,
+      to: ReturnType<typeof pin>,
+    ) =>
+      document.routes.push(
+        createRoutePath({
+          id,
+          netId,
+          start: from,
+          end: to,
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+    const copy = () => {
+      const plan = planProjectCopyPlacement(
+        project,
+        document,
+        captureProjectCopy(project, document, {
+          instanceIds: document.instances.map((item) => item.id),
+          routeIds: document.routes.map((item) => item.id),
+          junctionIds: [],
+          annotationIds: [],
+          draftingIds: [],
+        })!,
+        { x: 4000, y: 0 },
+        1,
+      );
+      const copied = applyProjectCopyPlacement(plan).documents[0]!;
+      const netOf = (id: string, which: "1" | "2") =>
+        copied.nets.find((candidate) =>
+          candidate.terminals.some(
+            (terminal) =>
+              terminal.instanceId === plan.mapping.objects.instances[id] &&
+              terminal.pinName === pin(id, which).pinName,
+          ),
+        )?.id ?? null;
+      return { copied, netOf };
+    };
+    return { document, pin, resistor, net, wire, copy };
+  }
+
+  it("never joins a copied pin to another Net's wire it only lies on", () => {
+    // R1's top pin, the end of its own wire up to R4, lies on the middle of
+    // the R2–R3 bus without being connected to it: the two wires cross.
+    const { pin, resistor, net, wire, copy } = connectivityFixture();
+    resistor("R2", "2", { x: -100, y: 100 });
+    resistor("R3", "2", { x: 100, y: 100 });
+    resistor("R1", "1", { x: 0, y: 100 });
+    resistor("R4", "2", { x: 0, y: 40 });
+    net("bus", [pin("R2", "2"), pin("R3", "2")]);
+    net("tap", [pin("R1", "1"), pin("R4", "2")]);
+    wire("bus-wire", "bus", pin("R2", "2"), pin("R3", "2"));
+    wire("tap-wire", "tap", pin("R1", "1"), pin("R4", "2"));
+    const { netOf } = copy();
+    expect(netOf("R1", "1")).toBe(netOf("R4", "2"));
+    expect(netOf("R1", "1")).not.toBe(netOf("R2", "2"));
+    expect(netOf("R2", "2")).toBe(netOf("R3", "2"));
+  });
+
+  it("copies a supply marker its source left unnamed as it was, without a label", () => {
+    // Markers from before they claimed their supply sit on an unnamed Net;
+    // here the marker's pin touches R1's top pin.
+    const project = createEmptyProject("unnamed-supply", "Unnamed supply");
+    const document = project.documents[0]!;
+    const resolver = new InMemorySymbolResolver(builtInSymbols);
+    const top = resolver.resolve("resistor")!.definition.pins[0]!;
+    const supply = resolver.resolve("vdd-port")!.definition.pins[0]!;
+    document.instances.push(
+      {
+        id: "VDD1",
+        symbolId: "vdd-port",
+        placement: {
+          position: { x: top.at.x - supply.at.x, y: top.at.y - supply.at.y },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "R1",
+        reference: "R1",
+        symbolId: "resistor",
+        placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+        netlist: { parameters: { value: "1k" } },
+      },
+    );
+    document.nets.push({
+      id: "rail",
+      terminals: [
+        { instanceId: "VDD1", pinName: supply.name },
+        { instanceId: "R1", pinName: top.name },
+      ],
+    });
+    const copied = place(
+      project,
+      captureProjectCopy(project, document, selection(["VDD1", "R1"]))!,
+    ).documents[0]!;
+    const marker = copied.instances.find(
+      (item) => item.symbolId === "vdd-port" && item.id !== "VDD1",
+    )!;
+    const part = copied.instances.find(
+      (item) => item.symbolId === "resistor" && item.id !== "R1",
+    )!;
+    const net = copied.nets.find((candidate) =>
+      candidate.terminals.some((terminal) => terminal.instanceId === marker.id),
+    )!;
+    expect(net.terminals.map((terminal) => terminal.instanceId).sort()).toEqual(
+      [marker.id, part.id].sort(),
+    );
+    expect(copied.connectivityEvidence).toEqual([]);
+    expect(copied.annotations).toEqual([]);
+  });
+
+  it("keeps copied pins that touch, or lie on their own Net's wire, joined", () => {
+    // R1 and R2 touch pin to pin; R5's top pin sits on the middle of the
+    // R2–R3 wire of the Net it belongs to. Neither join is a Wire end.
+    const { pin, resistor, net, wire, copy } = connectivityFixture();
+    resistor("R1", "2", { x: -100, y: 100 });
+    resistor("R2", "1", { x: -100, y: 100 });
+    resistor("R3", "1", { x: 100, y: 100 });
+    resistor("R5", "1", { x: 0, y: 100 });
+    net("row", [
+      pin("R1", "2"),
+      pin("R2", "1"),
+      pin("R3", "1"),
+      pin("R5", "1"),
+    ]);
+    wire("row-wire", "row", pin("R2", "1"), pin("R3", "1"));
+    const { netOf } = copy();
+    const row = netOf("R2", "1");
+    expect(row).not.toBeNull();
+    expect([netOf("R1", "2"), netOf("R3", "1"), netOf("R5", "1")]).toEqual([
+      row,
+      row,
+      row,
+    ]);
   });
 
   it("undoes dependencies and placed objects together, with no writes from preparation", () => {

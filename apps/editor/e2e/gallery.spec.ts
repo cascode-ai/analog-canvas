@@ -1999,6 +1999,89 @@ test("the account chip sits on the header line and ellipsizes a long name", asyn
   expect(overflowing.display).not.toContain("flex");
 });
 
+test("the header's credit and visitor count never run under the account actions", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/providers", (route) =>
+    route.fulfill({ json: { github: true, google: false, email: false } }),
+  );
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "owner-1",
+          displayName: "Zhishuai Zhang",
+          email: "owner@example.com",
+          provider: "github",
+          role: "user",
+          isAdmin: true,
+        },
+      },
+    }),
+  );
+  await page.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/gallery/tags")
+      return route.fulfill({ json: { tags: [] } });
+    if (url.pathname !== "/api/gallery") return route.fallback();
+    return route.fulfill({ json: { entries: [], nextCursor: null } });
+  });
+  await page.goto("/");
+  await expect(page.getByTestId("account-name")).toBeVisible();
+  // Visitor counts load only on the production host; give the header the
+  // link it renders there.
+  await page.evaluate(() => {
+    const link = document.createElement("a");
+    link.className = "analytics-link gallery-analytics-link";
+    link.textContent = "12,873 visitors · 14,256 views";
+    document.querySelector(".gallery-credit-group")!.append(link);
+  });
+
+  // From half screen to full width, with the owner's name, badge and menu on
+  // the right, the middle shows each item whole or not at all, and never
+  // under another control.
+  for (const width of [880, 930, 1000, 1100, 1180, 1250, 1300, 1400]) {
+    await page.setViewportSize({ width, height: 720 });
+    const layout = await page.evaluate(() => {
+      const group = document
+        .querySelector(".gallery-credit-group")!
+        .getBoundingClientRect();
+      const sides = [
+        ...document.querySelectorAll(
+          ".gallery-chrome .app-brand, .gallery-actions > *, .account-menu > *",
+        ),
+      ].map((element) => element.getBoundingClientRect());
+      const overlaps: string[] = [];
+      const partly: string[] = [];
+      for (const element of document.querySelectorAll(
+        ".gallery-credit-group .tokenzhang-link, .gallery-credit-group .gallery-analytics-link",
+      )) {
+        const box = element.getBoundingClientRect();
+        const left = Math.max(box.left, group.left);
+        const right = Math.min(box.right, group.right);
+        const top = Math.max(box.top, group.top);
+        const bottom = Math.min(box.bottom, group.bottom);
+        if (right - left <= 0 || bottom - top <= 0) continue;
+        if (right - left < box.width - 0.5 || bottom - top < box.height - 0.5)
+          partly.push(element.className);
+        if (
+          sides.some(
+            (side) =>
+              side.width > 0 &&
+              left < side.right - 0.5 &&
+              side.left < right - 0.5 &&
+              top < side.bottom &&
+              side.top < bottom,
+          )
+        )
+          overlaps.push(element.className);
+      }
+      return { overlaps, partly };
+    });
+    expect(layout, `at ${width}px`).toEqual({ overlaps: [], partly: [] });
+  }
+});
+
 test("tag categories select all children, retain other groups and expose mixed selection", async ({
   page,
 }) => {
