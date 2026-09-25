@@ -6,7 +6,7 @@ import type {
   RouteEndpoint,
   SchematicDocument,
 } from "@icm/model";
-import { routeEnd } from "@icm/model";
+import { foldNetName, routeEnd } from "@icm/model";
 import {
   resolveDocumentLogicalNets,
   type ResolvedDocumentLogicalNets,
@@ -146,10 +146,10 @@ export function isMosBulkRoute(
  * The Cell's one Net in a supply domain, or nothing.
  *
  * "The supply the author drew" is an explicit classification, never a guess:
- * a placed `ground` or `vdd-port` marker, or a name claim that says which
- * power domain a Net belongs to (a rail, a formal Cell Pin declared as a
- * supply). Nothing here reads a Net's spelling, a device's polarity, or what
- * a wire happens to pass near.
+ * a placed `ground` or `vdd-port` marker, a name claim that says which power
+ * domain a Net belongs to, or a unique formal VSS/VDD Cell Port. The formal
+ * interface is an authored supply declaration; an ordinary Net name hint is
+ * not. Nothing here guesses from an internal Net's spelling or nearby wire.
  *
  * Several candidates (AVDD beside DVDD, AGND beside DGND) is a question for
  * the author rather than a vote, so the answer is then nothing and whoever
@@ -161,47 +161,54 @@ export function drawnSupplyNet(
   domain: SupplyDomain,
   logicalNets?: ResolvedDocumentLogicalNets,
 ): Net | undefined {
-  const netIds = new Set<string>();
+  const resolved = logicalNets ?? resolveDocumentLogicalNets(document);
+  const candidates = new Map<string, Net>();
+  let contradictory = false;
+  const addCandidate = (netId: string) => {
+    const group = resolved.byBaseNetId.get(netId);
+    if (group && group.powerDomain !== "none" && group.powerDomain !== domain) {
+      contradictory = true;
+      return;
+    }
+    const [first] = [...(group?.baseNetIds ?? [netId])].sort((left, right) =>
+      left.localeCompare(right, "en"),
+    );
+    const net = document.nets.find((item) => item.id === first);
+    if (net) candidates.set(group?.id ?? net.id, net);
+  };
   // A caller that already holds this Document's Logical Nets passes them: the
   // fallback below runs once per MOS instance without one, and resolved the
   // whole Document every time.
-  for (const group of (logicalNets ?? resolveDocumentLogicalNets(document))
-    .groups) {
+  for (const group of resolved.groups) {
     if (group.powerDomain !== domain) continue;
-    // Any Base Net of the group is the same node; take a stable one so the
-    // answer does not depend on document order.
-    const [first] = [...group.baseNetIds].sort((left, right) =>
-      left.localeCompare(right, "en"),
+    if (group.baseNetIds[0]) addCandidate(group.baseNetIds[0]);
+  }
+  const formalName = domain === "ground" ? "vss" : "vdd";
+  for (const terminal of document.netlist?.terminals ?? [])
+    if (foldNetName(terminal.name) === formalName) addCandidate(terminal.netId);
+  // A wired marker remains an independent declaration when another Port or
+  // claim exists; a disagreement must not silently select either supply.
+  for (const instance of document.instances) {
+    const marker = supplyMarkerForSymbol(instance.symbolId);
+    if (marker?.domain !== domain) continue;
+    const net = document.nets.find((candidate) =>
+      candidate.terminals.some(
+        (terminal) =>
+          terminal.instanceId === instance.id &&
+          terminal.pinName === marker.pinName,
+      ),
     );
-    if (first) netIds.add(first);
+    if (net) addCandidate(net.id);
   }
-  if (netIds.size === 0) {
-    // Logical identity needs a name claim. A marker that was placed and wired
-    // without one still says which supply it is.
-    for (const instance of document.instances) {
-      const marker = supplyMarkerForSymbol(instance.symbolId);
-      if (marker?.domain !== domain) continue;
-      const net = document.nets.find((candidate) =>
-        candidate.terminals.some(
-          (terminal) =>
-            terminal.instanceId === instance.id &&
-            terminal.pinName === marker.pinName,
-        ),
-      );
-      if (net) netIds.add(net.id);
-    }
-  }
-  if (netIds.size !== 1) return undefined;
-  const [netId] = [...netIds];
-  return document.nets.find((net) => net.id === netId);
+  return candidates.size === 1 && !contradictory
+    ? [...candidates.values()][0]
+    : undefined;
 }
 
 /**
- * The Net a MOS body follows when nobody has said otherwise: the supply the
- * author already drew — ground under an NMOS body, VDD under a PMOS body,
- * because that is what those symbols mean. The answer needs no per-Cell
- * setting, survives copy/paste into any Cell that has the supply, and holds
- * for drawings made before the policy existed.
+ * The Net a MOS body follows when nobody has said otherwise: an unambiguous
+ * drawn supply or formal VSS/VDD Cell Port. The answer needs no per-Cell
+ * setting and survives copy/paste into a Cell with the same supply authority.
  */
 export function supplyDefaultMosBulkNet(
   document: SchematicDocument,
@@ -219,9 +226,8 @@ export function supplyDefaultMosBulkNet(
  * Single authority for MOS body intent. Net membership remains the electrical
  * truth; this function only explains where that truth came from: explicit B
  * wiring, a configured Cell default, or — when the Cell configures nothing —
- * the supply marker the author drew. MOS polarity never creates or selects a
- * named supply Net; the supply fallback reads a placed marker, and stays
- * silent when the drawing offers more than one.
+ * an authored supply marker or formal VSS/VDD Port. MOS polarity never creates
+ * a supply Net, and the fallback stays silent when those authorities disagree.
  */
 export function resolveMosBulkConnection(
   document: SchematicDocument,
@@ -444,13 +450,26 @@ export function mosBulkShouldBeVisible(
   );
   if (resolution?.status !== "explicit") return false;
   // Imported fourth-node membership is electrical evidence, not a request to
-  // draw a body-bias lead. The configured Cell default stays implicit unless
-  // a bulk Route was authored. B and S membership are never rewritten here.
+  // draw a body-bias lead. A matching Cell or drawn-supply default stays
+  // implicit unless a bulk Route was authored. B and S membership are never
+  // rewritten here.
   if (hasExplicitMosBulkRoute(document, resolution.instance.id)) return true;
-  const defaultNetId =
-    mosBulkKind(resolution.instance) === "nmos"
+  const kind = mosBulkKind(resolution.instance)!;
+  const configuredId =
+    kind === "nmos"
       ? document.mosBulkDefaults?.nmosNetId
       : document.mosBulkDefaults?.pmosNetId;
-  if (defaultNetId === resolution.net.id) return false;
-  return true;
+  const configured = configuredId
+    ? document.nets.find((net) => net.id === configuredId)
+    : undefined;
+  const policyNet =
+    configured ?? supplyDefaultMosBulkNet(document, kind, logicalNets);
+  if (!policyNet) return true;
+  if (policyNet.id === resolution.net.id) return false;
+  const resolved = logicalNets ?? resolveDocumentLogicalNets(document);
+  const policyLogicalId = resolved.byBaseNetId.get(policyNet.id)?.id;
+  return (
+    !policyLogicalId ||
+    policyLogicalId !== resolved.byBaseNetId.get(resolution.net.id)?.id
+  );
 }

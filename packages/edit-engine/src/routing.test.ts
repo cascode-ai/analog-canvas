@@ -3249,105 +3249,152 @@ describe("routing Edit Engine", () => {
     ).toHaveLength(1);
   });
 
-  it("deletes an entire split bulk route family and restores the default without orphaning ordinary wire", () => {
-    const document = createEmptyDocument("bulk-delete", "Bulk Delete");
-    document.instances.push(
-      {
-        id: "M1",
-        symbolId: "nmos",
-        symbolVariantId: "textbook-3terminal",
-        placement: {
-          position: { x: 100, y: 100 },
-          rotation: 0,
-          mirror: "none",
+  it.each(["cell", "supply", "formal"] as const)(
+    "deletes an entire split bulk route family and restores the %s default without orphaning ordinary wire",
+    (policy) => {
+      const document = createEmptyDocument("bulk-delete", "Bulk Delete");
+      const supplyPinName = policy === "formal" ? "P" : "0";
+      document.instances.push(
+        {
+          id: "M1",
+          symbolId: "nmos",
+          symbolVariantId: "textbook-3terminal",
+          placement: {
+            position: { x: 100, y: 100 },
+            rotation: 0,
+            mirror: "none",
+          },
+          ...(policy === "cell"
+            ? {
+                mosBulkBinding: {
+                  origin: "cell-default" as const,
+                  netId: "net-vss",
+                },
+              }
+            : {
+                importProvenance: {
+                  kind: "model" as const,
+                  sourceMasterName: "nch",
+                  sourceTarget: "nch",
+                },
+              }),
         },
-        mosBulkBinding: { origin: "cell-default", netId: "net-vss" },
-      },
-      {
-        id: "GND1",
-        symbolId: "ground",
-        placement: {
-          position: { x: 300, y: 110 },
-          rotation: 0,
-          mirror: "none",
+        {
+          id: "GND1",
+          symbolId: policy === "formal" ? "port" : "ground",
+          placement: {
+            position: { x: 300, y: 110 },
+            rotation: 0,
+            mirror: "none",
+          },
         },
-      },
-    );
-    document.nets.push({
-      id: "net-vss",
-      terminals: [
-        { instanceId: "M1", pinName: "B" },
-        { instanceId: "GND1", pinName: "0" },
-      ],
-    });
-    document.junctions.push(
-      { id: "J1", netId: "net-vss", position: { x: 150, y: 100 } },
-      { id: "J2", netId: "net-vss", position: { x: 200, y: 100 } },
-    );
-    document.routes.push(
-      createRoutePath({
-        id: "bulk-near",
-        netId: "net-vss",
-        start: { kind: "terminal", instanceId: "M1", pinName: "B" },
-        end: { kind: "junction", junctionId: "J1" },
-        bends: [{ x: 100, y: 100 }],
-        modes: ["escape", "manual"],
-        presentation: "bulk-dashed",
-      }),
-      createRoutePath({
-        id: "bulk-distal",
-        netId: "net-vss",
-        start: { kind: "junction", junctionId: "J1" },
-        end: { kind: "junction", junctionId: "J2" },
-        bends: [],
-        modes: ["manual"],
-        presentation: "bulk-dashed",
-      }),
-      createRoutePath({
-        id: "route-ui-112",
-        netId: "net-vss",
-        start: { kind: "junction", junctionId: "J2" },
-        end: { kind: "terminal", instanceId: "GND1", pinName: "0" },
-        bends: [],
-        modes: ["manual"],
-      }),
-    );
-    document.connectivityEvidence.push({
-      id: "claim-ground",
-      kind: "name-claim",
-      netId: "net-vss",
-      name: "0",
-      scope: "global",
-      powerDomain: "ground",
-      owner: { kind: "power-marker", objectId: "GND1" },
-    });
-    document.mosBulkDefaults = { nmosNetId: "net-vss" };
+      );
+      document.nets.push({
+        id: "net-vss",
+        terminals: [
+          { instanceId: "M1", pinName: "B" },
+          { instanceId: "GND1", pinName: supplyPinName },
+        ],
+      });
+      document.junctions.push(
+        { id: "J1", netId: "net-vss", position: { x: 150, y: 100 } },
+        { id: "J2", netId: "net-vss", position: { x: 200, y: 100 } },
+      );
+      document.routes.push(
+        createRoutePath({
+          id: "bulk-near",
+          netId: "net-vss",
+          start: { kind: "terminal", instanceId: "M1", pinName: "B" },
+          end: { kind: "junction", junctionId: "J1" },
+          bends: [{ x: 100, y: 100 }],
+          modes: ["escape", "manual"],
+          presentation: "bulk-dashed",
+        }),
+        createRoutePath({
+          id: "bulk-distal",
+          netId: "net-vss",
+          start: { kind: "junction", junctionId: "J1" },
+          end: { kind: "junction", junctionId: "J2" },
+          bends: [],
+          modes: ["manual"],
+          presentation: "bulk-dashed",
+        }),
+        createRoutePath({
+          id: "route-ui-112",
+          netId: "net-vss",
+          start: { kind: "junction", junctionId: "J2" },
+          end: { kind: "terminal", instanceId: "GND1", pinName: supplyPinName },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+      if (policy === "formal") {
+        document.netlist = {
+          name: "bulk-delete",
+          formalParameters: [],
+          terminals: [
+            {
+              id: "formal-vss",
+              name: "VSS",
+              netId: "net-vss",
+              direction: "passive",
+              interfaceInstanceIds: ["GND1"],
+            },
+          ],
+        };
+      } else {
+        document.connectivityEvidence.push({
+          id: "claim-ground",
+          kind: "name-claim",
+          netId: "net-vss",
+          name: "0",
+          scope: "global",
+          powerDomain: "ground",
+          owner: { kind: "power-marker", objectId: "GND1" },
+        });
+      }
+      if (policy === "cell")
+        document.mosBulkDefaults = { nmosNetId: "net-vss" };
 
-    const deletion = proposeVisualRouteDeletion(document, ["bulk-distal"], []);
-    expect(deletion.routeIds).toEqual(["bulk-distal", "bulk-near"]);
-    const result = executeTransaction(
-      document,
-      transaction(document.id, 0, deletion.edits),
-      context,
-    );
+      const deletion = proposeVisualRouteDeletion(
+        document,
+        ["bulk-distal"],
+        [],
+      );
+      expect(deletion.routeIds).toEqual(["bulk-distal", "bulk-near"]);
+      const result = executeTransaction(
+        document,
+        transaction(document.id, 0, deletion.edits),
+        context,
+      );
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.document.routes).toMatchObject([{ id: "route-ui-112" }]);
-    const defaultNetId = result.document.mosBulkDefaults?.nmosNetId;
-    expect(
-      result.document.instances.find((instance) => instance.id === "M1")
-        ?.mosBulkBinding,
-    ).toEqual({ origin: "cell-default", netId: defaultNetId });
-    expect(
-      result.document.nets.find((net) => net.id === defaultNetId)?.terminals,
-    ).toEqual(
-      expect.arrayContaining([
-        { instanceId: "M1", pinName: "B" },
-        { instanceId: "GND1", pinName: "0" },
-      ]),
-    );
-  });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.document.routes).toMatchObject([{ id: "route-ui-112" }]);
+      const defaultNetId =
+        policy === "cell"
+          ? result.document.mosBulkDefaults?.nmosNetId
+          : result.document.nets.find((net) =>
+              net.terminals.some((terminal) => terminal.instanceId === "GND1"),
+            )?.id;
+      expect(
+        result.document.instances.find((instance) => instance.id === "M1")
+          ?.mosBulkBinding,
+      ).toEqual(
+        policy === "cell"
+          ? { origin: "cell-default", netId: defaultNetId }
+          : undefined,
+      );
+      expect(
+        result.document.nets.find((net) => net.id === defaultNetId)?.terminals,
+      ).toEqual(
+        expect.arrayContaining([
+          { instanceId: "M1", pinName: "B" },
+          { instanceId: "GND1", pinName: supplyPinName },
+        ]),
+      );
+    },
+  );
 
   it("keeps an imported global declaration only on the primary component after a cut", () => {
     const document = documentFixture();

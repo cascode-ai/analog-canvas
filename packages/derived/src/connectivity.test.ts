@@ -71,6 +71,27 @@ describe("shared connectivity context (#17)", () => {
     const before = JSON.stringify(document);
     expect(deriveImportedRoutingGuidance(document, resolver)).toHaveLength(0);
     expect(JSON.stringify(document)).toBe(before);
+    document.mosBulkDefaults = undefined;
+    document.netlist = {
+      name: "main",
+      formalParameters: [],
+      terminals: [
+        {
+          id: "vss-port",
+          name: "VSS",
+          netId: "vss",
+          direction: "passive",
+          interfaceInstanceIds: ["BIAS"],
+        },
+      ],
+    };
+    document.revision += 1;
+    expect(deriveImportedRoutingGuidance(document, resolver)).toHaveLength(0);
+    document.netlist = undefined;
+    document.instances.push({ id: "GND", symbolId: "ground", placement: null });
+    document.nets[0]!.terminals.push({ instanceId: "GND", pinName: "0" });
+    document.revision += 1;
+    expect(deriveImportedRoutingGuidance(document, resolver)).toHaveLength(0);
     document.mosBulkDefaults = { nmosNetId: "tail" };
     document.revision += 1;
     expect(deriveImportedRoutingGuidance(document, resolver)).toHaveLength(1);
