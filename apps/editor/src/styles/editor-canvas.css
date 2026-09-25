@@ -178,6 +178,12 @@
   stroke-width: 6;
 }
 
+/* The part a selected label names: lit between selected and would-move. */
+.selection-halo-body--label-owner * {
+  stroke: rgb(var(--icm-accent-rgb) / 30%);
+  stroke-width: 6;
+}
+
 .wire-under-symbol-overlay .wire-under-symbol-paint {
   stroke: #d3212c;
   stroke-width: 2.5;
@@ -281,14 +287,25 @@
   stroke: rgb(var(--icm-accent-rgb) / 28%);
 }
 
-.net-label-tether line {
-  stroke: rgb(var(--icm-accent-rgb) / 75%);
-  stroke-width: 1.2;
+/* A selected label's line to what it belongs to: a soft glow under a dashed
+   core, ringed where it meets a wire or pin. */
+/* Butt ends: a label touching its owner has a zero-length line, which must
+   paint nothing until a drag stretches it. */
+.label-tether-glow {
+  stroke: rgb(var(--icm-accent-rgb) / 24%);
+  stroke-width: 6;
+  stroke-linecap: butt;
+  vector-effect: non-scaling-stroke;
+}
+
+.label-tether-line {
+  stroke: rgb(var(--icm-accent-rgb) / 90%);
+  stroke-width: 1.4;
   stroke-dasharray: 4 3;
   vector-effect: non-scaling-stroke;
 }
 
-.net-label-tether circle {
+.label-tether circle {
   fill: none;
   stroke: rgb(var(--icm-accent-rgb) / 90%);
   stroke-width: 1.6;

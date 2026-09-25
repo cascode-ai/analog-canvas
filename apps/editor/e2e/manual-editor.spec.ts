@@ -3944,7 +3944,48 @@ test("a dragged Net label moves freely while retaining its Net tether", async ({
   expect(after.x - before.x).toBeLessThan(-200);
   expect(after.y - before.y).toBeGreaterThan(60);
   await expect(renderedLabel).toHaveAttribute("data-anchor-kind", "free");
-  await expect(page.getByTestId("net-label-tether")).toBeVisible();
+  const tether = page.getByTestId("label-tether");
+  await expect(tether).toBeVisible();
+  await expect(tether).toHaveAttribute("data-tether-kind", "wire");
+});
+
+test("L puts a vertical wire's label on its right, and a selected name points at its part", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 300, y: 160 });
+  await placeComponent(page, "resistor", { x: 300, y: 400 });
+  await clickDrawTool(page, "wire");
+  // Drawn from R2 up to R1: a vertical wire whose direction used to put
+  // the label on its left, across the wire.
+  await page.getByTestId("terminal-R2-1").click();
+  await page.getByTestId("terminal-R1-2").click();
+  await page.keyboard.press("Escape");
+  await clickRoute(page, "route-ui-1", 0.5, 0);
+  await page.keyboard.press("l");
+  const editor = page.getByTestId("net-label-editor");
+  await editor.getByRole("textbox", { name: "Canvas text editor" }).fill("MID");
+  await editor.getByRole("button", { name: "Apply text changes" }).click();
+  const label = page.locator('[data-object-id="net-label-route-ui-1"]');
+  await expect(label).toContainText("MID");
+  const wire = await page.getByTestId("route-hit-route-ui-1").boundingBox();
+  const text = await label.boundingBox();
+  if (!wire || !text) throw new Error("Wire or label is not measurable");
+  expect(text.x).toBeGreaterThan(wire.x + wire.width / 2);
+
+  // A part's selected name draws its line to the part and lights the part.
+  await page.keyboard.press("Escape");
+  await page.getByTestId("annotation-hit-instance-label-R1").click();
+  const tether = page.getByTestId("label-tether");
+  await expect(tether).toHaveCount(1);
+  await expect(tether).toHaveAttribute("data-tether-kind", "part");
+  await expect(page.getByTestId("selection-halo-label-owner")).toHaveCount(1);
+  // Selecting the part alone shows which labels are its own.
+  await page.keyboard.press("Escape");
+  await page.getByTestId("hit-R2").click();
+  await expect(
+    page.locator('[data-testid="label-tether"][data-tether-kind="part"]'),
+  ).not.toHaveCount(0);
 });
 
 test("selects and moves multiple instances while viewport gestures stay transient", async ({

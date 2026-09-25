@@ -8,8 +8,8 @@ import {
   NetHighlightOverlay,
   DiagnosticMarkersOverlay,
   WireUnderSymbolOverlay,
-  NetLabelTetherOverlay,
-  type NetLabelTether,
+  LabelTetherOverlay,
+  type LabelTether,
 } from "./editor-canvas-overlays";
 import { EditorCanvasHitLayer } from "./editor-canvas-hit-layer";
 import { EditorCellSymbolLayoutOverlay } from "./editor-cell-symbol-layout-overlay";
@@ -60,7 +60,7 @@ export interface EditorCanvasSurfaceProps {
   netHighlight: ComponentProps<typeof NetHighlightOverlay>;
   wireUnderSymbol: ComponentProps<typeof WireUnderSymbolOverlay>;
   diagnosticMarkers: ComponentProps<typeof DiagnosticMarkersOverlay>;
-  netLabelTether: NetLabelTether | null;
+  labelTethers: readonly LabelTether[];
   copyPreviewInnerHtml: { __html: string } | null;
   copyPreviewTransform: string | undefined;
   inputPlanes: ComponentProps<typeof CanvasInputPlanes>;
@@ -99,7 +99,7 @@ export function EditorCanvasSurface({
   netHighlight,
   wireUnderSymbol,
   diagnosticMarkers,
-  netLabelTether,
+  labelTethers,
   copyPreviewInnerHtml,
   copyPreviewTransform,
   inputPlanes,
@@ -239,7 +239,7 @@ export function EditorCanvasSurface({
         <EditorSelectionHalo {...selectionHalo} />
         <g dangerouslySetInnerHTML={sceneInnerHtml} />
         <NetHighlightOverlay {...netHighlight} />
-        <NetLabelTetherOverlay tether={netLabelTether} />
+        <LabelTetherOverlay tethers={labelTethers} />
         {copyPreviewInnerHtml ? (
           <g
             data-testid="copy-placement-preview"

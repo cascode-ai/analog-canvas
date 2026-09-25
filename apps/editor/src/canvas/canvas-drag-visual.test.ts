@@ -120,4 +120,58 @@ describe("startCanvasDragVisual", () => {
     expect(trace.getAttribute("transform")).toBe("rotate(90)");
     expect(hit.getAttribute("transform")).toBeNull();
   });
+
+  it("stretches a label tether end by end with whichever of its objects moves", () => {
+    const tether = () =>
+      new FakeElement({
+        "data-tether-label-id": "L",
+        "data-tether-owner-id": "P",
+        x1: "10",
+        y1: "20",
+        x2: "40",
+        y2: "60",
+      });
+    const rootWith = (line: FakeElement) =>
+      ({
+        querySelectorAll: (selector: string) =>
+          selector.includes("data-tether") ? [line] : [],
+      }) as unknown as ParentNode;
+    const ends = (line: FakeElement) =>
+      ["x1", "y1", "x2", "y2"].map((name) => line.getAttribute(name));
+
+    const labelOnly = tether();
+    const dragLabel = startCanvasDragVisual(rootWith(labelOnly), ["L"]);
+    dragLabel.translate({ x: 5, y: 7 });
+    expect(ends(labelOnly)).toEqual(["15", "27", "40", "60"]);
+    dragLabel.restore();
+    expect(ends(labelOnly)).toEqual(["10", "20", "40", "60"]);
+
+    const both = tether();
+    startCanvasDragVisual(rootWith(both), ["L", "P"]).translate({
+      x: 5,
+      y: 7,
+    });
+    expect(ends(both)).toEqual(["15", "27", "45", "67"]);
+
+    // A tether that renders after the drag began still stretches.
+    let late: FakeElement[] = [];
+    const lateRoot = {
+      querySelectorAll: (selector: string) =>
+        selector.includes("data-tether") ? late : [],
+    } as unknown as ParentNode;
+    const dragLate = startCanvasDragVisual(lateRoot, ["L"]);
+    const appeared = tether();
+    late = [appeared];
+    dragLate.translate({ x: 5, y: 7 });
+    expect(ends(appeared)).toEqual(["15", "27", "40", "60"]);
+    dragLate.restore();
+    expect(ends(appeared)).toEqual(["10", "20", "40", "60"]);
+
+    const ownerOnly = tether();
+    startCanvasDragVisual(rootWith(ownerOnly), ["L", "P"]).translateObject(
+      "P",
+      { x: -3, y: 2 },
+    );
+    expect(ends(ownerOnly)).toEqual(["10", "20", "37", "62"]);
+  });
 });

@@ -289,39 +289,67 @@ export function DiagnosticMarkersOverlay({
 }
 
 /**
- * One operating-point voltage, ready to paint. Declared structurally so the
- * canvas layer stays below features: the simulation feature decides which
- * nets earn a badge and where it sits, and hands the result down.
+ * A label's line to what it belongs to, ready to paint. Declared structurally
+ * so the canvas layer stays below features: the wiring feature decides which
+ * labels get one and where its ends sit, and hands the result down.
  */
-export interface NetLabelTether {
+export interface LabelTether {
+  annotationId: string;
+  kind: "wire" | "pin" | "part";
+  ownerId: string | null;
   label: { x: number; y: number };
-  conductor: { x: number; y: number };
-  netName: string | null;
+  target: { x: number; y: number };
 }
 
 /**
- * Selected net label -> its conductor tap: a dashed tether and a ring on
- * the exact attachment point, so the label's electrical home is visible.
+ * Each selected label -> what it belongs to: a Net Label to its wire tap, a
+ * pin's name to the pin, a part's name or value to the part, whose outline
+ * the selection halo lights. The line glows under a dashed core. Its ends
+ * name their label and owner, so a drag stretches the line with whichever
+ * one moves.
  */
-export function NetLabelTetherOverlay({
-  tether,
+export function LabelTetherOverlay({
+  tethers,
 }: {
-  tether: NetLabelTether | null;
+  tethers: readonly LabelTether[];
 }) {
-  if (!tether) return null;
+  if (tethers.length === 0) return null;
   return (
-    <g
-      data-testid="net-label-tether"
-      className="net-label-tether"
-      pointerEvents="none"
-    >
-      <line
-        x1={tether.label.x}
-        y1={tether.label.y}
-        x2={tether.conductor.x}
-        y2={tether.conductor.y}
-      />
-      <circle cx={tether.conductor.x} cy={tether.conductor.y} r="4.5" />
+    <g data-testid="label-tethers" pointerEvents="none">
+      {tethers.map((tether) => {
+        const ends = {
+          x1: tether.label.x,
+          y1: tether.label.y,
+          x2: tether.target.x,
+          y2: tether.target.y,
+          "data-tether-label-id": tether.annotationId,
+          ...(tether.ownerId ? { "data-tether-owner-id": tether.ownerId } : {}),
+        };
+        return (
+          <g
+            key={tether.annotationId}
+            data-testid="label-tether"
+            data-tether-kind={tether.kind}
+            data-tether-for={tether.annotationId}
+            className={`label-tether label-tether--${tether.kind}`}
+          >
+            {/* Drawn even at zero length, when the label touches its owner:
+                a drag then has a line to stretch. */}
+            <line className="label-tether-glow" {...ends} />
+            <line className="label-tether-line" {...ends} />
+            {tether.kind === "part" ? null : (
+              <circle
+                cx={tether.target.x}
+                cy={tether.target.y}
+                r="4.5"
+                {...(tether.ownerId
+                  ? { "data-drag-object-id": tether.ownerId }
+                  : {})}
+              />
+            )}
+          </g>
+        );
+      })}
     </g>
   );
 }
