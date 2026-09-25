@@ -1,6 +1,8 @@
 import {
   parseAgentCircuitRequest,
   AgentBootstrapSnapshotResponseSchema,
+  AgentDocumentStateResponseSchema,
+  AgentFolderDirectoryResponseSchema,
   AgentGeometrySnapshotResponseSchema,
   AgentAuthoringCommandSchema,
   AgentCapabilitiesResponseSchema,
@@ -42,6 +44,7 @@ import {
   bootstrapFromFullSnapshot,
   bootstrapSummary,
   changedObjectIds,
+  countDiagnostics,
   type CachedSnapshot,
   type BootstrapSummary,
   type SnapshotSummary,
@@ -865,6 +868,181 @@ export class AgentSessionClient {
       context.project.topDocumentId,
     );
     return context;
+  }
+
+  private async lightweightSnapshot(
+    documentId: string | undefined,
+    projection: "state" | "folder-directory",
+    diagnosticDetail?: "counts" | "items",
+  ): Promise<{ documentId: string; response: AgentCircuitResponse }> {
+    let target = await this.resolveDocumentId(documentId);
+    const contextBefore = this.http.contextRevision;
+    const request = (id: string) =>
+      this.send({
+        ...baseRequest(this.newRequestId()),
+        operation: "snapshot",
+        documentId: id,
+        projection,
+        ...(diagnosticDetail ? { diagnosticDetail } : {}),
+      });
+    let response: AgentCircuitResponse;
+    try {
+      response = await request(target);
+    } catch (error) {
+      if (
+        documentId !== undefined ||
+        !(error instanceof AgentSessionError) ||
+        !["PROJECT_CONTEXT_STALE", "DOCUMENT_NOT_FOUND"].includes(error.code)
+      )
+        throw error;
+      await this.status({ refresh: true });
+      const current = await this.resolveDocumentId();
+      if (current === target && this.http.contextRevision === contextBefore)
+        throw error;
+      target = current;
+      response = await request(target);
+    }
+    if (
+      documentId === undefined &&
+      !response.ok &&
+      ["PROJECT_CONTEXT_STALE", "DOCUMENT_NOT_FOUND"].includes(
+        response.error.code,
+      )
+    ) {
+      await this.status({ refresh: true });
+      const current = await this.resolveDocumentId();
+      if (current !== target || this.http.contextRevision !== contextBefore) {
+        target = current;
+        response = await request(target);
+      }
+    }
+    return { documentId: target, response };
+  }
+
+  private observeLightweightSnapshot(
+    documentId: string,
+    projectId: string,
+    structureRevision: number,
+    revision: number,
+  ): void {
+    const cached = this.cache.get(documentId);
+    if (
+      cached &&
+      (cached.snapshot.project.id !== projectId ||
+        cached.snapshot.project.structureRevision !== structureRevision)
+    ) {
+      this.cache.clear();
+      this.knownRevisions.clear();
+    } else if (cached && cached.revision !== revision) {
+      this.cache.markDirty(documentId, revision);
+    }
+    if (this.session && !this.boundWorkspace)
+      this.session.projectId = projectId;
+    this.rememberRevision({
+      documentId,
+      revision,
+      structureRevision,
+      projectId,
+    });
+  }
+
+  /** Current revision and diagnostics without serializing a full Project. */
+  async documentState(
+    documentId?: string,
+    options: { refresh?: boolean; diagnostics?: "counts" | "items" } = {},
+  ): Promise<z.infer<typeof AgentDocumentStateResponseSchema>> {
+    const target = await this.resolveDocumentId(documentId);
+    const fromCache = (entry: CachedSnapshot) => {
+      const counts = countDiagnostics(entry.diagnostics);
+      return AgentDocumentStateResponseSchema.parse({
+        ...baseRequest(this.newRequestId()),
+        operation: "snapshot",
+        ok: true,
+        projection: "state",
+        projectId: entry.snapshot.project.id,
+        structureRevision: entry.snapshot.project.structureRevision,
+        documentId: entry.documentId,
+        documentName: entry.snapshot.document.name,
+        revision: entry.revision,
+        instanceCount: entry.snapshot.document.instances.length,
+        netCount: entry.snapshot.document.nets.length,
+        counts: { ...counts, total: entry.diagnostics.length },
+        ...(options.diagnostics === "items"
+          ? { diagnostics: entry.diagnostics }
+          : {}),
+      });
+    };
+    const cached = this.cache.get(target);
+    if (cached && !cached.dirty && !options.refresh) return fromCache(cached);
+    const read = await this.lightweightSnapshot(
+      documentId,
+      "state",
+      options.diagnostics ?? "counts",
+    );
+    if (!read.response.ok && read.response.error.code === "INVALID_REQUEST")
+      return fromCache(await this.refreshSnapshot(read.documentId));
+    const parsed = AgentDocumentStateResponseSchema.safeParse(read.response);
+    if (!parsed.success)
+      throw new AgentSessionError(
+        read.response.ok ? "INVALID_RESPONSE" : read.response.error.code,
+        read.response.ok
+          ? "state snapshot response failed schema validation"
+          : read.response.error.message,
+        "request-rejected",
+      );
+    this.observeLightweightSnapshot(
+      read.documentId,
+      parsed.data.projectId,
+      parsed.data.structureRevision,
+      parsed.data.revision,
+    );
+    return parsed.data;
+  }
+
+  /** Saved experiment names and bindings, never their authored source bodies. */
+  async simulationFolderDirectory(
+    documentId?: string,
+    options: { refresh?: boolean } = {},
+  ): Promise<z.infer<typeof AgentFolderDirectoryResponseSchema>> {
+    const target = await this.resolveDocumentId(documentId);
+    const fromCache = (entry: CachedSnapshot) =>
+      AgentFolderDirectoryResponseSchema.parse({
+        ...baseRequest(this.newRequestId()),
+        operation: "snapshot",
+        ok: true,
+        projection: "folder-directory",
+        projectId: entry.snapshot.project.id,
+        structureRevision: entry.snapshot.project.structureRevision,
+        documentId: entry.documentId,
+        revision: entry.revision,
+        folders: entry.snapshot.project.simulationFolders.map((folder) => ({
+          id: folder.id,
+          name: folder.name,
+          entry: folder.input.entry,
+          circuitBindings: folder.input.circuitBindings,
+        })),
+      });
+    const cached = this.cache.get(target);
+    if (cached && !cached.dirty && !options.refresh) return fromCache(cached);
+    const read = await this.lightweightSnapshot(documentId, "folder-directory");
+    if (!read.response.ok && read.response.error.code === "INVALID_REQUEST")
+      return fromCache(await this.refreshSnapshot(read.documentId));
+    const parsed = AgentFolderDirectoryResponseSchema.safeParse(read.response);
+    if (!parsed.success)
+      throw new AgentSessionError(
+        read.response.ok ? "INVALID_RESPONSE" : read.response.error.code,
+        read.response.ok
+          ? "folder directory response failed schema validation"
+          : read.response.error.message,
+        "request-rejected",
+      );
+    this.observeLightweightSnapshot(
+      read.documentId,
+      parsed.data.projectId,
+      parsed.data.structureRevision,
+      parsed.data.revision,
+    );
+    return parsed.data;
   }
 
   /** Read selected authored geometry without resolving topology or diagnostics. */

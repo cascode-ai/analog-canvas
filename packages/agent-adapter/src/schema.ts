@@ -27,6 +27,8 @@ import {
   CellNetlistInterfaceSchema,
   MosBulkDefaultsSchema,
   ProjectSimulationFolderSchema,
+  SimulationCircuitBindingSchema,
+  SimulationInputPathSchema,
 } from "@icm/model";
 import { ObjectLocatorSchema, HierarchyFrameSchema } from "@icm/derived";
 import {
@@ -129,9 +131,12 @@ export const AgentProjectResourceCapabilitySchema = z.strictObject({
 export const AgentSnapshotRequestSchema = RequestBaseSchema.extend({
   operation: z.literal("snapshot"),
   documentId: StableIdSchema,
-  /** Full remains the default; geometry reads only selected authored objects. */
-  projection: z.enum(["full", "bootstrap", "geometry"]).optional(),
+  /** Full remains the default; lightweight projections never contain source text. */
+  projection: z
+    .enum(["full", "bootstrap", "geometry", "state", "folder-directory"])
+    .optional(),
   geometryIds: z.array(StableIdSchema).min(1).max(64).optional(),
+  diagnosticDetail: z.enum(["counts", "items"]).optional(),
   includeSourceSpans: z.boolean().optional(),
   traceNet: z
     .strictObject({
@@ -717,6 +722,45 @@ export const AgentBootstrapSnapshotResponseSchema = ResponseBaseSchema.extend({
   context: AgentBootstrapSnapshotSchema,
 });
 
+export const AgentDocumentStateResponseSchema = ResponseBaseSchema.extend({
+  operation: z.literal("snapshot"),
+  ok: z.literal(true),
+  projection: z.literal("state"),
+  projectId: StableIdSchema,
+  structureRevision: z.number().int().nonnegative(),
+  documentId: StableIdSchema,
+  documentName: z.string().min(1),
+  revision: z.number().int().nonnegative(),
+  instanceCount: z.number().int().nonnegative(),
+  netCount: z.number().int().nonnegative(),
+  counts: z.strictObject({
+    errors: z.number().int().nonnegative(),
+    warnings: z.number().int().nonnegative(),
+    total: z.number().int().nonnegative(),
+  }),
+  diagnostics: z.array(AgentDiagnosticSchema).optional(),
+});
+
+export const AgentFolderDirectoryResponseSchema = ResponseBaseSchema.extend({
+  operation: z.literal("snapshot"),
+  ok: z.literal(true),
+  projection: z.literal("folder-directory"),
+  projectId: StableIdSchema,
+  structureRevision: z.number().int().nonnegative(),
+  documentId: StableIdSchema,
+  revision: z.number().int().nonnegative(),
+  folders: z
+    .array(
+      z.strictObject({
+        id: StableIdSchema,
+        name: z.string().trim().min(1).max(128),
+        entry: SimulationInputPathSchema,
+        circuitBindings: z.array(SimulationCircuitBindingSchema).max(1024),
+      }),
+    )
+    .max(64),
+});
+
 export const AgentGeometryObjectSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("instance"),
@@ -843,6 +887,8 @@ export const AgentErrorResponseSchema = ResponseBaseSchema.extend({
 export const AgentProductionCircuitResponseSchema = z.union([
   AgentCapabilitiesResponseSchema,
   AgentBootstrapSnapshotResponseSchema,
+  AgentDocumentStateResponseSchema,
+  AgentFolderDirectoryResponseSchema,
   AgentGeometrySnapshotResponseSchema,
   AgentSnapshotResponseSchema,
   AgentTransactSuccessResponseSchema,

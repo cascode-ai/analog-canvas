@@ -466,14 +466,27 @@ export function createAgentCircuitService(
           );
         }
         if (
-          request.projection === "bootstrap" &&
+          ["bootstrap", "state", "folder-directory"].includes(
+            request.projection ?? "full",
+          ) &&
           (request.includeSourceSpans === true ||
             request.traceNet !== undefined)
         ) {
           return fail(
             "snapshot",
             "INVALID_REQUEST",
-            "Bootstrap Snapshot cannot include source spans or a Net trace; request the full projection",
+            "Lightweight Snapshot projections cannot include source spans or a Net trace; request the full projection",
+            document.revision,
+          );
+        }
+        if (
+          request.diagnosticDetail !== undefined &&
+          request.projection !== "state"
+        ) {
+          return fail(
+            "snapshot",
+            "INVALID_REQUEST",
+            "diagnosticDetail applies only to the state projection",
             document.revision,
           );
         }
@@ -510,6 +523,66 @@ export function createAgentCircuitService(
               "snapshot",
               "SNAPSHOT_TOO_LARGE",
               `Geometry Snapshot content exceeds ${limits.maxSnapshotBytes} bytes`,
+              document.revision,
+            );
+          return response(result);
+        }
+        if (request.projection === "state") {
+          const diagnostics = diagnosticsFor(project, document, resolver);
+          const errors = diagnostics.filter(
+            (item) => item.severity === "error",
+          ).length;
+          const warnings = diagnostics.filter(
+            (item) => item.severity === "warning",
+          ).length;
+          const result = {
+            apiVersion: request.apiVersion,
+            requestId: request.requestId,
+            operation: "snapshot" as const,
+            ok: true as const,
+            projection: "state" as const,
+            projectId: project?.id ?? `project-${document.id}`,
+            structureRevision: project?.structureRevision ?? 0,
+            documentId: document.id,
+            documentName: document.name,
+            revision: document.revision,
+            instanceCount: document.instances.length,
+            netCount: document.nets.length,
+            counts: { errors, warnings, total: diagnostics.length },
+            ...(request.diagnosticDetail === "items" ? { diagnostics } : {}),
+          };
+          if (utf8ByteLength(JSON.stringify(result)) > limits.maxSnapshotBytes)
+            return fail(
+              "snapshot",
+              "SNAPSHOT_TOO_LARGE",
+              `State Snapshot content exceeds ${limits.maxSnapshotBytes} bytes`,
+              document.revision,
+            );
+          return response(result);
+        }
+        if (request.projection === "folder-directory") {
+          const result = {
+            apiVersion: request.apiVersion,
+            requestId: request.requestId,
+            operation: "snapshot" as const,
+            ok: true as const,
+            projection: "folder-directory" as const,
+            projectId: project?.id ?? `project-${document.id}`,
+            structureRevision: project?.structureRevision ?? 0,
+            documentId: document.id,
+            revision: document.revision,
+            folders: (project?.simulationFolders ?? []).map((folder) => ({
+              id: folder.id,
+              name: folder.name,
+              entry: folder.input.entry,
+              circuitBindings: folder.input.circuitBindings,
+            })),
+          };
+          if (utf8ByteLength(JSON.stringify(result)) > limits.maxSnapshotBytes)
+            return fail(
+              "snapshot",
+              "SNAPSHOT_TOO_LARGE",
+              `Folder directory exceeds ${limits.maxSnapshotBytes} bytes`,
               document.revision,
             );
           return response(result);

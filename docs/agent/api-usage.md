@@ -13,8 +13,10 @@ schemas, response envelopes and limits. The Kit does not replace that contract.
    credential storage. Never log credentials or put them in circuit files.
 3. Call Circuit `capabilities` for permissions, operations and limits.
    **Capabilities does not contain a Project Index.** Choose a Document from
-   claim/resume authorization; read its `snapshot` for Project context,
-   resolved pins, Nets, locks and revisions.
+   claim/resume authorization. Use the `bootstrap` Snapshot for identities,
+   `state` for revision and diagnostics, or `folder-directory` for experiment
+   names and bindings. Read the default full Snapshot when you need Project
+   editing context, resolved pins, Nets or locks.
 4. Follow [task workflow](workflow.md) and [native authoring](shared/authoring.md).
    Use the [catalog](../../packages/agent-adapter/src/agent-authoring-catalog.generated.ts)
    for built-in placement; refresh Snapshot before wiring newly created pins.
@@ -23,13 +25,13 @@ Use `Authorization: Bearer <agentToken>` and `Content-Type: application/json`
 for session requests. Include `apiVersion` and `requestId` where required;
 current examples use API `3.0`.
 
-| Route under `/api/agent/sessions/{sessionId}` | Purpose                                                                    |
-| --------------------------------------------- | -------------------------------------------------------------------------- |
-| `POST /circuit`                               | Four Circuit operations: capabilities, snapshot, transact, render          |
-| `POST /files`                                 | Project exports/import candidates, simulation source and artifacts         |
+| Route under `/api/agent/sessions/{sessionId}` | Purpose                                                                        |
+| --------------------------------------------- | ------------------------------------------------------------------------------ |
+| `POST /circuit`                               | Four Circuit operations: capabilities, snapshot, transact, render              |
+| `POST /files`                                 | Project exports/import candidates, simulation source and artifacts             |
 | `POST /simulation`                            | Capabilities, authoring help, run/prepare/start/read/cancel/export and batches |
-| `POST /projects`                              | Public Gallery, active Project Code/Netlist, reusable Cloud Cells          |
-| `GET /status`                                 | Session observations; attached is not execution readiness                  |
+| `POST /projects`                              | Public Gallery, active Project Code/Netlist, reusable Cloud Cells              |
+| `GET /status`                                 | Session observations; attached is not execution readiness                      |
 
 The four-operation restriction applies to **Circuit**, not sibling resources.
 These routes do not grant arbitrary host files or shell access.

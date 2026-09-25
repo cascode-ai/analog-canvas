@@ -242,28 +242,26 @@ export const simulationAuthoringTools: readonly Entry[] = [
     agentToolHelp["simulation_folder"],
     FolderArgs,
     async (parsed, session) => {
+      if (parsed.action === "list") {
+        const directory = await session.client.simulationFolderDirectory(
+          parsed.documentId,
+          { refresh: parsed.refresh ?? false },
+        );
+        return {
+          ok: true,
+          folders: directory.folders.filter(
+            (folder) =>
+              !parsed.rootDocumentId ||
+              folder.circuitBindings.some(
+                (binding) => binding.documentId === parsed.rootDocumentId,
+              ),
+          ),
+        };
+      }
       const snapshot = await session.client.snapshot(parsed.documentId, {
         refresh: parsed.refresh ?? false,
       });
       const project = snapshot.snapshot.project;
-      if (parsed.action === "list")
-        return {
-          ok: true,
-          folders: project.simulationFolders
-            .filter(
-              (folder) =>
-                !parsed.rootDocumentId ||
-                folder.input.circuitBindings.some(
-                  (b) => b.documentId === parsed.rootDocumentId,
-                ),
-            )
-            .map((folder) => ({
-              id: folder.id,
-              name: folder.name,
-              entry: folder.input.entry,
-              circuitBindings: folder.input.circuitBindings,
-            })),
-        };
       const current = project.simulationFolders.find(
         (folder) => folder.id === parsed.folderId,
       );

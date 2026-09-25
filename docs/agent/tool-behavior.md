@@ -4,10 +4,12 @@ The Circuit resource has four operations: `capabilities`, `snapshot`, `transact`
 and `render`. File, Simulation and Project are separate advertised resources.
 Capabilities reports versions, permissions, limits, transaction forms and edit
 kinds; it does not return a Project Index. Snapshot has one protocol operation
-with two projections: `bootstrap` contains only Project/Document identities,
-revisions and counts for fast connection, while the default `full` projection
-contains the selected Document and Project editing context. Use the current
-transport schema for exact fields.
+with several projections: `bootstrap` contains connection identities and counts;
+`state` contains the current Document revision, counts and optional diagnostic
+items; `folder-directory` lists saved experiment metadata without source text;
+`geometry` selects authored objects; and the default `full` projection contains
+the selected Document and Project editing context. Use the current transport
+schema for exact fields.
 
 ## Transactions
 

@@ -8,7 +8,9 @@ import {
   capabilitiesResponse,
   errorResponse,
   FakeAgentHttp,
+  folderDirectoryResponse,
   snapshotResponse,
+  stateSnapshotResponse,
   transactSuccessResponse,
 } from "./test-support/fake-relay.js";
 import { testSnapshot } from "./test-support/snapshot-fixture.js";
@@ -638,6 +640,110 @@ describe("agent session client", () => {
       expect.not.objectContaining({ projection: "bootstrap" }),
     ]);
     expect(client.cachedSnapshot("main")?.dirty).toBe(false);
+  });
+
+  it("reads state and folder directory without a full Snapshot, then reuses a clean cache", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.claim-code");
+    expect(await client.documentState()).toMatchObject({
+      projection: "state",
+      revision: 5,
+      counts: { errors: 0, warnings: 1 },
+    });
+    expect(await client.simulationFolderDirectory()).toMatchObject({
+      projection: "folder-directory",
+      folders: [],
+    });
+    expect(
+      http.circuitCalls
+        .filter((call) => call.request.operation === "snapshot")
+        .map((call) =>
+          call.request.operation === "snapshot"
+            ? call.request.projection
+            : undefined,
+        ),
+    ).toEqual(["bootstrap", "state", "folder-directory"]);
+    await client.refreshSnapshot("main");
+    const calls = http.circuitCalls.length;
+    await client.documentState();
+    await client.simulationFolderDirectory();
+    expect(http.circuitCalls).toHaveLength(calls);
+  });
+
+  it("falls back to full only when an older Editor rejects lightweight projections", async () => {
+    const http = new FakeAgentHttp({
+      circuit: async ({ request }) => {
+        if (request.operation === "capabilities")
+          return capabilitiesResponse(request.requestId);
+        if (request.operation === "snapshot") {
+          if (request.projection === "bootstrap")
+            return bootstrapSnapshotResponse(request.requestId);
+          if (
+            request.projection === "state" ||
+            request.projection === "folder-directory"
+          )
+            return errorResponse(
+              request.requestId,
+              "snapshot",
+              "INVALID_REQUEST",
+              "older Editor projection schema",
+            );
+          return snapshotResponse(request.requestId);
+        }
+        return errorResponse(
+          request.requestId,
+          "transact",
+          "UNSUPPORTED_EDIT",
+          "unexpected",
+        );
+      },
+    });
+    const { client } = await freshClient({ http });
+    await client.connect("session-1.claim-code");
+    expect(await client.documentState()).toMatchObject({ revision: 5 });
+    const calls = http.circuitCalls.length;
+    expect(await client.simulationFolderDirectory()).toMatchObject({
+      folders: [],
+    });
+    expect(http.circuitCalls).toHaveLength(calls);
+    expect(
+      http.circuitCalls
+        .filter((call) => call.request.operation === "snapshot")
+        .map((call) =>
+          call.request.operation === "snapshot"
+            ? call.request.projection
+            : undefined,
+        ),
+    ).toEqual(["bootstrap", "state", undefined]);
+  });
+
+  it("marks a cached full Snapshot dirty when a lightweight read observes a newer revision", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.claim-code");
+    await client.refreshSnapshot("main");
+    const changed = testSnapshot();
+    changed.document.revision = 6;
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation === "snapshot" && request.projection === "state")
+        return stateSnapshotResponse(request.requestId, changed);
+      if (
+        request.operation === "snapshot" &&
+        request.projection === "folder-directory"
+      )
+        return folderDirectoryResponse(request.requestId, changed);
+      if (request.operation === "snapshot")
+        return snapshotResponse(request.requestId, changed);
+      return capabilitiesResponse(request.requestId);
+    };
+    expect(
+      await client.documentState(undefined, { refresh: true }),
+    ).toMatchObject({
+      revision: 6,
+    });
+    expect(client.cachedSnapshot("main")?.dirty).toBe(true);
+    expect(await client.simulationFolderDirectory()).toMatchObject({
+      revision: 6,
+    });
   });
 
   it("reads relay observations without a Circuit probe and retains pairing on network failure", async () => {

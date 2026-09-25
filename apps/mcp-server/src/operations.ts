@@ -1009,14 +1009,20 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     },
     handle: async (args, session) => {
       const parsed = DocumentArgs.parse(args ?? {});
-      const entry = await session.client.snapshot(parsed.documentId, {
+      const state = await session.client.documentState(parsed.documentId, {
         refresh: parsed.refresh ?? false,
       });
-      const summary = session.client.summary(entry.documentId);
       return {
-        ...(summary ?? {}),
+        projectId: state.projectId,
+        documentId: state.documentId,
+        documentName: state.documentName,
+        revision: state.revision,
+        instanceCount: state.instanceCount,
+        netCount: state.netCount,
+        errors: state.counts.errors,
+        warnings: state.counts.warnings,
         connection: session.client.connection.snapshot.state,
-        fetchedAt: entry.fetchedAt,
+        fetchedAt: Date.now(),
       };
     },
   },
@@ -1048,6 +1054,17 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           parsed.target.objectIds,
           parsed.documentId,
         );
+      if (parsed.target.kind === "diagnostics") {
+        const state = await session.client.documentState(parsed.documentId, {
+          refresh: parsed.refresh ?? false,
+          diagnostics: "items",
+        });
+        return {
+          revision: state.revision,
+          counts: state.counts,
+          items: state.diagnostics ?? [],
+        };
+      }
       const entry = await session.client.snapshot(parsed.documentId, {
         refresh: parsed.refresh ?? false,
       });
@@ -1060,8 +1077,6 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           return inspectObject(entry, parsed.target);
         case "connectivity":
           return inspectConnectivity(entry, parsed.target);
-        case "diagnostics":
-          return diagnosticsCompact(entry);
       }
     },
   },
