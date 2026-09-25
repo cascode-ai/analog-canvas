@@ -70,6 +70,154 @@ describe("MOS bulk resolution", () => {
     return document;
   }
 
+  it("keeps imported bodies on the drawn VSS/VDD supplies implicit before and after a visible bulk route", () => {
+    const document = withSupplyMarkers();
+    for (const instance of document.instances.filter((item) =>
+      ["M1", "M2"].includes(item.id),
+    ))
+      instance.importProvenance = {
+        kind: "model",
+        sourceMasterName: instance.symbolId,
+        sourceTarget: instance.symbolId,
+      };
+    document.nets[0]!.terminals.push({ instanceId: "M1", pinName: "B" });
+    document.nets[1]!.terminals.push({ instanceId: "M2", pinName: "B" });
+
+    for (const [instanceId, netId] of [
+      ["M1", "net-gnd"],
+      ["M2", "net-vdd"],
+    ] as const) {
+      expect(resolveMosBulkConnection(document, instanceId)).toMatchObject({
+        status: "explicit",
+        net: { id: netId },
+      });
+      expect(mosBulkShouldBeVisible(document, instanceId)).toBe(false);
+    }
+
+    document.routes.push(
+      createRoutePath({
+        id: "authored-bulk",
+        netId: "net-gnd",
+        start: { kind: "terminal", instanceId: "M1", pinName: "B" },
+        end: { kind: "terminal", instanceId: "GND1", pinName: "0" },
+        bends: [],
+        modes: ["manual"],
+        presentation: "bulk-dashed",
+      }),
+    );
+    expect(mosBulkShouldBeVisible(document, "M1")).toBe(true);
+    document.routes = [];
+    expect(mosBulkShouldBeVisible(document, "M1")).toBe(false);
+  });
+
+  it("compares an imported bulk and its configured supply by Logical Net", () => {
+    const document = withSupplyMarkers();
+    document.nets.push({
+      id: "net-body",
+      terminals: [{ instanceId: "M1", pinName: "B" }],
+    });
+    document.connectivityEvidence.push(
+      {
+        id: "supply-name",
+        kind: "name-claim",
+        netId: "net-gnd",
+        name: "VSS",
+        scope: "global",
+        powerDomain: "ground",
+        owner: { kind: "power-marker", objectId: "GND1" },
+      },
+      {
+        id: "body-name",
+        kind: "name-claim",
+        netId: "net-body",
+        name: "VSS",
+        scope: "global",
+        owner: { kind: "global-declaration", sourceNetId: "source-body" },
+      },
+    );
+    document.mosBulkDefaults = { nmosNetId: "net-gnd" };
+    expect(resolveMosBulkConnection(document, "M1")?.net?.id).toBe("net-body");
+    expect(mosBulkShouldBeVisible(document, "M1")).toBe(false);
+  });
+
+  it("uses unique formal VSS/VDD Ports as the implicit supply in an imported Cell", () => {
+    const document = createEmptyDocument("ota", "OTA");
+    document.instances.push(
+      mos("MN", "nmos"),
+      mos("MP", "pmos"),
+      { id: "VSS", symbolId: "port", placement: null },
+      { id: "VDD", symbolId: "port", placement: null },
+    );
+    document.nets.push(
+      {
+        id: "net-vss",
+        terminals: [
+          { instanceId: "MN", pinName: "B" },
+          { instanceId: "VSS", pinName: "P" },
+        ],
+      },
+      {
+        id: "net-vdd",
+        terminals: [
+          { instanceId: "MP", pinName: "B" },
+          { instanceId: "VDD", pinName: "P" },
+        ],
+      },
+    );
+    document.netlist = {
+      name: "ota",
+      formalParameters: [],
+      terminals: [
+        {
+          id: "port-vss",
+          name: "vss",
+          netId: "net-vss",
+          direction: "passive",
+          interfaceInstanceIds: ["VSS"],
+        },
+        {
+          id: "port-vdd",
+          name: "VDD",
+          netId: "net-vdd",
+          direction: "passive",
+          interfaceInstanceIds: ["VDD"],
+        },
+      ],
+    };
+
+    expect(supplyDefaultMosBulkNet(document, "nmos")?.id).toBe("net-vss");
+    expect(supplyDefaultMosBulkNet(document, "pmos")?.id).toBe("net-vdd");
+    expect(mosBulkShouldBeVisible(document, "MN")).toBe(false);
+    expect(mosBulkShouldBeVisible(document, "MP")).toBe(false);
+  });
+
+  it("does not choose between a formal VSS Port and a different Ground marker", () => {
+    const document = withSupplyMarkers();
+    document.instances.push({
+      id: "PORT_VSS",
+      symbolId: "port",
+      placement: null,
+    });
+    document.nets[1]!.terminals.push({
+      instanceId: "PORT_VSS",
+      pinName: "P",
+    });
+    document.netlist = {
+      name: "main",
+      formalParameters: [],
+      terminals: [
+        {
+          id: "vss-port",
+          name: "VSS",
+          netId: "net-vdd",
+          direction: "passive",
+          interfaceInstanceIds: ["PORT_VSS"],
+        },
+      ],
+    };
+    expect(drawnSupplyNet(document, "ground")).toBeUndefined();
+  });
+
   it("follows the supply the author drew when the Cell configures nothing", () => {
     // No per-Cell setting, no button: the marker on the page is the answer,
     // so a pasted copy and a drawing made before the policy existed behave

@@ -1,6 +1,15 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
+import {
+  deriveImportedRoutingGuidance,
+  mosBulkShouldBeVisible,
+} from "@icm/derived";
 import { createEmptyDocument } from "@icm/model";
+import { importSpiceSources } from "@icm/spice";
+import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 
 import {
   defaultDocumentSettingsCode,
@@ -123,6 +132,89 @@ describe("document Style code", () => {
     expect(serializeDocumentSettingsCode(parsed.value)).toBe(
       serializeDocumentSettingsCode(baseline),
     );
+  });
+
+  it("resolves the displayed VSS/VDD defaults to unique imported Cell Ports", () => {
+    const document = createEmptyDocument("ota", "OTA");
+    document.instances.push(
+      { id: "PORT_VSS", symbolId: "port", placement: null },
+      { id: "PORT_VDD", symbolId: "port", placement: null },
+    );
+    document.nets.push(
+      {
+        id: "net-vss",
+        terminals: [{ instanceId: "PORT_VSS", pinName: "P" }],
+      },
+      {
+        id: "net-vdd",
+        terminals: [{ instanceId: "PORT_VDD", pinName: "P" }],
+      },
+    );
+    document.netlist = {
+      name: "ota",
+      formalParameters: [],
+      terminals: [
+        {
+          id: "vss",
+          name: "vss",
+          netId: "net-vss",
+          direction: "passive",
+          interfaceInstanceIds: ["PORT_VSS"],
+        },
+        {
+          id: "vdd",
+          name: "VDD",
+          netId: "net-vdd",
+          direction: "passive",
+          interfaceInstanceIds: ["PORT_VDD"],
+        },
+      ],
+    };
+
+    expect(documentSettingsCodeValue(document, canvas).bulkDefaults).toEqual({
+      nmos: "VSS",
+      pmos: "VDD",
+    });
+    expect(mosBulkDefaultNetIdFromCode(document, "nmos", "VSS")).toBe(
+      "net-vss",
+    );
+    expect(mosBulkDefaultNetIdFromCode(document, "pmos", "VDD")).toBe(
+      "net-vdd",
+    );
+  });
+
+  it("recognizes the repository OTA's imported formal supplies as implicit MOS body defaults", async () => {
+    const path = "netlists/sky130-ota-5t-gain40-pm60-noise50uv-pvt/circuit.spi";
+    const input = readFileSync(resolve(process.cwd(), path));
+    const imported = await importSpiceSources([{ path, bytes: input }], path);
+    expect(imported.successful, JSON.stringify(imported.diagnostics)).toBe(
+      true,
+    );
+    const document = imported.project?.documents.find(
+      (candidate) => candidate.netlist?.name === "ota_5t",
+    );
+    expect(document).toBeDefined();
+    if (!document) return;
+    expect(mosBulkDefaultNetIdFromCode(document, "nmos", "VSS")).toBeDefined();
+    expect(mosBulkDefaultNetIdFromCode(document, "pmos", "VDD")).toBeDefined();
+    const mosInstances = document.instances.filter((instance) =>
+      instance.reference?.startsWith("XM"),
+    );
+    expect(mosInstances).toHaveLength(6);
+    for (const instance of mosInstances)
+      expect(mosBulkShouldBeVisible(document, instance)).toBe(false);
+    const guides = deriveImportedRoutingGuidance(
+      document,
+      new InMemorySymbolResolver(builtInSymbols),
+    );
+    expect(
+      guides.filter((guide) =>
+        [guide.from, guide.to].some(
+          (endpoint) =>
+            endpoint.kind === "terminal" && endpoint.pinName === "B",
+        ),
+      ),
+    ).toEqual([]);
   });
 
   it("accepts supported values and a Net id present in the Cell", () => {

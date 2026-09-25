@@ -5,10 +5,13 @@ import {
   isMosBulkRoute,
   isMosBulkTerminal,
   isVisibleEndpoint,
+  mosBulkKind,
   pointOnSegment,
+  resolveDocumentLogicalNets,
   resolveEndpointConnection,
   resolveRouteGeometry,
   segmentLength,
+  supplyDefaultMosBulkNet,
   type EndpointConnection,
   type EndpointRoutingGeometry,
 } from "@icm/derived";
@@ -1400,6 +1403,45 @@ export function proposeVisualRouteDeletion(
         .map((endpoint) => endpoint.instanceId),
     ),
   ].sort((a, b) => a.localeCompare(b, "en"));
+  const logicalNets = disconnectedBulkInstances.length
+    ? resolveDocumentLogicalNets(document)
+    : null;
+  const supplyRestoreEndpoint = new Map<string, RouteEndpoint>();
+  for (const instanceId of disconnectedBulkInstances) {
+    const instance = document.instances.find((item) => item.id === instanceId);
+    const kind = instance && mosBulkKind(instance);
+    if (!kind || !logicalNets) continue;
+    const configuredId =
+      kind === "nmos"
+        ? document.mosBulkDefaults?.nmosNetId
+        : document.mosBulkDefaults?.pmosNetId;
+    if (configuredId) continue; // The Cell-default reconciler owns this case.
+    const supply = supplyDefaultMosBulkNet(document, kind, logicalNets);
+    if (!supply) continue;
+    const supplyNetIds = new Set(
+      logicalNets.byBaseNetId.get(supply.id)?.baseNetIds ?? [supply.id],
+    );
+    const peer = document.nets
+      .filter((net) => supplyNetIds.has(net.id))
+      .flatMap((net) => net.terminals)
+      .find(
+        (terminal) =>
+          !instanceIdsScheduledForDeletion.has(terminal.instanceId) &&
+          !isMosBulkTerminal(document, { kind: "terminal", ...terminal }),
+      );
+    if (peer) {
+      supplyRestoreEndpoint.set(instanceId, { kind: "terminal", ...peer });
+      continue;
+    }
+    const junction = document.junctions.find(
+      (item) => supplyNetIds.has(item.netId) && !junctionsToRemove.has(item.id),
+    );
+    if (junction)
+      supplyRestoreEndpoint.set(instanceId, {
+        kind: "junction",
+        junctionId: junction.id,
+      });
+  }
   return {
     routeIds: sortedRouteIds,
     junctionIds: sortedJunctionIds,
@@ -1421,13 +1463,21 @@ export function proposeVisualRouteDeletion(
         kind: "remove_junction",
         junctionId,
       })),
-      ...disconnectedBulkInstances.flatMap((instanceId): SchematicEdit[] => [
-        {
-          kind: "disconnect_endpoint",
-          endpoint: { kind: "terminal", instanceId, pinName: "B" },
-        },
-        { kind: "reconcile_mos_bulk", instanceIds: [instanceId] },
-      ]),
+      ...disconnectedBulkInstances.flatMap((instanceId): SchematicEdit[] => {
+        const bulk: RouteEndpoint = {
+          kind: "terminal",
+          instanceId,
+          pinName: "B",
+        };
+        const supply = supplyRestoreEndpoint.get(instanceId);
+        return [
+          { kind: "disconnect_endpoint", endpoint: bulk },
+          ...(supply
+            ? [{ kind: "connect_endpoints" as const, from: bulk, to: supply }]
+            : []),
+          { kind: "reconcile_mos_bulk", instanceIds: [instanceId] },
+        ];
+      }),
     ],
   };
 }
