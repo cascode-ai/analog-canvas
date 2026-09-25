@@ -51,6 +51,8 @@ export interface ProjectFileSession {
   cloudBinding: CloudProjectBinding | null;
   savedBaseline: SavedProjectBaseline | null;
   safeSnapshotToken: string | null;
+  /** Absent in tabs saved before publications were tracked. */
+  publishedSnapshotToken?: string | null;
 }
 
 export interface SavedProjectBaseline {
@@ -163,6 +165,8 @@ export function useProjectFileLifecycle({
   liveSessionRef.current = projectSessionId;
   /** Change token of the last snapshot published or exported; see hasUnsafeWork. */
   const safeSnapshotTokenRef = useRef<string | null>(null);
+  /** Change token of the last snapshot published; see hasUnsavedChanges. */
+  const publishedSnapshotTokenRef = useRef<string | null>(null);
   const [persistenceState, setPersistenceState] =
     useState<PersistenceState>("unbound");
   const [cloudBinding, setCloudBinding] = useState<CloudProjectBinding | null>(
@@ -195,6 +199,25 @@ export function useProjectFileLifecycle({
     );
   }
 
+  function holdsLiveProject(token: string | null): boolean {
+    return (
+      token !== null && projectChangeToken(liveProjectRef.current) === token
+    );
+  }
+
+  /**
+   * What the unsaved marks and a tab's close question show: dirty work,
+   * unless the Gallery holds exactly these bytes. A publication is kept with
+   * its history, so it saves the drawing the way the Cloud does; an exported
+   * file is interchange and does not.
+   */
+  function hasUnsavedChanges(): boolean {
+    if (hasPendingEdits?.()) return true;
+    return (
+      isDirtyWork() && !holdsLiveProject(publishedSnapshotTokenRef.current)
+    );
+  }
+
   /**
    * The one predicate every leave/replace/refresh guard shares: there is
    * meaningful drawing, the persistence state says it has not reached the
@@ -206,16 +229,17 @@ export function useProjectFileLifecycle({
   function hasUnsafeWork(): boolean {
     if (hasPendingEdits?.()) return true;
     if (!isDirtyWork()) return false;
-    const live = liveProjectRef.current;
-    if (!projectHasMeaningfulContent(live)) return false;
-    return (
-      safeSnapshotTokenRef.current === null ||
-      projectChangeToken(live) !== safeSnapshotTokenRef.current
-    );
+    if (!projectHasMeaningfulContent(liveProjectRef.current)) return false;
+    return !holdsLiveProject(safeSnapshotTokenRef.current);
   }
 
   function noteProjectSnapshotSafe(snapshot = liveProjectRef.current): void {
     safeSnapshotTokenRef.current = projectChangeToken(snapshot);
+  }
+
+  function noteProjectPublished(snapshot = liveProjectRef.current): void {
+    noteProjectSnapshotSafe(snapshot);
+    publishedSnapshotTokenRef.current = projectChangeToken(snapshot);
   }
 
   function replaceActiveProject(
@@ -232,6 +256,7 @@ export function useProjectFileLifecycle({
     }
     const prepared = materializeRazaviProjectBulkConnections(nextProject);
     safeSnapshotTokenRef.current = null;
+    publishedSnapshotTokenRef.current = null;
     const nextDocument = installProject(prepared.project, nextViewBox);
     const nextPersistenceState =
       options.persistenceState ??
@@ -864,12 +889,15 @@ export function useProjectFileLifecycle({
       cloudBinding,
       savedBaseline: savedProjectBaseline,
       safeSnapshotToken: safeSnapshotTokenRef.current,
+      publishedSnapshotToken: publishedSnapshotTokenRef.current,
     }),
     restoreFileSession: (session: ProjectFileSession) => {
       setPersistenceState(session.persistenceState);
       setCloudBinding(session.cloudBinding);
       setSavedProjectBaseline(session.savedBaseline);
       safeSnapshotTokenRef.current = session.safeSnapshotToken;
+      publishedSnapshotTokenRef.current =
+        session.publishedSnapshotToken ?? null;
       persistenceChangeRef.current = null;
       setReplaceGuard(null);
       setRecoveryDialogOpen(false);
@@ -895,8 +923,10 @@ export function useProjectFileLifecycle({
     restoreAfterRefresh,
     setRecoveryDialogOpen,
     isDirtyWork,
+    hasUnsavedChanges,
     hasUnsafeWork,
     noteProjectSnapshotSafe,
+    noteProjectPublished,
     replaceActiveProject,
     saveProjectToCloud,
     isSaveInFlight: () => saveInFlightRef.current !== null,

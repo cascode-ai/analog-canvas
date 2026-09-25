@@ -21,7 +21,11 @@ import {
 } from "@icm/symbols";
 import type { SymbolFormulaPresentation } from "@icm/symbols";
 import { resolveAnnotationText, resolveAnnotationName } from "@icm/derived";
-import { deviceDescriptor } from "@icm/devices";
+import {
+  createReferenceIndex,
+  deviceDescriptor,
+  referenceIssuesForInstance,
+} from "@icm/devices";
 import type {
   Annotation,
   AnnotationTextBinding,
@@ -81,6 +85,8 @@ export type TextEditingCommitProposal =
       edit: SchematicEdit;
       beforeEdits?: SchematicEdit[];
       id: string;
+      /** The Reference a label kept when its text became a display alias. */
+      aliasFor?: string;
     }
   | { kind: "delete"; edit: SchematicEdit; id: string }
   | { kind: "unchanged" }
@@ -648,7 +654,6 @@ export function proposeTextEditingCommit(
         formatOverride: _format,
         ...rest
       } = annotation;
-      const follows = !session.displayAlias;
       const typography = labelTypography(document.presentation);
       const name = editedBoundAnnotationName(
         document,
@@ -656,24 +661,25 @@ export function proposeTextEditingCommit(
         session,
         reference,
       );
-      if (
-        follows &&
-        (!isNamePresentation(session.content.runs) ||
-          !/^[A-Za-z][A-Za-z0-9_]*$/u.test(name))
-      )
-        return { kind: "blocked" };
-      if (
-        follows &&
-        document.instances.some(
-          (item) =>
-            item.id !== instanceId &&
-            item.reference?.toLowerCase() === name.toLowerCase(),
-        )
-      )
-        return {
-          kind: "blocked",
-          message: `Instance name ${name} already exists. Use display alias to show the same text without renaming the device.`,
-        };
+      // Text that cannot be this part's netlist name — a Greek letter, a
+      // space, another part's name, the wrong device letter — is shown as a
+      // display alias: the label keeps what was typed and the netlist keeps
+      // the Reference. An unchanged name always stays the part's name.
+      const namable =
+        isNamePresentation(session.content.runs) &&
+        (name === reference ||
+          (/^[A-Za-z][A-Za-z0-9_]*$/u.test(name) &&
+            referenceIssuesForInstance(
+              createReferenceIndex({
+                ...document,
+                instances: document.instances.map((item) =>
+                  item.id === instanceId ? { ...item, reference: name } : item,
+                ),
+              }),
+              instanceId,
+            ).length === 0));
+      const automaticAlias = !session.displayAlias && !namable;
+      const follows = !session.displayAlias && namable;
       const beforeEdits: SchematicEdit[] =
         follows && name !== reference
           ? [{ kind: "set_instance_reference", instanceId, reference: name }]
@@ -694,6 +700,16 @@ export function proposeTextEditingCommit(
             })
           : session.content;
       const presentation = formatPresentingName(styled, name);
+      // An alias typed as a name, without a look of its own, is drawn the
+      // way a name is (Φ2 as Φ over a subscript 2), so a drawing's labels
+      // keep one look.
+      const aliasContent =
+        automaticAlias && !session.formatEdited
+          ? (roleLabelFormat(
+              "device-reference",
+              flattenRichText(session.content).trim(),
+            ) ?? session.content)
+          : session.content;
       const next: Annotation = {
         ...rest,
         sizeScale: session.sizeScale,
@@ -705,7 +721,7 @@ export function proposeTextEditingCommit(
                 ? { formatOverride: presentation }
                 : {}),
             }
-          : { content: session.content }),
+          : { content: aliasContent }),
       };
       if (
         beforeEdits.length === 0 &&
@@ -721,6 +737,7 @@ export function proposeTextEditingCommit(
         kind: "update",
         id: annotation.id,
         ...(beforeEdits.length ? { beforeEdits } : {}),
+        ...(automaticAlias ? { aliasFor: reference } : {}),
         edit: { kind: "upsert_schematic_annotation", annotation: next },
       };
     }

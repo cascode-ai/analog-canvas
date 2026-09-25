@@ -120,12 +120,14 @@ export function nextCellPinName(
     while (unavailable(`VB${ordinal}`)) ordinal += 1;
     return `VB${ordinal}`;
   }
+  // A differential pair in and out, drawn V over an upright lowercase
+  // subscript (Vinp is V with subscript inp); later groups count up.
   let group = 1;
   while (true) {
     const names =
       group === 1
-        ? ["Vinp", "Vinn", "Vout"]
-        : [`Vin${group}p`, `Vin${group}n`, `Vout${group}`];
+        ? ["Vinp", "Vinn", "Voutp", "Voutn"]
+        : [`Vin${group}p`, `Vin${group}n`, `Vout${group}p`, `Vout${group}n`];
     for (const name of names) {
       if (!unavailable(name)) return name;
     }

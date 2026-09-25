@@ -688,6 +688,24 @@
   cursor: pointer;
 }
 
+.gallery-withdraw-menu > summary {
+  color: var(--icm-danger, #b42318);
+  font-size: 18px;
+}
+
+.gallery-withdraw-menu > summary:hover {
+  color: #fff;
+  background: var(--icm-danger, #b42318);
+}
+
+.gallery-withdraw-note {
+  max-width: 14rem;
+  margin: 2px 10px 6px;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .gallery-owner-menu > summary::-webkit-details-marker {
   display: none;
 }

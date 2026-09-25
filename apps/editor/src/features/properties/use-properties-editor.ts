@@ -1073,7 +1073,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       options.setStatus(
         proposal.message ??
           (textEditing.visualInstanceId && !textEditing.displayAlias
-            ? "Enter a valid netlist name, or enable Use display alias for free text"
+            ? "Type a name for this part, or hide its label from Properties"
             : "This text can no longer be edited"),
       );
       return;
@@ -1120,6 +1120,10 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     if (proposal.kind === "delete") {
       options.clearSelectionKinds(["annotation", "drafting"]);
       options.setStatus(`Deleted text ${proposal.id}`);
+    } else if (proposal.kind === "update" && proposal.aliasFor) {
+      options.setStatus(
+        `Showing ${flattenRichText(textEditing.content).trim()} as a display alias; the netlist name stays ${proposal.aliasFor}`,
+      );
     } else {
       options.setStatus(`Updated text ${proposal.id}`);
     }

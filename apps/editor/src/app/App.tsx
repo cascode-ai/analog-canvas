@@ -1188,8 +1188,9 @@ function WorkspaceEditor({
     startupRestoreReady,
     setRecoveryDialogOpen,
     isDirtyWork,
+    hasUnsavedChanges,
     hasUnsafeWork,
-    noteProjectSnapshotSafe,
+    noteProjectPublished,
     replaceActiveProject,
     saveProjectToCloud,
     isSaveInFlight,
@@ -5006,7 +5007,12 @@ function WorkspaceEditor({
     restore: restoreTabSession,
     describe: (session) => ({
       name: session.controller.project.name,
-      dirty: session.dirty,
+      // A tab whose exact bytes the Gallery holds loses nothing on close.
+      dirty:
+        (session.dirty &&
+          session.file.publishedSnapshotToken !==
+            projectChangeToken(session.controller.project)) ||
+        session.unsafe,
       unsafe: session.unsafe,
       cloudId: session.file.cloudBinding?.id ?? null,
     }),
@@ -5484,7 +5490,7 @@ function WorkspaceEditor({
         galleryEntryMetadata={galleryEntryContext}
         projectSchemaVersion={project.schemaVersion}
         projectNameDraft={projectNameDraft}
-        hasUnsavedWork={isDirtyWork()}
+        hasUnsavedWork={hasUnsavedChanges()}
         documentName={document.name}
         onProjectNameDraftChange={setProjectNameDraft}
         onProjectNameCommit={commitProjectName}
@@ -6032,9 +6038,10 @@ function WorkspaceEditor({
                     announceGalleryChange({ entryId: id });
                     return;
                   }
-                  // The gallery now holds these exact bytes: leaving or
-                  // refreshing loses nothing until the next edit.
-                  noteProjectSnapshotSafe();
+                  // The gallery now holds these exact bytes: leaving,
+                  // refreshing or closing the tab loses nothing until the
+                  // next edit.
+                  noteProjectPublished();
                   noteGalleryPublication(id);
                   // Publishing establishes the same update-in-place binding
                   // as opening an existing Gallery entry. Keep it attached to
