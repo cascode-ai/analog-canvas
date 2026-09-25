@@ -3322,6 +3322,85 @@ test("a signed-in member publishes directly, bylined by the account", async ({
   expect(updated).toEqual([{ name: "Session Publish", instanceCount: 1 }]);
 });
 
+test("a published tab counts as saved until its next edit", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "u1",
+          displayName: "Token Zhang",
+          email: "owner@example.com",
+          provider: "github",
+          role: "user",
+          isAdmin: false,
+        },
+      },
+    }),
+  );
+  await page.route("**/api/gallery/submissions", (route) =>
+    route.request().method() === "POST"
+      ? route.fulfill({ status: 201, json: { id: "entry-88" } })
+      : route.fallback(),
+  );
+  await page.route("**/api/gallery/entry-88", (route) =>
+    route.request().method() === "PUT"
+      ? route.fulfill({ status: 200, json: { id: "entry-88" } })
+      : route.fallback(),
+  );
+  const place = async (x: number) => {
+    await chooseComponent(page, "resistor");
+    await page
+      .getByTestId("schematic-canvas")
+      .click({ position: { x, y: 230 } });
+    await page.keyboard.press("Escape");
+  };
+
+  await page.goto("/editor");
+  await page
+    .getByRole("button", { name: "New project tab", exact: true })
+    .click();
+  await expect(page.getByRole("tab")).toHaveCount(2);
+  const active = page.getByRole("tab", { selected: true });
+  await place(340);
+  await expect(active.getByLabel("Unsaved")).toBeVisible();
+  await expect(page.getByTestId("project-unsaved-indicator")).toBeVisible();
+
+  await page.getByTestId("publish-gallery-button").click();
+  const dialog = page.getByTestId("publish-gallery-dialog");
+  await dialog.getByLabel("Circuit name").fill("Published tab");
+  await dialog.getByTestId("publish-preset-amplifier").click();
+  await dialog.getByRole("button", { name: "Publish" }).click();
+  await expect(page.getByTestId("status")).toHaveText(
+    'Published "Published tab" to the gallery',
+  );
+  // The Gallery holds exactly these bytes: nothing is unsaved.
+  await expect(active.getByLabel("Unsaved")).toHaveCount(0);
+  await expect(page.getByTestId("project-unsaved-indicator")).toHaveCount(0);
+
+  // The next edit is unsaved again, until it is published too.
+  await place(460);
+  await expect(active.getByLabel("Unsaved")).toBeVisible();
+  await page.getByTestId("publish-gallery-button").click();
+  await page
+    .getByTestId("publish-gallery-dialog")
+    .getByRole("button", { name: "Update entry" })
+    .click();
+  await expect(page.getByTestId("status")).toHaveText(
+    'Updated "Published tab" in the gallery',
+  );
+  await expect(active.getByLabel("Unsaved")).toHaveCount(0);
+
+  // Closing it loses nothing, so it closes without asking.
+  await active
+    .locator("xpath=..")
+    .getByRole("button", { name: /Close tab / })
+    .click();
+  await expect(page.getByTestId("project-tab-close-decision")).toHaveCount(0);
+  await expect(page.getByRole("tab")).toHaveCount(1);
+});
+
 test("a mistaken click beside the publish form keeps what was written", async ({
   page,
 }) => {
