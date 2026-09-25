@@ -13,6 +13,7 @@ import {
   validateProjectCode,
   planProjectCodeCommit,
 } from "./project-code";
+import { projectCodeInstanceRanges } from "./project-code-ranges";
 
 const ProjectTextEditor = lazy(() => import("./project-text-editor"));
 
@@ -24,11 +25,14 @@ export interface ProjectCodeApplyOutcome {
 /** Complete Project JSON, kept separate from per-object Properties. */
 export function ProjectCodePanel({
   project,
+  selection,
   onDirtyChange,
   onApply,
 }: {
   onDirtyChange?(dirty: boolean): void;
   project: CircuitProject;
+  /** Parts selected on the canvas, whose whole JSON the code lights. */
+  selection?: { documentId: string; instanceIds: readonly string[] };
   onApply(
     source: string,
     baseline: string,
@@ -59,6 +63,23 @@ export function ProjectCodePanel({
     onDirtyChange?.(dirty);
     return () => onDirtyChange?.(false);
   }, [dirty, onDirtyChange]);
+
+  const selectionKey = selection
+    ? `${selection.documentId}\u0000${selection.instanceIds.join("\u0000")}`
+    : "";
+  const highlightedRanges = useMemo(
+    () =>
+      selection
+        ? projectCodeInstanceRanges(
+            draft,
+            selection.documentId,
+            selection.instanceIds,
+          )
+        : [],
+    // The selection is read through its key; a new array of the same ids
+    // is the same selection.
+    [draft, selectionKey],
+  );
 
   const changedOutsideDraft = dirty && editBaseline !== baseline;
   const parsed = validateProjectCode(draft, project.id);
@@ -136,6 +157,8 @@ export function ProjectCodePanel({
           invalid={!!error || changedOutsideDraft}
           onChange={change}
           onModEnter={apply}
+          highlightedRanges={highlightedRanges}
+          revealHighlight={selectionKey}
         />
       </Suspense>
       {changedOutsideDraft ? (

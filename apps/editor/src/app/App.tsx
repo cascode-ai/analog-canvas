@@ -6568,6 +6568,10 @@ function WorkspaceEditor({
                     key={projectSessionId}
                     onDirtyChange={noteCodeDraftDirty}
                     project={project}
+                    selection={{
+                      documentId: document.id,
+                      instanceIds: visualSelection.instanceIds,
+                    }}
                     onApply={(
                       source,
                       baseline,
