@@ -409,6 +409,26 @@ export function retargetOwnerEvidenceAfterSplit(
     draft.annotations.find((annotation) => annotation.id === objectId)?.netId ??
     instanceNetId(objectId);
 
+  // A label on a part names the Net of one of the part's pins. While the part
+  // keeps a pin on the label's Net the label stays there: the part's first
+  // Net by id moved a substrate's hidden ground label onto its emitter's Net.
+  const partNetId = (
+    annotation: SchematicDocument["annotations"][number],
+    objectId: string,
+  ): string | undefined => {
+    const currentNetId =
+      annotation.netId ??
+      (annotation.binding?.kind === "net-name"
+        ? annotation.binding.netId
+        : undefined);
+    return draft.nets.some(
+      (net) =>
+        net.id === currentNetId &&
+        net.terminals.some((terminal) => terminal.instanceId === objectId),
+    )
+      ? currentNetId
+      : objectNetId(objectId);
+  };
   const retargetAnnotation = (
     annotation: SchematicDocument["annotations"][number],
   ): string | undefined => {
@@ -416,7 +436,7 @@ export function retargetOwnerEvidenceAfterSplit(
       annotation.anchor.kind === "route"
         ? objectNetId(annotation.anchor.routeId)
         : annotation.anchor.kind === "object"
-          ? objectNetId(annotation.anchor.objectId)
+          ? partNetId(annotation, annotation.anchor.objectId)
           : undefined;
     if (!targetNetId) return undefined;
     if (annotation.netId !== targetNetId) {

@@ -327,6 +327,67 @@ export function captureProjectCopy(
     )
       clipboard.annotations.push(structuredClone(annotation));
   }
+  // A copied label keeps its Net and the name it claims. A label copied
+  // without its Net's wiring (a supply label an old copy left without pins)
+  // otherwise landed on an unnamed Net its look no longer spells, which
+  // failed the paste. A label on a part can also name a Net that only that
+  // part's pins hold, with no wire to show it: a transistor substrate the
+  // process tied to ground. Those pins stay on it. Otherwise the emptied Net's
+  // label followed the part's first other Net and renamed that Net, even
+  // to ground.
+  {
+    const copiedNets = new Set(clipboard.nets.map((net) => net.id));
+    const labelIds = new Set(clipboard.annotations.map((item) => item.id));
+    const carried = new Set(
+      clipboard.connectivityEvidence.map((item) => item.id),
+    );
+    for (const evidence of document.connectivityEvidence) {
+      if (
+        evidence.kind !== "name-claim" ||
+        carried.has(evidence.id) ||
+        !copiedNets.has(evidence.netId)
+      )
+        continue;
+      const owner =
+        evidence.owner.kind === "net-label"
+          ? evidence.owner.annotationId
+          : evidence.owner.kind === "power-marker"
+            ? evidence.owner.objectId
+            : undefined;
+      if (
+        owner !== undefined &&
+        (labelIds.has(owner) || selectedInstances.has(owner))
+      )
+        clipboard.connectivityEvidence.push(structuredClone(evidence));
+    }
+    const pin = (terminal: { instanceId: string; pinName: string }) =>
+      `${terminal.instanceId}\0${terminal.pinName}`;
+    const placed = new Set(
+      clipboard.nets.flatMap((net) => net.terminals.map(pin)),
+    );
+    for (const annotation of clipboard.annotations) {
+      const anchor = annotation.anchor;
+      if (anchor.kind !== "object" || !selectedInstances.has(anchor.objectId))
+        continue;
+      const copied = clipboard.nets.find((net) => net.id === annotation.netId);
+      const source = document.nets.find((net) => net.id === annotation.netId);
+      if (
+        !copied ||
+        !source?.terminals.length ||
+        source.terminals.some(
+          (terminal) => terminal.instanceId !== anchor.objectId,
+        ) ||
+        document.routes.some((route) => route.netId === source.id) ||
+        document.junctions.some((junction) => junction.netId === source.id)
+      )
+        continue;
+      for (const terminal of source.terminals) {
+        if (placed.has(pin(terminal))) continue;
+        copied.terminals.push({ ...terminal });
+        placed.add(pin(terminal));
+      }
+    }
+  }
   const owners = new Set(
     [
       ...clipboard.instances,
@@ -786,6 +847,7 @@ export function prepareProjectCopy(
     { x: 0, y: 0 },
     0,
     prepared,
+    resolver,
   );
   if (preflight.errors.length) throw new Error(preflight.errors.join("; "));
   return {
@@ -814,6 +876,7 @@ export function planProjectCopyPlacement(
     offset,
     sequence,
     prepared.baseProject,
+    prepared.resolver,
   );
   if (proposal.errors.length) throw new Error(proposal.errors.join("; "));
   const gate = gateRoutingOperationPlan(document, proposal.operationPlan, {

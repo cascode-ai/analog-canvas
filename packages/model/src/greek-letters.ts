@@ -1,7 +1,9 @@
-/** One Greek letter and the standard name a netlist spells it with. */
+/** One Greek letter and its name as LaTeX types it. */
 export interface GreekLetter {
   readonly glyph: string;
-  /** Capitalised for a capital letter (Φ Phi), lower case otherwise (φ phi). */
+  /** Capitalised for a capital letter (Φ Phi), lower case otherwise (φ phi),
+   * as the LaTeX commands `\Phi` and `\phi` spell it. A netlist writes the
+   * letter through `spellGreekLetters` instead (Φ PHI). */
   readonly name: string;
   /** LaTeX has a `\name` command for it; capitals that look like Latin letters
    * (Α, Β, Ε …) and omicron have none, so they are typed as those letters. */
@@ -67,10 +69,61 @@ export const GREEK_LETTERS: readonly GreekLetter[] = [
 ];
 
 /**
- * Alternative forms of the same letters: final sigma, the "variant" glyphs,
- * and the micro and ohm signs keyboards type for μ and Ω.
+ * How a netlist spells each Greek letter: a small letter in small letters,
+ * a capital in capitals (σ sigma, Σ SIGMA). A table of its own, because
+ * LaTeX capitalises only a capital's first letter (`\Sigma`). The last
+ * entries read alternative forms of the same letters: final sigma, the
+ * "variant" glyphs, and the micro and ohm signs keyboards type for μ and Ω.
  */
-const GREEK_VARIANT_NAMES: Readonly<Record<string, string>> = {
+const NETLIST_GREEK_NAMES: Readonly<Record<string, string>> = {
+  α: "alpha",
+  β: "beta",
+  γ: "gamma",
+  δ: "delta",
+  ε: "epsilon",
+  ζ: "zeta",
+  η: "eta",
+  θ: "theta",
+  ι: "iota",
+  κ: "kappa",
+  λ: "lambda",
+  μ: "mu",
+  ν: "nu",
+  ξ: "xi",
+  ο: "omicron",
+  π: "pi",
+  ρ: "rho",
+  σ: "sigma",
+  τ: "tau",
+  υ: "upsilon",
+  φ: "phi",
+  χ: "chi",
+  ψ: "psi",
+  ω: "omega",
+  Α: "ALPHA",
+  Β: "BETA",
+  Γ: "GAMMA",
+  Δ: "DELTA",
+  Ε: "EPSILON",
+  Ζ: "ZETA",
+  Η: "ETA",
+  Θ: "THETA",
+  Ι: "IOTA",
+  Κ: "KAPPA",
+  Λ: "LAMBDA",
+  Μ: "MU",
+  Ν: "NU",
+  Ξ: "XI",
+  Ο: "OMICRON",
+  Π: "PI",
+  Ρ: "RHO",
+  Σ: "SIGMA",
+  Τ: "TAU",
+  Υ: "UPSILON",
+  Φ: "PHI",
+  Χ: "CHI",
+  Ψ: "PSI",
+  Ω: "OMEGA",
   ς: "sigma",
   ϵ: "epsilon",
   ϑ: "theta",
@@ -78,24 +131,20 @@ const GREEK_VARIANT_NAMES: Readonly<Record<string, string>> = {
   ϖ: "pi",
   ϱ: "rho",
   ϕ: "phi",
-  ϴ: "Theta",
+  ϴ: "THETA",
   µ: "mu", // U+00B5 MICRO SIGN, not U+03BC
-  Ω: "Omega", // U+2126 OHM SIGN, not U+03A9
+  Ω: "OMEGA", // U+2126 OHM SIGN, not U+03A9
 };
 
-const GREEK_NAMES = new Map<string, string>([
-  ...GREEK_LETTERS.map(({ glyph, name }) => [glyph, name] as const),
-  ...Object.entries(GREEK_VARIANT_NAMES),
-]);
-
 /**
- * Write each Greek letter as its standard name, keeping its case, so a Net
- * drawn as φ₁ (name `φ1`) is written `phi1` and Ω is written `Omega`.
- * Netlist formats read only ASCII names; everything else is left as it is.
+ * Write each Greek letter as its standard name, in its own case, so a Net
+ * drawn as φ₁ (name `φ1`) is written `phi1`, Φ₁ is written `PHI1` and Ω is
+ * written `OMEGA`. Netlist formats read only ASCII names; everything else is
+ * left as it is.
  */
 export function spellGreekLetters(text: string): string {
   let spelled = "";
   for (const character of text)
-    spelled += GREEK_NAMES.get(character) ?? character;
+    spelled += NETLIST_GREEK_NAMES[character] ?? character;
   return spelled;
 }

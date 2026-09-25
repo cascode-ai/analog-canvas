@@ -584,6 +584,8 @@ export function clipboardPreviewDocument(
       oriented,
       { x: offset.x + clearance.x, y: offset.y + clearance.y },
       sequence,
+      undefined,
+      resolver,
     );
     if (proposal.errors.length === 0) {
       const result = executeTransaction(
@@ -1198,6 +1200,7 @@ export function proposePaste(
   offset: Point,
   sequence: number,
   project?: Pick<CircuitProject, "componentDefinitions">,
+  resolver?: SymbolResolver,
 ): PasteProposal {
   const occupied = new Set<string>(
     [
@@ -1531,7 +1534,20 @@ export function proposePaste(
     });
   }
 
+  // A pin its symbol does not draw, such as a transistor substrate, has no
+  // place for a wire: it joins its Net as a property, as the process binds it.
+  const drawsPin = (instanceId: string, pinName: string): boolean => {
+    const instance = clipboard.instances.find((item) => item.id === instanceId);
+    const symbol =
+      instance &&
+      resolver?.resolve(instance.symbolId, instance.symbolVariantId);
+    return (
+      !symbol || symbol.definition.pins.some((pin) => pin.name === pinName)
+    );
+  };
+  const propertyEdits: SchematicEdit[] = [];
   for (const net of clipboard.nets) {
+    const netId = netIds.get(net.id)!;
     const mappedTerminals = net.terminals.flatMap(
       (terminal): RouteEndpoint[] => {
         const instanceId = instanceIds.get(terminal.instanceId);
@@ -1541,10 +1557,18 @@ export function proposePaste(
           errors.push(`Unknown terminal instance: ${terminal.instanceId}`);
           return [];
         }
+        if (!drawsPin(terminal.instanceId, terminal.pinName)) {
+          propertyEdits.push({
+            kind: "set_property_terminal_net",
+            instanceId,
+            pinName: terminal.pinName,
+            netId,
+          });
+          return [];
+        }
         return [{ kind: "terminal", instanceId, pinName: terminal.pinName }];
       },
     );
-    const netId = netIds.get(net.id)!;
     if (mappedTerminals[0]) {
       edits.push({
         kind: "connect_endpoints",
@@ -1561,6 +1585,7 @@ export function proposePaste(
       }
     }
   }
+  edits.push(...propertyEdits);
   // An implicit MOS bulk binding is a Cell policy, not a copied boundary
   // Wire. Re-materialize that one declared policy connection explicitly;
   // ordinary boundary terminals never enter this loop.

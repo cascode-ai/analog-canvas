@@ -173,7 +173,7 @@ in the `.subckt` interface. An explicitly global Power Rail has no formal
 terminal and is emitted through the dialect's global declaration.
 A drawn switch is an ngspice voltage-controlled `S` card. A two-terminal switch
 (Open, Closed, Simple) is controlled by the clock phase its display label
-names: a label drawn Φ₁ means phase `Φ1`, written `Phi1` like any Greek name.
+names: a label drawn Φ₁ means phase `Φ1`, written `PHI1` like any Greek name.
 A single-ended switch is controlled by its CTRL pin. Both read the control
 against the Cell's ground (`VSS` in a structural netlist, `0` at a deck's top),
 so a Cell holding one states a ground. The phase node is the Net of that name

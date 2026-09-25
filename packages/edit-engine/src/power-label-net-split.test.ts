@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { executeTransaction, type SchematicEdit } from "./transaction.js";
 import { planRoutingDeletion } from "./routing-deletion-planner.js";
 import { gateRoutingOperationPlan } from "./routing-operation-plan.js";
+import { retargetOwnerEvidenceAfterSplit } from "./transaction-connectivity.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
@@ -214,4 +215,59 @@ describe("power label ownership across a physical cut", () => {
       ).toBe("cell-terminal-name");
     },
   );
+});
+
+describe("a label on a part with several pins", () => {
+  it("stays on the Net where its part has a pin, not the part's first Net", () => {
+    // The process ties R1's body B, a property pin, to ground through a
+    // hidden label on R1. Pin 1's Net sorts first by id; a label that
+    // followed the part's first Net put ground on pin 1.
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push({
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      netlist: { parameters: { value: "1k" } },
+    });
+    document.nets.push(
+      { id: "a-signal", terminals: [{ instanceId: "R1", pinName: "1" }] },
+      { id: "substrate", terminals: [{ instanceId: "R1", pinName: "B" }] },
+    );
+    document.annotations.push({
+      id: "substrate-label",
+      kind: "net-label",
+      netId: "substrate",
+      binding: { kind: "net-name", netId: "substrate" },
+      visible: false,
+      anchor: {
+        kind: "object",
+        objectId: "R1",
+        localOffset: { x: 0, y: 0 },
+        fallbackPosition: { x: 0, y: 0 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    document.connectivityEvidence.push({
+      id: "substrate-name",
+      kind: "name-claim",
+      netId: "substrate",
+      name: "0",
+      scope: "global",
+      powerDomain: "ground",
+      owner: { kind: "net-label", annotationId: "substrate-label" },
+    });
+    const changed = new Set<string>();
+    for (const net of document.nets)
+      retargetOwnerEvidenceAfterSplit(document, net.id, changed);
+    expect(document.annotations[0]!.netId).toBe("substrate");
+    expect(document.annotations[0]!.binding).toEqual({
+      kind: "net-name",
+      netId: "substrate",
+    });
+    expect(document.connectivityEvidence[0]!.netId).toBe("substrate");
+    expect(changed).toEqual(new Set());
+  });
 });
