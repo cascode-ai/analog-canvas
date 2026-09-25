@@ -11,10 +11,18 @@ export function compactSchema(
   const originalDefs = (input.$defs ?? {}) as Record<string, unknown>;
   const resolved = new Map<string, unknown>();
   const resolving = new Set<string>();
+  // inlineSchema may share resolved children by identity. Without this cache,
+  // visiting a DAG repeats every descendant for each incoming edge.
+  const visited = new WeakMap<object, unknown>();
   let recursive = false;
   const visit = (value: unknown, root = false, intern = true): unknown => {
     if (typeof value !== "object" || value === null || Array.isArray(value))
       return value;
+    if (!root && intern && visited.has(value)) return visited.get(value);
+    const remember = (result: unknown): unknown => {
+      if (!root && intern) visited.set(value, result);
+      return result;
+    };
     const schema = { ...(value as Record<string, unknown>) };
     if (root) delete schema.$defs;
     if (typeof schema.$ref === "string" && schema.$ref.startsWith("#/$defs/")) {
@@ -26,16 +34,16 @@ export function compactSchema(
           target,
           visit(siblings, false, false) as Record<string, unknown>,
         );
-      if (resolved.has(name)) return withSiblings(resolved.get(name));
+      if (resolved.has(name)) return remember(withSiblings(resolved.get(name)));
       if (resolving.has(name) || originalDefs[name] === undefined) {
         recursive = true;
-        return schema;
+        return remember(schema);
       }
       resolving.add(name);
       const target = visit(originalDefs[name]);
       resolving.delete(name);
       resolved.set(name, target);
-      return withSiblings(target);
+      return remember(withSiblings(target));
     }
     for (const key of [
       "properties",
@@ -66,7 +74,7 @@ export function compactSchema(
       if (schema[key] !== undefined) schema[key] = visit(schema[key]);
     }
     const serialized = JSON.stringify(schema);
-    if (root || !intern || serialized.length < 160) return schema;
+    if (root || !intern || serialized.length < 160) return remember(schema);
     let name = interned.get(serialized);
     if (!name) {
       do {
@@ -76,7 +84,7 @@ export function compactSchema(
       interned.set(serialized, name);
       definitions[name] = schema;
     }
-    return { $ref: `#/$defs/${name}` };
+    return remember({ $ref: `#/$defs/${name}` });
   };
   const result = visit(input, true) as Record<string, unknown>;
   if (recursive) return input;
