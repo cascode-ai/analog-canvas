@@ -2,7 +2,9 @@ import {
   defaultInstanceLabelPlacement,
   displayableInstanceValue,
   endpointKey,
+  isNearVerticalSegment,
   measureRichTextDocument,
+  netLabelSideOffset,
   resolveDocumentLogicalNets,
   richTextMetrics,
   resolveAnnotationPresentation,
@@ -86,6 +88,11 @@ export interface NetLabelPlacementTarget {
   routeAttachment: RouteAnnotationAttachment;
   conductorPoint: Point;
   labelPosition: Point;
+  /**
+   * The alignment the wire asks for. A label right of a vertical wire starts
+   * at the wire: centred or ended there, it would cover the wire.
+   */
+  alignment?: "start";
 }
 
 /** Nearest visible conductor point on one physical Net. */
@@ -324,9 +331,22 @@ export function netLabelPlacementTargetAtPoint(
   const record = routeGeometryRecords.find(
     ({ route }) => route.id === attached.routeAttachment.routeId,
   );
-  const placement = record
-    ? resolveRouteAttachment(record.geometry, attached.routeAttachment)
-    : null;
+  const segment = record?.geometry.segments.find(
+    (candidate) => candidate.address.legId === attached.routeAttachment.legId,
+  );
+  if (!record || !segment) return null;
+  // The label takes its wire's standard side whichever way the wire was
+  // drawn: above a horizontal segment, right of a vertical one. Following
+  // the drawing direction put it below or left, over the wire.
+  const routeAttachment = {
+    ...attached.routeAttachment,
+    normalOffset: netLabelSideOffset(
+      segment.from,
+      segment.to,
+      NET_LABEL_MIN_NORMAL_OFFSET,
+    ),
+  };
+  const placement = resolveRouteAttachment(record.geometry, routeAttachment);
   if (!placement) return null;
   const conductorPoint = {
     x: Math.round(attached.position.x),
@@ -338,9 +358,12 @@ export function netLabelPlacementTargetAtPoint(
   };
   return {
     routeId: attached.routeAttachment.routeId,
-    routeAttachment: attached.routeAttachment,
+    routeAttachment,
     conductorPoint,
     labelPosition,
+    ...(isNearVerticalSegment(segment.from, segment.to)
+      ? { alignment: "start" as const }
+      : {}),
   };
 }
 

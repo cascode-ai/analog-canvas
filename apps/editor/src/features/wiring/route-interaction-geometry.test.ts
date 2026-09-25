@@ -219,6 +219,43 @@ describe("route interaction geometry", () => {
     });
   });
 
+  it("puts a Net Label above a horizontal wire and right of a vertical one, however drawn", () => {
+    for (const { from, to, pointer, label, alignment } of [
+      {
+        from: { x: 100, y: 0 },
+        to: { x: 0, y: 0 },
+        pointer: { x: 30, y: 4 },
+        label: { x: 30, y: -8 },
+        alignment: undefined,
+      },
+      {
+        from: { x: 0, y: 0 },
+        to: { x: 0, y: 100 },
+        pointer: { x: 4, y: 40 },
+        label: { x: 8, y: 40 },
+        alignment: "start",
+      },
+      {
+        from: { x: 0, y: 100 },
+        to: { x: 0, y: 0 },
+        pointer: { x: -4, y: 40 },
+        label: { x: 8, y: 40 },
+        alignment: "start",
+      },
+    ]) {
+      const document = looseRouteDocument();
+      document.junctions[0]!.position = from;
+      document.junctions[1]!.position = to;
+      const target = netLabelPlacementTargetAtPoint(
+        [routeRecord(document)],
+        pointer,
+        7,
+      );
+      expect(target?.labelPosition).toEqual(label);
+      expect(target?.alignment).toBe(alignment);
+    }
+  });
+
   it("keeps a dragged marker label in a stable bounded halo around its route", () => {
     const document = looseRouteDocument();
     const record = routeRecord(document);

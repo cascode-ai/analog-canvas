@@ -18,6 +18,8 @@ export interface NetLabelPlacementState {
   sizeScale: number;
   alignment: "start" | "middle" | "end";
   position: Point;
+  /** The wire the label will attach to, when that wire asks for an alignment. */
+  target?: { alignment?: "start" | "middle" | "end" } | null;
 }
 
 export interface EditorWiringOverlayProps {
@@ -119,7 +121,9 @@ export function EditorWiringOverlay({
             className="net-label-placement-preview"
             x={netLabelPlacement.position.x}
             y={netLabelPlacement.position.y}
-            textAnchor={netLabelPlacement.alignment}
+            textAnchor={
+              netLabelPlacement.target?.alignment ?? netLabelPlacement.alignment
+            }
             fontSize={previewFontSize}
             dangerouslySetInnerHTML={{
               __html: renderRichTextDocument(
