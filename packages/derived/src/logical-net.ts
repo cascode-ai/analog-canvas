@@ -210,6 +210,22 @@ export function resolveDocumentLogicalNets(
           namesByFolded.set(folded, name);
         }
       }
+      // A Net Label is an electrical name owner, not a second alias for a
+      // formal Cell Pin. Allow case-only spelling differences, but report a
+      // different label name before it can silently bridge the Pin to another
+      // named Net. Separately named formal Pins on one conductor retain their
+      // existing interface-alias semantics.
+      const labelNames = new Set(
+        evidence.flatMap((item) =>
+          item.kind === "name-claim" && item.owner.kind === "net-label"
+            ? [foldNetName(item.name)]
+            : [],
+        ),
+      );
+      const labelDisagreesWithFormal = memberFormalNames.some(
+        (terminal) =>
+          labelNames.size > 0 && !labelNames.has(foldNetName(terminal.name)),
+      );
       const scopes = new Set(
         evidence.flatMap((item) =>
           item.kind === "name-claim" ? [item.scope] : [],
@@ -232,7 +248,7 @@ export function resolveDocumentLogicalNets(
           ? "conflict"
           : (powerDomains.values().next().value ?? "none");
       const conflicts: LogicalNetConflictCode[] = [];
-      if (namesByFolded.size > 1) {
+      if (namesByFolded.size > 1 || labelDisagreesWithFormal) {
         conflicts.push("name-conflict");
       }
       // Scope is a property of one name identity, not a second physical

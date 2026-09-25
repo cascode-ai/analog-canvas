@@ -135,6 +135,14 @@ first Pin fixes that Port's order and spelling. Grouping does not rewrite the
 canvas objects, but the logical connection is real, including during export.
 Different Port names on the same internal Net remain separate interface pins.
 Moving a symbol pin to another side changes geometry, not the netlist port order.
+If a wire touches a Cell Pin, any ordinary Net Label on that logical Net must
+use the Pin's formal name (case-insensitively). A different Label name is
+rejected as a name conflict so it cannot silently connect the Pin to remote
+wires carrying that Label. Cutting a wire separates physical Base Nets, but
+same-name Pins or Labels on the resulting sides still denote one electrical
+Logical Net. Drawing an explicit connection from the Pin to a differently
+named labeled wire retires that wire's Label as part of the join; the Pin's
+formal name remains.
 
 Renaming that annotation changes only the selected Pin. Parent Instances are
 updated only if the before/after grouped interface actually changes. Deleting

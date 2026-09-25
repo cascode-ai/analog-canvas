@@ -126,6 +126,45 @@ describe("direct endpoint connection planner", () => {
     });
   });
 
+  it("retires a differently named Net Label when its wire joins a formal Port", () => {
+    const document = fixture();
+    document.nets.push(
+      { id: "net-port", terminals: [{ instanceId: "A", pinName: "P" }] },
+      { id: "net-label", terminals: [{ instanceId: "B", pinName: "P" }] },
+    );
+    document.netlist!.terminals.push({
+      id: "terminal-vin",
+      name: "Vin",
+      netId: "net-port",
+      direction: "input",
+      interfaceInstanceIds: ["A"],
+    });
+    document.connectivityEvidence.push({
+      id: "claim-bias",
+      kind: "name-claim",
+      netId: "net-label",
+      name: "Bias",
+      scope: "local",
+      owner: { kind: "net-label", annotationId: "label-bias" },
+    });
+
+    expect(
+      planDirectEndpointConnection(document, {
+        from: endpoint("A"),
+        to: endpoint("B"),
+        newNetId: "unused",
+      }),
+    ).toMatchObject({
+      ok: true,
+      edits: [
+        { kind: "remove_connectivity_evidence", evidenceId: "claim-bias" },
+        { kind: "remove_schematic_annotation", annotationId: "label-bias" },
+        { kind: "merge_nets" },
+        { kind: "connect_endpoints" },
+      ],
+    });
+  });
+
   it("allows same-name local and global Nets to make explicit physical contact", () => {
     const document = fixture();
     document.nets.push(

@@ -517,6 +517,78 @@ describe("Edit Transaction envelope", () => {
     });
   });
 
+  it("accepts a Port-matching Net Label and rejects a different label before it bridges remote wiring", () => {
+    const document = createEmptyDocument("document-main", "Main");
+    document.instances.push({ id: "P1", symbolId: "port", placement: null });
+    document.nets.push(
+      { id: "net-port", terminals: [{ instanceId: "P1", pinName: "P" }] },
+      { id: "net-remote", terminals: [] },
+    );
+    document.netlist!.terminals.push({
+      id: "terminal-vin",
+      name: "Vin",
+      netId: "net-port",
+      direction: "input",
+      interfaceInstanceIds: ["P1"],
+    });
+    for (const [id, netId] of [
+      ["port-label", "net-port"],
+      ["remote-label", "net-remote"],
+    ] as const) {
+      document.annotations.push({
+        id,
+        kind: "net-label",
+        binding: { kind: "net-name", netId },
+        netId,
+        anchor: { kind: "free", position: { x: 0, y: 0 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+    }
+    document.connectivityEvidence.push({
+      id: "remote-bias",
+      kind: "name-claim",
+      netId: "net-remote",
+      name: "Bias",
+      scope: "local",
+      owner: { kind: "net-label", annotationId: "remote-label" },
+    });
+    const claim = {
+      id: "port-label-claim",
+      kind: "name-claim" as const,
+      netId: "net-port",
+      name: "VIN",
+      scope: "local" as const,
+      owner: { kind: "net-label" as const, annotationId: "port-label" },
+    };
+    const matching = executeTransaction(document, {
+      ...transaction(),
+      edits: [{ kind: "upsert_connectivity_evidence", evidence: claim }],
+    });
+    if (!matching.ok) throw new Error(matching.error.message);
+    expect(resolveDocumentLogicalNets(matching.document).groups).toHaveLength(
+      2,
+    );
+
+    const conflicting = executeTransaction(matching.document, {
+      ...transaction(matching.document.revision),
+      edits: [
+        {
+          kind: "upsert_connectivity_evidence",
+          evidence: { ...claim, name: "Bias" },
+        },
+      ],
+    });
+    expect(conflicting).toMatchObject({
+      ok: false,
+      error: {
+        code: "INVALID_RESULT",
+        message: "Transaction introduces conflicting Logical Net names",
+      },
+    });
+  });
+
   it("enforces the same layout lock before placing a retained Instance", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.instances.push({

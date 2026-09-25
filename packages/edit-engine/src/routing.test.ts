@@ -2839,7 +2839,7 @@ describe("routing Edit Engine", () => {
     }
   });
 
-  it("does not couple same-named Cell Pins when a route is cut", () => {
+  it("splits Base Nets on a cut while same-named Cell Pins stay logically connected", () => {
     const document = createEmptyDocument(
       "independent-cell-pin-cut",
       "Independent Cell pin cut",
@@ -2933,6 +2933,14 @@ describe("routing Edit Engine", () => {
     expect(first.netId).not.toBe(second.netId);
     expect(netOf("R1")?.id).not.toBe(first.netId);
     expect(netOf("R1")?.id).not.toBe(second.netId);
+    const logical = resolveDocumentLogicalNets(result.document);
+    expect(logical.byBaseNetId.get(first.netId)).toBe(
+      logical.byBaseNetId.get(second.netId),
+    );
+    expect(logical.byBaseNetId.get(first.netId)?.name).toBe("VIN");
+    expect(logical.byBaseNetId.get(netOf("R1")!.id)).not.toBe(
+      logical.byBaseNetId.get(first.netId),
+    );
   });
 
   it("removes redundant cycle geometry without splitting the Net", () => {

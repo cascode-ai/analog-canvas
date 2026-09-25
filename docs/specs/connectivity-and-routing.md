@@ -406,6 +406,16 @@ effective global scope without rewriting either owner. Disconnected
 local/global claims remain separate; different-name scope combinations and
 incompatible power claims remain explicit errors.
 
+A Net Label attached to a formal Cell Pin must have that Pin's name (case is
+insensitive). A different label name is a Logical-Net name conflict, including
+when its name would bridge to another Base Net. New edits that introduce the
+conflict reject atomically; existing imported conflicts remain visible in ERC
+and block formal netlist export. A cut partitions Base Nets and retargets each
+owner to its surviving component, then re-derives Logical Nets: same-name
+Pins/Labels on opposite sides remain electrically joined by name, while an
+unnamed detached side does not. Different formal Pin names on one physical Net
+retain their separate interface identities.
+
 The strict `connect_endpoints` primitive does not implicitly merge two Base
 Nets. The authoring planner explicitly emits `merge_nets` first. If their
 resolved names differ, it removes `net-label`-owned claims and their
