@@ -1,4 +1,4 @@
-# MCP editing and recovery tools
+# MCP editing tools and local inspection
 
 Use the listed tool schema directly. `describe_tool` offers offline, versioned
 discovery from the same canonical definitions: no selectors lists tools and
