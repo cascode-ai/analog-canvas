@@ -385,15 +385,33 @@ body {
   white-space: nowrap;
 }
 
+/* The gallery header's middle takes the room left between the brand and the
+   actions and centres in it. Floating over the header's centre instead, it
+   ran under a signed-in account chip at every width from half screen to
+   about 1300px. In the row it cannot; whatever does not fit wraps onto a
+   second line the band clips, so the count, then the credit, drops out whole
+   instead of being covered or cut mid-number. */
 .gallery-credit-group {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  display: inline-flex;
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--icm-space-3);
-  transform: translate(-50%, -50%);
+  align-content: flex-start;
+  justify-content: center;
+  height: var(--icm-control-h);
+  overflow: hidden;
   white-space: nowrap;
+}
+
+/* A first line that is never empty, so the credit, too, can wrap away. */
+.gallery-credit-group::before {
+  content: "";
+  height: var(--icm-control-h);
+}
+
+.gallery-credit-group > * + * {
+  margin-left: var(--icm-space-3);
 }
 
 /* One line, even if long: "Presented by [Z] TokenZhang" never wraps. */
