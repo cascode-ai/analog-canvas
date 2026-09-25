@@ -168,6 +168,8 @@ export function proposePlacementContact(
     instances?: readonly Instance[];
     /** False when VDD artwork is being authored as a formal Cell Pin. */
     powerMarker?: boolean;
+    /** The only Wires a pin may land on; every Wire when omitted. */
+    routeIds?: ReadonlySet<string>;
   } = {},
 ): PlacementContactProposal {
   const contacts: Array<{
@@ -206,6 +208,7 @@ export function proposePlacementContact(
       );
       if (
         !route ||
+        (options.routeIds && !options.routeIds.has(route.id)) ||
         routeEndpoints(route).some((e) => endpointKey(e) === sourceKey)
       )
         continue;

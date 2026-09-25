@@ -34,18 +34,38 @@ export function planInsertedInstanceConnections(
   document: SchematicDocument,
   resolver: SymbolResolver,
   instance: Instance,
-  visibleEndpoints: readonly WireSource[] = [
+  visibleEndpoints?: readonly WireSource[],
+  /**
+   * The destination as it was before a paste. Its parts, Junctions and Wires
+   * are all a pasted part may contact; how the pasted parts join one another
+   * is what the copy carried, not where their drawings touch.
+   */
+  options: { existing?: SchematicDocument } = {},
+) {
+  const existing = options.existing;
+  const existingInstances = existing
+    ? new Set(existing.instances.map((item) => item.id))
+    : null;
+  const existingJunctions = existing
+    ? new Set(existing.junctions.map((item) => item.id))
+    : null;
+  const endpoints = visibleEndpoints ?? [
     ...document.instances
-      .filter((candidate) => candidate.id !== instance.id)
+      .filter(
+        (candidate) =>
+          candidate.id !== instance.id &&
+          (!existingInstances || existingInstances.has(candidate.id)),
+      )
       .flatMap((candidate) =>
         placementWireSources(document, resolver, candidate),
       ),
     ...document.junctions
       .filter(
         (junction) =>
-          !junction.role ||
-          junction.role === "branch" ||
-          junction.role === "route-anchor",
+          (!junction.role ||
+            junction.role === "branch" ||
+            junction.role === "route-anchor") &&
+          (!existingJunctions || existingJunctions.has(junction.id)),
       )
       .flatMap((junction) => {
         const endpoint = { kind: "junction" as const, junctionId: junction.id };
@@ -58,8 +78,7 @@ export function planInsertedInstanceConnections(
           ? [{ endpoint, connection, netId: junction.netId, preludeEdits: [] }]
           : [];
       }),
-  ],
-) {
+  ];
   // A formal Cell Pin is named by its Cell terminal, never by a supply claim.
   const cellPin = document.netlist?.terminals.some((terminal) =>
     terminal.interfaceInstanceIds.includes(instance.id),
@@ -68,8 +87,13 @@ export function planInsertedInstanceConnections(
     document,
     resolver,
     instance,
-    visibleEndpoints,
-    cellPin ? { powerMarker: false } : undefined,
+    endpoints,
+    {
+      ...(cellPin ? { powerMarker: false } : {}),
+      ...(existing
+        ? { routeIds: new Set(existing.routes.map((route) => route.id)) }
+        : {}),
+    },
   );
   if (contact.ambiguous) {
     throw new Error(
@@ -105,8 +129,16 @@ export function planInsertedInstanceConnections(
   );
   // A label bound to the Net name shows a supply claim, which a Cell Pin has
   // none of: its label, if it kept one, is bound to its terminal and copied.
+  // Nor has a marker copied onto a Net its source left unnamed (markers from
+  // before they claimed their supply): the copy stays as its source was.
+  const unnamedCopy =
+    existingPowerNet !== undefined &&
+    !contact.matched &&
+    !resolveDocumentLogicalNets(document).byBaseNetId.get(existingPowerNet.id)
+      ?.name;
   const vddPowerLabel =
     !cellPin &&
+    !unnamedCopy &&
     powerConnection?.domain === "vdd" &&
     powerNetId &&
     resolvedPowerSymbol
