@@ -454,6 +454,12 @@ test("copies structural SPICE and Spectre netlists while exposing instance autho
   await expect(primary).toContainText("Copy Netlist");
   await expect(primary).toHaveAttribute("title", /Spectre \(\.scs\)/u);
   expect(await copyNetlistText(page)).toBe(spectre);
+  // The panel's own copy button, beside the code, copies the same netlist.
+  await page.evaluate(() => navigator.clipboard.writeText("unchanged"));
+  await page.getByTestId("copy-netlist-panel").click();
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe(spectre);
   await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
     0,
   );
@@ -585,18 +591,23 @@ test("shows and copies a live MOS netlist with explicitly connected bulk termina
     0,
   );
   const refresh = panel.getByRole("button", { name: "Refresh netlist" });
-  await expect(
-    panel.getByRole("button", { name: "Copy netlist", exact: true }),
-  ).toHaveCount(0);
+  // The copy button sits beside refresh and keeps the panel's right edge.
+  const copy = panel.getByRole("button", { name: "Copy netlist", exact: true });
+  await expect(copy).toBeVisible();
   const formatSelect = panel.getByLabel("Netlist format");
   const processSelect = panel.getByLabel("Netlist process");
   const assertControls = async () => {
-    const [format, process, refreshBox] = await Promise.all(
-      [formatSelect, processSelect, refresh].map((item) => item.boundingBox()),
+    const [format, process, refreshBox, copyBox, panelBox] = await Promise.all(
+      [formatSelect, processSelect, refresh, copy, panel].map((item) =>
+        item.boundingBox(),
+      ),
     );
-    for (const box of [process, refreshBox])
+    for (const box of [process, refreshBox, copyBox])
       expect(box!.height).toBeCloseTo(format!.height, 1);
     expect(refreshBox!.y).toBeCloseTo(format!.y, 1);
+    expect(copyBox!.x + copyBox!.width).toBeLessThanOrEqual(
+      panelBox!.x + panelBox!.width,
+    );
   };
   await assertControls();
   const handle = page.getByTestId("properties-resize-handle");

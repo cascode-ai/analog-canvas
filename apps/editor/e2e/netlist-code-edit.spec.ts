@@ -116,7 +116,7 @@ test("selects an export entry independently of saved Top and edits only that Cel
   await expect(page.getByTestId("active-document-id")).toHaveText(
     project.topDocumentId,
   );
-  await expect(page.getByTestId("copy-netlist-panel")).toHaveCount(0);
+  await expect(page.getByTestId("copy-netlist-panel")).toBeEnabled();
   await code.fill((await code.innerText()).replace("20k", "30k"));
   await code.press("Enter");
   await expect(entry).toBeEnabled();
@@ -168,7 +168,7 @@ test("restores process and device choices, applies defaults and keeps edit/undo 
   await expect(code).toContainText("sky130_fd_pr__nfet_01v8_lvt");
   await expect(code).not.toContainText("XM1");
   await expect(mosLabel).toHaveText("M1");
-  await expect(page.getByTestId("copy-netlist-panel")).toHaveCount(0);
+  await expect(page.getByTestId("copy-netlist-panel")).toBeVisible();
   const saved = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
       "utf8",
