@@ -20,6 +20,7 @@ describe("live netlist controls", () => {
         onApply={vi.fn()}
         onFocusInstance={vi.fn()}
         onReset={vi.fn()}
+        onCopy={vi.fn()}
         configurationError={null}
       />,
     );
@@ -27,10 +28,14 @@ describe("live netlist controls", () => {
     expect(markup).toContain('aria-label="Netlist format"');
     expect(markup).toContain('aria-label="Netlist process"');
     expect(markup).toContain('value="spectre" selected=""');
-    expect(markup).not.toContain('data-testid="copy-netlist-panel"');
+    // The copy button sits beside the code it copies, as an icon.
+    expect(markup).toContain('data-testid="copy-netlist-panel"');
+    expect(markup).toMatch(
+      /data-testid="refresh-netlist-panel"[\s\S]*data-testid="copy-netlist-panel"/u,
+    );
     expect(markup).not.toContain('aria-label="Port names:');
     expect(markup).not.toContain(">ABC</code>");
-    expect(markup).not.toContain('aria-label="Copy netlist"');
+    expect(markup).toContain('aria-label="Copy netlist"');
     expect(markup).toContain("<svg");
     expect(markup).not.toContain(">Copy</button>");
     expect(markup).toContain('aria-label="NMOS netlist target"');
@@ -77,6 +82,7 @@ describe("live netlist controls", () => {
         onFocusInstance={vi.fn()}
         onNavigateDiagnostic={vi.fn()}
         onReset={vi.fn()}
+        onCopy={vi.fn()}
         configurationError={null}
       />,
     );

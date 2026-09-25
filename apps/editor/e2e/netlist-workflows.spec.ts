@@ -454,6 +454,12 @@ test("copies structural SPICE and Spectre netlists while exposing instance autho
   await expect(primary).toContainText("Copy Netlist");
   await expect(primary).toHaveAttribute("title", /Spectre \(\.scs\)/u);
   expect(await copyNetlistText(page)).toBe(spectre);
+  // The panel's own copy button, beside the code, copies the same netlist.
+  await page.evaluate(() => navigator.clipboard.writeText("unchanged"));
+  await page.getByTestId("copy-netlist-panel").click();
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe(spectre);
   await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
     0,
   );
