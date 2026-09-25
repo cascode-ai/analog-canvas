@@ -185,7 +185,7 @@ export function createEditorFileCommands({
         convertImportSources(sourceInputs),
         entryCandidates[0]!.path,
         {},
-        { namingProfile },
+        { namingProfile, originalSources: sourceInputs },
       );
       const nextImportReport: SpiceImportReport = {
         entryPath: entryCandidates[0]!.path,

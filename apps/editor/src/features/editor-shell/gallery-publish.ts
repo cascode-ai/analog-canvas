@@ -111,7 +111,21 @@ async function sendGalleryProject(
         name: fields.name.trim(),
         description: fields.description.trim(),
         tags: fields.tags,
-        projectText: serializeProject(project),
+        // Publishing a drawing must not also publish private source comments
+        // or model files. The frozen topology still supports routing guidance.
+        projectText: serializeProject({
+          ...project,
+          source: {
+            ...project.source,
+            files: project.source.files.map(
+              ({
+                content: _content,
+                originalContent: _original,
+                ...metadata
+              }) => metadata,
+            ),
+          },
+        }),
         ...galleryPublicationBinding(binding),
       }),
     });

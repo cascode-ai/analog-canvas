@@ -22,6 +22,37 @@ function fetchReturning(
 }
 
 describe("publishProjectToGallery", () => {
+  it("keeps archived source text private without dropping the routing reference", async () => {
+    const imported = structuredClone(project);
+    imported.source.files = [
+      {
+        id: "source",
+        path: "private.spi",
+        hash: "source-hash",
+        content: { text: "private comment", encoding: "utf-8" },
+        originalContent: { text: "private original", encoding: "utf-8" },
+      },
+    ];
+    imported.documents[0]!.importReference = {
+      files: [{ fileId: "source" }],
+      nets: [],
+    };
+    const seen: { url?: string; init?: RequestInit } = {};
+    await publishProjectToGallery(
+      imported,
+      { name: "test", description: "", tags: [] },
+      fetchReturning(201, { id: "entry", previewRevision: "0" }, seen),
+    );
+    const published = parseProject(
+      JSON.parse(String(seen.init?.body)).projectText,
+    );
+    expect(published.source.files[0]?.content).toBeUndefined();
+    expect(published.source.files[0]?.originalContent).toBeUndefined();
+    expect(published.documents[0]?.importReference).toEqual(
+      imported.documents[0]?.importReference,
+    );
+    expect(imported.source.files[0]?.content?.text).toBe("private comment");
+  });
   it("posts the serialized Project under the session cookie alone", async () => {
     const seen: { url?: string; init?: RequestInit | undefined } = {};
     const outcome = await publishProjectToGallery(

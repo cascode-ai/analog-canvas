@@ -1,13 +1,19 @@
 # Project File Compatibility
 
-The current portable Project schema is `62`; the normalized editor model is
-schema `58`. Supported files from schemas 24 through 62 enter through the same
+The current portable Project schema is `63`; the normalized editor model is
+schema `58`. Supported files from schemas 24 through 63 enter through the same
 validated reader. Historical input is upgraded or decoded before installation;
-all current writers emit schema 62. See the
+all current writers emit schema 63. See the
 [file-format contract](../specs/project-file-format.md) for the authoritative
 representation and compatibility boundary.
 
 ## Opening and saving
+
+New netlist imports retain their original input text and frozen terminal
+membership. Earlier projects without this reference still open and export their
+current circuit, but cannot reconstruct original routing targets from provenance.
+Check and Save reports that reference as unavailable; it does not guess a baseline.
+Gallery publication omits archived source text while retaining topology reference.
 
 Use **Import Project File…** to open portable bytes, **File / Save** to save a
 private Cloud Project, and **Export Project File…** for a portable backup.

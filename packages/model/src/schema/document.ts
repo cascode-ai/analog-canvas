@@ -2,7 +2,7 @@ import { richTextPresentsIdentifier } from "../identifier-text.js";
 import { z } from "zod";
 
 import { StableIdSchema } from "./common.js";
-import { SourceSpanSchema } from "./source.js";
+import { SourceSpanSchema, ImportReferenceSchema } from "./source.js";
 import {
   InstanceSchema,
   NetlistIdentifierSchema,
@@ -70,6 +70,7 @@ const SchematicDocumentBaseSchema = z.strictObject({
   name: z.string().min(1),
   revision: z.number().int().nonnegative(),
   sourceBinding: SourceBindingSchema.optional(),
+  importReference: ImportReferenceSchema.optional(),
   sourceStatus: z.enum([
     "in-sync",
     "geometry-only-changed",

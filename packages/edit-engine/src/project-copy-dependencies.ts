@@ -171,7 +171,12 @@ export function planExternalCopyDependencies(
     const file = source.source.files.find((f) => f.id === id);
     if (!file) throw new Error(`Source metadata is missing file ${id}`);
     const existing = destination.source.files.find(
-      (f) => f.path === file.path && f.hash === file.hash,
+      (f) =>
+        f.path === file.path &&
+        f.hash === file.hash &&
+        JSON.stringify(f.content) === JSON.stringify(file.content) &&
+        JSON.stringify(f.originalContent) ===
+          JSON.stringify(file.originalContent),
     );
     const targetId = existing?.id ?? fresh(id);
     fileIds.set(id, targetId);

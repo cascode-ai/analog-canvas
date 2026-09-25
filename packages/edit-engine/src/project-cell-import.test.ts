@@ -47,7 +47,19 @@ describe("cross-Project Cell import", () => {
       id: "source-file",
       path: "cells/gain-stage.spi",
       hash: "sha256-source",
+      content: { text: "* archived original", encoding: "utf-8" },
     });
+    child.importReference = {
+      files: [{ fileId: "source-file" }],
+      nets: [
+        {
+          id: "old-net",
+          name: "A",
+          scope: "local",
+          terminals: [{ instanceId: "deleted-device", sourcePosition: 0 }],
+        },
+      ],
+    };
     source.documents.push(child);
     source.documents[0]!.instances.push({
       id: "source-x1",
@@ -67,6 +79,16 @@ describe("cross-Project Cell import", () => {
     );
 
     expect(plan.importedDocumentIds).toHaveLength(2);
+    const reference = project.documents.find(
+      (d) => d.sourceBinding?.cellName === "GainStage",
+    )!.importReference!;
+    expect(reference.nets[0]?.terminals[0]?.instanceId).not.toBe(
+      "deleted-device",
+    );
+    expect(
+      project.source.files.find((f) => f.id === reference.files[0]?.fileId)
+        ?.content?.text,
+    ).toBe("* archived original");
     expect(project.documents).toHaveLength(3);
     const importedRoot = project.documents.find(
       (document) => document.id === plan.rootDocumentId,

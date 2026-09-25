@@ -2,20 +2,31 @@
 
 Status: `accepted`
 
-Portable file schema: `62`; normalized editor model schema: `58`.
+Portable file schema: `63`; normalized editor model schema: `58`.
 
 Primary owner: `packages/project-protocol` (portable source and codec).
 `packages/model` validates the normalized editor indexes used by rendering,
 connectivity and transactions. The normalized indexes are decoded working data;
-serialization always writes the one schema-62 authoring representation.
+serialization always writes the one schema-63 authoring representation.
 
 An `.icproj.json` file contains a complete Project. The public `parseProject`
-boundary reads file schemas 24 through 62. Historical schemas pass through the
-existing explicit upgrades; schemas 59 through 62 decode through the
+boundary reads file schemas 24 through 63. Historical schemas pass through the
+existing explicit upgrades; schemas 59 through 63 decode through the
 owned-object codec. Schema 60 introduced derived network membership from
 connection facts. Schema 62 lets a Symbol's body text keep an authored look. Both return the same validated editor model. File/envelope
 metadata must use `CURRENT_PROJECT_FILE_VERSION`, not the internal model
 version.
+
+Schema 63 adds optional `source.files[].content` (decoded text and encoding),
+`originalContent` for inputs converted before parsing, and Document
+`importReference`. The reference stores source Net names/scopes and immutable
+terminal membership: instance ID plus source terminal position, or a formal
+Port's pin name. Current device `terminalMapping` resolves positions after
+symbol pin remapping. Reference file IDs keep the input archive with Cell copies.
+Missing instances remain missing reference members; merge/split never rewrite
+this topology. Older projects do not acquire a guessed reference during loading.
+Source text is retained by private saves/portable backups, omitted from Gallery
+publication, and never used as the current netlist export authority.
 
 ## Instance-owned source
 

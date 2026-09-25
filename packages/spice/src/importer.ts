@@ -30,12 +30,15 @@ import type { SpiceDiagnostic } from "./diagnostics.js";
 import type { CircuitCellIR, CircuitIR, CircuitInstanceIR } from "./ir.js";
 import type { SourceBundle, SpiceSourceInput } from "./source-types.js";
 import { compileSpiceSources } from "./compiler.js";
+import { decodeSourceContent, normalizeSourcePath } from "./source.js";
 
 export interface SpiceImportResult extends SpiceCompileResult {
   project: CircuitProject | null;
 }
 
 export interface SpiceImportOptions {
+  /** Input before frontend conversion; never used as mutable connectivity. */
+  originalSources?: readonly SpiceSourceInput[];
   symbolMappings?: readonly PdkSymbolMappingOverride[];
   namingProfile?: "native" | "cadence-bang";
 }
@@ -515,6 +518,31 @@ function importDocument(
     revision: 0,
     sourceBinding: { cellName: cell.name, sourceRef: cell.sourceRef },
     sourceStatus: "in-sync",
+    importReference: {
+      files: [],
+      nets: nets.map((net, index) => {
+        const source = cell.nets[index]!;
+        const name = importedNetName(source.name, source.scope, namingProfile);
+        return {
+          id: source.id,
+          name: name.name,
+          scope: name.scope,
+          terminals: net.terminals.map((terminal) => {
+            const mapping = importedInstanceById
+              .get(terminal.instanceId)
+              ?.importProvenance?.terminalMapping?.find(
+                (entry) => entry.pinName === terminal.pinName,
+              );
+            return mapping
+              ? {
+                  instanceId: terminal.instanceId,
+                  sourcePosition: mapping.sourcePosition,
+                }
+              : { instanceId: terminal.instanceId, pinName: terminal.pinName };
+          }),
+        };
+      }),
+    },
     netlist: {
       name: cell.name,
       terminals: formalTerminals,
@@ -755,6 +783,11 @@ export function importCircuitIR(
   );
   const { documents, externalSubcircuitDefinitions } =
     bindImportedChildDocuments(importedDocuments);
+  for (const document of documents) {
+    document.importReference!.files = bundle.files.map((file) => ({
+      fileId: file.id,
+    }));
+  }
   const topCell = ir.topCells[0] ?? ir.cells[0]?.name;
   const topDocument = documents.find(
     (document) =>
@@ -774,11 +807,25 @@ export function importCircuitIR(
       entry: bundle.entryPath,
       dialect: ir.dialect,
       sourcePolicy: "copy",
-      files: bundle.files.map((file) => ({
-        id: file.id,
-        path: file.path,
-        hash: file.hash,
-      })),
+      files: bundle.files.map((file) => {
+        const original = options.originalSources?.find(
+          (input) => normalizeSourcePath(input.path) === file.path,
+        );
+        const originalContent = original
+          ? decodeSourceContent(original.bytes)
+          : undefined;
+        return {
+          id: file.id,
+          path: file.path,
+          hash: file.hash,
+          content: { text: file.text, encoding: file.encoding },
+          ...(originalContent &&
+          (originalContent.text !== file.text ||
+            originalContent.encoding !== file.encoding)
+            ? { originalContent }
+            : {}),
+        };
+      }),
     },
     symbolLibrary: {
       id: "razavi-symbols",

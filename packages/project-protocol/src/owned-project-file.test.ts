@@ -143,7 +143,7 @@ describe("instance-owned portable source", () => {
     const portable = withProjectComponentDefinitions(before);
 
     const source = JSON.parse(serializeProject(portable));
-    expect(source.schemaVersion).toBe(62);
+    expect(source.schemaVersion).toBe(63);
     const encodedInstance = source.documents[0].instances.find(
       (item: any) => item.id === instance.id,
     );
@@ -201,7 +201,7 @@ describe("instance-owned portable source", () => {
     const source = JSON.parse(
       serializeProject(withProjectComponentDefinitions(before)),
     );
-    expect(source.schemaVersion).toBe(62);
+    expect(source.schemaVersion).toBe(63);
     expect(
       parseProject(JSON.stringify(source)).documents[0]!.instances[0]!
         .signalFlowParameters,

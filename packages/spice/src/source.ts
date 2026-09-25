@@ -15,7 +15,7 @@ import type {
   SpiceSyntaxFile,
 } from "./syntax.js";
 
-function normalizePath(path: string): string | null {
+export function normalizeSourcePath(path: string): string | null {
   const replaced = path.replaceAll("\\", "/").replace(/^\.\//u, "");
   if (
     !replaced ||
@@ -58,7 +58,7 @@ function resolveInclude(
   const combined = [directory(sourcePath), requestedPath]
     .filter(Boolean)
     .join("/");
-  const normalized = normalizePath(combined);
+  const normalized = normalizeSourcePath(combined);
   if (!normalized) return null;
   if (
     rootDirectory &&
@@ -81,7 +81,7 @@ async function sha256(bytes: Uint8Array): Promise<string> {
     .join("")}`;
 }
 
-function decode(bytes: Uint8Array): {
+export function decodeSourceContent(bytes: Uint8Array): {
   encoding: SpiceSourceFile["encoding"];
   text: string;
 } {
@@ -116,7 +116,7 @@ async function loadInputs(inputs: readonly SpiceSourceInput[]): Promise<{
   const files = new Map<string, SpiceSourceFile>();
   const diagnostics: SpiceDiagnostic[] = [];
   for (const input of inputs) {
-    const path = normalizePath(input.path);
+    const path = normalizeSourcePath(input.path);
     if (!path) {
       diagnostics.push(
         diagnostic(
@@ -140,7 +140,7 @@ async function loadInputs(inputs: readonly SpiceSourceInput[]): Promise<{
       continue;
     }
     try {
-      const decoded = decode(input.bytes);
+      const decoded = decodeSourceContent(input.bytes);
       files.set(path, {
         id: deriveStableId("source", path),
         path,
@@ -166,7 +166,7 @@ export async function createSourceBundle(
   inputs: readonly SpiceSourceInput[],
   entryPath: string,
 ): Promise<SourceBundle> {
-  const normalizedEntry = normalizePath(entryPath) ?? entryPath;
+  const normalizedEntry = normalizeSourcePath(entryPath) ?? entryPath;
   const loaded = await loadInputs(inputs);
   const entry = loaded.files.get(normalizedEntry);
   const diagnostics = [...loaded.diagnostics];
