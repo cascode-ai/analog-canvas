@@ -32,6 +32,14 @@ export interface DesignNetlistInstance {
   parameters: DesignNetlistParameter[];
 }
 
+/** A model card a Cell carries itself, printed inside its own body. */
+export interface DesignNetlistModel {
+  name: string;
+  /** The SPICE model type, such as `SW`. */
+  type: string;
+  parameters: DesignNetlistParameter[];
+}
+
 export interface DesignNetlistCell {
   id: StableId;
   name: string;
@@ -44,6 +52,8 @@ export interface DesignNetlistCell {
   instances: DesignNetlistInstance[];
   /** Ordered definition defaults retained without conflating absence and "". */
   formalParameters?: DesignNetlistFormalParameter[];
+  /** Model cards only this Cell's own instances use, such as the ideal switch. */
+  models?: DesignNetlistModel[];
 }
 
 /** Referenced external interfaces deliberately do not produce an empty body. */

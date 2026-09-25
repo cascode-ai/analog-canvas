@@ -155,8 +155,10 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
  * placeholder identifiers.
  * 6 writes Greek letters in Net, Pin, device and Cell names as their standard
  * names, so a circuit named with them now extracts.
+ * 7 writes drawn switches as SPICE `S` cards on the phase their label names,
+ * so a switched-capacitor circuit whose switches carry phases now extracts.
  */
-export const NETLIST_MARK_RULE_VERSION = 6;
+export const NETLIST_MARK_RULE_VERSION = 7;
 
 export function designExtractsNetlist(
   project: CircuitProject,

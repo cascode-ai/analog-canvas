@@ -467,6 +467,15 @@ The selected templates, format and port-name case are remembered in this browser
 Editing the circuit refreshes the visible code. Clipboard failures leave the
 code selectable for manual copy.
 
+A switch drawn with **Open**, **Closed** or **Simple** is controlled by the
+clock phase its label names. Write the phase on its label, such as `Φ₁`; the
+label becomes a display alias by itself. The SPICE netlist then writes the switch
+as `S1 a b Phi1 VSS ideal_switch`, with one `.model ideal_switch SW(…)` card in
+the same Cell. Draw the clock on a Net named `Φ1`, or give the Cell a Pin named
+`Φ1`, and the switch follows it; until then the netlist warns that nothing
+drives that phase. **Ctrl SW** takes its control from its CTRL pin instead.
+Switches are written in SPICE only.
+
 **Netlist / Instances…** opens the Project's netlist instances as one editable
 JSON document in the right sidebar. Paste whole blocks to change references,
 model bindings and parameters together. Outer keys are Cell IDs; inner keys are

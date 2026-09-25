@@ -44,6 +44,7 @@ export * from "./spatial-index.js";
 export * from "./submission-gates.js";
 export * from "./topology-hash.js";
 export * from "./visual.js";
+export * from "./drawn-switch.js";
 export * from "./simulatability.js";
 export * from "./arrow-artwork.js";
 export * from "./master-names.js";

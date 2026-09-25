@@ -193,6 +193,16 @@ function spiceInstance(instance: DesignNetlistInstance): string[] {
   return wrapSpice(tokens);
 }
 
+/** A Cell's own model cards, each `.model NAME TYPE(PARAM=VALUE …)`. */
+function spiceModels(cell: DesignNetlistCell): string[] {
+  return (cell.models ?? []).map(
+    (model) =>
+      `.model ${model.name} ${model.type}(${model.parameters
+        .map((parameter) => `${parameter.name}=${parameter.rawValue}`)
+        .join(" ")})`,
+  );
+}
+
 function spiceCell(
   cell: DesignNetlistCell,
   onInstance?: (instance: DesignNetlistInstance, offset: number) => void,
@@ -210,6 +220,8 @@ function spiceCell(
         ]
       : []),
   ]);
+  // Inside the body, so each Cell stays whole wherever it is included.
+  lines.push(...spiceModels(cell));
   let offset = lines.join("\n").length + 1;
   for (const instance of cell.instances) {
     onInstance?.(instance, offset);
@@ -342,11 +354,13 @@ function renderSpice(
           ),
         ]),
       );
-    if (root)
+    if (root) {
+      append(...spiceModels(root));
       for (const instance of root.instances) {
         locate(root.id, instance, length + 1);
         append(...spiceInstance(instance));
       }
+    }
   }
   return { text: `${lines.join("\n")}\n`, parameters, instances };
 }
@@ -514,6 +528,9 @@ export function locateDesignNetlist(
     ]),
   );
   for (const cell of ir.cells) {
+    // A card the Cell prints itself, such as the ideal switch, is not a model
+    // binding anyone authored, so its name is not an editable field.
+    const ownModels = new Set((cell.models ?? []).map((model) => model.name));
     for (const instance of cell.instances) {
       const original = card(instance);
       if (!original) continue;
@@ -566,7 +583,7 @@ export function locateDesignNetlist(
           });
         }
       };
-      if (instance.target)
+      if (instance.target && !ownModels.has(instance.target))
         locate(instance.target, "target", (target) => ({
           ...instance,
           target,
