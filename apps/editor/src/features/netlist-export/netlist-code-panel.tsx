@@ -15,6 +15,7 @@ import {
 import {
   planNetlistCodeEdit,
   netlistInstanceAtLine,
+  netlistInstanceRanges,
 } from "./netlist-code-edit";
 import type { NetlistDiagnostic, PrintedNetlistInstance } from "@icm/netlist";
 import type { CircuitProject, ObjectLocator } from "@icm/model";
@@ -92,6 +93,7 @@ export function NetlistCodePanel({
   configurationError,
   onApply,
   onFocusInstance,
+  selection,
   onNavigateDiagnostic,
   profiles,
   selectedProcess,
@@ -111,6 +113,8 @@ export function NetlistCodePanel({
   configurationError: string | null;
   onApply(edits: ProjectStructureEdit[]): boolean;
   onFocusInstance(instance: PrintedNetlistInstance | null): void;
+  /** Parts selected on the canvas: their printed lines are lit and shown. */
+  selection?: { documentId: string; instanceIds: readonly string[] };
   /** Show a finding's object on the canvas. */
   onNavigateDiagnostic?(diagnostic: NetlistDiagnostic): void;
   profiles: Record<NetlistProfileId, NetlistExportProfile>;
@@ -212,6 +216,12 @@ export function NetlistCodePanel({
   draftRef.current = draft;
   const focusRef = useRef(onFocusInstance);
   focusRef.current = onFocusInstance;
+  const [cursorInstance, setCursorInstance] =
+    useState<PrintedNetlistInstance | null>(null);
+  const focusInstance = (instance: PrintedNetlistInstance | null) => {
+    setCursorInstance(instance);
+    onFocusInstance(instance);
+  };
   useEffect(() => () => focusRef.current(null), []);
   useLayoutEffect(() => {
     if (!dirty || ownApply.current) {
@@ -283,7 +293,7 @@ export function NetlistCodePanel({
     if (!apply({ fillMissingDefaults: true })) return;
     setCompileRevision((revision) => revision + 1);
     setApplyError(null);
-    onFocusInstance(null);
+    focusInstance(null);
   }
   const applyRef = useRef(apply);
   applyRef.current = apply;
@@ -293,14 +303,43 @@ export function NetlistCodePanel({
     return () => clearTimeout(timer);
   }, [draft, dirty, conflict]);
   function focus(position: number) {
-    if (result?.status !== "ready") return onFocusInstance(null);
+    if (result?.status !== "ready") return focusInstance(null);
     const plan = planNetlistCodeEdit(project, result, draftRef.current);
-    onFocusInstance(
+    focusInstance(
       plan.ok
         ? netlistInstanceAtLine(draftRef.current, position, plan.instances)
         : null,
     );
   }
+  // The code and the canvas light the same parts: those selected on the
+  // canvas, and the one the cursor names here. A part picked on the canvas
+  // takes over from the cursor's, and only a new pick scrolls the code.
+  const selectionKey = selection
+    ? `${selection.documentId}\u0000${selection.instanceIds.join("\u0000")}`
+    : "";
+  useEffect(() => {
+    if (selection?.instanceIds.length) setCursorInstance(null);
+    // Keyed by content: the same ids in a new array are the same pick.
+  }, [selectionKey]);
+  const highlightedRanges = useMemo(() => {
+    if (result?.status !== "ready") return [];
+    const plan = planNetlistCodeEdit(project, result, draft);
+    if (!plan.ok) return [];
+    return [
+      ...(selection
+        ? netlistInstanceRanges(
+            plan.instances,
+            selection.documentId,
+            selection.instanceIds,
+          )
+        : []),
+      ...(cursorInstance
+        ? netlistInstanceRanges(plan.instances, cursorInstance.documentId, [
+            cursorInstance.instanceId,
+          ])
+        : []),
+    ];
+  }, [project, result, draft, selectionKey, cursorInstance]);
   const editError = conflict
     ? "The canvas or Agent changed the netlist. Reload before applying your draft."
     : applyError;
@@ -438,6 +477,8 @@ export function NetlistCodePanel({
             onModEnter={apply}
             onBlur={() => applyRef.current()}
             onCursorChange={focus}
+            highlightedRanges={highlightedRanges}
+            revealHighlight={selectionKey}
           />
         </Suspense>
       </div>
@@ -538,7 +579,7 @@ export function NetlistCodePanel({
               setDraft(source);
               setEditBaseline(source);
               setApplyError(null);
-              onFocusInstance(null);
+              focusInstance(null);
             }}
           >
             Reload

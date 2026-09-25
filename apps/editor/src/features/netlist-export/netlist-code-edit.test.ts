@@ -5,6 +5,7 @@ import { executeProjectTransaction } from "@icm/edit-engine";
 import {
   planNetlistCodeEdit,
   netlistInstanceAtLine,
+  netlistInstanceRanges,
 } from "./netlist-code-edit";
 
 async function fixture(format: NetlistFormat) {
@@ -68,6 +69,37 @@ it("maps wrapped SPICE parameter lines after title removal", async () => {
         plan.instances,
       )?.instanceId,
     ).toBe(mos.id);
+});
+
+it("finds where a Cell's selected parts are printed, not a namesake in another Cell", async () => {
+  const { project, baseline } = await fixture("spice");
+  const cell = (name: string) =>
+    project.documents.find((d) => d.netlist?.name === name)!;
+  const leaf = cell("leaf");
+  const top = cell("top");
+  const r1 = (document: typeof leaf) =>
+    document.instances.find((i) => i.reference === "R1")!.id;
+  const text = baseline.file.text;
+  const [inLeaf] = netlistInstanceRanges(
+    baseline.locations.instances,
+    leaf.id,
+    [r1(leaf)],
+  );
+  expect(text.slice(inLeaf!.from, inLeaf!.to)).toMatch(/^R1 A B 10k/u);
+  const [inTop] = netlistInstanceRanges(baseline.locations.instances, top.id, [
+    r1(top),
+  ]);
+  expect(text.slice(inTop!.from, inTop!.to)).toMatch(/^R1 A B 20k/u);
+  expect(
+    netlistInstanceRanges(
+      baseline.locations.instances,
+      leaf.id,
+      leaf.instances.map((i) => i.id),
+    ),
+  ).toHaveLength(2);
+  expect(
+    netlistInstanceRanges(baseline.locations.instances, top.id, ["missing"]),
+  ).toEqual([]);
 });
 
 describe.each<NetlistFormat>(["spice", "spectre"])(
