@@ -109,6 +109,7 @@ type LiveSession = {
   requestCacheBytes: number;
   requestHashes: Map<string, string>;
   pendingRequests: number;
+  attachedFileHosts: WeakSet<object>;
 };
 
 const BROWSER_CACHE_MAX_ENTRIES = 32;
@@ -202,6 +203,20 @@ export interface UseAgentSessionResult extends AgentSessionViewModel {
   reconnect: () => void;
   newConnection: () => Promise<void>;
   revoke: () => Promise<void>;
+}
+
+function attachArtifactPublisher(
+  live: LiveSession,
+  fileHost: UseAgentSessionOptions["fileHost"],
+): void {
+  if (
+    !fileHost?.setArtifactPublisher ||
+    !live.publishArtifact ||
+    live.attachedFileHosts.has(fileHost)
+  )
+    return;
+  fileHost.setArtifactPublisher(live.publishArtifact);
+  live.attachedFileHosts.add(fileHost);
 }
 
 function permissionsFromScopes(
@@ -465,6 +480,7 @@ export function useAgentSession(
           requestCacheBytes: 0,
           requestHashes: new Map(),
           pendingRequests: 0,
+          attachedFileHosts: new WeakSet(),
         };
         liveRef.current = live;
         live.publishArtifact = async (ref, text) => {
@@ -503,7 +519,7 @@ export function useAgentSession(
             );
           return path;
         };
-        options.fileHost?.setArtifactPublisher?.(live.publishArtifact);
+        attachArtifactPublisher(live, options.fileHost);
 
         const syncDeadline = (expiresAt: number) => {
           live.expiresAt = expiresAt;
@@ -830,8 +846,7 @@ export function useAgentSession(
               }
               live.requestHashes.set(parsed.data.requestId, payloadHash);
               startWork();
-              if (live.publishArtifact)
-                target.fileHost.setArtifactPublisher?.(live.publishArtifact);
+              attachArtifactPublisher(live, target.fileHost);
               void target.fileHost
                 .handle(fileRequest.data)
                 .then(sendFileResponse)
@@ -1537,8 +1552,7 @@ export function useAgentSession(
     const live = liveRef.current;
     if (!live) return;
     live.projectId = options.project.id;
-    if (live.publishArtifact)
-      options.fileHost?.setArtifactPublisher?.(live.publishArtifact);
+    attachArtifactPublisher(live, options.fileHost);
     update({ status: live.paused ? "paused" : "reconnecting" });
     if (live.socket) sendHeartbeat(live, live.socket);
   }, [
@@ -1551,8 +1565,8 @@ export function useAgentSession(
   ]);
 
   useEffect(() => {
-    const publisher = liveRef.current?.publishArtifact;
-    if (publisher) options.fileHost?.setArtifactPublisher?.(publisher);
+    const live = liveRef.current;
+    if (live) attachArtifactPublisher(live, options.fileHost);
   }, [options.fileHost]);
 
   useEffect(() => {

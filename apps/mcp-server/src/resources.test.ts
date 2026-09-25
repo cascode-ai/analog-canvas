@@ -85,15 +85,16 @@ describe("mcp resources single-source projection", () => {
     // Compatibility entries keep a near-existing budget. The optional bounded
     // geometry inspection selector adds about 0.3 KiB to this directory, and
     // a Symbol body text's RichText look (schema 62) about 0.2 KiB.
-    // The File open action brings the measured compatibility directory to
-    // 100,811 bytes. Focused additions have a stricter per-tool host-compaction
+    // File open and the background Project binding bring the measured
+    // compatibility directory to 101,227 bytes. Keep a close ceiling; focused
+    // additions have a stricter per-tool host-compaction
     // budget in focused-tools.test.ts.
     // Total directory bytes are no longer the host's per-tool context boundary.
     const compatibility = tools.filter(
       (t) => !FOCUSED_TOOLS.some((f) => f.name === t.name),
     );
     expect(Buffer.byteLength(JSON.stringify(compatibility))).toBeLessThan(
-      100_900,
+      101_350,
     );
     for (const tool of tools) {
       const complete = JSON.parse(
