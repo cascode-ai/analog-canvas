@@ -14,6 +14,7 @@ import type {
 } from "@icm/model";
 import {
   defaultInstanceLabelPlacement,
+  legacyDefaultInstanceLabelPlacement,
   legacyPortLabelPlacement,
   defaultInstanceParameterLabelPlacement,
   displayableInstanceParameter,
@@ -24,6 +25,7 @@ import {
   placeUprightInstanceLabel,
   resolveDocumentStyleProfile,
   visibleSymbolInkBounds,
+  type InstanceLabelPlacement,
 } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -288,35 +290,59 @@ export function isCanonicalInstanceLabel(
     annotation.binding?.kind === "instance-value"
       ? annotation.binding.parameter
       : undefined;
-  const expected = parameter
-    ? defaultInstanceParameterLabelPlacement(
-        { ...instance, placement },
-        resolved,
-        resolveDocumentStyleProfile(document.presentation),
-        document.presentation.grid,
-        parameter,
-      )
-    : defaultInstanceLabelPlacement(
-        { ...instance, placement },
-        resolved,
-        resolveDocumentStyleProfile(document.presentation),
-        document.presentation.grid,
-        slot,
-      );
+  const profile = resolveDocumentStyleProfile(document.presentation);
   const visiblePosition = {
     x: oldPosition.x + anchor.localOffset.x,
     y: oldPosition.y + anchor.localOffset.y,
   };
-  const matches = (candidate: typeof expected): boolean =>
+  const matches = (candidate: InstanceLabelPlacement | null): boolean =>
     candidate !== null &&
     annotation.alignment === candidate.alignment &&
     visiblePosition.x === candidate.position.x &&
     visiblePosition.y === candidate.position.y &&
     anchor.fallbackPosition.x === candidate.position.x &&
     anchor.fallbackPosition.y === candidate.position.y;
-  if (matches(expected) && (!parameter || annotation.rotation === 0))
+  if (parameter)
+    return (
+      annotation.rotation === 0 &&
+      matches(
+        defaultInstanceParameterLabelPlacement(
+          { ...instance, placement },
+          resolved,
+          profile,
+          document.presentation.grid,
+          parameter,
+        ),
+      )
+    );
+  // An orientation edit re-places an untouched label at its own size, so it
+  // is untouched where a rule puts a label of that size, or of the default
+  // size it was placed at before a person resized it. Placements computed
+  // at a size other than the label's own would stop matching after one turn.
+  const sizeScales = [...new Set([annotation.sizeScale ?? 1, 1])];
+  const placedBy = (
+    rule: typeof defaultInstanceLabelPlacement,
+    symbol: NonNullable<ReturnType<SymbolResolver["resolve"]>> = resolved,
+  ) =>
+    sizeScales.some((sizeScale) =>
+      matches(
+        rule(
+          { ...instance, placement },
+          symbol,
+          profile,
+          document.presentation.grid,
+          slot,
+          sizeScale,
+        ),
+      ),
+    );
+  // A label the previous placement rule put down is just as untouched; the
+  // next orientation edit moves it with the current rule.
+  if (
+    placedBy(defaultInstanceLabelPlacement) ||
+    placedBy(legacyDefaultInstanceLabelPlacement)
+  )
     return true;
-  if (parameter) return false;
 
   // Projects saved before the reviewed Resistor path declared tight bounds
   // used its wider viewBox for the canonical label. Accept that one exact
@@ -324,7 +350,7 @@ export function isCanonicalInstanceLabel(
   // it through the current placement rule. This stays Symbol-specific so a
   // nearby user-authored label is never absorbed by a general tolerance.
   if (instance.symbolId !== "resistor") return false;
-  const legacyResolved = {
+  return placedBy(legacyDefaultInstanceLabelPlacement, {
     ...resolved,
     definition: {
       ...resolved.definition,
@@ -334,15 +360,7 @@ export function isCanonicalInstanceLabel(
         return withoutBounds;
       }),
     },
-  };
-  const legacyExpected = defaultInstanceLabelPlacement(
-    { ...instance, placement },
-    legacyResolved,
-    resolveDocumentStyleProfile(document.presentation),
-    document.presentation.grid,
-    slot,
-  );
-  return matches(legacyExpected);
+  });
 }
 
 /**

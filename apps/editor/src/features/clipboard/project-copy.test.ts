@@ -347,6 +347,43 @@ describe("one Project copy path", () => {
     expect(net.id).not.toBe("analog-supply");
   });
 
+  it("copies a VDD Cell Pin without its label as a Cell Pin its terminal names", () => {
+    const project = createEmptyProject("supplies", "Supplies");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "VDD1",
+      symbolId: "vdd-port",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    document.nets.push({
+      id: "net-cell-pin-vdd1",
+      terminals: [{ instanceId: "VDD1", pinName: "P" }],
+    });
+    document.netlist!.terminals.push({
+      id: "terminal-vdd1",
+      name: "VDD",
+      netId: "net-cell-pin-vdd1",
+      direction: "inout",
+      interfaceInstanceIds: ["VDD1"],
+    });
+    const copied = place(
+      project,
+      captureProjectCopy(project, document, selection(["VDD1"]))!,
+    ).documents[0]!;
+    const copy = copied.instances.find((instance) => instance.id !== "VDD1")!;
+    const terminal = copied.netlist!.terminals.find((candidate) =>
+      candidate.interfaceInstanceIds.includes(copy.id),
+    )!;
+    expect(terminal.name).toBe("VDD");
+    // Its terminal names it, so the copy gains neither a supply claim nor a
+    // label bound to one, just as its source had none.
+    expect(copied.connectivityEvidence).toEqual([]);
+    expect(copied.annotations).toEqual([]);
+    expect(
+      resolveDocumentLogicalNets(copied).byBaseNetId.get(terminal.netId)?.name,
+    ).toBe("VDD");
+  });
+
   it("undoes dependencies and placed objects together, with no writes from preparation", () => {
     const source = externalFixture();
     const controller = new EditorDocumentController(

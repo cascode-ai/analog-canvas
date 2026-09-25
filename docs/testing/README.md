@@ -114,6 +114,27 @@ This changes when delivery validation runs, not the required GitHub checks.
 The [deployment guide](../deployment.md#development-and-publication-cadence)
 owns the local-to-Production handoff and rollback.
 
+## Gallery census
+
+Fixtures are tidy. The Community Gallery holds drawings in the states earlier
+versions left behind, and some defects shipped because only those states
+reach them. `pnpm gallery:census` puts every drawing of the newest private
+snapshot through the paths that meet them:
+
+- loading and the SPICE netlist;
+- copying each supply marker alone, and the whole drawing into another
+  Project and into itself;
+- copying the copies together with their sources;
+- turning every part a full circle with its labels.
+
+With `--base <ref>` it runs the same census on the mainline base, in a
+temporary worktree, and lists every drawing that behaves differently. The
+harness is `apps/editor/census/gallery.census.ts`. The census reads user
+drawings, so it runs only locally and never in CI, and its reports stay in the
+untracked `plan/`. [AGENTS.md](../../AGENTS.md#during-work) says which changes
+must run it. A defect it finds also gets a small synthetic test in the
+ordinary suite.
+
 ## Batch pull-request checks
 
 Every implementation change keeps two required checks, run once in the merge

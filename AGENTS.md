@@ -123,6 +123,23 @@ the boundary has moved.
 - Use `pnpm test:local <test-paths>` for affected unit contracts and
   `pnpm test:e2e:local <spec-paths> [--grep <pattern>]` for affected
   browser behavior. Both commands cap local concurrency.
+- **Run the Gallery census for copying, labels, and netlists.** Tests use tidy
+  fixtures, and defects have shipped that only drawings in the Community
+  Gallery reach: identities chained by old copies, a supply Pin whose label
+  was deleted, a label a person resized. A batch that changes copying or
+  placement (`apps/editor/src/features/clipboard/`,
+  `apps/editor/src/features/component-insert/`), instance labels
+  (`packages/derived/src/instance-label-placement.ts`,
+  `packages/edit-engine/src/transaction-instance-annotations.ts`), or netlist
+  extraction (`packages/netlist/src/`) runs
+  `pnpm gallery:census -- --base <base-ref>` before it is offered for
+  acceptance or delivery. It uses the newest private snapshot
+  (`node scripts/gallery-private-snapshot.mjs --cached` downloads one) and
+  exits non-zero when a drawing newly fails a check, a netlist's text
+  changes, or a label stops following its part. Fix each finding, or explain
+  it in the commit. A real-data defect it finds also gets a small synthetic
+  test in the ordinary suite. The census reads user drawings: it never runs
+  in CI, and its reports stay in the untracked `plan/`.
 - Use `pnpm verify:branch` when a completed branch crosses enough workspace
   boundaries to justify static checks, all unit tests, one build, and the
   production smoke check. It is not the mainline delivery gate.

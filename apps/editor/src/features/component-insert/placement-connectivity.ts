@@ -60,16 +60,16 @@ export function planInsertedInstanceConnections(
       }),
   ],
 ) {
+  // A formal Cell Pin is named by its Cell terminal, never by a supply claim.
+  const cellPin = document.netlist?.terminals.some((terminal) =>
+    terminal.interfaceInstanceIds.includes(instance.id),
+  );
   const contact = proposePlacementContact(
     document,
     resolver,
     instance,
     visibleEndpoints,
-    document.netlist?.terminals.some((terminal) =>
-      terminal.interfaceInstanceIds.includes(instance.id),
-    )
-      ? { powerMarker: false }
-      : undefined,
+    cellPin ? { powerMarker: false } : undefined,
   );
   if (contact.ambiguous) {
     throw new Error(
@@ -103,8 +103,13 @@ export function planInsertedInstanceConnections(
     instance.symbolId,
     instance.symbolVariantId,
   );
+  // A label bound to the Net name shows a supply claim, which a Cell Pin has
+  // none of: its label, if it kept one, is bound to its terminal and copied.
   const vddPowerLabel =
-    powerConnection?.domain === "vdd" && powerNetId && resolvedPowerSymbol
+    !cellPin &&
+    powerConnection?.domain === "vdd" &&
+    powerNetId &&
+    resolvedPowerSymbol
       ? vddPowerLabelAnnotation({
           instance,
           resolved: resolvedPowerSymbol,

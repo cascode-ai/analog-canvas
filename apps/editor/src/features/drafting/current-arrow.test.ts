@@ -84,11 +84,11 @@ describe("route-attached current arrows", () => {
     expect(annotationEdit).toMatchObject({
       kind: "upsert_schematic_annotation",
       annotation: {
-        id: "current-1-copy-1",
+        id: "current-1_2",
         kind: "route-marker",
         markerKind: "current",
         anchor: {
-          routeId: "route-signal-copy-1",
+          routeId: "route-signal_2",
           legId: proposal.idRemap.legs[document.routes[0]!.legs[0]!.id],
         },
       },

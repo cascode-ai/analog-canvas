@@ -8,11 +8,13 @@ import {
 import type { RichTextDocument } from "@icm/model";
 import {
   defaultInstanceLabelPlacement,
+  instanceLabelInkBounds,
+  instanceLabelMetrics,
+  legacyDefaultInstanceLabelPlacement,
   legacyPortLabelPlacement,
   displayableInstanceValue,
   resolveDocumentLogicalNets,
   resolveSchematicStyleProfile,
-  visibleSymbolInkBounds,
 } from "@icm/derived";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
@@ -2692,7 +2694,7 @@ describe("Edit Transaction envelope", () => {
     expect(rotated.ok).toBe(true);
     if (!rotated.ok) return;
     const rotatedInstance = rotated.document.instances[0]!;
-    const localBounds = visibleSymbolInkBounds(resolved);
+    const localBounds = instanceLabelInkBounds(resolved);
     const worldCorners = [
       { x: localBounds.x, y: localBounds.y },
       { x: localBounds.x + localBounds.width, y: localBounds.y },
@@ -2711,15 +2713,174 @@ describe("Edit Transaction envelope", () => {
     const bottom = Math.max(...worldCorners.map((point) => point.y));
     const label = rotated.document.annotations[0]!;
     expect(label).toMatchObject({ alignment: "middle", rotation: 0 });
-    // Compact labels use a five-unit artwork gap at integer precision, not
-    // the electrical grid or the symbol's padded interaction envelope.
+    // Labels keep one artwork gap at integer precision, not the electrical
+    // grid or the symbol's padded interaction envelope.
     if (label.anchor.kind === "free") {
       throw new Error("Rotated instance label must retain an object anchor");
     }
     const fallback = label.anchor.fallbackPosition;
-    const glyphTop = fallback.y - profile.typography.instanceFontSize * 0.7;
-    expect(Math.abs(glyphTop - bottom - 5)).toBeLessThanOrEqual(0.5);
+    const metrics = instanceLabelMetrics(profile);
+    const glyphTop = fallback.y - metrics.capHeight;
+    expect(Math.abs(glyphTop - bottom - metrics.gap)).toBeLessThanOrEqual(0.5);
   });
+
+  it.each(["current", "previous"] as const)(
+    "moves a device label placed by the %s rule with the current rule when the device rotates",
+    (rule) => {
+      const document = createEmptyDocument("document-main", "Device label");
+      const instance = {
+        id: "R1",
+        symbolId: "resistor",
+        reference: "R1",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+      };
+      document.instances.push(instance);
+      const resolved = resolver.resolve("resistor");
+      if (!resolved) throw new Error("missing resistor");
+      const profile = resolveSchematicStyleProfile(
+        document.presentation.styleProfileId,
+      );
+      // A label put down before 2026-09-25 carries the previous rule's
+      // position; it is just as untouched, so it follows the part too.
+      const place =
+        rule === "current"
+          ? defaultInstanceLabelPlacement
+          : legacyDefaultInstanceLabelPlacement;
+      const initial = place(
+        instance,
+        resolved,
+        profile,
+        document.presentation.grid,
+        "reference",
+      );
+      if (!initial) throw new Error("missing default label placement");
+      document.annotations.push({
+        id: "instance-label-R1",
+        kind: "instance-label",
+        binding: { kind: "instance-reference", instanceId: "R1" },
+        anchor: {
+          kind: "object",
+          objectId: "R1",
+          localOffset: {
+            x: initial.position.x - instance.placement.position.x,
+            y: initial.position.y - instance.placement.position.y,
+          },
+          fallbackPosition: initial.position,
+        },
+        alignment: initial.alignment,
+        rotation: 0,
+        locked: false,
+      });
+
+      const result = executeTransaction(
+        document,
+        {
+          ...transaction(),
+          edits: [{ kind: "rotate_instance", instanceId: "R1", rotation: 270 }],
+        },
+        { symbolResolver: resolver },
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const expected = defaultInstanceLabelPlacement(
+        result.document.instances[0]!,
+        resolved,
+        profile,
+        result.document.presentation.grid,
+        "reference",
+      );
+      const label = result.document.annotations[0]!;
+      if (label.anchor.kind !== "object") throw new Error("object anchor");
+      expect(label.anchor.fallbackPosition).toEqual(expected!.position);
+      expect(label.alignment).toBe(expected!.alignment);
+    },
+  );
+
+  it.each([
+    ["its own size", 0.8],
+    ["the size it was placed at before it was resized", 1],
+  ] as const)(
+    "keeps a resized device label following its part through a full turn from where the rule puts %s",
+    (_, placedAtSize) => {
+      // A turn re-places an untouched label at its own size, so a label a
+      // person made smaller must still read as untouched at the next turn,
+      // not only the first; otherwise it turns rigidly from then on.
+      const document = createEmptyDocument("document-main", "Resized label");
+      const instance = {
+        id: "R1",
+        symbolId: "resistor",
+        reference: "R1",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+      };
+      document.instances.push(instance);
+      const resolved = resolver.resolve("resistor");
+      if (!resolved) throw new Error("missing resistor");
+      const profile = resolveSchematicStyleProfile(
+        document.presentation.styleProfileId,
+      );
+      const initial = defaultInstanceLabelPlacement(
+        instance,
+        resolved,
+        profile,
+        document.presentation.grid,
+        "reference",
+        placedAtSize,
+      );
+      if (!initial) throw new Error("missing default label placement");
+      document.annotations.push({
+        id: "instance-label-R1",
+        kind: "instance-label",
+        binding: { kind: "instance-reference", instanceId: "R1" },
+        anchor: {
+          kind: "object",
+          objectId: "R1",
+          localOffset: {
+            x: initial.position.x - instance.placement.position.x,
+            y: initial.position.y - instance.placement.position.y,
+          },
+          fallbackPosition: initial.position,
+        },
+        alignment: initial.alignment,
+        rotation: 0,
+        sizeScale: 0.8,
+        locked: false,
+      });
+
+      let current = document;
+      for (const rotation of [90, 180, 270, 0] as const) {
+        const result = executeTransaction(
+          current,
+          {
+            ...transaction(current.revision),
+            edits: [{ kind: "rotate_instance", instanceId: "R1", rotation }],
+          },
+          { symbolResolver: resolver },
+        );
+        if (!result.ok) throw new Error(JSON.stringify(result.diagnostics));
+        current = result.document;
+        const expected = defaultInstanceLabelPlacement(
+          current.instances[0]!,
+          resolved,
+          profile,
+          current.presentation.grid,
+          "reference",
+          0.8,
+        );
+        const label = current.annotations[0]!;
+        if (label.anchor.kind !== "object") throw new Error("object anchor");
+        expect(label.anchor.fallbackPosition).toEqual(expected!.position);
+        expect(label.alignment).toBe(expected!.alignment);
+      }
+    },
+  );
 
   it.each(["current", "previous"] as const)(
     "reuses the canonical upright placement when a Cell Pin placed by the %s rule rotates",

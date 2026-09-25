@@ -1399,7 +1399,7 @@ test("copies and independently deletes Formal Cell Pins", async ({ page }) => {
   await expect(page.getByLabel("Cell Pin properties")).toHaveCount(0);
   await page.keyboard.press("Escape");
 
-  await expect(page.getByTestId("hit-P1-copy-1")).toBeVisible();
+  await expect(page.getByTestId("hit-P1_2")).toBeVisible();
   await expect(page.locator('[data-object-id="instance-label-P1"]')).toHaveText(
     "VIN",
   );
@@ -1409,19 +1409,19 @@ test("copies and independently deletes Formal Cell Pins", async ({ page }) => {
       .locator('[data-text-run="subscript"]'),
   ).toHaveText("IN");
   await expect(
-    page.locator('[data-object-id="instance-label-P1-copy-1"]'),
+    page.locator('[data-object-id="instance-label-P1_2"]'),
   ).toHaveText("VIN");
   await page.getByTestId("hit-P1").click();
   await page.keyboard.press("Delete");
   await expect(page.getByTestId("hit-P1")).toHaveCount(0);
-  await expect(page.getByTestId("hit-P1-copy-1")).toBeVisible();
+  await expect(page.getByTestId("hit-P1_2")).toBeVisible();
 
-  await page.getByTestId("hit-P1-copy-1").click();
+  await page.getByTestId("hit-P1_2").click();
   if ((await shelf.getAttribute("aria-expanded")) === "false") {
     await shelf.click();
   }
   await expect(
-    page.locator('[data-object-id="instance-label-P1-copy-1"]'),
+    page.locator('[data-object-id="instance-label-P1_2"]'),
   ).toHaveText("VIN");
   await clickCommand(page, "Netlist", "Review Netlist Issues…");
   await expect(

@@ -188,7 +188,7 @@ test("C copy shows alignment guides, commits the preview and clears guides on Es
     beforeRotation!,
   );
   await expect(
-    ghost.locator('[data-object-id="R1-copy-1"] > g').first(),
+    ghost.locator('[data-object-id="R1_2"] > g').first(),
   ).toHaveAttribute("transform", /rotate\(90\)/);
   await page.keyboard.press("Shift+r");
   await expect(page.getByTestId("snap-guide-y")).toHaveCount(1);
@@ -205,7 +205,7 @@ test("C copy shows alignment guides, commits the preview and clears guides on Es
     Number(await page.getByTestId("snap-guide-x").getAttribute("y2")),
   ).toBeGreaterThan(400);
   const preview = await ghost
-    .locator('[data-object-id="R1-copy-1"] > g')
+    .locator('[data-object-id="R1_2"] > g')
     .first()
     .evaluate((element) => {
       const p = new DOMPoint().matrixTransform(
@@ -215,7 +215,7 @@ test("C copy shows alignment guides, commits the preview and clears guides on Es
     });
   await page.mouse.click(vertical.x, vertical.y);
   const placed = await canvas
-    .locator('[data-layer="symbols"] [data-object-id="R1-copy-1"] > g')
+    .locator('[data-layer="symbols"] [data-object-id="R1_2"] > g')
     .first()
     .evaluate((element) => {
       const p = new DOMPoint().matrixTransform(
@@ -396,7 +396,7 @@ test("mirrors component and copy placement previews before their commits", async
   await expect(copyPreview).toHaveAttribute("transform", /scale\(-1 -1\)/u);
   await canvas.click({ position: { x: 520, y: 220 } });
   await expect(
-    canvas.locator('[data-object-id="R1-copy-1"] > g').first(),
+    canvas.locator('[data-object-id="R1_2"] > g').first(),
   ).toHaveAttribute("transform", /scale\(-1 -1\)/u);
   await expect(canvas.getByText("R2", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
@@ -1459,7 +1459,7 @@ test("copies a MOS whose bulk belongs to a shared supply Net", async ({
   await canvas.hover({ position: { x: 620, y: 340 } });
   await expect(page.getByTestId("copy-placement-preview")).toBeVisible();
   await canvas.click({ position: { x: 620, y: 340 } });
-  await expect(page.getByTestId("hit-M1-copy-1")).toBeVisible();
+  await expect(page.getByTestId("hit-M1_2")).toBeVisible();
   await expect(canvas.getByText("M3", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Analog Canvas" }),
