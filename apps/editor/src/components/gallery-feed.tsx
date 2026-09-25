@@ -1366,10 +1366,12 @@ export function GalleryFeed({
           </div>
         </div>
       ) : null}
-      <footer className="gallery-footnote">
-        Browse freely; open any circuit and edit your own copy. Publishing joins
-        in a later release with sign-in.
-      </footer>
+      {state.status === "signed-out" ? null : (
+        <footer className="gallery-footnote" data-testid="gallery-footnote">
+          Open any circuit to edit your own copy; publish your own from the
+          editor.
+        </footer>
+      )}
       {rejecting ? (
         <Suspense fallback={null}>
           <RejectEntryDialog

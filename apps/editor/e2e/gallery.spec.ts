@@ -910,6 +910,9 @@ test("the site lands on the full-screen gallery feed", async ({ page }) => {
   await page.goto("/");
   const feed = page.getByTestId("gallery-feed");
   await expect(feed).toBeVisible();
+  await expect(page.getByTestId("gallery-footnote")).toHaveText(
+    "Open any circuit to edit your own copy; publish your own from the editor.",
+  );
   const brand = page.getByTestId("gallery-editor-link");
   await expect(brand).toHaveCSS("display", "flex");
   await expect(brand).toHaveCSS("text-decoration-line", "none");
@@ -1718,6 +1721,8 @@ test("a signed-out visitor sees a sign-in prompt instead of the Gallery", async 
   await expect(page.getByTestId("gallery-tag-sidebar")).toHaveCount(0);
   await expect(page.locator('[data-testid^="gallery-tile-"]')).toHaveCount(0);
   await expect(page.getByTestId("gallery-empty")).toHaveCount(0);
+  // The prompt says everything; no footnote promises browsing without it.
+  await expect(page.getByTestId("gallery-footnote")).toHaveCount(0);
   expect(reads).toContain("/api/gallery");
 });
 
