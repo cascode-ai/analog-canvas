@@ -517,15 +517,31 @@ const relay = createServer(async (request, response) => {
         },
       });
     } else if (body.operation === "snapshot") {
-      result = json({
-        apiVersion: "3.0",
-        requestId: body.requestId,
-        operation: "snapshot",
-        ok: true,
-        revision,
-        snapshot: snapshot(),
-        diagnostics: [],
-      });
+      // Model an older strict Editor: it rejects unknown projections rather
+      // than silently returning the full form. The client must then retry the
+      // established full request while preserving the same session.
+      result =
+        body.projection === "state" || body.projection === "folder-directory"
+          ? json({
+              apiVersion: "3.0",
+              requestId: body.requestId,
+              operation: "error",
+              ok: false,
+              error: {
+                code: "INVALID_REQUEST",
+                message: "Request does not match the Circuit API schema",
+              },
+              diagnostics: [],
+            })
+          : json({
+              apiVersion: "3.0",
+              requestId: body.requestId,
+              operation: "snapshot",
+              ok: true,
+              revision,
+              snapshot: snapshot(),
+              diagnostics: [],
+            });
     } else if (body.operation === "transact") {
       const fromRevision = revision;
       if (!body.dryRun) revision += 1;
