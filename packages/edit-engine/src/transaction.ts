@@ -56,7 +56,7 @@ import {
   physicalContactLicenseForTransaction,
   preferredPhysicalMergeTarget,
   pruneUnreachableLocalNet,
-  reconcileMaterializedMosBulkBindings,
+  reconcileMosBulkAfterConnectivity,
   removeNoConnectForEndpoint,
   retargetConnectivityEvidenceOwner,
   revokeInvalidatedSupplyBulkDefaults,
@@ -1069,12 +1069,12 @@ export function executeTransaction(
     deferNetPrune,
   );
   connectivityChanged ||= invalidatedBulkDefault;
-  const reconciledBulkBinding = reconcileMaterializedMosBulkBindings(
+  const reconciledBulkConnectivity = reconcileMosBulkAfterConnectivity(
     draft,
     changedObjectIds,
     deferNetPrune,
   );
-  connectivityChanged ||= reconciledBulkBinding;
+  connectivityChanged ||= reconciledBulkConnectivity;
   const netCountBeforeDeferredPrune = draft.nets.length;
   const evidenceCountBeforeDeferredPrune = draft.connectivityEvidence.length;
   for (const netId of deferredNetPruneIds) {

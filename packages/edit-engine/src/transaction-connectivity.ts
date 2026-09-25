@@ -4,6 +4,7 @@ import {
   endpointKey,
   hasExplicitMosBulkRoute,
   mosBulkKind,
+  resolveDetachedMosBulkDefault,
   resolveDocumentLogicalNets,
 } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
@@ -764,20 +765,58 @@ export function implicitBulkPresentation(
 }
 
 /**
- * A materialized cell-default body is policy-owned, not route-owned.  Route
- * splitting may temporarily place its terminal on a detached Base Net, but it
- * must converge back to the currently configured default before validation.
- * An explicit disconnect first removes mosBulkBinding, so explicit four-pin
- * body editing remains outside this invariant.
+ * Reconcile bulk after a physical Net rebuild. Materialized Cell defaults
+ * follow policy even when a route split temporarily detaches B. An imported
+ * explicit B keeps its source ownership, but a B-only fragment of the same
+ * source Net is repaired to its configured default before it becomes a
+ * flightline. Authored bulk geometry and explicit disconnects stay outside
+ * that narrow repair.
  */
-export function reconcileMaterializedMosBulkBindings(
+export function reconcileMosBulkAfterConnectivity(
   draft: SchematicDocument,
   changedObjectIds: Set<string>,
   deferNetPrune: (netId: string) => void,
 ): boolean {
   let changed = false;
   for (const instance of draft.instances) {
-    if (instance.mosBulkBinding?.origin !== "cell-default") continue;
+    if (instance.mosBulkBinding?.origin !== "cell-default") {
+      // Imported B membership is explicit source data, so do not turn it into
+      // policy ownership. A route split can nevertheless leave that B alone
+      // on a fragment of its original source Net. Restore only that proven
+      // artifact to the configured default before it becomes a flightline.
+      if (
+        !(instance.sourceRef || instance.importProvenance) ||
+        hasExplicitMosBulkRoute(draft, instance.id)
+      ) {
+        continue;
+      }
+      const target = resolveDetachedMosBulkDefault(draft, instance);
+      if (!target) continue;
+      const detached = draft.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === instance.id && terminal.pinName === "B",
+        ),
+      );
+      if (!detached || detached.id === target.id) continue;
+      detached.terminals = detached.terminals.filter(
+        (terminal) =>
+          terminal.instanceId !== instance.id || terminal.pinName !== "B",
+      );
+      if (
+        !target.terminals.some(
+          (terminal) =>
+            terminal.instanceId === instance.id && terminal.pinName === "B",
+        )
+      ) {
+        target.terminals.push({ instanceId: instance.id, pinName: "B" });
+      }
+      changedObjectIds.add(detached.id);
+      changedObjectIds.add(target.id);
+      deferNetPrune(detached.id);
+      changed = true;
+      continue;
+    }
     if (hasExplicitMosBulkRoute(draft, instance.id)) {
       delete instance.mosBulkBinding;
       changedObjectIds.add(instance.id);

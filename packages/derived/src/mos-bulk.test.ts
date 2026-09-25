@@ -8,6 +8,7 @@ import {
   isMosBulkTerminal,
   mosBulkKind,
   mosBulkShouldBeVisible,
+  resolveDetachedMosBulkDefault,
   drawnSupplyNet,
   resolveMosBulkConnection,
   supplyDefaultMosBulkNet,
@@ -409,6 +410,47 @@ describe("MOS bulk resolution", () => {
       net: { id: "net-body" },
     });
     expect(mosBulkShouldBeVisible(document, "M1")).toBe(true);
+  });
+
+  it("does not reclaim an imported B-only fragment with its own authored name", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push({
+      ...mos("M1", "nmos"),
+      sourceRef: {
+        fileId: "source.sp",
+        start: { offset: 0, line: 1, column: 1 },
+        end: { offset: 1, line: 1, column: 2 },
+      },
+    });
+    document.nets.push(
+      { id: "net-vss", terminals: [] },
+      { id: "net-body", terminals: [{ instanceId: "M1", pinName: "B" }] },
+    );
+    document.mosBulkDefaults = { nmosNetId: "net-vss" };
+    document.connectivityEvidence.push(
+      {
+        id: "source-vss",
+        kind: "spice-source",
+        netId: "net-vss",
+        sourceNetId: "source-vss",
+      },
+      {
+        id: "source-body",
+        kind: "spice-source",
+        netId: "net-body",
+        sourceNetId: "source-vss",
+      },
+    );
+    expect(resolveDetachedMosBulkDefault(document, "M1")?.id).toBe("net-vss");
+    document.connectivityEvidence.push({
+      id: "body-name",
+      kind: "name-claim",
+      netId: "net-body",
+      name: "VBODY",
+      scope: "global",
+      owner: { kind: "global-declaration", sourceNetId: "source-body" },
+    });
+    expect(resolveDetachedMosBulkDefault(document, "M1")).toBeUndefined();
   });
 
   it("uses the configured stable cell default", () => {
