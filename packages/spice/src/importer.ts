@@ -4,6 +4,7 @@ import {
   deriveStableId,
 } from "@icm/model";
 import {
+  deviceDescriptor,
   reviewedExternalBindingForTerminalCount,
   sky130MicrometresToProjectLength,
 } from "@icm/devices";
@@ -431,6 +432,38 @@ function snapUpToGrid(value: number, grid: number): number {
   return Math.ceil(value / grid) * grid;
 }
 
+/** A common imported fourth node becomes the Cell's default for later MOSes. */
+function importedMosBulkDefaults(
+  instances: readonly Instance[],
+  nets: readonly Net[],
+): SchematicDocument["mosBulkDefaults"] {
+  const defaults: NonNullable<SchematicDocument["mosBulkDefaults"]> = {};
+  for (const kind of ["nmos", "pmos"] as const) {
+    const mosInstances = instances.filter(
+      (instance) => deviceDescriptor(instance.symbolId)?.mosBulkClass === kind,
+    );
+    if (mosInstances.length === 0) continue;
+    const bulkNetIds = mosInstances.map((instance) =>
+      nets
+        .filter((net) =>
+          net.terminals.some(
+            (terminal) =>
+              terminal.instanceId === instance.id && terminal.pinName === "B",
+          ),
+        )
+        .map((net) => net.id),
+    );
+    const netId = bulkNetIds[0]?.[0];
+    if (
+      netId &&
+      bulkNetIds.every((ids) => ids.length === 1 && ids[0] === netId)
+    ) {
+      defaults[kind === "nmos" ? "nmosNetId" : "pmosNetId"] = netId;
+    }
+  }
+  return defaults.nmosNetId || defaults.pmosNetId ? defaults : undefined;
+}
+
 function importDocument(
   cell: CircuitCellIR,
   diagnostics: SpiceDiagnostic[],
@@ -512,6 +545,7 @@ function importDocument(
       interfaceInstanceIds: [interfaceInstanceId],
     };
   });
+  const mosBulkDefaults = importedMosBulkDefaults(instances, nets);
   return {
     id: documentId,
     name: cell.name,
@@ -553,6 +587,7 @@ function importDocument(
     },
     instances: withShelfPlacements(instances, DOCUMENT_GRID),
     nets,
+    ...(mosBulkDefaults ? { mosBulkDefaults } : {}),
     connectivityEvidence: cell.nets.flatMap((net) => {
       const importedName = importedNetName(net.name, net.scope, namingProfile);
       return [

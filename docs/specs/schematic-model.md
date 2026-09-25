@@ -126,6 +126,10 @@ instance-owned `instance-override` so target Cell policy cannot retarget the
 copied body.
 Imported/source-bound MOS instances with missing fourth-node evidence remain
 unresolved and follow the same missing-terminal export rule.
+When all imported MOS instances of one polarity in a Cell share the same B
+Net, import records that Net as the Cell default for later instances of that
+polarity. The source B memberships remain explicit; mixed B Nets set no
+default for that polarity.
 
 A visible `bulk-dashed` route is an explicit override. The override atomically
 removes the implicit cell-default binding before connecting B to the selected
