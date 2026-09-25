@@ -301,47 +301,6 @@ function guidanceGraphForNet(
   return { netId: net.id, components };
 }
 
-function importedGuidanceGraph(
-  document: SchematicDocument,
-  resolver: SymbolResolver,
-  sourceNetId: string,
-  baseNetIds: readonly string[],
-  context?: DocumentDerivedContext,
-): NetGuidanceGraph | null {
-  const baseNetIdSet = new Set(baseNetIds);
-  const logicalNets =
-    context?.logicalNetResolution ?? resolveDocumentLogicalNets(document);
-  const logicalGroups = new Map(
-    baseNetIds.flatMap((baseNetId) => {
-      const group = logicalNets.byBaseNetId.get(baseNetId);
-      return group ? [[group.id, group] as const] : [];
-    }),
-  );
-  if (
-    logicalGroups.size === 1 &&
-    [...logicalGroups.values()].every(
-      (group) => group.scope === "global" && Boolean(group.name),
-    )
-  ) {
-    return null;
-  }
-  const components = document.nets
-    .filter((net) => baseNetIdSet.has(net.id))
-    .sort((left, right) => left.id.localeCompare(right.id, "en"))
-    .flatMap(
-      (net) =>
-        guidanceGraphForNet(document, resolver, net, context)?.components ?? [],
-    );
-  const representativeNetId = baseNetIdSet.has(sourceNetId)
-    ? sourceNetId
-    : [...baseNetIdSet].sort((left, right) =>
-        left.localeCompare(right, "en"),
-      )[0];
-  return representativeNetId
-    ? { netId: representativeNetId, sourceNetId, components }
-    : null;
-}
-
 /**
  * Compatibility adapter for callers that need visible-guidance candidates for
  * every Net. Product UI should use deriveImportedRoutingGuidance instead.
@@ -368,23 +327,26 @@ export function deriveImportedRoutingGuidance(
   resolver: SymbolResolver,
   context = deriveNetConnectivityContext(document, resolver),
 ): RoutingGuide[] {
-  const baseNetIdsBySource = new Map<string, Set<string>>();
+  const sourceNetIdsByBase = new Map<string, Set<string>>();
   for (const evidence of document.connectivityEvidence) {
     if (evidence.kind !== "spice-source") continue;
-    const netIds = baseNetIdsBySource.get(evidence.sourceNetId) ?? new Set();
-    netIds.add(evidence.netId);
-    baseNetIdsBySource.set(evidence.sourceNetId, netIds);
+    const sourceIds = sourceNetIdsByBase.get(evidence.netId) ?? new Set();
+    sourceIds.add(evidence.sourceNetId);
+    sourceNetIdsByBase.set(evidence.netId, sourceIds);
   }
-  return [...baseNetIdsBySource]
-    .sort(([left], [right]) => left.localeCompare(right, "en"))
-    .flatMap(([sourceNetId, baseNetIds]) => {
-      const graph = importedGuidanceGraph(
-        document,
-        resolver,
-        sourceNetId,
-        [...baseNetIds],
-        context,
-      );
-      return graph ? deriveRoutingGuidance(graph) : [];
+  // A source ID is provenance, not current electrical equivalence. Cut/split
+  // may copy it to multiple Base Nets, but must not guide a wire between them.
+  return [...document.nets]
+    .filter((net) => sourceNetIdsByBase.has(net.id))
+    .sort((left, right) => left.id.localeCompare(right.id, "en"))
+    .flatMap((net) => {
+      const graph = guidanceGraphForNet(document, resolver, net, context);
+      if (!graph) return [];
+      const sourceIds = sourceNetIdsByBase.get(net.id)!;
+      const sourceNetId = sourceIds.size === 1 ? [...sourceIds][0] : undefined;
+      return deriveRoutingGuidance({
+        ...graph,
+        ...(sourceNetId ? { sourceNetId } : {}),
+      });
     });
 }

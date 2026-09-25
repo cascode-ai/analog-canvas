@@ -3106,9 +3106,11 @@ describe("routing Edit Engine", () => {
       ),
     ).toHaveLength(3);
     expect(deriveFlightlines(result.document, resolver)).toHaveLength(1);
+    // Source provenance survives the cut, but no longer asks the user to
+    // reconnect three electrically separate current Base Nets.
     expect(
       deriveImportedRoutingGuidance(result.document, resolver),
-    ).toHaveLength(2);
+    ).toHaveLength(0);
     expect(result.document.sourceStatus).toBe("connectivity-modified");
   });
 
