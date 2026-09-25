@@ -17,6 +17,7 @@ import {
   deriveCrossings,
   deriveFlightlines,
   deriveImportedRoutingGuidance,
+  mosBulkShouldBeVisible,
   resolveRouteGeometry,
   resolveEndpointConnection,
   resolveDocumentLogicalNets,
@@ -3244,6 +3245,110 @@ describe("routing Edit Engine", () => {
       result.document.nets.filter((net) =>
         net.terminals.some(
           (item) => item.instanceId === "M1" && item.pinName === "B",
+        ),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("keeps an imported unbound B on VSS when an ordinary wire is cut", () => {
+    const document = createEmptyDocument(
+      "imported-bulk-split",
+      "Imported Bulk Split",
+    );
+    document.instances.push(
+      {
+        id: "M1",
+        symbolId: "nmos",
+        symbolVariantId: "textbook-3terminal",
+        placement: null,
+        sourceRef: {
+          fileId: "main-spi",
+          start: { offset: 0, line: 1, column: 1 },
+          end: { offset: 1, line: 1, column: 2 },
+        },
+      },
+      { id: "VSS1", symbolId: "port", placement: null },
+      { id: "A", symbolId: "resistor", placement: null },
+      { id: "B", symbolId: "resistor", placement: null },
+    );
+    document.nets.push({
+      id: "net-vss",
+      terminals: [
+        { instanceId: "M1", pinName: "B" },
+        { instanceId: "VSS1", pinName: "P" },
+        { instanceId: "A", pinName: "1" },
+        { instanceId: "B", pinName: "1" },
+      ],
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "ordinary-wire",
+        netId: "net-vss",
+        start: { kind: "terminal", instanceId: "A", pinName: "1" },
+        end: { kind: "terminal", instanceId: "B", pinName: "1" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    document.netlist = {
+      name: "amp",
+      terminals: [
+        {
+          id: "cell-vss",
+          name: "VSS",
+          netId: "net-vss",
+          direction: "passive",
+          interfaceInstanceIds: ["VSS1"],
+        },
+      ],
+      formalParameters: [],
+    };
+    document.connectivityEvidence.push(
+      {
+        id: "source-vss",
+        kind: "spice-source",
+        netId: "net-vss",
+        sourceNetId: "source-vss",
+      },
+      {
+        id: "hint-vss",
+        kind: "net-name-hint",
+        netId: "net-vss",
+        sourceName: "VSS",
+        origin: "spice-import",
+      },
+    );
+    document.mosBulkDefaults = { nmosNetId: "net-vss" };
+
+    const result = executeTransaction(
+      document,
+      transaction(document.id, 0, [
+        { kind: "cut_connection", routeId: "ordinary-wire" },
+      ]),
+      context,
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    if (!result.ok) return;
+    const defaultNet = result.document.nets.find(
+      (net) => net.id === result.document.mosBulkDefaults?.nmosNetId,
+    );
+    expect(defaultNet?.terminals).toEqual(
+      expect.arrayContaining([
+        { instanceId: "VSS1", pinName: "P" },
+        { instanceId: "M1", pinName: "B" },
+      ]),
+    );
+    expect(mosBulkShouldBeVisible(result.document, "M1")).toBe(false);
+    expect(
+      result.document.instances.find((item) => item.id === "M1")
+        ?.mosBulkBinding,
+    ).toBeUndefined();
+    expect(
+      result.document.nets.filter((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === "M1" && terminal.pinName === "B",
         ),
       ),
     ).toHaveLength(1);

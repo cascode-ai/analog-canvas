@@ -251,7 +251,12 @@ Starting a `bulk-dashed` route from B treats a configured default membership as
 unowned; committing clears the binding before connecting the explicit Net.
 Deleting the explicit route may reconcile only an explicitly configured cell
 default. Source-bound/imported MOS instances keep their fourth-node evidence;
-when absent, the same missing-terminal rule applies. `supply-default` is a resolution status derived on
+when absent, the same missing-terminal rule applies. If ordinary route editing
+splits an imported B-only fragment from the configured default, the edit
+restores B to that default only when both Base Nets retain the same source Net
+evidence and the fragment has no authored Route, Junction, name claim, or Cell
+terminal. The imported B remains explicit source membership, not a new policy
+binding. `supply-default` is a resolution status derived on
 read, not authored state: nothing writes a new `supply-default` binding, and
 persisted ones from an earlier release stay readable compatibility data —
 which is why a body carrying one is never read as residue. Cross-Document composition materializes an effective source

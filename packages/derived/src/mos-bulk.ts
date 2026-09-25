@@ -417,7 +417,14 @@ export function resolveDetachedMosBulkDefault(
       return !peer || !mosBulkKind(peer);
     }) ||
     document.routes.some((route) => route.netId === connectedNet.id) ||
-    document.junctions.some((junction) => junction.netId === connectedNet.id)
+    document.junctions.some((junction) => junction.netId === connectedNet.id) ||
+    document.connectivityEvidence.some(
+      (evidence) =>
+        evidence.netId === connectedNet.id && evidence.kind === "name-claim",
+    ) ||
+    document.netlist?.terminals.some(
+      (terminal) => terminal.netId === connectedNet.id,
+    )
   ) {
     return undefined;
   }
