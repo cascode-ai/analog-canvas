@@ -4,6 +4,7 @@ import {
   AgentDocumentStateResponseSchema,
   AgentFolderDirectoryResponseSchema,
   AgentGeometrySnapshotResponseSchema,
+  AgentPinsSnapshotResponseSchema,
   AgentAuthoringCommandSchema,
   AgentCapabilitiesResponseSchema,
   AgentRenderResponseSchema,
@@ -52,6 +53,7 @@ import {
 import {
   ActionCompileError,
   compileActions,
+  directConnectIntent,
   type CompiledTransaction,
 } from "./authoring-helper.js";
 import { AuthoringActionSchema } from "./authoring-actions.js";
@@ -1176,6 +1178,59 @@ export class AgentSessionClient {
     return parsed.data;
   }
 
+  async pinsSnapshot(instanceIds: readonly string[], documentId?: string) {
+    if (instanceIds.length < 1 || instanceIds.length > 64)
+      throw new AgentSessionError(
+        "INVALID_REQUEST",
+        "pins read requires 1–64 instance IDs",
+        "request-rejected",
+      );
+    const target = await this.resolveDocumentId(documentId);
+    const response = await this.send({
+      ...baseRequest(this.newRequestId()),
+      operation: "snapshot",
+      documentId: target,
+      projection: "pins",
+      instanceIds: [...instanceIds],
+    });
+    if (!response.ok && response.error.code === "INVALID_REQUEST") {
+      const full = await this.refreshSnapshot(target);
+      const instances = full.snapshot.document.instances.filter((instance) =>
+        instanceIds.includes(instance.id),
+      );
+      return AgentPinsSnapshotResponseSchema.parse({
+        apiVersion: AGENT_API_VERSION,
+        requestId: response.requestId,
+        operation: "snapshot",
+        ok: true,
+        projection: "pins",
+        projectId: full.snapshot.project.id,
+        structureRevision: full.snapshot.project.structureRevision,
+        documentId: target,
+        revision: full.revision,
+        instances,
+        mosBulkDefaults: full.snapshot.document.mosBulkDefaults,
+        missingInstanceIds: [...new Set(instanceIds)].filter(
+          (id) => !instances.some((instance) => instance.id === id),
+        ),
+      });
+    }
+    if (!response.ok)
+      throw new AgentSessionError(
+        response.error.code,
+        response.error.message,
+        "request-rejected",
+      );
+    const parsed = AgentPinsSnapshotResponseSchema.parse(response);
+    this.observeLightweightSnapshot(
+      target,
+      parsed.projectId,
+      parsed.structureRevision,
+      parsed.revision,
+    );
+    return parsed;
+  }
+
   summary(documentId?: string): SnapshotSummary | null {
     const target = documentId ?? this.defaultDocumentId();
     return this.cache.summary(target);
@@ -1246,6 +1301,7 @@ export class AgentSessionClient {
     options: {
       documentId?: string;
       dryRunOnly?: boolean;
+      diagnosticDeltaDetail?: "full" | "compact";
     } = {},
   ): Promise<ApplyActionsReport> {
     const parsed = z.array(AuthoringActionSchema).safeParse(actions);
@@ -1263,6 +1319,28 @@ export class AgentSessionClient {
       };
     }
     const direct = parsed.data;
+    if (
+      direct.length > 0 &&
+      direct.length <= 64 &&
+      direct.every((action) => action.kind === "connect")
+    ) {
+      const wires = direct.map((action) =>
+        directConnectIntent(
+          action,
+          (prefix) => `${prefix}-${crypto.randomUUID()}`,
+        ),
+      );
+      if (wires.every((wire) => wire !== undefined)) {
+        return this.submitTransaction(
+          await this.revisionFor(options.documentId),
+          { wireIntent: wires.length === 1 ? wires[0] : wires },
+          {
+            dryRun: options.dryRunOnly ?? false,
+            diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
+          },
+        );
+      }
+    }
     if (direct.length === 1) {
       const action = direct[0]!;
       const command = AgentAuthoringCommandSchema.safeParse(action);
@@ -1280,6 +1358,7 @@ export class AgentSessionClient {
               ? { edits: [{ kind: action.kind }] }
               : { command: command.data };
         return this.submitTransaction(revision, payload, {
+          diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
           dryRun: options.dryRunOnly ?? false,
         });
       }
@@ -1293,7 +1372,10 @@ export class AgentSessionClient {
       return this.submitTransaction(
         revision,
         { command: { kind: "batch", commands: direct } },
-        { dryRun: options.dryRunOnly ?? false },
+        {
+          dryRun: options.dryRunOnly ?? false,
+          diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
+        },
       );
     }
     const entry = await this.snapshot(options.documentId);
@@ -1326,6 +1408,7 @@ export class AgentSessionClient {
         { wireIntent: compiled.map((item) => item.wireIntent!) },
         {
           dryRun: options.dryRunOnly ?? false,
+          diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
         },
       );
     }
@@ -1346,7 +1429,10 @@ export class AgentSessionClient {
       return this.submitTransaction(
         this.revisionFromSnapshot(entry),
         { command: { kind: "batch", commands: batchCommands } },
-        { dryRun: options.dryRunOnly ?? false },
+        {
+          dryRun: options.dryRunOnly ?? false,
+          diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
+        },
       );
     }
     if (compiled.length !== 1)
@@ -1370,6 +1456,7 @@ export class AgentSessionClient {
             : { wireIntent: transaction.wireIntent };
     return this.submitTransaction(this.revisionFromSnapshot(entry), payload, {
       dryRun: options.dryRunOnly ?? false,
+      diagnosticDeltaDetail: options.diagnosticDeltaDetail ?? "full",
     });
   }
 
@@ -1380,6 +1467,7 @@ export class AgentSessionClient {
       documentId?: string;
       dryRun?: boolean;
       expectedStructureRevision?: number;
+      diagnosticDeltaDetail?: "full" | "compact";
       /** Reuse the snapshot read by this composed operation; commit still checks revisions. */
       snapshot?: CachedSnapshot;
     } = {},
@@ -1489,7 +1577,7 @@ export class AgentSessionClient {
   private async submitTransaction(
     entry: KnownRevision,
     payload: unknown,
-    options: { dryRun?: boolean },
+    options: { dryRun?: boolean; diagnosticDeltaDetail?: "full" | "compact" },
   ): Promise<ApplyActionsReport> {
     const parsed = AgentTransactionPayloadSchema.safeParse(payload);
     if (!parsed.success)
@@ -1507,12 +1595,32 @@ export class AgentSessionClient {
       expectedRevision: entry.revision,
       expectedStructureRevision: entry.structureRevision,
       dryRun,
+      ...(options.diagnosticDeltaDetail === "compact"
+        ? { diagnosticDeltaDetail: "compact" as const }
+        : {}),
       ...parsed.data,
     });
     // One request, no client-side dry-run pass: the commit validates the
     // whole transaction atomically and returns the same diagnostics a
     // dry-run would, without the extra relayed round trip per edit.
-    const response = await this.send(request(options.dryRun ?? false));
+    let response = await this.send(request(options.dryRun ?? false));
+    if (
+      !response.ok &&
+      response.error.code === "INVALID_REQUEST" &&
+      options.diagnosticDeltaDetail === "compact" &&
+      response.diagnostics.some(
+        (item) =>
+          item.code === "SCHEMA_VIOLATION" &&
+          item.message.includes("unsupported field") &&
+          item.message.includes("diagnosticDeltaDetail"),
+      )
+    ) {
+      // Explicit schema rejection proves no write ran. Rolling deploys may
+      // still have an older Editor open; retry once without the projection.
+      const legacy = request(options.dryRun ?? false);
+      if (legacy.operation === "transact") delete legacy.diagnosticDeltaDetail;
+      response = await this.send(legacy);
+    }
     if (!response.ok) {
       if (
         response.error.code === "STALE_REVISION" ||

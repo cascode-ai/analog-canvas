@@ -6,8 +6,9 @@ import {
   resolveDraftingObjectGeometry,
   resolveDocumentRoutingGeometry,
   buildProjectConnectivityIndex,
+  resolveAnnotationText,
 } from "@icm/derived";
-import { transformPoint } from "@icm/model";
+import { transformPoint, flattenRichText } from "@icm/model";
 import type {
   CircuitProject,
   Point,
@@ -361,11 +362,13 @@ function diagnosticSnapshot(
     : agentVisualDiagnostics(document, resolver);
 }
 
-function documentSnapshot(
+/** Resolve only selected instances; no route rendering, diagnostics or source tree. */
+export function selectAgentInstances(
   options: BuildAgentSessionSnapshotOptions,
-): AgentSnapshotDocument {
+  instanceIds?: readonly string[],
+  logicalNets = resolveDocumentLogicalNets(options.document),
+): AgentSnapshotDocument["instances"] {
   const { document, resolver } = options;
-  const logicalNets = resolveDocumentLogicalNets(document);
   const terminalNetByKey = new Map<string, string>();
   for (const net of document.nets) {
     for (const terminal of net.terminals) {
@@ -376,6 +379,7 @@ function documentSnapshot(
     }
   }
   const instances = [...document.instances]
+    .filter((instance) => !instanceIds || instanceIds.includes(instance.id))
     .sort((left, right) => left.id.localeCompare(right.id, "en"))
     .map((instance) => {
       const resolved = resolver.resolve(
@@ -507,6 +511,15 @@ function documentSnapshot(
       };
     });
 
+  return instances;
+}
+
+function documentSnapshot(
+  options: BuildAgentSessionSnapshotOptions,
+): AgentSnapshotDocument {
+  const { document, resolver } = options;
+  const logicalNets = resolveDocumentLogicalNets(document);
+  const instances = selectAgentInstances(options, undefined, logicalNets);
   const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
   const routes = [...document.routes]
     .sort((left, right) => left.id.localeCompare(right.id, "en"))
@@ -607,7 +620,12 @@ function documentSnapshot(
       .map((noConnect) => structuredClone(noConnect)),
     annotations: [...document.annotations]
       .sort((left, right) => left.id.localeCompare(right.id, "en"))
-      .map((annotation) => structuredClone(annotation)),
+      .map((annotation) => ({
+        ...structuredClone(annotation),
+        resolvedText: flattenRichText(
+          resolveAnnotationText(document, annotation, logicalNets),
+        ),
+      })),
     // ADR 0010 WP-R4: each drafting object carries its canonical shape plus the
     // derived resolved geometry (position(s)/bounds/diagnostics) from the
     // single resolveDraftingObjectGeometry entry; the Document's anchor JSON is

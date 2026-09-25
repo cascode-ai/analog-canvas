@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ActionCompileError,
   compileActions,
+  directConnectIntent,
   type CompiledTransaction,
 } from "./authoring-helper.js";
 import { testSnapshot } from "./test-support/snapshot-fixture.js";
@@ -33,6 +34,36 @@ function expectCompileError(actions: unknown[], fragment: string): void {
 }
 
 describe("authoring helper compilation", () => {
+  it("uses the same wire request for explicit identities and resolved helper input", () => {
+    const action = AuthoringActionSchema.parse({
+      kind: "connect",
+      from: {
+        kind: "pin",
+        instance: { kind: "instance", id: "instance-1" },
+        pin: "G",
+      },
+      to: { kind: "point", x: 400, y: 200 },
+      via: [{ x: 320, y: 200 }],
+      routingMode: "orthogonal",
+    });
+    const fixedId = () => "wire-test";
+    expect(directConnectIntent(action, fixedId)).toEqual(
+      compileActions([action], {
+        snapshot: testSnapshot(),
+        allocateId: fixedId,
+      })[0]!.wireIntent,
+    );
+    expect(
+      directConnectIntent(
+        AuthoringActionSchema.parse({
+          kind: "connect",
+          from: { kind: "pin", instance: "M1", pin: "G" },
+          to: { kind: "point", x: 400, y: 200 },
+        }),
+        fixedId,
+      ),
+    ).toBeUndefined();
+  });
   it("advertises exact reference kinds instead of unrepresentable discriminator refinements", () => {
     const schema = z.toJSONSchema(AuthoringActionSchema, {
       target: "draft-2020-12",

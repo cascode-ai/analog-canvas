@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { nativeSky130OtaFixture } from "../test-support/sky130-ota.js";
 import {
   SimulationFiles,
   sha256,
@@ -80,6 +81,52 @@ function fixture() {
 }
 
 describe("Project and session File Resource ownership", () => {
+  it("reads generated code without mappings only when text detail is selected", async () => {
+    const { project, folder } = nativeSky130OtaFixture();
+    const sourceOwner = {
+      kind: "project-folder" as const,
+      folderId: folder.id,
+    };
+    const files = new SimulationFiles(
+      Date.now,
+      {
+        read: () => ({
+          projectSessionId: "session",
+          project,
+          structureRevision: project.structureRevision,
+          folder,
+        }),
+        commit: () => {
+          throw new Error("read must not commit");
+        },
+      },
+      async () => "ngspice",
+    );
+    const request = {
+      action: "read" as const,
+      owner: sourceOwner,
+      path: folder.input.circuitBindings[0]!.path,
+    };
+    const mapped = await files.handle(request);
+    const text = await files.handle({ ...request, detail: "text" });
+    expect(mapped).toMatchObject({
+      ok: true,
+      editableParameters: expect.any(Array),
+      instances: expect.any(Array),
+    });
+    expect(text).toMatchObject({ ok: true });
+    if (
+      !mapped.ok ||
+      !("textDigest" in mapped) ||
+      !text.ok ||
+      !("textDigest" in text)
+    )
+      throw new Error("read failed");
+    expect(text.text).toBe(mapped.text);
+    expect(text.textDigest).toBe(mapped.textDigest);
+    expect(text).not.toHaveProperty("editableParameters");
+    expect(text).not.toHaveProperty("instances");
+  });
   it("replaces text online with a reusable receipt and leaves no-op revisions unchanged", async () => {
     const f = fixture();
     const original = f.snapshot.folder.input.files[0]!;

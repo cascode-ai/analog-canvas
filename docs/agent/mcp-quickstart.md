@@ -11,7 +11,10 @@ Call `connect` with the Claim once, or omit it to resume the saved connector.
 Its reply already includes lightweight authoritative context. Capabilities and
 that bootstrap Snapshot are fetched in parallel. Use the returned identity,
 counts and revisions immediately; no duplicate `get_context` is required. Use
-`inspect` when you need objects or pins. For only current placement, route,
+`inspect` when you need objects. For new instance endpoints, use
+`inspect({"target":{"kind":"pins","instanceIds":["<stable-id>"]}})`:
+up to 64 selected instances, resolved pins and bulk, without full Snapshot.
+For only current placement, route,
 annotation-anchor or drafting geometry, use
 `inspect({"target":{"kind":"geometry","objectIds":["<stable-id>"]}})`;
 this reads selected authored objects without constructing a full Snapshot.
@@ -29,7 +32,9 @@ returns the format field and its context. Contract lookup is optional, not a
 prerequisite for calling a tool.
 
 - Circuit editing: [authoring](shared/authoring.md), then the built-in catalog
-  before placing new symbols. [Tool details](mcp/tools.md) cover less common edits.
+  before placing unfamiliar symbols. Select known symbol IDs with resource
+  `analog-canvas://catalog/builtins?symbols=nmos,pmos,port`; use the full catalog
+  for discovery. [Tool details](mcp/tools.md) cover less common edits.
 - Simulation: [simulation calls](mcp/simulation.md). Start with its quick path
   and follow its detailed-contract link only for the feature being used.
 - Failures: [recovery](response-semantics.md). Keep uncertain write/start identities;

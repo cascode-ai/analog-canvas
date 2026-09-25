@@ -180,15 +180,17 @@ export async function handleProjectSourceFiles(
           "input",
         );
       file = { path: binding.path, text: result.source.text };
-      instances = result.source.instances;
-      editableParameters = result.source.parameters.map((p) => ({
-        from: p.startOffset,
-        to: p.endOffset,
-        label: p.descriptor.label,
-        documentId: p.documentId,
-        instanceId: p.instanceId,
-        parameter: p.parameter,
-      }));
+      if (op.detail !== "text") {
+        instances = result.source.instances;
+        editableParameters = result.source.parameters.map((p) => ({
+          from: p.startOffset,
+          to: p.endOffset,
+          label: p.descriptor.label,
+          documentId: p.documentId,
+          instanceId: p.instanceId,
+          parameter: p.parameter,
+        }));
+      }
     }
     if (!file)
       return problem(

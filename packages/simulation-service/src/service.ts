@@ -368,6 +368,21 @@ export class SimulationService {
                   collection: catalog.collection,
                   fileCount: catalog.files.length,
                   datasetCount: catalog.datasets.length,
+                  analyses: catalog.datasets.map(
+                    ({
+                      analysisIndex,
+                      analysis,
+                      plotName,
+                      pointCount,
+                      axis,
+                    }) => ({
+                      analysisIndex,
+                      analysis,
+                      plotName,
+                      pointCount,
+                      ...(axis ? { axis } : {}),
+                    }),
+                  ),
                 },
                 ...(catalog.error ? { error: catalog.error } : {}),
                 inputStatus: "unavailable",

@@ -13,6 +13,13 @@ export const ADVANCED_EDITS_RESOURCE_URI =
 export function listResourceTemplates() {
   return [
     {
+      uriTemplate: "analog-canvas://catalog/builtins{?symbols}",
+      name: "Selected built-in symbols",
+      description:
+        "Comma-separated exact symbol IDs; same canonical catalog, without unrelated symbols. Omit symbols for the complete catalog.",
+      mimeType: "application/json",
+    },
+    {
       uriTemplate: "analog-canvas://contract/tools/{name}{?operations,field}",
       name: "Selected tool operation or field contract",
       description:
@@ -46,6 +53,41 @@ export function listResourceEntries(): McpResourceEntry[] {
 }
 
 export function readResourceContent(uri: string): McpResourceContent {
+  if (uri.startsWith("analog-canvas://catalog/builtins?")) {
+    const parsed = new URL(uri);
+    if (
+      [...parsed.searchParams.keys()].some((key) => key !== "symbols") ||
+      parsed.searchParams.getAll("symbols").length !== 1
+    )
+      throw new RpcMethodError(-32602, "Provide one symbols selector");
+    const ids = [...new Set(parsed.searchParams.get("symbols")!.split(","))];
+    const catalog = JSON.parse(
+      readResourceContent("analog-canvas://catalog/builtins").text,
+    );
+    if (
+      ids.length > 64 ||
+      ids.some(
+        (id) =>
+          !catalog.symbols.some(
+            (symbol: { symbolId: string }) => symbol.symbolId === id,
+          ),
+      )
+    )
+      throw new RpcMethodError(
+        -32602,
+        "Unknown symbol ID; inspect the full catalog to discover symbols",
+      );
+    return {
+      uri,
+      mimeType: "application/json",
+      text: JSON.stringify({
+        ...catalog,
+        symbols: catalog.symbols.filter((symbol: { symbolId: string }) =>
+          ids.includes(symbol.symbolId),
+        ),
+      }),
+    };
+  }
   const toolPrefix = "analog-canvas://contract/tools/";
   if (uri.startsWith(toolPrefix)) {
     const parsed = new URL(uri);

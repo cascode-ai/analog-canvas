@@ -43,6 +43,12 @@ export const SimulationFileOperationSchema = z.discriminatedUnion("action", [
     path: SimulationInputPathSchema,
     offset: Revision.default(0),
     maxChars: z.number().int().positive().max(65536).default(65536),
+    detail: z
+      .enum(["text", "mapped"])
+      .optional()
+      .describe(
+        "text: code only; mapped (default): include generated editing spans.",
+      ),
   }),
   z.strictObject({
     action: z.literal("discard"),

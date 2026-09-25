@@ -45,6 +45,7 @@ import {
   buildAgentBootstrapSnapshot,
   buildAgentSessionSnapshot,
   selectAgentGeometry,
+  selectAgentInstances,
 } from "./snapshot.js";
 import { terminalConnectivity } from "./terminal-connectivity.js";
 
@@ -503,6 +504,51 @@ export function createAgentCircuitService(
             "Geometry Snapshot requires geometryIds and cannot include source spans or a Net trace",
             document.revision,
           );
+        }
+        if (
+          (request.projection === "pins") !==
+            (request.instanceIds !== undefined) ||
+          (request.projection === "pins" &&
+            (request.includeSourceSpans || request.traceNet))
+        )
+          return fail(
+            "snapshot",
+            "INVALID_REQUEST",
+            "Pins Snapshot requires instanceIds and cannot include source spans or a Net trace",
+            document.revision,
+          );
+        if (request.projection === "pins") {
+          const instances = selectAgentInstances(
+            { document, resolver, ...(project ? { project } : {}) },
+            request.instanceIds!,
+          );
+          const found = new Set(instances.map((instance) => instance.id));
+          const result = {
+            apiVersion: request.apiVersion,
+            requestId: request.requestId,
+            operation: "snapshot" as const,
+            ok: true as const,
+            projection: "pins" as const,
+            projectId: project?.id ?? `project-${document.id}`,
+            structureRevision: project?.structureRevision ?? 0,
+            documentId: document.id,
+            revision: document.revision,
+            instances,
+            ...(document.mosBulkDefaults
+              ? { mosBulkDefaults: document.mosBulkDefaults }
+              : {}),
+            missingInstanceIds: [...new Set(request.instanceIds!)].filter(
+              (id) => !found.has(id),
+            ),
+          };
+          if (utf8ByteLength(JSON.stringify(result)) > limits.maxSnapshotBytes)
+            return fail(
+              "snapshot",
+              "SNAPSHOT_TOO_LARGE",
+              "Pins Snapshot exceeds the response budget",
+              document.revision,
+            );
+          return response(result);
         }
         if (request.projection === "geometry") {
           const selected = selectAgentGeometry(document, request.geometryIds!);
@@ -1183,10 +1229,23 @@ export function createAgentCircuitService(
               (diagnostic) =>
                 !beforeIds.has(agentDiagnosticIdentity(diagnostic)),
             ),
-            removed: beforeDiagnostics.filter(
-              (diagnostic) =>
-                !afterIds.has(agentDiagnosticIdentity(diagnostic)),
-            ),
+            removed:
+              request.diagnosticDeltaDetail === "compact"
+                ? []
+                : beforeDiagnostics.filter(
+                    (diagnostic) =>
+                      !afterIds.has(agentDiagnosticIdentity(diagnostic)),
+                  ),
+            ...(request.diagnosticDeltaDetail === "compact"
+              ? {
+                  removedIds: beforeDiagnostics
+                    .filter(
+                      (diagnostic) =>
+                        !afterIds.has(agentDiagnosticIdentity(diagnostic)),
+                    )
+                    .map(agentDiagnosticIdentity),
+                }
+              : {}),
           },
           ...(resolvedRoutes.length === 0 ? {} : { resolvedRoutes }),
         });

@@ -6,11 +6,12 @@ connection and request mechanics; MCP clients need not implement raw HTTP.
 ## Establish enough evidence for the task
 
 Identify the authorized Document, current revision and affected objects before
-editing. Read the complete Snapshot for new construction, unfamiliar topology,
-hierarchy changes or broad rerouting. For a known object's placement or route
+editing. Use a complete Snapshot for unfamiliar topology, hierarchy changes or
+broad rerouting when a local projection cannot answer the question. After
+placement, read selected instances with the `pins` projection before wiring.
+For a known object's placement or route
 geometry, use a focused geometry read by stable ID; it does not resolve pins or
-connectivity. Counts alone are not pin or connectivity evidence. Refresh after
-placement before using newly resolved pins.
+connectivity. Counts alone are not pin or connectivity evidence.
 
 Preserve topology unless the user requests an electrical change. Preserve
 human-owned work outside the affected area, including locks and groups. A lock

@@ -19,6 +19,7 @@ import {
   buildAgentBootstrapSnapshot,
   buildAgentSessionSnapshot,
   canonicalSnapshotContent,
+  selectAgentInstances,
 } from "./snapshot.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -36,6 +37,28 @@ function fixtureProject(): CircuitProject {
 }
 
 describe("Agent Document Snapshot", () => {
+  it("resolves selected pins identically without resolving unrelated symbols", () => {
+    const project = fixtureProject();
+    const document = project.documents[0]!;
+    const full = buildAgentSessionSnapshot({ project, document, resolver });
+    const selected = full.document.instances[0]!;
+    const calls: string[] = [];
+    const boundedResolver = {
+      resolve(id: string, variant?: string | null) {
+        calls.push(id);
+        return resolver.resolve(id, variant ?? undefined);
+      },
+    };
+    const pins = selectAgentInstances(
+      { project, document, resolver: boundedResolver },
+      [selected.id, "absent"],
+    );
+    expect(pins).toEqual([selected]);
+    expect(new Set(calls)).toEqual(new Set([selected.symbolId]));
+    expect(JSON.stringify(pins).length).toBeLessThan(
+      JSON.stringify(full).length / 2,
+    );
+  });
   it("builds a bounded bootstrap projection without full topology or diagnostics", () => {
     const project = fixtureProject();
     const document = project.documents[0]!;
