@@ -591,18 +591,23 @@ test("shows and copies a live MOS netlist with explicitly connected bulk termina
     0,
   );
   const refresh = panel.getByRole("button", { name: "Refresh netlist" });
-  await expect(
-    panel.getByRole("button", { name: "Copy netlist", exact: true }),
-  ).toHaveCount(0);
+  // The copy button sits beside refresh and keeps the panel's right edge.
+  const copy = panel.getByRole("button", { name: "Copy netlist", exact: true });
+  await expect(copy).toBeVisible();
   const formatSelect = panel.getByLabel("Netlist format");
   const processSelect = panel.getByLabel("Netlist process");
   const assertControls = async () => {
-    const [format, process, refreshBox] = await Promise.all(
-      [formatSelect, processSelect, refresh].map((item) => item.boundingBox()),
+    const [format, process, refreshBox, copyBox, panelBox] = await Promise.all(
+      [formatSelect, processSelect, refresh, copy, panel].map((item) =>
+        item.boundingBox(),
+      ),
     );
-    for (const box of [process, refreshBox])
+    for (const box of [process, refreshBox, copyBox])
       expect(box!.height).toBeCloseTo(format!.height, 1);
     expect(refreshBox!.y).toBeCloseTo(format!.y, 1);
+    expect(copyBox!.x + copyBox!.width).toBeLessThanOrEqual(
+      panelBox!.x + panelBox!.width,
+    );
   };
   await assertControls();
   const handle = page.getByTestId("properties-resize-handle");
