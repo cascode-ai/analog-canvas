@@ -162,8 +162,13 @@ export function deriveSelectionInspectionModel({
     selectedDrafting ||
     selectedEndpoint,
   );
+  const selectedFormalTerminal = selectedInstance
+    ? document.netlist?.terminals.find((terminal) =>
+        terminal.interfaceInstanceIds.includes(selectedInstance.id),
+      )
+    : undefined;
   const selectionShelfSummary = selectedInstance
-    ? `${selectedInstance.id} · ${selectedInstance.symbolId}`
+    ? `${selectedFormalTerminal?.name ?? selectedInstance.id} · ${selectedInstance.symbolId}`
     : selectedIds.length > 1
       ? `${selectedIds.length} components`
       : selectedRoute

@@ -47,6 +47,50 @@ describe("selection inspection model", () => {
     expect(model.selectionShelfSummary).toBe("X1 · hierarchical:Child");
   });
 
+  it("shows a Cell Pin's formal name instead of its copy ID", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "P2-copy-1",
+      symbolId: "port",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    document.nets.push({
+      id: "net-voc",
+      terminals: [{ instanceId: "P2-copy-1", pinName: "P" }],
+    });
+    document.netlist = {
+      name: document.name,
+      formalParameters: [],
+      terminals: [
+        {
+          id: "terminal-voc",
+          name: "Voc",
+          netId: "net-voc",
+          direction: "passive",
+          interfaceInstanceIds: ["P2-copy-1"],
+        },
+      ],
+    };
+
+    const model = deriveSelectionInspectionModel({
+      project,
+      document,
+      resolver,
+      selection: {
+        instanceIds: ["P2-copy-1"],
+        ...emptySupplementalSelection,
+      },
+      selectedEndpoint: null,
+    });
+
+    expect(model.selectionShelfSummary).toBe("Voc · port");
+  });
+
   it("does not treat drafting rectangles as hierarchy entry targets", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;
