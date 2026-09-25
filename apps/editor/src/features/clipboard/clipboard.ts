@@ -1016,55 +1016,81 @@ export function copySelection(
   return clipboard;
 }
 
-function uniqueCopyId(
-  sourceId: string,
-  sequence: number,
-  occupied: Set<string>,
-): string {
-  let candidate = `${sourceId}-copy-${sequence}`;
-  let collision = 1;
-  while (occupied.has(candidate)) {
-    collision += 1;
-    candidate = `${sourceId}-copy-${sequence}-${collision}`;
-  }
-  occupied.add(candidate);
-  return candidate;
+/**
+ * What a paste numbers: an identity without the `-copy-N` that earlier copies
+ * chained onto it (`GND1-copy-2-copy-7`) or the `_N` of the paste it came
+ * from (`R1_2`).
+ */
+function copyIdStem(id: string): string {
+  return (
+    (id.replace(/-copy-\d+(?:-\d+)?/gu, "") || id).replace(/_\d+$/u, "") || id
+  );
 }
 
 /**
- * A pasted Route also needs Leg and Bend IDs nobody holds. Split Routes keep
- * the children of the Route they came from, so a freed `X-copy-1` can still
- * have its derived children in the Document.
+ * A pasted object is a new object, so a copy never grows its identity: every
+ * object of one paste takes its stem and one shared ordinal, the first that
+ * none of them finds taken (`R1` pastes as `R1_2`, and that as `R1_3`);
+ * objects that share a stem take consecutive ones. The ordinal is shared
+ * because identities derive from one another, `power-label-vdd1` belonging to
+ * `VDD1`, and one suffix keeps such pairs; a label named after the object it
+ * is anchored to is named after that object's copy. A copy never takes its
+ * source's identity, even where that is free: the Edit Engine tells a clone
+ * from its source by it.
  */
-function uniqueRouteCopyId(
-  source: RouteBranch,
-  sequence: number,
-  occupied: Set<string>,
-  occupiedRouteChildren: Set<string>,
-): string {
-  let candidate = `${source.id}-copy-${sequence}`;
-  let collision = 1;
-  while (
-    occupied.has(candidate) ||
-    createdRouteChildIds(candidate, source.legs.length).some((id) =>
-      occupiedRouteChildren.has(id),
-    )
-  ) {
-    collision += 1;
-    candidate = `${source.id}-copy-${sequence}-${collision}`;
+function pastedIdentities(
+  ids: readonly string[],
+  routes: readonly RouteBranch[],
+  owned: readonly { id: string; ownerId: string }[],
+  occupied: ReadonlySet<string>,
+  occupiedRouteChildren: ReadonlySet<string>,
+): Map<string, string> {
+  const stems = new Map<string, string[]>();
+  for (const id of new Set(ids)) {
+    const stem = copyIdStem(id);
+    stems.set(stem, [...(stems.get(stem) ?? []), id]);
   }
-  occupied.add(candidate);
-  for (const id of createdRouteChildIds(candidate, source.legs.length))
-    occupiedRouteChildren.add(id);
-  return candidate;
-}
-
-function pastedInstanceId(
-  source: Instance,
-  sequence: number,
-  occupied: Set<string>,
-): string {
-  return uniqueCopyId(source.id, sequence, occupied);
+  for (const members of stems.values()) members.sort();
+  const fits = (pasted: ReadonlyMap<string, string>) =>
+    [...pasted].every(
+      ([id, candidate]) => candidate !== id && !occupied.has(candidate),
+    ) &&
+    // A Route's Leg and Bend IDs derive from its own; split Routes keep the
+    // children of the Route they came from, so a freed Route ID can still
+    // have its derived children in the Document.
+    routes.every(
+      (route) =>
+        !createdRouteChildIds(pasted.get(route.id)!, route.legs.length).some(
+          (child) => occupiedRouteChildren.has(child),
+        ),
+    );
+  let pasted = new Map<string, string>();
+  for (let ordinal = 2; pasted.size === 0 || !fits(pasted); ordinal += 1)
+    pasted = new Map(
+      [...stems].flatMap(([stem, members]) =>
+        members.map((id, index) => [id, `${stem}_${ordinal + index}`] as const),
+      ),
+    );
+  const taken = new Set(pasted.values());
+  for (const { id, ownerId } of owned) {
+    const owner = pasted.get(ownerId);
+    const current = pasted.get(id);
+    if (!owner || !current) continue;
+    const prefix = id.slice(0, id.length - ownerId.length);
+    const derived = !prefix.endsWith("-")
+      ? null
+      : id === `${prefix}${ownerId}`
+        ? `${prefix}${owner}`
+        : id === `${prefix}${ownerId.toLowerCase()}`
+          ? `${prefix}${owner.toLowerCase()}`
+          : null;
+    if (!derived || derived === current) continue;
+    if (derived === id || occupied.has(derived) || taken.has(derived)) continue;
+    taken.delete(current);
+    taken.add(derived);
+    pasted.set(id, derived);
+  }
+  return pasted;
 }
 
 /** Allocate a sole authored Reference for schematic-only Instance kinds. */
@@ -1075,8 +1101,8 @@ function nextUnconstrainedReference(
   reserved: ReadonlySet<string>,
 ): string {
   const suffix = /^(.*?)(\d+)$/u.exec(current);
-  const prefix = suffix?.[1] || `${current}-copy-`;
-  let ordinal = suffix ? Number(suffix[2]) + 1 : sequence;
+  const prefix = suffix?.[1] || `${current}-`;
+  let ordinal = suffix ? Number(suffix[2]) + 1 : sequence + 1;
   while (true) {
     const digits = String(ordinal);
     const candidate = `${prefix.slice(0, Math.max(1, 128 - digits.length))}${digits}`;
@@ -1196,14 +1222,44 @@ export function proposePaste(
       ]),
     ),
   );
-  const compositionOccurrenceId =
-    clipboard.intent === "compose-document"
-      ? uniqueCopyId(
-          `composition-${clipboard.sourceDocumentId}`,
-          sequence,
-          occupied,
-        )
-      : undefined;
+  const pasted = pastedIdentities(
+    [
+      ...clipboard.instances,
+      ...clipboard.routes,
+      ...clipboard.junctions,
+      ...clipboard.noConnects,
+      ...clipboard.annotations,
+      ...clipboard.connectivityEvidence,
+      ...clipboard.layoutGroups,
+      ...clipboard.constraints,
+      ...clipboard.cellTerminals,
+      ...clipboard.nets,
+      // A junction can arrive without its net (a junction-only marquee copy
+      // clones no internal Route, so the net is never cloned): the paste
+      // creates a fresh net for it instead of emitting an undefined netId.
+      ...clipboard.junctions.map((junction) => ({ id: junction.netId })),
+      ...clipboard.draftingObjects,
+    ].map((object) => object.id),
+    clipboard.routes,
+    clipboard.annotations.flatMap((annotation) =>
+      annotation.anchor.kind === "object"
+        ? [{ id: annotation.id, ownerId: annotation.anchor.objectId }]
+        : annotation.anchor.kind === "route"
+          ? [{ id: annotation.id, ownerId: annotation.anchor.routeId }]
+          : [],
+    ),
+    occupied,
+    occupiedRouteChildren,
+  );
+  for (const id of pasted.values()) occupied.add(id);
+  const pastedId = (id: string) => pasted.get(id)!;
+  let compositionOccurrenceId: string | undefined;
+  if (clipboard.intent === "compose-document") {
+    compositionOccurrenceId = `composition-${clipboard.sourceDocumentId}-${sequence}`;
+    for (let ordinal = 2; occupied.has(compositionOccurrenceId); ordinal += 1)
+      compositionOccurrenceId = `composition-${clipboard.sourceDocumentId}-${sequence}_${ordinal}`;
+    occupied.add(compositionOccurrenceId);
+  }
   const referenceIndex = createReferenceIndex(document, project);
   const reservedReferences = new Set<string>();
   const occupiedReferences = new Set(
@@ -1247,10 +1303,7 @@ export function proposePaste(
     }),
   );
   const instanceIds = new Map(
-    clipboard.instances.map((instance) => [
-      instance.id,
-      pastedInstanceId(instance, sequence, occupied),
-    ]),
+    clipboard.instances.map((instance) => [instance.id, pastedId(instance.id)]),
   );
   const freshInstances = new Map<string, Instance>();
   if (clipboard.intent === "clone-selection") {
@@ -1288,46 +1341,37 @@ export function proposePaste(
     }
   }
   const routeIds = new Map(
-    clipboard.routes.map((route) => [
-      route.id,
-      uniqueRouteCopyId(route, sequence, occupied, occupiedRouteChildren),
-    ]),
+    clipboard.routes.map((route) => [route.id, pastedId(route.id)]),
   );
   const junctionIds = new Map(
-    clipboard.junctions.map((junction) => [
-      junction.id,
-      uniqueCopyId(junction.id, sequence, occupied),
-    ]),
+    clipboard.junctions.map((junction) => [junction.id, pastedId(junction.id)]),
   );
   const netIds = new Map<string, string>();
   const noConnectIds = new Map(
     clipboard.noConnects.map((noConnect) => [
       noConnect.id,
-      uniqueCopyId(noConnect.id, sequence, occupied),
+      pastedId(noConnect.id),
     ]),
   );
   const annotationIds = new Map(
     clipboard.annotations.map((annotation) => [
       annotation.id,
-      uniqueCopyId(annotation.id, sequence, occupied),
+      pastedId(annotation.id),
     ]),
   );
   const evidenceIds = new Map(
     clipboard.connectivityEvidence.map((evidence) => [
       evidence.id,
-      uniqueCopyId(evidence.id, sequence, occupied),
+      pastedId(evidence.id),
     ]),
   );
   const layoutGroupIds = new Map(
-    clipboard.layoutGroups.map((group) => [
-      group.id,
-      uniqueCopyId(group.id, sequence, occupied),
-    ]),
+    clipboard.layoutGroups.map((group) => [group.id, pastedId(group.id)]),
   );
   const constraintIds = new Map(
     clipboard.constraints.map((constraint) => [
       constraint.id,
-      uniqueCopyId(constraint.id, sequence, occupied),
+      pastedId(constraint.id),
     ]),
   );
   const errors: string[] = [];
@@ -1360,28 +1404,18 @@ export function proposePaste(
   const terminalIds = new Map(
     clipboard.cellTerminals.map((terminal) => [
       terminal.id,
-      uniqueCopyId(terminal.id, sequence, occupied),
+      pastedId(terminal.id),
     ]),
   );
   for (const net of clipboard.nets) {
-    netIds.set(net.id, uniqueCopyId(net.id, sequence, occupied));
+    netIds.set(net.id, pastedId(net.id));
   }
   for (const junction of clipboard.junctions) {
-    // A junction can arrive without its net (a junction-only marquee copy
-    // clones no internal Route, so the net is never cloned): the paste
-    // creates a fresh net for it instead of emitting an undefined netId.
-    if (!netIds.has(junction.netId)) {
-      netIds.set(
-        junction.netId,
-        uniqueCopyId(junction.netId, sequence, occupied),
-      );
-    }
+    if (!netIds.has(junction.netId))
+      netIds.set(junction.netId, pastedId(junction.netId));
   }
   const draftingIds = new Map(
-    clipboard.draftingObjects.map((object) => [
-      object.id,
-      uniqueCopyId(object.id, sequence, occupied),
-    ]),
+    clipboard.draftingObjects.map((object) => [object.id, pastedId(object.id)]),
   );
   const objectIds = new Map<string, string>([
     ...instanceIds,

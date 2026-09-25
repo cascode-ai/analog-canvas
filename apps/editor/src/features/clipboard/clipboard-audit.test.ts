@@ -122,9 +122,9 @@ describe("clipboard audit batch", () => {
     ).not.toContain("P2");
     const result = paste(document, clipboard!);
     if (!result.ok) throw new Error(`paste rejected: ${result.error.message}`);
-    expect(
-      result.document.instances.filter((i) => i.id.startsWith("P1")),
-    ).toHaveLength(2);
+    expect(result.document.instances).toHaveLength(
+      document.instances.length + 1,
+    );
   });
 
   it("junction-only copy pastes into a fresh net (#16)", () => {

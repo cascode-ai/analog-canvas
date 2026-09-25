@@ -2778,7 +2778,7 @@ test("connects copied multi-pin groups through a manually bent wire", async ({
   await page
     .getByTestId("schematic-canvas")
     .click({ position: { x: 460, y: 500 } });
-  await page.getByTestId("terminal-M2-copy-1-S").click();
+  await page.getByTestId("terminal-M2_2-S").click();
 
   await expect(page.getByTestId("status")).toContainText("Committed route");
   await expect(page.locator('[data-layer="routes"] polyline')).toHaveCount(3);
@@ -4222,7 +4222,7 @@ test("R rotates a copy preview before committing the copied component", async ({
   await expect(previewSymbol).toHaveAttribute("transform", /rotate\(90\)/u);
   await canvas.click({ position: { x: 560, y: 340 } });
   await expect(
-    canvas.locator('[data-object-id="R1-copy-1"] > g').first(),
+    canvas.locator('[data-object-id="R1_2"] > g').first(),
   ).toHaveAttribute("transform", /rotate\(90\)/u);
   // The pasted designator and its visible label both read R2.
   await expect(canvas.getByText("R2", { exact: true })).toBeVisible();

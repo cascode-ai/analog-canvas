@@ -448,7 +448,7 @@ describe("schematic clipboard", () => {
       (terminal) => terminal.id === "terminal-input",
     );
     const copiedTerminal = result.document.netlist?.terminals.find((terminal) =>
-      terminal.interfaceInstanceIds.includes("P1-copy-1"),
+      terminal.interfaceInstanceIds.includes("P1_2"),
     );
     expect(originalTerminal).toMatchObject({
       name: "VIN",
@@ -459,7 +459,7 @@ describe("schematic clipboard", () => {
     expect(copiedTerminal).toMatchObject({
       name: "VIN",
       direction: "input",
-      interfaceInstanceIds: ["P1-copy-1"],
+      interfaceInstanceIds: ["P1_2"],
     });
     expect(copiedTerminal?.id).not.toBe(originalTerminal?.id);
     expect(copiedTerminal?.netId).not.toBe(originalTerminal?.netId);
@@ -467,7 +467,7 @@ describe("schematic clipboard", () => {
     const copiedAnnotation = result.document.annotations.find(
       (annotation) =>
         annotation.anchor.kind === "object" &&
-        annotation.anchor.objectId === "P1-copy-1",
+        annotation.anchor.objectId === "P1_2",
     );
     expect(copiedAnnotation?.binding).toEqual({
       kind: "cell-terminal-name",
@@ -706,11 +706,11 @@ describe("schematic clipboard", () => {
     expect(result.document.nets).toHaveLength(2);
     expect(resolveDocumentLogicalNets(result.document).groups).toHaveLength(1);
     expect(result.document.routes[1]).toMatchObject({
-      netId: "net-signal-copy-1",
-      start: { instanceId: "R1-copy-1" },
+      netId: "net-signal_2",
+      start: { instanceId: "R1_2" },
     });
     expect(routeEnd(result.document.routes[1]!)).toMatchObject({
-      instanceId: "R2-copy-1",
+      instanceId: "R2_2",
     });
     expect(routeBends(result.document.routes[1]!)).toEqual([
       { x: 120, y: 100 },
@@ -983,7 +983,7 @@ describe("schematic clipboard", () => {
     expect(
       copyPlacementOrientationEdits(
         [instance],
-        ["R1-copy-1"],
+        ["R1_2"],
         [
           { kind: "rotate", deltaDegrees: 90 },
           { kind: "reflect", direction: "left-right" },
@@ -991,13 +991,13 @@ describe("schematic clipboard", () => {
         ],
       ),
     ).toEqual([
-      { kind: "rotate_instance", instanceId: "R1-copy-1", rotation: 180 },
+      { kind: "rotate_instance", instanceId: "R1_2", rotation: 180 },
       {
         kind: "mirror_instance",
-        instanceId: "R1-copy-1",
+        instanceId: "R1_2",
         mirror: "horizontal",
       },
-      { kind: "rotate_instance", instanceId: "R1-copy-1", rotation: 270 },
+      { kind: "rotate_instance", instanceId: "R1_2", rotation: 270 },
     ]);
   });
 
@@ -1062,17 +1062,17 @@ describe("schematic clipboard", () => {
         annotation.anchor.objectId === previewInstanceId,
     );
     const committedLabel = result.document.annotations.find(
-      (annotation) => annotation.id === "label-r1-copy-1",
+      (annotation) => annotation.id === "label-r1_2",
     );
     expect(previewLabel?.anchor).toEqual({
       kind: "object",
-      objectId: "R1-copy-0",
+      objectId: "R1_2",
       localOffset: { x: 20, y: 0 },
       fallbackPosition: { x: 160, y: 100 },
     });
     expect(committedLabel?.anchor).toEqual({
       kind: "object",
-      objectId: "R1-copy-1",
+      objectId: "R1_2",
       localOffset: { x: 20, y: 0 },
       fallbackPosition: { x: 160, y: 100 },
     });
@@ -1134,7 +1134,7 @@ describe("schematic clipboard", () => {
 
     const copied = copySelection(document, ["R1"]);
     const proposal = proposePaste(document, copied!, { x: 20, y: 0 }, 1);
-    expect(proposal.instanceIds).toEqual(["R1-copy-1"]);
+    expect(proposal.instanceIds).toEqual(["R1_2"]);
     // Executing the paste proves the rewritten label stays schema-valid.
     const result = executeTransaction(
       document,
@@ -1151,7 +1151,7 @@ describe("schematic clipboard", () => {
     if (!result.ok) return;
     expect(result.document.instances).toHaveLength(2);
     expect(result.document.instances[1]).toMatchObject({
-      id: "R1-copy-1",
+      id: "R1_2",
       reference: "R2",
     });
     expect(
@@ -1161,6 +1161,84 @@ describe("schematic clipboard", () => {
           flattenRichText(resolveAnnotationText(result.document, annotation)),
         ),
     ).toEqual(["R1", "R2"]);
+  });
+
+  it("never grows a copied identity, and restarts one an earlier copy chained", () => {
+    const document = createEmptyDocument("document-main", "Copied copies");
+    document.instances.push(
+      resistorInstance("R1", "R1"),
+      resistorInstance("R1-copy-1-copy-3", "R2"),
+    );
+    document.annotations.push(
+      instanceLabel("R1", "R1"),
+      instanceLabel("R1-copy-1-copy-3", "R2"),
+    );
+    const paste = (current: typeof document, id: string) => {
+      const proposal = proposePaste(
+        current,
+        copySelection(current, [id])!,
+        { x: 20, y: 0 },
+        1,
+      );
+      const result = executeTransaction(
+        current,
+        {
+          transactionId: `paste-${id}`,
+          documentId: current.id,
+          expectedRevision: current.revision,
+          actor: { kind: "human", id: "test" },
+          edits: proposal.edits,
+        },
+        { symbolResolver: resolver },
+      );
+      if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+      return { id: proposal.instanceIds[0]!, document: result.document };
+    };
+    const copy = paste(document, "R1");
+    const copyOfCopy = paste(copy.document, copy.id);
+    const chained = paste(copyOfCopy.document, "R1-copy-1-copy-3");
+    expect([copy.id, copyOfCopy.id, chained.id]).toEqual([
+      "R1_2",
+      "R1_3",
+      "R1_4",
+    ]);
+    // One ordinal for the whole paste keeps the identities derived from a
+    // part, its label here, paired with it.
+    expect(
+      chained.document.annotations.map((annotation) => annotation.id),
+    ).toContain("instance-label-R1_4");
+  });
+
+  it("numbers copied objects that share a stem apart, and a label after its part", () => {
+    const document = createEmptyDocument("document-main", "Shared stems");
+    document.instances.push(
+      resistorInstance("R1", "R1"),
+      resistorInstance("R1-copy-1", "R2"),
+    );
+    // Only the older copy carries a label named after it.
+    document.annotations.push(instanceLabel("R1-copy-1", "R2"));
+    const proposal = proposePaste(
+      document,
+      copySelection(document, ["R1", "R1-copy-1"])!,
+      { x: 20, y: 0 },
+      1,
+    );
+    expect(proposal.instanceIds).toEqual(["R1_2", "R1_3"]);
+    expect(proposal.idRemap.annotations).toEqual({
+      "instance-label-R1-copy-1": "instance-label-R1_3",
+    });
+    const result = executeTransaction(
+      document,
+      {
+        transactionId: "paste-shared-stems",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: proposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    expect(result.ok).toBe(true);
   });
 
   it("increments batch-copied designators without collisions", () => {
@@ -1177,7 +1255,7 @@ describe("schematic clipboard", () => {
       },
       1,
     );
-    expect(pasted.instanceIds).toEqual(["R1-copy-1"]);
+    expect(pasted.instanceIds).toEqual(["R1_2"]);
     const once = executeTransaction(
       document,
       {
@@ -1200,7 +1278,7 @@ describe("schematic clipboard", () => {
       },
       2,
     );
-    expect(pasted.instanceIds).toEqual(["R1-copy-2"]);
+    expect(pasted.instanceIds).toEqual(["R1_3"]);
   });
 
   it("resets a copied display alias to the fresh instance reference", () => {
@@ -1231,7 +1309,7 @@ describe("schematic clipboard", () => {
     expect(
       proposal.edits.find((edit) => edit.kind === "add_instance"),
     ).toMatchObject({ instance: { reference: "R2" } });
-    expect(proposal.instanceIds).toEqual(["R1-copy-1"]);
+    expect(proposal.instanceIds).toEqual(["R1_2"]);
   });
 
   it("falls back to an opaque copy id when the source id diverges", () => {
@@ -1245,7 +1323,7 @@ describe("schematic clipboard", () => {
       { x: 20, y: 0 },
       1,
     );
-    expect(proposal.instanceIds).toEqual(["custom-1-copy-1"]);
+    expect(proposal.instanceIds).toEqual(["custom-1_2"]);
     const pastedInstance = proposal.edits.find(
       (edit): edit is Extract<typeof edit, { kind: "add_instance" }> =>
         edit.kind === "add_instance",
@@ -1261,7 +1339,7 @@ describe("schematic clipboard", () => {
     );
     expect(pastedLabel!.annotation.binding).toEqual({
       kind: "instance-reference",
-      instanceId: "custom-1-copy-1",
+      instanceId: "custom-1_2",
     });
   });
 
@@ -1393,7 +1471,9 @@ describe("schematic clipboard", () => {
     if (!result.ok) return;
     expect(
       result.document.nets.some((net) =>
-        net.terminals.some((terminal) => terminal.instanceId === "R1-copy-1"),
+        net.terminals.some(
+          (terminal) => terminal.instanceId === proposal.instanceIds[0],
+        ),
       ),
     ).toBe(false);
   });
@@ -1439,17 +1519,17 @@ describe("captureDocumentComposition", () => {
       },
     });
     expect(proposal.compositionOccurrence).toMatchObject({
-      id: "composition-source-document-copy-1",
+      id: "composition-source-document-1",
       sourceDocumentId: "source-document",
       targetDocumentId: "target-document",
       objectIdRemap: {
-        instances: { R7: "R7-copy-1" },
+        instances: { R7: "R7_2" },
       },
     });
     expect(added).toMatchObject({
       kind: "add_instance",
       instance: {
-        id: "R7-copy-1",
+        id: "R7_2",
         reference: "R7",
         netlist: { parameters: { value: "10k" } },
       },
@@ -1706,10 +1786,10 @@ describe("captureDocumentComposition", () => {
     if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
     expect(result.document.instances[0]?.mosBulkBinding).toEqual({
       origin: "instance-override",
-      netId: "net-substrate-copy-1",
+      netId: "net-substrate_2",
     });
     expect(result.document.nets[0]?.terminals).toEqual([
-      { instanceId: "M1-copy-1", pinName: "B" },
+      { instanceId: "M1_2", pinName: "B" },
     ]);
   });
 
@@ -1804,23 +1884,23 @@ describe("captureDocumentComposition", () => {
       name: "Combined",
       formalParameters: [{ name: "GAIN", defaultValue: "10" }],
       terminals: [
-        { id: "terminal-a-copy-1", netId: "net-a-copy-1" },
-        { id: "terminal-b-copy-1", netId: "net-b-copy-1" },
+        { id: "terminal-a_2", netId: "net-a_2" },
+        { id: "terminal-b_2", netId: "net-b_2" },
       ],
     });
     expect(result.document.layoutGroups).toEqual([
       {
-        id: "mixed-group-copy-1",
+        id: "mixed-group_2",
         kind: "custom",
-        objectIds: ["P1-copy-1", "net-a-copy-1"],
+        objectIds: ["P1_2", "net-a_2"],
         locked: false,
       },
     ]);
     expect(result.document.constraints).toEqual([
       {
-        id: "pin-alignment-copy-1",
+        id: "pin-alignment_2",
         kind: "align-y",
-        objectIds: ["P1-copy-1", "P2-copy-1"],
+        objectIds: ["P1_2", "P2_2"],
         locked: false,
       },
     ]);
@@ -1976,12 +2056,12 @@ describe("captureDocumentComposition", () => {
     if (!second.ok) throw new Error(JSON.stringify(second, null, 2));
 
     expect(firstProposal.compositionOccurrence).toMatchObject({
-      id: "composition-source-document-copy-1",
+      id: "composition-source-document-1",
       sourceDocumentId: "source-document",
       targetDocumentId: "target-document",
     });
     expect(secondProposal.compositionOccurrence).toMatchObject({
-      id: "composition-source-document-copy-2",
+      id: "composition-source-document-2",
       sourceDocumentId: "source-document",
       targetDocumentId: "target-document",
     });
@@ -2059,18 +2139,18 @@ describe("captureDocumentComposition", () => {
       (net) => net.id === proposal.idRemap.nets["net-label-only"],
     );
     expect(copiedNet).toEqual({
-      id: "net-label-only-copy-1",
+      id: "net-label-only_2",
       terminals: [],
     });
     expect(result.document.nets).toContainEqual({
-      id: "net-empty-source-fact-copy-1",
+      id: "net-empty-source-fact_2",
       terminals: [],
     });
     expect(result.document.annotations).toEqual([
       expect.objectContaining({
-        id: "power-label-vdd1-copy-1",
-        netId: "net-label-only-copy-1",
-        binding: { kind: "net-name", netId: "net-label-only-copy-1" },
+        id: "power-label-vdd1_2",
+        netId: "net-label-only_2",
+        binding: { kind: "net-name", netId: "net-label-only_2" },
       }),
     ]);
     expect(result.document.junctions).toEqual([]);
@@ -2135,18 +2215,18 @@ describe("captureDocumentComposition", () => {
     expect(pastedObjects).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: "scene-rectangle-copy-1",
+          id: "scene-rectangle_2",
           kind: "rectangle",
           center: { x: 140, y: 80 },
         }),
         expect.objectContaining({
-          id: "scene-arrow-copy-1",
+          id: "scene-arrow_2",
           kind: "arrow",
           from: { kind: "free", position: { x: 100, y: 50 } },
           to: { kind: "free", position: { x: 180, y: 50 } },
         }),
         expect.objectContaining({
-          id: "scene-leader-copy-1",
+          id: "scene-leader_2",
           kind: "leader",
           anchor: { kind: "free", position: { x: 100, y: 70 } },
           target: { kind: "free", position: { x: 180, y: 70 } },
@@ -2157,11 +2237,7 @@ describe("captureDocumentComposition", () => {
       proposal.edits.find((edit) => edit.kind === "set_layout_group"),
     ).toMatchObject({
       group: {
-        objectIds: [
-          "scene-rectangle-copy-1",
-          "scene-arrow-copy-1",
-          "scene-leader-copy-1",
-        ],
+        objectIds: ["scene-rectangle_2", "scene-arrow_2", "scene-leader_2"],
       },
     });
   });
@@ -2248,7 +2324,7 @@ describe("captureDocumentComposition", () => {
     const pastedArrow = proposal.edits.find(
       (edit) =>
         edit.kind === "upsert_drafting_object" &&
-        edit.object.id === "anchored-arrow-copy-1",
+        edit.object.id === "anchored-arrow_2",
     );
     expect(pastedRoute?.kind).toBe("set_route_path");
     expect(
@@ -2261,12 +2337,12 @@ describe("captureDocumentComposition", () => {
       object: {
         anchor: {
           kind: "object",
-          objectId: "R1-copy-1",
+          objectId: "R1_2",
           fallbackPosition: { x: 120, y: 70 },
         },
         from: {
           kind: "object",
-          objectId: "R1-copy-1",
+          objectId: "R1_2",
           fallbackPosition: { x: 120, y: 70 },
         },
         to: {
