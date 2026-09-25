@@ -168,7 +168,8 @@ interface StoredProjectRow {
 }
 export const GALLERY_MAX_NAME_LENGTH = 120;
 export const GALLERY_MAX_AUTHOR_LENGTH = 40;
-export const GALLERY_MAX_DESCRIPTION_LENGTH = 300;
+/** Room for notes and a full citation, DOI included; tiles show three lines. */
+export const GALLERY_MAX_DESCRIPTION_LENGTH = 1000;
 /**
  * Publishes one account may make in a UTC day. Anti-garbage protection, not a
  * pace limit: ten stopped an ordinary afternoon of posting a chapter's worth

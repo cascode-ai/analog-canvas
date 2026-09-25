@@ -79,6 +79,34 @@ describe("PublishGalleryDialog", () => {
     expect(markup).toContain("cmos");
   });
 
+  it("keeps a pasted description whole and says when it is too long", () => {
+    // A textarea maxLength clipped a pasted citation without a word, and the
+    // clipped text was published. The limit is shown instead.
+    const render = (description: string) =>
+      renderToStaticMarkup(
+        createElement(PublishGalleryDialog, {
+          defaultName: "Ring Oscillator",
+          session: { displayName: "Visitor", isAdmin: false, role: "user" },
+          gateReport: { ok: true, failures: [] },
+          draft: { name: "Ring Oscillator", description, tags: [] },
+          publish: () => Promise.resolve({ status: "unauthorized" as const }),
+          onPublished: () => undefined,
+          onClose: () => undefined,
+        }),
+      );
+    const fits = render("x".repeat(1000));
+    expect(fits).not.toMatch(/<textarea[^>]*maxLength/iu);
+    expect(fits).toContain("1000 / 1000");
+    expect(fits).toMatch(/class="publish-gallery-primary"(?![^>]*disabled)/u);
+    const over = render("x".repeat(1200));
+    expect(over).toContain("x".repeat(1200));
+    expect(over).toContain("1200 / 1000 characters · shorten to publish");
+    expect(over).toContain('data-over="true"');
+    expect(over).toMatch(
+      /<button[^>]*disabled=""[^>]*class="publish-gallery-primary"|class="publish-gallery-primary"[^>]*disabled=""/u,
+    );
+  });
+
   it("never asks for the byline: the account supplies it", () => {
     const markup = renderToStaticMarkup(
       createElement(PublishGalleryDialog, {

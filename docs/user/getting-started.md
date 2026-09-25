@@ -369,6 +369,8 @@ all of its JSON into another editor's Project Code and choose **Apply** (or
 press Ctrl/⌘ + Enter) to reproduce the drawing, including its component
 definitions. The receiving editor keeps its own Project identity and Cloud
 binding. Apply is undoable; invalid code leaves the live drawing unchanged.
+Select parts on the canvas while Project Code is open, and it lights each
+part's whole block of JSON and scrolls the first one into view.
 
 To edit one component, select it and press **E**, or right-click and choose
 **Edit Component Definition**. **Q** continues to edit instance properties.

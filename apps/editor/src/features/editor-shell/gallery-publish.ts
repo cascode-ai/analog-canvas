@@ -18,6 +18,12 @@ export interface GalleryPublishFields {
   tags: readonly string[];
 }
 
+/**
+ * The longest description the Worker accepts (`GALLERY_MAX_DESCRIPTION_LENGTH`),
+ * counted after trimming.
+ */
+export const GALLERY_DESCRIPTION_LIMIT = 1000;
+
 export function galleryPublicationBinding(binding: CloudProjectBinding | null) {
   return binding
     ? {
@@ -225,7 +231,7 @@ export function describePublishOutcome(outcome: GalleryPublishOutcome): string {
         : outcome.message === "cloud-project-not-found"
           ? "This Shelf draft no longer exists or belongs to a different account. Your canvas has not been changed."
           : outcome.message === "invalid-fields"
-            ? "Check the fields: a name is required, and the description has a length cap"
+            ? `Check the fields: a name is required, and the description can be at most ${GALLERY_DESCRIPTION_LIMIT} characters`
             : outcome.message === "invalid-project"
               ? "The Project failed strict validation on the server"
               : outcome.message === "forbidden"

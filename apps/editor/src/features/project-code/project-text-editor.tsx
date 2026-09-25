@@ -3,11 +3,16 @@ import {
   Annotation,
   Compartment,
   EditorState,
+  RangeSetBuilder,
+  StateEffect,
+  StateField,
   Transaction,
   type Extension,
 } from "@codemirror/state";
 import {
+  Decoration,
   EditorView,
+  type DecorationSet,
   drawSelection,
   highlightActiveLine,
   highlightActiveLineGutter,
@@ -44,9 +49,52 @@ interface Props {
   onEnter?(): void;
   onCursorChange?(position: number): void;
   onBlur?(): void;
+  /** Spans lit line by line, such as the parts selected on the canvas. */
+  highlightedRanges?: readonly { from: number; to: number }[];
+  /**
+   * Changes when a new selection should come into view. Typing moves the
+   * lit spans without changing it, so the view does not jump.
+   */
+  revealHighlight?: string;
 }
 
 const externalUpdate = Annotation.define<boolean>();
+
+const setHighlight =
+  StateEffect.define<readonly { from: number; to: number }[]>();
+const highlightedLine = Decoration.line({ class: "cm-code-highlight" });
+
+function highlightDecorations(
+  state: EditorState,
+  ranges: readonly { from: number; to: number }[],
+): DecorationSet {
+  const lines = new Set<number>();
+  for (const range of ranges) {
+    if (range.from > state.doc.length) continue;
+    const first = state.doc.lineAt(range.from).number;
+    const last = state.doc.lineAt(Math.min(range.to, state.doc.length)).number;
+    for (let line = first; line <= last; line++) lines.add(line);
+  }
+  const builder = new RangeSetBuilder<Decoration>();
+  for (const line of [...lines].sort((left, right) => left - right)) {
+    const start = state.doc.line(line).from;
+    builder.add(start, start, highlightedLine);
+  }
+  return builder.finish();
+}
+
+/** Lit lines, carried through edits until the next selection replaces them. */
+const highlightField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(lines, transaction) {
+    let next = lines.map(transaction.changes);
+    for (const effect of transaction.effects)
+      if (effect.is(setHighlight))
+        next = highlightDecorations(transaction.state, effect.value);
+    return next;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
 
 /** A compact project-level editor: source text, line numbers, and syntax color only. */
 export default function ProjectTextEditor(props: Props) {
@@ -74,6 +122,7 @@ export default function ProjectTextEditor(props: Props) {
             },
           }),
           history(),
+          highlightField,
           bracketMatching(),
           syntaxHighlighting(defaultHighlightStyle),
           configuration.current.of(configuredExtensions(read())),
@@ -162,6 +211,27 @@ export default function ProjectTextEditor(props: Props) {
       ],
     });
   }, [props.value]);
+
+  const highlightKey = JSON.stringify(props.highlightedRanges ?? []);
+  useLayoutEffect(() => {
+    viewRef.current?.dispatch({
+      effects: setHighlight.of(props.highlightedRanges ?? []),
+    });
+    // Keyed by content: a new array with the same spans does not repaint.
+  }, [highlightKey]);
+
+  useLayoutEffect(() => {
+    const view = viewRef.current;
+    const first = props.highlightedRanges?.[0];
+    if (!view || !first || first.from > view.state.doc.length) return;
+    view.dispatch({
+      effects: EditorView.scrollIntoView(first.from, {
+        y: "start",
+        yMargin: 24,
+      }),
+    });
+    // Only a new selection scrolls; see `revealHighlight`.
+  }, [props.revealHighlight]);
 
   return (
     <div

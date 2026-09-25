@@ -7,6 +7,7 @@ import { galleryTagLabel } from "../../gallery-tag-label";
 
 import {
   describePublishOutcome,
+  GALLERY_DESCRIPTION_LIMIT,
   type GalleryPublishFields,
   type GalleryPublishOutcome,
   type PublishSessionUser,
@@ -164,6 +165,11 @@ export function PublishGalleryDialog({
     tagsEdited,
     onDraftChange,
   ]);
+
+  // The limit is shown, never enforced by clipping: a textarea maxLength cut
+  // a pasted citation short without a word, and the text was published cut.
+  const descriptionLength = description.trim().length;
+  const descriptionTooLong = descriptionLength > GALLERY_DESCRIPTION_LIMIT;
 
   const hasDraft =
     description.trim().length > 0 ||
@@ -383,14 +389,25 @@ export function PublishGalleryDialog({
                 <textarea
                   dir="auto"
                   aria-label="Description"
+                  aria-describedby="publish-gallery-description-count"
+                  aria-invalid={descriptionTooLong}
                   value={description}
-                  maxLength={300}
                   rows={3}
                   onChange={(event) => {
                     setDescriptionEdited(true);
                     setDescription(event.currentTarget.value);
                   }}
                 />
+                <span
+                  id="publish-gallery-description-count"
+                  className="publish-gallery-count"
+                  data-over={descriptionTooLong ? "true" : "false"}
+                  data-testid="publish-description-count"
+                >
+                  {descriptionTooLong
+                    ? `${descriptionLength} / ${GALLERY_DESCRIPTION_LIMIT} characters · shorten to publish`
+                    : `${descriptionLength} / ${GALLERY_DESCRIPTION_LIMIT}`}
+                </span>
               </label>
               <div className="publish-gallery-tags" data-testid="publish-tags">
                 <span className="publish-gallery-tags-label">
@@ -501,7 +518,8 @@ export function PublishGalleryDialog({
                 linkBusy ||
                 publicationLinkLoading ||
                 !!publicationLinkError ||
-                name.trim() === ""
+                name.trim() === "" ||
+                descriptionTooLong
               }
               onClick={() => void submit()}
             >
