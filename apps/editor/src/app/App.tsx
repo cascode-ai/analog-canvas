@@ -296,6 +296,7 @@ import {
   useEditorAgentSession,
   WorkspaceAgentProvider,
 } from "../agent/workspace-agent";
+import type { UseAgentSessionOptions } from "../agent/use-agent-session";
 import { peekAgentSessionRecovery } from "../agent/session-recovery";
 export { WorkspaceAgentProvider } from "../agent/workspace-agent";
 import type { AgentFileCandidateSummary } from "@icm/agent-adapter";
@@ -315,8 +316,10 @@ import {
   CLOUD_PROJECT_LIMIT,
   deleteCloudProject,
   listCloudProjects,
+  saveCloudProject,
   type CloudProjectSummary,
 } from "../features/editor-shell/cloud-projects";
+import { projectChangeToken } from "../document/project-session-lifecycle";
 import {
   defaultRazaviSymbolVariantId,
   materializeRazaviProjectBulkConnections,
@@ -1000,10 +1003,15 @@ function WorkspaceEditor({
           ) ?? null,
         getResolver: () => editorDocumentController.resolver,
         onApprovalRequested: setAgentFileCandidate,
-        openProjectInNewTab: (candidate) =>
-          openProjectInTabRef.current(candidate, DEFAULT_VIEWBOX, {
-            source: "opened-file",
-          }),
+        openProjectInNewTab: (candidate, background) =>
+          openProjectInTabRef.current(
+            candidate,
+            DEFAULT_VIEWBOX,
+            {
+              source: "opened-file",
+            },
+            background,
+          ),
         dispatchProjectTransaction: (request) =>
           browserAgentHost.dispatchProjectTransaction(request),
       }),
@@ -1052,6 +1060,7 @@ function WorkspaceEditor({
   const agentWorkspaceRef = useRef<
     (
       request: Extract<AgentProjectResourceRequest, { operation: "workspace" }>,
+      targetWorkspaceId?: string,
     ) => Promise<AgentProjectResourceResponse>
   >(async () => {
     throw new Error("Workspace is initializing");
@@ -1148,6 +1157,7 @@ function WorkspaceEditor({
       project: CircuitProject,
       view: GridRect,
       options: ReplaceProjectOptions,
+      background?: boolean,
     ) => Promise<boolean>
   >(async () => false);
   const captureAuthoredProject = async () => {
@@ -1200,8 +1210,8 @@ function WorkspaceEditor({
     openProjectFile,
     openCloudProjectById,
   } = useProjectFileLifecycle({
-    openProjectInTab: (project, view, options) =>
-      openProjectInTabRef.current(project, view, options),
+    openProjectInTab: (project, view, options, background) =>
+      openProjectInTabRef.current(project, view, options, background),
     restoreWorkingSession: agentStartupRecovery !== null,
     externalWorkspaceRestored: restoredWorkspace !== null,
     galleryEntryId: canUpdateGalleryPublication(
@@ -1370,6 +1380,21 @@ function WorkspaceEditor({
     publishSession,
     startupCloudProjectId,
   ]);
+  const agentTargetRef = useRef<
+    NonNullable<UseAgentSessionOptions["resolveWorkspace"]>
+  >(() => null);
+  const backgroundAgentHosts = useRef(
+    new Map<
+      EditorDocumentController,
+      {
+        sessionId: string;
+        host: BrowserAgentHost;
+        fileHost: BrowserAgentFileHost;
+        simulationHost: BrowserAgentSimulationHost;
+        projectHost: BrowserAgentProjectHost;
+      }
+    >(),
+  );
   const agentSession = useEditorAgentSession({
     // A restored workspace is already the requested circuit. Resume its
     // matching Agent only after the active Project and working copy are installed.
@@ -1395,6 +1420,7 @@ function WorkspaceEditor({
     fileHost: browserAgentFileHost,
     simulationHost: browserAgentSimulationHost,
     projectHost: browserAgentProjectHost,
+    resolveWorkspace: (workspaceId) => agentTargetRef.current(workspaceId),
   });
   useEffect(() => {
     if (!publicAgentUiEnabled) return;
@@ -5036,12 +5062,19 @@ function WorkspaceEditor({
       setStatus(error instanceof Error ? error.message : String(error));
     }
   }, [projectTabs.activeId]);
-  openProjectInTabRef.current = (next, view, options) =>
-    projectTabs.open(
-      () => createTabSession(next, view, options),
-      options.cloudBinding?.id,
-    );
-  agentWorkspaceRef.current = async (envelope) => {
+  openProjectInTabRef.current = (next, view, options, background) =>
+    background
+      ? Promise.resolve(
+          projectTabs.openBackground(
+            () => createTabSession(next, view, options),
+            options.cloudBinding?.id,
+          ),
+        )
+      : projectTabs.open(
+          () => createTabSession(next, view, options),
+          options.cloudBinding?.id,
+        );
+  agentWorkspaceRef.current = async (envelope, targetWorkspaceId) => {
     const request = envelope.request;
     const { copyWorkspaceCell, listWorkspaceProjects, workspaceResponses } =
       await import("../agent/workspace-copy");
@@ -5066,15 +5099,116 @@ function WorkspaceEditor({
             );
       }
       if (request.action === "open") {
-        const result = await openCloudProjectById(request.cloudProjectId, true);
+        const result = await openCloudProjectById(
+          request.cloudProjectId,
+          true,
+          request.background === true,
+        );
         return result.applied
-          ? success({ action: "open", applied: true })
+          ? success({
+              action: "open",
+              applied: true,
+              workspaceId: projectTabs
+                .entries()
+                .find(
+                  (item) =>
+                    item.session.file.cloudBinding?.id ===
+                    request.cloudProjectId,
+                )?.id,
+            })
           : fail(
               "CLOUD_OPEN_FAILED",
               result.message ?? "Cloud Project was not opened",
             );
       }
       if (request.action === "save") {
+        if (targetWorkspaceId && targetWorkspaceId !== projectTabs.activeId) {
+          const target = entries.find((item) => item.id === targetWorkspaceId);
+          if (!target)
+            return fail(
+              "WORKSPACE_NOT_FOUND",
+              "Working copy is no longer open",
+            );
+          const controller = target.session.controller;
+          const candidate = structuredClone(controller.project);
+          const token = projectChangeToken(candidate);
+          target.session.file.persistenceState = "saving";
+          projectTabs.changed();
+          const outcome = await saveCloudProject(
+            candidate,
+            request.asNew ? null : target.session.file.cloudBinding,
+          );
+          const liveTarget = projectTabs
+            .entries()
+            .find(
+              (item) =>
+                item.id === targetWorkspaceId &&
+                item.session.controller === controller,
+            );
+          if (!liveTarget)
+            return fail(
+              "WORKSPACE_NOT_FOUND",
+              "Working copy closed while Cloud save was in flight; check the Cloud Project shelf",
+            );
+          if (outcome.status === "saved") {
+            const stillCurrent =
+              projectChangeToken(controller.project) === token &&
+              (targetWorkspaceId !== projectTabs.activeId ||
+                (!codeDraftDirty &&
+                  simulationSourceBuffer.current?.dirty !== true));
+            liveTarget.session.file.cloudBinding = {
+              id: outcome.project.id,
+              revision: outcome.project.revision,
+              galleryEntryId: outcome.project.galleryEntryId ?? null,
+            };
+            liveTarget.session.file.savedBaseline = {
+              project: candidate,
+              viewBox: { ...liveTarget.session.view },
+            };
+            liveTarget.session.file.persistenceState = stillCurrent
+              ? "clean"
+              : "dirty";
+            liveTarget.session.dirty = !stillCurrent;
+            liveTarget.session.unsafe = !stillCurrent;
+            if (targetWorkspaceId === projectTabs.activeId) {
+              restoreFileSession(liveTarget.session.file);
+              stageRecovery(controller.project, {
+                cloudBinding: liveTarget.session.file.cloudBinding,
+                unsavedAtSnapshot: !stillCurrent,
+              });
+              void flushRecovery();
+            }
+            cloudListMutationRef.current += 1;
+            setCloudProjects((current) => [
+              outcome.project,
+              ...current.filter((item) => item.id !== outcome.project.id),
+            ]);
+            projectTabs.changed();
+            const { id, name, revision, updatedAt, schemaVersion } =
+              outcome.project;
+            return success({
+              action: "save",
+              project: { id, name, revision, updatedAt, schemaVersion },
+            });
+          }
+          liveTarget.session.file.persistenceState =
+            outcome.status === "conflict"
+              ? "conflict"
+              : outcome.status === "unreachable"
+                ? "offline"
+                : "failed";
+          if (targetWorkspaceId === projectTabs.activeId)
+            restoreFileSession(liveTarget.session.file);
+          projectTabs.changed();
+          return fail(
+            `CLOUD_SAVE_${outcome.status.toUpperCase().replaceAll("-", "_")}`,
+            outcome.status === "conflict"
+              ? `Cloud revision ${outcome.project.revision} conflicts with this working copy; nothing overwritten`
+              : "message" in outcome
+                ? outcome.message
+                : `Cloud save ${outcome.status}; local work retained`,
+          );
+        }
         const outcome = await saveProjectToCloud(
           undefined,
           request.asNew === true,
@@ -5128,6 +5262,125 @@ function WorkspaceEditor({
         error instanceof Error ? error.message : String(error),
       );
     }
+  };
+  agentTargetRef.current = (workspaceId) => {
+    const entry = projectTabs.entries().find((item) => item.id === workspaceId);
+    if (!entry) return null;
+    if (workspaceId === projectTabs.activeId)
+      return {
+        host: browserAgentHost,
+        fileHost: browserAgentFileHost,
+        simulationHost: browserAgentSimulationHost,
+        projectHost: browserAgentProjectHost,
+      };
+    const controller = entry.session.controller;
+    const available = () =>
+      projectTabs
+        .entries()
+        .some(
+          (item) =>
+            item.id === workspaceId && item.session.controller === controller,
+        );
+    const cached = backgroundAgentHosts.current.get(controller);
+    if (cached?.sessionId === controller.projectSessionId) return cached;
+    const committed = () => {
+      const current = projectTabs
+        .entries()
+        .find(
+          (item) =>
+            item.id === workspaceId && item.session.controller === controller,
+        );
+      if (!current) return;
+      if (workspaceId === projectTabs.activeId) {
+        synchronizeExternalCommit();
+        void flushRecovery();
+      } else {
+        current.session.dirty = true;
+        current.session.unsafe = true;
+        current.session.file.persistenceState = "dirty";
+      }
+      projectTabs.changed();
+    };
+    const host = new BrowserAgentHost(
+      controller,
+      committed,
+      undefined,
+      available,
+    );
+    const existing = agentProjectResources.current
+      .get(controller)
+      ?.get(`${controller.projectSessionId}:${simulationTransport}`);
+    const fileHost =
+      existing?.files ??
+      new BrowserAgentFileHost({
+        transport: simulationTransport,
+        getProjectSessionId: () =>
+          available() ? controller.projectSessionId : "closed",
+        getProject: () => controller.project,
+        getDocument: (id) =>
+          controller.project.documents.find((item) => item.id === id) ?? null,
+        getResolver: () => controller.resolver,
+        onApprovalRequested: setAgentFileCandidate,
+        openProjectInNewTab: (candidate, background) =>
+          openProjectInTabRef.current(
+            candidate,
+            DEFAULT_VIEWBOX,
+            {
+              source: "opened-file",
+            },
+            background,
+          ),
+        dispatchProjectTransaction: (request) =>
+          host.dispatchProjectTransaction(request),
+      });
+    const history =
+      existing?.history ?? new ProjectRunHistory(controller.project.id);
+    history.activate();
+    const simulationHost =
+      existing?.simulation ??
+      new BrowserAgentSimulationHost({
+        runHistory: history,
+        owner: "agent",
+        files: fileHost.simulationFiles,
+        getProjectSessionId: () =>
+          available() ? controller.projectSessionId : "closed",
+        getProject: () => controller.project,
+        transport: simulationTransport,
+      });
+    const projectHost = new BrowserAgentProjectHost({
+      workspace: (request) => agentWorkspaceRef.current(request, workspaceId),
+      getProjectSessionId: () =>
+        available() ? controller.projectSessionId : "closed",
+      getProject: () => controller.project,
+      getActiveDocumentId: () => controller.document.id,
+      commitProjectStructure: (next, activeDocumentId) => {
+        controller.commitProjectStructure(next, activeDocumentId);
+        committed();
+      },
+      dispatchProjectTransaction: (request) =>
+        host.dispatchProjectTransaction(request),
+    });
+    const target = {
+      sessionId: controller.projectSessionId,
+      host,
+      fileHost,
+      simulationHost,
+      projectHost,
+    };
+    backgroundAgentHosts.current.set(controller, target);
+    if (!existing) {
+      let group = agentProjectResources.current.get(controller);
+      if (!group) {
+        group = new Map();
+        agentProjectResources.current.set(controller, group);
+      }
+      group.set(`${controller.projectSessionId}:${simulationTransport}`, {
+        files: fileHost,
+        history,
+        simulation: simulationHost,
+      });
+    }
+    return target;
   };
   const allowNextBrowserUnload = useUnsavedWorkGuard(projectTabs.hasUnsafeTabs);
 

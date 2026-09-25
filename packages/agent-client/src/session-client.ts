@@ -181,6 +181,8 @@ export class AgentSessionClient {
   >();
   private session: ActiveSession | null = null;
   private observation: AgentSessionStatusResponse | null = null;
+  private boundWorkspace: { projectId: string; documentIds: string[] } | null =
+    null;
   private capabilitiesCache: AgentCapabilitiesResponse | null = null;
   private resumePromise: Promise<ActiveSession | null> | null = null;
   private simulationMetadata = new Map<
@@ -196,6 +198,7 @@ export class AgentSessionClient {
     return JSON.stringify([
       this.session?.sessionId,
       this.session?.projectId,
+      this.http.workspaceId,
       this.http.contextRevision,
       Object.entries(selection).sort(([a], [b]) => a.localeCompare(b)),
     ]);
@@ -259,6 +262,8 @@ export class AgentSessionClient {
     this.connection.apply("claim-started");
     try {
       const claim: ClaimSuccess = await this.http.claim(claimCode.trim());
+      this.http.workspaceId = undefined;
+      this.boundWorkspace = null;
       this.cache.clear();
       this.knownRevisions.clear();
       this.receipts.length = 0;
@@ -397,8 +402,10 @@ export class AgentSessionClient {
           this.knownRevisions.clear();
           this.capabilitiesCache = null;
         }
-        if (this.session) this.session.projectId = this.observation.projectId;
-        this.updateDocumentRoster(this.observation.documentIds);
+        if (!this.boundWorkspace) {
+          if (this.session) this.session.projectId = this.observation.projectId;
+          this.updateDocumentRoster(this.observation.documentIds);
+        }
       } catch (error) {
         if (!(error instanceof AgentSessionError)) throw error;
         if (
@@ -421,8 +428,13 @@ export class AgentSessionClient {
       ...this.connection.snapshot,
       observation: this.observation,
       sessionId: this.session?.sessionId ?? null,
-      projectId: this.session?.projectId ?? null,
-      documentIds: [...(this.session?.documentIds ?? [])],
+      projectId:
+        this.boundWorkspace?.projectId ?? this.session?.projectId ?? null,
+      documentIds: [
+        ...(this.boundWorkspace?.documentIds ??
+          this.session?.documentIds ??
+          []),
+      ],
       tokenExpiresAt: this.session?.tokenExpiresAt ?? null,
       tokenValid: this.session ? this.tokenValid(this.session) : false,
       cachedDocuments: [...this.cache.documents()],
@@ -585,6 +597,77 @@ export class AgentSessionClient {
         this.knownRevisions.clear();
       }
     }
+  }
+
+  /** Bind this client to an open working copy without selecting its UI tab. */
+  async bindWorkspace(workspaceId: string | null): Promise<{
+    workspaceId: string | null;
+    projectId: string | null;
+    name: string | null;
+  }> {
+    if (this.inflight.size)
+      throw new AgentSessionError(
+        "WORKSPACE_BUSY",
+        "Wait for in-flight Agent requests before changing the target",
+        "request-rejected",
+      );
+    if (workspaceId === null) {
+      this.http.workspaceId = undefined;
+      this.boundWorkspace = null;
+      this.cache.clear();
+      this.knownRevisions.clear();
+      this.simulationMetadata.clear();
+      await this.status({ refresh: true });
+      return { workspaceId: null, projectId: null, name: null };
+    }
+    const response = await this.projectResource({
+      apiVersion: AGENT_API_VERSION,
+      requestId: this.newRequestId(),
+      operation: "workspace",
+      request: { action: "list" },
+    });
+    if (
+      !response.ok ||
+      response.operation !== "workspace" ||
+      response.result.action !== "list"
+    )
+      throw new AgentSessionError(
+        "WORKSPACE_IDENTITY_UNAVAILABLE",
+        "Cannot list open working copies",
+        "request-rejected",
+      );
+    const target = response.result.projects.find(
+      (item) => item.workspaceId === workspaceId,
+    );
+    if (!target)
+      throw new AgentSessionError(
+        "WORKSPACE_NOT_FOUND",
+        "Working copy is no longer open",
+        "request-rejected",
+      );
+    if (this.inflight.size)
+      throw new AgentSessionError(
+        "WORKSPACE_BUSY",
+        "Wait for in-flight Agent requests before changing the target",
+        "request-rejected",
+      );
+    this.http.workspaceId = workspaceId;
+    this.boundWorkspace = {
+      projectId: target.projectId,
+      documentIds: target.cells.map((cell) => cell.documentId),
+    };
+    if (this.session) {
+      this.session.projectId = target.projectId;
+      this.session.documentIds = [...this.boundWorkspace.documentIds];
+    }
+    this.cache.clear();
+    this.knownRevisions.clear();
+    this.simulationMetadata.clear();
+    return { workspaceId, projectId: target.projectId, name: target.name };
+  }
+
+  get workspaceId(): string | null {
+    return this.http.workspaceId ?? null;
   }
 
   /** Revoke the server session and forget the durable connector locally. */
@@ -1177,6 +1260,8 @@ export class AgentSessionClient {
       preferred && ids.includes(preferred)
         ? [preferred, ...ids.filter((id) => id !== preferred)]
         : [...ids];
+    if (this.boundWorkspace)
+      this.boundWorkspace.documentIds = [...this.session.documentIds];
   }
 
   private rememberRevision(
@@ -1371,7 +1456,7 @@ export class AgentSessionClient {
     operation: (session: ActiveSession) => Promise<T>,
   ): Promise<T> {
     const existing = this.inflight.get(request.requestId);
-    const payload = JSON.stringify([resource, request]);
+    const payload = JSON.stringify([resource, this.http.workspaceId, request]);
     if (existing) {
       if (existing.payload !== payload)
         throw new Error(
@@ -1484,6 +1569,8 @@ export class AgentSessionClient {
     this.observation = null;
     this.connection.apply("credential-revoked", code);
     this.session = null;
+    this.boundWorkspace = null;
+    this.http.workspaceId = undefined;
     this.simulationMetadata.clear();
     this.capabilitiesCache = null;
     this.cache.clear();
@@ -1565,6 +1652,13 @@ export class AgentSessionClient {
         stored.connectorToken,
       );
       this.session = this.activeSession(claim);
+      if (this.boundWorkspace && claim.sessionId === stored.sessionId) {
+        this.session.projectId = this.boundWorkspace.projectId;
+        this.session.documentIds = [...this.boundWorkspace.documentIds];
+      } else if (this.boundWorkspace) {
+        this.boundWorkspace = null;
+        this.http.workspaceId = undefined;
+      }
       await this.persistConnector(claim);
       return this.session;
     } catch (error) {
@@ -1624,7 +1718,8 @@ export class AgentSessionClient {
   }
 
   private defaultDocumentId(): string {
-    const documentId = this.session?.documentIds[0];
+    const documentId =
+      this.boundWorkspace?.documentIds[0] ?? this.session?.documentIds[0];
     if (!documentId) {
       throw new AgentSessionError(
         "NOT_CONNECTED",

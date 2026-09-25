@@ -39,7 +39,10 @@ export interface BrowserAgentFileHostOptions {
   getDocument: (documentId: string) => SchematicDocument | null;
   getResolver: () => SymbolResolver;
   onApprovalRequested: (candidate: AgentFileCandidateSummary) => void;
-  openProjectInNewTab?: (project: CircuitProject) => Promise<boolean>;
+  openProjectInNewTab?: (
+    project: CircuitProject,
+    background?: boolean,
+  ) => Promise<boolean>;
   dispatchProjectTransaction?: (
     request: ProjectTransaction,
   ) => ProjectTransactionResult;
@@ -168,7 +171,12 @@ export class BrowserAgentFileHost {
             "FILE_OPEN_UNAVAILABLE",
             "Opening a new Project tab is unavailable in this editor",
           );
-        if (!(await this.options.openProjectInNewTab(candidate.project)))
+        if (
+          !(await this.options.openProjectInNewTab(
+            candidate.project,
+            request.background,
+          ))
+        )
           return this.error(
             request,
             "FILE_OPEN_BLOCKED",

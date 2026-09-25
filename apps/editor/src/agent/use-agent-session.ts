@@ -108,6 +108,8 @@ type LiveSession = {
   >;
   requestCacheBytes: number;
   requestHashes: Map<string, string>;
+  pendingRequests: number;
+  attachedFileHosts: WeakSet<object>;
 };
 
 const BROWSER_CACHE_MAX_ENTRIES = 32;
@@ -163,6 +165,13 @@ export interface UseAgentSessionOptions {
   project: CircuitProject;
   projectSessionId: string;
   host: AgentOperationHost;
+  /** Resolve an open working copy without selecting its browser tab. */
+  resolveWorkspace?: (
+    workspaceId: string,
+  ) => Pick<
+    UseAgentSessionOptions,
+    "host" | "fileHost" | "simulationHost" | "projectHost"
+  > | null;
   fileHost?: {
     setArtifactPublisher?: (
       publisher: (ref: ArtifactRef, text: string) => Promise<string>,
@@ -194,6 +203,20 @@ export interface UseAgentSessionResult extends AgentSessionViewModel {
   reconnect: () => void;
   newConnection: () => Promise<void>;
   revoke: () => Promise<void>;
+}
+
+function attachArtifactPublisher(
+  live: LiveSession,
+  fileHost: UseAgentSessionOptions["fileHost"],
+): void {
+  if (
+    !fileHost?.setArtifactPublisher ||
+    !live.publishArtifact ||
+    live.attachedFileHosts.has(fileHost)
+  )
+    return;
+  fileHost.setArtifactPublisher(live.publishArtifact);
+  live.attachedFileHosts.add(fileHost);
 }
 
 function permissionsFromScopes(
@@ -456,6 +479,8 @@ export function useAgentSession(
           requestCache: new Map(),
           requestCacheBytes: 0,
           requestHashes: new Map(),
+          pendingRequests: 0,
+          attachedFileHosts: new WeakSet(),
         };
         liveRef.current = live;
         live.publishArtifact = async (ref, text) => {
@@ -494,7 +519,7 @@ export function useAgentSession(
             );
           return path;
         };
-        options.fileHost?.setArtifactPublisher?.(live.publishArtifact);
+        attachArtifactPublisher(live, options.fileHost);
 
         const syncDeadline = (expiresAt: number) => {
           live.expiresAt = expiresAt;
@@ -518,9 +543,9 @@ export function useAgentSession(
           host: AgentOperationHost;
           instance: ReturnType<typeof createAgentCircuitService>;
         } | null = null;
-        const service = () => {
+        const service = (selectedHost: AgentOperationHost) => {
           const contextRevision = options.contextRevision;
-          const host = options.host;
+          const host = selectedHost;
           if (
             serviceBinding?.contextRevision === contextRevision &&
             serviceBinding.host === host
@@ -603,6 +628,22 @@ export function useAgentSession(
           return instance;
         };
         const bind = (socket: WebSocket) => {
+          const startWork = () => {
+            live.pendingRequests += 1;
+            update({ status: "working" });
+          };
+          const finishWork = () => {
+            live.pendingRequests = Math.max(0, live.pendingRequests - 1);
+            if (liveRef.current === live)
+              update({
+                status:
+                  live.pendingRequests > 0
+                    ? "working"
+                    : live.paused
+                      ? "paused"
+                      : "connected",
+              });
+          };
           live.socket = socket;
           socket.addEventListener("message", (event) => {
             if (
@@ -636,6 +677,14 @@ export function useAgentSession(
             if (!parsed.success || parsed.data.sessionId !== live.sessionId)
               return;
             transport.received();
+            const target = parsed.data.workspaceId
+              ? (options.resolveWorkspace?.(parsed.data.workspaceId) ?? null)
+              : {
+                  host: options.host,
+                  fileHost: options.fileHost,
+                  simulationHost: options.simulationHost,
+                  projectHost: options.projectHost,
+                };
             if (parsed.data.kind === "event") {
               const sessionEvent = AgentSessionEventSchema.safeParse(
                 parsed.data.payload,
@@ -693,8 +742,10 @@ export function useAgentSession(
             }
             if (
               parsed.data.kind.endsWith("-request") &&
-              (parsed.data.contextRevision !== options.contextRevision ||
-                options.contextReady === false ||
+              (target === null ||
+                (!parsed.data.workspaceId &&
+                  parsed.data.contextRevision !== options.contextRevision) ||
+                (options.contextReady === false && !parsed.data.workspaceId) ||
                 !options.enabled)
             ) {
               const candidate = parsed.data.payload as { operation?: string };
@@ -712,11 +763,15 @@ export function useAgentSession(
                     ok: false,
                     error: {
                       code:
-                        options.contextReady === false
-                          ? "NO_ACTIVE_PROJECT"
-                          : "PROJECT_CONTEXT_STALE",
+                        target === null
+                          ? "WORKSPACE_NOT_FOUND"
+                          : options.contextReady === false
+                            ? "NO_ACTIVE_PROJECT"
+                            : "PROJECT_CONTEXT_STALE",
                       message:
-                        "Read the current browser context before operating on a Project",
+                        target === null
+                          ? "The requested working copy is no longer open"
+                          : "Read the current browser context before operating on a Project",
                       ...(project ? { recovery: "refresh" } : {}),
                       ...(simulation
                         ? { stage: "input", recovery: "fix-input" }
@@ -734,7 +789,7 @@ export function useAgentSession(
               );
               const payloadHash = sha256Hex(
                 JSON.stringify([
-                  parsed.data.contextRevision,
+                  parsed.data.workspaceId ?? parsed.data.contextRevision,
                   parsed.data.payload,
                 ]),
               );
@@ -753,7 +808,7 @@ export function useAgentSession(
                   }),
                 );
               };
-              if (!fileRequest.success || !options.fileHost) {
+              if (!fileRequest.success || !target?.fileHost) {
                 sendFileResponse({
                   apiVersion: AGENT_API_VERSION,
                   requestId: parsed.data.requestId,
@@ -790,8 +845,9 @@ export function useAgentSession(
                 return;
               }
               live.requestHashes.set(parsed.data.requestId, payloadHash);
-              update({ status: "working" });
-              void options.fileHost
+              startWork();
+              attachArtifactPublisher(live, target.fileHost);
+              void target.fileHost
                 .handle(fileRequest.data)
                 .then(sendFileResponse)
                 .catch(() =>
@@ -810,8 +866,7 @@ export function useAgentSession(
                 .finally(() => {
                   if (isReadOnlyFileRequest(fileRequest.data))
                     live.requestHashes.delete(parsed.data.requestId);
-                  if (liveRef.current === live)
-                    update({ status: live.paused ? "paused" : "connected" });
+                  finishWork();
                 });
               return;
             }
@@ -821,7 +876,7 @@ export function useAgentSession(
               );
               const payloadHash = sha256Hex(
                 JSON.stringify([
-                  parsed.data.contextRevision,
+                  parsed.data.workspaceId ?? parsed.data.contextRevision,
                   parsed.data.payload,
                 ]),
               );
@@ -840,7 +895,7 @@ export function useAgentSession(
                   }),
                 );
               };
-              if (!simulationRequest.success || !options.simulationHost) {
+              if (!simulationRequest.success || !target?.simulationHost) {
                 sendSimulationResponse({
                   apiVersion: AGENT_API_VERSION,
                   requestId: parsed.data.requestId,
@@ -877,8 +932,8 @@ export function useAgentSession(
                 return;
               }
               live.requestHashes.set(parsed.data.requestId, payloadHash);
-              update({ status: "working" });
-              void options.simulationHost
+              startWork();
+              void target.simulationHost
                 .handle(simulationRequest.data)
                 .then(sendSimulationResponse)
                 .catch(() =>
@@ -899,8 +954,7 @@ export function useAgentSession(
                 .finally(() => {
                   if (isReadOnlySimulationRequest(simulationRequest.data))
                     live.requestHashes.delete(parsed.data.requestId);
-                  if (liveRef.current === live)
-                    update({ status: live.paused ? "paused" : "connected" });
+                  finishWork();
                 });
               return;
             }
@@ -922,7 +976,7 @@ export function useAgentSession(
                   }),
                 );
               };
-              if (!projectRequest.success || !options.projectHost) {
+              if (!projectRequest.success || !target?.projectHost) {
                 sendProjectResponse({
                   apiVersion: AGENT_API_VERSION,
                   requestId: parsed.data.requestId,
@@ -948,7 +1002,7 @@ export function useAgentSession(
               }
               const payloadHash = sha256Hex(
                 JSON.stringify([
-                  parsed.data.contextRevision,
+                  parsed.data.workspaceId ?? parsed.data.contextRevision,
                   parsed.data.payload,
                 ]),
               );
@@ -975,8 +1029,8 @@ export function useAgentSession(
                 return;
               }
               live.requestHashes.set(parsed.data.requestId, payloadHash);
-              update({ status: "working" });
-              void options.projectHost
+              startWork();
+              void target.projectHost
                 .handle(projectRequest.data)
                 .then(sendProjectResponse)
                 .catch(() =>
@@ -996,8 +1050,7 @@ export function useAgentSession(
                 .finally(() => {
                   if (isReadOnlyProjectRequest(projectRequest.data))
                     live.requestHashes.delete(parsed.data.requestId);
-                  if (liveRef.current === live)
-                    update({ status: live.paused ? "paused" : "connected" });
+                  finishWork();
                 });
               return;
             }
@@ -1006,7 +1059,7 @@ export function useAgentSession(
               parsed.data.payload,
             );
             const payloadKey = JSON.stringify([
-              parsed.data.contextRevision,
+              parsed.data.workspaceId ?? parsed.data.contextRevision,
               parsed.data.payload,
             ]);
             const payloadHash = sha256Hex(payloadKey);
@@ -1071,7 +1124,7 @@ export function useAgentSession(
               return;
             }
             live.requestHashes.set(parsed.data.requestId, payloadHash);
-            update({ status: "working" });
+            startWork();
             // The relay already rejects malformed public payloads, but the
             // browser host repeats that same strict parse before it can touch
             // the live Project.
@@ -1079,7 +1132,7 @@ export function useAgentSession(
               ReturnType<typeof createAgentCircuitService>["handle"]
             >;
             try {
-              result = service().handle(parsed.data.payload);
+              result = service(target!.host).handle(parsed.data.payload);
             } catch (error) {
               console.error("Agent circuit request failed", error);
               sendResponse({
@@ -1105,8 +1158,7 @@ export function useAgentSession(
                 isReadOnlyCircuitRequest(circuitRequest.data)
               )
                 live.requestHashes.delete(parsed.data.requestId);
-              if (liveRef.current === live)
-                update({ status: live.paused ? "paused" : "connected" });
+              finishWork();
               return;
             }
             const responseBytes = new TextEncoder().encode(
@@ -1174,8 +1226,7 @@ export function useAgentSession(
                 }),
               );
             }
-            if (liveRef.current === live)
-              update({ status: live.paused ? "paused" : "connected" });
+            finishWork();
           });
         };
         let opened!: () => void;
@@ -1501,8 +1552,7 @@ export function useAgentSession(
     const live = liveRef.current;
     if (!live) return;
     live.projectId = options.project.id;
-    if (live.publishArtifact)
-      options.fileHost?.setArtifactPublisher?.(live.publishArtifact);
+    attachArtifactPublisher(live, options.fileHost);
     update({ status: live.paused ? "paused" : "reconnecting" });
     if (live.socket) sendHeartbeat(live, live.socket);
   }, [
@@ -1515,8 +1565,8 @@ export function useAgentSession(
   ]);
 
   useEffect(() => {
-    const publisher = liveRef.current?.publishArtifact;
-    if (publisher) options.fileHost?.setArtifactPublisher?.(publisher);
+    const live = liveRef.current;
+    if (live) attachArtifactPublisher(live, options.fileHost);
   }, [options.fileHost]);
 
   useEffect(() => {

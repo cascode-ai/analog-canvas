@@ -20,7 +20,11 @@ export const AgentWorkspaceActionSchema = z.discriminatedUnion("action", [
     action: z.literal("activate"),
     workspaceId: StableIdSchema,
   }),
-  z.strictObject({ action: z.literal("open"), cloudProjectId: StableIdSchema }),
+  z.strictObject({
+    action: z.literal("open"),
+    cloudProjectId: StableIdSchema,
+    background: z.boolean().optional(),
+  }),
   z.strictObject({ action: z.literal("save"), asNew: z.boolean().optional() }),
   z.strictObject({
     action: z.literal("copy"),
@@ -204,6 +208,7 @@ export const AgentProjectResourceResponseSchema = z.union([
       z.strictObject({
         action: z.enum(["open", "activate"]),
         applied: z.boolean(),
+        workspaceId: StableIdSchema.optional(),
       }),
       z.strictObject({
         action: z.literal("save"),

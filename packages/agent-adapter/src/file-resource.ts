@@ -114,6 +114,7 @@ export const AgentFileResourceRequestSchema = z.discriminatedUnion(
     FileRequestBaseSchema.extend({
       operation: z.literal("open"),
       candidateId: StableIdSchema,
+      background: z.boolean().optional(),
     }),
   ],
 );

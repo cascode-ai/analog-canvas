@@ -322,7 +322,9 @@ export class AgentHttpClient {
     if (!response.ok) throw this.transportError(response.status, body);
     const parsed = AgentProjectResourceResponseSchema.safeParse(body);
     if (!parsed.success) {
-      throw invalidResponseFailure("Project response failed schema validation");
+      throw invalidResponseFailure(
+        `Project response failed schema validation: ${responseIssueSummary(parsed.error.issues)}`,
+      );
     }
     return parsed.data;
   }
@@ -370,6 +372,14 @@ export class AgentHttpClient {
     ) {
       const headers = new Headers(init.headers);
       headers.set("x-agent-context", this.contextRevision);
+      init = { ...init, headers };
+    }
+    if (
+      this.workspaceId &&
+      /\/(circuit|files|simulation|projects)$/.test(path)
+    ) {
+      const headers = new Headers(init.headers);
+      headers.set("x-agent-workspace", this.workspaceId);
       init = { ...init, headers };
     }
     for (let attempt = 0; ; attempt += 1) {
@@ -440,4 +450,6 @@ export class AgentHttpClient {
   }
 
   contextRevision: string | undefined;
+  /** Optional explicit browser working copy; unset keeps active-tab semantics. */
+  workspaceId: string | undefined;
 }

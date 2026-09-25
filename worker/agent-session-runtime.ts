@@ -165,7 +165,7 @@ export async function routeAgentSessionRequest(
     );
     headers.set(
       "access-control-allow-headers",
-      "authorization, content-type, x-editor-secret, x-artifact-ref, x-agent-context, range, if-range",
+      "authorization, content-type, x-editor-secret, x-artifact-ref, x-agent-context, x-agent-workspace, range, if-range",
     );
     return new Response(null, { status: 204, headers });
   }

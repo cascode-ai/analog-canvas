@@ -289,9 +289,9 @@ describe("current Agent Circuit API service", () => {
     expect(JSON.stringify(AgentCircuitResponseJsonSchema).length).toBeLessThan(
       180_000,
     );
-    // The Agent file-resource open operation adds a bounded request/response
-    // contract. Measured projection: 513,470 chars; retain a close ceiling.
-    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(514_000);
+    // File open and the explicit background-workspace headers add bounded
+    // contracts. Measured projection: 514,437 chars; retain a close ceiling.
+    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(514_950);
   });
 
   it("publishes the flat Snapshot workflow and returns complete facts", () => {
