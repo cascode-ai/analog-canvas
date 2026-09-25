@@ -26,6 +26,7 @@ export type ImportFileOperation =
   | {
       action: "inspect" | "discard" | "request-approval" | "open";
       candidateId: string;
+      background?: boolean;
     };
 
 function requestId(): string {
@@ -161,6 +162,9 @@ export async function importFile(
       requestId: requestId(),
       operation: operation.action,
       candidateId: operation.candidateId,
+      ...(operation.action === "open" && operation.background
+        ? { background: true }
+        : {}),
     };
   }
   return client.fileResource(request);

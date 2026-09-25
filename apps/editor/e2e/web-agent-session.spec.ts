@@ -1052,6 +1052,63 @@ test("keeps pairing across Project tabs, rejects old writes and copies through t
   const source = list.result.projects.find(
     (p) => p.workspaceId !== target.workspaceId,
   )!;
+  // The Agent can continue editing the first working copy while the human
+  // keeps the second Project on screen, even with an old foreground context.
+  client.workspaceId = source.workspaceId;
+  client.contextRevision = originalContext;
+  const backgroundSnapshot = await client.circuit(
+    session.sessionId,
+    session.agentToken,
+    {
+      apiVersion: "3.0",
+      requestId: "workspace-background-snapshot",
+      operation: "snapshot",
+      documentId: source.cells[0]!.documentId,
+    },
+  );
+  expect(backgroundSnapshot).toMatchObject({
+    ok: true,
+    operation: "snapshot",
+    revision: 1,
+  });
+  const backgroundEdit = await client.circuit(
+    session.sessionId,
+    session.agentToken,
+    {
+      ...write,
+      requestId: "workspace-background-edit",
+      transactionId: "workspace-background-edit",
+      expectedRevision: 1,
+      edits: [
+        {
+          ...write.edits[0]!,
+          instance: {
+            ...write.edits[0]!.instance,
+            id: "workspace-background-R",
+            placement: {
+              ...write.edits[0]!.instance.placement,
+              position: { x: 500, y: 200 },
+            },
+          },
+        },
+      ],
+    },
+  );
+  expect(backgroundEdit).toMatchObject({
+    ok: true,
+    applied: true,
+    revision: 2,
+  });
+  await expect(page.getByTestId("active-instance-count")).toHaveText("0");
+  expect(
+    await client.projects(session.sessionId, session.agentToken, {
+      apiVersion: "3.0",
+      requestId: "workspace-background-code",
+      operation: "read-project-code",
+    }),
+  ).toMatchObject({ ok: true, operation: "read-project-code" });
+  client.workspaceId = undefined;
+  client.contextRevision = switchedContext;
   const copy = await client.projects(session.sessionId, session.agentToken, {
     apiVersion: "3.0",
     requestId: "workspace-copy",
@@ -1060,7 +1117,7 @@ test("keeps pairing across Project tabs, rejects old writes and copies through t
       action: "copy",
       sourceWorkspaceId: source.workspaceId,
       sourceDocumentId: source.cells[0]!.documentId,
-      sourceRevision: source.cells[0]!.revision,
+      sourceRevision: 2,
       sourceStructureRevision: source.structureRevision,
       targetWorkspaceId: target.workspaceId,
       targetDocumentId: target.cells[0]!.documentId,
@@ -1073,13 +1130,13 @@ test("keeps pairing across Project tabs, rejects old writes and copies through t
     ok: true,
     result: {
       action: "copy",
-      instanceIds: [expect.any(String)],
+      instanceIds: [expect.any(String), expect.any(String)],
       mapping: {
         objects: { instances: { "workspace-R": expect.any(String) } },
       },
     },
   });
-  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("2");
   await page.keyboard.press("ControlOrMeta+z");
   await expect(page.getByTestId("active-instance-count")).toHaveText("0");
   expect(
@@ -1090,7 +1147,24 @@ test("keeps pairing across Project tabs, rejects old writes and copies through t
       request: { action: "activate", workspaceId: source.workspaceId },
     }),
   ).toMatchObject({ ok: true });
-  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("2");
+  await page
+    .locator(".project-tab")
+    .first()
+    .getByRole("button", { name: /Close tab/u })
+    .click();
+  await page.getByRole("button", { name: "Close without saving" }).click();
+  await expect(page.getByRole("tab")).toHaveCount(1);
+  client.workspaceId = source.workspaceId;
+  expect(
+    await client.circuit(session.sessionId, session.agentToken, {
+      apiVersion: "3.0",
+      requestId: "closed-workspace-snapshot",
+      operation: "snapshot",
+      documentId: source.cells[0]!.documentId,
+    }),
+  ).toMatchObject({ ok: false, error: { code: "WORKSPACE_NOT_FOUND" } });
+  client.workspaceId = undefined;
 });
 
 test("rebinds circuit reads and writes after an already-used Claim opens another Project", async ({
@@ -1310,11 +1384,53 @@ test("opens an Agent-staged SPICE Project without browser confirmation or a new 
     requestId: "open-import-tab",
     operation: "open",
     candidateId: staged.candidate.candidateId,
+    background: true,
   });
   if (!opened.ok || opened.operation !== "open")
     throw new Error(JSON.stringify(opened));
   await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
   await expect(page.getByTestId("agent-file-approval")).toHaveCount(0);
+  expect(
+    (await client.status(session.sessionId, session.agentToken)).projectId,
+  ).toBe(originalProjectId);
+  const backgroundTabs = await client.projects(
+    session.sessionId,
+    session.agentToken,
+    {
+      apiVersion: "3.0",
+      requestId: "list-background-import",
+      operation: "workspace",
+      request: { action: "list" },
+    },
+  );
+  if (
+    !backgroundTabs.ok ||
+    backgroundTabs.operation !== "workspace" ||
+    backgroundTabs.result.action !== "list"
+  )
+    throw new Error(JSON.stringify(backgroundTabs));
+  const backgroundList = backgroundTabs.result;
+  const imported = backgroundList.projects.find(
+    (item) => item.workspaceId !== backgroundList.activeWorkspaceId,
+  )!;
+  client.workspaceId = imported.workspaceId;
+  expect(
+    await client.circuit(session.sessionId, session.agentToken, {
+      apiVersion: "3.0",
+      requestId: "snapshot-background-import",
+      operation: "snapshot",
+      documentId: imported.cells[0]!.documentId,
+    }),
+  ).toMatchObject({ ok: true, operation: "snapshot" });
+  client.workspaceId = undefined;
+  expect(
+    await client.projects(session.sessionId, session.agentToken, {
+      apiVersion: "3.0",
+      requestId: "activate-import-tab",
+      operation: "workspace",
+      request: { action: "activate", workspaceId: imported.workspaceId },
+    }),
+  ).toMatchObject({ ok: true });
   await expect
     .poll(
       async () =>
@@ -1383,7 +1499,7 @@ test("workspace Cloud operations reuse GUI open validation, save conflicts and S
       json: {
         project: {
           ...record,
-          id: "cloud-copy",
+          id: writes.length === 2 ? "cloud-copy" : "cloud-background-copy",
           ...route.request().postDataJSON(),
         },
       },
@@ -1418,6 +1534,7 @@ test("workspace Cloud operations reuse GUI open validation, save conflicts and S
   const client = new AgentHttpClient({ baseUrl: baseURL! });
   const session = await client.claim(claimCode);
   await expect(panel.getByTestId("agent-status")).toHaveText("Connected");
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
   let requestNumber = 0;
   const workspace = (
     request: Extract<
@@ -1436,6 +1553,21 @@ test("workspace Cloud operations reuse GUI open validation, save conflicts and S
   ).toMatchObject({ ok: false });
   await expect(page.getByRole("tab")).toHaveCount(1);
   const oldContext = client.contextRevision;
+  const openedInBackground = await workspace({
+    action: "open",
+    cloudProjectId: "cloud-source",
+    background: true,
+  });
+  expect(openedInBackground).toMatchObject({
+    ok: true,
+    result: { action: "open", workspaceId: expect.any(String) },
+  });
+  await expect(page.getByRole("tab")).toHaveCount(2);
+  await expect(page.getByRole("tab").first()).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  expect(client.contextRevision).toBe(oldContext);
   expect(
     await workspace({ action: "open", cloudProjectId: "cloud-source" }),
   ).toMatchObject({ ok: true });
@@ -1459,7 +1591,6 @@ test("workspace Cloud operations reuse GUI open validation, save conflicts and S
     ok: true,
     result: { project: { id: "cloud-copy" } },
   });
-  expect(writes).toEqual(["conflict", "new"]);
   const listed = await workspace({ action: "list" });
   expect(listed).toMatchObject({
     ok: true,
@@ -1469,6 +1600,28 @@ test("workspace Cloud operations reuse GUI open validation, save conflicts and S
       ]),
     },
   });
+  if (
+    !listed.ok ||
+    listed.operation !== "workspace" ||
+    listed.result.action !== "list"
+  )
+    throw new Error(JSON.stringify(listed));
+  const backgroundId = listed.result.projects.find(
+    (item) => item.cloudProjectId === "cloud-copy",
+  )!.workspaceId;
+  await page.getByRole("tab").first().click();
+  await client.status(session.sessionId, session.agentToken);
+  client.workspaceId = backgroundId;
+  expect(await workspace({ action: "save", asNew: true })).toMatchObject({
+    ok: true,
+    result: { project: { id: "cloud-background-copy" } },
+  });
+  await expect(page.getByRole("tab").first()).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  expect(writes).toEqual(["conflict", "new", "new"]);
+  client.workspaceId = undefined;
 });
 
 test("keeps one Project session through Cell switches and preserves an acknowledged Agent edit across a render crash", async ({

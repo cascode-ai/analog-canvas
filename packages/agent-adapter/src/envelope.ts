@@ -105,6 +105,8 @@ export const AgentSessionMessageSchema = z.strictObject({
   requestId: OpaqueIdSchema,
   sentAt: IsoTimestampSchema,
   contextRevision: OpaqueIdSchema.optional(),
+  /** Explicit open browser working copy; independent of the foreground tab. */
+  workspaceId: OpaqueIdSchema.max(256).optional(),
   kind: AgentSessionMessageKindSchema,
   payload: z.unknown(),
 });

@@ -98,6 +98,7 @@ export interface UseProjectFileLifecycleOptions {
     project: CircuitProject,
     viewBox: GridRect,
     options: ReplaceProjectOptions,
+    background?: boolean,
   ): Promise<boolean>;
   galleryEntryId?: string | undefined;
   project: CircuitProject;
@@ -685,6 +686,7 @@ export function useProjectFileLifecycle({
   async function openCloudProjectById(
     projectId: string,
     inTab = false,
+    background = false,
   ): Promise<{ applied: boolean; message?: string }> {
     const fetched = await openCloudProject(projectId);
     if (fetched.status !== "opened") {
@@ -733,7 +735,12 @@ export function useProjectFileLifecycle({
       };
       if (inTab && openProjectInTab) {
         if (
-          !(await openProjectInTab(staged.project, defaultViewBox, openOptions))
+          !(await openProjectInTab(
+            staged.project,
+            defaultViewBox,
+            openOptions,
+            background,
+          ))
         )
           return;
       } else replaceActiveProject(staged.project, defaultViewBox, openOptions);

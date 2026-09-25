@@ -87,10 +87,19 @@ library-compatibility failures are recoverable and do not revoke the session.
 
 `project_cells` with `action:"workspace"` exposes `request.action`:
 `list` live Project tabs and Cell revisions; `activate` a tab; `open` a saved
-Cloud Project; `save` (or `asNew:true`); `copy` a selection or whole Cell into
+Cloud Project (use `background:true` to leave the human's tab selected);
+`save` (or `asNew:true`); `copy` a selection or whole Cell into
 an explicit live target and offset. Copy follows the same atomic, undoable GUI
 planner including dependencies. Live tab contents include unsaved work; the
 existing Cloud list/inspect/import actions read saved versions.
+
+To work on another open Project without selecting its tab, call `project_cells`
+with `action:"bind-workspace",workspaceId` from `list` or `open`. The binding
+belongs to this MCP client and applies to Circuit, Project, File and Simulation
+requests. Pass `workspaceId:null` to return to the human's active tab. A closed
+target fails with `WORKSPACE_NOT_FOUND`; list and bind another copy rather than
+silently redirecting an edit. `workspace.activate` remains an explicit request
+to show a Project in the editor.
 
 Use `gallery_circuits` to traverse the complete public Gallery. `list` is
 cursor-paged; continue with `nextCursor` until it is `null`. `read` returns one

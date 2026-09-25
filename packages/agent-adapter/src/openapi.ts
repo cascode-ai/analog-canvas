@@ -510,8 +510,15 @@ export const agentCircuitOpenApi = {
             name: "x-agent-context",
             in: "header",
             description:
-              "Required for Project-bound operations; snapshot/capabilities discover current context without it",
+              "Required for active-tab operations; an explicit x-agent-workspace target remains bound across foreground tab changes",
             schema: { type: "string" },
+          },
+          {
+            name: "x-agent-workspace",
+            in: "header",
+            description:
+              "Optional open working-copy ID from workspace list; routes without changing the foreground tab",
+            schema: { type: "string", minLength: 1, maxLength: 256 },
           },
           {
             name: "sessionId",
@@ -541,8 +548,14 @@ export const agentCircuitOpenApi = {
           {
             name: "x-agent-context",
             in: "header",
-            required: true,
             schema: { type: "string" },
+          },
+          {
+            name: "x-agent-workspace",
+            in: "header",
+            description:
+              "Optional open working-copy ID from workspace list; routes without changing the foreground tab",
+            schema: { type: "string", minLength: 1, maxLength: 256 },
           },
           {
             name: "sessionId",
@@ -569,8 +582,14 @@ export const agentCircuitOpenApi = {
           {
             name: "x-agent-context",
             in: "header",
-            required: true,
             schema: { type: "string" },
+          },
+          {
+            name: "x-agent-workspace",
+            in: "header",
+            description:
+              "Optional open working-copy ID from workspace list; routes without changing the foreground tab",
+            schema: { type: "string", minLength: 1, maxLength: 256 },
           },
           {
             name: "sessionId",
@@ -597,8 +616,14 @@ export const agentCircuitOpenApi = {
           {
             name: "x-agent-context",
             in: "header",
-            required: true,
             schema: { type: "string" },
+          },
+          {
+            name: "x-agent-workspace",
+            in: "header",
+            description:
+              "Optional open working-copy ID from workspace list; routes without changing the foreground tab",
+            schema: { type: "string", minLength: 1, maxLength: 256 },
           },
           {
             name: "sessionId",

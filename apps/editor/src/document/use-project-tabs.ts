@@ -159,6 +159,19 @@ export function useProjectTabs<Session>(options: {
         activate(id);
       });
     },
+    openBackground: (create: () => Session, cloudId?: string | null) => {
+      if (transitioning.current) return false;
+      const existing = cloudId
+        ? liveIds.current.find((id) => describe(id).cloudId === cloudId)
+        : undefined;
+      if (existing) return true;
+      const id = createId("tab");
+      sessions.current.set(id, create());
+      liveIds.current = [...liveIds.current, id];
+      setIds(liveIds.current);
+      persistenceRef.current(false);
+      return true;
+    },
     close: async (id: string, createEmpty: () => Session) => {
       if (transitioning.current) return;
       // The tab strip owns the inline user decision before invoking close.
