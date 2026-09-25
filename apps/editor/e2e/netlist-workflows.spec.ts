@@ -721,11 +721,15 @@ test("grows and shrinks the live netlist with content, scrolling only at the vie
         },
         netlist: { parameters: { value: `${index}k` } },
       });
-      for (const pinName of ["1", "2"])
-        document.nets.push({
-          id: `${id}-${pinName}`,
-          terminals: [{ instanceId: id, pinName }],
-        });
+      // Both pins on one Net: a pin alone on its Net would be an unfinished
+      // node, and the panel lists every such finding under the code.
+      document.nets.push({
+        id: `${id}-net`,
+        terminals: [
+          { instanceId: id, pinName: "1" },
+          { instanceId: id, pinName: "2" },
+        ],
+      });
     }
     await page.getByTestId("project-file").setInputFiles({
       name: "growing-netlist.icproj.json",

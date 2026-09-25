@@ -157,6 +157,7 @@ export function createEditorNavigationController({
   const navigateToLocator = (
     locator: ObjectLocator,
     statusMessage: string,
+    options: { keepPanel?: boolean } = {},
   ): void => {
     const targetDocument = project.documents.find(
       (candidate) => candidate.id === locator.documentId,
@@ -278,12 +279,21 @@ export function createEditorNavigationController({
         : undefined;
       if (centerline?.[0]) focusPoint(centerline[0]);
     }
-    setSelectionOpen(true);
+    // A list that navigates (the Netlist panel's issues) stays in the dock,
+    // so the next finding is one click away.
+    if (!options.keepPanel) setSelectionOpen(true);
     setStatus(statusMessage);
   };
 
-  const navigateToNetlistDiagnostic = (diagnostic: NetlistDiagnostic): void => {
-    navigateToLocator(diagnostic.primary, `Preflight: ${diagnostic.message}`);
+  const navigateToNetlistDiagnostic = (
+    diagnostic: NetlistDiagnostic,
+    options: { from?: string; keepPanel?: boolean } = {},
+  ): void => {
+    navigateToLocator(
+      diagnostic.primary,
+      `${options.from ?? "Preflight"}: ${diagnostic.message}`,
+      options,
+    );
     if (diagnostic.primary.kind !== "document") return;
     fitDocument(diagnostic.primary.documentId);
   };
