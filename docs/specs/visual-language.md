@@ -154,9 +154,14 @@ active symbol variant's visible geometry and clusters repeated overlaps.
   object-relative anchor so they follow subsequent component moves. Ordinary
   Net labels also move freely without changing their electrical binding;
   directional route markers retain their route attachment.
-- New Analog Block names sit about five units outside the drawn artwork,
-  matching compact device-label spacing. Label coordinates use fine precision
-  rather than connection-grid rounding; saved, authored placements are retained.
+- A new instance name keeps four units between its ink and the drawn artwork
+  on whichever side it sits, the same for devices, gates, registers,
+  converters and Analog Blocks. Beside the Symbol its capitals are centred on
+  the body; below it they start one gap under the artwork; above it the
+  subscript's descent is cleared first, so R₂ over a part never touches it. A
+  value row stacks away from the body. Label coordinates are whole units, not
+  connection-grid rounded; saved, authored placements are retained, and a
+  label still exactly where an earlier rule placed it counts as untouched.
 - Visual goldens use original project fixtures, not copied textbook artwork.
 
 ## Operations and state transitions

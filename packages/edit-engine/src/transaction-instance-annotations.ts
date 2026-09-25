@@ -14,6 +14,7 @@ import type {
 } from "@icm/model";
 import {
   defaultInstanceLabelPlacement,
+  legacyDefaultInstanceLabelPlacement,
   legacyPortLabelPlacement,
   defaultInstanceParameterLabelPlacement,
   displayableInstanceParameter,
@@ -317,6 +318,20 @@ export function isCanonicalInstanceLabel(
   if (matches(expected) && (!parameter || annotation.rotation === 0))
     return true;
   if (parameter) return false;
+  // A label the previous placement rule put down is just as untouched; the
+  // next orientation edit moves it with the current rule.
+  if (
+    matches(
+      legacyDefaultInstanceLabelPlacement(
+        { ...instance, placement },
+        resolved,
+        resolveDocumentStyleProfile(document.presentation),
+        document.presentation.grid,
+        slot,
+      ),
+    )
+  )
+    return true;
 
   // Projects saved before the reviewed Resistor path declared tight bounds
   // used its wider viewBox for the canonical label. Accept that one exact
@@ -335,7 +350,7 @@ export function isCanonicalInstanceLabel(
       }),
     },
   };
-  const legacyExpected = defaultInstanceLabelPlacement(
+  const legacyExpected = legacyDefaultInstanceLabelPlacement(
     { ...instance, placement },
     legacyResolved,
     resolveDocumentStyleProfile(document.presentation),

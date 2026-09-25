@@ -120,8 +120,8 @@ describe("adaptive presentation label reflow", () => {
 
     expect(annotation.anchor).toMatchObject({
       kind: "object",
-      localOffset: { x: 0, y: 70 },
-      fallbackPosition: { x: 200, y: 170 },
+      localOffset: { x: 0, y: 55 },
+      fallbackPosition: { x: 200, y: 155 },
     });
     expect(annotation.alignment).toBe("middle");
     expect(changed).toContain("label-b1");

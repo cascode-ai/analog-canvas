@@ -399,10 +399,10 @@ source selection remains unchanged. The status bar's grid button, beside the
 zoom controls, shows and hides the background grid dots in one click; it reads
 **Grid On** / **Grid Off** in wide windows and collapses to its icon at
 half-window widths (1100px and below). It is the same editor-local state as
-`canvas.showGrid` in Style settings and changes only the canvas paint. Instance reference labels use the first active Document grid line one interval beyond
-the drawn symbol ink. The padded interaction envelope never contributes to
-that clearance, and placement uses nearest-grid normalization for calibrated
-finite-decimal ink edges rather than directional outward snapping. A 45-degree
+`canvas.showGrid` in Style settings and changes only the canvas paint. Instance reference labels keep a fixed four-unit clearance between their ink
+and the drawn symbol ink, on every side and for every family, at whole-unit
+coordinates rather than on the Document grid. The padded interaction envelope
+never contributes to that clearance. A 45-degree
 turn reflows a canonical label from its local side at that fixed spacing; eight
 such turns return its position and alignment to the initial values. Opening
 I cancels the current canvas interaction before showing the dialog.

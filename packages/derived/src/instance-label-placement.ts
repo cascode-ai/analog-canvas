@@ -264,12 +264,185 @@ function compactLabelInkBounds(resolved: ResolvedSymbol): Rect {
 }
 
 /**
- * Places horizontal SVG text around the active symbol variant. Compact device
- * and Analog Block labels use a five-unit gap and a centered glyph row at
- * integer precision; other labels retain their grid-aligned spacing. Distances use the
- * drawn artwork, excluding the padded interaction envelope.
+ * The drawn extent a label keeps its distance from. A path without declared
+ * bounds contributes the hull of its absolute M/L/C points (Z closes it
+ * without adding any) instead of the Symbol's padded viewBox, which left a
+ * delay cell's label 15 units from its box.
+ */
+export function instanceLabelInkBounds(
+  resolved: ResolvedSymbol,
+  signalFlowParameters?: Parameters<typeof visibleSymbolInkBounds>[1],
+): Rect {
+  const withBounds = (
+    primitives: ResolvedSymbol["definition"]["primitives"],
+  ): ResolvedSymbol["definition"]["primitives"] =>
+    primitives.map((primitive) => {
+      if (primitive.kind !== "path" || primitive.bounds) return primitive;
+      const commands = primitive.data.match(/[a-z]/gi) ?? [];
+      if (
+        !commands.length ||
+        commands.some((command) => !["M", "L", "C", "Z", "z"].includes(command))
+      )
+        return primitive;
+      const coordinates = (
+        primitive.data.match(/[-+]?(?:\d*\.\d+|\d+)/g) ?? []
+      ).map(Number);
+      if (!coordinates.length || coordinates.length % 2) return primitive;
+      const xs = coordinates.filter((_, index) => index % 2 === 0);
+      const ys = coordinates.filter((_, index) => index % 2 === 1);
+      const x = Math.min(...xs),
+        y = Math.min(...ys);
+      return {
+        ...primitive,
+        bounds: {
+          x,
+          y,
+          width: Math.max(...xs) - x,
+          height: Math.max(...ys) - y,
+        },
+      };
+    });
+  return visibleSymbolInkBounds(
+    {
+      ...resolved,
+      definition: {
+        ...resolved.definition,
+        primitives: withBounds(resolved.definition.primitives),
+      },
+      ...(resolved.variant
+        ? {
+            variant: {
+              ...resolved.variant,
+              ...(resolved.variant.additionalPrimitives
+                ? {
+                    additionalPrimitives: withBounds(
+                      resolved.variant.additionalPrimitives,
+                    ),
+                  }
+                : {}),
+            },
+          }
+        : {}),
+    },
+    signalFlowParameters,
+  );
+}
+
+/** Clearance between a label's ink and its Symbol's drawn ink, in drawing units. */
+export const INSTANCE_LABEL_GAP = 4;
+/** Height of the label font's capitals and figures, in em. */
+const LABEL_CAP_HEIGHT_EM = 0.72;
+
+/**
+ * The distances the placement rule works with, in drawing units: the gap,
+ * the height of the label's capitals, and how far a subscript's figures reach
+ * below its baseline.
+ */
+export function instanceLabelMetrics(
+  profile: SchematicStyleProfile,
+  sizeScale = 1,
+): { gap: number; capHeight: number; subscriptDrop: number } {
+  const fontSize = profile.typography.instanceFontSize * sizeScale;
+  return {
+    gap: INSTANCE_LABEL_GAP,
+    capHeight: fontSize * LABEL_CAP_HEIGHT_EM,
+    subscriptDrop:
+      fontSize *
+      profile.typography.subscriptScale *
+      profile.typography.subscriptBaselineShiftEm,
+  };
+}
+
+/**
+ * Places horizontal SVG text around the active symbol variant, the same way
+ * for every family: the label's ink keeps INSTANCE_LABEL_GAP from the drawn
+ * artwork on whichever side it sits. Beside the Symbol its capitals are
+ * centred on the body; below, the capitals start one gap under it; above,
+ * the subscript's descent is cleared first, so M₂ or R₂ over a part never
+ * touches it. The position is not snapped to the connection grid: rounding
+ * the gap to a grid step is what left gates, registers and blocks 10 to 26
+ * units away while devices sat at 5. A value row stacks away from the body
+ * (below a lower label, above an upper one).
  */
 export function placeUprightInstanceLabel(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  _localAnchor: Point,
+  localSide: InstanceLabelSide,
+  _grid: number,
+  sizeScale = 1,
+  rowOffset = 0,
+  /**
+   * Keep the label beside the symbol through every quarter turn. Upright text
+   * above or below a rotated Port reads as the label having flipped over, so
+   * such a Symbol swaps between left and right instead.
+   */
+  horizontalSidesOnly = false,
+): InstanceLabelPlacement | null {
+  if (!instance.placement) return null;
+  const worldBounds = transformedBounds(
+    instanceLabelInkBounds(resolved, instance.signalFlowParameters),
+    instance,
+  );
+  const rotatedSide = transformedSide(localSide, instance);
+  const worldSide =
+    horizontalSidesOnly && (rotatedSide === "top" || rotatedSide === "bottom")
+      ? horizontalSideAwayFromPin(instance, resolved)
+      : rotatedSide;
+  if (!worldBounds || !worldSide) return null;
+  const { gap, capHeight, subscriptDrop } = instanceLabelMetrics(
+    profile,
+    sizeScale,
+  );
+  const centreX = worldBounds.x + worldBounds.width / 2;
+  const centreBaseline =
+    worldBounds.y + worldBounds.height / 2 + capHeight / 2 + rowOffset;
+  switch (worldSide) {
+    case "right":
+      return {
+        position: {
+          x: Math.round(worldBounds.x + worldBounds.width + gap),
+          y: Math.round(centreBaseline),
+        },
+        alignment: "start",
+      };
+    case "left":
+      return {
+        position: {
+          x: Math.round(worldBounds.x - gap),
+          y: Math.round(centreBaseline),
+        },
+        alignment: "end",
+      };
+    case "bottom":
+      return {
+        position: {
+          x: Math.round(centreX),
+          y: Math.round(
+            worldBounds.y + worldBounds.height + gap + capHeight + rowOffset,
+          ),
+        },
+        alignment: "middle",
+      };
+    case "top":
+      return {
+        position: {
+          x: Math.round(centreX),
+          y: Math.round(worldBounds.y - gap - subscriptDrop - rowOffset),
+        },
+        alignment: "middle",
+      };
+  }
+}
+
+/**
+ * The placement rule used until 2026-09-25: a five-unit gap for devices and
+ * Analog Blocks that ignored a subscript above the part, and grid-snapped
+ * spacing for everything else. Labels still exactly there count as
+ * untouched, so they keep following their Symbol.
+ */
+function legacyPlaceUprightInstanceLabel(
   instance: SchematicDocument["instances"][number],
   resolved: ResolvedSymbol,
   profile: SchematicStyleProfile,
@@ -457,7 +630,7 @@ export function legacyPortLabelPlacement(
     resolved,
     instance.signalFlowParameters,
   );
-  return placeUprightInstanceLabel(
+  return legacyPlaceUprightInstanceLabel(
     instance,
     resolved,
     profile,
@@ -484,6 +657,46 @@ export function defaultInstanceLabelPlacement(
   grid: number,
   slot: InstanceLabelSlot = "reference",
 ): InstanceLabelPlacement | null {
+  return defaultPlacementWith(
+    placeUprightInstanceLabel,
+    instance,
+    resolved,
+    profile,
+    grid,
+    slot,
+  );
+}
+
+/**
+ * Where the placement rule before 2026-09-25 put an untouched label, so an
+ * orientation edit still recognizes it as machine-placed and moves it with
+ * the current rule.
+ */
+export function legacyDefaultInstanceLabelPlacement(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  grid: number,
+  slot: InstanceLabelSlot = "reference",
+): InstanceLabelPlacement | null {
+  return defaultPlacementWith(
+    legacyPlaceUprightInstanceLabel,
+    instance,
+    resolved,
+    profile,
+    grid,
+    slot,
+  );
+}
+
+function defaultPlacementWith(
+  place: typeof placeUprightInstanceLabel,
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  grid: number,
+  slot: InstanceLabelSlot,
+): InstanceLabelPlacement | null {
   if (!instance.placement) return null;
   const localBounds = visibleSymbolInkBounds(
     resolved,
@@ -508,7 +721,7 @@ export function defaultInstanceLabelPlacement(
     isBjtSymbol(resolved) ||
     SIDE_LABEL_SYMBOLS.has(instance.symbolId)
   ) {
-    return placeUprightInstanceLabel(
+    return place(
       instance,
       resolved,
       profile,
@@ -521,7 +734,7 @@ export function defaultInstanceLabelPlacement(
   }
 
   if (TOP_LABEL_SYMBOLS.has(instance.symbolId)) {
-    return placeUprightInstanceLabel(
+    return place(
       instance,
       resolved,
       profile,
@@ -533,7 +746,7 @@ export function defaultInstanceLabelPlacement(
     );
   }
 
-  return placeUprightInstanceLabel(
+  return place(
     instance,
     resolved,
     profile,
