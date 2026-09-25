@@ -1,5 +1,6 @@
 export * from "./extract.js";
 export * from "./export.js";
+export * from "./draft-preview.js";
 export * from "./ir.js";
 export * from "./equivalence.js";
 export * from "./topology-correspondence.js";

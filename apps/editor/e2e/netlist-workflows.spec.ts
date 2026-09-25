@@ -466,9 +466,10 @@ test("copies structural SPICE and Spectre netlists while exposing instance autho
 
   await placeComponent(page, "nmos", { x: 360, y: 220 });
   await page.getByTestId("netlist-panel-toggle").click();
+  // The lone MOS prints at once as a draft, ? on every open pin.
   await expect(
     page.getByRole("textbox", { name: "Netlist code", exact: true }),
-  ).toHaveText("");
+  ).toContainText(/M1 \(\? \? \? VSS\)/u);
   // The panel surfaces the first structural error for the Instance just
   // placed. Which one comes first is diagnostic order, not a contract — a
   // lone MOS is missing a model target and its connections both — so this
@@ -928,7 +929,8 @@ test("refreshes a legacy circuit with missing device defaults in one click", asy
   });
   await expect(page.getByTestId("status")).toContainText("Opened");
   const code = page.getByLabel("Netlist code", { exact: true });
-  await expect(code).toHaveText("");
+  await expect(code).toContainText("* Draft:");
+  await expect(code).toContainText("w=? l=?");
   await expect(
     page.getByRole("region", { name: "Live netlist" }).getByRole("alert"),
   ).toContainText("requires an explicit model target");
@@ -940,7 +942,7 @@ test("refreshes a legacy circuit with missing device defaults in one click", asy
   await expect(fill).toHaveCount(0);
   // One undo step: the circuit is back to what was opened.
   await page.getByTestId("draw-tool-undo").click();
-  await expect(code).toHaveText("");
+  await expect(code).toContainText("w=? l=?");
   await expect(page.getByTestId("netlist-fill-defaults")).toHaveText(
     "Fill 3 devices",
   );
@@ -982,7 +984,9 @@ test("blocks netlist output when the configured default is missing", async ({
     buffer: Buffer.from(serializeProject(project)),
   });
   const code = page.getByLabel("Netlist code", { exact: true });
-  await expect(code).toHaveText("");
+  // The panel shows the draft, value unknown; output itself stays blocked.
+  await expect(code).toContainText("* Draft:");
+  await expect(code).toContainText(/R1 \S+ \S+ \?/u);
   await expect(
     page.getByRole("region", { name: "Live netlist" }).getByRole("alert"),
   ).toContainText("requires parameter value");
