@@ -973,11 +973,21 @@ describe("agent session client", () => {
           http,
           connectorStore: store,
         });
+        const callsBeforeProbe = http.circuitCalls.length;
+        expect(restarted.cachedSnapshot()).toBeNull();
+        expect(http.resumes).toHaveLength(0);
+        expect(http.circuitCalls).toHaveLength(callsBeforeProbe);
         if (operation === "traceNet")
           await restarted.traceNet({ netId: "net-1" });
         else await restarted[operation]();
         expect(http.resumes).toHaveLength(1);
         expect(http.claims).toHaveLength(1);
+        if (operation === "snapshot" || operation === "refreshSnapshot") {
+          expect(restarted.cachedSnapshot()).toEqual(
+            restarted.cachedSnapshot("main"),
+          );
+          expect(restarted.cachedSnapshot()).not.toBeNull();
+        }
         expect(http.circuitCalls.at(-1)?.request).toMatchObject({
           documentId: "main",
         });
@@ -1009,6 +1019,7 @@ describe("agent session client", () => {
           ),
         );
       const restarted = new AgentSessionClient({ http, connectorStore: store });
+      expect(restarted.cachedSnapshot()).toBeNull();
       expect(restarted.cachedSnapshot("main")).toBeNull();
       expect(resume).not.toHaveBeenCalled();
       await expect(restarted.snapshot()).rejects.toMatchObject({

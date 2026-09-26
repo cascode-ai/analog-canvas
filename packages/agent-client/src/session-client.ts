@@ -1289,7 +1289,13 @@ export class AgentSessionClient {
   }
 
   cachedSnapshot(documentId?: string): CachedSnapshot | null {
-    return this.cache.get(documentId ?? this.defaultDocumentId());
+    // A cache probe must stay local and may precede connector recovery in a
+    // fresh CLI process. The subsequent remote read resolves authorization.
+    const target =
+      documentId ??
+      this.boundWorkspace?.documentIds[0] ??
+      this.session?.documentIds[0];
+    return target ? this.cache.get(target) : null;
   }
 
   async render(

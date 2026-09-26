@@ -687,7 +687,11 @@ async function httpCommand(command, input = {}) {
   const closed = once(child, "close");
   child.stdin.end(JSON.stringify(input));
   const [code] = await closed;
-  assert.equal(code, 0, "Direct HTTP command failed");
+  assert.equal(
+    code,
+    0,
+    `Direct HTTP command ${command} failed: ${output.replaceAll(connectorToken, "[redacted]")}`,
+  );
   assert.ok(
     !output.includes(connectorToken),
     "HTTP output leaked the connector",
