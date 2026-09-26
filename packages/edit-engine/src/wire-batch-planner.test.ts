@@ -115,6 +115,44 @@ describe("wire batch replay", () => {
     ]);
     expect(h.document.nets).toHaveLength(1);
   });
+  it("taps overlapping bias routes joined through an endpoint in the same batch", () => {
+    const d = createEmptyDocument("bias", "Existing bias endpoints");
+    for (const [id, x, y] of [
+      ["gate", 140, 480],
+      ["drain", 170, 460],
+      ["input", 80, 400],
+    ] as const) {
+      d.nets.push({ id: `${id}-net`, terminals: [] });
+      d.junctions.push({
+        id,
+        netId: `${id}-net`,
+        position: { x, y },
+        role: "route-anchor",
+      });
+    }
+    const endpoint = (junctionId: string) => ({
+      kind: "endpoint" as const,
+      endpoint: { kind: "junction" as const, junctionId },
+    });
+    const h = history(d);
+    commit(h, [
+      wire("b1", endpoint("gate"), endpoint("drain"), [
+        { x: 120, y: 480 },
+        { x: 120, y: 420 },
+        { x: 170, y: 420 },
+      ]),
+      wire("b2", endpoint("input"), endpoint("drain"), [{ x: 170, y: 400 }]),
+      wire("b3", free(410, 480), at(170, 420), [
+        { x: 370, y: 480 },
+        { x: 370, y: 420 },
+      ]),
+      wire("b4", free(820, 480), at(370, 420), [
+        { x: 780, y: 480 },
+        { x: 780, y: 420 },
+      ]),
+    ]);
+    expect(h.document.nets).toHaveLength(1);
+  });
   it("leaves the original untouched when a later tap is invalid or over budget", () => {
     const d = createEmptyDocument("doc", "Reject atomically");
     const before = structuredClone(d);

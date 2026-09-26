@@ -31,11 +31,16 @@ export function planWireBatch(
     if (
       typeof resolved !== "string" ||
       anchor.kind !== "wire-at" ||
-      !resolved.startsWith("Multiple wire interiors") ||
+      !(
+        resolved.startsWith("Multiple wire interiors") ||
+        resolved.startsWith("Ambiguous wire crossing") ||
+        resolved.startsWith("Tap at")
+      ) ||
       !edits.length
     )
       return resolved;
-    // A preceding gesture may create overlapping portions of one conductor.
+    // A preceding gesture may create overlapping portions of one conductor,
+    // still bearing different Net hints until endpoint topology is finalized.
     // Ask the ordinary finalizer whether the tap is unambiguous, but never
     // copy its rewritten IDs into the replay draft. Foreign crossings remain
     // subject to the same selector contract.
