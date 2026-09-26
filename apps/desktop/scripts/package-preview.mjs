@@ -58,6 +58,7 @@ await writeFile(
   join(output, "BUILD.txt"),
   `Internal Windows x64 preview\nSource commit: ${commit}\nExport/import only; not D-A or an installer release.\n`,
 );
+await mkdir(join(root, "plan"), { recursive: true });
 await writeFile(
   join(root, "plan/preview-package.json"),
   JSON.stringify(

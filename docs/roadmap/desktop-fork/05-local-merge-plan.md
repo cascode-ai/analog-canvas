@@ -2,7 +2,7 @@
 
 本计划收敛此前四份报告，作为首批实施范围和读取源码的入口。**以当前 upstream 为底座，有出处地迁入 fork 的独立能力；完成一个可在本机验证的 Windows desktop 版本，并保持现有 Web 行为。** 当前已完成部分 upstream 准备，并开始最小桌面预览外壳迁入；具体进度及反馈边界见下节。
 
-“迁入”指按功能适配源码，不是将 fork 整条分支合并。这里的功能实现终点是本地工作树中的实现、解释性提交和验证记录；不包含功能代码的推送、PR、Production 部署、Release、安装器发布。初版文档已通过 [PR #1125](https://github.com/cascode-ai/analog-canvas/pull/1125) 发布；功能代码后续若要求交付，继续执行仓库现有 Delivery 门禁，已交付部分见第 0 节。
+“迁入”指按功能适配源码，不是将 fork 整条分支合并。首轮本地预览循环已完成；当前交付范围扩展到 PR、合并队列、Web Production 验证，以及由已合并提交生成 Windows ZIP 预发布包。安装器、签名、自动更新与正式桌面发行仍延期。初版文档已通过 [PR #1125](https://github.com/cascode-ai/analog-canvas/pull/1125) 发布；功能交付执行仓库现有 Delivery 门禁，已交付部分见第 0 节。
 
 <a id="feedback-alignment"></a>
 
@@ -23,6 +23,8 @@
 **已完成：**[PR #1126](https://github.com/cascode-ai/analog-canvas/pull/1126)（main 提交 [b0c3264f](https://github.com/cascode-ai/analog-canvas/commit/b0c3264fc294491edcbb34e604a91ec491437538)）交付 U-C 导出交付接口与 U-B 共享保存协调。它们抽取 upstream 现有实现，未迁入 fork 代码；验证与交付证据随该 PR/提交保存。Native 存储/关闭接入、U-A 和桌面闭环未完成。
 
 **当前授权目标：**先完成内部 Windows 预览包的“启动 → 绘图 → 导出项目 → 关闭 → 重新启动并导入 → 内容一致”循环。第一批 upstream 抽离继续沿用；最小外壳按固定 fork 源码适配。完整 Native 存储/关闭接入和其他 fork 功能仍延期。
+
+**预览交付扩展：**在上述循环基础上增加 Windows CI 打包与真实 `.exe` 验收，并将结果纳入合并队列的必需 Core contracts 检查。合并后通过手动发布工作流从指定主线提交重建、验收并发布完整 ZIP；用户解压后运行，无需开发环境，不能只取单个 `.exe`。包内附对应源码、原许可/NOTICE、来源对照和验收记录。最终 squash 同时保留 LXY-freshman 的原实现贡献与 Arcadia-1 的方案讨论贡献。操作与边界见 [desktop README](../../../apps/desktop/README.md#preview-distribution)。
 
 **U-A 第一批本地实现：**现有 Web 路由/预加载/统计和 service worker 装配移到 `entries/web.tsx`；懒加载的 `entries/web-editor.tsx` 创建稳定的 Web 服务，通过同一 `EditorServices` 注入身份查询、Cloud 存储和已有导出交付。App 和文件生命周期消费这些依赖，前台/后台保存共用一个 Cloud store，保留 revision、conflict、publication 与恢复语义。构建预加载跟随 Web 装配入口，Gallery 首屏仍不提前加载 editor。此批仅抽取 upstream 代码，尚未交付 Production；验证与限制记录在实现提交。
 

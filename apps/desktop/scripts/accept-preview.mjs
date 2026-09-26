@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { createRequire } from "node:module";
 import { _electron as electron, expect } from "@playwright/test";
@@ -314,6 +314,16 @@ try {
       2,
     ),
   );
+  if (manifest) {
+    await cp(
+      join(output, "result.json"),
+      join(manifest.output, "ACCEPTANCE.json"),
+    );
+    await cp(
+      join(output, "reopened.png"),
+      join(manifest.output, "preview.png"),
+    );
+  }
   console.log(`PASS: ${output}`);
 } finally {
   if (running) {
