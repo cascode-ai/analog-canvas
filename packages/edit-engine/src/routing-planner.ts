@@ -383,7 +383,11 @@ export function proposeGroupMoveEdits(
           ? [
               {
                 kind: "upsert_schematic_annotation",
-                annotation: { ...annotation, anchor: move.anchor },
+                annotation: {
+                  ...annotation,
+                  anchor: move.anchor,
+                  ...(move.alignment ? { alignment: move.alignment } : {}),
+                },
               },
             ]
           : [];
@@ -489,7 +493,11 @@ function rigidBodyEdits(
           ? [
               {
                 kind: "upsert_schematic_annotation",
-                annotation: { ...annotation, anchor: move.anchor },
+                annotation: {
+                  ...annotation,
+                  anchor: move.anchor,
+                  ...(move.alignment ? { alignment: move.alignment } : {}),
+                },
               },
             ]
           : [];

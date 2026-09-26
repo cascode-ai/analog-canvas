@@ -903,21 +903,26 @@ export function planBrowserAgentCommand(
         return { edits: plan.edits };
       }
       const input = command.transform;
+      // A mirror about the selection's own axis carries labels and drawing
+      // objects with the rest, exactly as the editor's Mirror command does.
+      const selectionMirror = input.kind === "mirror" && !input.center;
       if (
         command.selection.annotationIds.length &&
-        input.kind !== "translate"
+        input.kind !== "translate" &&
+        !selectionMirror
       ) {
         throw new Error(
-          "Selected annotations support translation here; use upsert_schematic_annotation for explicit rotation or anchor changes.",
+          "Selected annotations support translation and mirroring about the selection here; use upsert_schematic_annotation for explicit rotation or anchor changes.",
         );
       }
       if (
         command.selection.draftingIds.length &&
         input.kind !== "translate" &&
-        !(input.kind === "rotate" && !input.center)
+        !(input.kind === "rotate" && !input.center) &&
+        !selectionMirror
       ) {
         throw new Error(
-          "Drafting objects support translation and in-place 45-degree rotation here. For other drafting transforms, submit upsert_drafting_object with the desired geometry.",
+          "Drafting objects support translation, in-place 45-degree rotation, and mirroring about the selection here. For other drafting transforms, submit upsert_drafting_object with the desired geometry.",
         );
       }
       const transform: TransformOperation =

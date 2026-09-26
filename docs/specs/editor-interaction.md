@@ -529,6 +529,36 @@ is its point in both directions. The live preview distinguishes the modes
 alone: the canvas suppresses native browser text selection, so a drag can
 never highlight or select labels outside the dragged rectangle.
 
+## Selection mirror
+
+`Shift+R` mirrors the selection left/right and `Ctrl/Cmd+R` top/bottom; the
+shared context menu offers the same command. The selection mirrors as one
+drawing: placed Instances, Routes, Junctions, schematic annotations and
+drafting objects all reflect about one axis, and connectivity is unchanged.
+The movement closure decides what travels: internal Routes and their
+Junctions reflect rigidly, boundary Routes keep their outside endpoint and
+stretch, and external Routes stay. A selection of Routes alone therefore
+mirrors too; its Junctions carry it. A Route held by an unselected Instance
+stays with that Instance, as it does in a move.
+
+The axis runs through the centre of the selected Instances' positions, or of
+the carried Junctions when there are no Instances, or of the selected drawing
+objects' and labels' boxes. It sits on a half-grid line, so every grid point
+lands on the grid and a second mirror restores the drawing where it was.
+
+Glyphs never mirror. A mirrored text keeps its reading direction, so its box
+reflects rather than its baseline anchor, and `start`/`end` alignment swaps
+when the mirror reverses the axis the text reads along. A label on a rigidly
+mirrored Route keeps its point along the Route (`t`) and takes the mirrored
+side, so a label above a wire lands below it in a top-to-bottom mirror with
+the same clearance. Labels anchored to a mirrored Instance follow that
+Instance's own mirror. Drafting lines, arrows and shapes reflect outright; an
+arrow keeps which end carries its head, and a turned rectangle takes the
+opposite turn. An end attached to a mirrored host mirrors its offset from it;
+an end attached to anything else stays with that host. The whole mirror is
+one transaction and one Undo step. An Agent selection `transform` mirror
+without an explicit centre takes the same path.
+
 ## No-reroute movement boundary
 
 The editor's finite direct-manipulation vocabulary is transient only:

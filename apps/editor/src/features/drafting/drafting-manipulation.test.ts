@@ -13,6 +13,7 @@ import {
   draftingDragOrigin,
   insertArrowWaypoint,
   insertConstructionVertex,
+  mirrorDraftingObject,
   planDraftingStacking,
   rotateDraftingObject,
   setDraftingBearing,
@@ -451,5 +452,127 @@ describe("drafting precise properties", () => {
       { id: "first", zIndex: 1 },
       { id: "second", zIndex: 2, locked: true },
     ]);
+  });
+});
+
+describe("mirrorDraftingObject", () => {
+  const geometryOf = (object: DraftingObject) =>
+    resolveDraftingObjectGeometry(document, resolver, object);
+  const noHosts = new Set<string>();
+  const note = (
+    alignment: "start" | "middle" | "end",
+  ): Extract<DraftingObject, { kind: "text" }> => ({
+    id: "note-1",
+    kind: "text",
+    locked: false,
+    zIndex: 0,
+    anchor: { kind: "free", position: { x: 40, y: 20 } },
+    content: { runs: [{ kind: "text", value: "Vout" }] },
+    alignment,
+    rotation: 0,
+  });
+
+  it("reflects an arrow and keeps which end is its head", () => {
+    expect(
+      mirrorDraftingObject(
+        arrow(),
+        { x: 120, y: 0 },
+        "left-right",
+        noHosts,
+        geometryOf,
+      ),
+    ).toMatchObject({
+      from: { kind: "free", position: { x: 240, y: 0 } },
+      to: { kind: "free", position: { x: 140, y: 0 } },
+      waypoints: [{ x: 190, y: 0 }],
+    });
+  });
+
+  it("reflects a turned rectangle to the opposite turn", () => {
+    expect(
+      mirrorDraftingObject(
+        { ...rectangle(), rotation: 30 },
+        { x: 0, y: 100 },
+        "top-bottom",
+        noHosts,
+        geometryOf,
+      ),
+    ).toMatchObject({ rotation: 330 });
+  });
+
+  it("reflects a text box and keeps its glyphs readable", () => {
+    const pivot = { x: 100, y: 60 };
+    const text = note("start");
+    const before = geometryOf(text).bounds;
+
+    const across = mirrorDraftingObject(
+      text,
+      pivot,
+      "left-right",
+      noHosts,
+      geometryOf,
+    );
+    if (across?.kind !== "text") throw new Error("Expected text");
+    // It grew rightward from its anchor; mirrored, it grows leftward.
+    expect(across.alignment).toBe("end");
+    const acrossBox = geometryOf(across).bounds;
+    expect(acrossBox.x + acrossBox.width).toBeCloseTo(
+      2 * pivot.x - before.x,
+      0,
+    );
+
+    const down = mirrorDraftingObject(
+      text,
+      pivot,
+      "top-bottom",
+      noHosts,
+      geometryOf,
+    );
+    if (down?.kind !== "text") throw new Error("Expected text");
+    expect(down.alignment).toBe("start");
+    const downBox = geometryOf(down).bounds;
+    // The box, not the baseline, is what reflects.
+    expect(downBox.y).toBeCloseTo(2 * pivot.y - (before.y + before.height), 0);
+  });
+
+  it("mirrors an attached end's offset only when its host mirrors too", () => {
+    const attached = {
+      ...arrow(),
+      to: {
+        kind: "object" as const,
+        objectId: "R1",
+        localOffset: { x: 10, y: 5 },
+        fallbackPosition: { x: 110, y: 5 },
+      },
+    };
+    expect(
+      mirrorDraftingObject(
+        attached,
+        { x: 100, y: 0 },
+        "left-right",
+        new Set(["R1"]),
+        geometryOf,
+      ),
+    ).toMatchObject({
+      to: { localOffset: { x: -10, y: 5 }, fallbackPosition: { x: 90, y: 5 } },
+    });
+    expect(
+      mirrorDraftingObject(
+        attached,
+        { x: 100, y: 0 },
+        "left-right",
+        noHosts,
+        geometryOf,
+      ),
+    ).toMatchObject({ to: attached.to });
+    expect(
+      mirrorDraftingObject(
+        { ...attached, locked: true },
+        { x: 100, y: 0 },
+        "left-right",
+        noHosts,
+        geometryOf,
+      ),
+    ).toBeNull();
   });
 });
