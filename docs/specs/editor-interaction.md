@@ -678,7 +678,9 @@ stays on the Net its source body used, whether it joined that Net or followed
 the Cell default or supply marker to it, whenever that Net travels with the
 copy; a body whose Net stays behind takes the target Cell's body default, as a
 newly inserted MOS does. A body drawn with a dashed wire travels with that wire,
-like any other pin. Composing a whole Cell, as Gallery insertion does, keeps
+like any other pin. A pin its symbol does not draw, such as the substrate of a
+bipolar model, travels with its Net the same way; left behind, it is the
+target's to bind in Properties. Composing a whole Cell, as Gallery insertion does, keeps
 every body as an instance-owned connection rather than adopting target defaults.
 Necessary Net names whose original owners were outside the selection receive
 copy-owned labels. Name equality in the target Cell retains its ordinary electrical

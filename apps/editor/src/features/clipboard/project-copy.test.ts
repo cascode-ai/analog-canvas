@@ -280,6 +280,84 @@ describe("one Project copy path", () => {
     }
   });
 
+  // A bipolar model's substrate is a pin its symbol does not draw: it is
+  // bound in Properties, never wired, and travels with its Net like a body.
+  it.each([
+    ["a selection whose Net travels", true, true],
+    ["a selection whose Net stays behind", false, true],
+    ["a whole Cell", true, false],
+  ] as const)("copies an undrawn substrate in %s", (_how, travels, partial) => {
+    const source = createEmptyProject("source", "Source");
+    const document = source.documents[0]!;
+    document.instances.push({
+      id: "Q1",
+      symbolId: "npn",
+      reference: "Q1",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    const resolver = createProjectSymbolResolver(source, builtInSymbols);
+    const emitter = resolveEndpointPoint(document, resolver, {
+      kind: "terminal",
+      instanceId: "Q1",
+      pinName: "E",
+    })!;
+    document.junctions.push({
+      id: "J1",
+      netId: "tail",
+      position: { x: emitter.x, y: emitter.y + 40 },
+    });
+    document.nets.push(
+      {
+        id: "tail",
+        terminals: [
+          { instanceId: "Q1", pinName: "E" },
+          ...(travels ? [{ instanceId: "Q1", pinName: "S" }] : []),
+        ],
+      },
+      {
+        id: "substrate",
+        terminals: travels ? [] : [{ instanceId: "Q1", pinName: "S" }],
+      },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "wire",
+        netId: "tail",
+        start: { kind: "terminal", instanceId: "Q1", pinName: "E" },
+        end: { kind: "junction", junctionId: "J1" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    // Without a selection the whole Cell is composed, as Gallery insertion
+    // places it.
+    const clipboard = captureProjectCopy(
+      source,
+      document,
+      partial
+        ? { ...selection(["Q1"], ["wire"]), junctionIds: ["J1"] }
+        : undefined,
+    )!;
+    const pasted = place(createEmptyProject("target", "Target"), clipboard)
+      .documents[0]!;
+    const copy = pasted.instances.find((item) => item.symbolId === "npn")!;
+    const netOf = (pinName: string) =>
+      pasted.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === copy.id && terminal.pinName === pinName,
+        ),
+      )?.id;
+    expect(netOf("E")).toBeDefined();
+    // A substrate left behind is the target's to bind, as on a new part.
+    expect(netOf("S")).toBe(travels ? netOf("E") : undefined);
+    expect(pasted.routes).toHaveLength(1);
+  });
+
   it("inserts fresh repeated devices without source names or outside connections", () => {
     const project = createEmptyProject("copy-source", "Copy source");
     const document = project.documents[0]!;

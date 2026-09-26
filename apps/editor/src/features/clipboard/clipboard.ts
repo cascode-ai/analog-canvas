@@ -795,6 +795,7 @@ export function copySelection(
   draftingIds: readonly string[] = [],
   routingSelection?: ExplicitCopyRoutingSelection,
   preserveElectrical = false,
+  resolver?: SymbolResolver,
 ): SchematicClipboard | null {
   document = withPowerMarkerOwnership(document);
   const selectedIds = new Set(instanceIds);
@@ -887,6 +888,18 @@ export function copySelection(
     if (body?.net && netIds.has(body.net.id))
       bodyNets.set(instance.id, body.net.id);
   }
+  // A pin its symbol does not draw, such as the substrate of a bipolar
+  // model, has no place for a wire either: it travels with its Net, as a
+  // body does, and is left for the target to bind when its Net stays behind.
+  const undrawnPin = (instanceId: string, pinName: string): boolean => {
+    const instance = instances.find((item) => item.id === instanceId);
+    const symbol =
+      instance &&
+      resolver?.resolve(instance.symbolId, instance.symbolVariantId);
+    return Boolean(
+      symbol && !symbol.definition.pins.some((pin) => pin.name === pinName),
+    );
+  };
   const annotationIds = new Set(annotations.map((annotation) => annotation.id));
   const copiedLayoutObjectIds = new Set<string>([
     ...selectedIds,
@@ -945,6 +958,7 @@ export function copySelection(
                 copiedTerminalKeys.has(
                   `${terminal.instanceId}\0${terminal.pinName}`,
                 ) ||
+                undrawnPin(terminal.instanceId, terminal.pinName) ||
                 (terminal.pinName === "B" &&
                   bodyNets.get(terminal.instanceId) === net.id)),
           ),

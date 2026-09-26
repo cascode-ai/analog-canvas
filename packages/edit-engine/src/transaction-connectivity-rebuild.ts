@@ -228,6 +228,35 @@ export function rebuildEditedConnectivity(
       );
     }
   }
+  // A property-only terminal, such as a model's substrate, has no geometry to
+  // hold it on its Net: the Net an edit of this transaction named for it is
+  // its connection, as a logical join is. Tie it to the members that Net
+  // holds by other means, or a paste that binds it and draws the Net's wires
+  // at once would strand it on a Net of its own.
+  const boundProperties = new Set(
+    transaction.edits.flatMap((edit) =>
+      edit.kind === "set_property_terminal_net" && edit.netId !== null
+        ? [
+            endpointKey({
+              kind: "terminal",
+              instanceId: edit.instanceId,
+              pinName: edit.pinName,
+            }),
+          ]
+        : [],
+    ),
+  );
+  if (boundProperties.size > 0) {
+    for (const net of draft.nets) {
+      const keys = netEndpoints(draft, net)
+        .map(endpointKey)
+        .filter((key) => endpoints.has(key));
+      const bound = keys.filter((key) => boundProperties.has(key));
+      if (bound.length === 0) continue;
+      const anchor = keys.find((key) => !boundProperties.has(key));
+      graph.join(anchor ? [anchor, ...bound] : bound);
+    }
+  }
   for (const net of [...draft.nets]) {
     const keys = netEndpoints(draft, net).map(endpointKey);
     const groups = graph.groups(keys);
