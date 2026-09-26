@@ -8,7 +8,7 @@ edit model.
 
 [Browse the Gallery](https://analog-canvas.tokenzhang.com/) ·
 [Open the editor](https://analog-canvas.tokenzhang.com/editor) ·
-[Windows preview (ZIP)](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-201c2a9f3d7d-2/analog-canvas-desktop-windows-x64.zip) ·
+[Windows preview (ZIP)](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-8c0de605318a/analog-canvas-desktop-windows-x64.zip) ·
 [Documentation](docs/README.md) ·
 [GitHub repository](https://github.com/cascode-ai/analog-canvas)
 
@@ -80,21 +80,26 @@ automatically rerunning it. File / Save and Ctrl+S remain save-only.
 
 ## Windows desktop preview
 
-[**Download Windows x64 ZIP**](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-201c2a9f3d7d-2/analog-canvas-desktop-windows-x64.zip)
-(about 163 MiB) · [Release details](https://github.com/cascode-ai/analog-canvas/releases/tag/desktop-preview-201c2a9f3d7d-2)
+[**Download Windows x64 ZIP**](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-8c0de605318a/analog-canvas-desktop-windows-x64.zip)
+· [Release details](https://github.com/cascode-ai/analog-canvas/releases/tag/desktop-preview-8c0de605318a)
 
 1. Download and extract the **whole ZIP**.
 2. Open the extracted preview directory and run
    `Analog Canvas Preview/Analog Canvas Preview.exe`. Keep its sibling resources
    together; the `.exe` alone will not work. No Node.js, pnpm or developer tools
    are required.
-3. Use **File → Export Project File…** (Ctrl+S) to save a portable copy, and
-   **File → Import → Project File…** to reopen it. Export every tab you need
-   before closing; recovery is only a safety copy.
+3. Use **File → Open Project…** to open a `.icproj.json` file. **Save** (Ctrl+S)
+   writes back to that file; a new project asks for a destination on its first
+   save. **Save As…** changes the destination after a successful write.
+4. Each project tab keeps its own file. The File menu shows its current path
+   and recent files. Closing with unsaved work offers to save all changed tabs;
+   a canceled or failed save keeps the window open. **Export Project File…**
+   makes a separate portable copy without changing the Save destination.
 
 This is an **unsigned, offline preview** with no installer or automatic updates.
-It supports local circuit editing and SVG/PNG/PDF export, but has no native
-in-place Save, account, Cloud, Gallery, Agent or simulation services.
+It supports local project files, circuit editing and SVG/PNG/PDF export.
+Account, Cloud, Gallery, Agent and simulation services are unavailable.
+Recovery remains a safety copy; save needed projects to files.
 See the [full preview instructions and limitations](apps/desktop/README.md).
 
 The linked package passed packaged-application acceptance and credential

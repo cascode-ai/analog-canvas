@@ -50,7 +50,7 @@ jobs:
           cat > release-notes.md <<'EOF'
           Windows x64 desktop preview. Download analog-canvas-desktop-windows-x64.zip, extract the entire folder, and run Analog Canvas Preview.exe inside it. No Node.js or development tools are required. Keep the application and its accompanying resources together.
 
-          Offline drawing and canonical project import/export; SVG/PNG/PDF export. Ctrl+S exports a file; it does not bind a native path for in-place Save. Export every needed tab before closing. No installer, auto-update, file association or coordinated multi-tab Save-on-close. This preview is unsigned.
+          Feature availability, file-saving behavior and limitations for this source revision are described in the README.md included in the ZIP. This offline preview is unsigned and has no installer or automatic updater.
 
           The ZIP includes corresponding source, licenses, the fork source/adaptation inventory and packaged acceptance evidence. Desktop shell source: LXY-freshman/Schematic Draft; architecture discussion: Arcadia-1 and Issue #1003. Larger fork features remain deferred.
           EOF
