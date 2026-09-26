@@ -1,4 +1,5 @@
 import { agentToolHelp } from "./guidance.generated.js";
+import { compareExpectedNetlist } from "./netlist-comparison.js";
 import { z } from "zod";
 import { downloadSimulationArtifact } from "./artifact-download.js";
 import { LocalWorkspace, defaultWorkspacePath } from "./local-workspace.js";
@@ -317,6 +318,30 @@ const ImportFileArgs = z
 const DocumentArgs = z.strictObject({
   documentId: z.string().min(1).optional(),
   refresh: z.boolean().optional(),
+});
+const VerifyArgs = DocumentArgs.extend({
+  expectedNetlist: z
+    .strictObject({
+      text: z
+        .string()
+        .min(1)
+        .max(2_200_000)
+        .describe(
+          "Structural SPICE reference, not a simulator deck. Comparison is read-only and optional.",
+        ),
+      cell: z
+        .string()
+        .min(1)
+        .optional()
+        .describe("Reference root Cell if more than one is present."),
+    })
+    .optional(),
+  details: z
+    .boolean()
+    .optional()
+    .describe(
+      "Include up to 200 endpoint/device differences; default returns counts and inconclusive reasons.",
+    ),
 });
 
 const InspectArgs = z.strictObject({
@@ -1222,11 +1247,11 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "verify",
       description: agentToolHelp["verify"],
-      inputSchema: jsonSchemaOf(DocumentArgs),
+      inputSchema: jsonSchemaOf(VerifyArgs),
     },
     handle: async (args, session) => {
       const client = session.client;
-      const parsed = DocumentArgs.parse(args ?? {});
+      const parsed = VerifyArgs.parse(args ?? {});
       const documentId = parsed.documentId;
       const before = client.cachedSnapshot(documentId);
       const fresh = await client.refreshSnapshot(documentId);
@@ -1235,7 +1260,21 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           ? changedObjectIds(before.snapshot, fresh.snapshot)
           : [];
       const counts = diagnosticsCompact(fresh).counts;
-      return { revision: fresh.revision, ...counts, changedObjectIds: changed };
+      return {
+        revision: fresh.revision,
+        ...counts,
+        changedObjectIds: changed,
+        ...(parsed.expectedNetlist
+          ? {
+              comparison: await compareExpectedNetlist(
+                client,
+                fresh.documentId,
+                parsed.expectedNetlist,
+                parsed.details,
+              ),
+            }
+          : {}),
+      };
     },
   },
   {

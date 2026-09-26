@@ -211,6 +211,22 @@ The client carries context stamps automatically and never redirects old writes.
 
 ## Files and boundaries
 
+For a read-only milestone, `verify` optionally accepts
+`expectedNetlist:{text:"<structural SPICE>",cell:"<reference root>"}` and
+`details:true`. Omit it to retain the ordinary Snapshot-only check. Comparison
+reads the existing structural netlist, pairs unique device References and pin
+positions, and compares formal port order, targets, literal parameters, scope
+and endpoint membership; internal auto Net names do not matter. It recursively
+checks matched child definitions, without flattening or guessing renamed devices.
+Counts are default; details includes at most 200 differences with an explicit
+truncation flag. A difference may affect several endpoint memberships.
+Parameterized hierarchy, expressions, model bodies, unresolved or preserved
+statements yield `inconclusive`, possibly alongside known differences.
+SPICE has no Port direction metadata: this comparison does not test directions,
+library model internals or simulated performance. Snapshot diagnostics and the
+subsequent structural export are separate reads, not an atomic revision snapshot.
+No import reference is rewritten and no verification call is required before edits.
+
 `export_file` writes Project/SVG/PNG/PDF to an explicit local path.
 `import_file` stages a Project or structural SPICE bundle. Inspect the candidate,
 then use `action:"open"` to open it in a new Project tab without replacing the

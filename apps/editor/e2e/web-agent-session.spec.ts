@@ -7,6 +7,7 @@ import { serializeProject } from "@icm/project-protocol";
 
 import { AgentHttpClient } from "../../../packages/agent-client/src/http-client.js";
 import { AgentSessionClient } from "../../../packages/agent-client/src/session-client.js";
+import { compareExpectedNetlist } from "../../mcp-server/src/netlist-comparison.js";
 import {
   revealPropertiesShelf,
   awaitEditorReady,
@@ -240,6 +241,120 @@ test("real relay batches labels and moves bound text with shared undo", async ({
       (a) => a.kind === "net-label",
     ),
   ).toHaveLength(0);
+});
+
+test("staged Cell body workflow retains identity and shared undo with independent connectivity assertions", async ({
+  page,
+  baseURL,
+}, testInfo) => {
+  test.setTimeout(90000);
+  const started = performance.now();
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByRole("button", { name: "Agent", exact: true }).click();
+  const message = page.getByTestId("agent-copy-text");
+  await expect(message).toHaveValue(/Claim: /, { timeout: 45000 });
+  const { claimCode } = JSON.parse(
+    /^Claim: (.+)$/mu.exec(await message.inputValue())![1]!,
+  );
+  const client = new AgentSessionClient({
+    http: new AgentHttpClient({ baseUrl: baseURL! }),
+  });
+  await client.connect(claimCode);
+  const before = await client.refreshSnapshot();
+  const stageAndImport = async (
+    reference: string,
+    mode: "replace-body" | "append",
+  ) => {
+    const bytes = Buffer.from(
+      `.subckt staged A B\n${reference} A B 1k\n.ends staged`,
+    );
+    const stage = await client.fileResource({
+      apiVersion: "3.0",
+      requestId: crypto.randomUUID(),
+      operation: "stage",
+      kind: "structural-spice",
+      entryPath: "cell.cir",
+      files: [
+        {
+          name: "cell.cir",
+          mediaType: "text/plain",
+          encoding: "base64",
+          data: bytes.toString("base64"),
+          byteLength: bytes.length,
+          sha256: createHash("sha256").update(bytes).digest("hex"),
+        },
+      ],
+    });
+    if (!stage.ok || stage.operation !== "stage")
+      throw new Error(JSON.stringify(stage));
+    const source = stage.candidate.documents!.find(
+      (d) => d.name.toLowerCase() === "staged",
+    )!;
+    const state = await client.documentState(before.documentId);
+    const imported = await client.fileResource({
+      apiVersion: "3.0",
+      requestId: crypto.randomUUID(),
+      operation: "import-cell",
+      candidateId: stage.candidate.candidateId,
+      sourceDocumentId: source.id,
+      targetDocumentId: before.documentId,
+      mode,
+      expectedStructureRevision: state.structureRevision,
+      expectedRevision: state.revision,
+    });
+    expect(imported.ok, JSON.stringify(imported)).toBe(true);
+  };
+  await stageAndImport("R1", "replace-body");
+  await stageAndImport("R2", "append");
+  const current = await client.refreshSnapshot();
+  expect(current.documentId).toBe(before.documentId);
+  // Independent fixture oracle: scorer and import implementation cannot pass
+  // together merely by agreeing on a shared incorrect conversion.
+  const resistors = current.snapshot.document.instances.filter(
+    (i) => i.symbolId === "resistor",
+  );
+  expect(resistors.map((i) => i.reference).sort()).toEqual(["R1", "R2"]);
+  const terminals = current.snapshot.document.cellInterface!.terminals;
+  expect(terminals.map((p) => p.name)).toEqual(["A", "B"]);
+  for (const [index, port] of terminals.entries()) {
+    const net = current.snapshot.document.nets.find(
+      (n) => n.id === port.netId,
+    )!;
+    for (const r of resistors)
+      expect(net.terminals).toContainEqual(
+        expect.objectContaining({
+          instanceId: r.id,
+          pinName: String(index + 1),
+        }),
+      );
+  }
+  const comparison = await compareExpectedNetlist(
+    client,
+    before.documentId,
+    {
+      text: ".subckt expected A B\nR1 A B 1k\nR2 A B 1k\n.ends expected",
+    },
+    true,
+  );
+  expect(comparison.status, JSON.stringify(comparison)).toBe("equal");
+  expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+  expect(
+    (await client.refreshSnapshot()).snapshot.document.instances.filter(
+      (i) => i.symbolId === "resistor",
+    ),
+  ).toHaveLength(1);
+  await testInfo.attach("controlled-cell-workflow", {
+    contentType: "application/json",
+    body: Buffer.from(
+      JSON.stringify({
+        elapsedMs: performance.now() - started,
+        comparison,
+        basis:
+          "deterministic browser workflow, not image-to-circuit model success rate",
+      }),
+    ),
+  });
 });
 
 type SessionMessage = {

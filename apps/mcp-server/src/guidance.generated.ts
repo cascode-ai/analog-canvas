@@ -61,7 +61,7 @@ export const agentToolHelp = {
   advanced_transact:
     "Full transaction access: exactly one of edits, structureEdits, wireIntent, semanticIntent or command. Client supplies IDs/revisions; reconcile stale conflicts. Edit contracts are optional references.",
   verify:
-    "Fresh full Snapshot plus revision, diagnostic counts and changed object IDs. For broad milestones/reconciliation, not confirmation after accepted edits.",
+    "Fresh Snapshot and diagnostic counts for milestones, not every edit. Optional expectedNetlist compares structural SPICE through the existing export; details adds bounded differences. Expressions/unsupported declarations are inconclusive, never electrical acceptance.",
   render:
     "Render the current document to SVG and return it as an image content block (image/svg+xml) plus a compact text summary (revision, sha256, byteLength).",
   simulation_folder:
