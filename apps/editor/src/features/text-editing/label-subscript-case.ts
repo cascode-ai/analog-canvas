@@ -5,6 +5,7 @@ import {
   type SchematicEdit,
 } from "@icm/edit-engine";
 import { resolveAnnotationName, resolveAnnotationText } from "@icm/derived";
+import { referenceDeviceLetter } from "@icm/devices";
 import {
   CircuitProjectSchema,
   formatLabelSubscripts,
@@ -214,12 +215,25 @@ export function applyLabelSubscriptCase(
             ? portName(binding.terminalId, name)
             : netName(binding.netId, name);
       const role = labelRole(annotation);
+      const deviceLetter =
+        binding.kind === "instance-reference"
+          ? referenceDeviceLetter(
+              document.instances.find(
+                (candidate) => candidate.id === binding.instanceId,
+              )?.symbolId ?? "",
+            )
+          : undefined;
       // A standard look (V_DD, M₁, V_in) belongs to what the label names,
       // not to this setting; an author's own look stays as it is.
       const standard =
         role !== undefined &&
         annotation.formatOverride !== undefined &&
-        isRoleLabelFormat(annotation.formatOverride, role, name);
+        isRoleLabelFormat(
+          annotation.formatOverride,
+          role,
+          name,
+          deviceLetter ? { deviceLetter } : {},
+        );
       const shown = firstLetterOn
         ? standard
           ? undefined

@@ -29,6 +29,7 @@ import {
   visibleSymbolInkBounds,
   type InstanceLabelPlacement,
 } from "@icm/derived";
+import { referenceDeviceLetter } from "@icm/devices";
 import type { SymbolResolver } from "@icm/symbols";
 
 export function translateObjectAnchoredAnnotation(
@@ -277,13 +278,15 @@ export function refreshInstanceReferenceAnnotation(
       continue;
     }
     if (annotation.formatOverride) {
-      // A stored M₁ look follows the new Reference; an authored format keeps
-      // its styling around the new text.
+      // A stored M₁ look follows the new Reference (R₁ renamed RL1 reads
+      // R_L1); an authored format keeps its styling around the new text.
+      const deviceLetter = referenceDeviceLetter(instance!.symbolId);
       const format = renamedLabelFormat(
         annotation,
         previousReference,
         nextReference,
         draft.presentation,
+        deviceLetter ? { deviceLetter } : {},
       );
       if (format) annotation.formatOverride = format;
       else delete annotation.formatOverride;

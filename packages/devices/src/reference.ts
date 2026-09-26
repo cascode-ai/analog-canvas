@@ -57,6 +57,21 @@ export function referencePolicyForSymbol(symbolId: string): ReferencePolicy {
   return prefix ? { kind: "required", prefix } : { kind: "none" };
 }
 
+/**
+ * The letter a device's References are written from — R, C, L, M, Q, D, V,
+ * I… — which a Reference label shows in italic over a subscript of the rest
+ * (R_L1, C_L). Subcircuit calls, whose X says how SPICE invokes them rather
+ * than what they are, and devices without a one-letter prefix have none.
+ */
+export function referenceDeviceLetter(
+  symbolId: string,
+  project?: Pick<CircuitProject, "componentDefinitions">,
+): string | undefined {
+  if (subcircuitDescriptor(symbolId, project)) return undefined;
+  const prefix = deviceDescriptor(symbolId, project)?.referencePrefix;
+  return prefix && /^[A-WYZ]$/u.test(prefix) ? prefix : undefined;
+}
+
 export function referenceSuffixForPolicy(
   reference: string,
   policy: ReferencePolicy,

@@ -250,9 +250,38 @@ it("stores a device Reference as italic letters over an upright index", () => {
   expect(flattenRichText(roleLabelFormat("device-reference", "R12")!)).toBe(
     "R12",
   );
-  // Only letters followed by an index have a standard look; nothing is guessed.
+  // Without a device letter, only letters followed by an index have a
+  // standard look; nothing is guessed.
   for (const name of ["MTAIL", "RL", "M_1", "M1a", "1M", ""])
     expect(roleLabelFormat("device-reference", name)).toBeUndefined();
+});
+
+it("writes a Reference from its device letter over the rest (#1116)", () => {
+  const split = (name: string, deviceLetter: string) => {
+    const format = roleLabelFormat("device-reference", name, { deviceLetter });
+    return format
+      ? [
+          flattenRichText({ runs: format.runs.slice(0, 1) }),
+          flattenRichText({ runs: format.runs.slice(1) }),
+        ]
+      : undefined;
+  };
+  expect(split("RL1", "R")).toEqual(["R", "L1"]);
+  expect(split("CL", "C")).toEqual(["C", "L"]);
+  expect(split("RFB", "R")).toEqual(["R", "FB"]);
+  expect(split("MTAIL", "M")).toEqual(["M", "TAIL"]);
+  // A plain index reads exactly as before, so M₁ labels stay standard.
+  expect(
+    roleLabelFormat("device-reference", "M1", { deviceLetter: "M" }),
+  ).toEqual(roleLabelFormat("device-reference", "M1"));
+  // A name that does not start with the device letter, and a block with no
+  // letter, keep letters over an index or no look at all.
+  expect(split("XU0", "M")).toEqual(["XU", "0"]);
+  expect(split("XBIAS", "M")).toBeUndefined();
+  expect(roleLabelFormat("device-reference", "OA1")).toEqual(
+    roleLabelFormat("device-reference", "OA1", {}),
+  );
+  expect(split("R_1", "R")).toBeUndefined();
 });
 
 it("assigns standard looks by what a label shows, not by its spelling", () => {

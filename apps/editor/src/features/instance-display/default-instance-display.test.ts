@@ -2,7 +2,11 @@ import {
   resolveAnnotationName,
   resolveSchematicStyleProfile,
 } from "@icm/derived";
-import { createEmptyDocument, roleLabelFormat } from "@icm/model";
+import {
+  createEmptyDocument,
+  flattenRichText,
+  roleLabelFormat,
+} from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
@@ -163,8 +167,53 @@ describe("default instance display annotations", () => {
     expect(placed("M1")?.formatOverride).toEqual(
       roleLabelFormat("device-reference", "M1"),
     );
-    // A Reference without an index is shown exactly as written.
-    expect(placed("MTAIL")?.formatOverride).toBeUndefined();
+    // The device letter stands over everything after it, as textbooks
+    // write M_tail or M_N1 (#1116).
+    expect(flattenRichText(placed("MTAIL")!.formatOverride!)).toBe("MTAIL");
+    expect(placed("MTAIL")?.formatOverride).toEqual(
+      roleLabelFormat("device-reference", "MTAIL", { deviceLetter: "M" }),
+    );
+    // A Reference that does not start with the device letter is shown
+    // exactly as written.
+    expect(placed("XTAIL")?.formatOverride).toBeUndefined();
+  });
+
+  it("writes a resistor's RL1, RFB and a capacitor's CL from their device letter", () => {
+    const document = createEmptyDocument("main", "Main");
+    const profile = resolveSchematicStyleProfile(
+      document.presentation.styleProfileId,
+    );
+    const look = (symbolId: string, reference: string) =>
+      defaultInstanceDisplayAnnotations(
+        document,
+        {
+          id: "device-1",
+          symbolId,
+          placement: {
+            position: { x: 100, y: 100 },
+            rotation: 0 as const,
+            mirror: "none" as const,
+          },
+          reference,
+        },
+        resolver,
+        profile,
+      )[0]?.formatOverride;
+    const letterOverRest = (letter: string, rest: string) => ({
+      base: letter,
+      subscript: rest,
+    });
+    const split = (format: ReturnType<typeof look>) => ({
+      base: flattenRichText({ runs: format!.runs.slice(0, 1) }),
+      subscript: flattenRichText({ runs: format!.runs.slice(1) }),
+    });
+    expect(split(look("resistor", "RL1"))).toEqual(letterOverRest("R", "L1"));
+    expect(split(look("resistor", "RFB"))).toEqual(letterOverRest("R", "FB"));
+    expect(split(look("capacitor", "CL"))).toEqual(letterOverRest("C", "L"));
+    // A plain index looks exactly as it always has.
+    expect(look("resistor", "R12")).toEqual(
+      roleLabelFormat("device-reference", "R12"),
+    );
   });
 
   /**

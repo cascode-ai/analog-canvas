@@ -511,13 +511,15 @@ it.each(["connect", "route-net"])(
 it("arranges default labels through the focused MCP entry in one undo, without changing topology", async () => {
   const { tool, controller, client, add } = await folder();
   const id = await add();
+  // MBIAS would already read M_BIAS, its device letter over the rest
+  // (#1116); a name that does not start with M still needs the arrangement.
   expect(
     (
       await client.applyActions([
         {
           kind: "set-reference",
           target: { kind: "instance", id },
-          reference: "MBIAS",
+          reference: "XBIAS",
         },
       ])
     ).ok,

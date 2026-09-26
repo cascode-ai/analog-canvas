@@ -105,7 +105,9 @@ it("changes subscript case without inserting separators into plain names", () =>
 it("draws first-letter subscripts without renaming anything, and takes them away again", () => {
   const source = fixture(),
     doc = source.documents[0]!;
-  doc.instances[0]!.reference = "Rload";
+  // A block has no device letter, so only the setting gives it this look.
+  doc.instances[0]!.symbolId = "opamp";
+  doc.instances[0]!.reference = "Aload";
   delete doc.annotations[0]!.formatOverride;
   doc.netlist!.terminals[0]!.name = "Start";
   doc.presentation.labelSubscriptAfterFirst = false;
@@ -119,15 +121,15 @@ it("draws first-letter subscripts without renaming anything, and takes them away
     { ...layout, subscriptAfterFirst: true },
   );
   // The netlist keeps the names exactly as written.
-  expect(on.documents[0]!.instances[0]!.reference).toBe("Rload");
+  expect(on.documents[0]!.instances[0]!.reference).toBe("Aload");
   expect(on.documents[0]!.netlist!.terminals[0]!.name).toBe("Start");
-  // Only the label's look changes: R over a subscript of load.
+  // Only the label's look changes: A over a subscript of load.
   const shown = resolveAnnotationText(
     on.documents[0]!,
     on.documents[0]!.annotations[0]!,
   );
-  expect(flattenRichText(shown)).toBe("Rload");
-  expect(richTextIdentifier(shown)).toBe("R_load");
+  expect(flattenRichText(shown)).toBe("Aload");
+  expect(richTextIdentifier(shown)).toBe("A_load");
   const off = applyLabelSubscriptCase(
     on,
     doc.id,
@@ -137,7 +139,7 @@ it("draws first-letter subscripts without renaming anything, and takes them away
     false,
     { ...layout, subscriptAfterFirst: false },
   );
-  expect(off.documents[0]!.instances[0]!.reference).toBe("Rload");
+  expect(off.documents[0]!.instances[0]!.reference).toBe("Aload");
   expect(
     richTextIdentifier(
       resolveAnnotationText(
@@ -145,7 +147,38 @@ it("draws first-letter subscripts without renaming anything, and takes them away
         off.documents[0]!.annotations[0]!,
       ),
     ),
-  ).toBe("Rload");
+  ).toBe("Aload");
+});
+
+it("keeps a resistor's standard R_load look when the first-letter setting goes off", () => {
+  const source = fixture(),
+    doc = source.documents[0]!;
+  doc.instances[0]!.reference = "Rload";
+  // A resistor's Reference is written from its device letter (#1116).
+  doc.annotations[0]!.formatOverride = roleLabelFormat(
+    "device-reference",
+    "Rload",
+    { deviceLetter: "R" },
+  );
+  doc.presentation.labelSubscriptAfterFirst = true;
+  const off = applyLabelSubscriptCase(
+    source,
+    doc.id,
+    "preserve",
+    resolver,
+    [],
+    false,
+    { ...layout, subscriptAfterFirst: false },
+  );
+  // The look belongs to the name, not to the setting.
+  expect(
+    richTextIdentifier(
+      resolveAnnotationText(
+        off.documents[0]!,
+        off.documents[0]!.annotations[0]!,
+      ),
+    ),
+  ).toBe("R_load");
 });
 
 it("leaves a standard look alone when the first-letter look is turned off", () => {

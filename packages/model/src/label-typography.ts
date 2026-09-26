@@ -23,6 +23,7 @@ import {
 } from "./rich-text.js";
 import {
   currentNodeTextDocument,
+  deviceLetterReferenceTextDocument,
   deviceReferenceTextDocument,
   voltageNodeTextDocument,
 } from "./semantic-text.js";
@@ -183,6 +184,15 @@ export function labelRole(
 /** I then letters or digits, but not an input (IN, INP, INN) or IO. */
 const CURRENT_NAME = /^[Ii](?![Nn])(?![Oo]$)[\p{L}\p{N}]+$/u;
 
+export interface RoleLabelFormatOptions {
+  /**
+   * The single letter the labelled device's References start with — R, C,
+   * L, M, Q, D, V, I… — when it has one. The model knows no devices, so the
+   * caller that does passes it.
+   */
+  readonly deviceLetter?: string;
+}
+
 /**
  * The standard look a role-labelled name is created with, stored on the
  * label so later rule or drawing-setting changes never redraw it. The name
@@ -191,16 +201,29 @@ const CURRENT_NAME = /^[Ii](?![Nn])(?![Oo]$)[\p{L}\p{N}]+$/u;
  *   subscript (V_DD, V_in, V_BP, V_casP)
  * - a Cell Pin or Net label named for a current: italic I over an upright
  *   subscript (I_out, I_REF, I₁), except an input's IN… or an IO pin
- * - device reference: italic letters over an upright index (M₁, R₁₂)
+ * - device reference that starts with its device letter: that letter in
+ *   italic over an upright subscript of the rest (M₁, R₁₂, R_L1, C_L, R_FB)
+ * - any other device reference: italic letters over an upright index, so a
+ *   block named for what it is keeps its letters together (OA₁, XU₀)
  */
 export function roleLabelFormat(
   role: LabelRole,
   name: string,
+  options: RoleLabelFormatOptions = {},
 ): RichTextDocument | undefined {
-  if (role === "device-reference")
+  if (role === "device-reference") {
+    const letter = options.deviceLetter;
+    if (
+      letter &&
+      /^\p{L}$/u.test(letter) &&
+      /^\p{L}[\p{L}\p{N}]+$/u.test(name) &&
+      name.slice(0, 1).toUpperCase() === letter.toUpperCase()
+    )
+      return deviceLetterReferenceTextDocument(name);
     return /^\p{L}+\p{N}+$/u.test(name)
       ? deviceReferenceTextDocument(name)
       : undefined;
+  }
   if (/^[Vv][\p{L}\p{N}]+$/u.test(name)) return voltageNodeTextDocument(name);
   return role === "voltage-node" && CURRENT_NAME.test(name)
     ? currentNodeTextDocument(name)
@@ -212,8 +235,9 @@ export function isRoleLabelFormat(
   format: RichTextDocument,
   role: LabelRole,
   name: string,
+  options: RoleLabelFormatOptions = {},
 ): boolean {
-  const expected = roleLabelFormat(role, name);
+  const expected = roleLabelFormat(role, name, options);
   return expected !== undefined && sameStyledText(format, expected);
 }
 
@@ -241,12 +265,13 @@ export function renamedLabelFormat(
   previousName: string,
   nextName: string,
   presentation: SchematicDocument["presentation"],
+  options: RoleLabelFormatOptions = {},
 ): RichTextDocument | undefined {
   const format = annotation.formatOverride;
   if (!format) return undefined;
   const role = labelRole(annotation);
-  if (role && isRoleLabelFormat(format, role, previousName))
-    return roleLabelFormat(role, nextName);
+  if (role && isRoleLabelFormat(format, role, previousName, options))
+    return roleLabelFormat(role, nextName, options);
   // A format that spells its name character by character keeps each
   // character's style, so an authored subscript survives the rename. A new
   // name with an underscore places its subscript at that underscore, the
@@ -308,6 +333,8 @@ export interface LabelLookChangeOptions {
    * a script on purpose.
    */
   readonly legacyLooks?: boolean;
+  /** The device letter of the Instance a Reference label names, if any. */
+  readonly deviceLetterOf?: (annotation: Annotation) => string | undefined;
 }
 
 const drawsScripts = (document: RichTextDocument): boolean =>
@@ -332,7 +359,10 @@ export function labelLookChanges(
     const name = boundAnnotationName(document, annotation)?.trim();
     if (!name) continue;
     const role = labelRole(annotation);
-    const standard = role ? roleLabelFormat(role, name) : undefined;
+    const deviceLetter = options.deviceLetterOf?.(annotation);
+    const standard = role
+      ? roleLabelFormat(role, name, deviceLetter ? { deviceLetter } : {})
+      : undefined;
     const format = annotation.formatOverride;
     const historical = labelTextDocument(name, document.presentation);
     if (
