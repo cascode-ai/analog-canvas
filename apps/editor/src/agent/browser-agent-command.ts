@@ -8,6 +8,7 @@ import {
   executeProjectTransaction,
   type ProjectStructureEdit,
   planRoutingTransform,
+  translateDraftingObject,
   planInstanceUnplacement,
   planCellReset,
   pinAnchoredPlacement,
@@ -912,6 +913,7 @@ export function planBrowserAgentCommand(
       }
       if (
         command.selection.draftingIds.length &&
+        input.kind !== "translate" &&
         !(input.kind === "rotate" && !input.center)
       ) {
         throw new Error(
@@ -969,6 +971,44 @@ export function planBrowserAgentCommand(
       if (error) throw new Error(error.message);
       const annotationEdits: SchematicEdit[] = [];
       if (input.kind === "translate") {
+        const moving = new Set([
+          ...plan.affected.instances,
+          ...plan.affected.internalJunctions,
+          ...plan.affected.internalRoutes,
+          ...command.selection.draftingIds,
+        ]);
+        for (const id of new Set(command.selection.draftingIds)) {
+          const object = document.drafting?.objects.find(
+            (item) => item.id === id,
+          );
+          if (!object) throw new Error(`Drafting object not found: ${id}`);
+          if (object.locked)
+            throw new Error(`Drafting object is locked: ${id}`);
+          const anchors = [
+            object.anchor,
+            ...(object.kind === "arrow" ? [object.from, object.to] : []),
+            ...(object.kind === "leader" || object.kind === "callout"
+              ? [object.target]
+              : []),
+          ];
+          for (const anchor of anchors) {
+            if (anchor.kind === "free") continue;
+            const owner =
+              anchor.kind === "object" ? anchor.objectId : anchor.routeId;
+            if (!moving.has(owner))
+              throw new Error(
+                `Drafting object ${id} is attached to ${owner}; move its owner or use upsert_drafting_object for an explicit anchor change`,
+              );
+          }
+          annotationEdits.push({
+            kind: "upsert_drafting_object",
+            object: translateDraftingObject(
+              object,
+              input.delta,
+              document.presentation.grid,
+            ),
+          });
+        }
         for (const id of new Set(command.selection.annotationIds)) {
           const annotation = document.annotations.find((a) => a.id === id);
           if (!annotation) throw new Error(`Annotation not found: ${id}`);

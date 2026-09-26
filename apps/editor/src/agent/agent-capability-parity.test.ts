@@ -12,6 +12,99 @@ import { EditorDocumentController } from "../document/document-controller";
 import { BrowserAgentHost } from "./browser-agent-host";
 import { planBrowserAgentCommand } from "./browser-agent-command";
 
+it("translates free drafting text atomically, preserves fine placement, and rejects locked or separately attached text", async () => {
+  const { tool, controller, client, add } = await folder();
+  const instanceId = await add();
+  const added = await tool("circuit_text", {
+    actions: [
+      { kind: "annotate", text: "Bias branch", position: { x: 303, y: 107 } },
+    ],
+  });
+  expect(added.ok, added.message).toBe(true);
+  const text = controller.document.drafting!.objects[0]!;
+  const before = structuredClone(controller.project);
+  const moved = await tool("circuit_selection", {
+    actions: [
+      {
+        kind: "transform",
+        selection: { draftingIds: [text.id] },
+        transform: { kind: "translate", delta: { x: 10, y: 20 } },
+      },
+    ],
+  });
+  expect(moved.ok, moved.message).toBe(true);
+  expect(controller.document.drafting!.objects[0]).toEqual({
+    ...text,
+    anchor: { kind: "free", position: { x: 313, y: 127 } },
+  });
+  expect(controller.document.instances).toEqual(before.documents[0]!.instances);
+  await client.applyActions([{ kind: "undo" }]);
+  expect(controller.document.drafting).toEqual(before.documents[0]!.drafting);
+  for (const attached of [false, true]) {
+    const object = {
+      ...text,
+      locked: !attached,
+      ...(attached
+        ? {
+            anchor: {
+              kind: "object" as const,
+              objectId: instanceId,
+              localOffset: { x: 30, y: 10 },
+              fallbackPosition: { x: 303, y: 107 },
+            },
+          }
+        : {}),
+    };
+    const updated = controller.transact([
+      { kind: "upsert_drafting_object", object },
+    ]);
+    expect(updated.ok, JSON.stringify(updated)).toBe(true);
+    await client.refreshSnapshot();
+    const snapshot = structuredClone(controller.project);
+    const result = await tool("circuit_selection", {
+      actions: [
+        {
+          kind: "transform",
+          selection: { draftingIds: [text.id], instanceIds: [] },
+          transform: { kind: "translate", delta: { x: 10, y: 20 } },
+        },
+      ],
+    });
+    expect(result.ok).toBe(false);
+    expect(controller.project).toEqual(snapshot);
+    await client.applyActions([{ kind: "undo" }]);
+  }
+  expect(
+    controller.transact([
+      {
+        kind: "upsert_drafting_object",
+        object: {
+          ...text,
+          anchor: {
+            kind: "object",
+            objectId: instanceId,
+            localOffset: { x: 30, y: 10 },
+            fallbackPosition: { x: 303, y: 107 },
+          },
+        },
+      },
+    ]).ok,
+  ).toBe(true);
+  await client.refreshSnapshot();
+  const anchored = structuredClone(controller.document.drafting!.objects[0]!);
+  const together = await tool("circuit_selection", {
+    actions: [
+      {
+        kind: "transform",
+        selection: { draftingIds: [text.id], instanceIds: [instanceId] },
+        transform: { kind: "translate", delta: { x: 10, y: 20 } },
+      },
+    ],
+  });
+  expect(together.ok, together.message).toBe(true);
+  expect(controller.document.drafting!.objects[0]).toEqual(anchored);
+});
+
 it("keeps the native power-label look through a plain-text rename", async () => {
   const { client, controller } = await folder();
   const placed = await client.applyActions([
