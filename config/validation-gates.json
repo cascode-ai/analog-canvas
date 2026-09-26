@@ -67,6 +67,7 @@
       "apps/editor/src/canvas/editor-selection-halo*",
       "apps/editor/src/features/selection/**",
       "apps/editor/e2e/detach-move.spec.ts",
+      "apps/editor/e2e/group-mirror.spec.ts",
       "apps/editor/e2e/net-highlight.spec.ts",
       "apps/editor/e2e/overlap-warning.spec.ts",
       "apps/editor/e2e/selection-visuals.spec.ts"
@@ -568,11 +569,12 @@
       "id": "editor-selection-browser",
       "stage": "affected",
       "groups": ["editorSelection"],
-      "description": "Validate selection, move, highlight, and overlap workflows.",
+      "description": "Validate selection, move, mirror, highlight, and overlap workflows.",
       "command": [
         "pnpm",
         "test:e2e:local",
         "apps/editor/e2e/detach-move.spec.ts",
+        "apps/editor/e2e/group-mirror.spec.ts",
         "apps/editor/e2e/net-highlight.spec.ts",
         "apps/editor/e2e/overlap-warning.spec.ts",
         "apps/editor/e2e/selection-visuals.spec.ts"
@@ -580,6 +582,7 @@
       "ci": {
         "e2eArgs": [
           "apps/editor/e2e/detach-move.spec.ts",
+          "apps/editor/e2e/group-mirror.spec.ts",
           "apps/editor/e2e/net-highlight.spec.ts",
           "apps/editor/e2e/overlap-warning.spec.ts",
           "apps/editor/e2e/selection-visuals.spec.ts"
