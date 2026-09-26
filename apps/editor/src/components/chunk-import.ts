@@ -17,7 +17,7 @@ export class ChunkLoadError extends Error {
     override readonly cause: unknown,
   ) {
     super(
-      `${feature} could not load — the app has been updated since this tab opened`,
+      `${feature} could not load — check your connection; this tab may also reference an older app version`,
     );
     this.name = "ChunkLoadError";
   }
@@ -25,7 +25,7 @@ export class ChunkLoadError extends Error {
 
 /** One status-bar line: what failed, why, and the remedy. */
 export function chunkLoadStatus(feature: string): string {
-  return `${feature} could not load — the app has been updated since this tab opened. Refresh to load the new version; your circuit is restored automatically.`;
+  return `${feature} could not load — check your connection and retry. This tab may reference an older app version. Refresh if the problem persists; your circuit is restored automatically.`;
 }
 
 export async function importChunk<T>(
