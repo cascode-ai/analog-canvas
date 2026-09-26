@@ -46,6 +46,7 @@ let resumeCount = 0;
 let lastCircuitWorkspace;
 const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>', "utf8");
 const projectBytes = Buffer.from('{"release":true}\n', "utf8");
+const comparisonNetlist = ".subckt main I O\nC1 I O 0.1u\n.ends main";
 const sha256 = (data) => createHash("sha256").update(data).digest("hex");
 const tableBytes = Buffer.from("time [s],v(out) [V]\n0,1\n1,2\n");
 const tableArtifact = {
@@ -366,27 +367,42 @@ const relay = createServer(async (request, response) => {
     });
   } else if (url.pathname.endsWith("/projects")) {
     const body = await requestBody(request);
-    result = json({
-      apiVersion: "3.0",
-      requestId: body.requestId,
-      operation: "workspace",
-      ok: true,
-      result: {
-        action: "list",
-        activeWorkspaceId: "release-tab",
-        projects: [
-          {
-            workspaceId: "release-tab",
-            projectId: "release-project",
-            name: "Release smoke",
-            cloudProjectId: "release-cloud-project",
-            dirty: false,
+    result =
+      body.operation === "read-netlist"
+        ? json({
+            apiVersion: "3.0",
+            requestId: body.requestId,
+            operation: "read-netlist",
+            ok: true,
             structureRevision: 0,
-            cells: [{ documentId: "main", name: "Main", revision: 0 }],
-          },
-        ],
-      },
-    });
+            netlist: {
+              format: "spice",
+              status: "ready",
+              text: comparisonNetlist,
+              diagnostics: [],
+            },
+          })
+        : json({
+            apiVersion: "3.0",
+            requestId: body.requestId,
+            operation: "workspace",
+            ok: true,
+            result: {
+              action: "list",
+              activeWorkspaceId: "release-tab",
+              projects: [
+                {
+                  workspaceId: "release-tab",
+                  projectId: "release-project",
+                  name: "Release smoke",
+                  cloudProjectId: "release-cloud-project",
+                  dirty: false,
+                  structureRevision: 0,
+                  cells: [{ documentId: "main", name: "Main", revision: 0 }],
+                },
+              ],
+            },
+          });
   } else if (url.pathname.endsWith("/simulation")) {
     const body = await requestBody(request);
     result =
@@ -671,7 +687,11 @@ async function httpCommand(command, input = {}) {
   const closed = once(child, "close");
   child.stdin.end(JSON.stringify(input));
   const [code] = await closed;
-  assert.equal(code, 0, "Direct HTTP command failed");
+  assert.equal(
+    code,
+    0,
+    `Direct HTTP command ${command} failed: ${output.replaceAll(connectorToken, "[redacted]")}`,
+  );
   assert.ok(
     !output.includes(connectorToken),
     "HTTP output leaked the connector",
@@ -948,6 +968,29 @@ try {
     ],
   });
   await first.tool("verify");
+  const verifyInput = {
+    expectedNetlist: { text: comparisonNetlist.replace("0.1u", "100n") },
+  };
+  const verified = await first.tool("verify", verifyInput);
+  assert.equal(
+    verified.comparison.status,
+    "equal",
+    "Packaged verifier rounded equivalent units differently",
+  );
+  const different = await first.tool("verify", {
+    expectedNetlist: { text: comparisonNetlist.replace("0.1u", "100.1n") },
+    details: true,
+  });
+  assert.equal(different.comparison.status, "different");
+  assert.deepEqual(different.comparison.differences, [
+    {
+      kind: "parameter",
+      cell: "main",
+      object: "c1.value",
+      actual: "0.1u",
+      expected: "100.1n",
+    },
+  ]);
   await first.tool("render");
   await first.tool("export_file", {
     artifact: "project",
@@ -1021,6 +1064,14 @@ try {
     tableDownloads,
     1,
     "Fresh CLI must reuse the installed MCP's data despite a different cwd",
+  );
+  const cliVerified = JSON.parse(
+    (await httpCommand("verify", verifyInput)).content[0].text,
+  );
+  assert.deepEqual(
+    cliVerified.comparison,
+    verified.comparison,
+    "CLI and MCP must share exact comparison semantics",
   );
   await restarted.tool("disconnect");
   await restarted.close();
