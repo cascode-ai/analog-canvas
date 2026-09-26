@@ -2,7 +2,7 @@
 
 本文件是完整候选清单。首版本地批次已在 [05-local-merge-plan.md](05-local-merge-plan.md) 收敛范围，Properties、schema 等延期项不因出现在本清单中而自动进入首版。
 
-本文件是分析后的后续实施边界。当前没有迁入代码，也没有声称下列测试已经通过。关键源码与提交见[固定源码索引](migration-references.md)，完整历史可按[参考环境说明](README.md)读取；每个后续目标开始前还需检查最新主线及工作区改动归属。
+本文件是分析后的后续实施边界。部分 upstream 准备已通过 #1126 合并，尚未迁入 fork 实现，也没有声称下列桌面/Visio 测试已经通过。实际进度和反馈取舍以 [05 第 0 节](05-local-merge-plan.md#feedback-alignment)为准。关键源码与提交见[固定源码索引](migration-references.md)，完整历史可按[参考环境说明](README.md)读取；每个后续目标开始前还需检查最新主线及工作区改动归属。
 
 ## 1. 先保存参考，再从主线开目标
 
@@ -25,6 +25,8 @@ fork/main/base 已固定，源码和原始提交可随时从[参考入口](READM
 
 F1a 与 F2 都不依赖完整桌面架构，可先做；不要求它们先吸收所有新增 schema 字段。依赖扩展字段的表单控件或导出功能，等对应共享功能落地再开放。
 
+以上“可先做”指技术依赖。当前实际 fork 实现/测试复用仍暂停，等待贡献处理方式敲定；F2 也仍是首批之外的候选。作者最新回复将跳线、功率器件和 Q 表单列为日常刚需，优先进入后续契约讨论，不由此自动开始实施。
+
 代码进入主线不要求 Web 同时开放入口。Visio、属性表单等可以在 Desktop 先发布；其共享接口、持久化结果和维护责任按 [功能共用报告](04-feature-sharing.md) 执行。纯导出模块可以先迁入和验证；让桌面用户实际使用则仍依赖可运行的 desktop 宿主。
 
 ## 3. 服务轨道
@@ -33,13 +35,15 @@ F1a 与 F2 都不依赖完整桌面架构，可先做；不要求它们先吸收
 
 从当前主线 `use-project-file-lifecycle`、ProjectTabs/workspace/recovery 入手，先保留 hosted 行为，抽取保存目标及文件交付接口。fork 的 file bridge 是具体参考，不能替换主线整个 lifecycle。
 
+已交付的 U-B 共享协调与 U-C 交付接口继续复用；服务装配对齐 #1121 第一步。其 Web 本地文件正式保存提案单列决策，本批 Web Save 仍为 Cloud Save。只抽 upstream 的 Web 装配和回归保护可先继续；首次采用 fork 片段前仍须完成来源/声明/署名检查点。
+
 验收：原有 Cloud Save/revision conflict、portable import/export、publication、refresh/recovery、后台 Project 身份和打开标签页不回退。冻结编辑后快照、保存失败/取消、保存中继续编辑、跨标签页晚返回均有测试。只隐藏菜单但仍初始化云服务不算完成。
 
 ### S2 Desktop 最小闭环
 
 来源包括 [`c15d9f2d`](https://github.com/LXY-freshman/schematic-draft/commit/c15d9f2db22cfbf19bdbc84d743460f5a384b7f6)、[`e6c6eca7`](https://github.com/LXY-freshman/schematic-draft/commit/e6c6eca7d7f6dee52a223211a69b005067625de1)、[`ee05c6fd`](https://github.com/LXY-freshman/schematic-draft/commit/ee05c6fdb7839c6316df3c4a29f60e9b8b2f436c)、[`78b056ce`](https://github.com/LXY-freshman/schematic-draft/commit/78b056ceb8bc06ee3362e7bccaa73ba3c24c75ab)、[`98f01c70`](https://github.com/LXY-freshman/schematic-draft/commit/98f01c70418695b961d8e2063bf4689a21d74764)、[`54179d29`](https://github.com/LXY-freshman/schematic-draft/commit/54179d29be1c04f17d20fd22deaf98418fc9ff5e)、[`21bc76f0`](https://github.com/LXY-freshman/schematic-draft/commit/21bc76f01b2cd58fd877f4c63e6c3a927964ff3f)。落地 `apps/desktop` 和 desktop entry，完成新建/打开/保存/另存为/关闭/恢复，保留共享编辑器。
 
-验收：真实 Electron 窗口、首次保存取消、已有文件覆盖、保存失败、未保存关闭、双击文件、重复启动、授权句柄、原子保存、外部文件变化。Web 入口不得加载 Electron 或 native API；desktop 不发账号/Gallery/Agent/模拟请求。
+M1 验收：真实 Electron 窗口、首次保存取消、已有文件覆盖、保存失败、未保存关闭、恢复和多标签页、授权句柄、原子保存、外部文件变化。Web 入口不得加载 Electron 或 native API；desktop 不发账号/Gallery/Agent/模拟请求。文件关联及文件管理器双击启动/重复启动分派留在 M2，避免将安装范围混入最小本地闭环。
 
 ### S3 严格离线与安装发布
 
@@ -47,13 +51,19 @@ F1a 与 F2 都不依赖完整桌面架构，可先做；不要求它们先吸收
 
 测试针对实际打包产物：加载资源、fetch/XHR、WebSocket、图片/字体、导航/新窗口、外部 URL 打开、更新/遥测、主进程和子进程出口。明确允许的本地资源/IPC 范围，使用可观测接收端或系统网络观测确认禁止请求未发出；只断开网线、请求返回错误不构成拦截证据。
 
+外链策略同时涵盖系统浏览器交接。严格离线构建禁用外部打开，并给帮助入口提供本地内容或明确反馈；应用窗口不能导航出去，不能单独证明整个操作不会触发外部访问。按 #1121 增加的静态导入和构建内容检查作为辅助，不代替上述实窗/产物验收。
+
 另外测试 installer/portable、保存目录权限回退、文件关联、升级与卸载保留项目。为 desktop source 变化配置必需 Windows 检查；发布 workflow 使用 `desktop-v*`，源提交必须已在 main。
 
 首版先 Windows x64；macOS/Linux 和联网 desktop 不随本目标默认承诺。
 
+S3 的可分发产物检查属于 M2，承接 #1119；M1 本地验收不等于该 Issue 完成。#1119 当前排除代码签名，签名和正式发行政策另定。桌面长期维护由主项目安排，不能将 fork 作者的样例与答疑支持视为接任。
+
 ## 4. 契约轨道：旧 fork 文件转换
 
 这条轨道应最先确定规则，具体 reader 可以在取得真实样例后实现：
+
+作者已承诺按本节提供合成 fixtures 及预期语义/扩展字段说明，并补充踩坑记录；当前仍待取得与核验，不索取其保密工作图。5231840f 为固定迁入基线；冻结的是新增持久化字段，后续 UI/bugfix 若采用则另记来源。
 
 1. 冻结 fork 57–60 的来源事实，保留样例原始字节和预期语义。
 2. 提供独立导入入口，按明确来源运行 fork reader，而非把 numeric version 送给官方 reader 猜测。
