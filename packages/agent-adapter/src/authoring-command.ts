@@ -8,18 +8,28 @@ import {
 } from "@icm/model";
 
 /** Small server-planned conveniences; results still commit as existing edits. */
-export const AgentPinAnchorSchema = z.strictObject({
-  pinName: z.string().min(1),
-  position: PointSchema.describe(
+export const AgentPinAnchorSchema = z
+  .strictObject({
+    pinName: z.string().min(1),
+    position: PointSchema,
+  })
+  .describe(
     "Exact routing grid landing, not artwork contact. Unreachable positions are rejected with the nearest reachable landing.",
-  ),
-});
+  );
+const OptionalPinAnchorSchema = AgentPinAnchorSchema.optional().describe(
+  "When supplied, solves the origin instead of using placement.position; keeps orientation.",
+);
+// Reuse schema identities so the full HTTP contract emits one definition per
+// shared field shape; runtime constraints are unchanged.
+const NameSchema = z.string().min(1).max(128);
+const SelectedIdsSchema = z.array(StableIdSchema).max(256).default([]);
+const NonemptyIdsSchema = z.array(StableIdSchema).min(1).max(256);
 const SelectionSchema = z.strictObject({
-  instanceIds: z.array(StableIdSchema).max(256).default([]),
-  routeIds: z.array(StableIdSchema).max(256).default([]),
-  junctionIds: z.array(StableIdSchema).max(256).default([]),
-  annotationIds: z.array(StableIdSchema).max(256).default([]),
-  draftingIds: z.array(StableIdSchema).max(256).default([]),
+  instanceIds: SelectedIdsSchema,
+  routeIds: SelectedIdsSchema,
+  junctionIds: SelectedIdsSchema,
+  annotationIds: SelectedIdsSchema,
+  draftingIds: SelectedIdsSchema,
 });
 const BatchItemSchema = z.discriminatedUnion("kind", [
   z.strictObject({
@@ -68,13 +78,15 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     instanceId: StableIdSchema,
     model: z.string().max(128),
   }),
-  z.strictObject({
-    kind: z.literal("move-annotation"),
-    annotationId: StableIdSchema,
-    position: PointSchema.describe(
+  z
+    .strictObject({
+      kind: z.literal("move-annotation"),
+      annotationId: StableIdSchema,
+      position: PointSchema,
+    })
+    .describe(
       "Absolute drawing position; preserve electrical binding and object ownership.",
     ),
-  }),
 ]);
 export function isBatchableAuthoringCommand(command: {
   kind: string;
@@ -86,11 +98,50 @@ export function isBatchableAuthoringCommand(command: {
 export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
   ...BatchItemSchema.options,
   z.strictObject({
-    kind: z.literal("delete-selection"),
-    selection: SelectionSchema.describe(
+    kind: z.literal("route-net"),
+    target: z
+      .discriminatedUnion("kind", [
+        z.strictObject({ kind: z.literal("net"), net: z.string().min(1) }),
+        z.strictObject({
+          kind: z.literal("member"),
+          instanceId: StableIdSchema,
+          pinName: z.string().min(1),
+        }),
+        z.strictObject({
+          kind: z.literal("pins"),
+          pins: z
+            .array(
+              z.strictObject({
+                instanceId: StableIdSchema,
+                pinName: z.string().min(1),
+              }),
+            )
+            .min(2)
+            .max(64),
+        }),
+        z.strictObject({
+          kind: z.literal("import-net"),
+          sourceNetId: StableIdSchema,
+        }),
+      ])
+      .describe(
+        "Current Net ID/name, member pin, explicit pins to join, or an original import-reference Net. Routes only missing visible connections.",
+      ),
+    trunk: z
+      .strictObject({ start: PointSchema, end: PointSchema })
+      .optional()
+      .describe(
+        "Straight horizontal/vertical trunk; otherwise use MST guidance. Atomic, not an obstacle autorouter.",
+      ),
+  }),
+  z
+    .strictObject({
+      kind: z.literal("delete-selection"),
+      selection: SelectionSchema,
+    })
+    .describe(
       "Explicit selection. Includes owned displays and formal interface declarations; unselected wires remain dangling, as in the GUI. Select all object IDs for complete Cell deletion.",
     ),
-  }),
   z.strictObject({
     kind: z.literal("batch"),
     commands: z
@@ -119,7 +170,7 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     start: PointSchema,
     end: PointSchema,
     netId: StableIdSchema.optional(),
-    name: z.string().min(1).max(128).optional(),
+    name: NameSchema.optional(),
     scope: z
       .enum(["local", "global"])
       .optional()
@@ -131,19 +182,15 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     kind: z.literal("place-cell"),
     childDocumentId: StableIdSchema,
     instanceId: StableIdSchema,
-    reference: z.string().min(1).max(128).optional(),
+    reference: NameSchema.optional(),
     placement: PlacementSchema,
-    pinAnchor: AgentPinAnchorSchema.optional().describe(
-      "When supplied, solves the origin instead of using placement.position; keeps orientation.",
-    ),
+    pinAnchor: OptionalPinAnchorSchema,
   }),
   z.strictObject({
     kind: z.literal("place-existing"),
     instanceId: StableIdSchema,
     placement: PlacementSchema,
-    pinAnchor: AgentPinAnchorSchema.optional().describe(
-      "When supplied, solves the origin instead of using placement.position; keeps orientation.",
-    ),
+    pinAnchor: OptionalPinAnchorSchema,
   }),
   z.strictObject({
     kind: z.literal("transform"),
@@ -182,12 +229,12 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({
     kind: z.literal("detach-move"),
-    instanceIds: z.array(StableIdSchema).min(1).max(256),
+    instanceIds: NonemptyIdsSchema,
     delta: PointSchema,
   }),
   z.strictObject({
     kind: z.literal("unplace"),
-    instanceIds: z.array(StableIdSchema).min(1).max(256),
+    instanceIds: NonemptyIdsSchema,
   }),
   z.strictObject({
     kind: z.literal("reset-cell"),
@@ -196,39 +243,39 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("create-cell"),
     id: StableIdSchema,
-    name: z.string().min(1).max(128),
+    name: NameSchema,
   }),
   z.strictObject({
     kind: z.literal("rename-cell"),
     id: StableIdSchema,
-    name: z.string().min(1).max(128),
+    name: NameSchema,
   }),
   z.strictObject({ kind: z.literal("delete-cell"), id: StableIdSchema }),
   z.strictObject({
     kind: z.literal("bind-cell-parameter"),
     instanceId: StableIdSchema,
-    field: z.string().min(1).max(128),
-    name: z.string().min(1).max(128),
+    field: NameSchema,
+    name: NameSchema,
     defaultValue: z.string().min(1).max(1024).optional(),
   }),
   z.strictObject({
     kind: z.literal("rename-cell-parameter"),
-    oldName: z.string().min(1).max(128),
-    newName: z.string().min(1).max(128),
+    oldName: NameSchema,
+    newName: NameSchema,
   }),
   z.strictObject({
     kind: z.literal("set-cell-parameter-default"),
-    name: z.string().min(1).max(128),
+    name: NameSchema,
     defaultValue: z.string().min(1).max(1024),
   }),
   z.strictObject({
     kind: z.literal("remove-cell-parameter"),
-    name: z.string().min(1).max(128),
+    name: NameSchema,
   }),
   z.strictObject({
     kind: z.literal("rename-cell-terminal"),
     terminalId: StableIdSchema,
-    name: z.string().min(1).max(128),
+    name: NameSchema,
     mergeExistingPort: z.boolean().optional(),
   }),
 ]);

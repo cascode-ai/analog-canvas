@@ -744,6 +744,7 @@ export function createAgentCircuitService(
             const planned = host.planAuthoringCommand(
               documentId,
               request.command,
+              limits.maxTransactionEdits,
             );
             commandSourceActions = planned.sourceActions;
             const { command: _command, ...base } = request;
@@ -759,11 +760,38 @@ export function createAgentCircuitService(
                 ? { ...base, structureEdits: [...planned.structureEdits] }
                 : { ...base, edits: [{ kind: "noop" }] };
             } else {
+              // A completed convenience plan may have nothing left to do.
+              // Do not synthesize a persisted noop/Undo entry for a repeat.
+              if (planned.edits.length === 0) {
+                return response({
+                  apiVersion: request.apiVersion,
+                  requestId: request.requestId,
+                  operation: "transact",
+                  ok: true,
+                  applied: false,
+                  revision: document.revision,
+                  proposedRevision: document.revision,
+                  diff: {
+                    documentId,
+                    fromRevision: document.revision,
+                    toRevision: document.revision,
+                    editKinds: [],
+                    changedObjectIds: [],
+                  },
+                  terminalConnectivityChanged: false,
+                  diagnostics: diagnosticsFor(project, document, resolver),
+                  diagnosticDelta: {
+                    added: [],
+                    removed: [],
+                    ...(request.diagnosticDeltaDetail === "compact"
+                      ? { removedIds: [] }
+                      : {}),
+                  },
+                });
+              }
               request = {
                 ...base,
-                edits: planned.edits.length
-                  ? [...planned.edits]
-                  : [{ kind: "noop" }],
+                edits: [...planned.edits],
               };
             }
           } catch (error) {

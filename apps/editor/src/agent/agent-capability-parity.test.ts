@@ -11,6 +11,68 @@ import { callTool, type ToolSessionState } from "../../../mcp-server/src/tools";
 import { EditorDocumentController } from "../document/document-controller";
 import { BrowserAgentHost } from "./browser-agent-host";
 
+it("routes one Net through the existing authoring tool, preserves the service edit budget and never partially commits", async () => {
+  const { client, controller, tool } = await folder();
+  expect(
+    (
+      await client.applyActions(
+        [0, 1, 2].map((i) => ({
+          kind: "place-component",
+          symbol: "resistor",
+          reference: `R${i}`,
+          position: { x: i * 100, y: 100 },
+        })),
+      )
+    ).ok,
+  ).toBe(true);
+  const target = {
+    kind: "pins",
+    pins: controller.document.instances.map((instance) => ({
+      instanceId: instance.id,
+      pinName: "1",
+    })),
+  };
+  const command = {
+    kind: "route-net",
+    target,
+    trunk: { start: { x: -40, y: 0 }, end: { x: 260, y: 0 } },
+  };
+  const limited = createAgentCircuitService({
+    agentId: "test",
+    host: new BrowserAgentHost(controller),
+    permissions: {
+      snapshot: true,
+      render: true,
+      sourceSpans: false,
+      edit: { geometry: true, connectivity: true, presentation: true },
+    },
+    limits: { maxTransactionEdits: 3 },
+  });
+  const before = structuredClone(controller.project);
+  expect(
+    limited.handle({
+      apiVersion: "3.0",
+      requestId: "limited",
+      operation: "transact",
+      transactionId: "limited",
+      documentId: controller.document.id,
+      expectedRevision: controller.document.revision,
+      command,
+    }).ok,
+  ).toBe(false);
+  expect(controller.project).toEqual(before);
+  const result = await tool("apply_actions", { actions: [command] });
+  expect(result.ok, JSON.stringify(result)).toBe(true);
+  expect(controller.document.revision).toBe(before.documents[0]!.revision + 1);
+  expect(controller.document.nets).toHaveLength(1);
+  const after = structuredClone(controller.document);
+  expect((await tool("apply_actions", { actions: [command] })).ok).toBe(true);
+  expect(controller.document.revision).toBe(after.revision);
+  expect(controller.document.routes).toEqual(after.routes);
+  expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+  expect(controller.document.routes).toEqual([]);
+});
+
 it("shares pin anchoring for hierarchical and retained Instances", async () => {
   const { client, controller, add } = await folder();
   const id = await add();

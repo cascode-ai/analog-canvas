@@ -70,6 +70,20 @@ Project structure revision. Failures identify the originating action where known
 Keep unrelated command forms separate rather than assuming arbitrary mixtures
 are atomic. Both ordinary and full typed editing remain available.
 
+`route-net` (in `apply_actions`, native `command`) fills missing visible connections for a
+current Net ID/name, one member pin, an explicit list of pins to join, or a
+frozen import-reference `sourceNetId`. An import ID is not a current Net ID.
+It reuses the visible connectivity/MST and atomic wire planners, skipping already
+connected components. Optional `trunk:{start,end}` specifies one straight
+horizontal/vertical trunk; otherwise follow the shared guide tree. This is not
+an obstacle autorouter: conflicting taps or excess expanded edits reject the
+whole operation. Ordinary crossings without a Junction remain legal. It does
+not move devices, infer bulk wiring or override import-reference shorts/scope
+conflicts; place missing devices and fix those facts first.
+Its focused contract is `describe_tool({tool:"apply_actions",operations:["route-net"]})`;
+use it when parameters are unfamiliar, not as a mandatory preflight. Ordinary
+`circuit_wire` keeps its compact connect/disconnect declaration.
+
 For cleanup, prefer move/mirror/group transforms and route edits. Geometry moves
 do not perform GUI drag-to-connect snapping. `terminalConnectivityChanged` in
 ordinary transaction receipts compares document-local terminal equivalence;

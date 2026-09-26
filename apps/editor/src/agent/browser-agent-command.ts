@@ -11,6 +11,7 @@ import {
   planInstanceUnplacement,
   planCellReset,
   pinAnchoredPlacement,
+  planRouteNet,
   planCreateCell,
   planSetVddConnectionMode,
   planUpdateCellTerminalDirection,
@@ -86,11 +87,14 @@ export function planBrowserAgentCommand(
   documentId: string,
   resolver: SymbolResolver,
   command: AgentAuthoringCommand,
+  maxTransactionEdits = Number.POSITIVE_INFINITY,
 ): AgentCommandPlan {
   const document = project.documents.find((item) => item.id === documentId);
   if (!document) throw new Error("Document not found");
   const sequence = document.revision + 1;
   switch (command.kind) {
+    case "route-net":
+      return planRouteNet(document, resolver, command, maxTransactionEdits);
     case "delete-selection": {
       const selected = planCellSelectionDeletion(
         document,
@@ -195,6 +199,7 @@ export function planBrowserAgentCommand(
             documentId,
             createProjectSymbolResolver(draft, builtInSymbols),
             item,
+            maxTransactionEdits,
           );
           onlyDocument &&= !("structureEdits" in plan);
           const next: ProjectStructureEdit[] =

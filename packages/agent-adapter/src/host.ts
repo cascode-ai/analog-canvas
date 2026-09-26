@@ -73,6 +73,7 @@ export interface AgentOperationHost {
   planAuthoringCommand?(
     documentId: string,
     command: AgentAuthoringCommand,
+    maxTransactionEdits?: number,
   ): AgentCommandPlan;
   getDocument(documentId: string): SchematicDocument | null;
   getProject?(): CircuitProject;

@@ -37,6 +37,7 @@ export class BrowserAgentHost implements AgentOperationHost {
   planAuthoringCommand(
     documentId: string,
     command: AgentAuthoringCommand,
+    maxTransactionEdits?: number,
   ): AgentCommandPlan {
     this.assertBound();
     return planBrowserAgentCommand(
@@ -44,6 +45,7 @@ export class BrowserAgentHost implements AgentOperationHost {
       documentId,
       this.controller.resolver,
       command,
+      maxTransactionEdits,
     );
   }
   private readonly boundProjectSessionId: string;
