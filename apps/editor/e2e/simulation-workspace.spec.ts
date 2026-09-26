@@ -1152,7 +1152,9 @@ test("incomplete circuit opens Code and saves invalid parameter drafts across re
   await expect(editor).toContainText("<value>");
   await expect(editor).toContainText("<model>");
   await expect(panel.locator(".cm-lintRange-error").first()).toBeVisible();
-  await editor.click();
+  // Focus rather than click: a long source line widens the editor's content
+  // past the pane, and its centre can sit under neighbouring panels.
+  await editor.focus();
   await editor.press("Control+Home");
   // Numeric fields are editable; a deliberately incomplete value remains saveable.
   const source = generateCircuitSource(
