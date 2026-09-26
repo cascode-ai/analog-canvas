@@ -155,10 +155,10 @@
       "kitPath": "references/response-semantics.md"
     },
     {
-      "id": "reference/routing",
-      "source": "docs/agent/knowledge/route-tree-shapes.md",
-      "name": "Route tree shapes",
-      "description": "Drawing choices for route trees; not electrical evidence or an autorouter.",
+      "id": "reference/razavi-style",
+      "source": "docs/agent/circuit-style-knowledge.md",
+      "name": "Schematic layout lookup",
+      "description": "Short structure, layout and wiring tables with a two-stage amplifier example. Read once for style tasks.",
       "mimeType": "text/markdown",
       "consumers": [
         "mcp",
@@ -166,11 +166,11 @@
         "http-kit",
         "repo-skill"
       ],
-      "task": "Route tree shapes",
+      "task": "Look up schematic layout rules",
       "load": "on-demand",
       "requires": [],
-      "uri": "analog-canvas://reference/routing",
-      "kitPath": "references/route-tree-shapes.md"
+      "uri": "analog-canvas://reference/razavi-style",
+      "kitPath": "references/circuit-style-knowledge.md"
     },
     {
       "id": "reference/diagnostics",
@@ -191,10 +191,10 @@
       "kitPath": "references/diagnostics.md"
     },
     {
-      "id": "reference/razavi-style",
+      "id": "reference/routing",
       "source": "docs/agent/circuit-style-knowledge.md",
-      "name": "Circuit style knowledge",
-      "description": "Razavi-style placement, labeling, and drawing conventions.",
+      "name": "Wiring rules (layout lookup alias)",
+      "description": "Same content as reference/razavi-style; no additional reading needed.",
       "mimeType": "text/markdown",
       "consumers": [
         "mcp",
@@ -202,11 +202,11 @@
         "http-kit",
         "repo-skill"
       ],
-      "task": "Circuit style knowledge",
+      "task": "Layout lookup alias; do not reread",
       "load": "on-demand",
       "requires": [],
-      "uri": "analog-canvas://reference/razavi-style",
-      "kitPath": "references/circuit-style-knowledge.md"
+      "uri": "analog-canvas://reference/routing",
+      "kitPath": "references/route-tree-shapes.md"
     },
     {
       "id": "contract/advanced-edits",
@@ -478,9 +478,9 @@
     },
     {
       "id": "reference/knowledge/patterns",
-      "source": "docs/agent/knowledge/patterns.md",
-      "name": "Circuit patterns",
-      "description": "Evidence-based placement cues and exceptions.",
+      "source": "docs/agent/circuit-style-knowledge.md",
+      "name": "Circuit patterns (layout lookup alias)",
+      "description": "Same content as reference/razavi-style; no additional reading needed.",
       "mimeType": "text/markdown",
       "consumers": [
         "mcp",
@@ -488,7 +488,7 @@
         "http-kit",
         "repo-skill"
       ],
-      "task": "Place recognizable circuit groups",
+      "task": "Layout lookup alias; do not reread",
       "load": "on-demand",
       "requires": [],
       "uri": "analog-canvas://reference/knowledge/patterns",

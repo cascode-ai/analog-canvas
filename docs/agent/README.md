@@ -48,9 +48,13 @@ destinations without writing. See maintenance for validation and release scope.
 
 ## On-demand knowledge
 
-Five cards remain: circuit reading, hierarchy, model/symbol binding, circuit
-patterns and visible Net shapes. Shared workflow owns human collaboration;
-shared diagnostics owns finding/repair policy; schematic style owns visual
-preferences. The optional RouteGraph library reference is repository-only.
+Circuit reading, hierarchy and model/symbol binding remain separate cards.
+[Layout lookup](circuit-style-knowledge.md) owns the short structure, layout and
+wiring tables plus a two-stage amplifier example. The old patterns/routing
+resource URIs and Kit paths serve that same source, not extra required reading.
+Its canonical registry entry precedes the aliases so generated links resolve
+to `reference/razavi-style`. Shared workflow owns human collaboration; shared
+diagnostics owns finding/repair policy. The optional RouteGraph library
+reference is repository-only.
 Runtime guides cannot link to an undistributed local document: generation fails
 instead of silently sending an installed Agent to the repository's latest branch.

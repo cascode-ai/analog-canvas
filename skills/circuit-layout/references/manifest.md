@@ -13,9 +13,9 @@ Select your transport first. Read only the task-relevant rows; reading is not a 
 | Schematic workflow | on-demand | [reference/workflow](../../../docs/agent/workflow.md) |
 | Tool behavior | on-demand | [reference/tool-behavior](../../../docs/agent/tool-behavior.md) |
 | Response semantics and recovery | on-demand | [reference/recovery](../../../docs/agent/response-semantics.md) |
-| Route tree shapes | on-demand | [reference/routing](../../../docs/agent/knowledge/route-tree-shapes.md) |
+| Look up schematic layout rules | on-demand | [reference/razavi-style](../../../docs/agent/circuit-style-knowledge.md) |
 | Routing and diagnostics | on-demand | [reference/diagnostics](../../../docs/agent/shared/diagnostics.md) |
-| Circuit style knowledge | on-demand | [reference/razavi-style](../../../docs/agent/circuit-style-knowledge.md) |
+| Layout lookup alias; do not reread | on-demand | [reference/routing](../../../docs/agent/circuit-style-knowledge.md) |
 | Advanced transaction contract | on-demand | [contract/advanced-edits](../../../fixtures/agent-api/agent-circuit-request.schema.json) |
 | Bootstrap raw HTTP | entry | [http-kit/README.md](../../../docs/agent/http-kit/README.md) |
 | Bootstrap raw HTTP | entry | [http-kit/AGENTS.md](../../../docs/agent/http-kit/AGENTS.md) |
@@ -31,5 +31,5 @@ Select your transport first. Read only the task-relevant rows; reading is not a 
 | MCP simulation calls and file ownership | on-demand | [reference/mcp-simulation](../../../docs/agent/mcp/simulation.md) |
 | Detailed MCP simulation contracts | on-demand | [reference/mcp-simulation-details](../../../docs/agent/mcp/simulation-reference.md) |
 | Shared simulation lifecycle | on-demand | [reference/simulation-workflow](../../../docs/agent/shared/simulation.md) |
-| Place recognizable circuit groups | on-demand | [reference/knowledge/patterns](../../../docs/agent/knowledge/patterns.md) |
+| Layout lookup alias; do not reread | on-demand | [reference/knowledge/patterns](../../../docs/agent/circuit-style-knowledge.md) |
 | Use optional repository RouteGraph helper | on-demand | [repo/routegraph](../../../docs/agent/repo-skill/routegraph.md) |
