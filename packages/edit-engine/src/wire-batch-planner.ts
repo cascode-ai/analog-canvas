@@ -1,4 +1,8 @@
-import { pointOnSegment, resolveRouteGeometry } from "@icm/derived";
+import {
+  pointOnSegment,
+  resolveEndpointConnection,
+  resolveRouteGeometry,
+} from "@icm/derived";
 import { routeEnd, type SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import { executeTransaction, type SchematicEdit } from "./transaction.js";
@@ -30,17 +34,14 @@ export function planWireBatch(
     const resolved = resolveWireIntentTarget(working, resolver, anchor, other);
     if (
       typeof resolved !== "string" ||
-      anchor.kind !== "wire-at" ||
-      !(
-        resolved.startsWith("Multiple wire interiors") ||
-        resolved.startsWith("Ambiguous wire crossing") ||
-        resolved.startsWith("Tap at")
-      ) ||
+      (anchor.kind !== "wire-at" && anchor.kind !== "net") ||
       !edits.length
     )
       return resolved;
     // A preceding gesture may create overlapping portions of one conductor,
     // still bearing different Net hints until endpoint topology is finalized.
+    // New terminal membership and named Net selectors also need that derived
+    // view when the raw draft cannot resolve them.
     // Ask the ordinary finalizer whether the tap is unambiguous, but never
     // copy its rewritten IDs into the replay draft. Foreign crossings remain
     // subject to the same selector contract.
@@ -57,25 +58,44 @@ export function planWireBatch(
       { symbolResolver: resolver },
     );
     if (!preview.ok) return resolved;
+    const otherPoint =
+      other.kind === "endpoint"
+        ? resolveEndpointConnection(working, resolver, other.endpoint)
+            ?.gridLanding
+        : undefined;
     const selected = resolveWireIntentTarget(
       preview.document,
       resolver,
       anchor,
-      other,
+      otherPoint ? { kind: "free", point: otherPoint } : other,
     );
     if (typeof selected === "string") return selected;
+    if (
+      selected.kind === "endpoint" &&
+      resolveEndpointConnection(working, resolver, selected.endpoint)
+    )
+      return selected;
+    const point =
+      selected.kind === "endpoint"
+        ? resolveEndpointConnection(
+            preview.document,
+            resolver,
+            selected.endpoint,
+          )?.gridLanding
+        : selected.point;
+    if (!point) return resolved;
     for (const route of working.routes) {
       const segment = resolveRouteGeometry(
         working,
         resolver,
         route,
-      )?.segments.find((s) => pointOnSegment(anchor.point, s.from, s.to));
+      )?.segments.find((s) => pointOnSegment(point, s.from, s.to));
       if (segment)
         return {
           kind: "route-segment" as const,
           routeId: route.id,
           legId: segment.address.legId,
-          point: anchor.point,
+          point,
         };
     }
     return resolved;
