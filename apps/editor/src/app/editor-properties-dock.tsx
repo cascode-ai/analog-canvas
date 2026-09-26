@@ -1,5 +1,6 @@
 import { lazy, Suspense, type ComponentProps, type RefObject } from "react";
 
+import { KeptDocumentStyleSection } from "../features/editor-shell/kept-document-style-section";
 import { ToolIcon } from "../features/editor-shell/tool-icon";
 import { PlacementTrayPanel } from "../features/component-insert/placement-tray-panel";
 import { CellSymbolLayoutProperties } from "../features/properties/component-structure-properties";
@@ -63,6 +64,7 @@ export interface EditorPropertiesDockProps {
   mosBulk: ComponentProps<typeof MosBulkConnectionSection>;
   routingGuidance: ComponentProps<typeof RoutingGuidanceSection>;
   groupProperties: ComponentProps<typeof GroupPropertiesSection>;
+  keptStyle: ComponentProps<typeof KeptDocumentStyleSection>;
   component: ComponentPropertiesModel | null;
   annotationText: ComponentProps<typeof AnnotationColorProperties> | null;
   netName: ComponentProps<typeof NetNameProperties> | null;
@@ -89,6 +91,7 @@ export function EditorPropertiesDock({
   mosBulk,
   routingGuidance,
   groupProperties,
+  keptStyle,
   component,
   annotationText,
   netName,
@@ -151,6 +154,7 @@ export function EditorPropertiesDock({
               <p className="inspect-empty">Select an object to inspect.</p>
             ) : null}
             <GroupPropertiesSection {...groupProperties} />
+            <KeptDocumentStyleSection {...keptStyle} />
             {component ? (
               <section
                 className="property-section component-properties"

@@ -9,6 +9,7 @@ import {
   defaultInstanceLabelPlacement,
   legacyDefaultInstanceLabelPlacement,
   instanceLabelRowOffset,
+  objectStyleProfile,
   resolveDocumentStyleProfile,
 } from "@icm/derived";
 import { referenceDeviceLetter } from "@icm/devices";
@@ -32,7 +33,7 @@ export function arrangeInstanceLabels(
     if (!document.instances.some((i) => i.id === id))
       throw new Error(`Instance not found: ${id}`);
   const context = createLabelClearanceContext(document, resolver);
-  const style = resolveDocumentStyleProfile(document.presentation);
+  const documentProfile = resolveDocumentStyleProfile(document.presentation);
   const grid = document.presentation.grid;
   const edits: SchematicEdit[] = [];
   for (const original of context.visible) {
@@ -71,6 +72,7 @@ export function arrangeInstanceLabels(
       instance.symbolVariantId,
     );
     if (!resolved) continue;
+    const style = objectStyleProfile(documentProfile, original);
     const slot = reference ? "reference" : "value";
     const current = context.measure(original).position;
     const defaults = [

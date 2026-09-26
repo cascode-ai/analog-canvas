@@ -24,6 +24,7 @@ import {
   displayableInstanceValue,
   inferInstanceLabelSide,
   instanceLabelRowOffset,
+  objectStyleProfile,
   placeUprightInstanceLabel,
   resolveDocumentStyleProfile,
   visibleSymbolInkBounds,
@@ -136,7 +137,10 @@ function isCanonicalCellPinLabel(
     ...instance,
     placement: { position: oldPosition, ...oldOrientation },
   };
-  const profile = resolveDocumentStyleProfile(document.presentation);
+  const profile = objectStyleProfile(
+    resolveDocumentStyleProfile(document.presentation),
+    annotation,
+  );
   const visiblePosition = {
     x: oldPosition.x + annotation.anchor.localOffset.x,
     y: oldPosition.y + annotation.anchor.localOffset.y,
@@ -319,7 +323,10 @@ export function isCanonicalInstanceLabel(
     annotation.binding?.kind === "instance-value"
       ? annotation.binding.parameter
       : undefined;
-  const profile = resolveDocumentStyleProfile(document.presentation);
+  const profile = objectStyleProfile(
+    resolveDocumentStyleProfile(document.presentation),
+    annotation,
+  );
   const visiblePosition = {
     x: oldPosition.x + anchor.localOffset.x,
     y: oldPosition.y + anchor.localOffset.y,
@@ -418,7 +425,6 @@ export function reflowCanonicalInstanceLabelsAfterPresentationChange(
     instance.symbolVariantId,
   );
   if (!resolved) return;
-  const profile = resolveDocumentStyleProfile(draft.presentation);
   for (const annotation of draft.annotations) {
     const slot = instanceAnnotationSlot(annotation);
     if (
@@ -436,6 +442,10 @@ export function reflowCanonicalInstanceLabelsAfterPresentationChange(
     ) {
       continue;
     }
+    const profile = objectStyleProfile(
+      resolveDocumentStyleProfile(draft.presentation),
+      annotation,
+    );
     const parameter =
       annotation.binding?.kind === "instance-value"
         ? annotation.binding.parameter
@@ -613,7 +623,10 @@ export function followAttachedAnnotations(
           placement: { position: newPosition, ...newOrientation },
         },
         resolved,
-        resolveDocumentStyleProfile(draft.presentation),
+        objectStyleProfile(
+          resolveDocumentStyleProfile(draft.presentation),
+          annotation,
+        ),
         draft.presentation.grid,
         "reference",
       );
@@ -655,7 +668,10 @@ export function followAttachedAnnotations(
           placement: { position: newPosition, ...newOrientation },
         },
         resolved,
-        resolveDocumentStyleProfile(draft.presentation),
+        objectStyleProfile(
+          resolveDocumentStyleProfile(draft.presentation),
+          annotation,
+        ),
         draft.presentation.grid,
         parameter,
       );
@@ -700,7 +716,10 @@ export function followAttachedAnnotations(
         oldOrientation,
       )
     ) {
-      const styleProfile = resolveDocumentStyleProfile(draft.presentation);
+      const styleProfile = objectStyleProfile(
+        resolveDocumentStyleProfile(draft.presentation),
+        annotation,
+      );
       // Upright rows stack along world y regardless of orientation, so the
       // value slot's row offset is stripped from the recovered anchor in world
       // space before side inference and re-added by the upright placer.

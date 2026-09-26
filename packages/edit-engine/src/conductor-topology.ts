@@ -547,6 +547,9 @@ export function normalizeSameNetConductorTopology(
             ...(metadataSource.styleOverride
               ? { styleOverride: structuredClone(metadataSource.styleOverride) }
               : {}),
+            ...(metadataSource.documentStyle
+              ? { documentStyle: metadataSource.documentStyle }
+              : {}),
           });
       rebuiltRoutes.push(rebuilt);
       usedRouteIds.add(routeId);

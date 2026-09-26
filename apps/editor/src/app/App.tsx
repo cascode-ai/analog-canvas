@@ -181,6 +181,10 @@ import {
 } from "../services/editor-services";
 import { normalizedStyleOverrides } from "../features/editor-shell/style-knobs";
 import {
+  keptDocumentStyleOfSelection,
+  releaseKeptDocumentStyleEdit,
+} from "../features/editor-shell/kept-document-style";
+import {
   deriveSimulationProbeOptions,
   simulationProbeHierarchyPath,
 } from "../features/simulation/simulation-probe-options";
@@ -1969,6 +1973,10 @@ function WorkspaceEditor({
   const selectedAnnotationOwnerInstanceId = selectedAnnotation
     ? annotationOwningInstanceId(selectedAnnotation)
     : undefined;
+  const keptStyle = useMemo(
+    () => keptDocumentStyleOfSelection(document, visualSelection),
+    [document, visualSelection],
+  );
   const selectedComponentSourceCode = useMemo(
     () =>
       selectedInstance
@@ -7126,6 +7134,17 @@ function WorkspaceEditor({
                 displayed: displayedFlightlines.length,
                 view: routingGuidanceView,
                 onViewChange: setRoutingGuidanceView,
+              }}
+              keptStyle={{
+                kept: keptStyle,
+                onRelease: () => {
+                  if (!keptStyle) return;
+                  const result = transact([
+                    releaseKeptDocumentStyleEdit(keptStyle),
+                  ]);
+                  if (result.ok)
+                    setStatus("The copy now uses this drawing's style");
+                },
               }}
               groupProperties={{
                 active: selectedIds.length > 1,

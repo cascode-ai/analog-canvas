@@ -21,7 +21,10 @@ import {
   richTextMetrics,
   wrapRichTextDocument,
 } from "./rich-text-layout.js";
-import { resolveDocumentStyleProfile } from "./style-profile.js";
+import {
+  objectStyleProfile,
+  resolveDocumentStyleProfile,
+} from "./style-profile.js";
 import { arrowArtwork, arrowArtworkBounds } from "./arrow-artwork.js";
 
 // ADR 0010 / WP-R1: the single derived-geometry entry for DraftingObjects.
@@ -279,7 +282,10 @@ function resolveText(
   const follow =
     object.anchor.kind === "route" && object.anchor.orientation === "follow";
   const rotation = composeRotation(resolved.rotation, object.rotation, follow);
-  const profile = resolveDocumentStyleProfile(document.presentation);
+  const profile = objectStyleProfile(
+    resolveDocumentStyleProfile(document.presentation),
+    object,
+  );
   const metrics = richTextMetrics(
     profile,
     object.typographyToken,
@@ -440,7 +446,10 @@ function resolveArrow(
         object,
         points,
         object.curveControls ?? [],
-        resolveDocumentStyleProfile(document.presentation),
+        objectStyleProfile(
+          resolveDocumentStyleProfile(document.presentation),
+          object,
+        ),
       ),
     ),
     diagnostics: [...from.diagnostics, ...to.diagnostics],
@@ -520,7 +529,10 @@ function resolveCallout(
     rotation,
     object.content,
     richTextMetrics(
-      resolveDocumentStyleProfile(document.presentation),
+      objectStyleProfile(
+        resolveDocumentStyleProfile(document.presentation),
+        object,
+      ),
       object.typographyToken,
       object.styleOverride?.sizeScale,
       {

@@ -6,6 +6,7 @@ import {
   LayoutGroupSchema,
 } from "@icm/model";
 import {
+  annotationOwningInstanceId,
   displayableInstanceParameter,
   displayableInstanceValue,
 } from "@icm/derived";
@@ -130,6 +131,16 @@ export function applyPresentationLayoutEdit(
           rejection: reject("EDIT_PRECONDITION", bindingError),
         };
       }
+      // An edit that states no kept style leaves the one the text has, and a
+      // new label of an Instance keeps the style that Instance keeps.
+      if (!annotation.documentStyle) {
+        const ownerId = annotationOwningInstanceId(annotation);
+        const kept = existing
+          ? existing.documentStyle
+          : draft.instances.find((instance) => instance.id === ownerId)
+              ?.documentStyle;
+        if (kept) annotation.documentStyle = structuredClone(kept);
+      }
       if (existingIndex >= 0) draft.annotations[existingIndex] = annotation;
       else draft.annotations.push(annotation);
       changedObjectIds.add(annotation.id);
@@ -188,7 +199,12 @@ export function applyPresentationLayoutEdit(
         (item) => item.id === edit.object.id,
       );
       const existing = objects[existingIndex];
-      const parsed = DraftingObjectSchema.parse(edit.object);
+      // An edit that states no kept style leaves the one the object has.
+      const parsed = DraftingObjectSchema.parse(
+        existing?.documentStyle && !edit.object.documentStyle
+          ? { ...edit.object, documentStyle: existing.documentStyle }
+          : edit.object,
+      );
       const isPureUnlock =
         existing?.locked === true &&
         parsed.locked === false &&

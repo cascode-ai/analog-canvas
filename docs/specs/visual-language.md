@@ -21,6 +21,13 @@ rendering and export. Object-level overrides apply only within their declared
 scope. Invalid scales are rejected, not clamped; clearing overrides restores
 the base profile without rewriting objects.
 
+An object's `documentStyle` is the Document style it kept from a copy's source.
+`objectStyleProfile` resolves it in place of the Document's overrides for that
+object alone, in rendering, text measurement and hit geometry alike. A Junction
+without one draws like the Routes it joins when they all keep the same style,
+and a derived contact dot draws like the objects it joins on the same terms.
+Changing the Document's overrides leaves kept styles as they are.
+
 ## Terminology
 
 | Term          | Meaning                                                            |

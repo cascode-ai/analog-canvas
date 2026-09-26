@@ -100,6 +100,7 @@ export function applyRouteTopologyEdit(
           netId: edit.netId,
           position: edit.position,
           role: edit.role ?? "branch",
+          ...(edit.documentStyle ? { documentStyle: edit.documentStyle } : {}),
         }),
       );
       changedObjectIds.add(edit.junctionId);

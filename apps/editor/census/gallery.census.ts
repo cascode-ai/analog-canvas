@@ -25,6 +25,7 @@ import {
 } from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
+import { renderDocumentSvg } from "@icm/render-svg";
 import {
   builtInSymbols,
   createProjectSymbolResolver,
@@ -98,13 +99,13 @@ function pasteIntoNewProject(
   project: CircuitProject,
   document: SchematicDocument,
   selection: Selection,
-): void {
+): CircuitProject {
   const text = encodeCircuitClipboard(project, document, selection);
   if (!text) throw new Error("Nothing was copied");
   const clipboard = decodeCircuitClipboard(text);
   if (!clipboard) throw new Error("The clipboard text did not decode");
   const target = createEmptyProject("census-target", "Census");
-  applyProjectCopyPlacement(
+  return applyProjectCopyPlacement(
     planProjectCopyPlacement(
       target,
       target.documents[0]!,
@@ -113,6 +114,36 @@ function pasteIntoNewProject(
       1,
     ),
   );
+}
+
+/**
+ * Every stroke width, text size and dot radius a drawing shows, counted. A
+ * copy must read the same: it looks exactly like what was copied. No Connect
+ * marks are left out because a selection copy does not carry them.
+ */
+function look(project: CircuitProject, document: SchematicDocument): string[] {
+  const svg = renderDocumentSvg(
+    document,
+    createProjectSymbolResolver(project, builtInSymbols),
+  ).replace(/<path [^>]*data-role="no-connect"[^>]*\/>/gu, "");
+  return [...svg.matchAll(/(?<=\s)(stroke-width|font-size|r)="([^"]+)"/gu)]
+    .map((match) => `${match[1]}=${match[2]}`)
+    .sort();
+}
+
+function lookDifference(before: string[], after: string[]): string {
+  const count = (values: string[]) => {
+    const counts = new Map<string, number>();
+    for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
+    return counts;
+  };
+  const was = count(before);
+  const is = count(after);
+  return [...new Set([...was.keys(), ...is.keys()])]
+    .filter((key) => was.get(key) !== is.get(key))
+    .sort()
+    .map((key) => `${key} ×${was.get(key) ?? 0}→${is.get(key) ?? 0}`)
+    .join(", ");
 }
 
 /** C within the drawing: the copy lands clear of everything already there. */
@@ -415,24 +446,34 @@ function censusEntry(row: {
   );
   entry.markerCopies = markers.length;
   const markerFailures = markers.flatMap((marker) => {
-    const outcome = attempt(() =>
+    const outcome = attempt(() => {
       pasteIntoNewProject(project, document, {
         instanceIds: [marker.id],
         routeIds: [],
         junctionIds: [],
         annotationIds: [],
         draftingIds: [],
-      }),
-    );
+      });
+    });
     return outcome === OK ? [] : [`${marker.id}: ${outcome}`];
   });
   entry.checks.markers = markerFailures.length
     ? markerFailures.sort().join("; ").slice(0, 480)
     : OK;
 
-  entry.checks.copyToProject = attempt(() =>
-    pasteIntoNewProject(project, document, everything(document)),
-  );
+  let copied: CircuitProject | undefined;
+  entry.checks.copyToProject = attempt(() => {
+    copied = pasteIntoNewProject(project, document, everything(document));
+  });
+  entry.checks.copyLooksAlike = copied
+    ? attempt(
+        () =>
+          lookDifference(
+            look(project, document),
+            look(copied!, copied!.documents[0]!),
+          ) || OK,
+      )
+    : "no copy";
 
   let once: ReturnType<typeof pasteInPlace> | undefined;
   entry.checks.copyInPlace = attempt(() => {

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { HexColorSchema, PointSchema, StableIdSchema } from "./common.js";
+import { ObjectDocumentStyleSchema } from "./presentation.js";
 
 export const RouteEndpointSchema = z.discriminatedUnion("kind", [
   z.strictObject({
@@ -58,6 +59,8 @@ export const RouteBranchSchema = z
     presentation: RoutePresentationSchema.optional(),
     // Omission inherits the document style profile (Razavi defaults to black).
     styleOverride: RouteStyleOverrideSchema.optional(),
+    /** The Document style this Route keeps from a copy's source drawing. */
+    documentStyle: ObjectDocumentStyleSchema.optional(),
   })
   .superRefine((route, context) => {
     for (const [index, leg] of route.legs.entries()) {
@@ -89,4 +92,6 @@ export const JunctionSchema = z.strictObject({
   // Omitted role preserves the legacy branch-anchor topology. Visible dots are
   // derived from contact directions rather than guaranteed by this role.
   role: JunctionRoleSchema.optional(),
+  /** The Document style this Junction keeps from a copy's source drawing. */
+  documentStyle: ObjectDocumentStyleSchema.optional(),
 });

@@ -2,16 +2,16 @@
 
 Status: `accepted`
 
-Portable file schema: `63`; normalized editor model schema: `58`.
+Portable file schema: `64`; normalized editor model schema: `58`.
 
 Primary owner: `packages/project-protocol` (portable source and codec).
 `packages/model` validates the normalized editor indexes used by rendering,
 connectivity and transactions. The normalized indexes are decoded working data;
-serialization always writes the one schema-63 authoring representation.
+serialization always writes the one schema-64 authoring representation.
 
 An `.icproj.json` file contains a complete Project. The public `parseProject`
-boundary reads file schemas 24 through 63. Historical schemas pass through the
-existing explicit upgrades; schemas 59 through 63 decode through the
+boundary reads file schemas 24 through 64. Historical schemas pass through the
+existing explicit upgrades; schemas 59 through 64 decode through the
 owned-object codec. Schema 60 introduced derived network membership from
 connection facts. Schema 62 lets a Symbol's body text keep an authored look. Both return the same validated editor model. File/envelope
 metadata must use `CURRENT_PROJECT_FILE_VERSION`, not the internal model
@@ -27,6 +27,14 @@ Missing instances remain missing reference members; merge/split never rewrite
 this topology. Older projects do not acquire a guessed reference during loading.
 Source text is retained by private saves/portable backups, omitted from Gallery
 publication, and never used as the current netlist export authority.
+
+Schema 64 adds optional `documentStyle` to instances, their labels, free
+annotations, Routes, Junctions, No Connect marks and drafting objects. It holds
+the same factors as the Document's `presentation.styleOverrides` and replaces
+them for that object alone; a factor left out means 1. Copy writes it when the
+source and target style defaults differ, so the copy draws like its source
+([interaction](editor-interaction.md)). An object without it follows its
+Document. Files of schema 63 and earlier cannot carry it.
 
 ## Instance-owned source
 

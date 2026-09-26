@@ -6,6 +6,7 @@ import type {
   RouteStyleOverride,
   SegmentMode,
   StableId,
+  StyleOverrides,
 } from "./schema.js";
 import { deriveStableId } from "./ids.js";
 
@@ -18,6 +19,7 @@ export interface NewRoutePath {
   readonly modes: readonly SegmentMode[];
   readonly presentation?: RoutePresentation;
   readonly styleOverride?: RouteStyleOverride;
+  readonly documentStyle?: StyleOverrides;
 }
 
 /**
@@ -67,6 +69,9 @@ export function createRoutePath(input: NewRoutePath): RouteBranch {
     ...(input.presentation ? { presentation: input.presentation } : {}),
     ...(input.styleOverride
       ? { styleOverride: structuredClone(input.styleOverride) }
+      : {}),
+    ...(input.documentStyle
+      ? { documentStyle: structuredClone(input.documentStyle) }
       : {}),
   };
 }

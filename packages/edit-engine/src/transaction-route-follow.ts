@@ -78,6 +78,7 @@ export function splitRoute(
       ...(route.styleOverride
         ? { styleOverride: structuredClone(route.styleOverride) }
         : {}),
+      ...(route.documentStyle ? { documentStyle: route.documentStyle } : {}),
     });
     const second = createRoutePath({
       id: secondRouteId,
@@ -90,6 +91,7 @@ export function splitRoute(
       ...(route.styleOverride
         ? { styleOverride: structuredClone(route.styleOverride) }
         : {}),
+      ...(route.documentStyle ? { documentStyle: route.documentStyle } : {}),
     });
     adoptSplitIdentities(first, route, 0);
     adoptSplitIdentities(second, route, vertexIndex);
@@ -125,6 +127,7 @@ export function splitRoute(
     ...(route.styleOverride
       ? { styleOverride: structuredClone(route.styleOverride) }
       : {}),
+    ...(route.documentStyle ? { documentStyle: route.documentStyle } : {}),
   });
   const second = createRoutePath({
     id: secondRouteId,
@@ -137,6 +140,7 @@ export function splitRoute(
     ...(route.styleOverride
       ? { styleOverride: structuredClone(route.styleOverride) }
       : {}),
+    ...(route.documentStyle ? { documentStyle: route.documentStyle } : {}),
   });
   adoptSplitIdentities(first, route, 0);
   adoptSplitIdentities(second, route, segmentIndex + 1, true);

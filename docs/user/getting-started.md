@@ -69,7 +69,10 @@ recognize such a network, so both are placed by hand.
   global supplies retain their normal shared meaning. Each placement is one
   undoable operation. In text/code fields, these shortcuts still copy and paste
   text. Pasting appends to the destination, including when it already contains
-  a circuit.
+  a circuit. A copy looks exactly like its source, even when the destination
+  uses a different font size or line thickness in its style settings. To make a
+  selected copy follow the destination's style, choose **Use this drawing's
+  style** under **Copied style** in Properties.
 - Open **Project** beside the site logo to edit the full circuit name, inspect
   the current Cell and Gallery contributor/notes, or choose an open project.
   The current project is checked. Enter commits a name; Escape cancels it.

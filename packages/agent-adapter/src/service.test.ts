@@ -363,15 +363,18 @@ describe("current Agent Circuit API service", () => {
     // characters after shared field schemas). This complete offline/HTTP
     // union is not a discovery declaration; focused MCP tools retain their
     // separate unchanged 5,000-byte normalized budget.
+    // Schema 64 lets each authored object keep a copy source's Document style
+    // and adds the edit that releases it (175,047 characters).
     expect(JSON.stringify(AgentCircuitRequestJsonSchema).length).toBeLessThan(
-      174_000,
+      175_500,
     );
     expect(JSON.stringify(AgentCircuitResponseJsonSchema).length).toBeLessThan(
       180_000,
     );
-    // Complete OpenAPI including staged Cell composition: 531,880 characters,
-    // not a token count or a host discovery payload.
-    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(533_000);
+    // Complete OpenAPI including staged Cell composition and schema 64's kept
+    // Document style: 535,143 characters, not a token count or a host
+    // discovery payload.
+    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(536_500);
   });
 
   it("publishes the flat Snapshot workflow and returns complete facts", () => {

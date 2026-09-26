@@ -673,10 +673,14 @@ Necessary Net names whose original owners were outside the selection receive
 copy-owned labels. Name equality in the target Cell retains its ordinary electrical
 meaning; copying does not introduce an invisible Net namespace.
 
-Source and target must have compatible grid geometry and matching document style
-defaults. The current model cannot represent all symbol-stroke and junction-radius
-defaults per object, so incompatible defaults produce an explicit refusal instead
-of silently changing the drawing or overwriting target presentation.
+Source and target must have compatible grid geometry. A copy draws exactly like
+its source. When the target Document's style defaults differ, each copied object
+keeps the source's factors as its own `documentStyle`
+([file format](project-file-format.md)); an object whose kept style equals the
+target's keeps none. Only a different style profile, which no object can keep,
+refuses the copy. Properties names the style a selected copy keeps and offers
+**Use this drawing's style**, which releases it for the selection and the labels
+of selected parts. New labels of a part that keeps a style keep it too.
 
 Dependency planning and preview do not write to the Project. Preview resolves
 symbols using the planned definitions, and placement rechecks the current target.

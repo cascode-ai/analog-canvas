@@ -184,6 +184,7 @@ function repairedRoute(
     ...(source.styleOverride
       ? { styleOverride: structuredClone(source.styleOverride) }
       : {}),
+    ...(source.documentStyle ? { documentStyle: source.documentStyle } : {}),
   });
 }
 

@@ -8,7 +8,9 @@ import {
 } from "@icm/model";
 import { executeProjectTransaction } from "@icm/edit-engine";
 import { parseProject } from "@icm/project-protocol";
+import { renderDocumentSvg } from "@icm/render-svg";
 import {
+  createProjectSymbolResolver,
   externalSubcircuitSymbolId,
   hierarchicalSymbolId,
   builtInSymbols,
@@ -50,6 +52,98 @@ function place(
   );
   return applyProjectCopyPlacement(plan);
 }
+/** A styled drawing with a branch, a label and a note. */
+function keptStyleSource(
+  style: NonNullable<
+    CircuitProject["documents"][number]["presentation"]["styleOverrides"]
+  >,
+) {
+  const source = createEmptyProject("styled-source", "Styled source");
+  const document = source.documents[0]!;
+  document.presentation.styleOverrides = style;
+  const resistor = (id: string, x: number, y: number, rotation: 0 | 90) => ({
+    id,
+    symbolId: "resistor",
+    placement: { position: { x, y }, rotation, mirror: "none" as const },
+    reference: id,
+    netlist: { parameters: { value: "1k" } },
+  });
+  document.instances.push(
+    resistor("R1", 260, 220, 90),
+    resistor("R2", 420, 400, 0),
+    resistor("R3", 580, 400, 0),
+  );
+  document.nets.push({
+    id: "net-t",
+    terminals: [
+      { instanceId: "R1", pinName: "2" },
+      { instanceId: "R2", pinName: "1" },
+      { instanceId: "R3", pinName: "1" },
+    ],
+  });
+  document.junctions.push({
+    id: "J1",
+    netId: "net-t",
+    position: { x: 420, y: 240 },
+    role: "branch",
+  });
+  document.routes.push(
+    createRoutePath({
+      id: "r-left",
+      netId: "net-t",
+      start: { kind: "terminal", instanceId: "R1", pinName: "2" },
+      end: { kind: "junction", junctionId: "J1" },
+      bends: [],
+      modes: ["manual"],
+    }),
+    createRoutePath({
+      id: "r-tap",
+      netId: "net-t",
+      start: { kind: "junction", junctionId: "J1" },
+      end: { kind: "terminal", instanceId: "R2", pinName: "1" },
+      bends: [],
+      modes: ["manual"],
+    }),
+    createRoutePath({
+      id: "r-right",
+      netId: "net-t",
+      start: { kind: "junction", junctionId: "J1" },
+      end: { kind: "terminal", instanceId: "R3", pinName: "1" },
+      bends: [{ x: 580, y: 240 }],
+      modes: ["manual", "manual"],
+    }),
+  );
+  document.annotations.push({
+    id: "label-R1",
+    kind: "instance-label",
+    binding: { kind: "instance-reference", instanceId: "R1" },
+    anchor: {
+      kind: "object",
+      objectId: "R1",
+      localOffset: { x: 20, y: 0 },
+      fallbackPosition: { x: 280, y: 220 },
+    },
+    alignment: "start",
+    rotation: 0,
+    locked: false,
+  });
+  document.drafting = {
+    objects: [
+      {
+        id: "note",
+        kind: "text",
+        locked: false,
+        zIndex: 0,
+        anchor: { kind: "free", position: { x: 120, y: 100 } },
+        alignment: "start",
+        rotation: 0,
+        content: { runs: [{ kind: "text", value: "Gain" }] },
+      },
+    ],
+  };
+  return source;
+}
+
 function externalFixture() {
   const source = createEmptyProject("source", "Source");
   source.externalSubcircuitDefinitions.push({
@@ -1066,7 +1160,72 @@ describe("one Project copy path", () => {
     });
   });
 
-  it("carries Cell parameters for partial copies, refuses conflicting defaults and incompatible appearance", () => {
+  it("keeps its source drawing's look across different document styles", () => {
+    const sourceStyle = {
+      fontScale: 2,
+      wireStrokeScale: 1.5,
+      symbolStrokeScale: 1.5,
+      annotationStrokeScale: 1.5,
+      junctionRadiusScale: 1.3,
+    };
+    const source = keptStyleSource(sourceStyle);
+    const document = source.documents[0]!;
+    const whole = captureProjectCopy(source, document, {
+      instanceIds: document.instances.map((item) => item.id),
+      routeIds: document.routes.map((item) => item.id),
+      junctionIds: document.junctions.map((item) => item.id),
+      annotationIds: document.annotations.map((item) => item.id),
+      draftingIds: document.drafting!.objects.map((item) => item.id),
+    })!;
+    const copied = place(createEmptyProject("target", "Target"), whole);
+    const pasted = copied.documents[0]!;
+    const drawn = [
+      ...pasted.instances,
+      ...pasted.routes,
+      ...pasted.junctions,
+      ...pasted.annotations,
+      ...pasted.noConnects,
+      ...pasted.drafting!.objects,
+    ];
+    expect(pasted.presentation.styleOverrides).toBeUndefined();
+    expect(pasted.junctions).toHaveLength(1);
+    expect(drawn.map((object) => object.documentStyle)).toEqual(
+      drawn.map(() => sourceStyle),
+    );
+    // Every stroke width, text size and dot radius reads as in the source.
+    const look = (project: CircuitProject) =>
+      [
+        ...renderDocumentSvg(
+          project.documents[0]!,
+          createProjectSymbolResolver(project, builtInSymbols),
+        ).matchAll(/(?<=\s)(stroke-width|font-size|r)="([^"]+)"/gu),
+      ]
+        .map((match) => `${match[1]}=${match[2]}`)
+        .sort();
+    expect(look(copied)).toEqual(look(source));
+
+    // A target that already draws that way needs no kept style, and a copy
+    // taken back into it lets go of the one it kept.
+    const styledTarget = createEmptyProject("styled", "Styled");
+    styledTarget.documents[0]!.presentation.styleOverrides = sourceStyle;
+    const plain = place(styledTarget, whole).documents[0]!;
+    expect(plain.instances.every((item) => !item.documentStyle)).toBe(true);
+    const back = captureProjectCopy(copied, pasted, {
+      instanceIds: pasted.instances.map((item) => item.id),
+      routeIds: pasted.routes.map((item) => item.id),
+      junctionIds: [],
+      annotationIds: [],
+      draftingIds: [],
+    })!;
+    const returned = place(styledTarget, back, 2).documents[0]!;
+    expect(
+      [...returned.instances, ...returned.routes].every(
+        (item) => !item.documentStyle,
+      ),
+    ).toBe(true);
+  });
+
+  it("carries Cell parameters for partial copies and refuses conflicting defaults", () => {
     const source = externalFixture();
     source.documents[0]!.netlist!.formalParameters.push({
       name: "gain",
@@ -1086,8 +1245,6 @@ describe("one Project copy path", () => {
       defaultValue: "20",
     });
     expect(() => place(target, fragment)).toThrow(/incompatible defaults/);
-    target.documents[0]!.presentation.styleOverrides = { symbolStrokeScale: 2 };
-    expect(() => place(target, fragment)).toThrow(/preserve appearance/);
   });
 
   it("commits a whole-circuit copy plan under any transaction ID", () => {

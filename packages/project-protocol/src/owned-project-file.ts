@@ -1,4 +1,4 @@
-/** Schema 63: immutable import reference and archived input content. */
+/** Schema 64: an object may keep the Document style of a copy's source. */
 import { createProjectSymbolResolver } from "@icm/symbols";
 import type { CircuitProject } from "@icm/model";
 import { ProjectFormatError } from "./diagnostics.js";
@@ -15,8 +15,47 @@ import {
   materializeSourceConnectivity,
   type SourceConnectivity,
 } from "./source-connectivity.js";
-export const CURRENT_PROJECT_FILE_VERSION = 63;
+export const CURRENT_PROJECT_FILE_VERSION = 64;
 type Value = Record<string, any>;
+
+/** An object's kept Document style first appears in schema 64. */
+export function rejectKeptDocumentStyle(raw: Value): void {
+  if (!Array.isArray(raw.documents)) return;
+  const scan = (items: unknown, path: (string | number)[]) => {
+    if (!Array.isArray(items)) return;
+    items.forEach((item, index) => {
+      if (
+        item &&
+        typeof item === "object" &&
+        Object.hasOwn(item, "documentStyle")
+      )
+        throw new ProjectFormatError([
+          {
+            code: "INVALID_PROJECT",
+            path: [...path, index, "documentStyle"],
+            message: "A kept Document style requires Project schema 64",
+          },
+        ]);
+    });
+  };
+  raw.documents.forEach((document: Value | null, index: number) => {
+    if (!document || typeof document !== "object") return;
+    const path = ["documents", index];
+    for (const key of [
+      "instances",
+      "annotations",
+      "routes",
+      "junctions",
+      "noConnects",
+    ])
+      scan(document[key], [...path, key]);
+    if (Array.isArray(document.instances))
+      document.instances.forEach((instance: Value | null, instanceIndex) =>
+        scan(instance?.labels, [...path, "instances", instanceIndex, "labels"]),
+      );
+    scan(document.drafting?.objects, [...path, "drafting", "objects"]);
+  });
+}
 
 export function encodeProjectFile(project: CircuitProject): Value {
   const owned = encodeOwned(project) as Value;
