@@ -421,7 +421,7 @@ const ApplyActionsArgs = z.strictObject({
     .enum(["compact", "full"])
     .optional()
     .describe(
-      "Default compact: diagnostic counts and representative warnings, all errors. Full: complete diagnostics and deltas.",
+      "Default compact: counts, sampled warnings, all errors; full: all.",
     ),
   documentId: z.string().min(1).optional(),
   actions: z.array(AuthoringActionSchema).min(1).max(256),
