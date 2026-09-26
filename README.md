@@ -8,6 +8,7 @@ edit model.
 
 [Browse the Gallery](https://analog-canvas.tokenzhang.com/) ·
 [Open the editor](https://analog-canvas.tokenzhang.com/editor) ·
+[Windows preview (ZIP)](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-201c2a9f3d7d-2/analog-canvas-desktop-windows-x64.zip) ·
 [Documentation](docs/README.md) ·
 [GitHub repository](https://github.com/cascode-ai/analog-canvas)
 
@@ -66,9 +67,7 @@ automatically rerunning it. File / Save and Ctrl+S remain save-only.
 - **Use the hosted product:** browse the
   [Community Gallery](https://analog-canvas.tokenzhang.com/) or start a
   [new circuit](https://analog-canvas.tokenzhang.com/editor).
-- **Try the Windows desktop preview:** download the complete ZIP from a
-  Desktop Preview [release](https://github.com/cascode-ai/analog-canvas/releases),
-  extract it, and run the included executable. See [preview instructions and limitations](apps/desktop/README.md).
+- **Try the Windows desktop preview:** [download and run the preview](#windows-desktop-preview).
 - **Learn the editor:** [Getting started](docs/user/getting-started.md),
   [schematic hierarchy](docs/user/schematic-hierarchy.md),
   [compatibility](docs/user/project-compatibility.md), and
@@ -78,6 +77,29 @@ automatically rerunning it. File / Save and Ctrl+S remain save-only.
 - **Develop or contribute:** [working rules](AGENTS.md),
   [current development reading set](docs/README.md#contributor-reading-order), and
   [test system](docs/testing/README.md).
+
+## Windows desktop preview
+
+[**Download Windows x64 ZIP**](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-201c2a9f3d7d-2/analog-canvas-desktop-windows-x64.zip)
+(about 163 MiB) · [Release details](https://github.com/cascode-ai/analog-canvas/releases/tag/desktop-preview-201c2a9f3d7d-2)
+
+1. Download and extract the **whole ZIP**.
+2. Open the extracted preview directory and run
+   `Analog Canvas Preview/Analog Canvas Preview.exe`. Keep its sibling resources
+   together; the `.exe` alone will not work. No Node.js, pnpm or developer tools
+   are required.
+3. Use **File → Export Project File…** (Ctrl+S) to save a portable copy, and
+   **File → Import → Project File…** to reopen it. Export every tab you need
+   before closing; recovery is only a safety copy.
+
+This is an **unsigned, offline preview** with no installer or automatic updates.
+It supports local circuit editing and SVG/PNG/PDF export, but has no native
+in-place Save, account, Cloud, Gallery, Agent or simulation services.
+See the [full preview instructions and limitations](apps/desktop/README.md).
+
+The linked package passed packaged-application acceptance and credential
+distribution checks, and includes corresponding source, attribution and
+`SECURITY.json`. See the [security audit and its limitations](docs/desktop-distribution-security.md).
 
 ## Run locally
 
