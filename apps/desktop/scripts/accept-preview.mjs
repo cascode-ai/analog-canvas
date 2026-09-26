@@ -25,6 +25,7 @@ async function launch(name) {
     ...process.env,
     ICM_PREVIEW_USER_DATA: join(output, `${name}-data`),
     ICM_PREVIEW_AUDIT: audit,
+    ICM_PREVIEW_WAIT_FOR_DRIVER: "1",
   };
   delete env.ELECTRON_RUN_AS_NODE;
   running = await electron.launch({
@@ -35,6 +36,21 @@ async function launch(name) {
   });
   console.log(`Launched ${name}`);
   assert.equal(await running.evaluate(({ app }) => app.isPackaged), !dev);
+  await expect
+    .poll(() =>
+      running.evaluate(
+        () => typeof globalThis.__analogCanvasPreviewDriverReady,
+      ),
+    )
+    .toBe("function");
+  assert.equal(
+    await running.evaluate(
+      ({ BrowserWindow }) => BrowserWindow.getAllWindows().length,
+    ),
+    0,
+    "The renderer must wait until the acceptance driver has attached",
+  );
+  await running.evaluate(() => globalThis.__analogCanvasPreviewDriverReady());
   const page = await running.firstWindow();
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
@@ -456,6 +472,7 @@ try {
         packaged: !dev,
         source: manifest?.commit,
         checks: [
+          "driver-attaches-before-renderer",
           "draw",
           "cancel",
           "replacement-cancel-preserves-work",

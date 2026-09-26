@@ -13,6 +13,20 @@ import { createProjectFileHandler } from "./project-files.js";
 import { decideClose, workspaceCloseState } from "./close-guard.js";
 
 const PRODUCT_NAME = "Analog Canvas Preview";
+// Packaged-executable acceptance attaches both debuggers before creating a
+// renderer. Explicit executablePath skips Playwright's normal readiness loader.
+const driver = globalThis as typeof globalThis & {
+  __analogCanvasPreviewDriverReady?: () => void;
+};
+const driverReady =
+  process.env.ICM_PREVIEW_WAIT_FOR_DRIVER === "1"
+    ? new Promise<void>((resolve) => {
+        driver.__analogCanvasPreviewDriverReady = () => {
+          delete driver.__analogCanvasPreviewDriverReady;
+          resolve();
+        };
+      })
+    : Promise.resolve();
 const auditPath = process.env.ICM_PREVIEW_AUDIT;
 function audit(url: string) {
   if (auditPath) appendFileSync(auditPath, `${JSON.stringify({ url })}\n`);
@@ -221,6 +235,7 @@ else {
         audit(`${request.url}`);
         return handler(request);
       });
+      await driverReady;
       await createWindow();
     })
     .catch((error) => {
