@@ -23,6 +23,35 @@ const run = (directory, args = []) =>
     { stdio: "pipe", timeout: 60000 },
   );
 
+// Agent-only measured-ink observations supplement (never replace) the reviewed
+// drawing diagnostics below. Pin their owners so new findings do not silently
+// pass merely because they are informational. No fixture geometry is changed.
+const otaClearanceLabels = [
+  "instance-label-PIBIAS",
+  ...[1, 2, 3, 4, 5, 6].map((n) => `instance-label-M${n}`),
+];
+const libraryTbClearanceLabels = [
+  "instance-label-XDUT",
+  "instance-label-IBIAS",
+  "net-label-tb-ibias-route",
+];
+const expectedClearanceLabels = {
+  "common-source/cell-common-source": [
+    "instance-label-XM1",
+    "instance-value-XM1",
+  ],
+  "ota/document-ota-5t": otaClearanceLabels,
+  "ota/document-ota-5t-testbench": [
+    "instance-label-XDUT",
+    "instance-label-IBIAS",
+    "native-net-vinp",
+    "native-net-vinn",
+  ],
+  "ota-library/document-ota-5t": otaClearanceLabels,
+  "ota-library/document-ota-5t-testbench": libraryTbClearanceLabels,
+  "ota-library/document-ota-5t-testbench-sin": libraryTbClearanceLabels,
+};
+
 // The full-library case stays an acceptance obligation during migration. Do not
 // filter unfinished model-backed folders out of it to obtain a green result.
 test.each([
@@ -80,8 +109,30 @@ test.each([
               severity: "info",
               gateEligible: false,
             });
+          const clearanceNotes = inspection.document.diagnostics.filter(
+            (diagnostic) => diagnostic.code === "VISUAL_LABEL_CLEARANCE",
+          );
+          expect(clearanceNotes.map((d) => d.objectIds[0]).sort()).toEqual(
+            [...(expectedClearanceLabels[`${item.id}/${doc.id}`] ?? [])].sort(),
+          );
+          for (const diagnostic of clearanceNotes) {
+            expect(diagnostic).toMatchObject({
+              category: "observation",
+              severity: "info",
+              confidence: "low",
+              gateEligible: false,
+              parameters: {
+                conflictingObjectCount: diagnostic.objectIds.length - 1,
+              },
+            });
+            expect(
+              diagnostic.parameters.conflictingObjectCount,
+            ).toBeGreaterThan(0);
+          }
           const drawingDiagnostics = inspection.document.diagnostics.filter(
-            (diagnostic) => diagnostic.code !== "IMPORT_REFERENCE_UNAVAILABLE",
+            (diagnostic) =>
+              diagnostic.code !== "IMPORT_REFERENCE_UNAVAILABLE" &&
+              diagnostic.code !== "VISUAL_LABEL_CLEARANCE",
           );
           if (item.id !== "ota-library") {
             expect(drawingDiagnostics).toEqual([]);
