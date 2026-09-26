@@ -1,4 +1,8 @@
 import { parseProject, serializeProject } from "@icm/project-protocol";
+import type {
+  RecentProjectFile,
+  NativeSaveOutcome,
+} from "../hosts/native-project-store";
 import {
   createProjectWorkspaceStore,
   journalProjectWorkspace,
@@ -40,6 +44,9 @@ import {
   newComponentDefinition,
   sharedComponentInsertRequest,
 } from "../features/user-components/component-definition-edit";
+
+const loadNativeProjectWorkspace = () =>
+  import("../hosts/native-project-workspace");
 
 const UserComponentsLibrary = lazy(
   () => import("../features/user-components/user-components-library"),
@@ -537,8 +544,14 @@ function WorkspaceEditor({
   restoredWorkspace: ProjectWorkspace | null;
   workspaceError: string | null;
 }) {
-  const { identity, projectStore, exportDelivery, capabilities } =
-    useEditorServices();
+  const {
+    identity,
+    projectStore,
+    nativeProjectStore,
+    NativeFileCommands,
+    exportDelivery,
+    capabilities,
+  } = useEditorServices();
   const publicAgentUiEnabled = capabilities.agent && requestedAgentUi;
   const publicSimulationUiEnabled =
     capabilities.simulation && requestedSimulationUi;
@@ -1217,6 +1230,7 @@ function WorkspaceEditor({
     captureFileSession,
     restoreFileSession,
     cloudBinding,
+    nativeBinding,
     noteGalleryPublication,
     savedProjectBaseline,
     replaceGuard,
@@ -1234,6 +1248,7 @@ function WorkspaceEditor({
     noteProjectPublished,
     replaceActiveProject,
     saveProjectToCloud,
+    saveProjectToNative,
     isSaveInFlight,
     saveBusy,
     exportProjectFile,
@@ -1253,6 +1268,7 @@ function WorkspaceEditor({
     openCloudProjectById,
   } = useProjectFileLifecycle({
     projectStore,
+    ...(nativeProjectStore ? { nativeProjectStore } : {}),
     exportDelivery,
     openProjectInTab: (project, view, options, background) =>
       openProjectInTabRef.current(project, view, options, background),
@@ -4589,10 +4605,15 @@ function WorkspaceEditor({
           void circuitClipboard.pasteSelection();
           return;
         case "save":
-          void (projectStore ? saveProjectToCloud() : exportProjectFile());
+          void (nativeProjectStore
+            ? saveProjectToNative()
+            : projectStore
+              ? saveProjectToCloud()
+              : exportProjectFile());
           return;
         case "open":
-          projectInputRef.current?.click();
+          if (nativeProjectStore) void openNativeProject();
+          else projectInputRef.current?.click();
           return;
         case "edit-net-label":
           activateTool("pointer");
@@ -4925,6 +4946,7 @@ function WorkspaceEditor({
       ...captureTabSession(),
       controller,
       file: {
+        nativeBinding: options.nativeBinding ?? null,
         persistenceState: options.persistenceState ?? "unbound",
         cloudBinding: options.cloudBinding ?? null,
         savedBaseline: options.savedBaseline ?? null,
@@ -5109,6 +5131,7 @@ function WorkspaceEditor({
     prepare: async () => {
       if (
         isSaveInFlight() ||
+        nativeWorkspaceSaving.current ||
         replaceGuard ||
         recoveryDialogOpen ||
         publishGalleryOpen ||
@@ -5170,6 +5193,135 @@ function WorkspaceEditor({
           () => createTabSession(next, view, options),
           options.cloudBinding?.id,
         );
+  const [recentNativeFiles, setRecentNativeFiles] = useState<
+    RecentProjectFile[]
+  >([]);
+  const [nativeBusy, setNativeBusy] = useState(false);
+  const nativeOperation = useRef(false);
+  const nativeWorkspaceSaving = useRef(false);
+  const refreshNativeFiles = async () => {
+    if (!nativeProjectStore) return;
+    try {
+      setRecentNativeFiles(await nativeProjectStore.recent());
+    } catch (error) {
+      setStatus(`Recent Projects unavailable: ${String(error)}`);
+    }
+  };
+  async function openNativeProject(recentId?: string) {
+    if (!nativeProjectStore || nativeOperation.current || isSaveInFlight())
+      return;
+    nativeOperation.current = true;
+    setNativeBusy(true);
+    try {
+      const { openNativeFile } = await loadNativeProjectWorkspace();
+      await openNativeFile(
+        nativeProjectStore,
+        {
+          entries: projectTabs.entries,
+          select: projectTabs.select,
+          open: openProjectFile,
+          report: setStatus,
+        },
+        recentId,
+      );
+      await refreshNativeFiles();
+    } finally {
+      nativeOperation.current = false;
+      setNativeBusy(false);
+    }
+  }
+  async function closeNativeTab(id: string) {
+    const binding = projectTabs.entries().find((entry) => entry.id === id)
+      ?.session.file.nativeBinding;
+    await projectTabs.close(id, () => createTabSession());
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+    if (binding && !projectTabs.entries().some((entry) => entry.id === id))
+      await nativeProjectStore?.release(binding.id);
+  }
+  async function saveNativeTab(id: string): Promise<NativeSaveOutcome> {
+    if (!nativeProjectStore)
+      return { status: "failed", message: "Local storage is unavailable" };
+    if (id === projectTabs.activeId) {
+      if (
+        projectNameDraft !== null ||
+        textEditing ||
+        componentEditor ||
+        documentSettingsOpen ||
+        codeDraftDirty
+      )
+        return {
+          status: "failed",
+          message:
+            "Finish or cancel the current edit before saving and closing.",
+        };
+      return saveProjectToNative();
+    }
+    const { saveBackgroundNativeTab } = await loadNativeProjectWorkspace();
+    return saveBackgroundNativeTab(
+      nativeProjectStore,
+      projectTabs,
+      id,
+      captureProjectSaveSnapshot,
+    );
+  }
+
+  const nativeWorkspaceState = () => ({
+    dirty: projectTabs
+      .entries()
+      .filter(({ session }) => session.dirty || session.unsafe)
+      .map(({ id, session }) => ({
+        id,
+        name: session.controller.project.name,
+      })),
+    busy:
+      isSaveInFlight() ||
+      projectTabs.busy ||
+      nativeOperation.current ||
+      nativeWorkspaceSaving.current,
+    pendingEdits:
+      projectNameDraft !== null ||
+      !!textEditing ||
+      !!componentEditor ||
+      documentSettingsOpen ||
+      codeDraftDirty ||
+      !!replaceGuard ||
+      recoveryDialogOpen,
+  });
+  const nativeBridgeRef = useRef({
+    state: nativeWorkspaceState,
+    save: async (): Promise<{ status: string; message?: string }> => ({
+      status: "cancelled",
+    }),
+  });
+  nativeBridgeRef.current = {
+    state: nativeWorkspaceState,
+    save: async () => {
+      const { saveNativeWorkspace } = await loadNativeProjectWorkspace();
+      return saveNativeWorkspace(
+        nativeWorkspaceState,
+        saveNativeTab,
+        (busy) => {
+          nativeWorkspaceSaving.current = busy;
+          setNativeBusy(busy);
+        },
+      );
+    },
+  };
+  useEffect(() => {
+    if (!nativeProjectStore) return;
+    const target = window as unknown as Record<string, unknown>;
+    const bridge = {
+      state: () => nativeBridgeRef.current.state(),
+      save: () => nativeBridgeRef.current.save(),
+    };
+    target.__analogCanvasDesktop = bridge;
+    return () => {
+      if (target.__analogCanvasDesktop === bridge)
+        delete target.__analogCanvasDesktop;
+    };
+  }, [nativeProjectStore]);
   agentWorkspaceRef.current = async (envelope, targetWorkspaceId) => {
     const request = envelope.request;
     const { copyWorkspaceCell, listWorkspaceProjects, workspaceResponses } =
@@ -5572,17 +5724,47 @@ function WorkspaceEditor({
               cloudEnabled={projectStore !== null}
               tabs={projectTabs.tabs}
               activeId={projectTabs.activeId}
-              busy={projectTabs.busy}
+              busy={
+                projectTabs.busy ||
+                (nativeProjectStore !== undefined && (nativeBusy || saveBusy))
+              }
               onSelect={(id) => {
                 void projectTabs.select(id);
               }}
               onClose={(id) => {
-                void projectTabs.close(id, () => createTabSession());
+                if (nativeProjectStore) void closeNativeTab(id);
+                else void projectTabs.close(id, () => createTabSession());
               }}
+              {...(nativeProjectStore
+                ? {
+                    onSaveClose: async (id: string) => {
+                      const { saveAndCloseNativeTab } =
+                        await loadNativeProjectWorkspace();
+                      return saveAndCloseNativeTab(id, {
+                        busy: () =>
+                          nativeOperation.current ||
+                          nativeWorkspaceSaving.current ||
+                          isSaveInFlight(),
+                        setBusy: (busy) => {
+                          nativeWorkspaceSaving.current = busy;
+                          setNativeBusy(busy);
+                        },
+                        save: saveNativeTab,
+                        entries: projectTabs.entries,
+                        close: closeNativeTab,
+                        report: setStatus,
+                      });
+                    },
+                  }
+                : {})}
               onNew={() => {
                 void projectTabs.open(() => createTabSession());
               }}
-              onOpenFile={() => tabProjectInputRef.current?.click()}
+              onOpenFile={() =>
+                nativeProjectStore
+                  ? void openNativeProject()
+                  : tabProjectInputRef.current?.click()
+              }
               cloudProjects={cloudProjects}
               onRefreshShelf={() => {
                 void reloadCloudProjects();
@@ -5632,6 +5814,26 @@ function WorkspaceEditor({
           });
         }}
         fileCommands={{
+          ...(NativeFileCommands ? { NativeFileCommands } : {}),
+          ...(nativeProjectStore
+            ? {
+                nativeFiles: {
+                  projectName: project.name,
+                  path: nativeBinding?.path ?? null,
+                  recent: recentNativeFiles,
+                  busy: nativeBusy || saveBusy,
+                  refresh: () => void refreshNativeFiles(),
+                  open: (id?: string) => void openNativeProject(id),
+                  saveAs: () => void saveProjectToNative(undefined, true),
+                  forget: (id: string) => {
+                    void nativeProjectStore
+                      .forget(id)
+                      .then(refreshNativeFiles)
+                      .catch((error: unknown) => setStatus(String(error)));
+                  },
+                },
+              }
+            : {}),
           cloudEnabled: projectStore !== null,
           cloudProjects,
           activeCloudProjectId: cloudBinding?.id ?? null,
@@ -5648,7 +5850,11 @@ function WorkspaceEditor({
           projectInputRef,
           onNewProject: createNewProject,
           onSave: () =>
-            void (projectStore ? saveProjectToCloud() : exportProjectFile()),
+            void (nativeProjectStore
+              ? saveProjectToNative()
+              : projectStore
+                ? saveProjectToCloud()
+                : exportProjectFile()),
           onRefreshCloudProjects: () => void reloadCloudProjects(),
           onOpenCloudProject: (summary) =>
             void openCloudProjectById(summary.id),
@@ -5921,6 +6127,7 @@ function WorkspaceEditor({
                 intent: replaceGuard.intent,
                 cloudProjectLimit: projectStore?.limit ?? 0,
                 exportOnly: projectStore === null,
+                nativeSave: nativeProjectStore !== undefined,
                 saving: replaceGuardSaving,
                 onCancel: cancelReplaceGuard,
                 onSaveAndContinue: saveAndContinueReplaceGuard,

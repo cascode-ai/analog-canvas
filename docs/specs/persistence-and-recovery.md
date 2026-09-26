@@ -5,8 +5,10 @@ Status: `accepted`
 Primary owner: Worker Cloud Project storage, `packages/project-protocol`, and
 the editor document lifecycle
 
-Project content uses canonical schema-63 JSON. A private Cloud Project is the
-formal saved resource; `.icproj.json` is portable import/export and backup.
+Project content uses canonical schema-63 JSON. In the Web host a private Cloud
+Project is the formal saved resource; `.icproj.json` is portable import/export
+and backup. In the desktop host an explicitly opened/saved `.icproj.json` file
+is the formal saved resource. Both hosts use the same Project protocol.
 The current-only model in `packages/model` validates the normalized shape;
 `packages/project-protocol` owns parsing, compatibility diagnostics,
 and canonical serialization. Persistence validates the complete current schema
@@ -23,6 +25,36 @@ data without changing the live Project. User-saved Library examples and their
 browser store are retired. Credentials, Agent bearer tokens,
 selection, viewport, overlays, and pending external approvals are never
 embedded in Project JSON or recovery records.
+
+## Desktop file ownership
+
+Native Open and first Save authorize a target in the main process. Renderer
+sessions hold opaque binding identifiers and acknowledged revisions; displayed
+paths do not authorize writes. Repeated Save updates the same target. Save As
+rebinds only after success, while Export never rebinds. Each tab retains its own
+binding; the same open target selects the existing tab. File locations and the
+last twenty recent files are visible in File. The main-process recent index
+survives restart; explicit reopening reads the file and creates a fresh grant.
+Removing a recent shortcut does not delete its file. Missing files can be located
+through Open Project. New/Save-As suggestions remember the most recently used
+project directory.
+
+Writes capture an owned Project snapshot and use a temporary sibling file,
+flush, then atomic replacement. Compare the target bytes against the acknowledged
+version before writing and again before replacement; a detected change or deletion
+rejects Save. This is optimistic detection, not an exclusive filesystem lock
+against concurrent external writers. Cancellation/failure preserves the binding,
+unsaved edits and existing destination. Newer edits during a successful save
+remain dirty. A stale/expired grant cannot overwrite a file; Save As to a new
+destination remains available.
+
+Window close summarizes every tab, permits explicit discard, or saves each dirty
+Project and rechecks for newer edits. A cancelled/failed save keeps the window.
+An unavailable renderer requires an explicit discard decision. Unfinished editor
+dialogs/buffers or an active operation must be finished or cancelled first.
+Recovery is still a safety copy and does not automatically acquire write authority
+over the original file. Web Cloud Save and its conflict/recovery contracts below
+are unchanged.
 
 ## Browser recovery records
 

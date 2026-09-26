@@ -1,12 +1,20 @@
 # Fork 迁移与首版本地合并计划
 
-本计划收敛此前四份报告，作为首批实施范围和读取源码的入口。**以当前 upstream 为底座，有出处地迁入 fork 的独立能力；完成一个可在本机验证的 Windows desktop 版本，并保持现有 Web 行为。** 当前已完成部分 upstream 准备，并开始最小桌面预览外壳迁入；具体进度及反馈边界见下节。
+本计划收敛此前四份报告，作为首批实施范围和读取源码的入口。**以当前 upstream 为底座，有出处地迁入 fork 的独立能力；完成一个可在本机验证的 Windows desktop 版本，并保持现有 Web 行为。** 当前代码包含 upstream 准备、最小桌面预览外壳和基础文件管理；具体进度及反馈边界见下节。
 
 “迁入”指按功能适配源码，不是将 fork 整条分支合并。首轮本地预览循环已完成；当前交付范围扩展到 PR、合并队列、Web Production 验证，以及由已合并提交生成 Windows ZIP 预发布包。安装器、签名、自动更新与正式桌面发行仍延期。初版文档已通过 [PR #1125](https://github.com/cascode-ai/analog-canvas/pull/1125) 发布；功能交付执行仓库现有 Delivery 门禁，已交付部分见第 0 节。
 
 <a id="feedback-alignment"></a>
 
 ## 0. 2026-09-26 反馈对齐与当前进度
+
+**最新收敛范围：**完成最小桌面项目／文件管理后搁置后续 fork 迁入。
+本轮只做官方 `.icproj.json` 的打开、固定目标 Save、Save As、最近项目、
+位置展示、多标签关闭保护和保存失败／外部修改保护；现有绘图与导入导出
+继续跟随 Web 主线，Web Cloud Save 行为不变。F-A/F-B/F-C、V-A 及第 7 节
+其他分叉都不属于当前批次；以下原首版候选清单保留为后续参考。
+文件管理的来源与适配随 [SOURCES](../../../apps/desktop/SOURCES.md) 记录，
+实际复用提交及最终 squash 保留 LXY-freshman 的共同作者署名。
 
 本节依据 [LXY 的最新回复](https://github.com/cascode-ai/analog-canvas/issues/1003#issuecomment-5842705867)、Arcadia 的 [#1121 服务装配提案](https://github.com/cascode-ai/analog-canvas/issues/1121)和 [#1119 桌面任务](https://github.com/cascode-ai/analog-canvas/issues/1119)修订。下表区分作者已明确的输入、我们的实施取舍与待共同确认的决定；不将 Issue 提案视为已合并规格。
 
@@ -19,6 +27,8 @@
 | 基线与样例 | 5231840f 保留为迁入基线；不追随 fork main 自动更新。后续 UI/bugfix 单独审查并记录追加来源。作者计划提供合成 fixtures 和踩坑记录 | 冻结的是新增持久化字段，不是全部开发；样例尚待取得和核验，不标记为已收到 |
 | 维护责任与用户需求 | 主项目安排桌面长期负责人；作者提供样例、经验和答疑。跳线、GaN/IGBT/LDMOS、Q 表单优先进入后续讨论 | 作者明确不承担长期维护；这三项仍待契约决策，首批完成不等于已替代其日常 fork 工作流 |
 | 桌面验收 | 区分 M1 本地功能验收与 M2 可分发桌面版验收，后者承接 #1119 的产物、文件关联和 Windows CI 等要求 | M1 完成不能直接关闭 #1119；正式发行仍单独安排 |
+
+**此前阶段记录（下列未完成描述属于当时状态）：**
 
 **已完成：**[PR #1126](https://github.com/cascode-ai/analog-canvas/pull/1126)（main 提交 [b0c3264f](https://github.com/cascode-ai/analog-canvas/commit/b0c3264fc294491edcbb34e604a91ec491437538)）交付 U-C 导出交付接口与 U-B 共享保存协调。它们抽取 upstream 现有实现，未迁入 fork 代码；验证与交付证据随该 PR/提交保存。Native 存储/关闭接入、U-A 和桌面闭环未完成。
 

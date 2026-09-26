@@ -32,6 +32,7 @@ const TYPES: Readonly<Record<string, string>> = {
 export interface AppProtocolOptions {
   editorRoot: string;
   exportFile: (request: Request) => Promise<Response>;
+  projectFile?: (request: Request) => Promise<Response>;
 }
 
 function inside(root: string, requested: string): string {
@@ -106,6 +107,8 @@ export async function createAppProtocolHandler(
     }
 
     if (pathname === "/desktop/export") return options.exportFile(request);
+    if (pathname.startsWith("/desktop/project/") && options.projectFile)
+      return options.projectFile(request);
     if (pathname.startsWith("/api/") || pathname.startsWith("/desktop/"))
       return new Response("Not Found", { status: 404, headers: secureHeaders });
 
