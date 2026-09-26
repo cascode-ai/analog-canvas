@@ -9,9 +9,17 @@
  * of thing to a reader, so they persist as one thing.
  */
 
-import { isGalleryIssueKind } from "./gallery-issue-kinds";
-
 export type GalleryView = "gallery" | "shelf";
+
+/**
+ * A reason as the link or storage spells it. The taxonomy stays out of this
+ * shared module; the Worker ignores a reason it does not know.
+ */
+function readReason(value: unknown): string | null {
+  return typeof value === "string" && /^[a-z][a-z-]{0,39}$/u.test(value)
+    ? value
+    : null;
+}
 
 export interface GalleryFilterState {
   /** Which wall: the community gallery, or the reader's own shelf. */
@@ -131,9 +139,8 @@ export function parseGalleryFilterQuery(search: string): {
       liked: params.get("liked") === "1",
       attention: params.get("attention") === "1",
       attentionKind:
-        params.get("attention") === "1" &&
-        isGalleryIssueKind(params.get("reason"))
-          ? params.get("reason")
+        params.get("attention") === "1"
+          ? readReason(params.get("reason"))
           : null,
     },
     narrowed: NARROWING_PARAMS.some((name) => (params.get(name) ?? "") !== ""),
@@ -202,9 +209,7 @@ export function parseStoredGalleryFilters(
     liked: record.liked === true,
     attention: record.attention === true,
     attentionKind:
-      record.attention === true && isGalleryIssueKind(record.attentionKind)
-        ? record.attentionKind
-        : null,
+      record.attention === true ? readReason(record.attentionKind) : null,
   };
 }
 

@@ -342,6 +342,12 @@ export function canReuseGalleryLandingFeed(
   );
 }
 
+/** Every attention reason with its name, for the lazy review card. */
+const GALLERY_ATTENTION_REASONS = GALLERY_ISSUE_KINDS.map((kind) => ({
+  kind,
+  label: galleryIssueKindLabel(kind),
+}));
+
 /** Entries still needing attention, per reason they carry. */
 function countAttentionKinds(
   entries: readonly GalleryFeedEntry[],
@@ -1379,6 +1385,7 @@ export function GalleryFeed({
                             <Suspense fallback={null}>
                               <GalleryAttentionReview
                                 entry={entry}
+                                reasons={GALLERY_ATTENTION_REASONS}
                                 onChange={(updated) => {
                                   setState((previous) => ({
                                     ...previous,

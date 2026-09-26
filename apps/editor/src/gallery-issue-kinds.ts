@@ -12,7 +12,3 @@ const labels: Record<string, string> = taxonomy.issueKindLabels;
 export function galleryIssueKindLabel(kind: string): string {
   return labels[kind] ?? kind;
 }
-
-export function isGalleryIssueKind(value: unknown): value is string {
-  return typeof value === "string" && GALLERY_ISSUE_KINDS.includes(value);
-}

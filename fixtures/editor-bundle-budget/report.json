@@ -19,9 +19,9 @@
     "gallery": {
       "budget": {
         "files": 13,
-        "rawKib": 315,
-        "gzipKib": 103,
-        "brotliKib": 90
+        "rawKib": 319,
+        "gzipKib": 104,
+        "brotliKib": 91
       },
       "measured": {
         "files": 12,

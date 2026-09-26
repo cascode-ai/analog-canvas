@@ -1,18 +1,19 @@
 import { useState } from "react";
 import type { GalleryFeedEntry } from "../gallery-client";
-import {
-  GALLERY_ISSUE_KINDS,
-  galleryIssueKindLabel,
-} from "../gallery-issue-kinds";
 
 /** Private curation controls: only rendered for the author or an administrator. */
 export function GalleryAttentionReview({
   entry,
+  reasons,
   onChange,
 }: {
   entry: GalleryFeedEntry;
+  /** Every reason with its name, in the Gallery's order. */
+  reasons: readonly { kind: string; label: string }[];
   onChange: (entry: GalleryFeedEntry) => void;
 }) {
+  const labelOf = (kind: string) =>
+    reasons.find((reason) => reason.kind === kind)?.label ?? kind;
   const [note, setNote] = useState("");
   const [kind, setKind] = useState("other");
   const [busy, setBusy] = useState(false);
@@ -80,8 +81,7 @@ export function GalleryAttentionReview({
         <ul>
           {entry.attention.issues.map((issue, index) => (
             <li key={index}>
-              <strong>{galleryIssueKindLabel(issue.kind)}</strong> ·{" "}
-              {issue.detail}
+              <strong>{labelOf(issue.kind)}</strong> · {issue.detail}
             </li>
           ))}
         </ul>
@@ -95,9 +95,9 @@ export function GalleryAttentionReview({
         value={kind}
         onChange={(event) => setKind(event.currentTarget.value)}
       >
-        {GALLERY_ISSUE_KINDS.map((option) => (
-          <option key={option} value={option}>
-            {galleryIssueKindLabel(option)}
+        {reasons.map((reason) => (
+          <option key={reason.kind} value={reason.kind}>
+            {reason.label}
           </option>
         ))}
       </select>
