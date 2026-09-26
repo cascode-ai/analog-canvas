@@ -191,7 +191,12 @@ Undo restores the whole committed document, including the derived membership.
   not move. Boundary stretching and transaction endpoint-follow share one local
   stretch kernel. Local bends may adapt, but unrelated conductors are not rerouted.
   Unsafe protected geometry rejects atomically. Same-Net ordinary overlaps are
-  normalized rather than rejected merely to preserve an old Junction dot.
+  normalized rather than rejected merely to preserve an old Junction dot. An
+  internal ordinary wire whose ends already meet at one point (a zero-length
+  wire an older version drew between touching pins) loses that redundant
+  geometry and keeps the contact, the rule opening a file already applies,
+  and a zero-length step left in a carried wire is dropped; neither may
+  refuse the whole transform.
 - Instance drag preview carries one operation plan; ordinary geometry uses its
   lightweight projection while contact changes use the full transaction preview.
   Release strictly validates and commits that same plan against its source
