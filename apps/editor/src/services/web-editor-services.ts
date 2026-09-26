@@ -12,7 +12,10 @@ import type { EditorServices } from "./editor-services";
 /** Creating the Web services does not start requests or subscriptions. */
 export function createWebEditorServices(
   fetchLike?: typeof fetch,
-): EditorServices {
+): EditorServices & {
+  identity: NonNullable<EditorServices["identity"]>;
+  projectStore: NonNullable<EditorServices["projectStore"]>;
+} {
   return {
     identity: { getSessionUser: () => fetchSessionUser(fetchLike) },
     projectStore: {
@@ -25,5 +28,11 @@ export function createWebEditorServices(
       delete: (id) => deleteCloudProject(id, fetchLike),
     },
     exportDelivery: browserExportDelivery,
-  };
+    capabilities: {
+      community: true,
+      agent: true,
+      simulation: true,
+      externalLinks: true,
+    },
+  } satisfies EditorServices;
 }

@@ -20,6 +20,7 @@ const InlineConfirm = lazy(() =>
 );
 
 export interface FileCommandMenuProps {
+  cloudEnabled?: boolean;
   cloudProjects: readonly CloudProjectSummary[];
   activeCloudProjectId: string | null;
   canRevert: boolean;
@@ -119,6 +120,7 @@ function CommandSubmenu({
 }
 
 export function FileCommandMenu({
+  cloudEnabled = true,
   cloudProjects,
   activeCloudProjectId,
   onOpenCloudProject,
@@ -170,7 +172,7 @@ export function FileCommandMenu({
       className="command-menu"
       name="editor-command-menu"
       onToggle={(event) => {
-        if (event.currentTarget.open) onRefreshCloudProjects();
+        if (event.currentTarget.open && cloudEnabled) onRefreshCloudProjects();
         else setOpenSubmenu(null);
       }}
     >
@@ -183,73 +185,80 @@ export function FileCommandMenu({
           New Project
         </button>
         <button type="button" data-testid="save-cloud-project" onClick={onSave}>
-          Save
+          {cloudEnabled ? "Save" : "Export Project File…"}
         </button>
-        <button
-          type="button"
-          data-testid="check-and-save"
-          disabled={!checkAndSave.enabled}
-          onClick={checkAndSave.execute}
-          title="Check ERC and visual issues, and save this Cloud Project"
-        >
-          Check and Save
-        </button>
-        <span className="command-group-label" id="file-cloud-projects-label">
-          Cloud Projects ({cloudProjects.length}/{CLOUD_PROJECT_LIMIT})
-        </span>
-        <div
-          ref={cloudProjectList}
-          className="cloud-project-list"
-          role="region"
-          aria-labelledby="file-cloud-projects-label"
-          tabIndex={cloudProjects.length ? 0 : undefined}
-          data-testid="file-cloud-project-list"
-        >
-          {cloudProjects.map((project) => (
-            <div className="cloud-project-command" key={project.id}>
-              <button
-                type="button"
-                className="cloud-project-open"
-                data-testid={`cloud-project-${project.id}`}
-                title={`Open revision ${project.revision}`}
-                disabled={project.id === activeCloudProjectId}
-                onClick={() => onOpenCloudProject(project)}
-              >
-                <span className="cloud-project-name">{project.name}</span>
-                <time
-                  className="cloud-project-time"
-                  dateTime={project.updatedAt}
-                >
-                  {new Date(project.updatedAt).toLocaleString(undefined, {
-                    dateStyle: "short",
-                    timeStyle: "short",
-                  })}
-                </time>
-              </button>
-              <Suspense fallback={<button disabled>Delete</button>}>
-                <InlineConfirm
-                  aria-label={`Delete Cloud Project ${project.name}`}
-                  title="Delete this Cloud Project"
-                  disabled={project.id === activeCloudProjectId}
-                  open={deletingId === project.id}
-                  onOpenChange={(open) => {
-                    if (open) setOpenSubmenu(null);
-                    setDeletingId((current) =>
-                      open
-                        ? project.id
-                        : current === project.id
-                          ? null
-                          : current,
-                    );
-                  }}
-                  onConfirm={() => onDeleteCloudProject(project)}
-                >
-                  Delete
-                </InlineConfirm>
-              </Suspense>
+        {cloudEnabled ? (
+          <>
+            <button
+              type="button"
+              data-testid="check-and-save"
+              disabled={!checkAndSave.enabled}
+              onClick={checkAndSave.execute}
+              title="Check ERC and visual issues, and save this Cloud Project"
+            >
+              Check and Save
+            </button>
+            <span
+              className="command-group-label"
+              id="file-cloud-projects-label"
+            >
+              Cloud Projects ({cloudProjects.length}/{CLOUD_PROJECT_LIMIT})
+            </span>
+            <div
+              ref={cloudProjectList}
+              className="cloud-project-list"
+              role="region"
+              aria-labelledby="file-cloud-projects-label"
+              tabIndex={cloudProjects.length ? 0 : undefined}
+              data-testid="file-cloud-project-list"
+            >
+              {cloudProjects.map((project) => (
+                <div className="cloud-project-command" key={project.id}>
+                  <button
+                    type="button"
+                    className="cloud-project-open"
+                    data-testid={`cloud-project-${project.id}`}
+                    title={`Open revision ${project.revision}`}
+                    disabled={project.id === activeCloudProjectId}
+                    onClick={() => onOpenCloudProject(project)}
+                  >
+                    <span className="cloud-project-name">{project.name}</span>
+                    <time
+                      className="cloud-project-time"
+                      dateTime={project.updatedAt}
+                    >
+                      {new Date(project.updatedAt).toLocaleString(undefined, {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      })}
+                    </time>
+                  </button>
+                  <Suspense fallback={<button disabled>Delete</button>}>
+                    <InlineConfirm
+                      aria-label={`Delete Cloud Project ${project.name}`}
+                      title="Delete this Cloud Project"
+                      disabled={project.id === activeCloudProjectId}
+                      open={deletingId === project.id}
+                      onOpenChange={(open) => {
+                        if (open) setOpenSubmenu(null);
+                        setDeletingId((current) =>
+                          open
+                            ? project.id
+                            : current === project.id
+                              ? null
+                              : current,
+                        );
+                      }}
+                      onConfirm={() => onDeleteCloudProject(project)}
+                    >
+                      Delete
+                    </InlineConfirm>
+                  </Suspense>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        ) : null}
         <div>
           <CommandSubmenu
             id="file-import-options"

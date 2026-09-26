@@ -26,8 +26,14 @@ export interface CloudProjectStore {
 
 /** First composition seam. Other online features still own their dependencies. */
 export interface EditorServices {
-  readonly identity: { getSessionUser(): Promise<SessionUser | null> };
-  readonly projectStore: CloudProjectStore;
+  readonly identity: { getSessionUser(): Promise<SessionUser | null> } | null;
+  readonly projectStore: CloudProjectStore | null;
+  readonly capabilities: {
+    readonly community: boolean;
+    readonly agent: boolean;
+    readonly simulation: boolean;
+    readonly externalLinks: boolean;
+  };
   readonly exportDelivery: EditorExportDelivery;
 }
 

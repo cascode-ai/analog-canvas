@@ -1,6 +1,6 @@
 # Fork 迁移与首版本地合并计划
 
-本计划收敛此前四份报告，作为首批实施范围和读取源码的入口。**以当前 upstream 为底座，有出处地迁入 fork 的独立能力；完成一个可在本机验证的 Windows desktop 版本，并保持现有 Web 行为。** 当前已完成部分 upstream 准备，尚未迁入 fork 实现；具体进度及反馈边界见下节。
+本计划收敛此前四份报告，作为首批实施范围和读取源码的入口。**以当前 upstream 为底座，有出处地迁入 fork 的独立能力；完成一个可在本机验证的 Windows desktop 版本，并保持现有 Web 行为。** 当前已完成部分 upstream 准备，并开始最小桌面预览外壳迁入；具体进度及反馈边界见下节。
 
 “迁入”指按功能适配源码，不是将 fork 整条分支合并。这里的功能实现终点是本地工作树中的实现、解释性提交和验证记录；不包含功能代码的推送、PR、Production 部署、Release、安装器发布。初版文档已通过 [PR #1125](https://github.com/cascode-ai/analog-canvas/pull/1125) 发布；功能代码后续若要求交付，继续执行仓库现有 Delivery 门禁，已交付部分见第 0 节。
 
@@ -22,7 +22,7 @@
 
 **已完成：**[PR #1126](https://github.com/cascode-ai/analog-canvas/pull/1126)（main 提交 [b0c3264f](https://github.com/cascode-ai/analog-canvas/commit/b0c3264fc294491edcbb34e604a91ec491437538)）交付 U-C 导出交付接口与 U-B 共享保存协调。它们抽取 upstream 现有实现，未迁入 fork 代码；验证与交付证据随该 PR/提交保存。Native 存储/关闭接入、U-A 和桌面闭环未完成。
 
-**当前可继续的目标：**U-A 的 Web 侧装配抽离与回归验证，只处理 upstream 既有实现，并形成逐目标来源对照。此前拟采用的 fork 桌面入口/菜单片段不属于这个子目标。
+**当前授权目标：**先完成内部 Windows 预览包的“启动 → 绘图 → 导出项目 → 关闭 → 重新启动并导入 → 内容一致”循环。第一批 upstream 抽离继续沿用；最小外壳按固定 fork 源码适配。完整 Native 存储/关闭接入和其他 fork 功能仍延期。
 
 **U-A 第一批本地实现：**现有 Web 路由/预加载/统计和 service worker 装配移到 `entries/web.tsx`；懒加载的 `entries/web-editor.tsx` 创建稳定的 Web 服务，通过同一 `EditorServices` 注入身份查询、Cloud 存储和已有导出交付。App 和文件生命周期消费这些依赖，前台/后台保存共用一个 Cloud store，保留 revision、conflict、publication 与恢复语义。构建预加载跟随 Web 装配入口，Gallery 首屏仍不提前加载 editor。此批仅抽取 upstream 代码，尚未交付 Production；验证与限制记录在实现提交。
 
@@ -38,7 +38,12 @@
 
 这份清单是未完成范围，不是 offline 验收记录；U-A 整体仍未完成。Web 本地正式保存和 fork 实现复用仍遵守上述边界。
 
-**当前停点：**贡献处理方式尚未最终敲定，实际 fork 代码、测试、注释或素材复用继续暂停。恢复后，每个目标在写代码前核对原作者、原提交、原文件/函数和适用声明，在首次采用的提交处理来源与署名，并核验最终 squash 提交。不能按阶段名称延后，也不能把已阅读的具体实现改名后记作独立原创。本节不替代待确认的详细署名方案。
+**内部预览实施边界：**新增独立 desktop entry 和构建目录；`EditorServices` 允许 identity / Cloud store 缺席，集中控制 community、Agent、simulation 和外链。Web 的默认能力与 Cloud Save 不变。预览以原生对话框确认的文件导出完成第一次数据闭环，Ctrl+S 也明确执行导出；不建立路径绑定，不把它称作原位 Save。能力关闭时不挂载账号/社区入口、不订阅拓扑轮询、不恢复 Agent 会话。共享 App 中仍有休眠的在线模块和内存对象，完整的构建期模块分离不在这一预览中宣称完成。
+
+**预览验收：**已用实际 Windows 可执行文件完成绘图、取消/失败保护、原生导出、关闭、全新用户数据目录重启并导入，规范化项目内容一致；SVG/PNG/PDF 实际写盘、同一数据目录下手动恢复、外链提示和网络拦截均有本地自动化证据。重启后的恢复通过 File → Recover Unsaved Work 检查，不承诺所有标签页自动重开。Web 单元、绘图/属性/文件浏览器回归及构建预算、生产预览检查随提交记录。此验收只对应内部预览，不替代 D-A/M1/M2。
+
+**本次贡献边界：**用户已授权最小预览循环，包括按源代码适配必要外壳。实际采用前已形成 [逐文件/函数来源与改写对照](../../../apps/desktop/SOURCES.md)，首次采用提交记录 LXY-freshman 共同作者、原提交和复用范围，保留原 NOTICE。后续 squash 仍需核验；这不自动批准其他 fork 功能迁入，也不以代码量小为由省略来源。预览运行/构建说明见 [desktop README](../../../apps/desktop/README.md)。
+
 
 ## 1. 任何时候都能找到原代码
 

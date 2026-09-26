@@ -6,6 +6,8 @@ allowBuilds:
   # runtime modules are already shipped in the package, so no build is needed.
   core-js: false
   # Wrangler validates its local bundler and Worker runtime binaries.
+  # Electron installs the pinned desktop runtime.
+  electron: true
   esbuild: true
   workerd: true
 minimumReleaseAgeExclude:

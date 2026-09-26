@@ -219,3 +219,23 @@ schema-version rejection, corrupt recovery,
 unsupported-schema retention, envelope/Project identity mismatch, retention
 ordering, quota and storage failure mapping, staged-candidate isolation, and
 human-approved replacement.
+
+## Internal desktop preview
+
+The internal Windows preview serves the same editor over a stable private
+`app://analog-canvas` origin. Online identity, Cloud, community, Agent,
+simulation and analytics are unavailable; service workers are not registered.
+The Web profile retains its existing formal Cloud Save contract.
+
+The preview's File command and Ctrl+S export a canonical `.icproj.json` copy
+through a native destination dialog. There is no persistent path binding or
+in-place Save. Only a completed write makes the captured snapshot safe for
+replacement; cancellation, failure, a later edit or a switched project must not
+mark newer work safe. Project imports retain the current reader/normalization
+rules. Origin-local recovery remains a non-authoritative safety copy.
+
+This is an internal unpacked preview, not completion of the native file
+lifecycle or a distributable release. Before window close, the shell explicitly
+warns that all tabs must be exported and offers Keep open as the default.
+Full coordinated multi-tab Save-on-close, external file change detection,
+file associations, installers and updates remain deferred.

@@ -1,13 +1,14 @@
 import { lazy, Suspense, useState, useSyncExternalStore } from "react";
 import type { CircuitProject } from "@icm/model";
 import { galleryPreviewUrl } from "../../gallery-client";
-import { galleryTopologyTask } from "./gallery-topology-task";
+import { getGalleryTopologyTask } from "./gallery-topology-task";
 import type { GalleryTopologyMatch } from "../../gallery-topology-match";
 const GalleryTopologyComparison = lazy(
   () => import("./gallery-topology-comparison"),
 );
 
 export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
+  const galleryTopologyTask = getGalleryTopologyTask();
   const [comparison, setComparison] = useState<{
     source: CircuitProject;
     match: GalleryTopologyMatch;

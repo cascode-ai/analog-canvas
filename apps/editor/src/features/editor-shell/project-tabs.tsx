@@ -9,6 +9,7 @@ const InlineConfirm = lazy(() =>
 );
 
 export function ProjectTabs({
+  cloudEnabled = true,
   tabs,
   activeId,
   busy,
@@ -20,6 +21,7 @@ export function ProjectTabs({
   onRefreshShelf,
   onOpenShelf,
 }: {
+  cloudEnabled?: boolean;
   tabs: { id: string; name: string; dirty: boolean }[];
   activeId: string;
   busy: boolean;
@@ -128,38 +130,42 @@ export function ProjectTabs({
         >
           ↗
         </button>
-        <details
-          className="project-tabs-shelf"
-          onToggle={(event) => {
-            if (event.currentTarget.open) onRefreshShelf();
-          }}
-        >
-          <summary
-            title="Open Shelf project in tab"
-            aria-label="Open Shelf project in tab"
+        {cloudEnabled ? (
+          <details
+            className="project-tabs-shelf"
+            onToggle={(event) => {
+              if (event.currentTarget.open) onRefreshShelf();
+            }}
           >
-            ▾
-          </summary>
-          <div>
-            {cloudProjects.length ? (
-              cloudProjects.map((project) => (
-                <button
-                  type="button"
-                  key={project.id}
-                  disabled={busy}
-                  onClick={(event) => {
-                    event.currentTarget.closest("details")!.open = false;
-                    onOpenShelf(project.id);
-                  }}
-                >
-                  {project.name}
-                </button>
-              ))
-            ) : (
-              <span>No saved Shelf projects. Sign in to load your shelf.</span>
-            )}
-          </div>
-        </details>
+            <summary
+              title="Open Shelf project in tab"
+              aria-label="Open Shelf project in tab"
+            >
+              ▾
+            </summary>
+            <div>
+              {cloudProjects.length ? (
+                cloudProjects.map((project) => (
+                  <button
+                    type="button"
+                    key={project.id}
+                    disabled={busy}
+                    onClick={(event) => {
+                      event.currentTarget.closest("details")!.open = false;
+                      onOpenShelf(project.id);
+                    }}
+                  >
+                    {project.name}
+                  </button>
+                ))
+              ) : (
+                <span>
+                  No saved Shelf projects. Sign in to load your shelf.
+                </span>
+              )}
+            </div>
+          </details>
+        ) : null}
       </div>
       {closeTarget ? (
         <div

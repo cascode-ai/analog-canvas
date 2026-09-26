@@ -256,7 +256,7 @@ import {
   subscribeGalleryRefresh,
 } from "../gallery-client";
 import { projectWithTopologyRoot } from "../features/editor-shell/gallery-topology-project";
-import { GalleryTopologyTaskNotice } from "../features/editor-shell/gallery-topology-task-notice";
+import { LazyGalleryTopologyTaskNotice as GalleryTopologyTaskNotice } from "./lazy-editor-dialogs";
 import type { SessionUser } from "../components/account";
 import {
   evaluateSubmissionGates,
@@ -491,7 +491,12 @@ export function App(props: AppProps) {
   if (!boot) return <div role="status">Restoring project tabs…</div>;
   return (
     <EditorServicesProvider services={props.services}>
-      <WorkspaceAgentProvider>
+      <WorkspaceAgentProvider
+        enabled={
+          props.services.capabilities.agent &&
+          (props.publicAgentUiEnabled ?? PUBLIC_AGENT_UI_ENABLED)
+        }
+      >
         <WorkspaceEditor
           {...props}
           restoredWorkspace={boot.workspace}
@@ -520,8 +525,9 @@ function propertiesMosBulkDefaultNetId(
 function WorkspaceEditor({
   project: initialProject,
   visitStats,
-  publicAgentUiEnabled = PUBLIC_AGENT_UI_ENABLED,
-  publicSimulationUiEnabled = PUBLIC_SIMULATION_UI_ENABLED,
+  publicAgentUiEnabled: requestedAgentUi = PUBLIC_AGENT_UI_ENABLED,
+  publicSimulationUiEnabled:
+    requestedSimulationUi = PUBLIC_SIMULATION_UI_ENABLED,
   initialGalleryEntryId = null,
   restoredWorkspace,
   workspaceError,
@@ -529,7 +535,11 @@ function WorkspaceEditor({
   restoredWorkspace: ProjectWorkspace | null;
   workspaceError: string | null;
 }) {
-  const { identity, projectStore, exportDelivery } = useEditorServices();
+  const { identity, projectStore, exportDelivery, capabilities } =
+    useEditorServices();
+  const publicAgentUiEnabled = capabilities.agent && requestedAgentUi;
+  const publicSimulationUiEnabled =
+    capabilities.simulation && requestedSimulationUi;
   const [restoringWorkspace, setRestoringWorkspace] = useState(
     restoredWorkspace !== null,
   );
@@ -643,12 +653,12 @@ function WorkspaceEditor({
   const [, setGalleryRefreshSignal] = useState(0);
   const galleryLoadGenerationRef = useRef(0);
   useEffect(() => {
-    if (!visibleLibraryPanelOpen) return;
+    if (!capabilities.community || !visibleLibraryPanelOpen) return;
     return subscribeGalleryRefresh(() => {
       galleryLoadGenerationRef.current += 1;
       setGalleryRefreshSignal((previous) => previous + 1);
     });
-  }, [visibleLibraryPanelOpen]);
+  }, [capabilities.community, visibleLibraryPanelOpen]);
 
   const [recoveryFailureDismissed, setRecoveryFailureDismissed] =
     useState(false);
@@ -677,7 +687,12 @@ function WorkspaceEditor({
     serializeProject: snapshotSerializer.serialize,
   });
   const [agentStartupRecovery] = useState(() => {
-    if (typeof window === "undefined" || restoredWorkspace) return null;
+    if (
+      !capabilities.agent ||
+      typeof window === "undefined" ||
+      restoredWorkspace
+    )
+      return null;
     const search = new URLSearchParams(window.location.search);
     if (
       initialGalleryEntryId !== null ||
@@ -906,6 +921,10 @@ function WorkspaceEditor({
   const cloudListRequestRef = useRef(0);
   const cloudListMutationRef = useRef(0);
   const reloadCloudProjects = useCallback(async (): Promise<void> => {
+    if (!projectStore) {
+      setCloudProjectsReady(true);
+      return;
+    }
     const request = ++cloudListRequestRef.current;
     const mutationAtStart = cloudListMutationRef.current;
     const outcome = await projectStore.list();
@@ -945,6 +964,7 @@ function WorkspaceEditor({
   // list shown by the File menu.
   useEffect(() => {
     let cancelled = false;
+    if (!identity) return;
     void identity.getSessionUser().then(async (user) => {
       if (cancelled) return;
       setPublishSession(user);
@@ -969,6 +989,7 @@ function WorkspaceEditor({
   useEffect(() => {
     if (!publishGalleryOpen) return;
     let cancelled = false;
+    if (!identity) return;
     void identity.getSessionUser().then((user) => {
       if (!cancelled) setPublishSession(user);
     });
@@ -1224,6 +1245,7 @@ function WorkspaceEditor({
     openCloudProjectById,
   } = useProjectFileLifecycle({
     projectStore,
+    exportDelivery,
     openProjectInTab: (project, view, options, background) =>
       openProjectInTabRef.current(project, view, options, background),
     restoreWorkingSession: agentStartupRecovery !== null,
@@ -1291,7 +1313,12 @@ function WorkspaceEditor({
     let cancelled = false;
     setPublicationLinkError(null);
     setPublicationLinkNotice(null);
-    if (!cloudBinding || galleryEntryContext) {
+    if (
+      !capabilities.community ||
+      !projectStore ||
+      !cloudBinding ||
+      galleryEntryContext
+    ) {
       setPublicationLinkLoading(false);
       return;
     }
@@ -3640,13 +3667,14 @@ function WorkspaceEditor({
   }
 
   function toggleExamplesPanel(): void {
+    if (!capabilities.community) return;
     toggleExamplesPanelFromShell();
   }
 
   // boot Project only; ordinary sessions never re-run these.
   const bootTargetHandled = useRef(false);
   useEffect(() => {
-    if (bootTargetHandled.current) return;
+    if (!capabilities.community || bootTargetHandled.current) return;
     bootTargetHandled.current = true;
     // A safe recovery refresh reloads the same URL: the pending restore owns
     // this boot. Re-running the URL's boot target here would fork the
@@ -3811,6 +3839,10 @@ function WorkspaceEditor({
       : undefined;
 
   function openSelectedComponentDefinition(): void {
+    if (!capabilities.community) {
+      setStatus("Shared component editing is unavailable in this preview");
+      return;
+    }
     if (!selectedInstance) {
       setStatus("Select one component to edit its definition");
       return;
@@ -4514,7 +4546,7 @@ function WorkspaceEditor({
           void circuitClipboard.pasteSelection();
           return;
         case "save":
-          void saveProjectToCloud();
+          void (projectStore ? saveProjectToCloud() : exportProjectFile());
           return;
         case "open":
           projectInputRef.current?.click();
@@ -5127,6 +5159,8 @@ function WorkspaceEditor({
             );
       }
       if (request.action === "save") {
+        if (!projectStore)
+          return fail("INVALID_REQUEST", "Cloud storage is unavailable");
         if (targetWorkspaceId && targetWorkspaceId !== projectTabs.activeId) {
           const target = entries.find((item) => item.id === targetWorkspaceId);
           if (!target)
@@ -5423,10 +5457,14 @@ function WorkspaceEditor({
 
   return (
     <main className="app-shell">
-      <GalleryTopologyTaskNotice
-        hidden={publishGalleryOpen}
-        onOpen={() => setPublishGalleryOpen(true)}
-      />
+      {capabilities.community ? (
+        <Suspense fallback={null}>
+          <GalleryTopologyTaskNotice
+            hidden={publishGalleryOpen}
+            onOpen={() => setPublishGalleryOpen(true)}
+          />
+        </Suspense>
+      ) : null}
       {interfaceConfirmation ? (
         <Suspense fallback={null}>
           <CellInterfaceConfirmationDialog
@@ -5453,6 +5491,9 @@ function WorkspaceEditor({
       ) : null}
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
       <EditorAppChrome
+        communityEnabled={capabilities.community}
+        externalLinksEnabled={capabilities.externalLinks}
+        identityEnabled={identity !== null}
         projectChoices={{
           tabs: projectTabs.tabs,
           activeId: projectTabs.activeId,
@@ -5464,6 +5505,7 @@ function WorkspaceEditor({
         projectTabs={
           <>
             <ProjectTabs
+              cloudEnabled={projectStore !== null}
               tabs={projectTabs.tabs}
               activeId={projectTabs.activeId}
               busy={projectTabs.busy}
@@ -5526,6 +5568,7 @@ function WorkspaceEditor({
           });
         }}
         fileCommands={{
+          cloudEnabled: projectStore !== null,
           cloudProjects,
           activeCloudProjectId: cloudBinding?.id ?? null,
           canRevert: savedProjectBaseline !== null && isDirtyWork(),
@@ -5540,11 +5583,13 @@ function WorkspaceEditor({
           },
           projectInputRef,
           onNewProject: createNewProject,
-          onSave: () => void saveProjectToCloud(),
+          onSave: () =>
+            void (projectStore ? saveProjectToCloud() : exportProjectFile()),
           onRefreshCloudProjects: () => void reloadCloudProjects(),
           onOpenCloudProject: (summary) =>
             void openCloudProjectById(summary.id),
           onDeleteCloudProject: (summary) => {
+            if (!projectStore) return;
             return projectStore.delete(summary.id).then((outcome) => {
               if (outcome.status === "deleted") {
                 cloudListMutationRef.current += 1;
@@ -5677,6 +5722,7 @@ function WorkspaceEditor({
         publishGalleryOpen={publishGalleryOpen}
         onPublishGallery={() => setPublishGalleryOpen(true)}
         drawingToolbar={{
+          communityEnabled: capabilities.community,
           leftPanelMode,
           libraryPanelOpen: visibleLibraryPanelOpen,
           projectPanel:
@@ -5809,7 +5855,8 @@ function WorkspaceEditor({
           replaceGuard !== null
             ? {
                 intent: replaceGuard.intent,
-                cloudProjectLimit: projectStore.limit,
+                cloudProjectLimit: projectStore?.limit ?? 0,
+                exportOnly: projectStore === null,
                 saving: replaceGuardSaving,
                 onCancel: cancelReplaceGuard,
                 onSaveAndContinue: saveAndContinueReplaceGuard,
@@ -6273,7 +6320,7 @@ function WorkspaceEditor({
             }}
           />
         ) : null}
-        {leftPanelMode === "library" ? (
+        {!capabilities.community || leftPanelMode === "library" ? (
           <ShapesPanel
             styleProfileId={document.presentation.styleProfileId}
             open={visibleLibraryPanelOpen}
@@ -8043,7 +8090,7 @@ function WorkspaceEditor({
           />
         ) : null}
       </div>
-      {componentEditor ? (
+      {capabilities.community && componentEditor ? (
         <Suspense fallback={null}>
           <ComponentDefinitionEditor
             key={componentEditor.key}
@@ -8082,31 +8129,33 @@ function WorkspaceEditor({
           />
         </Suspense>
       ) : null}
-      <Suspense fallback={null}>
-        <UserComponentsLibrary
-          open={userComponentsOpen}
-          refresh={componentLibraryRefresh}
-          onClose={() => setUserComponentsOpen(false)}
-          onCreate={() => {
-            cancelAllTransientInteraction();
-            setComponentEditor({
-              key: crypto.randomUUID(),
-              mode: "new",
-              definition: newComponentDefinition(),
-            });
-          }}
-          onEdit={(entry) => {
-            cancelAllTransientInteraction();
-            setComponentEditor({
-              key: crypto.randomUUID(),
-              mode: "library",
-              definition: entry.definition,
-              entry,
-            });
-          }}
-          onInsert={insertSharedComponent}
-        />
-      </Suspense>
+      {capabilities.community ? (
+        <Suspense fallback={null}>
+          <UserComponentsLibrary
+            open={userComponentsOpen}
+            refresh={componentLibraryRefresh}
+            onClose={() => setUserComponentsOpen(false)}
+            onCreate={() => {
+              cancelAllTransientInteraction();
+              setComponentEditor({
+                key: crypto.randomUUID(),
+                mode: "new",
+                definition: newComponentDefinition(),
+              });
+            }}
+            onEdit={(entry) => {
+              cancelAllTransientInteraction();
+              setComponentEditor({
+                key: crypto.randomUUID(),
+                mode: "library",
+                definition: entry.definition,
+                entry,
+              });
+            }}
+            onInsert={insertSharedComponent}
+          />
+        </Suspense>
+      ) : null}
       <SelectionFilterPopover
         open={selectionFilterOpen}
         filter={selectionFilter}

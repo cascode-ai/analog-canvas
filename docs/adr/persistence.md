@@ -35,3 +35,13 @@ Keeping adapters at the file boundary preserves durability while runtime code
 still sees one shape. This costs maintained adapters and focused tests, rather
 than scattered legacy branches. Ambiguous electrical data must be refused with
 a located explanation, not silently converted into guessed connectivity.
+
+## Internal desktop preview decision (2026-09-26)
+
+Add an isolated Electron preview alongside the Web/loopback products to test
+bundled rendering and canonical file roundtrips. It uses an application origin,
+no listening socket, and blocked external navigation/network. It does not
+change the Web Save contract or introduce a second Project schema. Its first
+file workflow is explicit export/import, not native file binding; see the
+[preview contract](../specs/persistence-and-recovery.md#internal-desktop-preview).
+The full D-A native file lifecycle remains separate from this preview.

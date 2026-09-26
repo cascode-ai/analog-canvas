@@ -27,6 +27,9 @@ interface AlignmentAction extends CommandAction {
 }
 
 export interface EditorAppChromeProps {
+  communityEnabled?: boolean;
+  identityEnabled?: boolean;
+  externalLinksEnabled?: boolean;
   projectTabs?: ReactNode;
   projectChoices?: ProjectMenuProps["projects"];
   projectName: string;
@@ -78,6 +81,9 @@ export interface EditorAppChromeProps {
 
 /** Persistent command chrome above the document workspace. */
 export function EditorAppChrome({
+  communityEnabled = true,
+  identityEnabled = true,
+  externalLinksEnabled = true,
   projectTabs,
   projectChoices,
   projectName,
@@ -140,9 +146,17 @@ export function EditorAppChrome({
         <div className="app-brand">
           <a
             className="gallery-home-link"
-            href="/"
-            aria-label="Back to the gallery"
-            title="Back to the gallery"
+            href={communityEnabled ? "/" : undefined}
+            aria-label={
+              communityEnabled
+                ? "Back to the gallery"
+                : "Analog Canvas desktop preview"
+            }
+            title={
+              communityEnabled
+                ? "Back to the gallery"
+                : "Desktop preview · Export files to keep your work"
+            }
             onClick={(event) => {
               if (
                 event.button !== 0 ||
@@ -154,7 +168,7 @@ export function EditorAppChrome({
                 return;
               }
               event.preventDefault();
-              onOpenGallery();
+              if (communityEnabled) onOpenGallery();
             }}
           >
             <span className="app-brand-mark" aria-hidden="true" />
@@ -203,14 +217,16 @@ export function EditorAppChrome({
                 <button type="button" onClick={onInsertComponent}>
                   Insert component… (I)
                 </button>
-                <button
-                  type="button"
-                  aria-haspopup="dialog"
-                  aria-expanded={userComponentsOpen}
-                  onClick={onOpenUserComponents}
-                >
-                  User Components…
-                </button>
+                {communityEnabled ? (
+                  <button
+                    type="button"
+                    aria-haspopup="dialog"
+                    aria-expanded={userComponentsOpen}
+                    onClick={onOpenUserComponents}
+                  >
+                    User Components…
+                  </button>
+                ) : null}
                 {placeProjectCell.enabled ? (
                   <button type="button" onClick={placeProjectCell.execute}>
                     Place Cell from this Project…
@@ -348,42 +364,52 @@ export function EditorAppChrome({
             {/* Publishing is the primary narrow-window action. Keeping it
                 immediately after the compact menus makes it visible before
                 the command row needs horizontal scrolling. */}
-            <button
-              type="button"
-              data-testid="publish-gallery-button"
-              aria-haspopup="dialog"
-              aria-expanded={publishGalleryOpen}
-              title="Publish to Gallery"
-              onClick={onPublishGallery}
-            >
-              Publish<span className="publish-label-long"> to Gallery</span>
-            </button>
+            {communityEnabled ? (
+              <button
+                type="button"
+                data-testid="publish-gallery-button"
+                aria-haspopup="dialog"
+                aria-expanded={publishGalleryOpen}
+                title="Publish to Gallery"
+                onClick={onPublishGallery}
+              >
+                Publish<span className="publish-label-long"> to Gallery</span>
+              </button>
+            ) : null}
           </div>
         </nav>
         <div className="app-chrome-actions">
           {/* Who is signed in, as the Gallery shows it; Sign in otherwise. */}
-          <AccountMenu showGalleryLinks={false} />
-          <BugReportLink
-            testId="editor-report-bug"
-            surface="Editor"
-            projectSchemaVersion={projectSchemaVersion}
-          />
-          <a
-            className="app-repository-link"
-            data-testid="editor-repository-link"
-            href={SITE_REPOSITORY_URL}
-            target="_blank"
-            rel="noreferrer"
-            aria-label="GitHub repository"
-            title="GitHub repository"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                fill="currentColor"
-                d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.87c-2.78.6-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.35 1.09 2.92.83.09-.65.35-1.09.64-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.6 9.6 0 0 1 12 6.82a9.6 9.6 0 0 1 2.5.34c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.56 4.93.36.31.68.92.68 1.85v2.77c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"
+          {identityEnabled ? <AccountMenu showGalleryLinks={false} /> : null}
+          {externalLinksEnabled ? (
+            <>
+              <BugReportLink
+                testId="editor-report-bug"
+                surface="Editor"
+                projectSchemaVersion={projectSchemaVersion}
               />
-            </svg>
-          </a>
+              <a
+                className="app-repository-link"
+                data-testid="editor-repository-link"
+                href={SITE_REPOSITORY_URL}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="GitHub repository"
+                title="GitHub repository"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.87c-2.78.6-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.35 1.09 2.92.83.09-.65.35-1.09.64-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.6 9.6 0 0 1 12 6.82a9.6 9.6 0 0 1 2.5.34c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.56 4.93.36.31.68.92.68 1.85v2.77c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"
+                  />
+                </svg>
+              </a>
+            </>
+          ) : (
+            <span title="Export Project File writes a copy. Native Save and online services are unavailable.">
+              Desktop preview
+            </span>
+          )}
           <div className="tokenzhang-credit">
             <span className="tokenzhang-credit-kicker">Presented by</span>
             <a
