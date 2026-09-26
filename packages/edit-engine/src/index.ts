@@ -1,4 +1,5 @@
 export * from "./drafting-transform.js";
+export * from "./annotation-reflection.js";
 export * from "./history.js";
 export * from "./route-geometry-edit.js";
 export * from "./angled-wire-repair.js";

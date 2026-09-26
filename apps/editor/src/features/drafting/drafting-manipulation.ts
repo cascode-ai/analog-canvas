@@ -1,12 +1,18 @@
 import type { ResolvedDraftingGeometry } from "@icm/derived";
-import { snapGridPoint } from "@icm/model";
-import { translateDraftingObject } from "@icm/edit-engine";
+import { reflectOrientation, snapGridPoint } from "@icm/model";
+import {
+  reflectedTextAlignment,
+  reflectedTextAnchor,
+  reflectPoint,
+  translateDraftingObject,
+} from "@icm/edit-engine";
 
 export { translateDraftingObject };
 import type {
   DerivedPoint,
   DraftingObject,
   GridPoint,
+  ScreenFlip,
   VisualAnchor,
 } from "@icm/model";
 
@@ -556,6 +562,160 @@ export function rotateDraftingObject(
     };
   }
   return null;
+}
+
+/**
+ * One end of a drafting object under a mirror. Free ends reflect. An end
+ * attached to something the same mirror carries keeps its attachment and
+ * mirrors its offset from it; an end attached to anything else stays with
+ * that host, as it does when the selection moves.
+ */
+function mirrorAnchor<T extends VisualAnchor>(
+  anchor: T,
+  pivot: DerivedPoint,
+  direction: ScreenFlip,
+  mirroredHostIds: ReadonlySet<string>,
+): T {
+  const reflect = (point: GridPoint): GridPoint =>
+    snapGridPoint(reflectPoint(point, pivot, direction), 1);
+  if (anchor.kind === "free") {
+    return { ...anchor, position: reflect(anchor.position) };
+  }
+  if (anchor.kind === "object") {
+    if (!mirroredHostIds.has(anchor.objectId)) return anchor;
+    return {
+      ...anchor,
+      localOffset:
+        direction === "left-right"
+          ? { x: -anchor.localOffset.x, y: anchor.localOffset.y }
+          : { x: anchor.localOffset.x, y: -anchor.localOffset.y },
+      fallbackPosition: reflect(anchor.fallbackPosition),
+    };
+  }
+  if (!mirroredHostIds.has(anchor.routeId)) return anchor;
+  // The wire keeps its point order through the mirror, so its normal turns
+  // to the other side: the same offset would land on the wrong side.
+  return {
+    ...anchor,
+    normalOffset: -anchor.normalOffset,
+    fallbackPosition: reflect(anchor.fallbackPosition),
+  };
+}
+
+/**
+ * Mirror a drafting object about a pivot, as one member of a mirrored
+ * selection.
+ *
+ * Lines, arrows and shapes reflect outright; an arrow keeps which end is its
+ * head. Text keeps readable glyphs: its box reflects and its alignment
+ * follows the reversed reading direction. `geometryOf` resolves an object as
+ * it would draw, which the text needs to find its box.
+ */
+export function mirrorDraftingObject(
+  object: DraftingObject,
+  pivot: DerivedPoint,
+  direction: ScreenFlip,
+  mirroredHostIds: ReadonlySet<string>,
+  geometryOf: (object: DraftingObject) => ResolvedDraftingGeometry,
+): DraftingObject | null {
+  if (object.locked) return null;
+  const reflect = (point: GridPoint): GridPoint =>
+    snapGridPoint(reflectPoint(point, pivot, direction), 1);
+  const anchor = (value: VisualAnchor): VisualAnchor =>
+    mirrorAnchor(value, pivot, direction, mirroredHostIds);
+  switch (object.kind) {
+    case "text": {
+      const alignment = reflectedTextAlignment(
+        object.alignment,
+        object.rotation,
+        direction,
+      );
+      if (object.anchor.kind !== "free") {
+        const next = anchor(object.anchor);
+        return next === object.anchor
+          ? null
+          : { ...object, anchor: next, alignment };
+      }
+      const geometry = geometryOf(object);
+      const realigned =
+        alignment === object.alignment
+          ? geometry
+          : geometryOf({ ...object, alignment });
+      if (geometry.kind !== "text" || realigned.kind !== "text") return null;
+      return {
+        ...object,
+        alignment,
+        anchor: {
+          kind: "free",
+          position: reflectedTextAnchor(
+            geometry.position,
+            geometry.bounds,
+            realigned.bounds,
+            pivot,
+            direction,
+          ),
+        },
+      };
+    }
+    case "callout":
+      return {
+        ...object,
+        anchor: anchor(object.anchor),
+        target: anchor(object.target),
+        alignment: reflectedTextAlignment(
+          object.alignment,
+          object.rotation,
+          direction,
+        ),
+      };
+    case "leader":
+      return {
+        ...object,
+        anchor: anchor(object.anchor),
+        target: anchor(object.target),
+      };
+    case "arrow":
+      return {
+        ...object,
+        anchor: anchor(object.anchor),
+        from: anchor(object.from),
+        to: anchor(object.to),
+        waypoints: object.waypoints?.map(reflect),
+        curveControls: object.curveControls?.map((point) =>
+          point ? reflect(point) : null,
+        ),
+      };
+    case "construction-line":
+      return {
+        ...object,
+        anchor: anchor(object.anchor),
+        points: object.points.map(reflect),
+        curveControls: object.curveControls?.map((point) =>
+          point ? reflect(point) : null,
+        ),
+      };
+    case "rectangle": {
+      const center = reflect(object.center);
+      return {
+        ...object,
+        center,
+        anchor: { kind: "free", position: center },
+        // Either mirror of a rectangle turned by θ is the rectangle turned
+        // by −θ: a rectangle is its own half-turn.
+        rotation: (360 - object.rotation) % 360,
+      };
+    }
+    case "circle": {
+      const center = reflect(object.center);
+      return { ...object, center, anchor: { kind: "free", position: center } };
+    }
+    case "floating-symbol":
+      return {
+        ...object,
+        anchor: anchor(object.anchor),
+        transform: reflectOrientation(object.transform, direction),
+      };
+  }
 }
 
 function controlForTangentAngle(

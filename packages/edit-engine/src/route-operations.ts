@@ -2,6 +2,10 @@ import { cancelDoubledBackLegs } from "./routing-planner.js";
 import { stretchRouteEndpoint } from "./route-endpoint-stretch.js";
 import { tidyRouteTerminalApproaches } from "./route-terminal-approach.js";
 import {
+  reflectedAnnotationPlacement,
+  type TextAlignment,
+} from "./annotation-reflection.js";
+import {
   electricalConnectionGrid,
   reflectOrientation,
   routeBends,
@@ -72,12 +76,9 @@ export interface JunctionMoveProposal {
 
 export interface AnnotationMoveProposal {
   annotationId: string;
-  anchor: Extract<
-    SchematicDocument["annotations"][number]["anchor"],
-    {
-      kind: "free";
-    }
-  >;
+  anchor: SchematicDocument["annotations"][number]["anchor"];
+  /** A mirror reverses the side a start- or end-aligned label grows from. */
+  alignment?: TextAlignment;
 }
 
 export interface GroupMoveProposal {
@@ -1570,6 +1571,7 @@ export function proposeGroupReflection(
     }),
     center,
     additionalJunctionIds,
+    direction,
   );
 }
 
@@ -1590,12 +1592,19 @@ function proposeRigidBodyMove(
    * always taken these; rotate and mirror dropped them (audit #7).
    */
   additionalJunctionIds: readonly string[] = [],
+  /** Set when the body is mirrored rather than turned. */
+  reflection?: ScreenFlip,
 ): GroupRotationProposal {
   const selected = new Set(instanceIds);
   const placed = document.instances.filter(
     (instance) => selected.has(instance.id) && instance.placement,
   );
-  if (placed.length === 0) {
+  // Wires alone turn too: the Junctions on a selected wire's ends carry it,
+  // so a flipped L of wire is the same drawing mirrored, not nothing.
+  const carriedJunctions = document.junctions.filter((junction) =>
+    additionalJunctionIds.includes(junction.id),
+  );
+  if (placed.length === 0 && carriedJunctions.length === 0) {
     return {
       instances: [],
       routes: [],
@@ -1606,10 +1615,18 @@ function proposeRigidBodyMove(
   }
 
   const grid = document.presentation.grid;
-  const xs = placed.map((instance) => instance.placement!.position.x);
-  const ys = placed.map((instance) => instance.placement!.position.y);
+  const anchors =
+    placed.length > 0
+      ? placed.map((instance) => instance.placement!.position)
+      : carriedJunctions.map((junction) => junction.position);
+  const xs = anchors.map((point) => point.x);
+  const ys = anchors.map((point) => point.y);
+  // A mirror about a half-grid line still lands every grid point on the grid,
+  // and it lets the axis sit exactly on the body's centre: mirroring twice
+  // then restores the drawing where it was instead of walking it a grid step.
+  const pivotStep = reflection ? grid / 2 : grid;
   const snap = (value: number): number =>
-    grid > 0 ? Math.round(value / grid) * grid : value;
+    pivotStep > 0 ? Math.round(value / pivotStep) * pivotStep : value;
   const pivot = center
     ? { x: snap(center.x), y: snap(center.y) }
     : {
@@ -1672,6 +1689,7 @@ function proposeRigidBodyMove(
       turningJunctionIds.has(endpoint.junctionId));
 
   const proposals = new Map<string, RouteStretchProposal>();
+  const rigidRouteIds = new Set<string>();
   for (const route of document.routes) {
     const fromTurns = turns(route.start);
     const toTurns = turns(routeEnd(route));
@@ -1683,6 +1701,7 @@ function proposeRigidBodyMove(
       }
       // Wholly inside: the Route is part of the body, so its own geometry
       // turns rather than being stretched between two moved ends.
+      rigidRouteIds.add(route.id);
       proposals.set(route.id, {
         routeId: route.id,
         waypoints: routeBends(route).map((point) => transform.point(point)),
@@ -1754,27 +1773,147 @@ function proposeRigidBodyMove(
       .sort((left, right) =>
         left.junctionId.localeCompare(right.junctionId, "en"),
       ),
-    annotations: document.annotations
-      .filter(
-        (annotation) =>
-          annotation.anchor.kind === "free" &&
-          turnedObjectIds.has(annotation.netId ?? ""),
-      )
-      .map((annotation) => {
-        const anchor = annotation.anchor;
-        if (anchor.kind !== "free") {
-          throw new Error("Free annotation filter lost anchor narrowing");
-        }
-        return {
+    annotations: (reflection
+      ? reflectedFollowerAnnotations(
+          document,
+          resolver,
+          routingGeometry,
+          pivot,
+          transform,
+          reflection,
+          { rigidRouteIds, turningJunctionIds, turnedObjectIds },
+        )
+      : document.annotations
+          .filter(
+            (annotation) =>
+              annotation.anchor.kind === "free" &&
+              turnedObjectIds.has(annotation.netId ?? ""),
+          )
+          .map((annotation): AnnotationMoveProposal => {
+            const anchor = annotation.anchor;
+            if (anchor.kind !== "free") {
+              throw new Error("Free annotation filter lost anchor narrowing");
+            }
+            return {
+              annotationId: annotation.id,
+              anchor: {
+                kind: "free" as const,
+                position: transform.point(anchor.position),
+              },
+            };
+          })
+    ).sort((left, right) =>
+      left.annotationId.localeCompare(right.annotationId, "en"),
+    ),
+  };
+}
+
+/**
+ * The labels a mirrored body carries: those on its rigid wires, on its
+ * Junctions, and free labels naming one of its Nets. Labels on a part follow
+ * that part's own mirror. Each one's text box reflects and its glyphs stay
+ * readable; a label on a wire stays at the same point along it and keeps
+ * the mirrored side.
+ */
+function reflectedFollowerAnnotations(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  routingGeometry: ResolvedDocumentRoutingGeometry,
+  pivot: Point,
+  transform: RigidBodyTransform,
+  direction: ScreenFlip,
+  body: {
+    rigidRouteIds: ReadonlySet<string>;
+    turningJunctionIds: ReadonlySet<string>;
+    turnedObjectIds: ReadonlySet<string>;
+  },
+): AnnotationMoveProposal[] {
+  return document.annotations.flatMap(
+    (annotation): AnnotationMoveProposal[] => {
+      if (annotation.locked) return [];
+      const anchor = annotation.anchor;
+      const follows =
+        anchor.kind === "route"
+          ? body.rigidRouteIds.has(anchor.routeId)
+          : anchor.kind === "object"
+            ? body.turningJunctionIds.has(anchor.objectId)
+            : body.turnedObjectIds.has(annotation.netId ?? "");
+      if (!follows) return [];
+      const placement = reflectedAnnotationPlacement(
+        document,
+        resolver,
+        annotation,
+        pivot,
+        direction,
+        routingGeometry,
+      );
+      const alignment =
+        placement.alignment === annotation.alignment
+          ? {}
+          : { alignment: placement.alignment };
+      if (anchor.kind === "free") {
+        return [
+          {
+            annotationId: annotation.id,
+            anchor: { kind: "free", position: placement.position },
+            ...alignment,
+          },
+        ];
+      }
+      if (anchor.kind === "object") {
+        const junction = document.junctions.find(
+          (candidate) => candidate.id === anchor.objectId,
+        );
+        if (!junction) return [];
+        const moved = transform.point(junction.position);
+        return [
+          {
+            annotationId: annotation.id,
+            anchor: {
+              ...anchor,
+              localOffset: {
+                x: placement.position.x - moved.x,
+                y: placement.position.y - moved.y,
+              },
+              fallbackPosition: placement.position,
+            },
+            ...alignment,
+          },
+        ];
+      }
+      const segment = routingGeometry.routes
+        .get(anchor.routeId)
+        ?.segments.find(
+          (candidate) => candidate.address.legId === anchor.legId,
+        );
+      if (!segment) return [];
+      // The wire keeps its point order through the mirror, so the same `t`
+      // names the mirrored point. Only the side and distance change.
+      const from = transform.point(segment.from);
+      const to = transform.point(segment.to);
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const length = Math.hypot(dx, dy);
+      if (length === 0) return [];
+      const conductor = {
+        x: from.x + dx * anchor.t,
+        y: from.y + dy * anchor.t,
+      };
+      const normalOffset =
+        ((placement.position.x - conductor.x) * -dy +
+          (placement.position.y - conductor.y) * dx) /
+        length;
+      return [
+        {
           annotationId: annotation.id,
           anchor: {
-            kind: "free" as const,
-            position: transform.point(anchor.position),
+            ...anchor,
+            normalOffset: Math.round(normalOffset * 1000) / 1000,
+            fallbackPosition: placement.position,
           },
-        };
-      })
-      .sort((left, right) =>
-        left.annotationId.localeCompare(right.annotationId, "en"),
-      ),
-  };
+          ...alignment,
+        },
+      ];
+    },
+  );
 }

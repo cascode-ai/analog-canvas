@@ -150,11 +150,18 @@ export function deriveSelectionInspectionModel({
         object?.kind === "rectangle"
       );
     });
-  const hasMirrorableSelection = selectedIds.some((id) =>
-    document.instances.some(
-      (instance) => instance.id === id && instance.placement !== null,
-    ),
-  );
+  // A mirror carries the whole selection — wires, Junctions, labels and
+  // drawing objects as well as parts — so any of them makes one worth doing.
+  const hasMirrorableSelection =
+    selectedIds.some((id) =>
+      document.instances.some(
+        (instance) => instance.id === id && instance.placement !== null,
+      ),
+    ) ||
+    selection.routeIds.length > 0 ||
+    selection.junctionIds.length > 0 ||
+    selection.annotationIds.length > 0 ||
+    selection.draftingIds.length > 0;
   const hasInspectableSelection = Boolean(
     selectedIds.length > 0 ||
     selectedRoute ||

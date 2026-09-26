@@ -39,6 +39,14 @@ is defined.
 - Click to select, `Shift`/`Ctrl`-click to extend the selection, or drag blank
   canvas to box-select. Dragging one selected instance moves the whole
   selection atomically.
+- `Shift+R` mirrors the selection left/right and `Ctrl/Cmd+R` top/bottom;
+  both are also on the right-click menu. Everything selected mirrors together
+  as one drawing — components, wires, Junctions, labels and drawing objects —
+  and every connection stays as it was. Wires alone mirror too, which helps
+  when drawing a symmetric circuit. The axis runs through the selection's
+  centre, so mirroring again puts it back. Text stays readable: a wire label
+  keeps its place along the mirrored wire on the mirrored side, and left- or
+  right-aligned text grows the other way.
 - Internal wires and Junctions move with a selected component group; only
   wires leaving the group stretch. Select the components and wires to reuse,
   press `C` to immediately attach a copy to the cursor, then click to place it.
