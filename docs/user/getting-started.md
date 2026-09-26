@@ -471,7 +471,9 @@ Editing the circuit refreshes the visible code. Clipboard failures leave the
 code selectable for manual copy.
 
 A switch drawn with **Open**, **Closed** or **Simple** is controlled by the
-clock phase its label names. Write the phase on its label, such as `Φ₁`; the
+clock phase its label names. A freshly placed switch is clocked by its own name,
+so `S1` is driven by a phase called `S1` until you name another. Write the phase
+on its label, such as `Φ₁`, to share one clock among several switches; the
 label becomes a display alias by itself. The SPICE netlist then writes the switch
 as `S1 a b PHI1 VSS ideal_switch`, with one `.model ideal_switch SW(…)` card in
 the same Cell. Draw the clock on a Net named `Φ1`, or give the Cell a Pin named

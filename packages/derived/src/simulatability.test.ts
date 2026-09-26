@@ -168,7 +168,7 @@ describe("simulatability", () => {
       { id: "amp", symbolId: "opamp", placement: null, reference: "U1" },
       {
         id: "sw",
-        symbolId: "ideal-switch",
+        symbolId: "spdt-switch",
         placement: null,
         reference: "S1",
         netlist: { parameters: {} },
@@ -196,8 +196,9 @@ describe("simulatability", () => {
     ]);
   });
 
-  // A drawn switch simulates as an ideal S switch once something controls it.
-  it("lets a switch simulate once its phase or CTRL pin controls it", () => {
+  // A drawn switch simulates as an ideal S switch: the phase its label names,
+  // its own name while the label names none, or its CTRL pin controls it.
+  it("lets every drawn switch simulate, clocked by its own name until labelled", () => {
     const project = createEmptyProject("project", "Project");
     const top = project.documents[0]!;
     top.instances.push(
@@ -239,10 +240,7 @@ describe("simulatability", () => {
     });
 
     const verdict = evaluateSimulatability(project);
-    expect(
-      verdict.blockers.map((blocker) => [blocker.reference, blocker.reason]),
-    ).toEqual([["S2", "not-simulatable-device"]]);
-    expect(verdict.blockers[0]!.message).toContain("has no phase");
+    expect(verdict.blockers).toEqual([]);
   });
 
   // A block buried in a child cell is still the thing to fix, so the verdict

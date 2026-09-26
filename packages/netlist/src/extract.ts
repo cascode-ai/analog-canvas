@@ -1287,17 +1287,10 @@ function extractDrawnSwitch(
   }
   let controlNode: string | null;
   if (control === "phase") {
-    const phase = drawnSwitchPhase(document, instance);
-    if (!phase) {
-      diagnostic(
-        diagnostics,
-        document.id,
-        "NON_NETLISTABLE_DEVICE",
-        `Switch ${reference} has no phase: write the clock that drives it, such as Φ1, as its label`,
-        [instance.id],
-      );
-      return null;
-    }
+    // A switch whose label still shows its own name is clocked by a phase of
+    // that name, so a freshly placed switch netlists at once. Writing Φ1 on
+    // the label moves it onto a shared clock.
+    const phase = drawnSwitchPhase(document, instance) ?? reference;
     const encoded = encodeCandidate(phase, "local", options);
     if (!encoded.ok) {
       diagnostic(

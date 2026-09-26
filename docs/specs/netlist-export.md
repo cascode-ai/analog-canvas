@@ -181,7 +181,10 @@ in the same Cell, from a Net Label or a Cell Pin. A phase no Net supplies is a
 node of its own, reported as `SWITCH_PHASE_NOT_DRIVEN`. Every such switch
 closes through `ideal_switch`, an `SW` model card (RON 1 Ω, ROFF 1e12 Ω, VT
 0.5 V, VH 0) printed once inside each Cell that uses it. A two-terminal switch
-whose label shows its own name has no phase and blocks export. Switches are
+whose label still shows its own name is clocked by a phase of that name, so a
+freshly placed `S1` prints as `S1 a b S1 VSS ideal_switch` and warns that
+nothing drives `S1`; writing Φ₁ on its label moves it onto that shared clock.
+Switches are
 SPICE only (`SWITCH_SPICE_ONLY`), and the SPDT selector has no primitive.
 Decorative symbols never have a device definition. An unsupported electrical
 Symbol blocks export.
