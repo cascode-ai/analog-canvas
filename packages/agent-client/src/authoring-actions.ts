@@ -4,6 +4,7 @@ import {
   AgentAuthoringCommandSchema,
   AgentSemanticIntentSchema,
   AgentWireAtAnchorSchema,
+  AgentPinAnchorSchema,
 } from "@icm/agent-adapter";
 
 /**
@@ -117,24 +118,38 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({ kind: z.literal("undo") }),
   z.strictObject({ kind: z.literal("redo") }),
-  z.strictObject({
-    kind: z.literal("place-component"),
-    /** Reviewed built-in Razavi symbol ID from the authoring catalog. */
-    symbol: z.string().min(1),
-    /** Required for devices/Ports; VDD defaults to VDD as a formal Port name. Omit for ground. */
-    reference: z.string().min(1).max(128).optional(),
-    position: PointInputSchema,
-    rotation: RotationInputSchema.optional(),
-    mirror: MirrorInputSchema.optional(),
-    variant: z.string().min(1).optional(),
-    parameters: z.record(z.string().min(1), z.string().min(1)).optional(),
-    direction: z
-      .enum(["input", "output", "inout", "passive"])
-      .optional()
-      .describe(
-        "Cell interface markers only; VDD defaults to inout, ordinary Port to passive.",
+  z
+    .strictObject({
+      kind: z.literal("place-component"),
+      /** Reviewed built-in Razavi symbol ID from the authoring catalog. */
+      symbol: z.string().min(1),
+      /** Required for devices/Ports; VDD defaults to VDD as a formal Port name. Omit for ground. */
+      reference: z.string().min(1).max(128).optional(),
+      position: PointInputSchema.optional().describe(
+        "Instance origin; supply exactly one of position or pinAnchor.",
       ),
-  }),
+      pinAnchor: AgentPinAnchorSchema.optional().describe(
+        "Place by a named routing landing instead of the Instance origin; supply exactly one of pinAnchor or position.",
+      ),
+      rotation: RotationInputSchema.optional(),
+      mirror: MirrorInputSchema.optional(),
+      variant: z.string().min(1).optional(),
+      parameters: z.record(z.string().min(1), z.string().min(1)).optional(),
+      direction: z
+        .enum(["input", "output", "inout", "passive"])
+        .optional()
+        .describe(
+          "Cell interface markers only; VDD defaults to inout, ordinary Port to passive.",
+        ),
+    })
+    .refine(
+      (action) =>
+        (action.position === undefined) !== (action.pinAnchor === undefined),
+      {
+        path: ["position"],
+        message: "Provide exactly one of position or pinAnchor",
+      },
+    ),
   z.strictObject({
     kind: z.literal("connect"),
     from: ConnectTargetSchema,

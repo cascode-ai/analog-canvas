@@ -8,6 +8,12 @@ import {
 } from "@icm/model";
 
 /** Small server-planned conveniences; results still commit as existing edits. */
+export const AgentPinAnchorSchema = z.strictObject({
+  pinName: z.string().min(1),
+  position: PointSchema.describe(
+    "Exact routing grid landing, not artwork contact. Unreachable positions are rejected with the nearest reachable landing.",
+  ),
+});
 const SelectionSchema = z.strictObject({
   instanceIds: z.array(StableIdSchema).max(256).default([]),
   routeIds: z.array(StableIdSchema).max(256).default([]),
@@ -98,6 +104,12 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("place-components"),
     instances: z.array(InstanceSchema).min(1).max(64),
+    pinAnchors: z
+      .record(StableIdSchema, AgentPinAnchorSchema)
+      .optional()
+      .describe(
+        "By new Instance ID. Solves placement.position from this pin; preserves rotation/mirror. No implicit connection.",
+      ),
     terminalDirections: z
       .record(StableIdSchema, z.enum(["input", "output", "inout", "passive"]))
       .optional(),
@@ -121,11 +133,17 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     instanceId: StableIdSchema,
     reference: z.string().min(1).max(128).optional(),
     placement: PlacementSchema,
+    pinAnchor: AgentPinAnchorSchema.optional().describe(
+      "When supplied, solves the origin instead of using placement.position; keeps orientation.",
+    ),
   }),
   z.strictObject({
     kind: z.literal("place-existing"),
     instanceId: StableIdSchema,
     placement: PlacementSchema,
+    pinAnchor: AgentPinAnchorSchema.optional().describe(
+      "When supplied, solves the origin instead of using placement.position; keeps orientation.",
+    ),
   }),
   z.strictObject({
     kind: z.literal("transform"),

@@ -1,12 +1,150 @@
 import { describe, expect, it } from "vitest";
 import { createEmptyProject, flattenRichText } from "@icm/model";
-import { resolveDocumentLogicalNets } from "@icm/derived";
+import {
+  resolveDocumentLogicalNets,
+  resolveEndpointConnection,
+} from "@icm/derived";
 import { createAgentCircuitService } from "@icm/agent-adapter";
 import { AgentSessionClient } from "../../../../packages/agent-client/src/session-client";
 import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-support/fake-relay";
 import { callTool, type ToolSessionState } from "../../../mcp-server/src/tools";
 import { EditorDocumentController } from "../document/document-controller";
 import { BrowserAgentHost } from "./browser-agent-host";
+
+it("shares pin anchoring for hierarchical and retained Instances", async () => {
+  const { client, controller, add } = await folder();
+  const id = await add();
+  expect(
+    (await client.applyActions([{ kind: "unplace", instanceIds: [id] }])).ok,
+  ).toBe(true);
+  const placed = await client.applyActions([
+    {
+      kind: "place-existing",
+      instanceId: id,
+      placement: { position: { x: 0, y: 0 }, rotation: 90, mirror: "none" },
+      pinAnchor: { pinName: "G", position: { x: 200, y: 200 } },
+    },
+  ]);
+  expect(placed.ok, placed.message).toBe(true);
+  expect(
+    resolveEndpointConnection(controller.document, controller.resolver, {
+      kind: "terminal",
+      instanceId: id,
+      pinName: "G",
+    })?.gridLanding,
+  ).toEqual({ x: 200, y: 200 });
+  expect(
+    (
+      await client.applyActions([
+        {
+          kind: "place-component",
+          symbol: "port",
+          reference: "IN",
+          position: { x: 0, y: 0 },
+        },
+      ])
+    ).ok,
+  ).toBe(true);
+  expect(
+    (
+      await client.applyActions([
+        { kind: "create-cell", id: "tb", name: "Testbench" },
+      ])
+    ).ok,
+  ).toBe(true);
+  const hierarchical = await client.applyActions(
+    [
+      {
+        kind: "place-cell",
+        childDocumentId: "main",
+        instanceId: "xdut",
+        reference: "XDUT",
+        placement: {
+          position: { x: 0, y: 0 },
+          rotation: 0,
+          mirror: "horizontal",
+        },
+        pinAnchor: { pinName: "IN", position: { x: 100, y: 100 } },
+      },
+    ],
+    { documentId: "tb" },
+  );
+  expect(hierarchical.ok, hierarchical.message).toBe(true);
+  const tb = controller.project.documents.find((item) => item.id === "tb")!;
+  expect(
+    resolveEndpointConnection(tb, controller.resolver, {
+      kind: "terminal",
+      instanceId: "xdut",
+      pinName: "IN",
+    })?.gridLanding,
+  ).toEqual({ x: 100, y: 100 });
+});
+
+it("places matched devices by pin landing in one commit and preserves symmetry through shared transforms", async () => {
+  const { client, controller } = await folder();
+  const placed = await client.applyActions([
+    {
+      kind: "place-component",
+      symbol: "nmos",
+      reference: "M1",
+      pinAnchor: { pinName: "G", position: { x: 100, y: 100 } },
+    },
+    {
+      kind: "place-component",
+      symbol: "nmos",
+      reference: "M2",
+      mirror: "horizontal",
+      pinAnchor: { pinName: "G", position: { x: 300, y: 100 } },
+    },
+  ]);
+  expect(placed.ok, placed.message).toBe(true);
+  const [left, right] = controller.document.instances;
+  expect(left!.placement!.position.x + right!.placement!.position.x).toBe(400);
+  for (const [instance, x] of [
+    [left!, 100],
+    [right!, 300],
+  ] as const) {
+    expect(
+      resolveEndpointConnection(controller.document, controller.resolver, {
+        kind: "terminal",
+        instanceId: instance.id,
+        pinName: "G",
+      })?.gridLanding,
+    ).toEqual({ x, y: 100 });
+  }
+  const before = structuredClone(controller.document);
+  const mirrored = await client.applyActions([
+    {
+      kind: "transform",
+      selection: { instanceIds: [left!.id, right!.id] },
+      transform: { kind: "mirror", axis: "y", center: { x: 200, y: 100 } },
+    },
+  ]);
+  expect(mirrored.ok, mirrored.message).toBe(true);
+  expect(controller.document.instances.map((item) => item.reference)).toEqual([
+    "M1",
+    "M2",
+  ]);
+  expect(controller.document.nets).toEqual(before.nets);
+  expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+  expect(controller.document.annotations).toEqual(before.annotations);
+  const rejected = await client.applyActions([
+    {
+      kind: "place-component",
+      symbol: "resistor",
+      reference: "R1",
+      position: { x: 400, y: 100 },
+    },
+    {
+      kind: "place-component",
+      symbol: "resistor",
+      reference: "R2",
+      pinAnchor: { pinName: "missing", position: { x: 500, y: 100 } },
+    },
+  ]);
+  expect(rejected).toMatchObject({ ok: false, actionIndex: 1 });
+  expect(controller.document.instances).toEqual(before.instances);
+});
 
 it("uses Cell-Pin supply semantics and explicit directions, with reversible mode changes", async () => {
   const { client, controller } = await folder();

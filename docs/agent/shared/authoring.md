@@ -28,6 +28,15 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   `direction` applies to these markers only. `set-port-direction` addresses one
   terminal or every declaration of a projected Port; `set-vdd-mode` explicitly
   switches VDD between Cell Pin and Global. Do not substitute a bare `add_instance`.
+- For exact pin placement, `place-component` accepts `pinAnchor:{pinName,position}`
+  instead of origin `position`; rotation/mirror still apply. It uses the shared
+  routing landing (including variants and fine-pitch pins), not artwork contact,
+  and rejects unreachable targets with a nearest reachable landing. Native
+  `place-components` accepts `pinAnchors` by Instance ID; `place-cell` and
+  `place-existing` accept `pinAnchor` to override their placement origin. No
+  electrical connection is inferred. For one-shot symmetry use these placements
+  or the existing selection `transform` mirror with an explicit center; this
+  neither copies connectivity nor installs a persistent symmetry constraint.
 - `vdd-rail` is an authoring primitive, not a symbol. Use `add-power-rail`
   with optional `name`/`scope` (existing scope is retained, otherwise local).
   Explicit `global` is not the default. Like GUI supply placement it initializes

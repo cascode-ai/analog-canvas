@@ -31,4 +31,5 @@ export * from "./project-copy-dependencies.js";
 export * from "./hierarchy-planner.js";
 export * from "./cell-parameter-planner.js";
 export * from "./cell-reset-planner.js";
+export * from "./pin-anchor-placement.js";
 export * from "./conductor-topology.js";

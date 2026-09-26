@@ -10,6 +10,7 @@ import {
   planRoutingTransform,
   planInstanceUnplacement,
   planCellReset,
+  pinAnchoredPlacement,
   planCreateCell,
   planSetVddConnectionMode,
   planUpdateCellTerminalDirection,
@@ -268,7 +269,31 @@ export function planBrowserAgentCommand(
     case "place-components": {
       const edits: SchematicEdit[] = [];
       let changesInterface = false;
-      for (const instance of command.instances) {
+      for (const id of Object.keys(command.pinAnchors ?? {})) {
+        if (!command.instances.some((item) => item.id === id))
+          throw new Error(`Pin anchor targets an unknown new Instance: ${id}`);
+      }
+      for (const [index, source] of command.instances.entries()) {
+        const pinAnchor = command.pinAnchors?.[source.id];
+        let instance = source;
+        if (pinAnchor) {
+          try {
+            instance = {
+              ...source,
+              placement: pinAnchoredPlacement(
+                document,
+                resolver,
+                source,
+                pinAnchor,
+              ),
+            };
+          } catch (error) {
+            throw new AgentCommandPlanningError(
+              index,
+              error instanceof Error ? error.message : String(error),
+            );
+          }
+        }
         if (!instance.placement)
           throw new Error("New component requires placement");
         if (
@@ -395,6 +420,13 @@ export function planBrowserAgentCommand(
         command.placement,
         command.reference,
       );
+      if (command.pinAnchor)
+        instance.placement = pinAnchoredPlacement(
+          document,
+          resolver,
+          instance,
+          command.pinAnchor,
+        );
       const annotations = defaultInstanceDisplayAnnotations(
         document,
         instance,
@@ -417,9 +449,17 @@ export function planBrowserAgentCommand(
       );
       if (!instance || instance.placement)
         throw new Error("place-existing requires an unplaced Instance");
+      const placement = command.pinAnchor
+        ? pinAnchoredPlacement(
+            document,
+            resolver,
+            { ...instance, placement: command.placement },
+            command.pinAnchor,
+          )
+        : command.placement;
       const annotations = missingDefaultInstanceDisplayAnnotations(
         document,
-        { ...instance, placement: command.placement },
+        { ...instance, placement },
         resolver,
         resolveDocumentStyleProfile(document.presentation),
       );
@@ -428,7 +468,7 @@ export function planBrowserAgentCommand(
           {
             kind: "place_instance",
             instanceId: instance.id,
-            placement: command.placement,
+            placement,
           },
           ...annotations.map((annotation): SchematicEdit => ({
             kind: "upsert_schematic_annotation",

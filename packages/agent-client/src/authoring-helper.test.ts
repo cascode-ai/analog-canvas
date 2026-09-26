@@ -34,6 +34,33 @@ function expectCompileError(actions: unknown[], fragment: string): void {
 }
 
 describe("authoring helper compilation", () => {
+  it("forwards pin anchors to the shared server planner and requires one position form", () => {
+    const action = {
+      kind: "place-component",
+      symbol: "nmos",
+      reference: "M2",
+      pinAnchor: { pinName: "G", position: { x: 200, y: 100 } },
+      mirror: "horizontal",
+    };
+    const command = compile([action])[0]!.command;
+    expect(command?.kind).toBe("place-components");
+    if (command?.kind !== "place-components") return;
+    expect(command.pinAnchors?.[command.instances[0]!.id]).toEqual(
+      action.pinAnchor,
+    );
+    expect(command.instances[0]!.placement?.mirror).toBe("horizontal");
+    expect(
+      AuthoringActionSchema.safeParse({ ...action, position: { x: 0, y: 0 } })
+        .success,
+    ).toBe(false);
+    expect(
+      AuthoringActionSchema.safeParse({
+        kind: "place-component",
+        symbol: "nmos",
+        reference: "M2",
+      }).success,
+    ).toBe(false);
+  });
   it.each([
     { kind: "net", net: "new-trunk" },
     {

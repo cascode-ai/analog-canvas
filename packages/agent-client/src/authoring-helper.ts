@@ -706,6 +706,17 @@ export function compileActions(
                   : [];
               }),
             ),
+            pinAnchors: Object.fromEntries(
+              transaction.edits.flatMap((edit, index) => {
+                const source =
+                  parsed.data[transaction.editActionIndices![index]!];
+                return edit.kind === "add_instance" &&
+                  source?.kind === "place-component" &&
+                  source.pinAnchor
+                  ? [[edit.instance.id, source.pinAnchor]]
+                  : [];
+              }),
+            ),
           },
           actionKinds: transaction.actionKinds,
           ...(transaction.editActionIndices
@@ -794,7 +805,7 @@ function compilePlaceComponent(
         action.reference ?? (action.symbol === "vdd-port" ? "VDD" : undefined),
       ...(variant ? { symbolVariantId: variant } : {}),
       placement: {
-        position: action.position,
+        position: action.position ?? { x: 0, y: 0 },
         rotation: action.rotation ?? 0,
         mirror: action.mirror ?? "none",
       },
