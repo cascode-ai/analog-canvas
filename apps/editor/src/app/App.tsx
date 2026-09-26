@@ -28,6 +28,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -271,6 +272,7 @@ import { authoredObjectCount } from "../document/project-content";
 import { createDraftingCommands } from "../features/drafting/drafting-commands";
 import {
   createDraftingCreateController,
+  buildDraftingCreateSnapIndex,
   type DrawAngleMode,
 } from "../features/drafting/drafting-create-controller";
 import {
@@ -2003,6 +2005,23 @@ function WorkspaceEditor({
     () => buildSceneSnapTargetIndex(document, resolver, visibleEndpoints),
     [document, resolver, visibleEndpoints],
   );
+  const draftingCreateSnapIndex = useMemo(
+    () =>
+      buildDraftingCreateSnapIndex(
+        document,
+        resolver,
+        visibleEndpoints,
+        routeGeometryRecords,
+        sceneSnapTargetIndex,
+      ),
+    [
+      document,
+      resolver,
+      visibleEndpoints,
+      routeGeometryRecords,
+      sceneSnapTargetIndex,
+    ],
+  );
   const [issuesFocusToken, setIssuesFocusToken] = useState(0);
   const [issuesSectionOpen, setIssuesSectionOpen] = useState(false);
   const projectCheck = useProjectCheck({
@@ -2997,12 +3016,16 @@ function WorkspaceEditor({
     textEditingTarget?.owner !== "instance-formula" &&
     Boolean(textEditingTarget?.object.locked);
 
-  const internalSelection = deriveRoutingAffectedClosure(document, {
-    instanceIds: selectedIds,
-    routeIds: visualSelection.routeIds,
-    junctionIds: visualSelection.junctionIds,
-    annotationIds: visualSelection.annotationIds,
-  });
+  const internalSelection = useMemo(
+    () =>
+      deriveRoutingAffectedClosure(document, {
+        instanceIds: selectedIds,
+        routeIds: visualSelection.routeIds,
+        junctionIds: visualSelection.junctionIds,
+        annotationIds: visualSelection.annotationIds,
+      }),
+    [document, selectedIds, visualSelection],
+  );
   const selectedInternalRouteIds = new Set(internalSelection.internalRoutes);
   const selectedInternalJunctionIds = new Set(
     internalSelection.internalJunctions,
@@ -3019,19 +3042,31 @@ function WorkspaceEditor({
     ...internalSelection.internalJunctions,
     ...internalSelection.electricalAnnotationIds,
   ]);
-  const wireDraftPreview =
-    wireSource && wirePreviewTarget
-      ? resolveWireDraftPreview({
-          document,
-          resolver,
-          source: wireSource,
-          target: wirePreviewTarget,
-          steps: wireDraftSteps,
-          routingMode: wireRoutingMode,
-          cornerOrder: wireCornerOrder,
-          visibleEndpoints,
-        })
-      : EMPTY_WIRE_DRAFT_PREVIEW;
+  const wireDraftPreview = useMemo(
+    () =>
+      wireSource && wirePreviewTarget
+        ? resolveWireDraftPreview({
+            document,
+            resolver,
+            source: wireSource,
+            target: wirePreviewTarget,
+            steps: wireDraftSteps,
+            routingMode: wireRoutingMode,
+            cornerOrder: wireCornerOrder,
+            visibleEndpoints,
+          })
+        : EMPTY_WIRE_DRAFT_PREVIEW,
+    [
+      document,
+      resolver,
+      wireSource,
+      wirePreviewTarget,
+      wireDraftSteps,
+      wireRoutingMode,
+      wireCornerOrder,
+      visibleEndpoints,
+    ],
+  );
   const projectInstanceCount = project.documents.reduce(
     (count, candidate) => count + candidate.instances.length,
     0,
@@ -3080,6 +3115,7 @@ function WorkspaceEditor({
     finish: finishDraftingCreate,
     beginPointer: beginDraftingCreatePointer,
   } = createDraftingCreateController({
+    snapIndex: draftingCreateSnapIndex,
     document,
     annotationGrid,
     angleMode: drawAngleMode,
@@ -4368,7 +4404,8 @@ function WorkspaceEditor({
       );
   }, [textEditing, document]);
 
-  useEffect(() => {
+  const shortcutHandlerRef = useRef<(event: KeyboardEvent) => void>(() => {});
+  useLayoutEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       if (versionHistoryOpen) return;
       if (
@@ -4610,9 +4647,16 @@ function WorkspaceEditor({
           return;
       }
     }
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
+    shortcutHandlerRef.current = onKeyDown;
   });
+  useEffect(() => {
+    // Keep the listener installed while a canvas preview flush publishes state
+    // earlier in the same key event. Replacing it would drop that Enter event.
+    const dispatch = (event: KeyboardEvent) =>
+      shortcutHandlerRef.current(event);
+    window.addEventListener("keydown", dispatch, true);
+    return () => window.removeEventListener("keydown", dispatch, true);
+  }, []);
 
   const canvasEventHandlers = createEditorCanvasEventHandlers({
     model: { tool, document, resolver, selectionPolicy },
@@ -4713,6 +4757,11 @@ function WorkspaceEditor({
     },
     drafting: {
       selected: selectedDrafting,
+      clearHover: () => {
+        setDraftingHover(null);
+        setDraftingSnapPoint(null);
+        paintSnapGuides([]);
+      },
       sourceActive: draftingSource !== null,
       beginCreatePointer: beginDraftingCreatePointer,
       handleCanvasClick: handleDraftingCanvasClick,
@@ -4729,6 +4778,10 @@ function WorkspaceEditor({
     },
     wiring: {
       source: wireSource,
+      clearHover: () => {
+        setWirePreview(null);
+        paintSnapGuides([]);
+      },
       draftStepCount: wireDraftSteps.length,
       applyCanvasPoint: applyWireCanvasPoint,
       resolveCanvasSnap: resolveWireCanvasSnap,

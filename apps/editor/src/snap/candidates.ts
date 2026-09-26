@@ -208,14 +208,31 @@ function closestPointOnQuadratic(
 }
 
 /**
- * Pointer-local visual projections. They are transient coordinate candidates,
- * never persisted attachments or electrical contacts.
+ * Resolved drafting geometry, reusable while its immutable Document is current.
  */
+export function buildDraftingProjectionSnapIndex(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+) {
+  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
+  return (document.drafting?.objects ?? []).map((object) => ({
+    id: object.id,
+    geometry: resolveDraftingObjectGeometry(
+      document,
+      resolver,
+      object,
+      routingGeometry,
+    ),
+  }));
+}
+
+/** Pointer-local projections, never persisted attachments or electrical contacts. */
 export function buildDraftingProjectionSnapTargets(
   document: SchematicDocument,
   resolver: SymbolResolver,
   point: Point,
   excludedDraftingIds: ReadonlySet<string> = new Set(),
+  geometryIndex = buildDraftingProjectionSnapIndex(document, resolver),
 ): SnapAnchor[] {
   const targets: SnapAnchor[] = [];
   const segment = (
@@ -233,15 +250,9 @@ export function buildDraftingProjectionSnapTargets(
       kind: "drafting",
     });
   };
-  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
-  for (const object of document.drafting?.objects ?? []) {
+  for (const object of geometryIndex) {
     if (excludedDraftingIds.has(object.id)) continue;
-    const geometry = resolveDraftingObjectGeometry(
-      document,
-      resolver,
-      object,
-      routingGeometry,
-    );
+    const geometry = object.geometry;
     if (geometry.kind === "arrow" || geometry.kind === "construction-line") {
       for (let index = 0; index < geometry.vertices.length - 1; index += 1) {
         segment(

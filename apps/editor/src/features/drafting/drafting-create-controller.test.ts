@@ -6,9 +6,60 @@ import { describe, expect, it, vi } from "vitest";
 import {
   constrainDraftingAngle,
   createDraftingCreateController,
+  buildDraftingCreateSnapIndex,
 } from "./drafting-create-controller";
 
 describe("drafting create controller", () => {
+  it("reuses resolved scene geometry across pointer samples and refreshes on a new document", () => {
+    const document = createEmptyDocument("cell", "Cell");
+    document.instances.push({
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+    });
+    const resolver = new InMemorySymbolResolver(builtInSymbols);
+    const base = {
+      document,
+      resolver,
+      annotationGrid: 1,
+      angleMode: "free" as const,
+      visibleEndpoints: [],
+      routeGeometryRecords: [],
+      tool: "construction-line" as const,
+      source: null,
+      hover: null,
+      waypoints: [],
+      setSource: vi.fn(),
+      setHover: vi.fn(),
+      setWaypoints: vi.fn(),
+      setSnapPoint: vi.fn(),
+      clear: vi.fn(),
+      setTool: vi.fn(),
+      transact: vi.fn(() => ({ ok: true })),
+      setStatus: vi.fn(),
+      nextId: () => "line-1",
+    };
+    const snapIndex = buildDraftingCreateSnapIndex(document, resolver, [], []);
+    const spy = vi.spyOn(resolver, "resolve");
+    const controller = createDraftingCreateController({ ...base, snapIndex });
+    expect(
+      controller.snapPoint({ x: 101, y: 101 }, false, false, undefined, 5)
+        .point,
+    ).toEqual({ x: 100, y: 100 });
+    controller.snapPoint({ x: 102, y: 102 }, false, false, undefined, 5);
+    expect(spy).not.toHaveBeenCalled();
+    const moved = structuredClone(document);
+    moved.instances[0]!.placement!.position = { x: 200, y: 200 };
+    const updated = createDraftingCreateController({
+      ...base,
+      document: moved,
+      snapIndex: buildDraftingCreateSnapIndex(moved, resolver, [], []),
+    });
+    expect(
+      updated.snapPoint({ x: 201, y: 201 }, false, false, undefined, 5).point,
+    ).toEqual({ x: 200, y: 200 });
+  });
   it("locks constrained points to 45-degree increments", () => {
     expect(constrainDraftingAngle({ x: 0, y: 0 }, { x: 31, y: 18 })).toEqual({
       x: 25,

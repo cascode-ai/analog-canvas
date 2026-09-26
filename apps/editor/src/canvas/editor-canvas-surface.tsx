@@ -1,5 +1,9 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import type { ComponentProps, SVGProps } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import { flushSync } from "react-dom";
+import { createPointerPreviewFrame } from "./pointer-preview-frame";
+import { isDrawingTool } from "../interaction/interaction-state";
 import { schematicRoundPeriodFontFaceCss } from "@icm/derived";
 
 import {
@@ -112,6 +116,36 @@ export function EditorCanvasSurface({
   interactionPreviews,
 }: EditorCanvasSurfaceProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const onPointerMoveRef = useRef(eventHandlers.onPointerMove);
+  onPointerMoveRef.current = eventHandlers.onPointerMove;
+  const pointerFrame = useMemo(
+    () =>
+      createPointerPreviewFrame<ReactPointerEvent<SVGSVGElement>>(
+        (event) => onPointerMoveRef.current?.(event),
+        (callback) => requestAnimationFrame(callback),
+        (frame) => cancelAnimationFrame(frame),
+      ),
+    [],
+  );
+  useLayoutEffect(() => {
+    pointerFrame.cancel();
+    return pointerFrame.cancel;
+  }, [pointerFrame, selectionHalo.document, inputPlanes.tool, viewBox]);
+  useEffect(() => {
+    // Enter finishes at the most recent pointer, even before its scheduled frame.
+    // Publish before the window shortcut handler reads the current tool session.
+    const beforeKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") pointerFrame.cancel();
+      else if (event.key === "Enter") flushSync(pointerFrame.flush);
+    };
+    window.addEventListener("keydown", beforeKey, true);
+    window.addEventListener("blur", pointerFrame.cancel);
+    return () => {
+      window.removeEventListener("keydown", beforeKey, true);
+      window.removeEventListener("blur", pointerFrame.cancel);
+      pointerFrame.cancel();
+    };
+  }, [pointerFrame]);
   const onWheelRef = useRef(onWheel);
   const onPinchRef = useRef(onPinch);
   useEffect(() => {
@@ -233,6 +267,29 @@ export function EditorCanvasSurface({
         tabIndex={-1}
         viewBox={viewBox}
         {...eventHandlers}
+        onPointerMove={(event) => {
+          if (
+            event.buttons === 0 &&
+            (inputPlanes.tool === "wire" || isDrawingTool(inputPlanes.tool))
+          ) {
+            // SyntheticEvent.currentTarget is cleared after dispatch; retain the surface.
+            pointerFrame.schedule({
+              ...event,
+              currentTarget: event.currentTarget,
+            });
+          } else {
+            pointerFrame.cancel();
+            eventHandlers.onPointerMove?.(event);
+          }
+        }}
+        onPointerDownCapture={(event) => {
+          pointerFrame.cancel();
+          eventHandlers.onPointerDownCapture?.(event);
+        }}
+        onPointerLeave={(event) => {
+          pointerFrame.cancel();
+          eventHandlers.onPointerLeave?.(event);
+        }}
       >
         <style>{schematicRoundPeriodFontFaceCss}</style>
         <CanvasGridOverlay {...grid} />

@@ -8,6 +8,59 @@ import {
 } from "./interaction-state";
 
 describe("editor interaction state", () => {
+  it("keeps identical hover targets render-free without merging different electrical targets", () => {
+    const target = {
+      kind: "route" as const,
+      routeId: "r1",
+      segmentIndex: 0,
+      point: { x: 10, y: 20 },
+    };
+    const state = interactionReducer(activateInteractionTool("wire"), {
+      type: "set-wire-preview",
+      target,
+    });
+    expect(
+      interactionReducer(state, {
+        type: "set-wire-preview",
+        target: { ...target, point: { x: 10, y: 20 } },
+      }),
+    ).toBe(state);
+    expect(
+      interactionReducer(state, {
+        type: "set-wire-preview",
+        target: { ...target, routeId: "r2" },
+      }),
+    ).not.toBe(state);
+    expect(
+      interactionReducer(state, {
+        type: "set-wire-preview",
+        target: { ...target, segmentIndex: 1 },
+      }),
+    ).not.toBe(state);
+    const drawing = interactionReducer(activateInteractionTool("rectangle"), {
+      type: "set-drawing-hover",
+      point: { x: 10, y: 20 },
+    });
+    expect(
+      interactionReducer(drawing, {
+        type: "set-drawing-hover",
+        point: { x: 10, y: 20 },
+      }),
+    ).toBe(drawing);
+    const snapped = interactionReducer(drawing, {
+      type: "set-drawing-snap",
+      point: { x: 10, y: 20 },
+    });
+    expect(
+      interactionReducer(snapped, {
+        type: "set-drawing-snap",
+        point: { x: 10, y: 20 },
+      }),
+    ).toBe(snapped);
+    expect(
+      interactionReducer(snapped, { type: "set-drawing-hover", point: null }),
+    ).not.toBe(snapped);
+  });
   it("makes creation modes mutually exclusive", () => {
     const drawing = activateInteractionTool("arrow");
     expect(drawing.kind).toBe("drawing");
