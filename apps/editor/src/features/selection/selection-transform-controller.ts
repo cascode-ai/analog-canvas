@@ -175,7 +175,16 @@ export function createSelectionTransformController({
         ),
       ],
     );
-    if (!pivot) return;
+    // Say why rather than doing nothing: a wire on a part that is not
+    // selected cannot move without leaving that part's pin.
+    const nothingToMirror = () =>
+      setStatus(
+        "Nothing here can mirror: a wire stays with the parts it reaches unless they are selected too, and locked objects stay put",
+      );
+    if (!pivot) {
+      nothingToMirror();
+      return;
+    }
     const plan = planRoutingTransform(document, resolver, seed, {
       kind: "mirror",
       axis: direction === "left-right" ? "y" : "x",
@@ -246,7 +255,11 @@ export function createSelectionTransformController({
       return next ? [{ kind: "upsert_drafting_object", object: next }] : [];
     });
     const edits = [...plan.edits, ...labelEdits, ...draftingEdits];
-    if (edits.length > 0 && transact(edits).ok)
+    if (edits.length === 0) {
+      nothingToMirror();
+      return;
+    }
+    if (transact(edits).ok)
       setStatus(
         placedSelection.length > 1
           ? `Flipped ${placedSelection.length} parts as one group, ${direction === "left-right" ? "left to right" : "top to bottom"}`
