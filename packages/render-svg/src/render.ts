@@ -18,6 +18,7 @@ import {
   contactRequiresJunctionDot,
   deriveDocumentContactEvidence,
   fractionGeometry,
+  fractionPartBaselines,
   fractionPartScale,
   deriveMosBulkRouteFamily,
   resolvePrimitiveStrokeWidth,
@@ -156,12 +157,11 @@ function renderStackedFractionAnnotation(
   // Geometry offsets are in em of the part font; scale to the base font.
   const barY =
     options.position.y - fontSize * partScale * fractionGeometry.barRiseEm;
+  const parts = fractionPartBaselines(fraction, profile.typography);
   const numeratorY =
-    options.position.y -
-    fontSize * partScale * fractionGeometry.numeratorBaselineRiseEm;
+    options.position.y - fontSize * partScale * parts.numeratorRiseEm;
   const denominatorY =
-    options.position.y +
-    fontSize * partScale * fractionGeometry.denominatorBaselineDropEm;
+    options.position.y + fontSize * partScale * parts.denominatorDropEm;
   const partStyle = `font-style:normal;font-weight:${profile.typography.mathWeight}`;
   // `fill` paints glyphs; `color` supplies currentColor for nested RichText
   // decorations such as CSS overbars inside a fraction part.
