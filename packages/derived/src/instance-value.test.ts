@@ -40,16 +40,39 @@ const bold = (value: string) => ({
 
 describe("displayableInstanceValue", () => {
   it("can project a named magnetic parameter without exposing its value", () => {
-    const source = instance("tcoil", { l1: "L1" });
+    const source = instance("tcoil", { l1: "L1", k: "0.9" });
+    // A winding's name is its textbook letter with the rest subscripted: L₁.
+    const named = (...rest: { kind: "text"; value: string }[]) => ({
+      runs: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [
+            { kind: "text", value: "L" },
+            {
+              kind: "span",
+              style: "subscript",
+              children: [{ kind: "text", value: "1" }],
+            },
+            ...rest,
+          ],
+        },
+      ],
+    });
     expect(displayableInstanceParameter(source, "l1")).toEqual({
       kind: "displayable",
-      content: { runs: [bold("L1 = L1")] },
+      content: named({ kind: "text", value: " = L1" }),
     });
     expect(
       displayableInstanceParameter(source, "l1", { showValue: false }),
     ).toEqual({
       kind: "displayable",
-      content: { runs: [bold("L1")] },
+      content: named(),
+    });
+    // A one-letter name stays as it is.
+    expect(displayableInstanceParameter(source, "k")).toEqual({
+      kind: "displayable",
+      content: { runs: [bold("K = 0.9")] },
     });
   });
 

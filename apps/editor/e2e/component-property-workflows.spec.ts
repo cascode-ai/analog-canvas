@@ -1871,8 +1871,12 @@ for (const symbol of ["xfmr", "tcoil"] as const) {
     const svg = (await downloadBytes(page, "File", "Export SVG")).toString(
       "utf8",
     );
-    expect(svg).toContain("K = 0.83");
-    expect(svg).toContain(`${windingLabel} = 2.5n`);
+    // The winding's name is drawn L₁ / L_p, so compare the exported text.
+    const exportedText = svg
+      .replace(/<style>[\s\S]*?<\/style>/u, "")
+      .replace(/<[^>]+>/gu, "");
+    expect(exportedText).toContain("K = 0.83");
+    expect(exportedText).toContain(`${windingLabel} = 2.5n`);
     const saved = await downloadBytes(page, "File", "Export Project File…");
     const project = parseSavedProject(saved.toString("utf8"));
     const instanceId = project.documents[0].instances[0].id;

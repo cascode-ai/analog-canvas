@@ -391,10 +391,21 @@ export function placeUprightInstanceLabel(
       ? horizontalSideAwayFromPin(instance, resolved)
       : rotatedSide;
   if (!worldBounds || !worldSide) return null;
-  const { gap, capHeight, subscriptDrop } = instanceLabelMetrics(
-    profile,
-    sizeScale,
+  return placeBesideBounds(
+    worldBounds,
+    worldSide,
+    instanceLabelMetrics(profile, sizeScale),
+    rowOffset,
   );
+}
+
+/** Upright text beside drawn ink, on one world side of it. */
+function placeBesideBounds(
+  worldBounds: Rect,
+  worldSide: InstanceLabelSide,
+  { gap, capHeight, subscriptDrop }: ReturnType<typeof instanceLabelMetrics>,
+  rowOffset = 0,
+): InstanceLabelPlacement {
   const centreX = worldBounds.x + worldBounds.width / 2;
   const centreBaseline =
     worldBounds.y + worldBounds.height / 2 + capHeight / 2 + rowOffset;
@@ -767,7 +778,129 @@ function defaultPlacementWith(
 }
 
 /** Independent magnetic values stack outside the world-space symbol ink. */
+interface MagneticParameterAnchor {
+  readonly parts: readonly string[];
+  readonly side: InstanceLabelSide;
+  /** Rows further out, past the Reference label on the same side. */
+  readonly rows?: number;
+}
+
+const TCOIL_BRIDGE = [
+  "bridge-capacitor-1",
+  "bridge-capacitor-2",
+  "bridge-capacitor-3",
+  "bridge-capacitor-4",
+];
+
+/**
+ * Beside which drawn parts a magnetic device shows each parameter, and on
+ * which side of them in Symbol space: a winding's inductance by that
+ * winding, the bridge capacitance by the bridge, the coupling between the
+ * windings. One column beside the whole Symbol read as four labels for the
+ * centre tap once the Symbol was turned. `upright` is a Symbol turned a
+ * quarter, where a T-coil's bridge loop is too narrow for text: its coupling
+ * moves out past the centre tap, between the two windings' values.
+ */
+function magneticParameterAnchor(
+  symbolId: string,
+  parameter: string,
+  upright: boolean,
+): MagneticParameterAnchor | undefined {
+  if (symbolId === "tcoil")
+    switch (parameter) {
+      case "k":
+        return upright
+          ? {
+              parts: ["winding-center-link", "terminal-3-lead"],
+              side: "bottom",
+            }
+          : { parts: ["winding-center-link"], side: "top" };
+      case "l1":
+        return { parts: ["winding-1"], side: "bottom" };
+      case "l2":
+        return { parts: ["winding-2"], side: "bottom" };
+      case "cb":
+        // The Reference sits on this side of the Symbol; the value goes one
+        // row past it.
+        return { parts: TCOIL_BRIDGE, side: "top", rows: 1 };
+    }
+  if (symbolId === "xfmr")
+    switch (parameter) {
+      case "k":
+        return {
+          parts: ["primary-winding", "secondary-winding"],
+          side: "right",
+        };
+      case "lp":
+        return { parts: ["primary-winding"], side: "top" };
+      case "ls":
+        return { parts: ["secondary-winding"], side: "bottom" };
+    }
+  return undefined;
+}
+
+/** The drawn extent of some of a Symbol's named parts, in Symbol space. */
+function partInkBounds(
+  resolved: ResolvedSymbol,
+  parts: readonly string[],
+): Rect | null {
+  const wanted = new Set(parts);
+  const primitives = resolved.definition.primitives.filter(
+    (primitive) => primitive.part !== undefined && wanted.has(primitive.part),
+  );
+  if (primitives.length === 0) return null;
+  return compactLabelInkBounds({
+    definition: { ...resolved.definition, primitives, pins: [] },
+  } as ResolvedSymbol);
+}
+
 export function defaultInstanceParameterLabelPlacement(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  grid: number,
+  parameter: string,
+): InstanceLabelPlacement | null {
+  const index = magneticDisplayParameters(instance.symbolId).findIndex(
+    (candidate) => candidate.name === parameter,
+  );
+  if (index < 0) return null;
+  // A quarter turn keeps each part's side distinct. On a diagonal two sides
+  // fold onto one and the values would crowd, so they keep one column.
+  const rotation = instance.placement?.rotation ?? 0;
+  const anchor =
+    rotation % 90 === 0
+      ? magneticParameterAnchor(
+          instance.symbolId,
+          parameter,
+          rotation % 180 !== 0,
+        )
+      : undefined;
+  const part = anchor ? partInkBounds(resolved, anchor.parts) : null;
+  const partBounds = part ? transformedBounds(part, instance) : null;
+  const partSide = anchor ? transformedSide(anchor.side, instance) : null;
+  if (anchor && partBounds && partSide)
+    return placeBesideBounds(
+      partBounds,
+      partSide,
+      instanceLabelMetrics(profile),
+      (anchor.rows ?? 0) * instanceLabelRowOffset(profile, grid),
+    );
+  return legacyDefaultInstanceParameterLabelPlacement(
+    instance,
+    resolved,
+    profile,
+    grid,
+    parameter,
+  );
+}
+
+/**
+ * The placement rule used until 2026-09-26, and still on a diagonal: every
+ * value in one column beside the whole Symbol. Labels still exactly there
+ * count as untouched, so they keep following their Symbol.
+ */
+export function legacyDefaultInstanceParameterLabelPlacement(
   instance: SchematicDocument["instances"][number],
   resolved: ResolvedSymbol,
   profile: SchematicStyleProfile,

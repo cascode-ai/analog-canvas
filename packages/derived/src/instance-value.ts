@@ -42,6 +42,33 @@ function boldDocument(value: string): RichTextDocument {
 }
 
 /**
+ * A magnetic device's parameter under its textbook name: the letter, then
+ * the rest as its subscript (L₁, L₂, C_B, L_p), followed by any value. A
+ * one-letter name such as K stays as it is.
+ */
+function magneticParameterDocument(label: string, rest = ""): RichTextDocument {
+  const match = /^([A-Za-z])([A-Za-z0-9]+)$/u.exec(label);
+  if (!match) return boldDocument(`${label}${rest}`);
+  return {
+    runs: [
+      {
+        kind: "span",
+        style: "bold",
+        children: [
+          { kind: "text", value: match[1]! },
+          {
+            kind: "span",
+            style: "subscript",
+            children: [{ kind: "text", value: match[2]! }],
+          },
+          ...(rest ? [{ kind: "text" as const, value: rest }] : []),
+        ],
+      },
+    ],
+  };
+}
+
+/**
  * One pure authority for the optional Value annotation beside an instance.
  * Electrical truth stays in the typed netlist parameters; this only projects
  * it to display text and never
@@ -85,10 +112,17 @@ export function displayableInstanceParameter(
     (candidate) => candidate.name.toLowerCase() === name.toLowerCase(),
   );
   const label = parameter?.label ?? name;
+  const magnetic = magneticDisplayParameters(instance.symbolId).some(
+    (candidate) => candidate.name.toLowerCase() === name.toLowerCase(),
+  );
+  const named = (rest = "") =>
+    magnetic
+      ? magneticParameterDocument(label, rest)
+      : boldDocument(`${label}${rest}`);
   if (options.showValue === false) {
     return {
       kind: "displayable",
-      content: boldDocument(label),
+      content: named(),
     };
   }
   const value = Object.entries(instance.netlist?.parameters ?? {})
@@ -98,7 +132,7 @@ export function displayableInstanceParameter(
     return { kind: "undisplayable", reason: `Parameter ${name} is empty` };
   return {
     kind: "displayable",
-    content: boldDocument(`${label} = ${value}`),
+    content: named(` = ${value}`),
   };
 }
 

@@ -18,6 +18,7 @@ import {
   legacyDefaultInstanceLabelPlacement,
   legacyPortLabelPlacement,
   defaultInstanceParameterLabelPlacement,
+  legacyDefaultInstanceParameterLabelPlacement,
   displayableInstanceParameter,
   defaultVddPowerLabelPlacement,
   displayableInstanceValue,
@@ -330,13 +331,18 @@ export function isCanonicalInstanceLabel(
   if (parameter)
     return (
       annotation.rotation === 0 &&
-      matches(
-        defaultInstanceParameterLabelPlacement(
-          { ...instance, placement },
-          resolved,
-          profile,
-          document.presentation.grid,
-          parameter,
+      [
+        defaultInstanceParameterLabelPlacement,
+        legacyDefaultInstanceParameterLabelPlacement,
+      ].some((rule) =>
+        matches(
+          rule(
+            { ...instance, placement },
+            resolved,
+            profile,
+            document.presentation.grid,
+            parameter,
+          ),
         ),
       )
     );
