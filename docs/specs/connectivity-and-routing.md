@@ -80,7 +80,9 @@ previously separate physical components, not a clique between every terminal.
 Consequently a formerly routed edge is not restored merely from its old Net
 membership. `cut_connection` deliberately releases that Net's unrouted intent;
 `remove_route_geometry` and returning a part to the tray preserve it. Explicit
-Agent `connect_endpoints`/`merge_nets` remain logical authoring operations.
+Agent `connect_endpoints`/`merge_nets` remain logical authoring operations, and
+so does `set_property_terminal_net`: a pin its symbol does not draw keeps the
+Net that edit named even when the same transaction draws that Net's wires.
 Labels, power markers and Cell interfaces retain their separate logical role.
 
 This is an edit-commit boundary, not a passive read repair. File representation

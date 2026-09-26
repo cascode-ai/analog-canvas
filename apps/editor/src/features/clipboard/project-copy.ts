@@ -89,6 +89,7 @@ export function captureProjectCopy(
   },
   preserveElectrical = false,
 ): SchematicClipboard | null {
+  const resolver = createProjectSymbolResolver(project, builtInSymbols);
   const clipboard = selection
     ? copySelection(
         document,
@@ -96,10 +97,10 @@ export function captureProjectCopy(
         selection.draftingIds,
         selection,
         preserveElectrical,
+        resolver,
       )
     : captureDocumentComposition(document);
   if (!clipboard) return null;
-  const resolver = createProjectSymbolResolver(project, builtInSymbols);
   // Preserve source Cell parameter context for partial copies as well as whole scenes.
   clipboard.formalParameters = structuredClone(
     document.netlist?.formalParameters ?? [],
