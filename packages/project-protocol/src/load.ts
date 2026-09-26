@@ -50,6 +50,7 @@ import { upgradeSchema56To57 } from "./transforms/power-rail-terminals.js";
 import {
   CURRENT_PROJECT_FILE_VERSION,
   decodeProjectFile,
+  rejectKeptDocumentStyle,
 } from "./owned-project-file.js";
 
 /**
@@ -184,6 +185,7 @@ export function tryParseProjectWithMetadata(
 
   let current: Record<string, unknown>;
   try {
+    if (sourceSchemaVersion < 64) rejectKeptDocumentStyle(parsed);
     current = sourceSchemaVersion >= 59 ? decodeProjectFile(parsed) : parsed;
     for (
       let version = current.schemaVersion as number;

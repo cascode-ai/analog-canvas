@@ -1,5 +1,6 @@
 import {
   defaultInstanceLabelPlacement,
+  objectStyleProfile,
   displayableInstanceValue,
   endpointKey,
   isNearVerticalSegment,
@@ -601,12 +602,13 @@ export function annotationHitBox(
     routeGeometryRecords,
     styleProfile,
   );
+  const markerProfile = objectStyleProfile(styleProfile, annotation);
   const sizeScale = annotation.sizeScale ?? 1;
   const fontSize =
-    schematicTextFontSize(annotation.kind, styleProfile) * sizeScale;
+    schematicTextFontSize(annotation.kind, markerProfile) * sizeScale;
   const textLayout = measureRichTextDocument(
     resolveAnnotationText(document, annotation),
-    richTextMetrics(styleProfile, "label", sizeScale),
+    richTextMetrics(markerProfile, "label", sizeScale),
   );
   let labelPosition = anchor;
   let alignment = annotation.alignment;
@@ -733,7 +735,7 @@ export function defaultInstanceLabel(
   const placement = defaultInstanceLabelPlacement(
     instance,
     resolved,
-    styleProfile,
+    objectStyleProfile(styleProfile, instance),
     document.presentation.grid,
     slot,
   );
@@ -755,6 +757,9 @@ export function defaultInstanceLabel(
     alignment: placement.alignment,
     rotation: 0,
     locked: false,
+    ...(instance.documentStyle
+      ? { documentStyle: structuredClone(instance.documentStyle) }
+      : {}),
   };
 }
 
@@ -799,7 +804,7 @@ export function defaultInstanceValue(
   const placement = defaultInstanceLabelPlacement(
     instance,
     resolved,
-    styleProfile,
+    objectStyleProfile(styleProfile, instance),
     document.presentation.grid,
     slot,
   );
@@ -821,5 +826,8 @@ export function defaultInstanceValue(
     alignment: placement.alignment,
     rotation: 0,
     locked: false,
+    ...(instance.documentStyle
+      ? { documentStyle: structuredClone(instance.documentStyle) }
+      : {}),
   };
 }

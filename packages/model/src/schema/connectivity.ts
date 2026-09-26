@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { StableIdSchema } from "./common.js";
 import { TerminalRefSchema } from "./instance.js";
+import { ObjectDocumentStyleSchema } from "./presentation.js";
 import { SourceSpanSchema } from "./source.js";
 
 /** Logical-Net electrical role shared by derived and Agent contracts. */
@@ -75,4 +76,6 @@ export const NoConnectSchema = z.strictObject({
   id: StableIdSchema,
   endpoint: NoConnectEndpointSchema,
   reason: z.string().optional(),
+  /** The Document style this mark keeps from a copy's source drawing. */
+  documentStyle: ObjectDocumentStyleSchema.optional(),
 });

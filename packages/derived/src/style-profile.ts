@@ -192,6 +192,52 @@ export function resolveDocumentStyleProfile(
   return profile;
 }
 
+/** A drawn object that may keep the Document style of a copy's source. */
+export interface DocumentStyleKeeper {
+  readonly documentStyle?: StyleOverridablePresentation["styleOverrides"];
+}
+
+/**
+ * The profile one object draws with: its Document's resolved profile, unless
+ * the object keeps the Document style of the drawing it was copied from. The
+ * kept factors replace the Document's; only the base profile is shared.
+ */
+export function objectStyleProfile(
+  documentProfile: SchematicStyleProfile,
+  object: DocumentStyleKeeper | undefined,
+): SchematicStyleProfile {
+  const kept = object?.documentStyle;
+  return kept
+    ? resolveDocumentStyleProfile({
+        styleProfileId: documentProfile.id,
+        styleOverrides: kept,
+      })
+    : documentProfile;
+}
+
+const DOCUMENT_STYLE_FACTORS = [
+  "fontScale",
+  "wireStrokeScale",
+  "symbolStrokeScale",
+  "annotationStrokeScale",
+  "junctionRadiusScale",
+] as const;
+
+/**
+ * Whether two objects draw alike. An absent kept style follows the Document,
+ * so it equals only another absent one; present factors compare with 1 for
+ * any factor left out.
+ */
+export function sameDocumentStyle(
+  left: DocumentStyleKeeper["documentStyle"],
+  right: DocumentStyleKeeper["documentStyle"],
+): boolean {
+  if (!left || !right) return !left && !right;
+  return DOCUMENT_STYLE_FACTORS.every(
+    (factor) => (left[factor] ?? 1) === (right[factor] ?? 1),
+  );
+}
+
 export function strokeWidthForRole(
   profile: SchematicStyleProfile,
   role: SymbolStrokeRole,

@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   globalSchematicTypography,
+  objectStyleProfile,
   razaviTextbookProfile,
   resolveDocumentStyleProfile,
   resolvePrimitiveStrokeWidth,
   resolveSchematicStyleProfile,
+  sameDocumentStyle,
   strokeWidthForRole,
 } from "./style-profile.js";
 
@@ -117,5 +119,46 @@ describe("resolveDocumentStyleProfile", () => {
     expect(resolveDocumentStyleProfile(shared)).toBe(
       resolveDocumentStyleProfile(shared),
     );
+  });
+});
+
+describe("objectStyleProfile", () => {
+  const documentProfile = resolveDocumentStyleProfile({
+    styleProfileId: "razavi-textbook-v1",
+    styleOverrides: { fontScale: 2 },
+  });
+
+  it("draws an object without a kept style like its Document", () => {
+    expect(objectStyleProfile(documentProfile, {})).toBe(documentProfile);
+    expect(objectStyleProfile(documentProfile, undefined)).toBe(
+      documentProfile,
+    );
+  });
+
+  it("replaces the Document's factors with the kept ones", () => {
+    const kept = { documentStyle: { wireStrokeScale: 1.5 } };
+    const profile = objectStyleProfile(documentProfile, kept);
+    expect(profile.typography.annotationFontSize).toBe(
+      razaviTextbookProfile.typography.annotationFontSize,
+    );
+    expect(profile.strokes.wire).toBeCloseTo(
+      razaviTextbookProfile.strokes.wire * 1.5,
+    );
+    // Resolving again from an object's own profile changes nothing.
+    expect(objectStyleProfile(profile, kept)).toEqual(profile);
+  });
+});
+
+describe("sameDocumentStyle", () => {
+  it("compares kept factors with 1 for any left out", () => {
+    expect(sameDocumentStyle(undefined, undefined)).toBe(true);
+    expect(sameDocumentStyle({}, { fontScale: 1 })).toBe(true);
+    expect(sameDocumentStyle({ fontScale: 2 }, { fontScale: 2 })).toBe(true);
+    expect(sameDocumentStyle({ fontScale: 2 }, {})).toBe(false);
+  });
+
+  it("never equates a kept style with following the Document", () => {
+    expect(sameDocumentStyle({}, undefined)).toBe(false);
+    expect(sameDocumentStyle(undefined, { fontScale: 2 })).toBe(false);
   });
 });

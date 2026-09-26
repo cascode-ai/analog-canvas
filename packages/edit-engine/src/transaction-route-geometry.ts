@@ -79,6 +79,9 @@ export function applyRouteGeometryEdit(
       if (!route.styleOverride && existing?.styleOverride) {
         route.styleOverride = structuredClone(existing.styleOverride);
       }
+      if (!route.documentStyle && existing?.documentStyle) {
+        route.documentStyle = structuredClone(existing.documentStyle);
+      }
       const routeError = validateRoute(
         draft,
         route,

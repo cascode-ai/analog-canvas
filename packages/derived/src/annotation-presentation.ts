@@ -21,7 +21,10 @@ import {
   measureRichTextDocument,
   richTextMetrics,
 } from "./rich-text-layout.js";
-import type { SchematicStyleProfile } from "./style-profile.js";
+import {
+  objectStyleProfile,
+  type SchematicStyleProfile,
+} from "./style-profile.js";
 import type { ResolvedDocumentLogicalNets } from "./logical-net.js";
 
 /** Shared SVG, editor-hit, marquee, and export presentation of an annotation. */
@@ -90,7 +93,7 @@ export function resolveAnnotationPresentation(
   document: SchematicDocument,
   resolver: SymbolResolver,
   annotation: Annotation,
-  styleProfile: SchematicStyleProfile,
+  documentProfile: SchematicStyleProfile,
   routingGeometry: ResolvedDocumentRoutingGeometry = resolveDocumentRoutingGeometry(
     document,
     resolver,
@@ -98,6 +101,7 @@ export function resolveAnnotationPresentation(
   logicalNets?: ResolvedDocumentLogicalNets,
   resolvedText?: RichTextDocument,
 ): AnnotationPresentation {
+  const styleProfile = objectStyleProfile(documentProfile, annotation);
   const anchor = resolveVisualAnchor(
     document,
     resolver,

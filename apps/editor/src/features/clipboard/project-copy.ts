@@ -8,6 +8,7 @@ import {
   type CircuitProject,
   type Point,
   type SchematicDocument,
+  type StyleOverrides,
   type VisualAnchor,
 } from "@icm/model";
 import {
@@ -15,6 +16,7 @@ import {
   resolveDocumentRoutingGeometry,
   resolveDocumentLogicalNets,
   resolveEndpointConnection,
+  sameDocumentStyle,
 } from "@icm/derived";
 import {
   builtInSymbols,
@@ -44,6 +46,31 @@ import {
 } from "./clipboard";
 
 import { planInsertedInstanceConnections } from "../component-insert/placement-connectivity";
+
+/**
+ * A copy draws exactly like its source. Each copied object keeps the Document
+ * style it was drawn with, unless the target Document already draws that way.
+ */
+export function keepSourceDocumentStyle(
+  clipboard: SchematicClipboard,
+  source: SchematicDocument["presentation"],
+  target: SchematicDocument["presentation"],
+): void {
+  const objects: { documentStyle?: StyleOverrides | undefined }[] = [
+    ...clipboard.instances,
+    ...clipboard.routes,
+    ...clipboard.junctions,
+    ...clipboard.annotations,
+    ...clipboard.noConnects,
+    ...clipboard.draftingObjects,
+  ];
+  for (const object of objects) {
+    const drawn = object.documentStyle ?? source.styleOverrides ?? {};
+    if (sameDocumentStyle(drawn, target.styleOverrides ?? {}))
+      delete object.documentStyle;
+    else object.documentStyle = structuredClone(drawn);
+  }
+}
 
 /** Dependency closure shared by canvas composition and the system clipboard. */
 export interface CopyContext extends CopyDependencySource {
@@ -137,6 +164,7 @@ export function captureProjectCopy(
         modes: normalized.segmentModes,
         ...(route.presentation ? { presentation: route.presentation } : {}),
         ...(route.styleOverride ? { styleOverride: route.styleOverride } : {}),
+        ...(route.documentStyle ? { documentStyle: route.documentStyle } : {}),
       }),
     ];
   });
@@ -682,12 +710,19 @@ export function prepareProjectCopy(
       JSON.stringify(project.symbolLibrary)
     )
       throw new Error("Copied content uses an incompatible Symbol Library");
-    const appearance = (p: SchematicDocument["presentation"]) =>
-      JSON.stringify([p.styleProfileId, p.styleOverrides ?? {}]);
-    if (appearance(context.presentation) !== appearance(document.presentation))
+    // An object can keep its source's scale factors but not a whole profile.
+    if (
+      context.presentation.styleProfileId !==
+      document.presentation.styleProfileId
+    )
       throw new Error(
-        "Copy cannot preserve appearance across different document style defaults; use matching styles or keep the circuit in its own Cell",
+        "Copy cannot preserve appearance across different style profiles",
       );
+    keepSourceDocumentStyle(
+      clipboard,
+      context.presentation,
+      document.presentation,
+    );
     const dependencies = planExternalCopyDependencies(
       prepared,
       context,

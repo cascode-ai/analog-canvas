@@ -65,6 +65,7 @@ export function createNewInstance(
     | "placement"
     | "netlist"
     | "styleOverride"
+    | "documentStyle"
     | "signalFlowParameters"
   >,
   options: {
@@ -79,6 +80,7 @@ export function createNewInstance(
     placement,
     netlist,
     styleOverride,
+    documentStyle,
     signalFlowParameters,
   } = structuredClone(template);
   const instance: Instance = {
@@ -88,6 +90,7 @@ export function createNewInstance(
     ...(symbolVariantId ? { symbolVariantId } : {}),
     ...(netlist ? { netlist } : {}),
     ...(styleOverride ? { styleOverride } : {}),
+    ...(documentStyle ? { documentStyle } : {}),
     ...(signalFlowParameters ? { signalFlowParameters } : {}),
   };
   const reference =

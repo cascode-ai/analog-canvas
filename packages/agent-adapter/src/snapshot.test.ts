@@ -37,6 +37,20 @@ function fixtureProject(): CircuitProject {
 }
 
 describe("Agent Document Snapshot", () => {
+  it("leaves out the Document style a copied object keeps", () => {
+    const project = fixtureProject();
+    const document = project.documents[0]!;
+    const kept = { fontScale: 2 };
+    document.instances[0]!.documentStyle = kept;
+    document.routes[0]!.documentStyle = kept;
+    for (const annotation of document.annotations)
+      annotation.documentStyle = kept;
+    const snapshot = buildAgentSessionSnapshot({ project, document, resolver });
+    expect(AgentSessionSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+    expect(JSON.stringify(snapshot)).not.toContain("documentStyle");
+    expect(document.annotations[0]!.documentStyle).toEqual(kept);
+  });
+
   it("resolves selected pins identically without resolving unrelated symbols", () => {
     const project = fixtureProject();
     const document = project.documents[0]!;

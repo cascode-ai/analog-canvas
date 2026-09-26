@@ -611,17 +611,17 @@ function documentSnapshot(
     junctions: [...document.junctions]
       .sort((left, right) => left.id.localeCompare(right.id, "en"))
       .map((junction) => ({
-        ...structuredClone(junction),
+        ...withoutKeptStyle(junction),
         netId:
           logicalNets.byBaseNetId.get(junction.netId)?.id ?? junction.netId,
       })),
     noConnects: [...document.noConnects]
       .sort((left, right) => left.id.localeCompare(right.id, "en"))
-      .map((noConnect) => structuredClone(noConnect)),
+      .map((noConnect) => withoutKeptStyle(noConnect)),
     annotations: [...document.annotations]
       .sort((left, right) => left.id.localeCompare(right.id, "en"))
       .map((annotation) => ({
-        ...structuredClone(annotation),
+        ...withoutKeptStyle(annotation),
         resolvedText: flattenRichText(
           resolveAnnotationText(document, annotation, logicalNets),
         ),
@@ -640,7 +640,7 @@ function documentSnapshot(
             object,
           );
           return {
-            object: structuredClone(object),
+            object: withoutKeptStyle(object),
             resolvedGeometry: geometry,
             diagnostics: geometry.diagnostics,
           };
@@ -654,6 +654,16 @@ function documentSnapshot(
       .map((constraint) => structuredClone(constraint)),
     diagnostics: diagnosticSnapshot(options.project, document, resolver),
   };
+}
+
+/**
+ * The Agent view leaves out the Document style a copied object keeps; an edit
+ * that states none keeps it, so reading and writing back loses nothing.
+ */
+function withoutKeptStyle<T extends { documentStyle?: unknown }>(object: T): T {
+  const copy = structuredClone(object);
+  delete copy.documentStyle;
+  return copy;
 }
 
 export function buildAgentSessionSnapshot(

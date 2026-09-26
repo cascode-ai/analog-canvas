@@ -70,6 +70,15 @@ export const StyleOverridesSchema = z.strictObject({
   junctionRadiusScale: StyleScaleSchema.optional(),
 });
 
+/**
+ * The Document style one object keeps from the drawing it was copied from.
+ * It holds the same factors as `styleOverrides` and replaces its Document's
+ * overrides for this object alone; an absent factor means 1. Copy writes it
+ * only when the source and target style defaults differ, so a copy draws
+ * exactly like its source. An object without it follows its Document.
+ */
+export const ObjectDocumentStyleSchema = StyleOverridesSchema;
+
 export const PresentationIntentSchema = z.strictObject({
   styleProfileId: StableIdSchema,
   grid: z.number().int().positive(),

@@ -7,6 +7,7 @@ import {
   RotationSchema,
   StableIdSchema,
 } from "./common.js";
+import { ObjectDocumentStyleSchema } from "./presentation.js";
 import { RichTextDocumentSchema } from "./rich-text.js";
 import { SourceSpanSchema } from "./source.js";
 
@@ -164,6 +165,8 @@ export const InstanceSchema = z
      * the next appearance edit retires it.
      */
     styleOverride: InstanceStyleOverrideSchema.optional(),
+    /** The Document style this Instance keeps from a copy's source drawing. */
+    documentStyle: ObjectDocumentStyleSchema.optional(),
     /**
      * Optional schematic-only Signal Flow metadata. It is presentation/dataflow
      * intent only and is intentionally independent from emitted netlist

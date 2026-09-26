@@ -143,7 +143,7 @@ describe("instance-owned portable source", () => {
     const portable = withProjectComponentDefinitions(before);
 
     const source = JSON.parse(serializeProject(portable));
-    expect(source.schemaVersion).toBe(63);
+    expect(source.schemaVersion).toBe(64);
     const encodedInstance = source.documents[0].instances.find(
       (item: any) => item.id === instance.id,
     );
@@ -166,6 +166,54 @@ describe("instance-owned portable source", () => {
     source.schemaVersion = 60;
     expect(() => parseProject(JSON.stringify(source))).toThrow(
       /Unknown field: showValue/,
+    );
+  });
+
+  it("round-trips the Document style a copied object keeps in schema 64", () => {
+    const before = fixture();
+    const document = before.documents[0]!;
+    const kept = { fontScale: 2, wireStrokeScale: 1.5 };
+    const instance = document.instances[0]!;
+    instance.documentStyle = kept;
+    document.routes[0]!.documentStyle = { junctionRadiusScale: 1.3 };
+    for (const annotation of document.annotations)
+      annotation.documentStyle = {};
+    document.drafting = {
+      objects: [
+        {
+          id: "kept-note",
+          kind: "text",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 100, y: 100 } },
+          alignment: "start",
+          rotation: 0,
+          content: { runs: [{ kind: "text", value: "Note" }] },
+          documentStyle: { annotationStrokeScale: 0.5 },
+        },
+      ],
+    };
+    const source = JSON.parse(
+      serializeProject(withProjectComponentDefinitions(before)),
+    );
+    expect(source.schemaVersion).toBe(64);
+    const loaded = parseProject(JSON.stringify(source)).documents[0]!;
+    expect(
+      loaded.instances.find((item) => item.id === instance.id)?.documentStyle,
+    ).toEqual(kept);
+    expect(loaded.routes[0]!.documentStyle).toEqual({
+      junctionRadiusScale: 1.3,
+    });
+    expect(loaded.annotations.map((item) => item.documentStyle)).toEqual(
+      document.annotations.map(() => ({})),
+    );
+    expect(loaded.drafting?.objects[0]?.documentStyle).toEqual({
+      annotationStrokeScale: 0.5,
+    });
+
+    source.schemaVersion = 63;
+    expect(() => parseProject(JSON.stringify(source))).toThrow(
+      /requires Project schema 64/,
     );
   });
 
@@ -201,7 +249,7 @@ describe("instance-owned portable source", () => {
     const source = JSON.parse(
       serializeProject(withProjectComponentDefinitions(before)),
     );
-    expect(source.schemaVersion).toBe(63);
+    expect(source.schemaVersion).toBe(64);
     expect(
       parseProject(JSON.stringify(source)).documents[0]!.instances[0]!
         .signalFlowParameters,

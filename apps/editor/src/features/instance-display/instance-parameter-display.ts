@@ -2,6 +2,7 @@ import {
   defaultInstanceParameterLabelPlacement,
   displayableInstanceParameter,
   magneticDisplayParameters,
+  objectStyleProfile,
   resolveDocumentStyleProfile,
 } from "@icm/derived";
 import type { SchematicEdit } from "@icm/edit-engine";
@@ -82,7 +83,10 @@ export function instanceParameterVisibilityEdits(
       defaultInstanceParameterLabelPlacement(
         instance,
         resolved,
-        resolveDocumentStyleProfile(document.presentation),
+        objectStyleProfile(
+          resolveDocumentStyleProfile(document.presentation),
+          instance,
+        ),
         document.presentation.grid,
         parameter.name,
       );
@@ -116,6 +120,9 @@ export function instanceParameterVisibilityEdits(
         rotation: 0,
         locked: false,
         visible: true,
+        ...(instance.documentStyle
+          ? { documentStyle: structuredClone(instance.documentStyle) }
+          : {}),
       },
     });
   }

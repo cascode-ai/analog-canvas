@@ -1,6 +1,7 @@
 import {
   defaultInstanceLabelPlacement,
   displayableInstanceValue,
+  objectStyleProfile,
   resolveDocumentStyleProfile,
   type SchematicStyleProfile,
 } from "@icm/derived";
@@ -255,7 +256,7 @@ function defaultMasterNameAnnotation(
   const placement = defaultInstanceLabelPlacement(
     instance,
     resolved,
-    styleProfile,
+    objectStyleProfile(styleProfile, instance),
     document.presentation.grid,
     slot,
   );
@@ -277,5 +278,8 @@ function defaultMasterNameAnnotation(
     alignment: placement.alignment,
     rotation: 0,
     locked: false,
+    ...(instance.documentStyle
+      ? { documentStyle: structuredClone(instance.documentStyle) }
+      : {}),
   };
 }

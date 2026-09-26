@@ -31,6 +31,8 @@ import {
   isSchematicAnnotationVisible,
   resolveAnnotationText,
   resolveDocumentStyleProfile,
+  objectStyleProfile,
+  sameDocumentStyle,
   resolveDocumentLogicalNets,
   draftTextLayoutContent,
   measureRichTextDocument,
@@ -43,7 +45,9 @@ import { flattenRichText } from "@icm/model";
 import type {
   EndpointJoin,
   AnnotationPresentation,
+  CoincidentContact,
   DocumentContactEvidence,
+  DocumentStyleKeeper,
   ResolvedDocumentRoutingGeometry,
   ResolvedDraftingGeometry,
   SchematicStyleProfile,
@@ -58,6 +62,7 @@ import type {
   RichTextDocument,
   RichTextRun,
   Rotation,
+  RouteBranch,
   RouteEndpoint,
   SchematicDocument,
 } from "@icm/model";
@@ -349,8 +354,6 @@ function renderNoConnectMarkers(
   profile: SchematicStyleProfile,
   objectIds?: ReadonlySet<string>,
 ): string {
-  const halfExtent = Math.max(profile.strokes.normal * 3, 4);
-  const strokeWidth = profile.strokes.normal;
   return [...document.noConnects]
     .filter((item) => !objectIds || objectIds.has(item.id))
     .sort((left, right) => left.id.localeCompare(right.id, "en"))
@@ -361,8 +364,11 @@ function renderNoConnectMarkers(
         noConnect.endpoint,
       );
       if (!point) return [];
+      const markProfile = objectStyleProfile(profile, noConnect);
+      const halfExtent = Math.max(markProfile.strokes.normal * 3, 4);
+      const strokeWidth = markProfile.strokes.normal;
       return [
-        `<path data-object-id="${escapeXml(noConnect.id)}" data-role="no-connect" d="M ${point.x - halfExtent} ${point.y - halfExtent} L ${point.x + halfExtent} ${point.y + halfExtent} M ${point.x + halfExtent} ${point.y - halfExtent} L ${point.x - halfExtent} ${point.y + halfExtent}" fill="none" stroke="${profile.foreground}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}"/>`,
+        `<path data-object-id="${escapeXml(noConnect.id)}" data-role="no-connect" d="M ${point.x - halfExtent} ${point.y - halfExtent} L ${point.x + halfExtent} ${point.y + halfExtent} M ${point.x + halfExtent} ${point.y - halfExtent} L ${point.x - halfExtent} ${point.y + halfExtent}" fill="none" stroke="${markProfile.foreground}" stroke-width="${strokeWidth}" stroke-linecap="${markProfile.lineCap}"/>`,
       ];
     })
     .join("");
@@ -399,19 +405,22 @@ function terminalMiterBridgePaths(
  */
 function junctionMiterBridgePaths(
   joins: readonly EndpointJoin[],
-  profile: SchematicStyleProfile,
+  profileOf: (junctionId: string) => SchematicStyleProfile,
   strokeColors: ReadonlyMap<string, string>,
-): Array<{ strokeColor: string; d: string }> {
-  const overlap = Math.max(profile.strokes.wire, profile.strokes.symbol) * 0.75;
+): Array<{ strokeColor: string; strokeWidth: number; d: string }> {
   return joins
     .filter(
       (join): join is Extract<EndpointJoin, { kind: "junction-miter" }> =>
         join.kind === "junction-miter",
     )
     .map((join) => {
+      const profile = profileOf(join.junctionId);
+      const overlap =
+        Math.max(profile.strokes.wire, profile.strokes.symbol) * 0.75;
       const [first, second] = join.directions;
       return {
         strokeColor: strokeColors.get(join.junctionId) ?? profile.foreground,
+        strokeWidth: profile.strokes.wire,
         d: `M ${join.at.x + first.x * overlap} ${join.at.y + first.y * overlap} L ${join.at.x} ${join.at.y} L ${join.at.x + second.x * overlap} ${join.at.y + second.y * overlap}`,
       };
     });
@@ -1028,6 +1037,58 @@ export function buildSvgScene(
   const instancesById = new Map(
     document.instances.map((instance) => [instance.id, instance] as const),
   );
+  const routesById = new Map(
+    document.routes.map((route) => [route.id, route] as const),
+  );
+  const junctionsById = new Map(
+    document.junctions.map((junction) => [junction.id, junction] as const),
+  );
+  const routesAtJunction = new Map<string, RouteBranch[]>();
+  for (const route of document.routes) {
+    const end = route.legs.at(-1)?.to;
+    for (const endpoint of [
+      route.start,
+      ...(end?.kind === "endpoint" ? [end.endpoint] : []),
+    ]) {
+      if (endpoint.kind !== "junction") continue;
+      const routes = routesAtJunction.get(endpoint.junctionId) ?? [];
+      routes.push(route);
+      routesAtJunction.set(endpoint.junctionId, routes);
+    }
+  }
+  // Joined objects that all keep one style draw their joint in it.
+  const sharedProfile = (
+    objects: readonly (DocumentStyleKeeper | undefined)[],
+  ) => {
+    const [first, ...rest] = objects;
+    return first &&
+      rest.every((object) =>
+        sameDocumentStyle(object?.documentStyle, first.documentStyle),
+      )
+      ? objectStyleProfile(profile, first)
+      : profile;
+  };
+  // A Junction draws in its own kept style, else like the Routes it joins, so
+  // one the engine re-creates under a copied circuit still matches it.
+  const junctionProfile = (junctionId: string) => {
+    const junction = junctionsById.get(junctionId);
+    return junction?.documentStyle
+      ? objectStyleProfile(profile, junction)
+      : sharedProfile(routesAtJunction.get(junctionId) ?? []);
+  };
+  const contactProfile = (contact: CoincidentContact) => {
+    const junction = contact.endpoints.find(
+      (endpoint) => endpoint.kind === "junction",
+    );
+    if (junction) return junctionProfile(junction.junctionId);
+    return sharedProfile(
+      contact.incidents.map((incident) =>
+        incident.kind === "route"
+          ? routesById.get(incident.objectId)
+          : instancesById.get(incident.objectId),
+      ),
+    );
+  };
   const logicalNets = resolveDocumentLogicalNets(document);
   const powerRailNetIds = new Set(
     document.routes.flatMap((route) => {
@@ -1191,9 +1252,10 @@ export function buildSvgScene(
         presentation !== "wire"
           ? ` data-route-presentation="${presentation}"`
           : "";
+      const routeProfile = objectStyleProfile(profile, route);
       const strokeWidth = isPowerRail
-        ? profile.strokes.powerRail
-        : profile.strokes.wire;
+        ? routeProfile.strokes.powerRail
+        : routeProfile.strokes.wire;
       addInk(
         strokeColor,
         strokeWidth,
@@ -1204,13 +1266,16 @@ export function buildSvgScene(
       );
       // The bridge belongs to the same paint as the Route it joins, so it
       // merges into that shape instead of being laid over it.
-      for (const d of terminalMiterBridgePaths(geometry.endpointJoins, profile))
-        addInk(strokeColor, profile.strokes.wire, dash, d);
+      for (const d of terminalMiterBridgePaths(
+        geometry.endpointJoins,
+        routeProfile,
+      ))
+        addInk(strokeColor, routeProfile.strokes.wire, dash, d);
       const directionArrow = renderRouteDirectionArrow(
         geometry.centerline,
         route.styleOverride?.arrow,
         strokeColor,
-        profile,
+        routeProfile,
       );
       return `<polyline data-object-id="${escapeXml(route.id)}" data-net-id="${escapeXml(route.netId)}"${presentationAttribute} points="${pointList(geometry.centerline)}" fill="none" stroke="none"/>${directionArrow}`;
     })
@@ -1231,10 +1296,10 @@ export function buildSvgScene(
         })
         .every((route) => included(route.id));
     }),
-    profile,
+    junctionProfile,
     junctionBridgeColors,
   ))
-    addInk(bridge.strokeColor, profile.strokes.wire, "", bridge.d);
+    addInk(bridge.strokeColor, bridge.strokeWidth, "", bridge.d);
   const conductorInk = inkOrder
     .map((key) => {
       const bucket = ink.get(key)!;
@@ -1279,7 +1344,8 @@ export function buildSvgScene(
       const derivedAttribute = junctionEndpoint
         ? ""
         : ' data-node-kind="contact"';
-      return `<circle data-object-id="${escapeXml(objectId)}"${derivedAttribute} cx="${contact.point.x}" cy="${contact.point.y}" r="${profile.nodes.junctionRadius}" fill="${profile.foreground}"/>`;
+      const dotProfile = contactProfile(contact);
+      return `<circle data-object-id="${escapeXml(objectId)}"${derivedAttribute} cx="${contact.point.x}" cy="${contact.point.y}" r="${dotProfile.nodes.junctionRadius}" fill="${dotProfile.foreground}"/>`;
     })
     .join("");
   const noConnectMarkers = renderNoConnectMarkers(
@@ -1303,13 +1369,14 @@ export function buildSvgScene(
       if (!resolved) {
         throw new Error(`Unresolved symbol: ${instance.symbolId}`);
       }
+      const instanceProfile = objectStyleProfile(profile, instance);
       const styleOverride = instance.styleOverride;
       const foregroundOverride = styleOverride?.foreground;
       const primitives = renderSymbolDefinitionBody(
         resolved.definition,
         resolved.variant?.hiddenPrimitiveParts,
         resolved.variant?.additionalPrimitives,
-        profile,
+        instanceProfile,
         foregroundOverride,
         instance.signalFlowParameters,
         instance.placement ?? undefined,
@@ -1318,7 +1385,7 @@ export function buildSvgScene(
         resolved.definition,
         resolved.variant?.hiddenPinNames ?? [],
         instance,
-        profile,
+        instanceProfile,
         foregroundOverride,
         document.presentation,
       );
@@ -1327,17 +1394,22 @@ export function buildSvgScene(
         instance.signalFlowParameters,
         instance.placement!,
         {
-          foreground: foregroundOverride ?? profile.foreground,
-          profile,
+          foreground: foregroundOverride ?? instanceProfile.foreground,
+          profile: instanceProfile,
           ...(resolved.definition.formulaPresentation &&
           signalFlowBodyUsesLabelTypography(
             resolved.definition.formulaPresentation,
           )
-            ? { labels: { presentation: document.presentation, profile } }
+            ? {
+                labels: {
+                  presentation: document.presentation,
+                  profile: instanceProfile,
+                },
+              }
             : {}),
         },
       );
-      const strokeColor = foregroundOverride ?? profile.foreground;
+      const strokeColor = foregroundOverride ?? instanceProfile.foreground;
       // Background fill: drawn inside the instance transform using the
       // symbol's local viewBox so it moves with the instance and stays
       // aligned with the artwork in all orientations and mirrors. When no
@@ -1360,7 +1432,7 @@ export function buildSvgScene(
             : `<rect data-role="instance-background" x="${background.x}" y="${background.y}" width="${background.width}" height="${background.height}" fill="${styleOverride.background}"/>`;
       const symbolRole =
         styleOverride === undefined ? "" : ' data-role="instance-symbol"';
-      return `<g data-object-id="${escapeXml(instance.id)}" data-symbol-id="${escapeXml(resolved.definition.id)}"><g transform="${instanceTransform(instance)}">${backgroundRect}<g${symbolRole} fill="none" stroke="${strokeColor}" stroke-width="${profile.strokes.symbol}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${profileMiterAttribute(profile)}>${primitives}</g></g>${formula}${pinNames}</g>`;
+      return `<g data-object-id="${escapeXml(instance.id)}" data-symbol-id="${escapeXml(resolved.definition.id)}"><g transform="${instanceTransform(instance)}">${backgroundRect}<g${symbolRole} fill="none" stroke="${strokeColor}" stroke-width="${instanceProfile.strokes.symbol}" stroke-linecap="${instanceProfile.lineCap}" stroke-linejoin="${instanceProfile.lineJoin}"${profileMiterAttribute(instanceProfile)}>${primitives}</g></g>${formula}${pinNames}</g>`;
     })
     .join("");
   const annotations = resolvedAnnotations
@@ -1368,6 +1440,7 @@ export function buildSvgScene(
       left.annotation.id.localeCompare(right.annotation.id, "en"),
     )
     .map(({ annotation, content, presentation }) => {
+      const annotationProfile = objectStyleProfile(profile, annotation);
       const attachment = ` data-anchor-kind="${annotation.anchor.kind}"`;
       const resolvedAnchor = presentation.anchor;
       const routeMarkerPlacement =
@@ -1391,16 +1464,18 @@ export function buildSvgScene(
       const transform = `rotate(${rotation} ${position.x} ${position.y})`;
       const attributes = `data-object-id="${escapeXml(annotation.id)}" data-kind="${annotation.kind}"${attachment}`;
       const annotationFontSize =
-        schematicTextFontSize(annotation.kind, profile) *
+        schematicTextFontSize(annotation.kind, annotationProfile) *
         (annotation.sizeScale ?? 1);
       const ownerInstanceId = annotationOwningInstanceId(annotation);
       const resolvedColor = resolveAnnotationTextColor(
         annotation,
         ownerInstanceId ? instancesById.get(ownerInstanceId) : undefined,
-        profile.foreground,
+        annotationProfile.foreground,
       );
       const colorOverride =
-        resolvedColor === profile.foreground ? undefined : resolvedColor;
+        resolvedColor === annotationProfile.foreground
+          ? undefined
+          : resolvedColor;
       const globalLabel =
         annotation.kind === "net-label" &&
         document.connectivityEvidence.some(
@@ -1411,7 +1486,7 @@ export function buildSvgScene(
             evidence.owner.annotationId === annotation.id,
         );
       const globalBadge = globalLabel
-        ? `<g data-role="global-net-badge" transform="${transform}"><rect x="${position.x - 8}" y="${position.y - annotationFontSize - 2}" width="7" height="7" rx="2" fill="${profile.background}" stroke="${profile.foreground}" stroke-width="0.8"/><text x="${position.x - 4.5}" y="${position.y - annotationFontSize + 3.3}" text-anchor="middle" font-size="5px" font-weight="700">G</text></g>`
+        ? `<g data-role="global-net-badge" transform="${transform}"><rect x="${position.x - 8}" y="${position.y - annotationFontSize - 2}" width="7" height="7" rx="2" fill="${annotationProfile.background}" stroke="${annotationProfile.foreground}" stroke-width="0.8"/><text x="${position.x - 4.5}" y="${position.y - annotationFontSize + 3.3}" text-anchor="middle" font-size="5px" font-weight="700">G</text></g>`
         : "";
       if (
         annotation.kind === "route-marker" &&
@@ -1426,7 +1501,7 @@ export function buildSvgScene(
           : vertical
             ? "start"
             : annotation.alignment;
-        const arrow = profile.annotations;
+        const arrow = annotationProfile.annotations;
         // A route-marker is mounted on an existing route, so that route is
         // the arrow shaft. Draw only the triangular head; a separate fixed
         // shaft leaves visible stubs on short or vertical wires.
@@ -1443,7 +1518,7 @@ export function buildSvgScene(
           : vertical
             ? y + 4
             : y - arrow.currentLabelGap;
-        const formula = renderFormulaDocument(content, profile, {
+        const formula = renderFormulaDocument(content, annotationProfile, {
           x: markerTextX,
           baselineY: markerTextY,
           fontSize: annotationFontSize,
@@ -1452,14 +1527,14 @@ export function buildSvgScene(
         });
         const text = formula
           ? formula
-          : `<text x="${markerTextX}" y="${markerTextY}" text-anchor="${textAnchor}"${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute("route-marker", profile, annotation.sizeScale)}>${renderAnnotationText(content, annotation, profile)}</text>`;
-        return `<g ${attributes}><g transform="${transform}"><polygon data-role="current-arrow-head" points="${tipX},${y} ${baseX},${y - halfHeadWidth} ${baseX},${y + halfHeadWidth}" fill="${profile.foreground}"/></g>${text}</g>`;
+          : `<text x="${markerTextX}" y="${markerTextY}" text-anchor="${textAnchor}"${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute("route-marker", annotationProfile, annotation.sizeScale)}>${renderAnnotationText(content, annotation, annotationProfile)}</text>`;
+        return `<g ${attributes}><g transform="${transform}"><polygon data-role="current-arrow-head" points="${tipX},${y} ${baseX},${y - halfHeadWidth} ${baseX},${y + halfHeadWidth}" fill="${annotationProfile.foreground}"/></g>${text}</g>`;
       }
       if (annotation.kind === "power-label") {
         // The power-rail Route is the complete supply bar. Drawing a second,
         // thinner annotation-owned bar at its endpoint creates the visible
         // terminal stub and makes hit geometry disagree with presentation.
-        const formula = renderFormulaDocument(content, profile, {
+        const formula = renderFormulaDocument(content, annotationProfile, {
           x: position.x,
           baselineY: position.y,
           fontSize: annotationFontSize,
@@ -1468,14 +1543,14 @@ export function buildSvgScene(
         });
         const text = formula
           ? `<g transform="${transform}">${formula}</g>`
-          : `<text x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}" transform="${transform}"${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute("power-label", profile, annotation.sizeScale)}>${renderAnnotationText(content, annotation, profile)}</text>`;
+          : `<text x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}" transform="${transform}"${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute("power-label", annotationProfile, annotation.sizeScale)}>${renderAnnotationText(content, annotation, annotationProfile)}</text>`;
         return `<g ${attributes}>${text}</g>`;
       }
       if (
         annotation.kind === "route-marker" &&
         annotation.markerKind === "voltage"
       ) {
-        const polarity = profile.annotations;
+        const polarity = annotationProfile.annotations;
         const positiveOffset = rotateOffset(
           { x: -polarity.polarityOffsetX, y: -polarity.polarityHalfGap },
           rotation,
@@ -1484,8 +1559,8 @@ export function buildSvgScene(
           { x: -polarity.polarityOffsetX, y: polarity.polarityHalfGap },
           rotation,
         );
-        const polarityStyle = `font-style:normal;font-weight:${profile.typography.plainWeight}`;
-        const formula = renderFormulaDocument(content, profile, {
+        const polarityStyle = `font-style:normal;font-weight:${annotationProfile.typography.plainWeight}`;
+        const formula = renderFormulaDocument(content, annotationProfile, {
           x: position.x,
           baselineY: position.y,
           fontSize: annotationFontSize,
@@ -1494,8 +1569,8 @@ export function buildSvgScene(
         });
         const text = formula
           ? formula
-          : `<text x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}"${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute("route-marker", profile, annotation.sizeScale)}>${renderAnnotationText(content, annotation, profile)}</text>`;
-        return `<g ${attributes}><text data-role="polarity-positive" x="${position.x + positiveOffset.x}" y="${position.y + positiveOffset.y + 4}" text-anchor="middle" font-size="${profile.typography.polarityFontSize}" style="${polarityStyle}">+</text><text data-role="polarity-negative" x="${position.x + negativeOffset.x}" y="${position.y + negativeOffset.y + 4}" text-anchor="middle" font-size="${profile.typography.polarityFontSize}" style="${polarityStyle}">−</text>${text}</g>`;
+          : `<text x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}"${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute("route-marker", annotationProfile, annotation.sizeScale)}>${renderAnnotationText(content, annotation, annotationProfile)}</text>`;
+        return `<g ${attributes}><text data-role="polarity-positive" x="${position.x + positiveOffset.x}" y="${position.y + positiveOffset.y + 4}" text-anchor="middle" font-size="${annotationProfile.typography.polarityFontSize}" style="${polarityStyle}">+</text><text data-role="polarity-negative" x="${position.x + negativeOffset.x}" y="${position.y + negativeOffset.y + 4}" text-anchor="middle" font-size="${annotationProfile.typography.polarityFontSize}" style="${polarityStyle}">−</text>${text}</g>`;
       }
       const emphasis = "";
       const positionedFraction =
@@ -1506,22 +1581,22 @@ export function buildSvgScene(
               alignment: annotation.alignment,
               fontSize: annotationFontSize,
               ...(colorOverride ? { color: colorOverride } : {}),
-              profile,
+              profile: annotationProfile,
             })
           : null;
       if (positionedFraction) {
         return `<g>${positionedFraction}${globalBadge}</g>`;
       }
-      const mixedFractions = renderFractionText(content, profile, {
+      const mixedFractions = renderFractionText(content, annotationProfile, {
         x: position.x,
         y: position.y,
         fontSize: annotationFontSize,
         alignment: annotation.alignment,
-        color: colorOverride ?? profile.foreground,
+        color: colorOverride ?? annotationProfile.foreground,
       });
       if (mixedFractions)
         return `<g ${attributes}><g transform="${transform}">${mixedFractions}</g>${globalBadge}</g>`;
-      const formula = renderFormulaDocument(content, profile, {
+      const formula = renderFormulaDocument(content, annotationProfile, {
         x: position.x,
         baselineY: position.y,
         fontSize: annotationFontSize,
@@ -1533,7 +1608,7 @@ export function buildSvgScene(
       }
       const positioned = renderPositionedOverbarScriptDocument(
         content,
-        profile,
+        annotationProfile,
         {
           x: position.x,
           y: position.y,
@@ -1543,9 +1618,9 @@ export function buildSvgScene(
         },
       );
       if (positioned) {
-        return `<g transform="${transform}"><text ${attributes} x="${position.x}" y="${position.y}" text-anchor="start"${emphasis}${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute(annotation.kind, profile, annotation.sizeScale)}>${positioned.tspans}</text>${positioned.decorations}</g>${globalBadge}`;
+        return `<g transform="${transform}"><text ${attributes} x="${position.x}" y="${position.y}" text-anchor="start"${emphasis}${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute(annotation.kind, annotationProfile, annotation.sizeScale)}>${positioned.tspans}</text>${positioned.decorations}</g>${globalBadge}`;
       }
-      return `<text ${attributes} x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}" transform="${transform}"${emphasis}${colorOverride ? ` fill="${colorOverride}" color="${colorOverride}"` : ""}${schematicTextSizeAttribute(annotation.kind, profile, annotation.sizeScale)}>${renderAnnotationText(content, annotation, profile)}</text>${globalBadge}`;
+      return `<text ${attributes} x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}" transform="${transform}"${emphasis}${colorOverride ? ` fill="${colorOverride}" color="${colorOverride}"` : ""}${schematicTextSizeAttribute(annotation.kind, annotationProfile, annotation.sizeScale)}>${renderAnnotationText(content, annotation, annotationProfile)}</text>${globalBadge}`;
     })
     .join("");
 
@@ -1625,6 +1700,7 @@ function renderDraftingLayer(
           : layer === "foreground"),
     )
     .map((object) => {
+      const objectProfile = objectStyleProfile(profile, object);
       const geometry = resolveDraftingObjectGeometry(
         document,
         resolver,
@@ -1639,11 +1715,11 @@ function renderDraftingLayer(
             document,
             object,
             geometry as Extract<ResolvedDraftingGeometry, { kind: "text" }>,
-            profile,
+            objectProfile,
             unresolved,
           );
         case "construction-line":
-          return renderConstructionLine(object, profile);
+          return renderConstructionLine(object, objectProfile);
         case "rectangle":
           return renderDraftRectangle(
             object,
@@ -1651,33 +1727,33 @@ function renderDraftingLayer(
               ResolvedDraftingGeometry,
               { kind: "rectangle" }
             >,
-            profile,
+            objectProfile,
           );
         case "circle":
           return renderDraftCircle(
             object,
             geometry as Extract<ResolvedDraftingGeometry, { kind: "circle" }>,
-            profile,
+            objectProfile,
           );
         case "arrow":
           return renderDraftArrow(
             object,
             geometry as Extract<ResolvedDraftingGeometry, { kind: "arrow" }>,
-            profile,
+            objectProfile,
             unresolved,
           );
         case "leader":
           return renderDraftLeader(
             object,
             geometry as Extract<ResolvedDraftingGeometry, { kind: "leader" }>,
-            profile,
+            objectProfile,
             unresolved,
           );
         case "callout":
           return renderDraftCallout(
             object,
             geometry as Extract<ResolvedDraftingGeometry, { kind: "callout" }>,
-            profile,
+            objectProfile,
             unresolved,
           );
         case "floating-symbol":
@@ -1688,7 +1764,7 @@ function renderDraftingLayer(
               { kind: "floating-symbol" }
             >,
             resolver,
-            profile,
+            objectProfile,
             unresolved,
           );
       }

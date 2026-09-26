@@ -7,6 +7,7 @@ import type {
 import {
   arrowArtwork,
   resolveDocumentRoutingGeometry,
+  objectStyleProfile,
   resolveDocumentStyleProfile,
   resolveDraftingObjectGeometry,
 } from "@icm/derived";
@@ -157,7 +158,10 @@ export function EditorDraftingHitTargets({
         object,
         geometry.points,
         geometry.curveControls,
-        resolveDocumentStyleProfile(document.presentation),
+        objectStyleProfile(
+          resolveDocumentStyleProfile(document.presentation),
+          object,
+        ),
       );
       const { "data-testid": _testId, ...headCommon } = common;
       const doubleClick = (event: ReactMouseEvent<SVGElement>) =>

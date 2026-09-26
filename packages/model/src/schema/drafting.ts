@@ -7,6 +7,7 @@ import {
   StableIdSchema,
 } from "./common.js";
 import { VisualAnchorSchema } from "./annotations.js";
+import { ObjectDocumentStyleSchema } from "./presentation.js";
 import { RichTextDocumentSchema } from "./rich-text.js";
 
 export const ArrowEndStyleSchema = z.enum([
@@ -55,6 +56,8 @@ const DraftingObjectBaseSchema = z.strictObject({
         .optional(),
     })
     .optional(),
+  /** The Document style this object keeps from a copy's source drawing. */
+  documentStyle: ObjectDocumentStyleSchema.optional(),
 });
 
 export const DraftTextSchema = DraftingObjectBaseSchema.extend({

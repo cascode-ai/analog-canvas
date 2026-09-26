@@ -1678,6 +1678,9 @@ export function proposePaste(
         junctionId: junctionIds.get(junction.id)!,
         netId,
         position: movePoint(junction.position, offset),
+        ...(junction.documentStyle
+          ? { documentStyle: structuredClone(junction.documentStyle) }
+          : {}),
       };
     }),
   );
@@ -1722,6 +1725,9 @@ export function proposePaste(
         ...(source.presentation ? { presentation: source.presentation } : {}),
         ...(source.styleOverride
           ? { styleOverride: structuredClone(source.styleOverride) }
+          : {}),
+        ...(source.documentStyle
+          ? { documentStyle: source.documentStyle }
           : {}),
       }),
     ]),

@@ -8,6 +8,7 @@ import {
 } from "./common.js";
 import { RichTextDocumentSchema } from "./rich-text.js";
 import { NetlistParameterNameSchema } from "./instance.js";
+import { ObjectDocumentStyleSchema } from "./presentation.js";
 
 export const VisualAnchorSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("free"), position: PointSchema }),
@@ -90,6 +91,8 @@ export const AnnotationSchema = z
     visible: z.boolean().optional(),
     /** Optional presentation-only rendered text color override. */
     textColor: HexColorSchema.optional(),
+    /** The Document style this text keeps from a copy's source drawing. */
+    documentStyle: ObjectDocumentStyleSchema.optional(),
   })
   .superRefine((annotation, context) => {
     if (Boolean(annotation.content) === Boolean(annotation.binding)) {

@@ -48,6 +48,7 @@ export function rebuildRoutePathWithRemap(
     ...(source.styleOverride
       ? { styleOverride: structuredClone(source.styleOverride) }
       : {}),
+    ...(source.documentStyle ? { documentStyle: source.documentStyle } : {}),
   });
   const oldBends = source.legs.flatMap((leg, legIndex) =>
     leg.to.kind === "bend"

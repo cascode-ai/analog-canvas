@@ -14,6 +14,7 @@ import {
   LayoutGroupSchema,
   MirrorSchema,
   NoConnectSchema,
+  ObjectDocumentStyleSchema,
   PlacementSchema,
   PointSchema,
   RouteBranchSchema,
@@ -204,6 +205,15 @@ export const SetRouteStyleOverrideEditSchema = z.strictObject({
   routeId: StableIdSchema,
   styleOverride: RouteStyleOverrideSchema.nullable(),
 });
+/**
+ * Keep a Document style on objects, or release it with `null` so they follow
+ * their Document again. Copy writes the kept style; this edit changes it.
+ */
+export const SetObjectDocumentStyleEditSchema = z.strictObject({
+  kind: z.literal("set_object_document_style"),
+  objectIds: z.array(StableIdSchema).min(1).max(10000),
+  documentStyle: ObjectDocumentStyleSchema.nullable(),
+});
 export const RouteOrthogonalEditSchema = z.strictObject({
   kind: z.literal("route_orthogonal"),
   routeId: StableIdSchema,
@@ -219,6 +229,7 @@ export const AddJunctionEditSchema = z.strictObject({
   netId: StableIdSchema,
   position: PointSchema,
   role: JunctionRoleSchema.optional(),
+  documentStyle: ObjectDocumentStyleSchema.optional(),
   createNet: z.boolean().optional(),
   split: z
     .strictObject({
@@ -423,6 +434,7 @@ export const SchematicEditSchema = z.discriminatedUnion("kind", [
   SetCellFormalParametersEditSchema,
   SetRoutePathEditSchema,
   SetRouteStyleOverrideEditSchema,
+  SetObjectDocumentStyleEditSchema,
   RouteOrthogonalEditSchema,
   AddJunctionEditSchema,
   AttachEndpointToRouteEditSchema,
