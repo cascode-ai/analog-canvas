@@ -3,6 +3,8 @@ import type { NetlistFormat, NetlistNamingProfile } from "@icm/netlist";
 import type { CircuitProject, GridRect, SchematicDocument } from "@icm/model";
 import { importSpiceSources } from "@icm/spice";
 import type { SymbolResolver } from "@icm/symbols";
+import { safeExportBaseName } from "@icm/exporters";
+import type { EditorExportDelivery } from "../../hosts/export-delivery";
 
 import { withImportedInstanceDisplays } from "../instance-display/imported-instance-displays";
 
@@ -11,7 +13,7 @@ import {
   createSvgExportArtifact,
   describeExportFailure,
   planDesignNetlistExport,
-  requestBrowserDownload,
+  type EditorExportArtifact,
 } from "./editor-export-commands";
 
 type SpiceImportResult = Awaited<ReturnType<typeof importSpiceSources>>;
@@ -25,6 +27,7 @@ export interface EditorFileCommandDependencies {
   document: SchematicDocument;
   resolver: SymbolResolver;
   defaultViewBox: GridRect;
+  exportDelivery: EditorExportDelivery;
   electricalWarningsPresent: () => boolean;
   netlistRootDocumentId?: string | undefined;
   netlistConfigurationError?: string | null;
@@ -55,6 +58,7 @@ export function createEditorFileCommands({
   document,
   resolver,
   defaultViewBox,
+  exportDelivery,
   electricalWarningsPresent,
   netlistRootDocumentId,
   netlistConfigurationError,
@@ -67,22 +71,35 @@ export function createEditorFileCommands({
   setStatus,
   onChunkLoadFailure,
 }: EditorFileCommandDependencies) {
-  const exportSvg = (): void => {
-    setStatus("Preparing SVG export");
-    void createSvgExportArtifact(document, resolver, project.name)
-      .then((artifact) => {
-        requestBrowserDownload(artifact, project.name);
-        setStatus(artifact.report);
-      })
-      .catch((error: unknown) => {
-        setStatus(error instanceof Error ? error.message : "Export failed");
-      });
+  const deliverArtifact = async (artifact: EditorExportArtifact) => {
+    const result = await exportDelivery.deliverFile({
+      bytes: artifact.bytes,
+      mediaType: artifact.mediaType,
+      suggestedName: `${safeExportBaseName(project.name)}.${artifact.extension}`,
+    });
+    setStatus(
+      result.status === "cancelled" ? "Export cancelled" : artifact.report,
+    );
   };
 
-  const exportDesignNetlist = (
+  const exportSvg = async (): Promise<void> => {
+    setStatus("Preparing SVG export");
+    try {
+      const artifact = await createSvgExportArtifact(
+        document,
+        resolver,
+        project.name,
+      );
+      await deliverArtifact(artifact);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Export failed");
+    }
+  };
+
+  const exportDesignNetlist = async (
     format: NetlistFormat,
     namingProfile: NetlistNamingProfile = "native",
-  ): void => {
+  ): Promise<void> => {
     showNetlist(format, namingProfile);
     if (netlistConfigurationError) {
       setStatus(`Fix Netlist configuration: ${netlistConfigurationError}`);
@@ -101,16 +118,14 @@ export function createEditorFileCommands({
       setStatus(plan.message);
       return;
     }
-    void (async () => {
-      try {
-        await navigator.clipboard.writeText(String(plan.artifact.bytes));
-        setStatus(plan.artifact.report);
-      } catch {
-        setStatus(
-          "Clipboard unavailable; select the netlist in the sidebar and copy it",
-        );
-      }
-    })();
+    try {
+      await exportDelivery.copyText(String(plan.artifact.bytes));
+      setStatus(plan.artifact.report);
+    } catch {
+      setStatus(
+        "Clipboard unavailable; select the netlist in the sidebar and copy it",
+      );
+    }
   };
 
   const exportRaster = async (format: "png" | "pdf"): Promise<void> => {
@@ -122,8 +137,7 @@ export function createEditorFileCommands({
         resolver,
         project.name,
       );
-      requestBrowserDownload(artifact, project.name);
-      setStatus(artifact.report);
+      await deliverArtifact(artifact);
     } catch (error) {
       const failure = describeExportFailure(error);
       setStatus(failure.status);

@@ -166,6 +166,7 @@ import {
   type SpiceImportReport,
 } from "../features/editor-shell/editor-file-commands";
 import { EditorStatusbar } from "../features/editor-shell/editor-statusbar";
+import { browserExportDelivery } from "../hosts/browser-export-delivery";
 import { normalizedStyleOverrides } from "../features/editor-shell/style-knobs";
 import {
   deriveSimulationProbeOptions,
@@ -4278,6 +4279,7 @@ function WorkspaceEditor({
       project,
       document,
       resolver,
+      exportDelivery: browserExportDelivery,
       defaultViewBox: DEFAULT_VIEWBOX,
       // Asked at export time, which is one of the moments an
       // electrical verdict belongs to.
