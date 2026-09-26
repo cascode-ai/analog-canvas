@@ -31,7 +31,45 @@ const SelectionSchema = z.strictObject({
   annotationIds: SelectedIdsSchema,
   draftingIds: SelectedIdsSchema,
 });
+const RouteNetCommandSchema = z.strictObject({
+  kind: z.literal("route-net"),
+  target: z
+    .discriminatedUnion("kind", [
+      z.strictObject({ kind: z.literal("net"), net: z.string().min(1) }),
+      z.strictObject({
+        kind: z.literal("member"),
+        instanceId: StableIdSchema,
+        pinName: z.string().min(1),
+      }),
+      z.strictObject({
+        kind: z.literal("pins"),
+        pins: z
+          .array(
+            z.strictObject({
+              instanceId: StableIdSchema,
+              pinName: z.string().min(1),
+            }),
+          )
+          .min(2)
+          .max(64),
+      }),
+      z.strictObject({
+        kind: z.literal("import-net"),
+        sourceNetId: StableIdSchema,
+      }),
+    ])
+    .describe(
+      "Current Net ID/name, member pin, explicit pins to join, or an original import-reference Net. Routes only missing visible connections.",
+    ),
+  trunk: z
+    .strictObject({ start: PointSchema, end: PointSchema })
+    .optional()
+    .describe(
+      "Straight horizontal/vertical trunk; otherwise use MST guidance. Atomic, not an obstacle autorouter.",
+    ),
+});
 const BatchItemSchema = z.discriminatedUnion("kind", [
+  RouteNetCommandSchema,
   z.strictObject({
     kind: z.literal("set-port-direction"),
     target: z.discriminatedUnion("kind", [
@@ -108,43 +146,6 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     .describe(
       "Opt-in, bounded one-pass placement of visible default Instance labels. Compact/collision avoidance default true. Preserve manually positioned, locked and custom-styled labels, bindings and electrical names; unresolved clashes remain observations.",
     ),
-  z.strictObject({
-    kind: z.literal("route-net"),
-    target: z
-      .discriminatedUnion("kind", [
-        z.strictObject({ kind: z.literal("net"), net: z.string().min(1) }),
-        z.strictObject({
-          kind: z.literal("member"),
-          instanceId: StableIdSchema,
-          pinName: z.string().min(1),
-        }),
-        z.strictObject({
-          kind: z.literal("pins"),
-          pins: z
-            .array(
-              z.strictObject({
-                instanceId: StableIdSchema,
-                pinName: z.string().min(1),
-              }),
-            )
-            .min(2)
-            .max(64),
-        }),
-        z.strictObject({
-          kind: z.literal("import-net"),
-          sourceNetId: StableIdSchema,
-        }),
-      ])
-      .describe(
-        "Current Net ID/name, member pin, explicit pins to join, or an original import-reference Net. Routes only missing visible connections.",
-      ),
-    trunk: z
-      .strictObject({ start: PointSchema, end: PointSchema })
-      .optional()
-      .describe(
-        "Straight horizontal/vertical trunk; otherwise use MST guidance. Atomic, not an obstacle autorouter.",
-      ),
-  }),
   z
     .strictObject({
       kind: z.literal("delete-selection"),
@@ -160,7 +161,7 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
       .min(1)
       .max(64)
       .describe(
-        "Ordered atomic label, model, display, annotation move, direction, VDD mode or terminal removal commands; one undo, no partial commit.",
+        "Ordered atomic route-net, label, model, display, annotation move, direction, VDD mode or terminal removal commands; one undo, no partial commit. Total expanded edit limit still applies.",
       ),
   }),
   z.strictObject({

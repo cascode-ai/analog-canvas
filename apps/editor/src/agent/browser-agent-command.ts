@@ -111,6 +111,30 @@ export function planBrowserAgentCommand(
     case "route-net":
       return planRouteNet(document, resolver, command, maxTransactionEdits);
     case "delete-selection": {
+      // GUI selections may contain stale IDs during gestures. An explicit
+      // Agent selection is different: silently skipping one would report a
+      // successful partial deletion. Validate here, not in the shared planner.
+      const collections = {
+        instanceIds: document.instances,
+        routeIds: document.routes,
+        junctionIds: document.junctions,
+        annotationIds: document.annotations,
+        draftingIds: document.drafting?.objects ?? [],
+        noConnectIds: document.noConnects,
+      };
+      const kinds = new Map<string, string>();
+      for (const [field, objects] of Object.entries(collections))
+        for (const object of objects) kinds.set(object.id, field);
+      for (const field of Object.keys(
+        collections,
+      ) as (keyof typeof collections)[])
+        for (const id of command.selection[field] ?? []) {
+          const actual = kinds.get(id);
+          if (actual !== field)
+            throw new Error(
+              `selection.${field}: ${id} ${actual ? `belongs in ${actual}` : "does not exist"}; no objects were deleted`,
+            );
+        }
       const selected = planCellSelectionDeletion(
         document,
         resolver,

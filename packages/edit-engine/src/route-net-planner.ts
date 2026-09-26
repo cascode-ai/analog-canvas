@@ -5,8 +5,10 @@ import {
   deriveRoutingGuidance,
   endpointKey,
   isVisibleEndpoint,
+  pointOnSegment,
   projectPointToSegment,
   resolveEndpointConnection,
+  resolveRouteGeometry,
   type RoutingGuidanceComponent,
 } from "@icm/derived";
 import {
@@ -202,14 +204,53 @@ export function planRouteNet(
       throw new Error(
         "route-net trunk must be one non-zero horizontal or vertical segment",
       );
+    // A trunk endpoint already at a selected pin need not be authored as a
+    // free end and then tapped back onto the same point. Reuse that component
+    // directly: fewer transient edits and no redundant endpoint Junctions.
+    const at = (point: Point, excluded?: string) => {
+      // Keep the ordinary wire-at ambiguity checks when any existing wire
+      // meets this point. Direct endpoint reuse is only a vacant-end shortcut.
+      const touching = document.routes.filter((route) =>
+        resolveRouteGeometry(document, resolver, route)?.segments.some(
+          (segment) => pointOnSegment(point, segment.from, segment.to),
+        ),
+      );
+      const foreign = touching.find(
+        (route) =>
+          !components.some((component) => component.netId === route.netId),
+      );
+      if (foreign)
+        throw new Error(
+          `route-net trunk endpoint (${point.x}, ${point.y}) would join a different Net via Route ${foreign.id}`,
+        );
+      if (touching.length) return undefined;
+      return components
+        .filter((component) => component.id !== excluded)
+        .flatMap((component) =>
+          component.nodes
+            .filter(
+              (node) => node.point.x === point.x && node.point.y === point.y,
+            )
+            .map((node) => ({ component, node })),
+        )
+        .sort((a, b) => a.node.key.localeCompare(b.node.key, "en"))[0];
+    };
+    const first = at(start);
+    const last = at(end, first?.component.id);
+    const attached = new Set([first?.component.id, last?.component.id]);
     wires = [
       {
         id: id("trunk"),
-        from: { kind: "free", point: start },
-        to: { kind: "free", point: end },
+        from: first
+          ? { kind: "endpoint", endpoint: first.node.endpoint }
+          : { kind: "free", point: start },
+        to: last
+          ? { kind: "endpoint", endpoint: last.node.endpoint }
+          : { kind: "free", point: end },
       },
     ];
     for (const component of components) {
+      if (attached.has(component.id)) continue;
       const best = component.nodes
         .map((node) => ({
           node,

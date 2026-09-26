@@ -45,6 +45,37 @@ function apply(document: SchematicDocument, edits: SchematicEdit[]) {
   return history;
 }
 describe("route-net", () => {
+  it("does not bypass an ambiguous foreign wire at a reused trunk-end pin", () => {
+    const { document, target } = fixture();
+    const foreign = planWireBatch(
+      document,
+      resolver,
+      [
+        {
+          id: "foreign",
+          from: { kind: "free", point: { x: 0, y: 50 } },
+          to: { kind: "free", point: { x: 0, y: 110 } },
+        },
+      ],
+      64,
+    );
+    if (typeof foreign === "string") throw new Error(foreign);
+    const current = apply(document, foreign.edits).document;
+    expect(current.nets.flatMap((net) => net.terminals)).toEqual([]);
+    const before = structuredClone(current);
+    expect(() =>
+      planRouteNet(
+        current,
+        resolver,
+        {
+          target,
+          trunk: { start: { x: 0, y: 80 }, end: { x: 300, y: 80 } },
+        },
+        64,
+      ),
+    ).toThrow(/different Net|Ambiguous wire crossing/);
+    expect(current).toEqual(before);
+  });
   it.each([50, 100])(
     "allows plain crossings but refuses a foreign Net at a tap (x=%i)",
     (x) => {
