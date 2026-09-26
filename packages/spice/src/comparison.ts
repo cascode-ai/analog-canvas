@@ -1,4 +1,4 @@
-import { parseSpiceNumber } from "./expression.js";
+import { canonicalSpiceNumber } from "./expression.js";
 import type { CircuitCellIR, CircuitIR } from "./ir.js";
 
 export interface StructuralDifference {
@@ -144,24 +144,27 @@ export function compareCircuitIR(
       ])) {
         const av = ai.parameters[param]?.rawText,
           ev = ei.parameters[param]?.rawText;
-        const avn = av === undefined ? null : parseSpiceNumber(av);
-        const evn = ev === undefined ? null : parseSpiceNumber(ev);
+        const avn = av === undefined ? null : canonicalSpiceNumber(av);
+        const evn = ev === undefined ? null : canonicalSpiceNumber(ev);
         if (
-          (av !== undefined && (!avn || !Number.isFinite(avn.value))) ||
-          (ev !== undefined && (!evn || !Number.isFinite(evn.value)))
+          (av !== undefined && avn === null) ||
+          (ev !== undefined && evn === null)
         ) {
           reasons.add(
-            `${en}/${ref}/${param}: expression or nonliteral value needs manual comparison`,
+            `${en}/${ref}/${param}: expression, nonliteral or over-budget literal needs manual comparison`,
           );
           continue;
         }
-        difference(
-          "parameter",
-          en,
-          `${ref}.${param}`,
-          avn?.value ?? null,
-          evn?.value ?? null,
-        );
+        // Compare exact decimal identities, but retain source evidence instead
+        // of reporting rounded values (which could even look equal).
+        if (avn !== evn)
+          difference(
+            "parameter",
+            en,
+            `${ref}.${param}`,
+            av ?? null,
+            ev ?? null,
+          );
       }
     }
     for (const endpoint of new Set([

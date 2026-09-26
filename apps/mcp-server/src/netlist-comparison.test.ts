@@ -6,7 +6,7 @@ import { compareExpectedNetlist } from "./netlist-comparison.js";
 describe("optional expected-netlist verification", () => {
   it("uses one existing read-only export, hides detail by default and never stages", async () => {
     const client = new AgentSessionClient({ http: new FakeAgentHttp() });
-    const actual = ".subckt a I O\nR1 I O 1k\n.ends a";
+    const actual = ".subckt a I O\nR1 I O 1u\n.ends a";
     const read = vi.spyOn(client, "projectResource").mockResolvedValue({
       apiVersion: "3.0",
       requestId: "verify",
@@ -21,7 +21,9 @@ describe("optional expected-netlist verification", () => {
       },
     });
     expect(
-      await compareExpectedNetlist(client, "cell-id", { text: actual }),
+      await compareExpectedNetlist(client, "cell-id", {
+        text: actual.replace("1u", "1000n"),
+      }),
     ).toMatchObject({ status: "equal", structureRevision: 5 });
     expect(read).toHaveBeenCalledTimes(1);
     expect(read.mock.calls[0]![0]).toMatchObject({
@@ -31,12 +33,19 @@ describe("optional expected-netlist verification", () => {
     const changed = await compareExpectedNetlist(
       client,
       "cell-id",
-      { text: actual.replace("1k", "2k") },
+      { text: actual.replace("1u", "1.001u") },
       true,
     );
     expect(changed).toMatchObject({
       status: "different",
-      differences: [expect.objectContaining({ kind: "parameter" })],
+      counts: { parameter: 1, connection: 0 },
+      differences: [
+        expect.objectContaining({
+          kind: "parameter",
+          actual: "1u",
+          expected: "1.001u",
+        }),
+      ],
     });
     const bad = await compareExpectedNetlist(client, "cell-id", {
       text: ".subckt nope A B\n.invalid opaque\n.ends nope",

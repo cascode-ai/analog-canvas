@@ -20,11 +20,11 @@ const SCALE_FACTORS: Record<string, number> = {
   a: 1e-18,
 };
 
+const SPICE_NUMBER_PATTERN =
+  /^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)(meg|mil|[tgkmunpfa])?([a-z]*)$/iu;
+
 export function parseSpiceNumber(raw: string): SpiceNumber | null {
-  const match =
-    /^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)(meg|mil|[tgkmunpfa])?([a-z]*)$/iu.exec(
-      raw.trim(),
-    );
+  const match = SPICE_NUMBER_PATTERN.exec(raw.trim());
   if (!match) return null;
   const coefficient = Number(match[1]);
   if (!Number.isFinite(coefficient)) return null;
@@ -37,6 +37,39 @@ export function parseSpiceNumber(raw: string): SpiceNumber | null {
     trailingUnit: match[3] ?? "",
     value: coefficient * factor,
   };
+}
+
+/** Exact identity for literal comparison, not floating-point evaluation.
+ * Share the evaluator's grammar, suffixes and ignored trailing unit text.
+ * Keep decimal powers symbolic: even 1e400 never allocates 400 zeroes.
+ * Over-budget literals are uncheckable, never rounded into an equality. */
+export function canonicalSpiceNumber(raw: string): string | null {
+  if (raw.length > 4096) return null;
+  const match = SPICE_NUMBER_PATTERN.exec(raw.trim());
+  if (!match) return null;
+  const decimal = (text: string) => {
+    const [coefficient, exponent = "0"] = text.toLowerCase().split("e");
+    const fractionLength = coefficient!.split(".")[1]?.length ?? 0;
+    return {
+      digits: BigInt(coefficient!.replace(".", "")),
+      exponent: BigInt(exponent) - BigInt(fractionLength),
+    };
+  };
+  const coefficient = decimal(match[1]!);
+  // These finite decimal constants are the existing SPICE scale authority,
+  // including mil = 25.4e-6; no separate suffix table or numeric multiplication.
+  const factor = decimal(
+    String(SCALE_FACTORS[match[2]?.toLowerCase() ?? ""] ?? 1),
+  );
+  const product = coefficient.digits * factor.digits;
+  if (product === 0n) return "0";
+  const digits = product.toString();
+  const significant = digits.replace(/0+$/u, "");
+  const exponent =
+    coefficient.exponent +
+    factor.exponent +
+    BigInt(digits.length - significant.length);
+  return `${significant}e${exponent}`;
 }
 
 type Token =
