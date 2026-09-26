@@ -75,7 +75,91 @@ export const fractionGeometry = {
   barGapEm: 0.342,
   /** Ascent a fraction adds beyond the plain first-line ascent heuristic, em of the part font. */
   extraAscentEm: 0.52,
+  /** Capitals and digits of the part face (DejaVu Sans Bold, 1493/2048 em). */
+  capHeightEm: 0.729,
 } as const;
+
+/** Whether a fraction part holds a subscript or superscript anywhere inside. */
+function holdsScript(
+  runs: readonly RichTextRun[],
+  style: "subscript" | "superscript",
+): boolean {
+  return runs.some(
+    (run) =>
+      run.kind === "span" &&
+      (run.style === style || holdsScript(run.children, style)),
+  );
+}
+
+/**
+ * Baselines of a fraction's two parts, in em of the part font. A subscript
+ * hangs below the numerator's baseline and a superscript rises above the
+ * denominator's capitals, both toward the bar. Such a part moves away from the
+ * bar just far enough that its script keeps the clearance a plain
+ * denominator's capitals keep below it, so the bar stays centered between the
+ * two parts' nearest ink.
+ */
+export function fractionPartBaselines(
+  fraction: Extract<RichTextRun, { kind: "fraction" }>,
+  typography: { subscriptScale: number; subscriptBaselineShiftEm: number },
+): { numeratorRiseEm: number; denominatorDropEm: number } {
+  const geometry = fractionGeometry;
+  const clearance =
+    geometry.barRiseEm +
+    geometry.denominatorBaselineDropEm -
+    geometry.capHeightEm;
+  // Scripts are set at the script scale of the part font and shifted by
+  // their own size, exactly as every renderer places them.
+  const scriptShift =
+    typography.subscriptScale * typography.subscriptBaselineShiftEm;
+  const numeratorLift = holdsScript(fraction.numerator.runs, "subscript")
+    ? Math.max(
+        0,
+        scriptShift -
+          (geometry.numeratorBaselineRiseEm - geometry.barRiseEm - clearance),
+      )
+    : 0;
+  const denominatorLowering = holdsScript(
+    fraction.denominator.runs,
+    "superscript",
+  )
+    ? Math.max(
+        0,
+        scriptShift +
+          typography.subscriptScale * geometry.capHeightEm -
+          geometry.capHeightEm,
+      )
+    : 0;
+  return {
+    numeratorRiseEm: geometry.numeratorBaselineRiseEm + numeratorLift,
+    denominatorDropEm: geometry.denominatorBaselineDropEm + denominatorLowering,
+  };
+}
+
+/**
+ * Ascent a document's fractions add beyond the plain first-line ascent
+ * heuristic, em of the part font: the plain allowance plus the most any
+ * numerator is lifted for its subscript. Zero without a fraction.
+ */
+export function fractionExtraAscentEm(
+  document: RichTextDocument,
+  typography: { subscriptScale: number; subscriptBaselineShiftEm: number },
+): number {
+  let lift: number | null = null;
+  const visit = (runs: readonly RichTextRun[]): void => {
+    for (const run of runs) {
+      if (run.kind === "fraction") {
+        lift = Math.max(
+          lift ?? 0,
+          fractionPartBaselines(run, typography).numeratorRiseEm -
+            fractionGeometry.numeratorBaselineRiseEm,
+        );
+      } else if (run.kind === "span") visit(run.children);
+    }
+  };
+  visit(document.runs);
+  return lift === null ? 0 : fractionGeometry.extraAscentEm + lift;
+}
 
 /**
  * Fraction part font scale relative to the base font: one A+ level above the

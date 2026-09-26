@@ -1881,3 +1881,108 @@ test("same-name Cell Pins stay independent while the final interface groups them
   await expect(page.getByTestId("hit-P2")).toHaveCount(0);
   await expect(page.getByTestId("hit-P1")).toBeVisible();
 });
+
+test("a VDD Rail whose label is the Cell's VDD Pin deletes from any segment", async ({
+  page,
+}) => {
+  // Only rail-c reaches the junction the label sits on; deleting any segment
+  // deletes the whole rail, so it must take the Pin along structurally.
+  const project = createEmptyProject("rail-pin", "Rail Pin");
+  const cell = project.documents[0]!;
+  cell.nets.push({ id: "net-vdd", terminals: [] });
+  cell.junctions.push(
+    { id: "rail-0", netId: "net-vdd", position: { x: 200, y: 200 } },
+    { id: "rail-1", netId: "net-vdd", position: { x: 300, y: 200 } },
+    { id: "rail-2", netId: "net-vdd", position: { x: 400, y: 200 } },
+    { id: "rail-3", netId: "net-vdd", position: { x: 500, y: 200 } },
+  );
+  for (const [id, start, end] of [
+    ["rail-a", "rail-0", "rail-1"],
+    ["rail-b", "rail-1", "rail-2"],
+    ["rail-c", "rail-2", "rail-3"],
+  ] as const) {
+    cell.routes.push(
+      createRoutePath({
+        id,
+        netId: "net-vdd",
+        start: { kind: "junction", junctionId: start },
+        end: { kind: "junction", junctionId: end },
+        bends: [],
+        modes: ["manual"],
+        presentation: "power-rail",
+      }),
+    );
+  }
+  cell.netlist!.terminals.push({
+    id: "terminal-vdd",
+    name: "VDD",
+    netId: "net-vdd",
+    direction: "inout",
+    interfaceInstanceIds: [],
+    interfaceAnnotationId: "label-vdd",
+  });
+  cell.annotations.push({
+    id: "label-vdd",
+    kind: "power-label",
+    binding: { kind: "cell-terminal-name", terminalId: "terminal-vdd" },
+    netId: "net-vdd",
+    anchor: {
+      kind: "object",
+      objectId: "rail-3",
+      localOffset: { x: 10, y: 10 },
+      fallbackPosition: { x: 510, y: 210 },
+    },
+    alignment: "start",
+    rotation: 0,
+    locked: false,
+  });
+  cell.connectivityEvidence.push({
+    id: "claim-vdd",
+    kind: "name-claim",
+    netId: "net-vdd",
+    name: "VDD",
+    owner: { kind: "power-marker", objectId: "label-vdd" },
+    scope: "local",
+    powerDomain: "vdd",
+  });
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "rail-pin.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  const label = page.getByTestId("annotation-hit-label-vdd");
+  const rail = page.locator('[data-testid^="route-hit-rail-"]');
+  await expect(label).toHaveCount(1);
+  await expect(rail).toHaveCount(3);
+
+  await page.getByTestId("route-hit-rail-a").click({ force: true });
+  await page.keyboard.press("Delete");
+  await expect(page.getByTestId("status")).toContainText("Deleted wire rail-a");
+  await expect(label).toHaveCount(0);
+  await expect(rail).toHaveCount(0);
+
+  await page.keyboard.press("Control+z");
+  await expect(label).toHaveCount(1);
+  await expect(rail).toHaveCount(3);
+
+  // The Properties panel's Delete wire takes the same Cell-aware path.
+  await page.getByTestId("route-hit-rail-b").click({ force: true });
+  await revealPropertiesShelf(page);
+  const shelf = page.getByTestId("selection-shelf");
+  if ((await shelf.getAttribute("aria-expanded")) === "false")
+    await shelf.click();
+  await page
+    .getByRole("region", { name: "Route actions" })
+    .getByRole("button", { name: "Delete wire" })
+    .click();
+  await expect(page.getByTestId("status")).toContainText("Deleted wire rail-b");
+  await expect(label).toHaveCount(0);
+  await expect(rail).toHaveCount(0);
+  const saved = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(saved.documents[0].netlist.terminals).toEqual([]);
+});

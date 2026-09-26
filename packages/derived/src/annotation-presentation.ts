@@ -16,8 +16,7 @@ import {
   type ResolvedDocumentRoutingGeometry,
 } from "./resolved-route-geometry.js";
 import {
-  containsFractionRun,
-  fractionGeometry,
+  fractionExtraAscentEm,
   fractionPartScale,
   measureRichTextDocument,
   richTextMetrics,
@@ -116,11 +115,10 @@ export function resolveAnnotationPresentation(
   // A stacked fraction raises its numerator past the plain first-line
   // ascent heuristic; extend the shared bounds so hits and export cover it.
   // The extra ascent is in em of the part font, so it tracks the part scale.
-  const fractionExtraAscent = containsFractionRun(text)
-    ? fontSize *
-      fractionPartScale(styleProfile.typography.subscriptScale) *
-      fractionGeometry.extraAscentEm
-    : 0;
+  const fractionExtraAscent =
+    fontSize *
+    fractionPartScale(styleProfile.typography.subscriptScale) *
+    fractionExtraAscentEm(text, styleProfile.typography);
   const width = Math.max(fontSize * 0.6, textLayout.width);
   const height =
     Math.max(fontSize * 1.35, textLayout.height) + fractionExtraAscent;

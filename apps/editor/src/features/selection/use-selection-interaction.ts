@@ -156,7 +156,6 @@ export interface UseSelectionInteractionOptions {
     ids: readonly string[],
   ) => void;
   selectOnly: (kind: "instance", ids: readonly string[]) => void;
-  deleteSelectedRouteConnection: () => void;
   deleteSelectedAnnotation: () => void;
   clearTransientCanvasState: () => void;
   cancelAllTransientInteraction: () => void;

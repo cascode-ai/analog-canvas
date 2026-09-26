@@ -1,5 +1,9 @@
 import type { SchematicStyleProfile } from "@icm/derived";
-import { fractionGeometry, fractionPartScale } from "@icm/derived";
+import {
+  fractionGeometry,
+  fractionPartBaselines,
+  fractionPartScale,
+} from "@icm/derived";
 import { flattenRichText } from "@icm/model";
 import type { RichTextDocument, RichTextRun } from "@icm/model";
 
@@ -159,7 +163,8 @@ function renderInlineFraction(
   state.currentBaselineOffset = ctx.baselineOffset;
   const fractionDy =
     Math.abs(baselineReset) < 1e-9 ? "" : ` dy="${number(baselineReset)}"`;
-  return `<tspan data-text-run="fraction"${fractionDy}><tspan data-text-run="numerator" font-size="${number(partFontSize)}px" dx="${number(numeratorDx * partFontSize)}" dy="${number(-fractionGeometry.numeratorBaselineRiseEm * partFontSize)}">${numerator}</tspan><tspan data-text-run="denominator" font-size="${number(partFontSize)}px" dx="${number(denominatorDx * partFontSize)}" dy="${number((fractionGeometry.numeratorBaselineRiseEm + fractionGeometry.denominatorBaselineDropEm) * partFontSize)}">${denominator}</tspan><tspan data-text-run="fraction-reset" dx="${number(resetDx * ctx.fontSize)}" dy="${number(-fractionGeometry.denominatorBaselineDropEm * partFontSize)}">&#8203;</tspan></tspan>`;
+  const parts = fractionPartBaselines(node, typography);
+  return `<tspan data-text-run="fraction"${fractionDy}><tspan data-text-run="numerator" font-size="${number(partFontSize)}px" dx="${number(numeratorDx * partFontSize)}" dy="${number(-parts.numeratorRiseEm * partFontSize)}">${numerator}</tspan><tspan data-text-run="denominator" font-size="${number(partFontSize)}px" dx="${number(denominatorDx * partFontSize)}" dy="${number((parts.numeratorRiseEm + parts.denominatorDropEm) * partFontSize)}">${denominator}</tspan><tspan data-text-run="fraction-reset" dx="${number(resetDx * ctx.fontSize)}" dy="${number(-parts.denominatorDropEm * partFontSize)}">&#8203;</tspan></tspan>`;
 }
 
 function renderSpan(

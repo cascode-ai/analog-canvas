@@ -1,6 +1,7 @@
 import {
   containsFractionRun,
   fractionGeometry,
+  fractionPartBaselines,
   fractionPartScale,
   measureRichTextDocument,
   richTextMetrics,
@@ -135,10 +136,9 @@ export function renderFractionText(
               fractionPartScale(profile.typography.subscriptScale);
             const center = x + width / 2;
             const barY = baseline - partFont * fractionGeometry.barRiseEm;
-            const numeratorY =
-              baseline - partFont * fractionGeometry.numeratorBaselineRiseEm;
-            const denominatorY =
-              baseline + partFont * fractionGeometry.denominatorBaselineDropEm;
+            const parts = fractionPartBaselines(run, profile.typography);
+            const numeratorY = baseline - partFont * parts.numeratorRiseEm;
+            const denominatorY = baseline + partFont * parts.denominatorDropEm;
             output += `<g data-role="fraction-numerator">${render(run.numerator.runs, { ...at, x: center, y: numeratorY, fontSize: partFont, alignment: "middle" })}</g>`;
             output += line(x, x + width, barY, "fraction-bar");
             output += `<g data-role="fraction-denominator">${render(run.denominator.runs, { ...at, x: center, y: denominatorY, fontSize: partFont, alignment: "middle" })}</g>`;

@@ -16,7 +16,6 @@ import {
   type WireDraftStep,
   createRoutingOperationPlan,
   gateRoutingOperationPlan,
-  planRoutingDeletion,
   proposeLooseRouteTranslation,
   proposePowerRailEndpointResize,
   proposePowerRailTranslation,
@@ -117,7 +116,6 @@ export interface UseWireInteractionOptions {
     selectedInstance: SchematicDocument["instances"][number] | undefined;
     selectedRouteId: string | null;
     selectedRouteSegmentIndex: number | null;
-    replaceRouteSelection: (routeIds: readonly string[]) => void;
     selectOnly: (kind: "route", ids: readonly string[]) => void;
     setSelectedRouteSegmentIndex: (segmentIndex: number | null) => void;
     setSelectedEndpoint: (endpoint: WireSource | null) => void;
@@ -432,25 +430,6 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
     options.setWirePreview(freeWireDraftTarget(source.connection.contactPoint));
     options.setWireDraftSteps([]);
     options.setStatus(`Drawing ${instance.id}.B bulk connection`);
-  };
-
-  const deleteSelectedRouteConnection = (): void => {
-    if (!options.selectedRouteId) return;
-    const route = options.document.routes.find(
-      (candidate) => candidate.id === options.selectedRouteId,
-    );
-    if (!route) return;
-    const deletion = planRoutingDeletion(
-      options.document,
-      options.resolver,
-      { instanceIds: [], routeIds: [route.id], junctionIds: [] },
-      options.nextRoutingSuffix(),
-    );
-    const result = transactProposal(deletion);
-    if (result.ok) {
-      options.replaceRouteSelection([]);
-      options.setStatus(`Deleted wire ${route.id}`);
-    }
   };
 
   const selectRoute = (routeId: string, segmentIndex = 0): void => {
@@ -1059,7 +1038,6 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
     beginRouteStretch,
     commitWire,
     completeRouteStretch,
-    deleteSelectedRouteConnection,
     drawSelectedMosBulk,
     fixWirePoint,
     finishWireAtPoint,

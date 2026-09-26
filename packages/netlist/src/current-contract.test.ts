@@ -1862,9 +1862,9 @@ describe("voltage-controlled switch", () => {
   });
 
   // A two-terminal switch takes its control from the clock phase its label
-  // names. With no phase there is nothing to control it, and emission must
-  // say so rather than print an S card with a node missing.
-  it("refuses to emit a card for a two-terminal switch with no phase", () => {
+  // names. While the label shows only the switch's own name, that name is its
+  // phase, so a freshly placed switch prints a whole card at once.
+  it("clocks a two-terminal switch with no phase by its own name", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;
     document.instances.push({
@@ -1886,13 +1886,15 @@ describe("voltage-controlled switch", () => {
     claimNet(document, "net-b", "0");
 
     const analysis = analyzeDesignNetlist(project);
-    expect(analysis.diagnostics.map((diagnostic) => diagnostic.code)).toContain(
-      "NON_NETLISTABLE_DEVICE",
+    expect(
+      analysis.diagnostics.map((diagnostic) => [
+        diagnostic.code,
+        diagnostic.severity,
+      ]),
+    ).toEqual([["SWITCH_PHASE_NOT_DRIVEN", "warning"]]);
+    expect(printSpiceNetlist(analysis.ir!)).toContain(
+      "S1 vout 0 S1 0 ideal_switch",
     );
-    // Without the refusal the printer reaches `instance.target!` holding null
-    // and throws inside wrapSpice, so an unsimulable Symbol on the canvas took
-    // the whole export down.
-    expect(analysis.ir).toBeNull();
   });
 
   it("projects the reviewed SKY130 MOS and physical passives in production", () => {

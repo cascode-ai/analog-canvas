@@ -2645,7 +2645,6 @@ function WorkspaceEditor({
     sourceForTarget,
     beginRouteStretch,
     drawSelectedMosBulk,
-    deleteSelectedRouteConnection,
     fixWirePoint,
     finishWireAtPoint,
     handleFlightline,
@@ -2665,8 +2664,6 @@ function WorkspaceEditor({
       selectedInstance,
       selectedRouteId,
       selectedRouteSegmentIndex,
-      replaceRouteSelection: (routeIds) =>
-        replaceSelectionKind("route", routeIds),
       selectOnly,
       setSelectedRouteSegmentIndex,
       setSelectedEndpoint,
@@ -2982,7 +2979,6 @@ function WorkspaceEditor({
     resetSelection,
     replaceSelectionKind,
     selectOnly,
-    deleteSelectedRouteConnection,
     deleteSelectedAnnotation,
     clearTransientCanvasState,
     cancelAllTransientInteraction,
@@ -7702,7 +7698,14 @@ function WorkspaceEditor({
                 highlightActive: selectedHighlightIsActive,
                 onApply: applyRouteProperties,
                 onToggleHighlight: toggleHighlightedNet,
-                onDeleteWire: deleteSelectedRouteConnection,
+                // The Cell-aware Delete path: a Power Rail whose label is a
+                // Cell Pin takes the pin along in one structural transaction.
+                onDeleteWire: () => {
+                  if (selectedRouteId)
+                    deleteSelectionFromSelection({
+                      routeIds: [selectedRouteId],
+                    });
+                },
               }}
               endpointActions={{
                 item: selectedEndpoint,

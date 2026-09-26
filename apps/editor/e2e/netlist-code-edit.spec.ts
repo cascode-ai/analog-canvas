@@ -308,7 +308,7 @@ test("lists every netlist issue and shows each one on the canvas", async ({
   const parts = [
     ["D1", "delay-cell"],
     ["D2", "delay-cell"],
-    ["S1", "ideal-switch"],
+    ["D3", "delay-cell"],
   ] as const;
   for (const [index, [id, symbolId]] of parts.entries())
     project.documents[0]!.instances.push({
@@ -340,7 +340,7 @@ test("lists every netlist issue and shows each one on the canvas", async ({
     "Symbol delay-cell has no reviewed netlist definition",
   );
   await expect(issues.nth(1)).toContainText("D2");
-  await expect(issues.nth(2)).toContainText("Switch S1 has no phase");
+  await expect(issues.nth(2)).toContainText("D3");
   const halo = page.getByTestId("selection-halo-selected");
   for (const [index, [id]] of parts.entries()) {
     await issues.nth(index).click();
@@ -354,7 +354,7 @@ test("lists every netlist issue and shows each one on the canvas", async ({
     await expect(list).toBeVisible();
   }
   await expect(page.getByTestId("status")).toContainText(
-    "Netlist: Switch S1 has no phase: write the clock that drives it",
+    "Netlist: Symbol delay-cell has no reviewed netlist definition",
   );
 });
 
