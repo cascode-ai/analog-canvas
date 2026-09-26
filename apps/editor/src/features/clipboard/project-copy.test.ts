@@ -19,7 +19,7 @@ import {
 import { describe, it, expect } from "vitest";
 import { EditorDocumentController } from "../../document/document-controller";
 import { vddPowerLabelAnnotation } from "../component-insert/vdd-power-label";
-import { resolveDocumentLogicalNets } from "@icm/derived";
+import { resolveDocumentLogicalNets, resolveEndpointPoint } from "@icm/derived";
 import {
   captureProjectCopy,
   applyProjectCopyPlacement,
@@ -197,6 +197,87 @@ describe("one Project copy path", () => {
     expect(document.nets[0]!.terminals).toEqual([
       { instanceId: "M1", pinName: "S" },
     ]);
+  });
+
+  // A copied MOS body stays on the Net it followed whenever that Net travels
+  // with the copy. A body drawn with a dashed wire comes with that wire or
+  // not at all, like any other pin.
+  it.each([
+    ["joined its source Net", "source"],
+    ["followed the Cell default", "source"],
+    ["was drawn by a dashed wire left behind", "target"],
+  ] as const)("copies a MOS body that %s to the %s's Net", (how, owner) => {
+    const source = createEmptyProject("source", "Source");
+    const document = source.documents[0]!;
+    document.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    const resolver = createProjectSymbolResolver(source, builtInSymbols);
+    const sourcePin = resolveEndpointPoint(document, resolver, {
+      kind: "terminal",
+      instanceId: "M1",
+      pinName: "S",
+    })!;
+    document.junctions.push({
+      id: "J1",
+      netId: "tail",
+      position: { x: sourcePin.x, y: sourcePin.y + 40 },
+    });
+    const wiredBody = how !== "followed the Cell default";
+    document.nets.push({
+      id: "tail",
+      terminals: [
+        { instanceId: "M1", pinName: "S" },
+        ...(wiredBody ? [{ instanceId: "M1", pinName: "B" }] : []),
+      ],
+    });
+    if (!wiredBody) document.mosBulkDefaults = { nmosNetId: "tail" };
+    const wire = (id: string, pinName: string) =>
+      createRoutePath({
+        id,
+        netId: "tail",
+        start: { kind: "terminal", instanceId: "M1", pinName },
+        end: { kind: "junction", junctionId: "J1" },
+        bends: [],
+        modes: ["manual"],
+      });
+    document.routes.push(wire("wire", "S"));
+    if (how === "was drawn by a dashed wire left behind")
+      document.routes.push({
+        ...wire("body-wire", "B"),
+        presentation: "bulk-dashed",
+      });
+    const clipboard = captureProjectCopy(source, document, {
+      ...selection(["M1"], ["wire"]),
+      junctionIds: ["J1"],
+    })!;
+    const target = createEmptyProject("target", "Target");
+    target.documents[0]!.nets.push({ id: "other-bulk", terminals: [] });
+    target.documents[0]!.mosBulkDefaults = { nmosNetId: "other-bulk" };
+    const pasted = place(target, clipboard).documents[0]!;
+    const copy = pasted.instances.find((item) => item.symbolId === "nmos")!;
+    const netOf = (pinName: string) =>
+      pasted.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === copy.id && terminal.pinName === pinName,
+        ),
+      )?.id;
+    expect(netOf("S")).toBeDefined();
+    if (owner === "source") {
+      expect(netOf("B")).toBe(netOf("S"));
+      // Nothing on the copy still claims the target default owns its body.
+      expect(copy.mosBulkBinding).toBeUndefined();
+    } else {
+      expect(netOf("B")).toBe("other-bulk");
+      expect(copy.mosBulkBinding?.origin).toBe("cell-default");
+    }
   });
 
   it("inserts fresh repeated devices without source names or outside connections", () => {

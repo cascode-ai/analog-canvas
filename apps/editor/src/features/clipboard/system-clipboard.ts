@@ -65,9 +65,10 @@ export function encodeCircuitClipboard(
       ...fragment.documents[0]!,
       name: document.name,
       presentation,
-      // A copied MOS takes its body from the destination Cell's policy, as a
-      // newly inserted one does, so the fragment carries no bulk binding (it
-      // would name a Net the copy does not bring).
+      // A copied MOS body travels as the membership of a Net the copy
+      // brings; any other body takes the destination Cell's policy, as a
+      // newly inserted MOS does. So the fragment carries no bulk binding
+      // (it would name a Net the copy does not bring).
       instances: copied.instances.map(({ mosBulkBinding: _, ...instance }) => ({
         ...instance,
       })),

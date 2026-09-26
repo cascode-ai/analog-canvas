@@ -53,7 +53,7 @@ export function useCircuitClipboard(options: Options) {
         // clipboard now holds, so the two can never disagree. That is a fresh
         // insertion: the selection's own wiring and labels, and no connection
         // or name from outside it (a Net name owned by an unselected label or
-        // Port, a Bulk override, a No Connect).
+        // Port, a MOS body on a Net left behind, a No Connect).
         const clipboard = decodeCircuitClipboard(text);
         if (!clipboard) throw new Error("Copied selection cannot be placed");
         // C starts the cursor preview synchronously, even if the optional
