@@ -45,6 +45,13 @@ Persisted Routes contain a starting endpoint and stable-ID legs to bends or an
 endpoint. A route-segment attachment uses `{routeId, legId}` and the actual
 point; a derived segmentIndex is not a stable identifier across revisions.
 Segment modes such as manual, locked or trunk do not compute an autoroute.
+`wire-at` selects a tap by `point` on the evolving wire batch, optionally
+restricted by `net` or a member `{instanceId,pinName}`; `net` selects the
+nearest existing conductor to the other anchor. These selectors use the same
+wire planner, including a trunk created earlier in the batch, without an
+intermediate Snapshot. A `free` anchor is not an implicit tap. Crossings of
+different Nets may remain ordinary crossings, but a tap that would join them
+is rejected; specifying a Net does not make a Junction electrically isolated.
 
 A crossing does not connect Nets by itself. Real branches use explicit
 Junctions; a bend is not a branch. For normal wiring, the shared wire planner

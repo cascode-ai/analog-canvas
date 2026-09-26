@@ -169,6 +169,11 @@ export function applyRouteTopologyEdit(
             draft,
             splitRouteCandidate,
             resolver,
+            undefined,
+            // A preceding set_route_path may still have pending membership.
+            // Validate geometry here; the transaction validates committed
+            // membership after rebuilding the complete physical graph.
+            "pending",
           );
           if (routeError) {
             return rejectAt("EDIT_PRECONDITION", routeError);

@@ -3,6 +3,7 @@ import { RichTextDocumentSchema } from "@icm/model";
 import {
   AgentAuthoringCommandSchema,
   AgentSemanticIntentSchema,
+  AgentWireAtAnchorSchema,
 } from "@icm/agent-adapter";
 
 /**
@@ -86,6 +87,7 @@ const PinTargetSchema = z.strictObject({
   pin: z.string().min(1),
 });
 const ConnectTargetSchema = z.discriminatedUnion("kind", [
+  AgentWireAtAnchorSchema,
   z.strictObject({
     kind: z.literal("route-segment"),
     routeId: z.string().min(1),

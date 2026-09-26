@@ -34,6 +34,28 @@ function expectCompileError(actions: unknown[], fragment: string): void {
 }
 
 describe("authoring helper compilation", () => {
+  it.each([
+    { kind: "net", net: "new-trunk" },
+    {
+      kind: "wire-at",
+      point: { x: 200, y: 100 },
+      member: { instanceId: "new-device", pinName: "D" },
+    },
+  ])(
+    "can directly send a draft-resolved wire target without a Snapshot: $kind",
+    (to) => {
+      const action = AuthoringActionSchema.parse({
+        kind: "connect",
+        from: { kind: "point", x: 200, y: 0 },
+        to,
+      });
+      expect(directConnectIntent(action, () => "new-wire")).toMatchObject({
+        id: "new-wire",
+        from: { kind: "free", point: { x: 200, y: 0 } },
+        to,
+      });
+    },
+  );
   it("uses the same wire request for explicit identities and resolved helper input", () => {
     const action = AuthoringActionSchema.parse({
       kind: "connect",
@@ -273,7 +295,7 @@ describe("authoring helper compilation", () => {
     });
   });
 
-  it("uses a free point, not the page origin, when attaching it to a Net", () => {
+  it("passes the free point and Net identity to the shared wire planner", () => {
     const [transaction] = compile([
       {
         kind: "connect",
@@ -281,11 +303,9 @@ describe("authoring helper compilation", () => {
         to: { kind: "net", net: "Vout" },
       },
     ]);
-    expect(transaction?.wireIntent?.to).toEqual({
-      kind: "route-segment",
-      routeId: "route-1",
-      legId: testSnapshot().document.routes[0]!.legs[1]!.id,
-      point: { x: 460, y: 160 },
+    expect(transaction?.wireIntent).toMatchObject({
+      from: { kind: "free", point: { x: 480, y: 160 } },
+      to: { kind: "net", net: "Vout" },
     });
   });
 
@@ -313,7 +333,7 @@ describe("authoring helper compilation", () => {
     }
   });
 
-  it("compiles pin-to-net connect into a wire intent anchored on the nearest route segment", () => {
+  it("delegates Net geometry to the current server draft, including newly created Nets", () => {
     const [transaction] = compile([
       {
         kind: "connect",
@@ -321,63 +341,12 @@ describe("authoring helper compilation", () => {
         to: { kind: "net", net: "Vout" },
       },
     ]);
-    expect(transaction?.form).toBe("wire-intent");
-    const intent = transaction?.wireIntent;
-    expect(intent?.from).toEqual({
+    expect(transaction?.wireIntent?.to).toEqual({ kind: "net", net: "Vout" });
+    expect(transaction?.wireIntent?.from).toMatchObject({
       kind: "endpoint",
-      endpoint: { kind: "terminal", instanceId: "instance-2", pinName: "2" },
-    });
-    expect(intent?.to.kind).toBe("route-segment");
-    if (intent?.to.kind === "route-segment") {
-      expect(intent.to.routeId).toBe("route-1");
-      // R1 pin 2 sits at (460,180); nearest point on the polyline is the
-      // (460,160) corner reached on segment index 1.
-      expect(intent.to.point).toEqual({ x: 460, y: 160 });
-      expect(intent.to.legId).toBe(
-        testSnapshot().document.routes[0]!.legs[1]!.id,
-      );
-    }
-  });
-
-  it("falls back to the nearest junction when the net has no routes", () => {
-    const [transaction] = compile([
-      {
-        kind: "connect",
-        from: { kind: "pin", instance: "M1", pin: "D" },
-        to: { kind: "net", net: "VDD" },
-      },
-    ]);
-    const intent = transaction?.wireIntent;
-    expect(intent?.to).toEqual({
-      kind: "endpoint",
-      endpoint: { kind: "junction", junctionId: "junction-1" },
+      endpoint: { instanceId: "instance-2", pinName: "2" },
     });
   });
-
-  it("refuses net targets without attachable geometry", () => {
-    const bare = testSnapshot();
-    bare.document.nets[0]!.routeIds = [];
-    bare.document.nets[0]!.junctionIds = [];
-    try {
-      compileActions(
-        [
-          {
-            kind: "connect",
-            from: { kind: "pin", instance: "R1", pin: "2" },
-            to: { kind: "net", net: "Vout" },
-          },
-        ],
-        { snapshot: bare, allocateId },
-      );
-      expect.unreachable("expected ActionCompileError");
-    } catch (error) {
-      expect(error).toBeInstanceOf(ActionCompileError);
-      expect((error as Error).message).toContain(
-        "no route or junction geometry",
-      );
-    }
-  });
-
   it("refuses pin targets the snapshot does not report", () => {
     expectCompileError(
       [

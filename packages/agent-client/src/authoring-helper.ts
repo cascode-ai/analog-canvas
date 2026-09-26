@@ -284,47 +284,6 @@ function resolveByIdOrName<T extends NamedId>(
   return found;
 }
 
-function nearestPointOnPolyline(
-  origin: { x: number; y: number },
-  polyline: readonly { x: number; y: number }[],
-): { point: { x: number; y: number }; segmentIndex: number } | null {
-  let best: { point: { x: number; y: number }; segmentIndex: number } | null =
-    null;
-  let bestDistance = Number.POSITIVE_INFINITY;
-  for (
-    let segmentIndex = 0;
-    segmentIndex < polyline.length - 1;
-    segmentIndex += 1
-  ) {
-    const a = polyline[segmentIndex]!;
-    const b = polyline[segmentIndex + 1]!;
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const lengthSquared = dx * dx + dy * dy;
-    const t =
-      lengthSquared === 0
-        ? 0
-        : Math.max(
-            0,
-            Math.min(
-              1,
-              ((origin.x - a.x) * dx + (origin.y - a.y) * dy) / lengthSquared,
-            ),
-          );
-    const px = a.x + t * dx;
-    const py = a.y + t * dy;
-    const distance = (origin.x - px) ** 2 + (origin.y - py) ** 2;
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = {
-        point: { x: Math.round(px), y: Math.round(py) },
-        segmentIndex,
-      };
-    }
-  }
-  return best;
-}
-
 /**
  * Compile a batch of high-level actions against one Snapshot into an ordered
  * list of server transactions. The compiler only resolves names/geometry and
@@ -854,6 +813,7 @@ export function directConnectIntent(
 ): WireIntent | undefined {
   if (action.kind !== "connect") return undefined;
   const anchor = (target: ConnectTarget): WireIntent["from"] | undefined => {
+    if (target.kind === "wire-at" || target.kind === "net") return target;
     if (target.kind === "route-segment") return target;
     if (target.kind === "point")
       return { kind: "free", point: { x: target.x, y: target.y } };
@@ -918,52 +878,9 @@ function compileConnect(
   // Every normal connection routes through one wireIntent. In particular,
   // pin-to-pin must create visible Route geometry rather than only adding the
   // two terminals to a logical Net.
-  const pinSide =
-    from.kind === "pin" ? from : to.kind === "pin" ? to : undefined;
-  const pinOrigin = (() => {
-    if (pinSide) {
-      const instance = resolveInstance(document, index, action.kind, {
-        kind: "instance",
-        ...(typeof pinSide.instance === "string"
-          ? { reference: pinSide.instance }
-          : pinSide.instance),
-      });
-      requirePin(index, action.kind, instance, pinSide.pin);
-      const pin = instance.pins.find(
-        (candidate) => candidate.name === pinSide.pin,
-      );
-      if (!pin?.connection) {
-        throw new ActionCompileError(
-          index,
-          action.kind,
-          `pin ${pinSide.instance}.${pinSide.pin} has no resolved grid landing`,
-        );
-      }
-      return pin.connection.gridLanding;
-    }
-    const geometric = from.kind === "net" ? to : from;
-    if (geometric.kind === "route-segment") return geometric.point;
-    if (geometric.kind === "point") {
-      return { x: geometric.x, y: geometric.y };
-    }
-    if (geometric.kind === "junction") {
-      const junction = resolveByIdOrName(
-        index,
-        action.kind,
-        "junction",
-        document.junctions,
-        { id: geometric.junction },
-      );
-      return junction.position;
-    }
-    throw new ActionCompileError(
-      index,
-      action.kind,
-      "a Net connection needs a pin, point, or Junction on its other side",
-    );
-  })();
 
   const anchorFor = (target: ConnectTarget): Record<string, unknown> => {
+    if (target.kind === "wire-at" || target.kind === "net") return target;
     if (target.kind === "route-segment") return target;
     if (target.kind === "pin") {
       const instance = resolveInstance(document, index, action.kind, {
@@ -997,71 +914,7 @@ function compileConnect(
         endpoint: { kind: "junction", junctionId: junction.id },
       };
     }
-    // Net target: attach at the nearest existing geometry of that net.
-    const net = resolveNet(document, index, action.kind, {
-      kind: "net",
-      name: target.net,
-    });
-    const routes = net.routeIds
-      .map((routeId) => document.routes.find((route) => route.id === routeId))
-      .filter(
-        (route): route is (typeof document.routes)[number] =>
-          route !== undefined,
-      );
-    let best: {
-      routeId: string;
-      legId: string;
-      point: { x: number; y: number };
-    } | null = null;
-    let bestDistance = Number.POSITIVE_INFINITY;
-    for (const route of routes) {
-      if (!route.polyline) continue;
-      const candidate = nearestPointOnPolyline(pinOrigin, route.polyline);
-      if (!candidate) continue;
-      const distance =
-        (pinOrigin.x - candidate.point.x) ** 2 +
-        (pinOrigin.y - candidate.point.y) ** 2;
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        const leg = route.legs[candidate.segmentIndex];
-        if (!leg) continue;
-        best = { routeId: route.id, legId: leg.id, point: candidate.point };
-      }
-    }
-    if (best) {
-      return {
-        kind: "route-segment",
-        routeId: best.routeId,
-        legId: best.legId,
-        point: best.point,
-      };
-    }
-    const junction = net.junctionIds
-      .map((junctionId) =>
-        document.junctions.find((candidate) => candidate.id === junctionId),
-      )
-      .filter(
-        (candidate): candidate is (typeof document.junctions)[number] =>
-          candidate !== undefined,
-      )
-      .sort(
-        (a, b) =>
-          (pinOrigin.x - a.position.x) ** 2 +
-          (pinOrigin.y - a.position.y) ** 2 -
-          ((pinOrigin.x - b.position.x) ** 2 +
-            (pinOrigin.y - b.position.y) ** 2),
-      )[0];
-    if (junction) {
-      return {
-        kind: "endpoint",
-        endpoint: { kind: "junction", junctionId: junction.id },
-      };
-    }
-    throw new ActionCompileError(
-      index,
-      action.kind,
-      `net "${net.name ?? net.id}" has no route or junction geometry to attach to; connect pin-to-pin first or place a junction`,
-    );
+    return target;
   };
 
   pushWireIntent(
