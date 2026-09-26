@@ -917,7 +917,7 @@ export function planBrowserAgentCommand(
         !(input.kind === "rotate" && !input.center)
       ) {
         throw new Error(
-          "Drafting objects support in-place 45-degree rotation here. For other drafting transforms, submit upsert_drafting_object with the desired geometry.",
+          "Drafting objects support translation and in-place 45-degree rotation here. For other drafting transforms, submit upsert_drafting_object with the desired geometry.",
         );
       }
       const transform: TransformOperation =
