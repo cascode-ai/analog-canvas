@@ -1,4 +1,6 @@
 import { cancelDoubledBackLegs } from "./routing-planner.js";
+import { routeHasExternalOwner } from "./direct-contact-route-normalization.js";
+import { endpointOwnerNetId } from "./transaction-routing.js";
 import { stretchRouteEndpoint } from "./route-endpoint-stretch.js";
 import { tidyRouteTerminalApproaches } from "./route-terminal-approach.js";
 import {
@@ -48,6 +50,80 @@ export interface RouteStretchProposal {
   segmentModes: SegmentMode[];
   /** The endpoints now coincide: retain membership, remove redundant geometry. */
   collapsedToContact?: true;
+}
+
+/**
+ * A wire whose ends already meet at one point — a pin set straight onto
+ * another, as older versions drew it — has no geometry for a transform to
+ * carry, and rewriting it leaves a zero-length wire that no check accepts,
+ * so the whole move, turn or mirror was refused. When both ends still belong
+ * to its Net and nothing else owns the wire, a transform that carries both
+ * ends together drops the redundant geometry and keeps the contact, exactly
+ * as opening a file already does.
+ */
+function collapsedDirectContact(
+  document: SchematicDocument,
+  routingGeometry: ResolvedDocumentRoutingGeometry,
+  route: SchematicDocument["routes"][number],
+): RouteStretchProposal | null {
+  if (
+    (route.presentation ?? "wire") !== "wire" ||
+    routeHasExternalOwner(document, route.id)
+  )
+    return null;
+  const path = routeEditPathFromGeometry(routingGeometry, route.id);
+  const first = path?.points[0];
+  if (
+    !path ||
+    !first ||
+    !path.points.every((point) => point.x === first.x && point.y === first.y)
+  )
+    return null;
+  if (
+    endpointOwnerNetId(document, route.start) !== route.netId ||
+    endpointOwnerNetId(document, routeEnd(route)) !== route.netId
+  )
+    return null;
+  return {
+    routeId: route.id,
+    waypoints: [],
+    segmentModes: [],
+    collapsedToContact: true,
+  };
+}
+
+/**
+ * A wire a transform carries whole keeps its own bends, mapped. A step of
+ * zero length an older version left in it — a bend sitting on its own
+ * endpoint — is dropped, since a rewritten wire may not keep one.
+ */
+function carriedRouteProposal(
+  routingGeometry: ResolvedDocumentRoutingGeometry,
+  route: SchematicDocument["routes"][number],
+  map: (point: Point) => Point,
+): RouteStretchProposal {
+  const carried = {
+    routeId: route.id,
+    waypoints: routeBends(route).map(map),
+    segmentModes: routeModes(route),
+  };
+  const path = routeEditPathFromGeometry(routingGeometry, route.id);
+  const hasZeroStep = path?.points.some(
+    (point, index) =>
+      index > 0 &&
+      point.x === path.points[index - 1]!.x &&
+      point.y === path.points[index - 1]!.y,
+  );
+  if (!path || !hasZeroStep) return carried;
+  const normalized = normalizeRouteGeometry(
+    path.points.map(map),
+    path.segmentModes,
+  );
+  return {
+    routeId: route.id,
+    waypoints: normalized.points.slice(1, -1),
+    segmentModes: normalized.segmentModes,
+  };
 }
 
 export function resolveRouteEditPath(
@@ -1338,14 +1414,18 @@ export function proposeGroupMove(
       if (route.legs.some((leg) => leg.mode === "locked")) {
         throw new Error(`Route ${route.id} contains a locked segment`);
       }
-      proposals.set(route.id, {
-        routeId: route.id,
-        waypoints: routeBends(route).map((point) => ({
+      const contact = collapsedDirectContact(document, routingGeometry, route);
+      if (contact) {
+        proposals.set(route.id, contact);
+        continue;
+      }
+      proposals.set(
+        route.id,
+        carriedRouteProposal(routingGeometry, route, (point) => ({
           x: point.x + resolvedFromDelta.x,
           y: point.y + resolvedFromDelta.y,
         })),
-        segmentModes: routeModes(route),
-      });
+      );
       continue;
     }
 
@@ -1701,12 +1781,16 @@ function proposeRigidBodyMove(
       }
       // Wholly inside: the Route is part of the body, so its own geometry
       // turns rather than being stretched between two moved ends.
+      const contact = collapsedDirectContact(document, routingGeometry, route);
+      if (contact) {
+        proposals.set(route.id, contact);
+        continue;
+      }
       rigidRouteIds.add(route.id);
-      proposals.set(route.id, {
-        routeId: route.id,
-        waypoints: routeBends(route).map((point) => transform.point(point)),
-        segmentModes: routeModes(route),
-      });
+      proposals.set(
+        route.id,
+        carriedRouteProposal(routingGeometry, route, transform.point),
+      );
       continue;
     }
 

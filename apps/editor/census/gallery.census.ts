@@ -14,6 +14,7 @@ import {
   defaultInstanceParameterLabelPlacement,
   defaultVddPowerLabelPlacement,
   resolveDocumentStyleProfile,
+  resolveRouteGeometry,
 } from "@icm/derived";
 import { executeTransaction, type SchematicEdit } from "@icm/edit-engine";
 import {
@@ -38,6 +39,7 @@ import {
   decodeCircuitClipboard,
   encodeCircuitClipboard,
 } from "../src/features/clipboard/system-clipboard";
+import { createSelectionTransformController } from "../src/features/selection/selection-transform-controller";
 
 const OK = "ok";
 
@@ -268,6 +270,112 @@ function ruleLabelsAtDefault(
   });
 }
 
+/**
+ * The whole sheet mirrored left to right as one selection, the way Shift+R
+ * does it: the committed document, or why nothing was committed.
+ */
+function mirrorEverything(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+): SchematicDocument | string {
+  const routeGeometryRecords = document.routes.flatMap((route) => {
+    const geometry = resolveRouteGeometry(document, resolver, route);
+    return geometry ? [{ route, geometry }] : [];
+  });
+  const selection = {
+    instanceIds: document.instances
+      .filter((item) => item.placement)
+      .map((item) => item.id),
+    routeIds: document.routes.map((item) => item.id),
+    junctionIds: document.junctions.map((item) => item.id),
+    annotationIds: document.annotations.map((item) => item.id),
+    draftingIds: (document.drafting?.objects ?? []).map((item) => item.id),
+  };
+  let edits: SchematicEdit[] = [];
+  let status = "";
+  createSelectionTransformController({
+    document,
+    resolver,
+    styleProfile: resolveDocumentStyleProfile(document.presentation),
+    routeGeometryRecords,
+    annotationGrid: 1,
+    selectedInstanceIds: selection.instanceIds,
+    selection,
+    transact: (next) => {
+      edits = next;
+      return { ok: true };
+    },
+    setStatus: (next) => {
+      status = next;
+    },
+  }).mirror("left-right");
+  if (edits.length === 0) return `nothing mirrored: ${status}`;
+  const result = executeTransaction(
+    document,
+    {
+      transactionId: "gallery-census-mirror",
+      documentId: document.id,
+      expectedRevision: document.revision,
+      actor: { kind: "human", id: "gallery-census" },
+      edits,
+    },
+    { symbolResolver: resolver },
+  );
+  return result.ok
+    ? result.document
+    : `rejected: ${result.diagnostics[0]?.message ?? result.error.message}`;
+}
+
+/**
+ * What the sheet shows: part placements and the unit steps its wires cover,
+ * so wires the Edit Engine merges or splits at a dotless Junction still
+ * compare equal.
+ */
+function drawnSheet(document: SchematicDocument, resolver: SymbolResolver) {
+  const steps = new Set<string>();
+  const key = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+    [a, b]
+      .map((point) => `${point.x},${point.y}`)
+      .sort()
+      .join("|");
+  for (const route of document.routes) {
+    const centerline = resolveRouteGeometry(
+      document,
+      resolver,
+      route,
+    )?.centerline;
+    if (!centerline) continue;
+    for (let index = 1; index < centerline.length; index += 1) {
+      const from = centerline[index - 1]!;
+      const to = centerline[index]!;
+      const dx = Math.sign(to.x - from.x);
+      const dy = Math.sign(to.y - from.y);
+      const count = Math.max(Math.abs(to.x - from.x), Math.abs(to.y - from.y));
+      if (
+        to.x !== from.x &&
+        to.y !== from.y &&
+        Math.abs(to.x - from.x) !== Math.abs(to.y - from.y)
+      ) {
+        steps.add(key(from, to));
+        continue;
+      }
+      for (let step = 0; step < count; step += 1)
+        steps.add(
+          key(
+            { x: from.x + dx * step, y: from.y + dy * step },
+            { x: from.x + dx * (step + 1), y: from.y + dy * (step + 1) },
+          ),
+        );
+    }
+  }
+  return JSON.stringify({
+    parts: document.instances
+      .map((item) => `${item.id}:${JSON.stringify(item.placement)}`)
+      .sort(),
+    steps: [...steps].sort(),
+  });
+}
+
 function censusEntry(row: {
   id: string;
   name: string;
@@ -385,6 +493,31 @@ function censusEntry(row: {
     return displaced.length
       ? `labels displaced by a full turn: ${displaced.sort().slice(0, 6).join(", ")}`
       : OK;
+  });
+
+  // The whole sheet mirrored as one selection keeps every connection, and
+  // mirroring it again gives back the same drawing.
+  entry.checks.mirror = attempt(() => {
+    const netlistOf = (current: SchematicDocument) => {
+      const result = createDesignNetlistExport(
+        {
+          ...project,
+          documents: project.documents.map((item) =>
+            item.id === current.id ? current : item,
+          ),
+        },
+        { format: "spice" },
+      );
+      return result.status === "ready" ? result.file.text : null;
+    };
+    const once = mirrorEverything(document, resolver);
+    if (typeof once === "string") return once;
+    if (netlistOf(once) !== netlistOf(document)) return "netlist changed";
+    const twice = mirrorEverything(once, resolver);
+    if (typeof twice === "string") return `second mirror ${twice}`;
+    return drawnSheet(twice, resolver) === drawnSheet(document, resolver)
+      ? OK
+      : "a second mirror does not restore the drawing";
   });
   return entry;
 }
