@@ -652,6 +652,12 @@ all copy paths (C, Ctrl/Cmd+C/V, project tabs, and Gallery insertion), including
 when the destination already has the same name. No `_copy` suffix is added.
 Copied electrical labels retain their RichText, overbars, subscripts, typography,
 color and host-relative offsets; moving a copy changes its position only.
+A component label reads as it did in the source. Text that spells the
+component's Reference follows the copy's Reference in the same look; any other
+text, such as `I_SS1` on `I1`, stays exactly as the author wrote it. A component
+that had no Reference showed no name, so its fresh Reference stays hidden until
+it is shown. A copied VDD marker carries its supply label only if its source
+showed one; only a freshly inserted marker gains one.
 Equal explicit Net/Pin names resolve to the same Logical Net while their drawn
 routes and individual markers remain independently editable. Voltage expressions
 keep their unchanged node names; behavioral references to renamed component

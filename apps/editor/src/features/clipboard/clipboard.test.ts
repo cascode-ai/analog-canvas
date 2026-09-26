@@ -1281,35 +1281,65 @@ describe("schematic clipboard", () => {
     expect(pasted.instanceIds).toEqual(["R1_3"]);
   });
 
-  it("resets a copied display alias to the fresh instance reference", () => {
-    const document = createEmptyDocument("document-main", "Custom label");
-    document.instances.push(resistorInstance("R1", "R1"));
-    document.annotations.push(instanceLabel("R1", "R_load", false));
-
+  function pastedLabelOf(document: ReturnType<typeof createEmptyDocument>) {
     const proposal = proposePaste(
       document,
-      copySelection(document, ["R1"])!,
+      copySelection(document, [document.instances[0]!.id])!,
       { x: 20, y: 0 },
       1,
     );
-    // A copied device starts with the same live-name projection as Insert.
-    const pastedLabel = proposal.edits.find(
+    const label = proposal.edits.find(
       (
         edit,
       ): edit is Extract<
         typeof edit,
         { kind: "upsert_schematic_annotation" }
       > => edit.kind === "upsert_schematic_annotation",
-    );
-    expect(pastedLabel!.annotation.content).toBeUndefined();
-    expect(pastedLabel!.annotation.binding).toEqual({
-      kind: "instance-reference",
-      instanceId: proposal.instanceIds[0],
-    });
-    expect(
-      proposal.edits.find((edit) => edit.kind === "add_instance"),
-    ).toMatchObject({ instance: { reference: "R2" } });
+    )!.annotation;
+    const instance = proposal.edits.find(
+      (edit): edit is Extract<typeof edit, { kind: "add_instance" }> =>
+        edit.kind === "add_instance",
+    )!.instance;
+    return { label, instance, proposal };
+  }
+
+  it("keeps a copied display alias exactly as the author wrote it", () => {
+    const document = createEmptyDocument("document-main", "Custom label");
+    document.instances.push(resistorInstance("R1", "R1"));
+    document.annotations.push(instanceLabel("R1", "R_load", false));
+
+    const { label, instance, proposal } = pastedLabelOf(document);
+    // The copy is a new part with a fresh Reference that reads as drawn.
+    expect(instance.reference).toBe("R2");
     expect(proposal.instanceIds).toEqual(["R1_2"]);
+    expect(label.binding).toBeUndefined();
+    expect(label.content).toEqual(document.annotations[0]!.content);
+  });
+
+  it("moves a label that spells the Reference to the new one in its look", () => {
+    const document = createEmptyDocument("document-main", "Styled name");
+    document.instances.push(resistorInstance("R1", "R1"));
+    document.annotations.push(instanceLabel("R1", "R_1", false));
+
+    const { label } = pastedLabelOf(document);
+    expect(label.content).toBeUndefined();
+    expect(label.binding).toEqual({
+      kind: "instance-reference",
+      instanceId: "R1_2",
+    });
+    expect(label.formatOverride).toEqual(
+      semanticTextDocument("R_2", "instance-label"),
+    );
+  });
+
+  it("keeps the label of a part that had no Reference hidden", () => {
+    const document = createEmptyDocument("document-main", "Unnamed part");
+    document.instances.push(resistorInstance("R1", undefined));
+    document.annotations.push(instanceLabel("R1", ""));
+
+    const { label, instance } = pastedLabelOf(document);
+    expect(instance.reference).toBe("R1");
+    expect(label.visible).toBe(false);
   });
 
   it("falls back to an opaque copy id when the source id diverges", () => {

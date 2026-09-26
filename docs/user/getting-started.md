@@ -57,7 +57,9 @@ recognize such a network, so both are placed by hand.
   copy; the following click places it. Further clicks place more copies until
   `Esc` exits, just like copying an already selected component. A copy lands
   as if newly inserted: it keeps the wiring and labels inside the selection,
-  but no connection or Net name from the circuit around it.
+  but no connection or Net name from the circuit around it. It gets its own
+  component names (R1 becomes R2 when R1 is taken), yet reads as drawn: a label
+  you wrote yourself, such as `I_SS1` on `I1`, stays as you wrote it.
 - To reuse an editable circuit in another tab, press `C` and click the other
   tab: the copy stays under the pointer, and a click places it there. Or press
   `Ctrl/Cmd+C`, switch to the destination canvas or window and press

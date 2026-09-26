@@ -366,7 +366,7 @@ describe("one visual annotation, one electrical authority", () => {
   });
 
   it.each([false, true])(
-    "creates a fresh live name when the source display alias is %s",
+    "names a copy freshly and keeps its label as drawn when the source display alias is %s",
     (custom) => {
       const content: RichTextDocument = {
         runs: [
@@ -390,8 +390,13 @@ describe("one visual annotation, one electrical authority", () => {
         kind: "object",
         objectId: copied.id,
       });
-      expect(label.content).toBeUndefined();
-      expect(flattenRichText(resolveAnnotationText(after, label))).toBe("R2");
+      if (custom) {
+        // The author's own formula reads on the copy as drawn.
+        expect(label.content).toEqual(content);
+      } else {
+        expect(label.content).toBeUndefined();
+        expect(flattenRichText(resolveAnnotationText(after, label))).toBe("R2");
+      }
       expect(instanceLabelAnnotationFor(before, "device-1")?.content).toEqual(
         custom ? content : undefined,
       );

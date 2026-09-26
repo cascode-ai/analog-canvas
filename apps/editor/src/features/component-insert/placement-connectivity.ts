@@ -136,7 +136,10 @@ export function planInsertedInstanceConnections(
     !contact.matched &&
     !resolveDocumentLogicalNets(document).byBaseNetId.get(existingPowerNet.id)
       ?.name;
+  // A pasted marker reads as its source did: the copy carries its label if
+  // the source showed one, and adds none the source did not show.
   const vddPowerLabel =
+    !existing &&
     !cellPin &&
     !unnamedCopy &&
     powerConnection?.domain === "vdd" &&
