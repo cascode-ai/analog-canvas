@@ -320,7 +320,8 @@ function spectreInstance(s: Statement, ctx: Context): string {
     `${prefix(name!, designator)} ${nodes.join(" ")} ${tail}`.trim();
   if (["resistor", "capacitor", "inductor"].includes(kind)) {
     arity(2);
-    const key = kind[0]!;
+    // r, c and l: an inductor's value is l, not its master's first letter.
+    const key = kind === "inductor" ? "l" : kind[0]!;
     const raw = take(p, key, s);
     noParameters(p, s);
     return output(key.toUpperCase(), value(raw, "spectre", s));
@@ -438,6 +439,17 @@ function spiceInstance(s: Statement): string {
       masters[kind]!,
       `${kind.toLowerCase()}=${value(f[3]!, "spice", s)}`,
     );
+  }
+  if (kind === "K") {
+    // A coupling names two inductors, not nodes; Spectre writes it the same
+    // way, with the inductors' own instance names.
+    if (f.length !== 4)
+      refuse(
+        s,
+        "Only a coupling between two inductors is supported.",
+        "UNSUPPORTED_PARAMETER",
+      );
+    return `${name} mutual_inductor coupling=${value(f[3]!, "spice", s)} ind1=${f[1]} ind2=${f[2]}`;
   }
   if (kind === "E" || kind === "G") {
     if (f.length !== 6)
@@ -577,6 +589,18 @@ function translate(s: Statement, ctx: Context): string[] {
       noParameters(p, s);
       return [out];
     }
+    if (f[1]?.toLowerCase() === "mutual_inductor") {
+      // A coupling has no terminals: it names two inductor instances, which
+      // SPICE spells with their L-prefixed names.
+      const p = parameters(f.slice(2), s);
+      const coupling = take(p, "coupling", s);
+      const first = take(p, "ind1", s);
+      const second = take(p, "ind2", s);
+      noParameters(p, s);
+      return [
+        `${prefix(f[0]!, "K")} ${prefix(first, "L")} ${prefix(second, "L")} ${value(coupling, "spectre", s)}`,
+      ];
+    }
     return [spectreInstance(s, ctx)];
   }
   if (head === ".end") {
@@ -661,7 +685,10 @@ function checkNodeCase(
     if (match) nodes = fields(match[1]!, s);
   } else if (!head.startsWith(".")) {
     const kind = head[0];
-    if (kind === "x") {
+    // A K card names inductors, not nodes.
+    if (kind === "k") {
+      nodes = [];
+    } else if (kind === "x") {
       let end = f.findIndex(
         (t) => t.includes("=") || t.toLowerCase() === "params:",
       );
