@@ -12,6 +12,43 @@ import { EditorDocumentController } from "../document/document-controller";
 import { BrowserAgentHost } from "./browser-agent-host";
 import { planBrowserAgentCommand } from "./browser-agent-command";
 
+it("arranges default labels through the focused MCP entry in one undo, without changing topology", async () => {
+  const { tool, controller, client, add } = await folder();
+  const id = await add();
+  expect(
+    (
+      await client.applyActions([
+        {
+          kind: "set-reference",
+          target: { kind: "instance", id },
+          reference: "MBIAS",
+        },
+      ])
+    ).ok,
+  ).toBe(true);
+  const before = structuredClone(controller.document);
+  const result = await tool("circuit_text", {
+    actions: [
+      {
+        kind: "arrange-labels",
+        instanceIds: [id],
+        referenceStyle: "first-letter-subscript",
+      },
+    ],
+  });
+  expect(result.ok, result.message).toBe(true);
+  expect(controller.document.instances).toEqual(before.instances);
+  expect(controller.document.nets).toEqual(before.nets);
+  expect(controller.document.revision).toBe(before.revision + 1);
+  await client.applyActions([{ kind: "undo" }]);
+  expect(controller.document.annotations).toEqual(before.annotations);
+  const rejected = await tool("circuit_text", {
+    actions: [{ kind: "arrange-labels", instanceIds: [id, "missing"] }],
+  });
+  expect(rejected.ok).toBe(false);
+  expect(controller.document.annotations).toEqual(before.annotations);
+});
+
 it("keeps the first supply default in a placement batch and preserves it in later batches", async () => {
   const { client, controller } = await folder();
   for (const references of [

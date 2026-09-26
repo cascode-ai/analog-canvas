@@ -323,7 +323,7 @@ export function visibleSymbolLocalBounds(
   };
 }
 
-function instanceBounds(
+export function visibleInstanceBounds(
   document: SchematicDocument,
   resolver: SymbolResolver,
 ): Array<{ id: string; bounds: Rect }> {
@@ -719,7 +719,7 @@ export function diagnoseVisualQuality(
   const diagnostics: VisualDiagnostic[] = [];
   const minimumSegmentLength =
     options.minimumSegmentLength ?? document.presentation.grid;
-  const bounds = instanceBounds(document, resolver);
+  const bounds = visibleInstanceBounds(document, resolver);
   const boundsById = new Map(bounds.map((item) => [item.id, item.bounds]));
   const routingGeometry =
     options.routingGeometry ??

@@ -97,6 +97,17 @@ export function isBatchableAuthoringCommand(command: {
 }
 export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
   ...BatchItemSchema.options,
+  z
+    .strictObject({
+      kind: z.literal("arrange-labels"),
+      instanceIds: NonemptyIdsSchema,
+      compact: z.boolean().optional(),
+      avoidCollisions: z.boolean().optional(),
+      referenceStyle: z.enum(["preserve", "first-letter-subscript"]).optional(),
+    })
+    .describe(
+      "Opt-in, bounded one-pass placement of visible default Instance labels. Compact/collision avoidance default true. Preserve manually positioned, locked and custom-styled labels, bindings and electrical names; unresolved clashes remain observations.",
+    ),
   z.strictObject({
     kind: z.literal("route-net"),
     target: z

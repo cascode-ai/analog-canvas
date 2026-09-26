@@ -77,8 +77,12 @@ import {
   missingDefaultInstanceDisplayAnnotations,
 } from "../features/instance-display/default-instance-display";
 import { instanceDisplayEdits } from "../features/instance-display/instance-display-edits";
+import { arrangeInstanceLabels } from "../features/instance-display/arrange-instance-labels";
 import { instanceParameterVisibilityEdits } from "../features/instance-display/instance-parameter-display";
-import { dragNetLabelAttachmentAtPoint } from "../features/wiring/route-interaction-geometry";
+import {
+  dragNetLabelAttachmentAtPoint,
+  netLabelPlacementTargetAtPoint,
+} from "../features/wiring/route-interaction-geometry";
 import { planPlacedCellPin } from "../features/component-insert/cell-pin-placement";
 import { planVddRailEdits } from "../features/component-insert/vdd-rail";
 import { planInitialMosBulkDefault } from "../features/component-insert/mos-bulk-defaults";
@@ -95,6 +99,15 @@ export function planBrowserAgentCommand(
   if (!document) throw new Error("Document not found");
   const sequence = document.revision + 1;
   switch (command.kind) {
+    case "arrange-labels":
+      return {
+        edits: arrangeInstanceLabels(
+          document,
+          resolver,
+          command.instanceIds,
+          command,
+        ),
+      };
     case "route-net":
       return planRouteNet(document, resolver, command, maxTransactionEdits);
     case "delete-selection": {
@@ -641,20 +654,35 @@ export function planBrowserAgentCommand(
                 ),
             )[0]
         : undefined;
-      const anchor = attached
+      const createdPlacement =
+        !existing && position
+          ? netLabelPlacementTargetAtPoint(
+              records,
+              position,
+              Number.POSITIVE_INFINITY,
+            )
+          : null;
+      const anchor = createdPlacement
         ? {
             kind: "route" as const,
-            routeId: attached.routeId,
-            legId: attached.legId,
-            t: attached.t,
-            normalOffset: attached.normalOffset,
-            direction: "forward" as const,
+            ...createdPlacement.routeAttachment,
             orientation: "horizontal" as const,
-            fallbackPosition: attached.labelPosition,
+            fallbackPosition: createdPlacement.labelPosition,
           }
-        : position
-          ? { kind: "free" as const, position }
-          : existing!.anchor;
+        : attached
+          ? {
+              kind: "route" as const,
+              routeId: attached.routeId,
+              legId: attached.legId,
+              t: attached.t,
+              normalOffset: attached.normalOffset,
+              direction: "forward" as const,
+              orientation: "horizontal" as const,
+              fallbackPosition: attached.labelPosition,
+            }
+          : position
+            ? { kind: "free" as const, position }
+            : existing!.anchor;
       return {
         edits: [
           ...plan.edits,
@@ -668,7 +696,7 @@ export function planBrowserAgentCommand(
                     ? ("net-label" as const)
                     : ("power-label" as const),
                 anchor: { kind: "free" as const, position: command.position! },
-                alignment: "middle" as const,
+                alignment: createdPlacement?.alignment ?? ("middle" as const),
                 rotation: 0 as const,
                 locked: false,
               }),

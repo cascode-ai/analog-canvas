@@ -405,6 +405,7 @@ export function compileActions(
       case "batch":
       case "place-components":
       case "set-instance-display":
+      case "arrange-labels":
       case "place-existing":
       case "place-cell":
       case "set-net-label":

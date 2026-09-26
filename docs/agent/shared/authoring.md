@@ -98,6 +98,17 @@ object IDs (including `noConnectIds`) in one transaction; selecting every object
 unselected wires remain dangling. Reset modes retain their existing meanings
 and must not be used as a synonym for deleting the entire Cell.
 
+For an explicit label cleanup, `circuit_text` / `apply_actions` accepts
+`{kind:"arrange-labels",instanceIds:["…"]}`. It compacts visible default label
+slots and tries a fixed set of nearby collision-avoiding positions in one
+undoable operation. Set `compact:false` or `avoidCollisions:false` to disable
+either part; `referenceStyle:"first-letter-subscript"` optionally displays
+`RBIAS` as an R with BIAS subscript without changing the Reference. Manual/free,
+locked, hidden and custom-styled labels are preserved. This is not an autorouter
+or a whole-drawing beautifier. Informational label-clearance/owner-distance
+observations may remain and never gate editing. New Net labels use the GUI's
+standard side/alignment; existing explicit label moves retain their semantics.
+
 The focused `circuit_text` action `move-annotation` sets an absolute position;
 the legacy `apply_actions` annotation `move` uses the same semantics, while
 `transform` supports translation. These preserve ownership and electrical
