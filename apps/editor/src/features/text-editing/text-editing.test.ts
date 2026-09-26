@@ -120,6 +120,87 @@ describe("unified text editing", () => {
       ).toBe(current);
     }
   });
+  it("names a signal's complement when its label gains or loses an overbar", () => {
+    const document = createEmptyDocument("complement", "Complement");
+    document.instances.push({
+      id: "M1",
+      reference: "M1",
+      symbolId: "nmos",
+      placement: null,
+    });
+    document.netlist!.terminals.push(
+      {
+        id: "pin-d",
+        name: "D",
+        netId: "net-d",
+        direction: "input",
+        interfaceInstanceIds: [],
+      },
+      {
+        id: "pin-q",
+        name: "Q_bar",
+        netId: "net-q",
+        direction: "output",
+        interfaceInstanceIds: [],
+      },
+    );
+    const bound = (id: string, binding: Annotation["binding"]): Annotation => ({
+      ...annotation(),
+      id,
+      kind: "instance-label",
+      content: undefined,
+      netId: undefined,
+      binding,
+    });
+    const pinD = bound("pin-d-label", {
+      kind: "cell-terminal-name",
+      terminalId: "pin-d",
+    });
+    const pinQ = bound("pin-q-label", {
+      kind: "cell-terminal-name",
+      terminalId: "pin-q",
+    });
+    const device = bound("m1-label", {
+      kind: "instance-reference",
+      instanceId: "M1",
+    });
+    const overbar = (value: string) => ({
+      runs: [
+        {
+          kind: "span" as const,
+          style: "overbar" as const,
+          children: [{ kind: "text" as const, value }],
+        },
+      ],
+    });
+    const edit = (
+      label: Annotation,
+      content: RichTextDocument,
+      current: string,
+    ) =>
+      editedBoundAnnotationName(
+        document,
+        label,
+        updateTextEditingSession(
+          createTextEditingSession(
+            { owner: "annotation", object: label },
+            document,
+          ),
+          { content },
+        ),
+        current,
+      );
+    // D under an overbar is D_bar, a signal apart from D.
+    expect(edit(pinD, overbar("D"), "D")).toBe("D_bar");
+    // Typed and barred at once: the new name's complement.
+    expect(edit(pinD, overbar("CLK"), "D")).toBe("CLK_bar");
+    // Taking the overbar off Q_bar (drawn Q̄) gives Q back.
+    expect(edit(pinQ, { runs: [{ kind: "text", value: "Q" }] }, "Q_bar")).toBe(
+      "Q",
+    );
+    // A device reference has no complement: its overbar stays styling.
+    expect(edit(device, overbar("M1"), "M1")).toBe("M1");
+  });
   it("edits a scalar Value at its source and leaves compound MOS values to Properties", () => {
     const document = createEmptyDocument("value", "Value");
     document.instances.push({
@@ -465,7 +546,7 @@ describe("unified text editing", () => {
     ).toEqual({ format: undefined });
   });
 
-  it("never turns a subscript or overbar into characters of the name", () => {
+  it("never turns a subscript into characters of the name, but bars a complement", () => {
     const document = createEmptyDocument("text", "Text");
     document.netlist!.terminals.push({
       id: "pin-clk",
@@ -486,37 +567,28 @@ describe("unified text editing", () => {
       document,
     );
     const text = (value: string) => ({ kind: "text" as const, value });
-    for (const content of [
-      // CLK with a subscript 1 is still CLK1, not CLK_1.
-      {
+    const renamed = (content: RichTextDocument) =>
+      editedBoundAnnotationName(
+        document,
+        pin,
+        updateTextEditingSession(session, { content }),
+        "CLK1",
+      );
+    // CLK with a subscript 1 is still CLK1, not CLK_1.
+    expect(
+      renamed({
         runs: [
           text("CLK"),
-          {
-            kind: "span" as const,
-            style: "subscript" as const,
-            children: [text("1")],
-          },
+          { kind: "span", style: "subscript", children: [text("1")] },
         ],
-      },
-      // An overbar is the label's look, not a _bar suffix.
-      {
-        runs: [
-          {
-            kind: "span" as const,
-            style: "overbar" as const,
-            children: [text("CLK1")],
-          },
-        ],
-      },
-    ])
-      expect(
-        editedBoundAnnotationName(
-          document,
-          pin,
-          updateTextEditingSession(session, { content }),
-          "CLK1",
-        ),
-      ).toBe("CLK1");
+      }),
+    ).toBe("CLK1");
+    // An overbar over a signal means its complement: CLK1_bar, not CLK1.
+    expect(
+      renamed({
+        runs: [{ kind: "span", style: "overbar", children: [text("CLK1")] }],
+      }),
+    ).toBe("CLK1_bar");
   });
 
   it("splices a text edit into the name around characters the look hid", () => {

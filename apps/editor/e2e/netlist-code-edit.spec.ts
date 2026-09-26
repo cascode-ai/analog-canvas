@@ -969,7 +969,7 @@ test("opening and reopening a PDK BJT adds X only to SPICE, never its canvas nam
   ).toHaveText("Q1");
 });
 
-test("Cell Pin overbars are the label's look and keep the exported name", async ({
+test("a Cell Pin drawn under an overbar exports as its complement", async ({
   page,
 }) => {
   const project = fixture();
@@ -1023,8 +1023,9 @@ test("Cell Pin overbars are the label's look and keep the exported name", async 
     label.locator("..").locator('[data-text-decoration="overbar"]'),
   ).toHaveCount(1);
   const code = page.getByLabel("Netlist code", { exact: true });
-  // The bar is how the label is drawn; the exported Pin Name stays F.
-  await expect(code).not.toContainText("F_bar");
+  // An overbar over a Pin means its complement: F̄ exports as F_bar, a Pin
+  // apart from F.
+  await expect(code).toContainText("F_bar");
   const saved = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(),
   );
@@ -1032,7 +1033,7 @@ test("Cell Pin overbars are the label's look and keep the exported name", async 
     saved.documents[0].netlist.terminals.find(
       (item: { id: string }) => item.id === "output",
     ).name,
-  ).toBe("F");
+  ).toBe("F_bar");
   // Device names are writable in the netlist; the marker must round trip there too.
   await code.fill((await code.innerText()).replace("R1 ", "R1_bar "));
   await code.press("Enter");
@@ -1050,9 +1051,9 @@ test("Cell Pin overbars are the label's look and keep the exported name", async 
   );
   await page.getByTestId("hit-P1").click();
   await openSelectionShelf(page);
-  // Renaming the Pin keeps the author's bar on the new name.
+  // Renamed to another complement, the Pin keeps the author's bar.
   await editComponentPropertyCode(page, (code) => {
-    code.name = "Q";
+    code.name = "Q_bar";
   });
   await expect(label).toHaveText("Q");
   await expect(
@@ -1065,12 +1066,86 @@ test("Cell Pin overbars are the label's look and keep the exported name", async 
     renamed.documents[0].netlist.terminals.find(
       (item: { id: string }) => item.id === "output",
     ).name,
-  ).toBe("Q");
+  ).toBe("Q_bar");
   expect(
     renamed.documents[0].annotations.find(
       (item: { id: string }) => item.id === "label-output",
     ).binding,
   ).toEqual({ kind: "cell-terminal-name", terminalId: "output" });
+});
+
+test("D and D̄ are two Cell Pins: barring a Pin's name asks for no merge", async ({
+  page,
+}) => {
+  const project = fixture();
+  const document = project.documents[0]!;
+  for (const [id, terminalId, name, netId, y] of [
+    ["P1", "pin-d", "D", "net-1", 200],
+    ["P2", "pin-x", "X", "net-x", 320],
+  ] as const) {
+    document.instances.push({
+      id,
+      symbolId: "port",
+      placement: { position: { x: 100, y }, rotation: 0, mirror: "none" },
+    });
+    if (netId === "net-1")
+      document.nets[0]!.terminals.push({ instanceId: id, pinName: "P" });
+    else
+      document.nets.push({
+        id: netId,
+        terminals: [{ instanceId: id, pinName: "P" }],
+      });
+    document.netlist!.terminals.push({
+      id: terminalId,
+      name,
+      netId,
+      direction: "input",
+      interfaceInstanceIds: [id],
+    });
+    document.annotations.push({
+      id: `label-${terminalId}`,
+      kind: "instance-label",
+      binding: { kind: "cell-terminal-name", terminalId },
+      anchor: {
+        kind: "object",
+        objectId: id,
+        localOffset: { x: 0, y: -30 },
+        fallbackPosition: { x: 100, y: y - 30 },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
+  }
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "complement-pins.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId("annotation-hit-label-pin-x").dblclick();
+  const editor = page.getByRole("textbox", { name: "Canvas text editor" });
+  await editor.press("ControlOrMeta+a");
+  await editor.pressSequentially("D");
+  await editor.press("ControlOrMeta+a");
+  await page.getByRole("button", { name: "Overbar", exact: true }).click();
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  await expect(editor).toHaveCount(0);
+  await expect(
+    page.getByRole("dialog", { name: "Merge Cell Ports?" }),
+  ).toHaveCount(0);
+  const saved = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(),
+  );
+  expect(
+    saved.documents[0].netlist.terminals.map(
+      (terminal: { name: string }) => terminal.name,
+    ),
+  ).toEqual(["D", "D_bar"]);
+  await expect(page.getByLabel("Netlist code", { exact: true })).toContainText(
+    "D_bar",
+  );
 });
 
 test("lights a part's card when it is picked on the canvas, and the part when its card is clicked", async ({

@@ -6784,7 +6784,7 @@ test("keeps the chosen corner shape when the wire tool is picked again", async (
   expect(dx).not.toBe(dy);
 });
 
-test("Net Label overbars stay the label's look through source edits, undo and reload", async ({
+test("a Net Label drawn under an overbar names the complement Net, through undo and reload", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -6820,9 +6820,9 @@ test("Net Label overbars stay the label's look through source edits, undo and re
   await expect(label).toHaveText("F");
   const saved = await downloadBytes(page, "File", "Export Project File…");
   const document = parseSavedProject(saved.toString()).documents[0];
-  // The bar is how the label is drawn; the Net keeps its name F.
+  // An overbar over a Net Label means its complement: the Net is F_bar.
   expect(document.connectivityEvidence).toContainEqual(
-    expect.objectContaining({ kind: "name-claim", name: "F" }),
+    expect.objectContaining({ kind: "name-claim", name: "F_bar" }),
   );
   await page.getByTestId("draw-tool-undo").click();
   await expect(bar).toHaveCount(0);
@@ -6847,19 +6847,19 @@ test("Net Label overbars stay the label's look through source edits, undo and re
   )
     await page.getByTestId("netlist-panel-toggle").click();
   const code = page.getByLabel("Netlist code", { exact: true });
-  await expect(code).not.toContainText("F_bar");
+  await expect(code).toContainText("F_bar");
   await page
     .getByLabel("Netlist format", { exact: true })
     .selectOption("spice");
-  await expect(code).not.toContainText("F_bar");
+  await expect(code).toContainText("F_bar");
   await page
     .getByLabel("Netlist format", { exact: true })
     .selectOption("spectre");
   await clickRoute(page, "route-ui-1", 0.5, 0);
   await openSelectionShelf(page);
-  // Renaming keeps the author's bar on the new name.
+  // Renamed to another complement, the label keeps the author's bar.
   await editComponentPropertyCode(page, (code) => {
-    code.name = "Q";
+    code.name = "Q_bar";
   });
   await expect(label).toHaveText("Q");
   await expect(bar).toHaveCount(1);

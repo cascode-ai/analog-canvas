@@ -88,9 +88,14 @@ later drawings, where a slanted script is the author's choice.
   nothing is inserted, removed or re-cased. Characters the old look hid, such
   as an underscore before a subscript or a trailing `_bar` under an overbar,
   stay where they were around the edit.
-- Changing only styling (subscript, superscript, slant, weight, overbar) never
+- Changing only styling (subscript, superscript, slant, weight) never
   renames. If a styling change leaves a hidden character with nothing to hide
   it, that character is shown again rather than dropped from the name.
+- An overbar over a Net or Cell Pin label is the one style that renames,
+  because it means the complement: barring D names it `D_bar`, a signal apart
+  from D, and taking the bar off gives D back. A device Reference's overbar
+  stays styling. A label an older drawing barred without `_bar` in its name
+  keeps that look until it is edited.
 - A label still carrying its standard look is regenerated for its new name
   after a text edit or any rename (Properties, netlist code, Agent, clipboard);
   a new spelling without a standard form returns the label to the historical
