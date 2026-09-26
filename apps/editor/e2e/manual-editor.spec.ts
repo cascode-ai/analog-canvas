@@ -3406,6 +3406,61 @@ test("draws a new subscript upright, lights the looks it has, and keeps one the 
   await expect(rendered).toHaveText("CLKE");
 });
 
+test("italic over a whole label slants its subscript too, and takes it off everywhere", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 280, y: 180 });
+  await placeComponent(page, "resistor", { x: 480, y: 180 });
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-R1-2").click();
+  await page.getByTestId("terminal-R2-1").click();
+  await page.keyboard.press("Escape");
+  await clickRoute(page, "route-ui-1", 0.5, 0);
+  await openSelectionShelf(page);
+  await editComponentPropertyCode(page, (code) => {
+    code.name = "CLKE";
+  });
+  const hit = page.getByTestId("annotation-hit-net-label-route-ui-1");
+  const rendered = page.locator('[data-object-id="net-label-route-ui-1"]');
+  const editor = page.getByRole("textbox", { name: "Canvas text editor" });
+  const italic = page.getByRole("button", { name: "Italic" });
+  const apply = page.getByRole("button", { name: "Apply text changes" });
+  const subscript = rendered.locator('[data-text-run="subscript"]');
+  await hit.dblclick();
+  await selectRichTextOffsets(editor, 3, 4);
+  await page.getByRole("button", { name: "Subscript" }).click();
+  await apply.click();
+  await expect(subscript).toHaveCSS("font-style", "normal");
+
+  // Bold italic CLK with an upright E is not italic throughout, so Italic
+  // over all of it slants the subscript as well.
+  await hit.dblclick();
+  await editor.press("ControlOrMeta+A");
+  await expect(italic).toHaveAttribute("aria-pressed", "false");
+  await italic.click();
+  await expect(italic).toHaveAttribute("aria-pressed", "true");
+  await apply.click();
+  await expect(subscript.locator('[data-text-run="span"]').first()).toHaveCSS(
+    "font-style",
+    "italic",
+  );
+
+  // Italic throughout, the same press takes it off every character.
+  await hit.dblclick();
+  await editor.press("ControlOrMeta+A");
+  await expect(italic).toHaveAttribute("aria-pressed", "true");
+  await italic.click();
+  await expect(italic).toHaveAttribute("aria-pressed", "false");
+  await apply.click();
+  await expect(subscript).toHaveCSS("font-style", "normal");
+  await expect(rendered.locator('[data-text-run="span"]').first()).toHaveCSS(
+    "font-style",
+    "normal",
+  );
+  await expect(rendered).toHaveText("CLKE");
+});
+
 test("keeps literal text line breaks and overbars visible while editing", async ({
   page,
 }) => {

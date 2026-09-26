@@ -84,19 +84,6 @@ function selectionItalic(range: Range): boolean {
   return !!element && getComputedStyle(element).fontStyle !== "normal";
 }
 
-/** Whether the first text a selection covers is drawn italic. */
-function selectionStartItalic(range: Range): boolean {
-  let node: Node | null =
-    range.startContainer.nodeType === Node.TEXT_NODE
-      ? range.startContainer
-      : (range.startContainer.childNodes[range.startOffset] ??
-        range.startContainer);
-  while (node && node.nodeType !== Node.TEXT_NODE && node.firstChild)
-    node = node.firstChild;
-  const element = node && (isElement(node) ? node : node.parentElement);
-  return !!element && getComputedStyle(element).fontStyle !== "normal";
-}
-
 function allTextBold(runs: RichTextRun[], bold = false): boolean {
   return runs.every((run) => {
     if (run.kind === "text") return !run.value.trim() || bold;
@@ -127,6 +114,27 @@ function withoutItalic(runs: RichTextRun[]): RichTextRun[] {
       ];
     return [run];
   });
+}
+
+/**
+ * Every character italic, a script's own included. A script is upright only
+ * by default, so the slant is set inside it, where it counts as the author's.
+ */
+export function withItalic(runs: RichTextRun[]): RichTextRun[] {
+  const italicize = (run: RichTextRun): RichTextRun => {
+    if (run.kind === "text")
+      return { kind: "span", style: "italic", children: [run] };
+    if (run.kind === "span")
+      return { ...run, children: run.children.map(italicize) };
+    if (run.kind === "fraction")
+      return {
+        ...run,
+        numerator: { runs: run.numerator.runs.map(italicize) },
+        denominator: { runs: run.denominator.runs.map(italicize) },
+      };
+    return run;
+  };
+  return withoutItalic(runs).map(italicize);
 }
 
 /** The subscript or superscript a node sits in, if any. */
@@ -671,16 +679,20 @@ export function RichTextEditor({
       name === "italic" &&
       range &&
       !range.collapsed &&
-      selectionStartItalic(range) &&
       !enclosingScript(range.commonAncestorContainer)
     ) {
-      // Scripts are upright, so italic text with its subscript is only partly
-      // italic, which native editing toggles differently on each platform
-      // (macOS by the start of the selection, others by all of it). Remove
-      // italic from a selection that starts italic directly, the same way
-      // everywhere. Every run carries its own weight and slant, so the
-      // insertion, which may land outside the selection's own wrapper,
+      // Italic toggles the way its button shows it: a selection italic
+      // throughout loses it, and anything else becomes italic throughout,
+      // scripts included. Scripts are upright only by default, and a
+      // selection over them asks for them too; native editing would leave
+      // them upright, and toggles by the selection's start on macOS but by
+      // all of it elsewhere. Every run carries its own weight and slant, so
+      // the insertion, which may land outside the selection's own wrapper,
       // cancels whatever it would inherit.
+      const italicThroughout = activeStylesAt(
+        range,
+        editableRef.current,
+      ).italic;
       const selected = document.createElement("div");
       selected.append(range.cloneContents());
       const current = editableDocument(
@@ -689,7 +701,9 @@ export function RichTextEditor({
         selectionItalic(range),
       );
       const inserted = insertEditableContent({
-        runs: withoutItalic(current.runs),
+        runs: italicThroughout
+          ? withoutItalic(current.runs)
+          : withItalic(current.runs),
       });
       if (inserted) {
         inserted.style.fontStyle = "normal";

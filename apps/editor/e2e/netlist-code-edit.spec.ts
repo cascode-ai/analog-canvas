@@ -610,7 +610,15 @@ test("bound labels retain typography on rename and support manual scripts withou
   await page.screenshot({ path: "plan/label-format-restored.png" });
   await editor.press("ControlOrMeta+a");
   await page.getByRole("button", { name: "Bold", exact: true }).click();
-  await page.getByRole("button", { name: "Italic", exact: true }).click();
+  // Italic R with an upright 8 is not italic throughout: Italic slants every
+  // character, the script too, and pressed again sets all of them upright.
+  const italic = page.getByRole("button", { name: "Italic", exact: true });
+  await expect(italic).toHaveAttribute("aria-pressed", "false");
+  await italic.click();
+  await expect(italic).toHaveAttribute("aria-pressed", "true");
+  await expect(editor.locator("sub")).toHaveText("8");
+  await italic.click();
+  await expect(italic).toHaveAttribute("aria-pressed", "false");
   await page.getByRole("button", { name: "Apply text changes" }).click();
   await expect(code).toContainText("R8");
   expect(
