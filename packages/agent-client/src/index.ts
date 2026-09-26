@@ -55,3 +55,7 @@ export {
   type AuthoringAction,
   type ObjectRef,
 } from "./authoring-actions.js";
+export {
+  WorkspaceBindingStore,
+  type WorkspaceBinding,
+} from "./workspace-binding-store.js";

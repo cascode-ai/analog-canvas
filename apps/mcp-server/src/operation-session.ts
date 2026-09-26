@@ -1,11 +1,12 @@
 import { homedir } from "node:os";
-import { isAbsolute } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { userWorkspaceRoot } from "./workspace-location.js";
 import {
   AgentHttpClient,
   AgentSessionClient,
   ConnectorStore,
   defaultConnectorFilePath,
+  WorkspaceBindingStore,
 } from "@icm/agent-client";
 
 export interface OperationSession {
@@ -41,6 +42,7 @@ export function resolveConfig(
 /** One client state machine; neither entry point needs the other's handler. */
 export function createOperationSession(
   config: RuntimeConfig = resolveConfig(),
+  options: { shortLived?: boolean } = {},
 ): OperationSession {
   if (config.taskDirectory && !isAbsolute(config.taskDirectory))
     throw new Error(
@@ -52,6 +54,19 @@ export function createOperationSession(
     client: new AgentSessionClient({
       http: new AgentHttpClient({ baseUrl: config.apiBaseUrl }),
       connectorStore: new ConnectorStore(config.connectorPath),
+      ...(config.taskDirectory
+        ? {
+            workspaceBindingStore: new WorkspaceBindingStore(
+              join(
+                config.taskDirectory,
+                ".analog-canvas",
+                "targets",
+                `${encodeURIComponent(new URL(config.apiBaseUrl).origin)}.json`,
+              ),
+            ),
+          }
+        : {}),
+      requireDurableWorkspaceBinding: options.shortLived ?? false,
     }),
   };
 }

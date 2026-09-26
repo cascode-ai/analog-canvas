@@ -57,6 +57,7 @@ import {
   type CompiledTransaction,
 } from "./authoring-helper.js";
 import { AuthoringActionSchema } from "./authoring-actions.js";
+import type { WorkspaceBindingStore } from "./workspace-binding-store.js";
 
 interface ActiveSession {
   sessionId: string;
@@ -87,6 +88,9 @@ export interface AgentSessionClientOptions {
   sleep?: (ms: number) => Promise<void>;
   tokenExpiryGraceMs?: number;
   connectorStore?: ConnectorStore;
+  workspaceBindingStore?: WorkspaceBindingStore;
+  /** A one-command process cannot honor an in-memory-only bind. */
+  requireDurableWorkspaceBinding?: boolean;
 }
 
 export interface ConnectReport {
@@ -120,6 +124,8 @@ export interface StatusReport extends ConnectionSnapshot {
 }
 
 export interface ApplyActionsReport {
+  projectId?: string;
+  workspaceId?: string | null;
   documentId?: string;
   requestId?: string;
   applied?: boolean;
@@ -180,6 +186,8 @@ export class AgentSessionClient {
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly tokenExpiryGraceMs: number;
   private readonly connectorStore: ConnectorStore | undefined;
+  private readonly workspaceBindingStore: WorkspaceBindingStore | undefined;
+  private readonly requireDurableWorkspaceBinding: boolean;
   private readonly inflight = new Map<
     string,
     { payload: string; promise: Promise<unknown> }
@@ -243,6 +251,9 @@ export class AgentSessionClient {
       ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.tokenExpiryGraceMs = options.tokenExpiryGraceMs ?? 30_000;
     this.connectorStore = options.connectorStore;
+    this.workspaceBindingStore = options.workspaceBindingStore;
+    this.requireDurableWorkspaceBinding =
+      options.requireDurableWorkspaceBinding ?? false;
     this.connection = new ConnectionTracker(this.now);
   }
 
@@ -267,6 +278,7 @@ export class AgentSessionClient {
     this.connection.apply("claim-started");
     try {
       const claim: ClaimSuccess = await this.http.claim(claimCode.trim());
+      await this.workspaceBindingStore?.clear();
       this.http.workspaceId = undefined;
       this.boundWorkspace = null;
       this.cache.clear();
@@ -610,6 +622,16 @@ export class AgentSessionClient {
     projectId: string | null;
     name: string | null;
   }> {
+    if (
+      workspaceId !== null &&
+      this.requireDurableWorkspaceBinding &&
+      !this.workspaceBindingStore
+    )
+      throw new AgentSessionError(
+        "WORKSPACE_TASK_REQUIRED",
+        "CLI workspace binding needs ANALOG_CANVAS_TASK_DIR, an absolute task directory shared by subsequent commands",
+        "request-rejected",
+      );
     if (this.inflight.size)
       throw new AgentSessionError(
         "WORKSPACE_BUSY",
@@ -617,6 +639,7 @@ export class AgentSessionClient {
         "request-rejected",
       );
     if (workspaceId === null) {
+      await this.workspaceBindingStore?.clear();
       this.http.workspaceId = undefined;
       this.boundWorkspace = null;
       this.cache.clear();
@@ -656,6 +679,15 @@ export class AgentSessionClient {
         "Wait for in-flight Agent requests before changing the target",
         "request-rejected",
       );
+    if (this.workspaceBindingStore) {
+      await this.workspaceBindingStore.save({
+        version: 1,
+        apiBaseUrl: this.http.baseUrl,
+        sessionId: this.session!.sessionId,
+        workspaceId,
+        projectId: target.projectId,
+      });
+    }
     this.http.workspaceId = workspaceId;
     this.boundWorkspace = {
       projectId: target.projectId,
@@ -682,6 +714,7 @@ export class AgentSessionClient {
       await this.http.disconnect(session.sessionId, session.agentToken);
     } finally {
       await this.discardCredential("DISCONNECTED");
+      await this.workspaceBindingStore?.clear();
     }
   }
 
@@ -1703,6 +1736,8 @@ export class AgentSessionClient {
     const report: ApplyActionsReport = {
       ok: true,
       stage: "done",
+      projectId: entry.projectId,
+      workspaceId: this.workspaceId,
       documentId: response.diff.documentId,
       transactions: 1,
       revision: response.revision,
@@ -1969,7 +2004,58 @@ export class AgentSessionClient {
         stored.sessionId,
         stored.connectorToken,
       );
-      this.session = this.activeSession(claim);
+      const resumed = this.activeSession(claim);
+      const saved = this.boundWorkspace
+        ? null
+        : await this.workspaceBindingStore?.load();
+      if (!this.boundWorkspace && saved) {
+        if (
+          saved.apiBaseUrl !== this.http.baseUrl ||
+          saved.sessionId !== claim.sessionId
+        )
+          throw new AgentSessionError(
+            "WORKSPACE_BINDING_STALE",
+            "The task target belongs to another session; clear it with bind-workspace workspaceId:null before rebinding",
+            "request-rejected",
+          );
+        // One roster check per new client, not one extra round trip per action.
+        const response = await this.http.projects(
+          claim.sessionId,
+          claim.agentToken,
+          {
+            apiVersion: AGENT_API_VERSION,
+            requestId: this.newRequestId(),
+            operation: "workspace",
+            request: { action: "list" },
+          },
+        );
+        const target =
+          response.ok &&
+          response.operation === "workspace" &&
+          response.result.action === "list"
+            ? response.result.projects.find(
+                (item) => item.workspaceId === saved.workspaceId,
+              )
+            : undefined;
+        if (!target || target.projectId !== saved.projectId)
+          throw new AgentSessionError(
+            "WORKSPACE_NOT_FOUND",
+            "The bound working copy is closed or replaced; clear it with bind-workspace workspaceId:null before rebinding",
+            "request-rejected",
+          );
+        this.http.workspaceId = saved.workspaceId;
+        this.boundWorkspace = {
+          projectId: target.projectId,
+          documentIds: target.cells.map((cell) => cell.documentId),
+        };
+      }
+      if (this.boundWorkspace && claim.sessionId !== stored.sessionId)
+        throw new AgentSessionError(
+          "WORKSPACE_BINDING_STALE",
+          "The bound working copy belongs to another session; explicitly clear the binding",
+          "request-rejected",
+        );
+      this.session = resumed;
       if (this.boundWorkspace && claim.sessionId === stored.sessionId) {
         this.session.projectId = this.boundWorkspace.projectId;
         this.session.documentIds = [...this.boundWorkspace.documentIds];

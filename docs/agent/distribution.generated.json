@@ -61,7 +61,7 @@
     },
     {
       "source": "docs/agent/http-cli.md",
-      "sha256": "75e75596797d5e445ae7a50325307686d6711fc464fd517f579927e9fc1ac441"
+      "sha256": "c3f4e603ed0e8e796359cf14b33e86c84a87f16a43252968b53006ee64a74883"
     },
     {
       "source": "packages/agent-adapter/src/agent-authoring-catalog.generated.ts",
@@ -629,7 +629,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/knowledge/patterns.md"
       ],
-      "sha256": "a034d55b7138f14c3165e7d5a7b9288a49eac6d55af3c70e3019bfb53a041b05"
+      "sha256": "2f6b1495ba9910c155e9b8de4ece87aa9866168d1601b260041a10f2ac6e248a"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
