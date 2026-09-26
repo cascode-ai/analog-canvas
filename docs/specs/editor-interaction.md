@@ -539,7 +539,9 @@ The movement closure decides what travels: internal Routes and their
 Junctions reflect rigidly, boundary Routes keep their outside endpoint and
 stretch, and external Routes stay. A selection of Routes alone therefore
 mirrors too; its Junctions carry it. A Route held by an unselected Instance
-stays with that Instance, as it does in a move.
+stays with that Instance, as it does in a move. When nothing selected can
+move — only such Routes, or only locked objects — the status says why
+instead of doing nothing.
 
 The axis runs through the centre of the selected Instances' positions, or of
 the carried Junctions when there are no Instances, or of the selected drawing
