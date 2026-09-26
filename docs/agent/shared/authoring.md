@@ -83,6 +83,9 @@ an obstacle autorouter: conflicting taps or excess expanded edits reject the
 whole operation. Ordinary crossings without a Junction remain legal. It does
 not move devices, infer bulk wiring or override import-reference shorts/scope
 conflicts; place missing devices and fix those facts first.
+Several `route-net` actions can share one atomic command batch; each resolves
+against the preceding private result. The total expanded edit limit still
+applies, and any invalid later target leaves the whole batch unapplied.
 Its focused contract is `describe_tool({tool:"apply_actions",operations:["route-net"]})`;
 use it when parameters are unfamiliar, not as a mandatory preflight. Ordinary
 `circuit_wire` keeps its compact connect/disconnect declaration.
@@ -94,9 +97,13 @@ it does not assert unchanged parameters, bulk or hierarchy. Omitted means unknow
 Use reset-placement only for intentional redraw, with its documented effects.
 `delete` uses the GUI selection-deletion planner, including owned displays and
 formal interface declarations. `delete-selection` accepts multiple explicit
-object IDs (including `noConnectIds`) in one transaction; selecting every object clears a Cell, while
+object IDs (including `noConnectIds`) in one transaction. Unknown or wrongly
+classified IDs reject the entire Agent selection; free text created by
+`annotate` belongs in `draftingIds`, not `annotationIds`. Selecting every object clears a Cell, while
 unselected wires remain dangling. Reset modes retain their existing meanings
 and must not be used as a synonym for deleting the entire Cell.
+To remove a formal Cell Pin use `remove-cell-terminal` or selection deletion;
+disconnecting its `P` alone would leave an invalid declared interface.
 
 For an explicit label cleanup, `circuit_text` / `apply_actions` accepts
 `{kind:"arrange-labels",instanceIds:["…"]}`. It compacts visible default label

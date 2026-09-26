@@ -12,6 +12,258 @@ import { EditorDocumentController } from "../document/document-controller";
 import { BrowserAgentHost } from "./browser-agent-host";
 import { planBrowserAgentCommand } from "./browser-agent-command";
 
+it("explains formal Pin disconnection and removes seven terminals atomically instead", async () => {
+  const { client, controller, tool } = await folder();
+  const placed = await tool("circuit_place", {
+    actions: Array.from({ length: 7 }, (_, i) => ({
+      kind: "place-component",
+      symbol: "port",
+      reference: `P${i}`,
+      position: { x: i * 100, y: 100 },
+    })),
+  });
+  expect(placed.ok, JSON.stringify(placed)).toBe(true);
+  const before = structuredClone(controller.project);
+  const terminals = controller.document.netlist!.terminals;
+  const rejected = await tool("circuit_wire", {
+    actions: [
+      {
+        kind: "disconnect",
+        target: {
+          kind: "pin",
+          instance: {
+            kind: "instance",
+            id: terminals[0]!.interfaceInstanceIds[0]!,
+          },
+          pin: "P",
+        },
+      },
+    ],
+  });
+  expect(rejected).toMatchObject({ ok: false, actionIndex: 0 });
+  expect(rejected.message).toContain("remove-cell-terminal");
+  expect(controller.project).toEqual(before);
+  const removed = await tool("apply_actions", {
+    actions: terminals.map((t) => ({
+      kind: "remove-cell-terminal",
+      terminalId: t.id,
+    })),
+  });
+  expect(removed.ok, JSON.stringify(removed)).toBe(true);
+  expect(controller.document.netlist!.terminals).toEqual([]);
+  expect(controller.document.instances).toEqual([]);
+  await client.applyActions([{ kind: "undo" }]);
+  expect(controller.document.instances).toEqual(before.documents[0]!.instances);
+  expect(controller.document.netlist).toEqual(before.documents[0]!.netlist);
+});
+
+it("rejects a wrongly classified selection before deleting any valid member", async () => {
+  const { tool, controller, client, add } = await folder();
+  const id = await add();
+  expect(
+    (
+      await tool("circuit_text", {
+        actions: [
+          { kind: "annotate", position: { x: 300, y: 100 }, text: "Keep me" },
+        ],
+      })
+    ).ok,
+  ).toBe(true);
+  const textId = controller.document.drafting!.objects[0]!.id;
+  const before = structuredClone(controller.project);
+  const rejected = await tool("apply_actions", {
+    actions: [
+      {
+        kind: "delete-selection",
+        selection: { instanceIds: [id], annotationIds: [textId] },
+      },
+    ],
+  });
+  expect(rejected).toMatchObject({ ok: false });
+  expect(rejected.message).toContain("annotationIds");
+  expect(rejected.message).toContain(textId);
+  expect(rejected.message).toContain("draftingIds");
+  expect(controller.project).toEqual(before);
+  const accepted = await tool("apply_actions", {
+    actions: [
+      {
+        kind: "delete-selection",
+        selection: { instanceIds: [id], draftingIds: [textId] },
+      },
+    ],
+  });
+  expect(accepted.ok, accepted.message).toBe(true);
+  expect(controller.document.instances).toEqual([]);
+  expect(controller.document.drafting?.objects ?? []).toEqual([]);
+  await client.applyActions([{ kind: "undo" }]);
+  expect(controller.document.instances).toEqual(before.documents[0]!.instances);
+  expect(controller.document.drafting).toEqual(before.documents[0]!.drafting);
+});
+
+it.each([
+  "instanceIds",
+  "routeIds",
+  "junctionIds",
+  "annotationIds",
+  "draftingIds",
+  "noConnectIds",
+])(
+  "rejects missing %s in the Agent boundary without creating an undo step",
+  async (field) => {
+    const { tool, controller, add } = await folder();
+    const id = await add();
+    const before = structuredClone(controller.project);
+    const result = await tool("apply_actions", {
+      actions: [
+        {
+          kind: "delete-selection",
+          selection: {
+            instanceIds: [id],
+            [field]: field === "instanceIds" ? [id, "missing"] : ["missing"],
+          },
+        },
+      ],
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect(result.message).toContain(field);
+    expect(controller.project).toEqual(before);
+    await tool("apply_actions", { actions: [{ kind: "undo" }] });
+    expect(controller.document.instances).toEqual([]);
+  },
+);
+
+it.each(["connect", "route-net"])(
+  "commits %s at drawing scale in one call, then undoes the whole graph",
+  async (method) => {
+    const { client, controller, tool } = await folder();
+    const count = method === "connect" ? 12 : 11;
+    const placements = Array.from({ length: count }, (_, i) => [
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: `RL${i}`,
+        position: { x: 0, y: i * 200 },
+        rotation: 270,
+      },
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: `RR${i}`,
+        position: { x: 400, y: i * 200 },
+        rotation: 270,
+      },
+      ...(i < 5
+        ? [1, 2].map((j) => ({
+            kind: "place-component",
+            symbol: "resistor",
+            reference: `RT${i}${j}`,
+            position: { x: j * 100, y: i * 200 + 100 },
+          }))
+        : []),
+    ]).flat();
+    // Placement setup is not the wire-batch assertion; respect the normal
+    // per-transaction edit budget (each part also owns display annotations).
+    for (let offset = 0; offset < placements.length; offset += 16) {
+      const placement = await tool("circuit_place", {
+        actions: placements.slice(offset, offset + 16),
+      });
+      expect(placement.ok, JSON.stringify(placement)).toBe(true);
+    }
+    const before = structuredClone(controller.document);
+    const actions =
+      method === "route-net"
+        ? Array.from({ length: count }, (_, i) => ({
+            kind: "route-net",
+            target: {
+              kind: "pins",
+              pins: [
+                [`RL${i}`, "2"],
+                [`RR${i}`, "1"],
+                ...(i < 5
+                  ? [
+                      [`RT${i}1`, "1"],
+                      [`RT${i}2`, "1"],
+                    ]
+                  : []),
+              ].map(([ref, pinName]) => ({
+                instanceId: controller.document.instances.find(
+                  (v) => v.reference === ref,
+                )!.id,
+                pinName,
+              })),
+            },
+            trunk: {
+              start: { x: 20, y: i * 200 },
+              end: { x: 380, y: i * 200 },
+            },
+          }))
+        : [
+            ...Array.from({ length: count }, (_, i) => ({
+              kind: "connect",
+              from: { kind: "pin", instance: `RL${i}`, pin: "2" },
+              to: { kind: "pin", instance: `RR${i}`, pin: "1" },
+            })),
+            ...Array.from({ length: 5 }, (_, i) =>
+              [1, 2].map((j) => ({
+                kind: "connect",
+                from: { kind: "pin", instance: `RT${i}${j}`, pin: "1" },
+                to: { kind: "wire-at", point: { x: j * 100, y: i * 200 } },
+              })),
+            ).flat(),
+          ];
+    if (method === "route-net") {
+      const rejected = await tool("apply_actions", {
+        actions: [
+          ...actions,
+          {
+            kind: "route-net",
+            target: { kind: "member", instanceId: "missing", pinName: "1" },
+          },
+        ],
+      });
+      expect(rejected).toMatchObject({ ok: false, actionIndex: count });
+      expect(controller.document).toEqual(before);
+    }
+    const result = await tool(
+      method === "connect" ? "circuit_wire" : "apply_actions",
+      { actions },
+    );
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    expect(controller.document.revision).toBe(before.revision + 1);
+    expect(controller.document.junctions).toHaveLength(10);
+    expect(controller.document.nets).toHaveLength(count);
+    if (method === "route-net") {
+      const after = structuredClone(controller.document);
+      const repeated = await tool("apply_actions", { actions });
+      expect(repeated.ok, JSON.stringify(repeated)).toBe(true);
+      expect(controller.document).toEqual(after);
+    }
+    for (let i = 0; i < count; i++) {
+      const refs = new Map(
+        controller.document.instances.map((v) => [v.id, v.reference]),
+      );
+      const node = controller.document.nets.find((n) =>
+        n.terminals.some((t) => refs.get(t.instanceId) === `RL${i}`),
+      )!;
+      expect(
+        node.terminals
+          .map((t) => `${refs.get(t.instanceId)}.${t.pinName}`)
+          .sort(),
+      ).toEqual(
+        [
+          `RL${i}.2`,
+          `RR${i}.1`,
+          ...(i < 5 ? [`RT${i}1.1`, `RT${i}2.1`] : []),
+        ].sort(),
+      );
+    }
+    await client.applyActions([{ kind: "undo" }]);
+    expect(controller.document.routes).toEqual(before.routes);
+    expect(controller.document.junctions).toEqual(before.junctions);
+    expect(controller.document.nets).toEqual(before.nets);
+  },
+);
+
 it("arranges default labels through the focused MCP entry in one undo, without changing topology", async () => {
   const { tool, controller, client, add } = await folder();
   const id = await add();

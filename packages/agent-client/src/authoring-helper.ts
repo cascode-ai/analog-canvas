@@ -77,6 +77,7 @@ interface SnapshotInstance {
 }
 
 interface ResolvedDocument {
+  cellTerminalInstanceIds: Set<string>;
   instances: SnapshotInstance[];
   nets: {
     id: string;
@@ -106,6 +107,11 @@ interface ResolvedDocument {
 function resolvedDocument(snapshot: AgentSessionSnapshot): ResolvedDocument {
   const document = snapshot.document;
   return {
+    cellTerminalInstanceIds: new Set(
+      (document.cellInterface?.terminals ?? []).flatMap(
+        (terminal) => terminal.interfaceInstanceIds,
+      ),
+    ),
     instances: document.instances.map((instance) => ({
       id: instance.id,
       reference: instance.reference,
@@ -397,6 +403,7 @@ export function compileActions(
   parsed.data.forEach((action, index) => {
     switch (action.kind) {
       case "set-model":
+      case "route-net":
       case "set-port-direction":
       case "set-vdd-mode":
       case "delete-selection":
@@ -952,6 +959,15 @@ function compileDisconnect(
         : action.target.instance),
     });
     requirePin(index, action.kind, instance, action.target.pin);
+    if (
+      action.target.pin === "P" &&
+      document.cellTerminalInstanceIds.has(instance.id)
+    )
+      throw new ActionCompileError(
+        index,
+        action.kind,
+        "A formal Cell Pin's P pin cannot be disconnected; use remove-cell-terminal or delete-selection instead",
+      );
     pushEdit(index, action.kind, {
       kind: "disconnect_endpoint",
       endpoint: terminalEndpoint(instance, action.target.pin),

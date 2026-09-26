@@ -34,6 +34,15 @@ function expectCompileError(actions: unknown[], fragment: string): void {
 }
 
 describe("authoring helper compilation", () => {
+  it("does not drop route-net when a caller uses the Snapshot-backed compiler", () => {
+    const command = {
+      kind: "route-net",
+      target: { kind: "member", instanceId: "instance-1", pinName: "G" },
+    };
+    expect(compile([command])).toEqual([
+      { form: "command", command, actionKinds: ["route-net"] },
+    ]);
+  });
   it("forwards pin anchors to the shared server planner and requires one position form", () => {
     const action = {
       kind: "place-component",
