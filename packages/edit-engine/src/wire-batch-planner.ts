@@ -3,6 +3,8 @@ import { routeEnd, type SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import { executeTransaction, type SchematicEdit } from "./transaction.js";
 import { proposeWireIntent } from "./routing-planner.js";
+import { createContactPlanningDraft } from "./contact-planning-draft.js";
+import { resolveWireIntentTarget } from "./wire-intent-target.js";
 
 /** Plan on private evolving state, then dispatch the combined edits once. */
 export function planWireBatch(
@@ -15,11 +17,64 @@ export function planWireBatch(
 ): { edits: SchematicEdit[] } | string {
   if (!Array.isArray(input))
     return proposeWireIntent(document, resolver, input);
-  let working = document;
-  const edits: SchematicEdit[] = [];
+  const draft = createContactPlanningDraft(document, resolver);
+  const working = draft.document;
+  const edits = draft.edits;
   const descendants = new Map(
     document.routes.map((route) => [route.id, new Set([route.id])]),
   );
+  const resolveAnchor = (
+    anchor: Parameters<typeof proposeWireIntent>[2]["from"],
+    other: Parameters<typeof proposeWireIntent>[2]["from"],
+  ) => {
+    const resolved = resolveWireIntentTarget(working, resolver, anchor, other);
+    if (
+      typeof resolved !== "string" ||
+      anchor.kind !== "wire-at" ||
+      !resolved.startsWith("Multiple wire interiors") ||
+      !edits.length
+    )
+      return resolved;
+    // A preceding gesture may create overlapping portions of one conductor.
+    // Ask the ordinary finalizer whether the tap is unambiguous, but never
+    // copy its rewritten IDs into the replay draft. Foreign crossings remain
+    // subject to the same selector contract.
+    const preview = executeTransaction(
+      document,
+      {
+        transactionId: "wire-batch-selector",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "agent", id: "wire-planner" },
+        dryRun: true,
+        edits,
+      },
+      { symbolResolver: resolver },
+    );
+    if (!preview.ok) return resolved;
+    const selected = resolveWireIntentTarget(
+      preview.document,
+      resolver,
+      anchor,
+      other,
+    );
+    if (typeof selected === "string") return selected;
+    for (const route of working.routes) {
+      const segment = resolveRouteGeometry(
+        working,
+        resolver,
+        route,
+      )?.segments.find((s) => pointOnSegment(anchor.point, s.from, s.to));
+      if (segment)
+        return {
+          kind: "route-segment" as const,
+          routeId: route.id,
+          legId: segment.address.legId,
+          point: anchor.point,
+        };
+    }
+    return resolved;
+  };
   const rebaseAnchor = (
     anchor: Parameters<typeof proposeWireIntent>[2]["from"],
   ): typeof anchor | string => {
@@ -85,39 +140,35 @@ export function planWireBatch(
     if (typeof from === "string") return `Wire ${index + 1}: ${from}`;
     const to = rebaseAnchor(intent.to);
     if (typeof to === "string") return `Wire ${index + 1}: ${to}`;
+    const selectedFrom = resolveAnchor(from, to);
+    if (typeof selectedFrom === "string")
+      return `Wire ${index + 1}: ${selectedFrom}`;
+    const selectedTo = resolveAnchor(to, selectedFrom);
+    if (typeof selectedTo === "string")
+      return `Wire ${index + 1}: ${selectedTo}`;
     const planned = proposeWireIntent(working, resolver, {
       ...intent,
-      from,
-      to,
+      from: selectedFrom,
+      to: selectedTo,
     });
     if (typeof planned === "string") return `Wire ${index + 1}: ${planned}`;
-    // Each preview finalizes route-derived Nets, while the final transaction
-    // does so once. Let a later Junction materialize its new conductor's Net
-    // using the existing createNet contract. Empty pre-reserved Nets would
-    // occupy the route hint and change identity during physical rebuilding.
+    // Match the final transaction's pre-finalization state. Normalizing each
+    // private step would invent Net/Route identities absent during replay.
+    // A new route's Net remains a hint until finalization; a tap can materialize
+    // that hint using the existing createNet contract.
     const materialized = planned.edits.map((edit): SchematicEdit =>
       edit.kind === "add_junction" &&
       !document.nets.some((net) => net.id === edit.netId)
         ? { ...edit, createNet: true }
         : edit,
     );
-    edits.push(...materialized);
-    if (edits.length > limit)
-      return `Wire ${index + 1}: batch requires ${edits.length} edits, exceeding the ${limit}-edit transaction limit`;
-    const preview = executeTransaction(
-      working,
-      {
-        transactionId: `wire-batch-preview-${index}`,
-        documentId: working.id,
-        expectedRevision: working.revision,
-        actor: { kind: "agent", id: "wire-planner" },
-        dryRun: true,
-        edits: materialized,
-      },
-      { symbolResolver: resolver },
-    );
-    if (!preview.ok) return `Wire ${index + 1}: ${preview.error.message}`;
-    working = preview.document;
+    if (edits.length + materialized.length > limit)
+      return `Wire ${index + 1}: batch requires ${edits.length + materialized.length} edits, exceeding the ${limit}-edit transaction limit`;
+    try {
+      for (const edit of materialized) draft.apply(edit);
+    } catch (error) {
+      return `Wire ${index + 1}: ${error instanceof Error ? error.message : String(error)}`;
+    }
     for (const edit of planned.edits) {
       if (edit.kind !== "add_junction" || !edit.split) continue;
       for (const lineage of descendants.values()) {
