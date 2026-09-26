@@ -11,6 +11,8 @@ import { DatabaseSync } from "node:sqlite";
 import { it } from "vitest";
 import {
   defaultInstanceLabelPlacement,
+  defaultInstanceParameterLabelPlacement,
+  defaultVddPowerLabelPlacement,
   resolveDocumentStyleProfile,
 } from "@icm/derived";
 import { executeTransaction, type SchematicEdit } from "@icm/edit-engine";
@@ -222,6 +224,50 @@ function labelsAtDefault(
   });
 }
 
+/**
+ * Labels with rules of their own that sit where the current rule puts them:
+ * a VDD Port's supply label and a named parameter's value (a T-coil's k).
+ * A label at an older default moves onto the current one the first time its
+ * part turns; such a label has settled, not drifted.
+ */
+function ruleLabelsAtDefault(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+): string[] {
+  const profile = resolveDocumentStyleProfile(document.presentation);
+  const grid = document.presentation.grid;
+  return document.annotations.flatMap((annotation) => {
+    if (annotation.anchor.kind !== "object") return [];
+    const anchor = annotation.anchor;
+    const instance = document.instances.find(
+      (item) => item.id === anchor.objectId,
+    );
+    const resolved =
+      instance && resolver.resolve(instance.symbolId, instance.symbolVariantId);
+    if (!instance?.placement || !resolved) return [];
+    const placement = instance.placement;
+    const binding = annotation.binding;
+    const expected =
+      annotation.kind === "power-label"
+        ? defaultVddPowerLabelPlacement(instance, resolved, grid)
+        : binding?.kind === "instance-value" && binding.parameter
+          ? defaultInstanceParameterLabelPlacement(
+              instance,
+              resolved,
+              profile,
+              grid,
+              binding.parameter,
+            )
+          : null;
+    return expected &&
+      expected.alignment === annotation.alignment &&
+      expected.position.x === placement.position.x + anchor.localOffset.x &&
+      expected.position.y === placement.position.y + anchor.localOffset.y
+      ? [annotation.id]
+      : [];
+  });
+}
+
 function censusEntry(row: {
   id: string;
   name: string;
@@ -286,6 +332,9 @@ function censusEntry(row: {
   });
   entry.checks.copyOfCopies = once
     ? attempt(() => {
+        // A drawing of drafting objects and wires alone, such as a block
+        // diagram, has no parts whose identities could chain.
+        if (once!.document.instances.length === 0) return OK;
         // Sources and their copies together: identities that share a stem.
         const before = objectIds(once!.document);
         const twice = pasteInPlace(
@@ -318,7 +367,10 @@ function censusEntry(row: {
     for (let step = 2; step <= 4; step += 1)
       current = quarterTurn(current, resolver, step);
     // A full turn brings every label back, or onto the current rule's place.
-    const settled = new Set(labelsAtDefault(current, resolver));
+    const settled = new Set([
+      ...labelsAtDefault(current, resolver),
+      ...ruleLabelsAtDefault(current, resolver),
+    ]);
     const displaced = document.annotations.flatMap((original) => {
       if (original.anchor.kind !== "object") return [];
       const after = current.annotations.find((item) => item.id === original.id);
