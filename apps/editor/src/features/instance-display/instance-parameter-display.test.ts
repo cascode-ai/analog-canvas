@@ -6,7 +6,12 @@ import {
   type Rotation,
   type SchematicDocument,
 } from "@icm/model";
-import { resolveAnnotationText } from "@icm/derived";
+import {
+  defaultInstanceParameterLabelPlacement,
+  legacyDefaultInstanceParameterLabelPlacement,
+  resolveAnnotationText,
+  resolveDocumentStyleProfile,
+} from "@icm/derived";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import {
   instanceParameterVisibility,
@@ -259,53 +264,48 @@ describe("magnetic parameter display", () => {
     expect(() => show(document, { k: true })).toThrow("Set K");
   });
   it.each(["xfmr", "tcoil"])(
-    "keeps %s parameter rows readable and reflects the whole column",
+    "places each %s parameter by the part it names through every turn and mirror",
     (symbolId) => {
-      for (const rotation of [
-        0, 45, 90, 135, 180, 225, 270, 315,
-      ] as Rotation[]) {
-        const initial = show(
-          fixture(symbolId),
-          symbolId === "xfmr"
-            ? { k: true, lp: true, ls: true }
-            : { k: true, l1: true, l2: true, cb: true },
-        );
-        const rotated = apply(initial, [
-          { kind: "rotate_instance", instanceId: "T1", rotation },
-        ]);
-        const originalPositions = rotated.annotations.map((annotation) => {
+      const names =
+        symbolId === "xfmr" ? ["k", "lp", "ls"] : ["k", "l1", "l2", "cb"];
+      const spots = (document: SchematicDocument) =>
+        document.annotations.map((annotation) => {
           expect(annotation.rotation).toBe(0);
-          expect(annotation.alignment).toBe("start");
           if (annotation.anchor.kind !== "object") throw new Error("anchor");
           return annotation.anchor.fallbackPosition;
         });
-        for (let i = 1; i < originalPositions.length; i++) {
-          expect(
-            originalPositions[i]!.y - originalPositions[i - 1]!.y,
-          ).toBeGreaterThanOrEqual(20);
-        }
+      const apart = (points: { x: number; y: number }[]) => {
+        for (let i = 0; i < points.length; i++)
+          for (let j = i + 1; j < points.length; j++)
+            expect(
+              Math.hypot(
+                points[i]!.x - points[j]!.x,
+                points[i]!.y - points[j]!.y,
+              ),
+            ).toBeGreaterThanOrEqual(12);
+      };
+      for (const rotation of [
+        0, 45, 90, 135, 180, 225, 270, 315,
+      ] as Rotation[]) {
+        const rotated = apply(
+          show(
+            fixture(symbolId),
+            Object.fromEntries(names.map((name) => [name, true])),
+          ),
+          [{ kind: "rotate_instance", instanceId: "T1", rotation }],
+        );
+        // Every value keeps a place of its own, whatever the turn.
+        apart(spots(rotated));
         for (const mirror of ["horizontal", "vertical", "both"] as const) {
           const mirrored = apply(rotated, [
             { kind: "mirror_instance", instanceId: "T1", mirror },
           ]);
-          mirrored.annotations.forEach((annotation, index) => {
-            const before = originalPositions[index]!;
-            const horizontal = mirror === "horizontal" || mirror === "both";
-            const vertical = mirror === "vertical" || mirror === "both";
-            expect(annotation).toMatchObject({
-              rotation: 0,
-              alignment: horizontal ? "end" : "start",
-              anchor: {
-                fallbackPosition: {
-                  x: horizontal ? 200 - before.x : before.x,
-                  y: vertical ? 200 - before.y : before.y,
-                },
-              },
-            });
+          apart(spots(mirrored));
+          mirrored.annotations.forEach((annotation, index) =>
             expect(resolveAnnotationText(mirrored, annotation)).toEqual(
               resolveAnnotationText(rotated, rotated.annotations[index]!),
-            );
-          });
+            ),
+          );
           const restored = apply(mirrored, [
             { kind: "mirror_instance", instanceId: "T1", mirror: "none" },
           ]);
@@ -314,6 +314,83 @@ describe("magnetic parameter display", () => {
       }
     },
   );
+  it("puts each T-coil value by its winding, the bridge by the bridge, the coupling between", () => {
+    const document = show(fixture("tcoil"), {
+      k: true,
+      l1: true,
+      l2: true,
+      cb: true,
+    });
+    const at = (parameter: string) => {
+      const annotation = document.annotations.find(
+        (candidate) =>
+          candidate.binding?.kind === "instance-value" &&
+          candidate.binding.parameter === parameter,
+      )!;
+      if (annotation.anchor.kind !== "object") throw new Error("anchor");
+      return {
+        ...annotation.anchor.fallbackPosition,
+        alignment: annotation.alignment,
+      };
+    };
+    // The Symbol sits at (100, 100): windings along y = 100 at x 40..79 and
+    // 122..161, the bridge capacitor above them near y = 57.
+    const l1 = at("l1");
+    const l2 = at("l2");
+    const cb = at("cb");
+    const k = at("k");
+    expect(l1).toMatchObject({ alignment: "middle" });
+    expect(l1.x).toBeGreaterThan(40);
+    expect(l1.x).toBeLessThan(80);
+    expect(l1.y).toBeGreaterThan(100);
+    expect(l2).toMatchObject({ alignment: "middle", y: l1.y });
+    expect(l2.x).toBeGreaterThan(121);
+    expect(l2.x).toBeLessThan(162);
+    expect(cb).toMatchObject({ alignment: "middle" });
+    expect(cb.x).toBe(100);
+    expect(cb.y).toBeLessThan(49);
+    expect(k).toMatchObject({ alignment: "middle" });
+    expect(Math.abs(k.x - 100)).toBeLessThanOrEqual(2);
+    expect(k.y).toBeLessThan(100);
+    expect(k.y).toBeGreaterThan(cb.y);
+  });
+  it("still re-places a value an older drawing left in the old column", () => {
+    const document = show(fixture("tcoil"), { l1: true });
+    const instance = document.instances[0]!;
+    const legacy = legacyDefaultInstanceParameterLabelPlacement(
+      instance,
+      resolver.resolve("tcoil")!,
+      resolveDocumentStyleProfile(document.presentation),
+      document.presentation.grid,
+      "l1",
+    )!;
+    const label = document.annotations[0]!;
+    if (label.anchor.kind !== "object") throw new Error("anchor");
+    // Where the column rule put it before values sat by their parts.
+    label.anchor = {
+      ...label.anchor,
+      localOffset: {
+        x: legacy.position.x - instance.placement!.position.x,
+        y: legacy.position.y - instance.placement!.position.y,
+      },
+      fallbackPosition: legacy.position,
+    };
+    label.alignment = legacy.alignment;
+    const turned = apply(document, [
+      { kind: "rotate_instance", instanceId: "T1", rotation: 90 },
+    ]);
+    const expected = defaultInstanceParameterLabelPlacement(
+      turned.instances[0]!,
+      resolver.resolve("tcoil")!,
+      resolveDocumentStyleProfile(turned.presentation),
+      turned.presentation.grid,
+      "l1",
+    )!;
+    expect(turned.annotations[0]).toMatchObject({
+      alignment: expected.alignment,
+      anchor: { fallbackPosition: expected.position },
+    });
+  });
   it("lets a user-placed parameter follow its own attachment through rotation", () => {
     let document = show(fixture(), { k: true });
     document.annotations[0]!.anchor = {
