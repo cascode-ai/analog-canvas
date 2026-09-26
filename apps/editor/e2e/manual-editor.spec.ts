@@ -4152,7 +4152,7 @@ test("R rotates a selected component instead of entering Rectangle", async ({
   await expect(page.getByTestId("revision")).toHaveText("4");
 });
 
-test("C/V copies as fresh: the name label follows a unique new reference and unselected connections detach", async ({
+test("C/V copies as fresh: a unique new reference, the label as drawn, and unselected connections detach", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -4203,18 +4203,22 @@ test("C/V copies as fresh: the name label follows a unique new reference and uns
       item.anchor.objectId === copy.id &&
       item.kind === "instance-label",
   )!;
-  // Ctrl/Cmd+C then V places what C places: a fresh part whose name label
-  // shows its own new Reference, not the source's display alias.
-  expect(annotation.binding).toEqual({
-    kind: "instance-reference",
-    instanceId: copy.id,
-  });
-  expect(annotation.content).toBeUndefined();
-  const label = page.locator(
-    `[data-layer="annotations"] [data-object-id="${annotation.id}"]`,
-  );
-  await expect(label).not.toContainText("Old_alias");
-  await expect(label).toContainText(copy.reference!);
+  // Ctrl/Cmd+C then V places what C places: a fresh part with its own new
+  // Reference whose label still reads as its author wrote it.
+  const sourceLabel = document.annotations.find(
+    (item) =>
+      item.anchor.kind === "object" &&
+      item.anchor.objectId === "R1" &&
+      item.kind === "instance-label",
+  )!;
+  expect(annotation.binding).toBeUndefined();
+  expect(annotation.content).toEqual(sourceLabel.content);
+  const labelText = (id: string) =>
+    page
+      .locator(`[data-layer="annotations"] [data-object-id="${id}"]`)
+      .textContent();
+  expect(await labelText(annotation.id)).toBe(await labelText(sourceLabel.id));
+  expect(await labelText(annotation.id)).not.toContain(copy.reference!);
   await page.keyboard.press("Escape");
   await page.keyboard.press("Control+z");
   await expect(page.getByTestId("instance-count")).toHaveText("2");

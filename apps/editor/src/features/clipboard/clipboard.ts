@@ -39,6 +39,7 @@ import type { SymbolResolver } from "@icm/symbols";
 import {
   createdRouteChildIds,
   createRoutePath,
+  flattenRichText,
   rewriteRichTextPlainText,
   routeBends,
   routeEnd,
@@ -1757,18 +1758,41 @@ export function proposePaste(
   edits.push(
     ...clipboard.annotations.map((annotation): SchematicEdit => {
       const clone = structuredClone(annotation);
+      const owner =
+        clone.anchor.kind === "object"
+          ? clipboard.instances.find(
+              (item) =>
+                clone.anchor.kind === "object" &&
+                item.id === clone.anchor.objectId,
+            )
+          : undefined;
       if (
         clipboard.intent === "clone-selection" &&
         clone.kind === "instance-label" &&
-        clone.anchor.kind === "object" &&
-        instanceReferences.has(clone.anchor.objectId) &&
-        (!clone.binding || clone.binding.kind === "instance-reference")
+        owner &&
+        instanceReferences.has(owner.id)
       ) {
-        clone.binding = {
-          kind: "instance-reference",
-          instanceId: clone.anchor.objectId,
-        };
-        delete clone.content;
+        // A copy reads like its source. Text spelling the part's Reference
+        // follows the copy's new Reference in the same look; any other text
+        // is the author's own and stays as drawn. A part that had no
+        // Reference showed nothing, so its new one stays hidden.
+        if (!clone.binding) {
+          if (
+            clone.content &&
+            owner.reference &&
+            flattenRichText(clone.content) === owner.reference
+          ) {
+            clone.binding = {
+              kind: "instance-reference",
+              instanceId: owner.id,
+            };
+            clone.formatOverride = clone.content;
+            delete clone.content;
+          }
+        } else if (clone.binding.kind === "instance-reference") {
+          clone.binding = { kind: "instance-reference", instanceId: owner.id };
+          if (!owner.reference) clone.visible = false;
+        }
       }
       if (
         clone.binding?.kind === "instance-reference" &&

@@ -18,6 +18,7 @@ import {
 } from "@icm/symbols";
 import { describe, it, expect } from "vitest";
 import { EditorDocumentController } from "../../document/document-controller";
+import { vddPowerLabelAnnotation } from "../component-insert/vdd-power-label";
 import { resolveDocumentLogicalNets } from "@icm/derived";
 import {
   captureProjectCopy,
@@ -198,7 +199,7 @@ describe("one Project copy path", () => {
     ]);
   });
 
-  it("inserts fresh repeated devices without source names, aliases or outside connections", () => {
+  it("inserts fresh repeated devices without source names or outside connections", () => {
     const project = createEmptyProject("copy-source", "Copy source");
     const document = project.documents[0]!;
     const original = {
@@ -294,14 +295,15 @@ describe("one Project copy path", () => {
           (terminal) => terminal.instanceId === copy.id,
         ),
       ).toBe(false);
-      expect(
-        twice.documents[0]!.annotations.find(
-          (annotation) =>
-            annotation.anchor.kind === "object" &&
-            annotation.anchor.objectId === copy.id,
-        ),
-      ).toMatchObject({
-        binding: { kind: "instance-reference", instanceId: copy.id },
+      // The author's own label text reads as drawn on each fresh copy.
+      const label = twice.documents[0]!.annotations.find(
+        (annotation) =>
+          annotation.anchor.kind === "object" &&
+          annotation.anchor.objectId === copy.id,
+      );
+      expect(label?.binding).toBeUndefined();
+      expect(label?.content).toEqual({
+        runs: [{ kind: "text", value: "Old alias" }],
       });
     }
     expect(project).toEqual(before);
@@ -440,6 +442,57 @@ describe("one Project copy path", () => {
     )!;
     expect(logical.byBaseNetId.get(net.id)?.name).toBe("AVDD");
     expect(net.id).not.toBe("analog-supply");
+    // The source marker showed no label, so neither does its copy.
+    expect(copied.annotations).toEqual([]);
+  });
+
+  it("carries a VDD marker's label with it when its source shows one", () => {
+    const project = createEmptyProject("supplies", "Supplies");
+    const document = project.documents[0]!;
+    const marker = {
+      id: "VDD1",
+      symbolId: "vdd-port",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    } as const;
+    document.instances.push(structuredClone(marker));
+    document.nets.push({
+      id: "supply",
+      terminals: [{ instanceId: "VDD1", pinName: "P" }],
+    });
+    document.connectivityEvidence.push({
+      id: "supply-name",
+      kind: "name-claim",
+      netId: "supply",
+      name: "VDD",
+      scope: "global",
+      powerDomain: "vdd",
+      owner: { kind: "power-marker", objectId: "VDD1" },
+    });
+    document.annotations.push(
+      vddPowerLabelAnnotation({
+        instance: document.instances[0]!,
+        resolved: new InMemorySymbolResolver(builtInSymbols).resolve(
+          "vdd-port",
+        )!,
+        netId: "supply",
+        grid: document.presentation.grid,
+        name: "VDD",
+      }),
+    );
+    const copied = place(
+      project,
+      captureProjectCopy(project, document, selection(["VDD1"]))!,
+    ).documents[0]!;
+    const copy = copied.instances.find((instance) => instance.id !== "VDD1")!;
+    const labelsOf = (instanceId: string) =>
+      copied.annotations.filter(
+        (annotation) =>
+          annotation.kind === "power-label" &&
+          annotation.anchor.kind === "object" &&
+          annotation.anchor.objectId === instanceId,
+      );
+    expect(labelsOf("VDD1")).toHaveLength(1);
+    expect(labelsOf(copy.id)).toHaveLength(1);
   });
 
   it("copies a VDD Cell Pin without its label as a Cell Pin its terminal names", () => {
