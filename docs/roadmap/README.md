@@ -22,6 +22,14 @@ acceptance reviews, not missing feature implementations. Candidate receipts and
 commits carry their evidence. Investigate concrete gaps revealed by those reviews;
 do not recreate an already implemented subsystem.
 
+## Desktop fork integration
+
+[Issue #1003 review and migration proposal](desktop-fork/README.md) records the
+fixed fork/upstream sources, divergence analysis, sharing boundaries and proposed
+first local integration. It separates upstream preparation, the first desktop
+features and deferred contract/release discussions; no product implementation is
+claimed by these reports.
+
 ## Connectivity and naming acceptance
 
 Use the current [connectivity](../specs/connectivity-and-routing.md),
