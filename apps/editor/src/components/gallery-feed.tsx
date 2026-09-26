@@ -23,6 +23,7 @@ import {
   type GalleryFeedState,
   type GalleryTagOption,
   type GalleryLandingPreload,
+  withLoadedTail,
 } from "../gallery-client";
 import {
   GALLERY_FILTERS_KEY,
@@ -197,6 +198,42 @@ function GalleryContributorRow({
         {partial ? " so far" : ""}
       </span>
     </li>
+  );
+}
+
+/**
+ * A search reads the wall page by page in this browser; this says how far it
+ * has read, so a short list is never mistaken for the answer.
+ */
+function GallerySearchProgress({
+  checked,
+  total,
+  matches,
+  settled,
+}: {
+  checked: number;
+  total: number | null;
+  matches: number;
+  settled: boolean;
+}) {
+  const of = total ?? checked;
+  const found = `${matches.toLocaleString()} ${matches === 1 ? "match" : "matches"}`;
+  return (
+    <div
+      className="gallery-search-progress"
+      role="status"
+      data-testid="gallery-search-progress"
+      data-settled={settled}
+    >
+      <span>
+        {settled
+          ? `Searched all ${of.toLocaleString()} circuits · ${found}`
+          : `Searching… ${checked.toLocaleString()} / ${of.toLocaleString()} circuits checked · ${found} so far`}
+      </span>
+      {settled ? null : (
+        <progress value={checked} max={Math.max(of, checked, 1)} />
+      )}
+    </div>
   );
 }
 
@@ -675,7 +712,22 @@ export function GalleryFeed({
         });
       } else if (page) {
         loadedQueryRef.current = queryKey;
-        setState({ status: "ready", ...page });
+        // The same wall refreshed (the window came back into focus, another
+        // tab published) keeps the older pages it had loaded.
+        setState((previous) =>
+          !changingQuery && previous.status === "ready"
+            ? {
+                status: "ready",
+                ...withLoadedTail(
+                  {
+                    entries: previous.entries,
+                    nextCursor: previous.nextCursor,
+                  },
+                  page,
+                ),
+              }
+            : { status: "ready", ...page },
+        );
       } else if (changingQuery) {
         loadedQueryRef.current = queryKey;
         setState({
@@ -1180,6 +1232,14 @@ export function GalleryFeed({
               </p>
             ) : (
               <section className="gallery-wall">
+                {normalizedSearchQuery && state.status === "ready" ? (
+                  <GallerySearchProgress
+                    checked={entries.length}
+                    total={state.total}
+                    matches={visibleEntries.length}
+                    settled={state.nextCursor === null}
+                  />
+                ) : null}
                 <Masonry
                   aria-label="Published circuits"
                   items={[

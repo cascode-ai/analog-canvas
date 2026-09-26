@@ -569,6 +569,32 @@ export async function loadGalleryTags(
  * to the text query, whose clause counts VISIBLE entries and says "so far"
  * until the feed is exhausted.
  */
+/**
+ * A refresh of the wall already on screen answers only its newest page. The
+ * older pages already loaded stay behind it, so a search over them does not
+ * blink out and back while the loader pages through the wall again. Entries
+ * older than the new page's cursor are kept, in the server's order.
+ */
+export function withLoadedTail<
+  T extends { entries: GalleryFeedEntry[]; nextCursor: string | null },
+>(
+  previous: { entries: readonly GalleryFeedEntry[]; nextCursor: string | null },
+  page: T,
+): T {
+  if (page.nextCursor === null) return page;
+  const boundary = page.nextCursor;
+  const tail = previous.entries.filter(
+    (entry) => `${entry.createdAt}|${entry.id}` < boundary,
+  );
+  return tail.length === 0
+    ? page
+    : {
+        ...page,
+        entries: [...page.entries, ...tail],
+        nextCursor: previous.nextCursor,
+      };
+}
+
 export function galleryCountLabel(
   total: number | null,
   options: {

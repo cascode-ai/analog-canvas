@@ -4606,6 +4606,85 @@ test("authors can filter pending visual reviews and resolve their own drawing", 
   );
 });
 
+test("a search keeps what it found when the window comes back into focus", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "reader-1",
+          displayName: "Reader",
+          email: "reader@example.com",
+          provider: "github",
+          isAdmin: false,
+          role: "user",
+        },
+      },
+    }),
+  );
+  // Newest first, as the server orders them: a full first page, one more.
+  const at = (index: number) =>
+    new Date(Date.UTC(2026, 8, 20, 0, 0, 60 - index)).toISOString();
+  const firstPage = Array.from({ length: 30 }, (_, index) => ({
+    ...ENTRY,
+    id: index === 3 ? "bandgap-new" : `clock-${index}`,
+    name: index === 3 ? "Bandgap reference" : `Clock ${index}`,
+    createdAt: at(index),
+  }));
+  const older = {
+    ...ENTRY,
+    id: "bandgap-old",
+    name: "Bandgap core",
+    createdAt: at(40),
+  };
+  const last = firstPage.at(-1)!;
+  let firstPages = 0;
+  let holdOlder = false;
+  await page.route("**/api/gallery**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/gallery/tags")
+      return route.fulfill({ json: { tags: [] } });
+    if (url.pathname.endsWith("/preview.svg"))
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"/>',
+      });
+    if (url.pathname !== "/api/gallery") return route.fallback();
+    if (url.searchParams.has("cursor")) {
+      // After the refresh, the older page answers slowly: a wall that
+      // dropped it would show one match for all that time.
+      if (holdOlder) await new Promise((resolve) => setTimeout(resolve, 4000));
+      return route.fulfill({
+        json: { entries: [older], total: 31, nextCursor: null },
+      });
+    }
+    firstPages += 1;
+    return route.fulfill({
+      json: {
+        entries: firstPage,
+        total: 31,
+        nextCursor: `${last.createdAt}|${last.id}`,
+      },
+    });
+  });
+  await page.goto("/");
+  await page.getByTestId("gallery-search").fill("bandgap");
+  const progress = page.getByTestId("gallery-search-progress");
+  await expect(progress).toHaveText("Searched all 31 circuits · 2 matches");
+  await expect(page.getByTestId("gallery-tile-bandgap-old")).toBeVisible();
+  const before = firstPages;
+  holdOlder = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect.poll(() => firstPages).toBe(before + 1);
+  // The refreshed newest page leaves the older one it had already read.
+  await expect(page.getByTestId("gallery-tile-bandgap-old")).toBeVisible({
+    timeout: 1000,
+  });
+  await expect(page.getByTestId("gallery-tile-bandgap-new")).toBeVisible();
+  await expect(progress).toHaveText("Searched all 31 circuits · 2 matches");
+});
+
 test("administrators narrow Needs attention to one reason", async ({
   page,
 }) => {
