@@ -1,7 +1,4 @@
-import {
-  createBrowserFormalExportSource,
-  safeExportBaseName,
-} from "@icm/exporters";
+import { createBrowserFormalExportSource } from "@icm/exporters";
 import {
   createDesignNetlistExport,
   unfinishedDrawingDiagnostics,
@@ -147,21 +144,6 @@ export async function createVisualExportArtifact(
     extension: "pdf",
     report: `Exported PDF revision ${document.revision}`,
   };
-}
-
-/** Deliver a prepared artifact through the browser download surface. */
-export function requestBrowserDownload(
-  artifact: EditorExportArtifact,
-  baseName: string,
-): void {
-  const url = URL.createObjectURL(
-    new Blob([artifact.bytes], { type: artifact.mediaType }),
-  );
-  const anchor = window.document.createElement("a");
-  anchor.href = url;
-  anchor.download = `${safeExportBaseName(baseName)}.${artifact.extension}`;
-  anchor.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 /**
