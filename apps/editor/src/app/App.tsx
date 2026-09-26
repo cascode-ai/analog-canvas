@@ -167,7 +167,11 @@ import {
   type SpiceImportReport,
 } from "../features/editor-shell/editor-file-commands";
 import { EditorStatusbar } from "../features/editor-shell/editor-statusbar";
-import { browserExportDelivery } from "../hosts/browser-export-delivery";
+import {
+  EditorServicesProvider,
+  useEditorServices,
+  type EditorServices,
+} from "../services/editor-services";
 import { normalizedStyleOverrides } from "../features/editor-shell/style-knobs";
 import {
   deriveSimulationProbeOptions,
@@ -253,8 +257,8 @@ import {
   subscribeGalleryRefresh,
 } from "../gallery-client";
 import { projectWithTopologyRoot } from "../features/editor-shell/gallery-topology-project";
-import { GalleryTopologyTaskNotice } from "../features/editor-shell/gallery-topology-task-notice";
-import { fetchSessionUser, type SessionUser } from "../components/account";
+import { LazyGalleryTopologyTaskNotice as GalleryTopologyTaskNotice } from "./lazy-editor-dialogs";
+import type { SessionUser } from "../components/account";
 import {
   evaluateSubmissionGates,
   type SubmissionGateReport,
@@ -314,13 +318,7 @@ import {
   logicalNetChoiceForNet,
   logicalNetChoices,
 } from "../features/logical-net-choices";
-import {
-  CLOUD_PROJECT_LIMIT,
-  deleteCloudProject,
-  listCloudProjects,
-  saveCloudProject,
-  type CloudProjectSummary,
-} from "../features/editor-shell/cloud-projects";
+import type { CloudProjectSummary } from "../features/editor-shell/cloud-projects";
 import { projectChangeToken } from "../document/project-session-lifecycle";
 import { captureProjectSaveSnapshot } from "../document/project-save-coordinator";
 import {
@@ -444,6 +442,7 @@ const NET_LABEL_SNAP_CAPTURE_RADIUS_PX = 12;
 // transient object so the formal SVG renderer can redraw both a curved shaft
 // and its arrow head from the same latest control point before pointer-up.
 export interface AppProps {
+  services: EditorServices;
   project?: CircuitProject;
   visitStats?: { pv: number; uv: number } | null;
   /** Override the deployment's Agent UI capability in tests. */
@@ -493,13 +492,20 @@ export function App(props: AppProps) {
   }, []);
   if (!boot) return <div role="status">Restoring project tabs…</div>;
   return (
-    <WorkspaceAgentProvider>
-      <WorkspaceEditor
-        {...props}
-        restoredWorkspace={boot.workspace}
-        workspaceError={boot.error ?? null}
-      />
-    </WorkspaceAgentProvider>
+    <EditorServicesProvider services={props.services}>
+      <WorkspaceAgentProvider
+        enabled={
+          props.services.capabilities.agent &&
+          (props.publicAgentUiEnabled ?? PUBLIC_AGENT_UI_ENABLED)
+        }
+      >
+        <WorkspaceEditor
+          {...props}
+          restoredWorkspace={boot.workspace}
+          workspaceError={boot.error ?? null}
+        />
+      </WorkspaceAgentProvider>
+    </EditorServicesProvider>
   );
 }
 
@@ -521,8 +527,9 @@ function propertiesMosBulkDefaultNetId(
 function WorkspaceEditor({
   project: initialProject,
   visitStats,
-  publicAgentUiEnabled = PUBLIC_AGENT_UI_ENABLED,
-  publicSimulationUiEnabled = PUBLIC_SIMULATION_UI_ENABLED,
+  publicAgentUiEnabled: requestedAgentUi = PUBLIC_AGENT_UI_ENABLED,
+  publicSimulationUiEnabled:
+    requestedSimulationUi = PUBLIC_SIMULATION_UI_ENABLED,
   initialGalleryEntryId = null,
   restoredWorkspace,
   workspaceError,
@@ -530,6 +537,11 @@ function WorkspaceEditor({
   restoredWorkspace: ProjectWorkspace | null;
   workspaceError: string | null;
 }) {
+  const { identity, projectStore, exportDelivery, capabilities } =
+    useEditorServices();
+  const publicAgentUiEnabled = capabilities.agent && requestedAgentUi;
+  const publicSimulationUiEnabled =
+    capabilities.simulation && requestedSimulationUi;
   const [restoringWorkspace, setRestoringWorkspace] = useState(
     restoredWorkspace !== null,
   );
@@ -643,12 +655,12 @@ function WorkspaceEditor({
   const [, setGalleryRefreshSignal] = useState(0);
   const galleryLoadGenerationRef = useRef(0);
   useEffect(() => {
-    if (!visibleLibraryPanelOpen) return;
+    if (!capabilities.community || !visibleLibraryPanelOpen) return;
     return subscribeGalleryRefresh(() => {
       galleryLoadGenerationRef.current += 1;
       setGalleryRefreshSignal((previous) => previous + 1);
     });
-  }, [visibleLibraryPanelOpen]);
+  }, [capabilities.community, visibleLibraryPanelOpen]);
 
   const [recoveryFailureDismissed, setRecoveryFailureDismissed] =
     useState(false);
@@ -677,7 +689,12 @@ function WorkspaceEditor({
     serializeProject: snapshotSerializer.serialize,
   });
   const [agentStartupRecovery] = useState(() => {
-    if (typeof window === "undefined" || restoredWorkspace) return null;
+    if (
+      !capabilities.agent ||
+      typeof window === "undefined" ||
+      restoredWorkspace
+    )
+      return null;
     const search = new URLSearchParams(window.location.search);
     if (
       initialGalleryEntryId !== null ||
@@ -906,9 +923,13 @@ function WorkspaceEditor({
   const cloudListRequestRef = useRef(0);
   const cloudListMutationRef = useRef(0);
   const reloadCloudProjects = useCallback(async (): Promise<void> => {
+    if (!projectStore) {
+      setCloudProjectsReady(true);
+      return;
+    }
     const request = ++cloudListRequestRef.current;
     const mutationAtStart = cloudListMutationRef.current;
-    const outcome = await listCloudProjects();
+    const outcome = await projectStore.list();
     if (request !== cloudListRequestRef.current) return;
     setCloudProjectsReady(true);
     if (outcome.status !== "listed") return;
@@ -916,7 +937,7 @@ function WorkspaceEditor({
     // the response, so the stale list must not erase that mutation.
     if (mutationAtStart !== cloudListMutationRef.current) return;
     setCloudProjects(outcome.projects);
-  }, []);
+  }, [projectStore]);
   const [galleryEntryContext, setGalleryEntryContext] =
     useState<GalleryEntryContext | null>(null);
   const [publicationLinkLoading, setPublicationLinkLoading] = useState(false);
@@ -945,7 +966,8 @@ function WorkspaceEditor({
   // list shown by the File menu.
   useEffect(() => {
     let cancelled = false;
-    void fetchSessionUser().then(async (user) => {
+    if (!identity) return;
+    void identity.getSessionUser().then(async (user) => {
       if (cancelled) return;
       setPublishSession(user);
       if (!user) {
@@ -957,7 +979,7 @@ function WorkspaceEditor({
     return () => {
       cancelled = true;
     };
-  }, [reloadCloudProjects]);
+  }, [identity, reloadCloudProjects]);
 
   useEffect(() => {
     if (!publishSession) return;
@@ -969,7 +991,8 @@ function WorkspaceEditor({
   useEffect(() => {
     if (!publishGalleryOpen) return;
     let cancelled = false;
-    void fetchSessionUser().then((user) => {
+    if (!identity) return;
+    void identity.getSessionUser().then((user) => {
       if (!cancelled) setPublishSession(user);
     });
     // The same evaluator the worker enforces, run live on the open Project.
@@ -978,7 +1001,7 @@ function WorkspaceEditor({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- evaluated once per dialog open
-  }, [publishGalleryOpen]);
+  }, [identity, publishGalleryOpen]);
   const [agentFileCandidate, setAgentFileCandidate] =
     useState<AgentFileCandidateSummary | null>(null);
   // Execution and artifacts belong to their originating controller, not the
@@ -1229,6 +1252,8 @@ function WorkspaceEditor({
     openProjectFile,
     openCloudProjectById,
   } = useProjectFileLifecycle({
+    projectStore,
+    exportDelivery,
     openProjectInTab: (project, view, options, background) =>
       openProjectInTabRef.current(project, view, options, background),
     restoreWorkingSession: agentStartupRecovery !== null,
@@ -1296,7 +1321,12 @@ function WorkspaceEditor({
     let cancelled = false;
     setPublicationLinkError(null);
     setPublicationLinkNotice(null);
-    if (!cloudBinding || galleryEntryContext) {
+    if (
+      !capabilities.community ||
+      !projectStore ||
+      !cloudBinding ||
+      galleryEntryContext
+    ) {
       setPublicationLinkLoading(false);
       return;
     }
@@ -1304,7 +1334,7 @@ function WorkspaceEditor({
     void (async () => {
       try {
         // Read current metadata even for recovery: another tab may have changed the source.
-        const listed = await listCloudProjects();
+        const listed = await projectStore.list();
         const saved =
           listed.status === "listed"
             ? listed.projects.find((item) => item.id === cloudBinding.id)
@@ -1345,6 +1375,7 @@ function WorkspaceEditor({
     projectSessionId,
     galleryEntryContext,
     publicationLinkRetry,
+    projectStore,
   ]);
 
   const linkExistingPublication = async (input: string): Promise<void> => {
@@ -3678,13 +3709,14 @@ function WorkspaceEditor({
   }
 
   function toggleExamplesPanel(): void {
+    if (!capabilities.community) return;
     toggleExamplesPanelFromShell();
   }
 
   // boot Project only; ordinary sessions never re-run these.
   const bootTargetHandled = useRef(false);
   useEffect(() => {
-    if (bootTargetHandled.current) return;
+    if (!capabilities.community || bootTargetHandled.current) return;
     bootTargetHandled.current = true;
     // A safe recovery refresh reloads the same URL: the pending restore owns
     // this boot. Re-running the URL's boot target here would fork the
@@ -3849,6 +3881,10 @@ function WorkspaceEditor({
       : undefined;
 
   function openSelectedComponentDefinition(): void {
+    if (!capabilities.community) {
+      setStatus("Shared component editing is unavailable in this preview");
+      return;
+    }
     if (!selectedInstance) {
       setStatus("Select one component to edit its definition");
       return;
@@ -4322,7 +4358,7 @@ function WorkspaceEditor({
       project,
       document,
       resolver,
-      exportDelivery: browserExportDelivery,
+      exportDelivery,
       defaultViewBox: DEFAULT_VIEWBOX,
       // Asked at export time, which is one of the moments an
       // electrical verdict belongs to.
@@ -4553,7 +4589,7 @@ function WorkspaceEditor({
           void circuitClipboard.pasteSelection();
           return;
         case "save":
-          void saveProjectToCloud();
+          void (projectStore ? saveProjectToCloud() : exportProjectFile());
           return;
         case "open":
           projectInputRef.current?.click();
@@ -5182,6 +5218,8 @@ function WorkspaceEditor({
             );
       }
       if (request.action === "save") {
+        if (!projectStore)
+          return fail("INVALID_REQUEST", "Cloud storage is unavailable");
         if (targetWorkspaceId && targetWorkspaceId !== projectTabs.activeId) {
           const target = entries.find((item) => item.id === targetWorkspaceId);
           if (!target)
@@ -5212,7 +5250,7 @@ function WorkspaceEditor({
           const candidate = snapshot.project;
           target.session.file.persistenceState = "saving";
           projectTabs.changed();
-          const outcome = await saveCloudProject(
+          const outcome = await projectStore.save(
             candidate,
             request.asNew ? null : target.session.file.cloudBinding,
           );
@@ -5483,10 +5521,14 @@ function WorkspaceEditor({
 
   return (
     <main className="app-shell">
-      <GalleryTopologyTaskNotice
-        hidden={publishGalleryOpen}
-        onOpen={() => setPublishGalleryOpen(true)}
-      />
+      {capabilities.community ? (
+        <Suspense fallback={null}>
+          <GalleryTopologyTaskNotice
+            hidden={publishGalleryOpen}
+            onOpen={() => setPublishGalleryOpen(true)}
+          />
+        </Suspense>
+      ) : null}
       {interfaceConfirmation ? (
         <Suspense fallback={null}>
           <CellInterfaceConfirmationDialog
@@ -5513,6 +5555,9 @@ function WorkspaceEditor({
       ) : null}
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
       <EditorAppChrome
+        communityEnabled={capabilities.community}
+        externalLinksEnabled={capabilities.externalLinks}
+        identityEnabled={identity !== null}
         projectChoices={{
           tabs: projectTabs.tabs,
           activeId: projectTabs.activeId,
@@ -5524,6 +5569,7 @@ function WorkspaceEditor({
         projectTabs={
           <>
             <ProjectTabs
+              cloudEnabled={projectStore !== null}
               tabs={projectTabs.tabs}
               activeId={projectTabs.activeId}
               busy={projectTabs.busy}
@@ -5586,6 +5632,7 @@ function WorkspaceEditor({
           });
         }}
         fileCommands={{
+          cloudEnabled: projectStore !== null,
           cloudProjects,
           activeCloudProjectId: cloudBinding?.id ?? null,
           canRevert: savedProjectBaseline !== null && isDirtyWork(),
@@ -5600,12 +5647,14 @@ function WorkspaceEditor({
           },
           projectInputRef,
           onNewProject: createNewProject,
-          onSave: () => void saveProjectToCloud(),
+          onSave: () =>
+            void (projectStore ? saveProjectToCloud() : exportProjectFile()),
           onRefreshCloudProjects: () => void reloadCloudProjects(),
           onOpenCloudProject: (summary) =>
             void openCloudProjectById(summary.id),
           onDeleteCloudProject: (summary) => {
-            return deleteCloudProject(summary.id).then((outcome) => {
+            if (!projectStore) return;
+            return projectStore.delete(summary.id).then((outcome) => {
               if (outcome.status === "deleted") {
                 cloudListMutationRef.current += 1;
                 setCloudProjects(outcome.projects);
@@ -5737,6 +5786,7 @@ function WorkspaceEditor({
         publishGalleryOpen={publishGalleryOpen}
         onPublishGallery={() => setPublishGalleryOpen(true)}
         drawingToolbar={{
+          communityEnabled: capabilities.community,
           leftPanelMode,
           libraryPanelOpen: visibleLibraryPanelOpen,
           projectPanel:
@@ -5869,7 +5919,8 @@ function WorkspaceEditor({
           replaceGuard !== null
             ? {
                 intent: replaceGuard.intent,
-                cloudProjectLimit: CLOUD_PROJECT_LIMIT,
+                cloudProjectLimit: projectStore?.limit ?? 0,
+                exportOnly: projectStore === null,
                 saving: replaceGuardSaving,
                 onCancel: cancelReplaceGuard,
                 onSaveAndContinue: saveAndContinueReplaceGuard,
@@ -6333,7 +6384,7 @@ function WorkspaceEditor({
             }}
           />
         ) : null}
-        {leftPanelMode === "library" ? (
+        {!capabilities.community || leftPanelMode === "library" ? (
           <ShapesPanel
             styleProfileId={document.presentation.styleProfileId}
             open={visibleLibraryPanelOpen}
@@ -8103,7 +8154,7 @@ function WorkspaceEditor({
           />
         ) : null}
       </div>
-      {componentEditor ? (
+      {capabilities.community && componentEditor ? (
         <Suspense fallback={null}>
           <ComponentDefinitionEditor
             key={componentEditor.key}
@@ -8142,31 +8193,33 @@ function WorkspaceEditor({
           />
         </Suspense>
       ) : null}
-      <Suspense fallback={null}>
-        <UserComponentsLibrary
-          open={userComponentsOpen}
-          refresh={componentLibraryRefresh}
-          onClose={() => setUserComponentsOpen(false)}
-          onCreate={() => {
-            cancelAllTransientInteraction();
-            setComponentEditor({
-              key: crypto.randomUUID(),
-              mode: "new",
-              definition: newComponentDefinition(),
-            });
-          }}
-          onEdit={(entry) => {
-            cancelAllTransientInteraction();
-            setComponentEditor({
-              key: crypto.randomUUID(),
-              mode: "library",
-              definition: entry.definition,
-              entry,
-            });
-          }}
-          onInsert={insertSharedComponent}
-        />
-      </Suspense>
+      {capabilities.community ? (
+        <Suspense fallback={null}>
+          <UserComponentsLibrary
+            open={userComponentsOpen}
+            refresh={componentLibraryRefresh}
+            onClose={() => setUserComponentsOpen(false)}
+            onCreate={() => {
+              cancelAllTransientInteraction();
+              setComponentEditor({
+                key: crypto.randomUUID(),
+                mode: "new",
+                definition: newComponentDefinition(),
+              });
+            }}
+            onEdit={(entry) => {
+              cancelAllTransientInteraction();
+              setComponentEditor({
+                key: crypto.randomUUID(),
+                mode: "library",
+                definition: entry.definition,
+                entry,
+              });
+            }}
+            onInsert={insertSharedComponent}
+          />
+        </Suspense>
+      ) : null}
       <SelectionFilterPopover
         open={selectionFilterOpen}
         filter={selectionFilter}

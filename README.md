@@ -66,6 +66,9 @@ automatically rerunning it. File / Save and Ctrl+S remain save-only.
 - **Use the hosted product:** browse the
   [Community Gallery](https://analog-canvas.tokenzhang.com/) or start a
   [new circuit](https://analog-canvas.tokenzhang.com/editor).
+- **Try the Windows desktop preview:** download the complete ZIP from a
+  Desktop Preview [release](https://github.com/cascode-ai/analog-canvas/releases),
+  extract it, and run the included executable. See [preview instructions and limitations](apps/desktop/README.md).
 - **Learn the editor:** [Getting started](docs/user/getting-started.md),
   [schematic hierarchy](docs/user/schematic-hierarchy.md),
   [compatibility](docs/user/project-compatibility.md), and

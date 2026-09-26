@@ -104,3 +104,12 @@ export const LazyAgentPropertiesSection = lazyChunk("inline", () =>
     default: module.AgentPropertiesSection,
   })),
 );
+
+/** Community polling is absent when no community surface is mounted. */
+export const LazyGalleryTopologyTaskNotice = lazyChunk("inline", () =>
+  import("../features/editor-shell/gallery-topology-task-notice").then(
+    (module) => ({
+      default: module.GalleryTopologyTaskNotice,
+    }),
+  ),
+);

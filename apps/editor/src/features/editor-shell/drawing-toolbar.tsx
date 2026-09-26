@@ -11,6 +11,7 @@ interface ToolbarCommand {
 }
 
 export interface DrawingToolbarProps {
+  communityEnabled?: boolean;
   leftPanelMode: "examples" | "library";
   libraryPanelOpen: boolean;
   projectPanel: "netlist" | "project-code" | null;
@@ -126,6 +127,7 @@ function ImmediatePanelButton({
 }
 
 export function DrawingToolbar({
+  communityEnabled = true,
   leftPanelMode,
   libraryPanelOpen,
   projectPanel,
@@ -154,23 +156,25 @@ export function DrawingToolbar({
       data-testid="draw-toolbar"
     >
       <div className="draw-toolbar-panels" role="group" aria-label="Panels">
-        <ImmediatePanelButton
-          testId="examples-toggle"
-          label="Circuit gallery"
-          shortcut="G"
-          tooltip={
-            examplesOpen
-              ? "Hide the circuit gallery"
-              : "Show the circuit gallery"
-          }
-          pressed={examplesOpen}
-          controls="examples-panel"
-          disabled={leftPanelsDisabled}
-          onClick={onToggleExamples}
-        >
-          <ToolIcon name="examples" />
-          <span>Gallery</span>
-        </ImmediatePanelButton>
+        {communityEnabled ? (
+          <ImmediatePanelButton
+            testId="examples-toggle"
+            label="Circuit gallery"
+            shortcut="G"
+            tooltip={
+              examplesOpen
+                ? "Hide the circuit gallery"
+                : "Show the circuit gallery"
+            }
+            pressed={examplesOpen}
+            controls="examples-panel"
+            disabled={leftPanelsDisabled}
+            onClick={onToggleExamples}
+          >
+            <ToolIcon name="examples" />
+            <span>Gallery</span>
+          </ImmediatePanelButton>
+        ) : null}
         <ImmediatePanelButton
           testId="library-toggle"
           label="Component library"

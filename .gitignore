@@ -37,3 +37,6 @@ containers/ngspice/runtime/
 
 # Sky130 model files staged by the preview deploy for the container image.
 pdk/
+
+# Separate desktop preview renderer output.
+apps/editor/dist-desktop/

@@ -70,8 +70,8 @@ jobs:
         if: steps.plan.outputs.mode == 'documentation'
         run: node scripts/check-markdown-links.mjs
 
-  core:
-    name: Core contracts
+  core_suite:
+    name: Core suite
     needs: changes
     if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-latest
@@ -96,6 +96,24 @@ jobs:
         # GitHub's Ubuntu image already carries Chrome. Keep setup:e2e as an
         # explicit one-time local command instead of pulling a CI container.
         run: pnpm release:verify
+
+  desktop:
+    name: Desktop acceptance
+    needs: changes
+    if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
+    uses: ./.github/workflows/desktop-preview.yml
+
+  core:
+    name: Core contracts
+    needs: [changes, core_suite, desktop]
+    if: always() && github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require core suite and packaged Windows acceptance
+        env:
+          CORE_RESULT: ${{ needs.core_suite.result }}
+          DESKTOP_RESULT: ${{ needs.desktop.result }}
+        run: test "$CORE_RESULT" = "success" && test "$DESKTOP_RESULT" = "success"
 
   browser_shard:
     name: Browser tests (${{ matrix.shard }})

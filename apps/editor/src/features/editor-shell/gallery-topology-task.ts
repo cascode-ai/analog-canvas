@@ -311,7 +311,11 @@ export function createDurableGalleryTopologyTask(
   };
 }
 
-export const galleryTopologyTask = createDurableGalleryTopologyTask(
-  undefined,
-  import.meta.env.DEV ? { localFallback: createGalleryTopologyTask() } : {},
-);
+let task: ReturnType<typeof createDurableGalleryTopologyTask> | undefined;
+/** Only a mounted community surface asks for the page-owned task. */
+export function getGalleryTopologyTask() {
+  return (task ??= createDurableGalleryTopologyTask(
+    undefined,
+    import.meta.env.DEV ? { localFallback: createGalleryTopologyTask() } : {},
+  ));
+}

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { galleryTopologyTask } from "./gallery-topology-task";
+import { getGalleryTopologyTask } from "./gallery-topology-task";
 import "./gallery-topology-task-notice.css";
 
 export function GalleryTopologyTaskNotice({
@@ -9,6 +9,7 @@ export function GalleryTopologyTaskNotice({
   hidden: boolean;
   onOpen: () => void;
 }) {
+  const galleryTopologyTask = getGalleryTopologyTask();
   const task = useSyncExternalStore(
     galleryTopologyTask.subscribe,
     galleryTopologyTask.getSnapshot,

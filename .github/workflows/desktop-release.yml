@@ -1,0 +1,61 @@
+name: Desktop preview release
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Merged mainline commit to package
+        type: string
+        default: main
+        required: true
+      publish:
+        description: Publish the accepted ZIP as a GitHub prerelease
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-preview-release
+  cancel-in-progress: false
+
+jobs:
+  package:
+    uses: ./.github/workflows/desktop-preview.yml
+    with:
+      ref: ${{ inputs.ref }}
+
+  publish:
+    name: Publish desktop prerelease
+    needs: package
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: desktop-preview-${{ needs.package.outputs.sha }}
+          path: release-assets
+      - name: Publish accepted ZIP without replacing an existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ needs.package.outputs.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+        shell: bash
+        run: |
+          tag="desktop-preview-${SOURCE_SHA:0:12}-${RUN_NUMBER}"
+          cat > release-notes.md <<'EOF'
+          Windows x64 desktop preview. Download analog-canvas-desktop-windows-x64.zip, extract the entire folder, and run Analog Canvas Preview.exe inside it. No Node.js or development tools are required. Keep the application and its accompanying resources together.
+
+          Offline drawing and canonical project import/export; SVG/PNG/PDF export. Ctrl+S exports a file; it does not bind a native path for in-place Save. Export every needed tab before closing. No installer, auto-update, file association or coordinated multi-tab Save-on-close. This preview is unsigned.
+
+          The ZIP includes corresponding source, licenses, the fork source/adaptation inventory and packaged acceptance evidence. Desktop shell source: LXY-freshman/Schematic Draft; architecture discussion: Arcadia-1 and Issue #1003. Larger fork features remain deferred.
+          EOF
+          printf '\nSource commit: %s\n' "$SOURCE_SHA" >> release-notes.md
+          gh release create "$tag" release-assets/analog-canvas-desktop-windows-x64.zip \
+            --target "$SOURCE_SHA" --prerelease --latest=false \
+            --title "Analog Canvas Desktop Preview ${SOURCE_SHA:0:8}" \
+            --notes-file release-notes.md

@@ -1,3 +1,5 @@
+import type { EditorExportDelivery } from "../hosts/export-delivery";
+import type { CloudProjectStore } from "../services/editor-services";
 import { useEffect, useRef, useState } from "react";
 
 import { createEmptyProject, createId } from "@icm/model";
@@ -33,13 +35,10 @@ import {
 } from "./project-save-coordinator";
 import { projectHasMeaningfulContent } from "./project-content";
 import { normalizeImportedProject } from "./project-import-normalization";
-import {
-  CLOUD_PROJECT_LIMIT,
-  openCloudProject,
-  saveCloudProject,
-  type CloudProjectBinding,
-  type CloudProjectSaveOutcome,
-  type CloudProjectSummary,
+import type {
+  CloudProjectBinding,
+  CloudProjectSaveOutcome,
+  CloudProjectSummary,
 } from "../features/editor-shell/cloud-projects";
 import {
   forgetRecentCloudProject,
@@ -98,6 +97,8 @@ type RecoveryLifecycle = Pick<
 };
 
 export interface UseProjectFileLifecycleOptions {
+  projectStore: CloudProjectStore | null;
+  exportDelivery?: EditorExportDelivery;
   restoreWorkingSession?: boolean;
   externalWorkspaceRestored?: boolean;
   openProjectInTab?(
@@ -127,6 +128,8 @@ export interface UseProjectFileLifecycleOptions {
 }
 
 export function useProjectFileLifecycle({
+  projectStore,
+  exportDelivery,
   restoreWorkingSession = false,
   externalWorkspaceRestored = false,
   openProjectInTab,
@@ -160,7 +163,9 @@ export function useProjectFileLifecycle({
       window.sessionStorage.removeItem(REFRESH_RESTORE_STORAGE_KEY);
     }
   }, [restoreAfterRefresh]);
-  const [startupCloudProjectId] = useState(readRecentCloudProjectId);
+  const [startupCloudProjectId] = useState(() =>
+    projectStore ? readRecentCloudProjectId() : null,
+  );
   const refreshRestoreAttemptedRef = useRef(false);
   const [saveCoordinator] = useState(() =>
     createProjectSaveCoordinator<CloudProjectSaveOutcome>(),
@@ -292,6 +297,11 @@ export function useProjectFileLifecycle({
     snapshot: ProjectSaveSnapshot,
     asNew = false,
   ): Promise<CloudProjectSaveOutcome> {
+    if (!projectStore)
+      return {
+        status: "rejected",
+        message: "Use Export Project File in this preview",
+      };
     const savedCandidate = snapshot.project;
     setPersistenceState("saving");
     setStatus(
@@ -299,10 +309,9 @@ export function useProjectFileLifecycle({
     );
     recovery.stage(savedCandidate, { unsavedAtSnapshot: true, cloudBinding });
     await recovery.flushNow();
-    const outcome = await saveCloudProject(
+    const outcome = await projectStore.save(
       savedCandidate,
       asNew ? null : cloudBinding,
-      fetch,
       galleryEntryId,
     );
     if (!snapshot.isCurrent()) return outcome;
@@ -357,7 +366,7 @@ export function useProjectFileLifecycle({
         : outcome.status === "too-large"
           ? `Project is too large for ${CLOUD_PROJECT_COPY.plural}; download a backup`
           : outcome.status === "limit"
-            ? `${CLOUD_PROJECT_COPY.singular} limit reached (${outcome.projects.length}/${CLOUD_PROJECT_LIMIT})`
+            ? `${CLOUD_PROJECT_COPY.singular} limit reached (${outcome.projects.length}/${projectStore.limit})`
             : outcome.status === "not-found"
               ? `${CLOUD_PROJECT_COPY.singular} no longer exists; current work remains local`
               : outcome.message,
@@ -400,10 +409,37 @@ export function useProjectFileLifecycle({
   }
 
   async function exportProjectFile(): Promise<void> {
+    const exportSessionId = liveSessionRef.current;
     const snapshot = beforeSnapshot
       ? await beforeSnapshot()
       : liveProjectRef.current;
     if (!snapshot) return;
+    if (!projectStore && exportDelivery) {
+      const fileName = `${projectFileBaseName(snapshot.name)}.icproj.json`;
+      try {
+        const result = await exportDelivery.deliverFile({
+          bytes: serializeProject(snapshot),
+          mediaType: "application/json",
+          suggestedName: fileName,
+        });
+        if (liveSessionRef.current !== exportSessionId) return;
+        if (result.status === "saved") {
+          noteProjectSnapshotSafe(snapshot);
+          setStatus(`Exported: ${fileName}`);
+        } else
+          setStatus(
+            result.status === "cancelled"
+              ? "Export cancelled"
+              : `Export requested: ${fileName}`,
+          );
+      } catch (error) {
+        if (liveSessionRef.current === exportSessionId)
+          setStatus(
+            `Export failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+      }
+      return;
+    }
     const outcome = requestProjectDownload(snapshot);
     if (outcome.status !== "download-requested") {
       setStatus(`Export failed: ${outcome.message}`);
@@ -485,6 +521,16 @@ export function useProjectFileLifecycle({
     if (!guard || replaceGuardSaving) return;
     setReplaceGuardSaving(true);
     void (async () => {
+      if (!projectStore) {
+        const guardSessionId = liveSessionRef.current;
+        await exportProjectFile();
+        if (liveSessionRef.current === guardSessionId && !hasUnsafeWork()) {
+          setReplaceGuard(null);
+          await guard.perform();
+        }
+        setReplaceGuardSaving(false);
+        return;
+      }
       const outcome = await saveProjectToCloud();
       if (outcome.status === "saved") {
         setReplaceGuard(null);
@@ -680,9 +726,9 @@ export function useProjectFileLifecycle({
       } else replaceActiveProject(openedProject, defaultViewBox, openOptions);
       setStatus(
         staged.migrated
-          ? `Imported and upgraded ${staged.fileName} from schema ${staged.sourceSchemaVersion} to schema ${CURRENT_PROJECT_FILE_VERSION}${normalizedDocumentCount > 0 ? ` and normalized connectivity and Wire topology in ${normalizedDocumentCount} Cell${normalizedDocumentCount === 1 ? "" : "s"}${drawnNote}` : ""} — save to Cloud or export to keep the upgrade`
+          ? `Imported and upgraded ${staged.fileName} from schema ${staged.sourceSchemaVersion} to schema ${CURRENT_PROJECT_FILE_VERSION}${normalizedDocumentCount > 0 ? ` and normalized connectivity and Wire topology in ${normalizedDocumentCount} Cell${normalizedDocumentCount === 1 ? "" : "s"}${drawnNote}` : ""} — ${projectStore ? "save to Cloud or export" : "export"} to keep the upgrade`
           : normalizedDocumentCount > 0
-            ? `Opened ${staged.fileName} and normalized connectivity and Wire topology in ${normalizedDocumentCount} Cell${normalizedDocumentCount === 1 ? "" : "s"}${drawnNote} — save to Cloud or export to keep the repair`
+            ? `Opened ${staged.fileName} and normalized connectivity and Wire topology in ${normalizedDocumentCount} Cell${normalizedDocumentCount === 1 ? "" : "s"}${drawnNote} — ${projectStore ? "save to Cloud or export" : "export"} to keep the repair`
             : `Opened ${staged.fileName} at revision ${staged.topDocumentRevision}`,
       );
     };
@@ -705,7 +751,9 @@ export function useProjectFileLifecycle({
     inTab = false,
     background = false,
   ): Promise<{ applied: boolean; message?: string }> {
-    const fetched = await openCloudProject(projectId);
+    if (!projectStore)
+      return { applied: false, message: "Cloud storage is unavailable" };
+    const fetched = await projectStore.open(projectId);
     if (fetched.status !== "opened") {
       if (fetched.status === "not-found") forgetRecentCloudProject();
       setStatus(

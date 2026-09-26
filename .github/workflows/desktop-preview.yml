@@ -1,0 +1,86 @@
+name: Desktop preview
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Merged mainline commit to package
+        type: string
+        default: ""
+        required: false
+    outputs:
+      sha:
+        description: Accepted package source commit
+        value: ${{ jobs.package.outputs.sha }}
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Windows package and roundtrip
+    runs-on: windows-latest
+    timeout-minutes: 20
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: 0
+      - name: Resolve source and restrict manual releases to mainline
+        id: source
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          $sourceCommit = git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($env:EVENT_NAME -eq 'workflow_dispatch') {
+            git merge-base --is-ancestor $sourceCommit origin/main
+            if ($LASTEXITCODE -ne 0) { throw 'Only merged mainline commits may be released.' }
+          }
+          "sha=$sourceCommit" >> $env:GITHUB_OUTPUT
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build shared editor dependencies
+        run: pnpm --filter "@icm/editor^..." --if-present build
+      - name: Build offline renderer
+        run: pnpm --filter @icm/editor exec vite build --config vite.desktop.config.ts
+      - name: Build desktop shell
+        run: pnpm --filter @icm/desktop build:preview
+      - name: Assemble committed source and application
+        run: pnpm --filter @icm/desktop package:preview
+      - name: Accept actual packaged executable
+        run: pnpm --filter @icm/desktop test:preview
+      - name: Archive accepted application
+        run: |
+          $packageManifest = Get-Content plan/preview-package.json -Raw | ConvertFrom-Json
+          $acceptance = Get-Content (Join-Path $packageManifest.output 'ACCEPTANCE.json') -Raw | ConvertFrom-Json
+          if ($acceptance.status -ne 'passed' -or !$acceptance.packaged -or $acceptance.source -ne $packageManifest.commit) {
+            throw 'Packaged acceptance must match the distributed source.'
+          }
+          Compress-Archive -LiteralPath $packageManifest.output -DestinationPath output/analog-canvas-desktop-windows-x64.zip -CompressionLevel Optimal
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-preview-${{ steps.source.outputs.sha }}
+          path: output/analog-canvas-desktop-windows-x64.zip
+          if-no-files-found: error
+      - name: Retain acceptance diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            plan/preview-acceptance-*/
+            plan/preview-package.json
+          if-no-files-found: ignore
+          retention-days: 7

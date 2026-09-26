@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 import * as derived from "@icm/derived";
 
 import { App } from "./App";
+import { createWebEditorServices } from "../services/web-editor-services";
 import {
   defaultRazaviSymbolVariantId,
   razaviHiddenBulkRisk,
@@ -17,6 +18,8 @@ import {
 } from "../presentation/razavi-presentation";
 import { createDemoProject } from "../demos/demo-project";
 import { createRoutingDemoProject } from "../demos/routing-demo";
+
+const services = createWebEditorServices();
 
 describe("editor shell", () => {
   it("uses one canonical Razavi presentation for manually placed MOS", () => {
@@ -97,7 +100,9 @@ describe("editor shell", () => {
     const erc = vi.spyOn(derived, "runErcChecks");
     const checks = vi.spyOn(derived, "collectProjectDiagnosticEvidence");
     const project = createEmptyProject("project-smoke", "Smoke Project");
-    const markup = renderToStaticMarkup(<App project={project} />);
+    const markup = renderToStaticMarkup(
+      <App services={services} project={project} />,
+    );
     expect(markup).toContain("Smoke Project");
     expect(markup).toContain("Schematic canvas");
     expect(markup).not.toContain("Cell netlist interface");
@@ -174,7 +179,9 @@ describe("editor shell", () => {
     });
     project.documents.push(childDocument);
 
-    const markup = renderToStaticMarkup(<App project={project} />);
+    const markup = renderToStaticMarkup(
+      <App services={services} project={project} />,
+    );
     expect(markup).toContain('data-testid="hierarchy-entry"');
     expect(markup).toContain('data-testid="cell-navigation"');
     expect(markup).toContain("Enter Cell");
@@ -183,7 +190,9 @@ describe("editor shell", () => {
 
   it("links GitHub and the change log directly without a Help surface", () => {
     const project = createEmptyProject("resource-links", "Resource Links");
-    const markup = renderToStaticMarkup(<App project={project} />);
+    const markup = renderToStaticMarkup(
+      <App services={services} project={project} />,
+    );
 
     expect(markup).not.toContain(">About</button>");
     expect(markup).not.toContain(">Help</button>");
@@ -225,7 +234,11 @@ describe("editor shell", () => {
   it("removes all public Agent controls and accessibility affordances when dormant", () => {
     const project = createEmptyProject("agent-ui-dormant", "Dormant");
     const markup = renderToStaticMarkup(
-      <App project={project} publicAgentUiEnabled={false} />,
+      <App
+        services={services}
+        project={project}
+        publicAgentUiEnabled={false}
+      />,
     );
 
     expect(markup).not.toContain("<summary>Agent</summary>");
@@ -248,7 +261,11 @@ describe("editor shell", () => {
     );
     const persistedSimulation = structuredClone(project.simulationFolders);
     const markup = renderToStaticMarkup(
-      <App project={project} publicSimulationUiEnabled={false} />,
+      <App
+        services={services}
+        project={project}
+        publicSimulationUiEnabled={false}
+      />,
     );
 
     expect(markup).not.toContain('data-testid="open-analog-simulation"');
@@ -258,7 +275,9 @@ describe("editor shell", () => {
 
   it("does not expose the retired Digital Timing surface", () => {
     const project = createEmptyProject("timing-flag", "Timing Flag");
-    const markup = renderToStaticMarkup(<App project={project} />);
+    const markup = renderToStaticMarkup(
+      <App services={services} project={project} />,
+    );
 
     expect(markup).not.toContain('title="Digital Simulation"');
     expect(markup).not.toContain('data-testid="timing-simulation-panel"');
@@ -267,7 +286,11 @@ describe("editor shell", () => {
   it("links to first-party visitor analytics without crowding editor commands", () => {
     const project = createEmptyProject("analytics-entry", "Analytics Entry");
     const markup = renderToStaticMarkup(
-      <App project={project} visitStats={{ pv: 42, uv: 17 }} />,
+      <App
+        services={services}
+        project={project}
+        visitStats={{ pv: 42, uv: 17 }}
+      />,
     );
 
     // The live numbers read out in the otherwise-empty statusbar and the
@@ -283,7 +306,9 @@ describe("editor shell", () => {
 
   it("opens Netlist beside shapes quick-place without a searchable catalog", () => {
     const project = createEmptyProject("selection-shelf", "Selection Shelf");
-    const markup = renderToStaticMarkup(<App project={project} />);
+    const markup = renderToStaticMarkup(
+      <App services={services} project={project} />,
+    );
 
     expect(markup).toContain(
       '<section class="selection-shelf" aria-label="Project tools">',
@@ -336,7 +361,9 @@ describe("editor shell", () => {
       },
     });
 
-    const markup = renderToStaticMarkup(<App project={project} />);
+    const markup = renderToStaticMarkup(
+      <App services={services} project={project} />,
+    );
     expect(markup).not.toContain('data-testid="default-label-hit-M1"');
   });
 
@@ -356,7 +383,9 @@ describe("editor shell", () => {
     // radius is now four SCREEN pixels, so zooming out grows it in document
     // units instead of letting the dot shrink away. Keeping the default
     // size identical keeps every shared-point priority where it was.
-    const markup = renderToStaticMarkup(<App project={project} />);
+    const markup = renderToStaticMarkup(
+      <App services={services} project={project} />,
+    );
     expect(markup).toMatch(/data-testid="terminal-M1-D"[^>]*r="4"/u);
   });
 

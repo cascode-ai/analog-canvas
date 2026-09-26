@@ -23,15 +23,27 @@ const WorkspaceAgent = createContext<{
 } | null>(null);
 
 /** Connection owner above route-specific Editor hosts. No circuit is exposed in Gallery. */
-export function WorkspaceAgentProvider({ children }: { children: ReactNode }) {
+export function WorkspaceAgentProvider({
+  children,
+  enabled = PUBLIC_AGENT_UI_ENABLED,
+}: {
+  children: ReactNode;
+  enabled?: boolean;
+}) {
   return useContext(WorkspaceAgent) ? (
     children
   ) : (
-    <WorkspaceAgentOwner>{children}</WorkspaceAgentOwner>
+    <WorkspaceAgentOwner enabled={enabled}>{children}</WorkspaceAgentOwner>
   );
 }
 
-function WorkspaceAgentOwner({ children }: { children: ReactNode }) {
+function WorkspaceAgentOwner({
+  children,
+  enabled,
+}: {
+  children: ReactNode;
+  enabled: boolean;
+}) {
   const [context, bind] = useState<UseAgentSessionOptions | null>(null);
   const [empty] = useState(() => {
     const project = createEmptyProject(
@@ -40,7 +52,7 @@ function WorkspaceAgentOwner({ children }: { children: ReactNode }) {
     );
     const contextRevision = crypto.randomUUID();
     return {
-      enabled: PUBLIC_AGENT_UI_ENABLED,
+      enabled,
       contextReady: false,
       contextRevision,
       projectSessionId: contextRevision,
@@ -48,7 +60,10 @@ function WorkspaceAgentOwner({ children }: { children: ReactNode }) {
       host: new BrowserAgentHost(new EditorDocumentController(project)),
     };
   });
-  const session = useAgentSession(context ?? empty);
+  const session = useAgentSession({
+    ...(context ?? empty),
+    enabled: enabled && (context?.enabled ?? empty.enabled),
+  });
   return (
     <WorkspaceAgent.Provider value={{ session, bind }}>
       {children}
