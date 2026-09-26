@@ -4,7 +4,13 @@ import type {
   NativeProjectStore,
   NativeSaveOutcome,
 } from "./native-project-store";
-import type { ProjectFileSession } from "../document/use-project-file-lifecycle";
+import type {
+  ProjectFileSession,
+  PersistenceState,
+  SavedProjectBaseline,
+} from "../document/use-project-file-lifecycle";
+import type { RecoveryCoordinator } from "../document/recovery-coordinator";
+import type { ProjectSaveSnapshot } from "../document/project-save-coordinator";
 import type { captureProjectSaveSnapshot } from "../document/project-save-coordinator";
 
 // Loaded only for desktop file operations, outside the Web's initial payload.
@@ -159,4 +165,60 @@ export async function saveAndCloseNativeTab(
   } finally {
     ports.setBusy(false);
   }
+}
+
+export async function writeNativeProject(
+  snapshot: ProjectSaveSnapshot,
+  ports: {
+    store: NativeProjectStore;
+    binding: NativeFileBinding | null;
+    previousState: PersistenceState;
+    recovery: Pick<RecoveryCoordinator, "stage" | "flushNow">;
+    view: GridRect;
+    currentProject(): CircuitProject;
+    acknowledge(file: NativeFileBinding): void;
+    setBaseline(baseline: SavedProjectBaseline): void;
+    setState(state: PersistenceState): void;
+    report(message: string): void;
+  },
+  asNew: boolean,
+): Promise<NativeSaveOutcome> {
+  if (!snapshot.isCurrent())
+    return { status: "failed", message: "Project changed before saving" };
+  ports.setState("saving");
+  ports.recovery.stage(snapshot.project, { unsavedAtSnapshot: true });
+  await ports.recovery.flushNow();
+  if (!snapshot.isCurrent())
+    return { status: "failed", message: "Project changed before saving" };
+  const outcome = await ports.store.save(
+    snapshot.project,
+    ports.binding,
+    asNew,
+  );
+  if (!snapshot.isCurrent()) return outcome;
+  if (outcome.status === "saved") {
+    ports.acknowledge(outcome.file);
+    ports.setBaseline({
+      project: snapshot.project,
+      viewBox: { ...ports.view },
+    });
+    const unchanged = snapshot.matchesCurrentProject();
+    ports.setState(unchanged ? "clean" : "dirty");
+    ports.recovery.stage(ports.currentProject(), {
+      unsavedAtSnapshot: !unchanged,
+    });
+    ports.report(
+      outcome.warning ??
+        `Saved: ${outcome.file.path}${unchanged ? "" : "; newer edits remain unsaved"}`,
+    );
+  } else if (outcome.status === "cancelled") {
+    ports.setState(
+      snapshot.matchesCurrentProject() ? ports.previousState : "dirty",
+    );
+    ports.report("Save cancelled");
+  } else {
+    ports.setState(outcome.status === "conflict" ? "conflict" : "failed");
+    ports.report(`Save failed: ${outcome.message}`);
+  }
+  return outcome;
 }

@@ -5,6 +5,7 @@ import {
   openNativeFile,
   saveBackgroundNativeTab,
   saveNativeWorkspace,
+  writeNativeProject,
 } from "./native-project-workspace";
 import type {
   NativeProjectStore,
@@ -149,4 +150,62 @@ it("retains a successful open grant before React renders the new tab", async () 
   f.tabs.open.mockResolvedValue(true);
   await openNativeFile(f.store, f.tabs);
   expect(f.store.release).not.toHaveBeenCalled();
+});
+
+function writingFixture() {
+  const f = fixture();
+  const snapshot = captureProjectSaveSnapshot(f.project, "session", () => ({
+    id: "session",
+    project: f.project,
+  }));
+  const ports = {
+    store: f.store,
+    binding: f.file,
+    previousState: "dirty" as const,
+    recovery: {
+      stage: vi.fn(),
+      flushNow: vi.fn(async () => "stored" as const),
+    },
+    view: f.entries[0]!.session.view,
+    currentProject: () => f.project,
+    acknowledge: vi.fn(),
+    setBaseline: vi.fn(),
+    setState: vi.fn(),
+    report: vi.fn(),
+  };
+  return { ...f, snapshot, ports };
+}
+
+it.each(["cancelled", "conflict", "failed"] as const)(
+  "native %s preserves binding and saved baseline",
+  async (status) => {
+    const f = writingFixture();
+    f.store.save = async () =>
+      status === "cancelled" ? { status } : { status, message: "Keep edits" };
+    await writeNativeProject(f.snapshot, f.ports, true);
+    expect(f.ports.acknowledge).not.toHaveBeenCalled();
+    expect(f.ports.setBaseline).not.toHaveBeenCalled();
+    expect(f.ports.setState).toHaveBeenLastCalledWith(
+      status === "cancelled" ? "dirty" : status,
+    );
+  },
+);
+
+it("active native save flushes recovery first and keeps edits made during write dirty", async () => {
+  const f = writingFixture();
+  f.store.save = async (snapshot, binding) => {
+    expect(f.ports.recovery.flushNow).toHaveBeenCalledOnce();
+    expect(binding).toEqual(f.file);
+    expect(snapshot.name).toBe("Project");
+    f.project.name = "Newer edit";
+    f.project.structureRevision += 1;
+    return { status: "saved", file: { ...f.file, revision: 2 } };
+  };
+  await writeNativeProject(f.snapshot, f.ports, false);
+  expect(f.ports.acknowledge).toHaveBeenCalledWith({ ...f.file, revision: 2 });
+  expect(f.ports.setBaseline.mock.calls[0]![0].project.name).toBe("Project");
+  expect(f.ports.setState).toHaveBeenLastCalledWith("dirty");
+  expect(f.ports.recovery.stage).toHaveBeenLastCalledWith(f.project, {
+    unsavedAtSnapshot: true,
+  });
 });

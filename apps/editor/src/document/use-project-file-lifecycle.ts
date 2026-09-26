@@ -452,47 +452,30 @@ export function useProjectFileLifecycle({
             status: "failed",
             message: "Local file storage is unavailable",
           };
-        const previousState = persistenceState;
         const binding = nativeBindingRef.current;
-        setPersistenceState("saving");
-        recovery.stage(snapshot.project, { unsavedAtSnapshot: true });
-        await recovery.flushNow();
-        if (!snapshot.isCurrent())
-          return { status: "failed", message: "Project changed before saving" };
-        const outcome = await nativeProjectStore.save(
-          snapshot.project,
-          binding,
+        const { writeNativeProject } =
+          await import("../hosts/native-project-workspace");
+        return writeNativeProject(
+          snapshot,
+          {
+            store: nativeProjectStore,
+            binding,
+            previousState: persistenceState,
+            recovery,
+            view: viewBox,
+            currentProject: () => liveProjectRef.current,
+            acknowledge: (file) => {
+              nativeSavedTokenRef.current = projectChangeToken(
+                snapshot.project,
+              );
+              setNativeBinding(file);
+            },
+            setBaseline: setSavedProjectBaseline,
+            setState: setPersistenceState,
+            report: setStatus,
+          },
           asNew,
         );
-        if (!snapshot.isCurrent()) return outcome;
-        if (outcome.status === "saved") {
-          nativeSavedTokenRef.current = projectChangeToken(snapshot.project);
-          setNativeBinding(outcome.file);
-          setSavedProjectBaseline({
-            project: snapshot.project,
-            viewBox: { ...viewBox },
-          });
-          const unchanged = snapshot.matchesCurrentProject();
-          setPersistenceState(unchanged ? "clean" : "dirty");
-          recovery.stage(liveProjectRef.current, {
-            unsavedAtSnapshot: !unchanged,
-          });
-          setStatus(
-            outcome.warning ??
-              `Saved: ${outcome.file.path}${unchanged ? "" : "; newer edits remain unsaved"}`,
-          );
-        } else if (outcome.status === "cancelled") {
-          setPersistenceState(
-            snapshot.matchesCurrentProject() ? previousState : "dirty",
-          );
-          setStatus("Save cancelled");
-        } else {
-          setPersistenceState(
-            outcome.status === "conflict" ? "conflict" : "failed",
-          );
-          setStatus(`Save failed: ${outcome.message}`);
-        }
-        return outcome;
       },
       rejected: (reason) => ({
         status: "failed",
