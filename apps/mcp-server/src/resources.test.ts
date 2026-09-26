@@ -33,6 +33,28 @@ function expandSchema(
     ];
     expect(target).toBeDefined();
     const { $ref: _, ...siblings } = object;
+    // Documentation annotations beside a ref are merged by the production
+    // projection. Normalize that representation independently; all constraint
+    // siblings still use an intersection, never an unsafe object merge.
+    if (
+      Object.keys(siblings).length &&
+      Object.keys(siblings).every((key) =>
+        [
+          "title",
+          "description",
+          "default",
+          "examples",
+          "deprecated",
+          "readOnly",
+          "writeOnly",
+          "$comment",
+        ].includes(key),
+      )
+    )
+      return {
+        ...(expandSchema(root, target) as Record<string, unknown>),
+        ...siblings,
+      };
     return Object.keys(siblings).length
       ? { allOf: [expandSchema(root, target), expandSchema(root, siblings)] }
       : expandSchema(root, target);
@@ -97,11 +119,9 @@ describe("mcp resources single-source projection", () => {
   });
   it("bounds discovery size while retaining complete contracts and runtime validation", async () => {
     const tools = listToolDefinitions();
-    // Compatibility entries keep a near-existing budget. The optional bounded
-    // geometry inspection selector adds about 0.3 KiB to this directory, and
-    // a Symbol body text's RichText look (schema 62) about 0.2 KiB.
-    // File open and the background Project binding bring the measured
-    // compatibility directory to 101,227 bytes. Keep a close ceiling; focused
+    // Shared GUI-equivalent commands and staged Cell composition bring the
+    // compatibility directory to 115,623 bytes (not a token count). The full
+    // advanced_transact command union remains a compatibility entry; focused
     // additions have a stricter per-tool host-compaction
     // budget in focused-tools.test.ts.
     // Total directory bytes are no longer the host's per-tool context boundary.
@@ -109,7 +129,7 @@ describe("mcp resources single-source projection", () => {
       (t) => !FOCUSED_TOOLS.some((f) => f.name === t.name),
     );
     expect(Buffer.byteLength(JSON.stringify(compatibility))).toBeLessThan(
-      101_350,
+      116_500,
     );
     for (const tool of tools) {
       const complete = JSON.parse(

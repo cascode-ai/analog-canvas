@@ -369,9 +369,9 @@ describe("current Agent Circuit API service", () => {
     expect(JSON.stringify(AgentCircuitResponseJsonSchema).length).toBeLessThan(
       180_000,
     );
-    // Complete OpenAPI including opt-in label arrangement: 529,262 characters,
+    // Complete OpenAPI including staged Cell composition: 531,880 characters,
     // not a token count or a host discovery payload.
-    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(530_000);
+    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(533_000);
   });
 
   it("publishes the flat Snapshot workflow and returns complete facts", () => {

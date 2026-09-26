@@ -14,6 +14,7 @@ import type {
   ProjectTransaction,
   ProjectTransactionResult,
 } from "@icm/edit-engine";
+import { planProjectCellBodyImport } from "@icm/edit-engine";
 import { createSimulationProjectFileHost } from "../features/simulation/project-file-host";
 import { createBrowserFormalExportSource } from "@icm/exporters";
 import { parseProject, serializeProject } from "@icm/project-protocol";
@@ -32,6 +33,14 @@ type StoredCandidate = {
 };
 
 export interface BrowserAgentFileHostOptions {
+  getActiveDocumentId?: () => string;
+  commitProjectStructure?: (
+    project: CircuitProject,
+    activeDocumentId: string,
+  ) => void;
+  loadProjectCode?: () => Promise<
+    typeof import("../features/project-code/project-code")
+  >;
   fetch?: typeof fetch;
   transport?: "direct" | "managed";
   getProjectSessionId: () => string;
@@ -107,8 +116,21 @@ export class BrowserAgentFileHost {
         return this.download(request);
       case "stage":
         return this.stage(request);
+      case "import-cell":
+        return this.importCell(request);
       case "inspect": {
         const candidate = this.candidates.get(request.candidateId);
+        const document = request.documentId
+          ? candidate?.project.documents.find(
+              (d) => d.id === request.documentId,
+            )
+          : undefined;
+        if (candidate && request.documentId && !document)
+          return this.error(
+            request,
+            "DOCUMENT_NOT_FOUND",
+            "Cell is not present in this staged candidate",
+          );
         return candidate
           ? {
               apiVersion: AGENT_API_VERSION,
@@ -116,6 +138,7 @@ export class BrowserAgentFileHost {
               operation: "inspect",
               ok: true,
               candidate: candidate.summary,
+              ...(document ? { documentCode: JSON.stringify(document) } : {}),
             }
           : this.error(
               request,
@@ -209,6 +232,110 @@ export class BrowserAgentFileHost {
   clear(): void {
     this.simulationFiles.clear();
     this.candidates.clear();
+  }
+
+  private async importCell(
+    request: Extract<AgentFileResourceRequest, { operation: "import-cell" }>,
+  ): Promise<AgentFileResourceResponse> {
+    if (!this.options.commitProjectStructure)
+      return this.error(
+        request,
+        "FILE_IMPORT_UNAVAILABLE",
+        "This Editor cannot commit a staged Cell",
+      );
+    let code: typeof import("../features/project-code/project-code");
+    try {
+      code = await importChunk(
+        "Project Code",
+        this.options.loadProjectCode ??
+          (() => import("../features/project-code/project-code")),
+      );
+    } catch {
+      return this.error(
+        request,
+        "PROJECT_FEATURE_LOAD_FAILED",
+        "Project Code could not load; no edit was attempted. Check connectivity and save before refreshing the Editor.",
+      );
+    }
+    // The lazy import may yield while the human replaces/edits the Project.
+    if (this.options.getProjectSessionId() !== this.boundProjectSessionId)
+      return this.error(
+        request,
+        "PROJECT_REPLACED",
+        "The bound Project was replaced before Cell import",
+      );
+    this.removeExpired();
+    const candidate = this.candidates.get(request.candidateId);
+    if (!candidate)
+      return this.error(
+        request,
+        "FILE_CANDIDATE_NOT_FOUND",
+        "Candidate is unavailable or expired",
+      );
+    const current = this.options.getProject();
+    if (current.structureRevision !== request.expectedStructureRevision)
+      return this.error(
+        request,
+        "STALE_STRUCTURE_REVISION",
+        "Project changed; inspect the target and submit a new request",
+      );
+    const target = current.documents.find(
+      (d) => d.id === request.targetDocumentId,
+    );
+    if (!target)
+      return this.error(
+        request,
+        "DOCUMENT_NOT_FOUND",
+        "Target Cell is not present in this Project",
+      );
+    if (target.revision !== request.expectedRevision)
+      return this.error(
+        request,
+        "STALE_REVISION",
+        "Target Cell changed; inspect it and submit a new request",
+      );
+    try {
+      const composed = planProjectCellBodyImport(
+        current,
+        candidate.project,
+        request.sourceDocumentId,
+        request.targetDocumentId,
+        request.mode,
+        request.candidateId,
+      );
+      const active =
+        this.options.getActiveDocumentId?.() ?? current.topDocumentId;
+      const planned = code.planProjectCodeCommit(
+        current,
+        code.formatProjectCode(composed.project),
+        active,
+      );
+      if (!planned.ok)
+        return this.error(request, "CELL_IMPORT_INVALID", planned.message);
+      this.options.commitProjectStructure(
+        planned.project,
+        planned.activeDocumentId,
+      );
+      this.candidates.delete(request.candidateId);
+      return {
+        apiVersion: AGENT_API_VERSION,
+        requestId: request.requestId,
+        operation: "import-cell",
+        ok: true,
+        targetDocumentId: request.targetDocumentId,
+        importedDocumentIds: composed.importedDocumentIds,
+        structureRevision: planned.project.structureRevision,
+        revision: planned.project.documents.find(
+          (d) => d.id === request.targetDocumentId,
+        )!.revision,
+      };
+    } catch (error) {
+      return this.error(
+        request,
+        "CELL_IMPORT_REJECTED",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
   }
 
   private async download(
@@ -364,6 +491,12 @@ export class BrowserAgentFileHost {
           (total, document) => total + document.instances.length,
           0,
         ),
+        documents: project.documents.map((d) => ({
+          id: d.id,
+          name: d.name,
+          instanceCount: d.instances.length,
+          terminalNames: d.netlist?.terminals.map((t) => t.name) ?? [],
+        })),
         diagnostics,
       };
       this.candidates.set(candidateId, { project, summary });

@@ -215,6 +215,24 @@ The client carries context stamps automatically and never redirects old writes.
 `import_file` stages a Project or structural SPICE bundle. Inspect the candidate,
 then use `action:"open"` to open it in a new Project tab without replacing the
 current work. Staging alone is not a completed import. Use
+`action:"inspect",candidateId,documentId` to read one staged Cell as
+`documentCode`; stage summaries list Cell IDs. `action:"import-cell"` with
+`sourceDocumentId,targetDocumentId,mode:"replace-body"|"append"` commits into
+an existing Cell, including its dependency closure, in one undoable Project
+edit. The shared client supplies missing `expectedRevision` and
+`expectedStructureRevision`; explicit stale values reject. The candidate is
+consumed only on success. This operation requires `project.import` and the
+existing geometry/connectivity/presentation edit scopes, not a GUI approval.
+It preserves the target Cell ID, formal terminal IDs/order, symbol pin layout
+and parent callers. An uncalled Cell with no terminals can adopt the imported
+interface. Otherwise named terminals must match (append may use a subset), and
+parameters must already be compatible. Append retains existing interface
+owners, joins only declared matching terminals or compatible global Nets,
+and rejects local-name/Reference conflicts rather than guessing a rename.
+Resolve missing MOS bulk first; append does not retarget existing bulk.
+Append retains the destination's frozen import-reference baseline and source
+status becomes modified; it does not silently redefine a verification target.
+Geometry is not auto-arranged. Use whole-Project
 `action:"request-approval"` only when the human wants to replace the current
 Project in the browser. After either Project switch, refresh connection status
 and read the new Document context; the existing pairing remains valid.

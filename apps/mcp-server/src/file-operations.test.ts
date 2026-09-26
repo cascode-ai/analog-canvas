@@ -24,6 +24,46 @@ async function tempDirectory(): Promise<string> {
 }
 
 describe("MCP file operations", () => {
+  it("forwards candidate Cell selection and explicit revision without an extra read", async () => {
+    const http = new FakeAgentHttp();
+    const client = new AgentSessionClient({ http });
+    await client.connect("session-1.code");
+    const files = vi
+      .spyOn(http, "files")
+      .mockResolvedValue({ ok: true } as never);
+    const before = http.circuitCalls.length;
+    await importFile(client, {
+      action: "import-cell",
+      candidateId: "c",
+      sourceDocumentId: "s",
+      targetDocumentId: "main",
+      mode: "append",
+      expectedStructureRevision: 0,
+      expectedRevision: 0,
+    });
+    expect(files).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({
+        operation: "import-cell",
+        sourceDocumentId: "s",
+        targetDocumentId: "main",
+        mode: "append",
+        expectedStructureRevision: 0,
+      }),
+    );
+    expect(http.circuitCalls).toHaveLength(before);
+    await importFile(client, {
+      action: "inspect",
+      candidateId: "c",
+      documentId: "s",
+    });
+    expect(files).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({ operation: "inspect", documentId: "s" }),
+    );
+  });
   it.each([
     { artifact: "project" as const },
     {

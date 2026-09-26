@@ -83,6 +83,7 @@ export const AgentFileResourceCapabilitySchema = z.strictObject({
       "request-approval",
       "open",
       "simulation-input",
+      "import-cell",
     ]),
   ),
   maxBytes: z.number().int().positive(),

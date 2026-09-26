@@ -437,6 +437,13 @@ export function fileOperationScopes(
               : []),
           ]
         : ["simulation.run"];
+    case "import-cell":
+      return [
+        "project.import",
+        "circuit.edit.geometry",
+        "circuit.edit.connectivity",
+        "circuit.edit.presentation",
+      ];
     case "download":
       return [
         request.artifact === "project" ? "project.download" : "visual.download",

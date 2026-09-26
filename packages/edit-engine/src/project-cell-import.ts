@@ -93,12 +93,14 @@ function collectIdentifierValues(value: unknown, output: Set<string>): void {
   }
 }
 
-function remapIdentifierValues(
+export function remapImportedIdentifierValues(
   value: unknown,
   identifiers: ReadonlyMap<string, string>,
 ): unknown {
   if (Array.isArray(value)) {
-    return value.map((item) => remapIdentifierValues(item, identifiers));
+    return value.map((item) =>
+      remapImportedIdentifierValues(item, identifiers),
+    );
   }
   if (!value || typeof value !== "object") return value;
   const output: Record<string, unknown> = {};
@@ -114,7 +116,7 @@ function remapIdentifierValues(
         typeof id === "string" ? (identifiers.get(id) ?? id) : id,
       );
     } else {
-      output[key] = remapIdentifierValues(item, identifiers);
+      output[key] = remapImportedIdentifierValues(item, identifiers);
     }
   }
   return output;
@@ -308,7 +310,7 @@ export function planProjectCellImport(
         names.set(document.id, existing.netlist?.name ?? existing.name);
     }
   const importedDocuments = closure.map((document) => {
-    const remapped = remapIdentifierValues(
+    const remapped = remapImportedIdentifierValues(
       document,
       identifierMap,
     ) as SchematicDocument;

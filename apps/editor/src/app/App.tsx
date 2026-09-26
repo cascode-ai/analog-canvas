@@ -1011,6 +1011,12 @@ function WorkspaceEditor({
           ) ?? null,
         getResolver: () => editorDocumentController.resolver,
         onApprovalRequested: setAgentFileCandidate,
+        getActiveDocumentId: () => editorDocumentController.document.id,
+        commitProjectStructure: (next, active) => {
+          editorDocumentController.commitProjectStructure(next, active);
+          synchronizeExternalCommit();
+          void flushRecovery();
+        },
         openProjectInNewTab: (candidate, background) =>
           openProjectInTabRef.current(
             candidate,
@@ -5319,6 +5325,11 @@ function WorkspaceEditor({
           controller.project.documents.find((item) => item.id === id) ?? null,
         getResolver: () => controller.resolver,
         onApprovalRequested: setAgentFileCandidate,
+        getActiveDocumentId: () => controller.document.id,
+        commitProjectStructure: (next, active) => {
+          controller.commitProjectStructure(next, active);
+          committed();
+        },
         openProjectInNewTab: (candidate, background) =>
           openProjectInTabRef.current(
             candidate,

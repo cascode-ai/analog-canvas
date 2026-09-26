@@ -478,6 +478,7 @@ export class AgentSessionClient {
     request = structuredClone(request);
     const changesProject =
       request.operation === "open" ||
+      request.operation === "import-cell" ||
       (request.operation === "simulation-input" &&
         request.input.action === "update" &&
         request.input.owner.kind === "project-folder");

@@ -49,7 +49,7 @@ export const agentToolHelp = {
   export_file:
     "Export Project or Canvas SVG/PNG/PDF to outputPath; Canvas requires documentId. For simulation data use simulation_files sync/download. simulation-plot returns SIMULATION_PLOT_RETIRED; use simulation_files prepare-plot.",
   import_file:
-    "Stage a local Analog Canvas project or structural SPICE bundle and inspect it. action:open opens the candidate in a new Project tab under project.import without replacing current work or requiring browser confirmation. request-approval is for browser-confirmed replacement. Refresh connection status after the Project switch; the pairing remains valid.",
+    "Stage local Project/SPICE files; inspect optionally selects documentId. import-cell commits one staged sourceDocumentId into targetDocumentId with mode replace-body or append, preserving the target interface and using existing edit scopes. Revisions are supplied when omitted. open opens a new Project tab; request-approval is for human-confirmed whole-Project replacement. No switch for import-cell.",
   get_context:
     "Read document identity/revision/counts with a lightweight request or clean cache. refresh:true reconciles external changes. Connect already returns context.",
   inspect:

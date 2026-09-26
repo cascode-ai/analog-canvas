@@ -300,6 +300,31 @@ describe("agent session client", () => {
     },
   );
   it.each([false, true])(
+    "invalidates cached circuit state after staged Cell import, uncertain=%s",
+    async (uncertain) => {
+      const { client, http } = await freshClient();
+      await client.connect("session-1.code");
+      await client.snapshot("main");
+      const files = vi.spyOn(http, "files");
+      if (uncertain) files.mockRejectedValueOnce(new Error("response lost"));
+      else files.mockResolvedValueOnce({ ok: true } as never);
+      const update = client.fileResource({
+        apiVersion: "3.0",
+        requestId: "import",
+        operation: "import-cell",
+        candidateId: "c",
+        sourceDocumentId: "s",
+        targetDocumentId: "main",
+        mode: "replace-body",
+        expectedStructureRevision: 0,
+        expectedRevision: 0,
+      });
+      if (uncertain) await expect(update).rejects.toThrow("response lost");
+      else await update;
+      expect(client.cachedSnapshot("main")).toBeNull();
+    },
+  );
+  it.each([false, true])(
     "invalidates Project snapshots after code replacement, uncertain=%s",
     async (uncertain) => {
       const { client, http } = await freshClient();
