@@ -4606,6 +4606,110 @@ test("authors can filter pending visual reviews and resolve their own drawing", 
   );
 });
 
+test("administrators narrow Needs attention to one reason", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "admin-1",
+          displayName: "Admin",
+          email: "admin@example.com",
+          provider: "github",
+          isAdmin: true,
+          role: "admin",
+        },
+      },
+    }),
+  );
+  const pending = (id: string, kinds: [string, string][]) => ({
+    ...ENTRY,
+    id,
+    ownerUserId: "someone",
+    tags: ["amplifier"],
+    curationRevision: 1,
+    attention: {
+      status: "needs-attention",
+      issues: kinds.map(([kind, detail]) => ({ kind, detail })),
+    },
+    assessedPreviewRevision: ENTRY.previewRevision,
+  });
+  const entries = [
+    pending("supply-only", [["global-vdd", ".global VDD in the netlist"]]),
+    pending("broken-wire", [
+      ["suspected-disconnection", "Gap between OUT and its wire."],
+      ["global-vdd", ".global VDD in the netlist"],
+    ]),
+  ];
+  const reasons: (string | null)[] = [];
+  await page.route("**/api/gallery**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/gallery/tags")
+      return route.fulfill({
+        json: { tags: [{ tag: "amplifier", count: 2 }] },
+      });
+    if (url.pathname === "/api/gallery") {
+      const reason = url.searchParams.get("reason");
+      if (url.searchParams.get("attention") === "1") reasons.push(reason);
+      const shown = entries.filter(
+        (entry) =>
+          !reason || entry.attention.issues.some((i) => i.kind === reason),
+      );
+      return route.fulfill({
+        json: {
+          entries: shown,
+          nextCursor: null,
+          total: shown.length,
+          filterCounts: {
+            attention: shown.length,
+            netlistable: 0,
+            liked: 0,
+            ...(url.searchParams.get("attention") === "1"
+              ? {
+                  attentionKinds: {
+                    "global-vdd": 2,
+                    "suspected-disconnection": 1,
+                  },
+                }
+              : {}),
+          },
+        },
+      });
+    }
+    if (url.pathname.endsWith("/preview.svg"))
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"/>',
+      });
+    return route.fallback();
+  });
+  await page.goto("/");
+  const reason = page.getByTestId("gallery-filter-attention-reason");
+  await expect(reason).toHaveCount(0);
+  await page.getByTestId("gallery-filter-attention").click();
+  // Each reason with something pending, with how many entries carry it.
+  await expect(reason.locator("option")).toHaveText([
+    "Every reason",
+    "Global VDD (2)",
+    "Wiring break (1)",
+  ]);
+  await reason.selectOption("suspected-disconnection");
+  await expect(page).toHaveURL(/reason=suspected-disconnection/);
+  await expect(page.getByTestId("gallery-tile-broken-wire")).toBeVisible();
+  await expect(page.getByTestId("gallery-tile-supply-only")).toHaveCount(0);
+  expect(reasons.at(-1)).toBe("suspected-disconnection");
+  // The review lists every finding under its reason.
+  const review = page.getByTestId("gallery-attention-broken-wire");
+  await review.locator("summary").click();
+  await expect(review).toContainText("Wiring break · Gap between OUT");
+  await expect(review).toContainText("Global VDD · .global VDD");
+  // Leaving Needs attention forgets the reason.
+  await page.getByTestId("gallery-filter-attention").click();
+  await expect(reason).toHaveCount(0);
+  await expect(page).not.toHaveURL(/reason=/);
+});
+
 for (const scenario of [
   "reopen and metadata",
   "source replacement",

@@ -9,12 +9,16 @@
  * of thing to a reader, so they persist as one thing.
  */
 
+import { isGalleryIssueKind } from "./gallery-issue-kinds";
+
 export type GalleryView = "gallery" | "shelf";
 
 export interface GalleryFilterState {
   /** Which wall: the community gallery, or the reader's own shelf. */
   view: GalleryView;
   attention: boolean;
+  /** One reason Needs attention narrows to; null for every reason. */
+  attentionKind: string | null;
   author: string | null;
   /** Stable identity for the selected author; null for legacy links/entries. */
   ownerUserId: string | null;
@@ -46,12 +50,14 @@ const NARROWING_PARAMS = [
   "netlist",
   "liked",
   "attention",
+  "reason",
 ] as const;
 
 export function createDefaultGalleryFilters(): GalleryFilterState {
   return {
     view: "gallery",
     attention: false,
+    attentionKind: null,
     author: null,
     ownerUserId: null,
     tags: [],
@@ -124,6 +130,11 @@ export function parseGalleryFilterQuery(search: string): {
       netlistable: params.get("netlist") === "1",
       liked: params.get("liked") === "1",
       attention: params.get("attention") === "1",
+      attentionKind:
+        params.get("attention") === "1" &&
+        isGalleryIssueKind(params.get("reason"))
+          ? params.get("reason")
+          : null,
     },
     narrowed: NARROWING_PARAMS.some((name) => (params.get(name) ?? "") !== ""),
     namesView: params.has("view"),
@@ -154,6 +165,7 @@ export function galleryFilterSearch(
   // old links instead of preserving a parameter the Gallery no longer reads.
   params.delete("category");
   set("attention", filters.attention ? "1" : null);
+  set("reason", filters.attention ? filters.attentionKind : null);
   const query = params.toString();
   return query.length > 0 ? `?${query}` : "";
 }
@@ -189,6 +201,10 @@ export function parseStoredGalleryFilters(
     netlistable: record.netlistable === true,
     liked: record.liked === true,
     attention: record.attention === true,
+    attentionKind:
+      record.attention === true && isGalleryIssueKind(record.attentionKind)
+        ? record.attentionKind
+        : null,
   };
 }
 

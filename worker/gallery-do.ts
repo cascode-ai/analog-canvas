@@ -1,5 +1,6 @@
 import { formulaPreviewNeedsRefresh } from "./gallery-preview";
 import {
+  GALLERY_ISSUE_KINDS,
   readGalleryCuration,
   type GalleryAttention,
   type GalleryCuration,
@@ -482,6 +483,18 @@ function advanceCurationRevision(row: EntryRow, at: string): string {
 /** An entry whose curation asks its author to look again. */
 const NEEDS_ATTENTION =
   "json_extract(CASE WHEN e.curation_json = '' THEN '{}' ELSE e.curation_json END, '$.attention.status') = 'needs-attention'";
+/** The findings of an entry's attention, one row each, for json_each. */
+const ATTENTION_ISSUES =
+  "json_each(CASE WHEN e.curation_json = '' THEN '{}' ELSE e.curation_json END, '$.attention.issues')";
+
+/** The attention reason a request narrows to, when it names a known one. */
+function requestedAttentionKind(body: Record<string, unknown>): string | null {
+  return body.attention === true &&
+    typeof body.attentionKind === "string" &&
+    GALLERY_ISSUE_KINDS.includes(body.attentionKind)
+    ? body.attentionKind
+    : null;
+}
 
 /** Storage-only Durable Object; policy lives in `routeGalleryRequest`. */
 export class GalleryDO {
@@ -1091,7 +1104,7 @@ export class GalleryDO {
    */
   private feedConditions(
     body: Record<string, unknown>,
-    options: { tags: boolean },
+    options: { tags: boolean; attentionKind?: boolean },
   ): {
     conditions: string[];
     bindings: (string | number)[];
@@ -1127,6 +1140,17 @@ export class GalleryDO {
       if (body.isAdmin !== true) {
         conditions.push("e.owner_user_id = ?");
         bindings.push(viewerId);
+      }
+      // One reason narrows Needs attention to the entries with that finding;
+      // the reason counts leave it out, or choosing one would zero the rest.
+      const kind =
+        options.attentionKind === false ? null : requestedAttentionKind(body);
+      if (kind) {
+        conditions.push(
+          `EXISTS (SELECT 1 FROM ${ATTENTION_ISSUES} AS issue
+             WHERE json_extract(issue.value, '$.kind') = ?)`,
+        );
+        bindings.push(kind);
       }
     }
     if (body.netlistable === true) conditions.push("e.netlistable = 1");
@@ -1175,6 +1199,8 @@ export class GalleryDO {
         ...bindings,
       )
       .toArray()[0]!;
+    const attentionKinds =
+      body.attention === true ? this.attentionKindCounts(body) : undefined;
     const authors = this.contributorCounts(conditions, bindings);
     if (cursor) {
       conditions.push("(e.created_at || '|' || e.id) < ?");
@@ -1216,8 +1242,37 @@ export class GalleryDO {
         attention: Number(counts.attention),
         netlistable: Number(counts.netlistable),
         liked: Number(counts.liked),
+        ...(attentionKinds ? { attentionKinds } : {}),
       },
     });
+  }
+
+  /**
+   * How many entries under Needs attention carry each reason, with every
+   * other filter applied: the counts beside the reason menu.
+   */
+  private attentionKindCounts(
+    body: Record<string, unknown>,
+  ): Record<string, number> {
+    const { conditions, bindings } = this.feedConditions(body, {
+      tags: true,
+      attentionKind: false,
+    });
+    const counts: Record<string, number> = {};
+    for (const row of this.sql
+      .exec<{ kind: string; count: number }>(
+        `SELECT json_extract(issue.value, '$.kind') AS kind,
+           COUNT(DISTINCT e.id) AS count
+         FROM gallery_entries e, ${ATTENTION_ISSUES} AS issue
+         WHERE ${conditions.join(" AND ")}
+         GROUP BY kind`,
+        ...bindings,
+      )
+      .toArray()) {
+      if (GALLERY_ISSUE_KINDS.includes(row.kind))
+        counts[row.kind] = Number(row.count);
+    }
+    return counts;
   }
 
   /** Complete public metadata index for server-rendered, directly readable pages. */

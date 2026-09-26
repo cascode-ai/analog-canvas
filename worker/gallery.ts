@@ -1636,6 +1636,7 @@ export async function routeGalleryRequest(
     const { payload } = await callGallery(env, "list", {
       isAdmin: viewer?.isAdmin === true,
       attention: url.searchParams.get("attention") === "1",
+      attentionKind: url.searchParams.get("reason"),
       viewerId: viewer?.id ?? "",
       limit: url.searchParams.get("limit"),
       cursor: url.searchParams.get("cursor"),
@@ -1909,6 +1910,7 @@ export async function routeGalleryRequest(
       isAdmin: viewer?.isAdmin === true,
       viewerId: viewer?.id ?? "",
       attention,
+      attentionKind: url.searchParams.get("reason"),
       liked,
       netlistable: url.searchParams.get("netlistable") === "1",
     });

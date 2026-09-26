@@ -201,6 +201,8 @@ export interface GalleryQuickFilterCounts {
   attention: number;
   netlistable: number;
   liked: number;
+  /** Entries under Needs attention per reason; only with that filter on. */
+  attentionKinds?: Record<string, number>;
 }
 
 export interface GalleryFeedPage {
@@ -347,6 +349,8 @@ export interface GalleryTagFilters {
   netlistable?: boolean;
   liked?: boolean;
   attention?: boolean;
+  /** The reason Needs attention narrows to; read only with attention. */
+  attentionKind?: string | null;
 }
 
 /** One stable key per combination of the filters that narrow tag counts. */
@@ -355,6 +359,9 @@ export function galleryTagScope(filters: GalleryTagFilters): string {
     ...(filters.netlistable ? [["netlistable", "1"]] : []),
     ...(filters.liked ? [["liked", "1"]] : []),
     ...(filters.attention ? [["attention", "1"]] : []),
+    ...(filters.attention && filters.attentionKind
+      ? [["reason", filters.attentionKind]]
+      : []),
   ]).toString();
 }
 
@@ -431,10 +438,14 @@ export async function loadGalleryFeed(
     liked?: boolean;
     limit?: number;
     attention?: boolean;
+    /** One reason Needs attention narrows to. */
+    attentionKind?: string | null;
   } = {},
 ): Promise<GalleryFeedResult> {
   const params = new URLSearchParams();
   if (options.attention) params.set("attention", "1");
+  if (options.attention && options.attentionKind)
+    params.set("reason", options.attentionKind);
   if (options.author) params.set("author", options.author);
   if (options.ownerUserId) params.set("owner", options.ownerUserId);
   if (options.tags && options.tags.length > 0) {
@@ -478,12 +489,24 @@ export async function loadGalleryFeed(
         ? { authors: payload.authors }
         : {}),
       ...(payload.filterCounts &&
-      ["attention", "netlistable", "liked"].every((key) => {
-        const count =
-          payload.filterCounts![key as keyof GalleryQuickFilterCounts];
+      (["attention", "netlistable", "liked"] as const).every((key) => {
+        const count = payload.filterCounts![key];
         return Number.isSafeInteger(count) && count >= 0;
       })
-        ? { filterCounts: payload.filterCounts }
+        ? {
+            filterCounts: {
+              attention: payload.filterCounts.attention,
+              netlistable: payload.filterCounts.netlistable,
+              liked: payload.filterCounts.liked,
+              ...(payload.filterCounts.attentionKinds &&
+              typeof payload.filterCounts.attentionKinds === "object" &&
+              Object.values(payload.filterCounts.attentionKinds).every(
+                (count) => Number.isSafeInteger(count) && count >= 0,
+              )
+                ? { attentionKinds: payload.filterCounts.attentionKinds }
+                : {}),
+            },
+          }
         : {}),
     };
   } catch {

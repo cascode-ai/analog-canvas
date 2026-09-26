@@ -34,6 +34,10 @@ import {
 } from "../gallery-filters";
 import type { BundledGalleryTile } from "./gallery-bundled-fallback";
 import { galleryTagLabel } from "../gallery-tag-label";
+import {
+  GALLERY_ISSUE_KINDS,
+  galleryIssueKindLabel,
+} from "../gallery-issue-kinds";
 
 // The wall and the canvas-side panel share one data layer, so a search that
 // finds a circuit here finds it there too. These re-exports keep every
@@ -301,6 +305,34 @@ export function canReuseGalleryLandingFeed(
   );
 }
 
+/** Entries still needing attention, per reason they carry. */
+function countAttentionKinds(
+  entries: readonly GalleryFeedEntry[],
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const entry of entries) {
+    if (entry.attention?.status !== "needs-attention") continue;
+    for (const kind of new Set(entry.attention.issues.map((i) => i.kind)))
+      counts[kind] = (counts[kind] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/** The reason counts once one entry has left the wall. */
+function attentionKindsWithout(
+  counts: Record<string, number> | undefined,
+  entry: GalleryFeedEntry,
+  removed: boolean,
+): { attentionKinds?: Record<string, number> } {
+  if (!counts) return {};
+  if (!removed || entry.attention?.status !== "needs-attention")
+    return { attentionKinds: counts };
+  const next = { ...counts };
+  for (const kind of new Set(entry.attention.issues.map((i) => i.kind)))
+    if (next[kind]) next[kind] -= 1;
+  return { attentionKinds: next };
+}
+
 /** One feed page; the plain first request stays exactly `/api/gallery`. */
 /**
  * Full-screen landing feed: every tile is one published circuit that opens
@@ -340,6 +372,7 @@ export function GalleryFeed({
     netlistable: netlistableOnly,
     liked: likedOnly,
     attention: attentionOnly,
+    attentionKind,
   } = filters;
   function updateFilters(patch: Partial<GalleryFilterState>): void {
     setFilters((previous) => ({ ...previous, ...patch }));
@@ -365,6 +398,7 @@ export function GalleryFeed({
     netlistable: netlistableOnly,
     liked: likedOnly,
     attention: attentionOnly,
+    attentionKind,
   });
   const [refreshSignal, setRefreshSignal] = useState(0);
   // A like taken back under Liked removes its drawing from the wall without
@@ -432,6 +466,7 @@ export function GalleryFeed({
       netlistable: netlistableOnly,
       liked: likedOnly,
       attention: attentionOnly,
+      attentionKind,
     });
     const request =
       refreshSignal === 0 &&
@@ -443,6 +478,7 @@ export function GalleryFeed({
             netlistable: netlistableOnly,
             liked: likedOnly,
             attention: attentionOnly,
+            attentionKind,
           });
     void request.then((payload) => {
       if (!cancelled) {
@@ -465,6 +501,7 @@ export function GalleryFeed({
     netlistableOnly,
     likedOnly,
     attentionOnly,
+    attentionKind,
   ]);
   const [state, setState] = useState<GalleryFeedState>({
     status: "loading",
@@ -566,6 +603,11 @@ export function GalleryFeed({
                   previous.filterCounts.liked +
                   Number(liked) -
                   Number(entry.likedByViewer === true),
+                ...attentionKindsWithout(
+                  previous.filterCounts.attentionKinds,
+                  entry,
+                  removed,
+                ),
               },
             }
           : {}),
@@ -589,6 +631,7 @@ export function GalleryFeed({
       netlistableOnly ? "netlist" : "",
       likedOnly ? "liked" : "",
       attentionOnly ? "attention" : "",
+      attentionOnly ? (attentionKind ?? "") : "",
     ].join("\u0000");
     const changingQuery = loadedQueryRef.current !== queryKey;
     if (changingQuery) {
@@ -617,6 +660,7 @@ export function GalleryFeed({
             netlistable: netlistableOnly,
             liked: likedOnly,
             attention: attentionOnly,
+            attentionKind,
           });
     void request.then((page) => {
       if (cancelled || generation !== feedGenerationRef.current) return;
@@ -652,6 +696,7 @@ export function GalleryFeed({
     netlistableOnly,
     likedOnly,
     attentionOnly,
+    attentionKind,
     preload,
     refreshSignal,
   ]);
@@ -677,6 +722,7 @@ export function GalleryFeed({
         netlistable: netlistableOnly,
         liked: likedOnly,
         attention: attentionOnly,
+        attentionKind,
         cursor: nextCursor,
       }).then((page) => {
         if (generation !== feedGenerationRef.current) return;
@@ -718,6 +764,7 @@ export function GalleryFeed({
     netlistableOnly,
     likedOnly,
     attentionOnly,
+    attentionKind,
   ]);
 
   function selectAuthor(
@@ -765,6 +812,11 @@ export function GalleryFeed({
               liked:
                 previous.filterCounts.liked -
                 Number(entry.likedByViewer === true),
+              ...attentionKindsWithout(
+                previous.filterCounts.attentionKinds,
+                entry,
+                true,
+              ),
             },
           }
         : {}),
@@ -877,7 +929,11 @@ export function GalleryFeed({
       }
     : state.filterCounts!;
   const quickCountsPartial = localQuickCounts && state.nextCursor !== null;
-  const quickCount = (key: keyof typeof quickCounts) => (
+  // The reason menu counts the same wall the Needs attention count does.
+  const attentionKindCounts: Record<string, number> = localQuickCounts
+    ? countAttentionKinds(visibleEntries)
+    : (state.filterCounts?.attentionKinds ?? {});
+  const quickCount = (key: "attention" | "netlistable" | "liked") => (
     <span
       className="gallery-sidebar-count"
       title={
@@ -997,7 +1053,12 @@ export function GalleryFeed({
                     type="button"
                     className="gallery-sidebar-option"
                     aria-pressed={attentionOnly}
-                    onClick={() => updateFilters({ attention: !attentionOnly })}
+                    onClick={() =>
+                      updateFilters({
+                        attention: !attentionOnly,
+                        attentionKind: null,
+                      })
+                    }
                     data-testid="gallery-filter-attention"
                   >
                     <span>
@@ -1005,6 +1066,32 @@ export function GalleryFeed({
                     </span>
                     {quickCount("attention")}
                   </button>
+                ) : null}
+                {attentionOnly ? (
+                  <label className="gallery-attention-reason">
+                    <span>Reason</span>
+                    <select
+                      value={attentionKind ?? ""}
+                      onChange={(event) =>
+                        updateFilters({
+                          attentionKind: event.currentTarget.value || null,
+                        })
+                      }
+                      data-testid="gallery-filter-attention-reason"
+                    >
+                      <option value="">Every reason</option>
+                      {GALLERY_ISSUE_KINDS.filter(
+                        (kind) =>
+                          kind === attentionKind ||
+                          (attentionKindCounts[kind] ?? 0) > 0,
+                      ).map((kind) => (
+                        <option key={kind} value={kind}>
+                          {galleryIssueKindLabel(kind)} (
+                          {(attentionKindCounts[kind] ?? 0).toLocaleString()})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 ) : null}
                 <button
                   type="button"
