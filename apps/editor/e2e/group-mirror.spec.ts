@@ -109,6 +109,55 @@ test("a wire alone mirrors from its context menu", async ({ page }) => {
   ).toEqual([{ x: 320, y: 200 }]);
 });
 
+test("a wire held by an unselected part says why it stays", async ({
+  page,
+}) => {
+  const project = createEmptyProject("held-wire", "Held wire");
+  const document = project.documents[0]!;
+  document.instances.push({
+    id: "R1",
+    symbolId: "resistor",
+    reference: "R1",
+    netlist: { parameters: { value: "1k" } },
+    placement: { position: { x: 200, y: 260 }, rotation: 0, mirror: "none" },
+  });
+  document.nets.push({
+    id: "net-w",
+    terminals: [{ instanceId: "R1", pinName: "1" }],
+  });
+  document.junctions.push({
+    id: "J1",
+    netId: "net-w",
+    position: { x: 300, y: 180 },
+  });
+  // Up from the resistor's top pin, then right to a loose end.
+  document.routes.push(
+    createRoutePath({
+      id: "wire",
+      netId: "net-w",
+      start: { kind: "terminal", instanceId: "R1", pinName: "1" },
+      end: { kind: "junction", junctionId: "J1" },
+      bends: [{ x: 200, y: 180 }],
+      modes: ["manual", "manual"],
+    }),
+  );
+  await open(page, project);
+  const initial = await savedDocument(page);
+
+  const point = await wireLegPoint(page, "wire", 1);
+  await page.mouse.click(point.x, point.y, { button: "right" });
+  await page
+    .getByTestId("canvas-context-menu")
+    .getByRole("menuitem", { name: "Mirror left/right (Shift+R)" })
+    .click();
+  await expect(page.getByTestId("status")).toContainText(
+    "Nothing here can mirror",
+  );
+  const after = await savedDocument(page);
+  expect(after.routes).toEqual(initial.routes);
+  expect(after.junctions).toEqual(initial.junctions);
+});
+
 test("parts, wires, a wire label and a note mirror as one drawing", async ({
   page,
 }) => {

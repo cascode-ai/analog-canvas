@@ -312,12 +312,12 @@ const expectedEntries = [
   entryTemplate(
     tcoil,
     tcoilEvidence,
-    "A bridged T-coil is a composite L1/L2/K/CB network; structural export requires an explicit fixed-cell or subcircuit mapping.",
+    "A bridged T-coil is a composite L1/L2/K/CB network that SPICE import does not recognize, so it is placed by hand; netlist export writes it as the built-in tcoil subcircuit.",
   ),
   entryTemplate(
     xfmr,
     xfmrEvidence,
-    "A transformer lowers to two inductors plus mutual coupling; structural export requires an explicit compound-device or subcircuit mapping.",
+    "A transformer is two inductors plus mutual coupling that SPICE import does not recognize, so it is placed by hand; netlist export writes it as the built-in xfmr subcircuit.",
   ),
 ];
 for (const expected of expectedEntries) {

@@ -186,6 +186,26 @@ freshly placed `S1` prints as `S1 a b S1 VSS ideal_switch` and warns that
 nothing drives `S1`; writing Φ₁ on its label moves it onto that shared clock.
 Switches are
 SPICE only (`SWITCH_SPICE_ONLY`), and the SPDT selector has no primitive.
+A drawn T-coil or transformer is one Symbol on the canvas and coupled
+windings in the netlist: each Instance is an `X` call on a built-in
+subcircuit that the file defines once, ahead of the Cells, with the
+library's values as its defaults. `tcoil` (ports `n1 n2 n3`, for pins 1, 2
+and the centre tap 3) is `L1 n1 n3 {l1}`, `L2 n3 n2 {l2}`, `K12 L1 L2 {k}`
+and the bridge `CB n1 n2 {cb}`; `xfmr` (ports `p_minus p_plus s_minus
+s_plus`) is `LP p_plus p_minus {lp}`, `LS s_plus s_minus {ls}` and
+`K1 LP LS {k}`. Each winding is written from the end the Symbol's polarity
+dot marks, which is the node SPICE and Spectre read as the dot, so a
+T-coil's windings aid from end to end (L1 + L2 + 2M) and a transformer's
+dotted pins are in phase. Spectre writes the same network with `inductor`
+and `mutual_inductor`. A call takes exactly the Symbol's parameters: another
+parameter (`MAGNETIC_PARAMETER_NOT_ACCEPTED`), a coupling outside −1 to 1
+(`MAGNETIC_COUPLING_OUT_OF_RANGE`), or a Cell or external subcircuit already
+exporting as `tcoil` or `xfmr` (`MAGNETIC_SUBCIRCUIT_NAME_COLLISION`) blocks
+export. The dotted ends belong to the pins — pin 1 and the tap for a T-coil,
+P+ and S+ for a transformer, as the library draws them — so the copy of
+either definition a saved Project carries lowers the same way while it keeps
+the library's pins and parameters. Native VACASK has no mutual inductance and
+reports `VACASK_UNSUPPORTED_DEVICE`.
 Decorative symbols never have a device definition. An unsupported electrical
 Symbol blocks export.
 
@@ -241,7 +261,8 @@ errors. Net-marker instances are validated and omitted.
 
 The IR contains no geometry, Route, Junction, annotation, source text, include,
 analysis, PDK path, or renderer state. A Cell may carry the model cards only
-its own instances use, such as the ideal switch.
+its own instances use, such as the ideal switch. The IR also carries the
+coupled-winding subcircuits its drawn T-coils and transformers call.
 
 ## Printer contracts
 
@@ -249,7 +270,8 @@ Printers are pure functions over a validated Export IR. They cannot access the
 Project, Symbol resolver, filesystem, network, or diagnostics repair path.
 
 SPICE `.spi` emits a generated-file/version comment, sorted `.global`
-declarations, dependency-first `.subckt`/`.ends` blocks, ordered defaulted
+declarations, the coupled-winding subcircuits drawn magnetic devices call,
+dependency-first `.subckt`/`.ends` blocks, ordered defaulted
 formal parameters, a Cell's own `.model` cards inside its body, structural
 device lines, and deterministic continuations.
 It emits no guessed `.include`, `.lib`, analysis, stimulus, or `.end` deck

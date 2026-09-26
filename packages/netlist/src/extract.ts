@@ -10,12 +10,15 @@ import {
   portableCellIdentifier,
   findExternalMasterCollisions,
   directObjectLocator,
+  drawnMagneticNetwork,
+  drawnMagneticParameters,
   drawnSupplyNet,
   drawnSwitchControl,
   drawnSwitchPhase,
   mosBulkKind,
   resolveMosBulkConnection,
   resolveDocumentLogicalNets,
+  type DrawnMagneticNetwork,
   type ProjectedNetName,
   type ResolvedDocumentLogicalNets,
   type ResolvedLogicalNet,
@@ -39,12 +42,14 @@ import {
   type BuiltInSubcircuitDescriptor,
   type DeviceDescriptor,
 } from "@icm/devices";
+import { parseSpiceNumber } from "@icm/spice";
 
 import type {
   DesignNetlistCell,
   DesignNetlistAnalysisResult,
   DesignNetlistExternalMaster,
   DesignNetlistInstance,
+  DesignNetlistMagneticSubcircuit,
   DesignNetlistModel,
   NetlistDiagnostic,
 } from "./ir.js";
@@ -1363,6 +1368,142 @@ function extractDrawnSwitch(
   };
 }
 
+/**
+ * A drawn T-coil or transformer as the call it means: an `X` card on the
+ * library's coupled-winding subcircuit, its pins in the Symbol's pin order,
+ * passing the Instance's own inductances, coupling and bridge capacitance.
+ * The subcircuit declares exactly those parameters, so a value it cannot
+ * take is refused here rather than by the simulator.
+ */
+function extractDrawnMagnetic(
+  document: SchematicDocument,
+  instance: Instance,
+  definition: DeviceDescriptor,
+  network: DrawnMagneticNetwork,
+  context: CellNetContext,
+  diagnostics: NetlistDiagnostic[],
+): DesignNetlistInstance | null {
+  const reference = instance.reference!;
+  if (!isIdentifier(reference)) {
+    diagnostic(
+      diagnostics,
+      document.id,
+      "INVALID_INSTANCE_REFERENCE",
+      `Instance reference is outside the portable identifier subset: ${reference}`,
+      [instance.id],
+    );
+  }
+  const accepted = drawnMagneticParameters(network);
+  const authored = new Map<string, { name: string; rawValue: string }>();
+  for (const [name, rawValue] of Object.entries(
+    instance.netlist?.parameters ?? {},
+  )) {
+    const folded = name.toLowerCase();
+    const prior = authored.get(folded);
+    if (prior) {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "DUPLICATE_PARAMETER_NAME",
+        `Parameter ${name} duplicates parameter ${prior.name} under case folding`,
+        [instance.id],
+      );
+      continue;
+    }
+    authored.set(folded, { name, rawValue });
+    if (!accepted.includes(folded)) {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "MAGNETIC_PARAMETER_NOT_ACCEPTED",
+        `${reference} takes only ${accepted.join(", ")}; remove parameter ${name}`,
+        [instance.id],
+        "error",
+        name,
+      );
+    }
+  }
+  const parameters = accepted.flatMap((name) => {
+    const value = authored.get(name);
+    if (!value?.rawValue.trim()) {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "MISSING_REQUIRED_PARAMETER",
+        `Instance ${reference} requires parameter ${name}`,
+        [instance.id],
+        "error",
+        name,
+      );
+      return [];
+    }
+    return [{ name, rawValue: value.rawValue }];
+  });
+  const coupling = authored.get(network.coupling.parameter);
+  const k = coupling ? parseSpiceNumber(coupling.rawValue.trim()) : null;
+  if (k && Math.abs(k.value) > 1) {
+    diagnostic(
+      diagnostics,
+      document.id,
+      "MAGNETIC_COUPLING_OUT_OF_RANGE",
+      `${reference}'s coupling ${coupling!.name}=${coupling!.rawValue} lies outside -1 to 1`,
+      [instance.id],
+      "error",
+      coupling!.name,
+    );
+  }
+  return {
+    id: instance.id,
+    reference,
+    invocationKind: "subcircuit",
+    deviceClass: "hierarchical",
+    target: network.subcircuit,
+    nodes: definition.pinOrder.map((pinName) => ({
+      pinName,
+      netName:
+        terminalNetName(document, instance, pinName, context, diagnostics) ??
+        `<unconnected:${pinName}>`,
+    })),
+    parameters,
+  };
+}
+
+/**
+ * The coupled-winding subcircuit a drawn magnetic device calls, written from
+ * its network with the library's own values as defaults.
+ */
+function magneticSubcircuit(
+  network: DrawnMagneticNetwork,
+  definition: DeviceDescriptor,
+): DesignNetlistMagneticSubcircuit {
+  return {
+    name: network.subcircuit,
+    ports: network.ports.map((port) => port.port),
+    formalParameters: drawnMagneticParameters(network).map((name) => ({
+      name,
+      defaultValue:
+        definition.parameters.find(
+          (parameter) => parameter.name.toLowerCase() === name,
+        )?.defaultValue ?? "0",
+    })),
+    inductors: network.windings.map((winding) => ({
+      name: winding.element,
+      nodes: [winding.dotted, winding.undotted],
+      parameter: winding.parameter,
+    })),
+    coupling: {
+      name: network.coupling.element,
+      inductors: [network.windings[0].element, network.windings[1].element],
+      parameter: network.coupling.parameter,
+    },
+    capacitors: network.capacitors.map((capacitor) => ({
+      name: capacitor.element,
+      nodes: [capacitor.from, capacitor.to],
+      parameter: capacitor.parameter,
+    })),
+  };
+}
+
 function extractDeviceInstance(
   project: CircuitProject,
   document: SchematicDocument,
@@ -1428,6 +1569,16 @@ function extractDeviceInstance(
       switchControl,
       context,
       options,
+      diagnostics,
+    );
+  const magnetic = drawnMagneticNetwork(definition);
+  if (magnetic)
+    return extractDrawnMagnetic(
+      document,
+      instance,
+      definition,
+      magnetic,
+      context,
       diagnostics,
     );
   // A device the registry designates but gives no netlist target is drawing
@@ -2108,6 +2259,41 @@ function analyzeDesign(
       cells.push(cell);
     }
   }
+  // Each kind of drawn magnetic device calls one coupled-winding subcircuit,
+  // defined once in the file under the library's name. A Cell or external
+  // subcircuit already exporting that name would make the call ambiguous.
+  const magneticSubcircuits = new Map<
+    string,
+    DesignNetlistMagneticSubcircuit
+  >();
+  const externalNames = new Map(
+    project.externalSubcircuitDefinitions.map((definition) => [
+      definition.name.toLowerCase(),
+      definition.name,
+    ]),
+  );
+  for (const document of documents) {
+    for (const instance of document.instances) {
+      const definition = deviceDescriptor(instance.symbolId, project);
+      const network = definition ? drawnMagneticNetwork(definition) : null;
+      if (!definition || !network) continue;
+      const name = network.subcircuit;
+      const cell = cellNames.get(name);
+      const external = externalNames.get(name);
+      if (cell || external) {
+        diagnostic(
+          diagnostics,
+          document.id,
+          "MAGNETIC_SUBCIRCUIT_NAME_COLLISION",
+          `${instance.reference ?? instance.id} calls the built-in ${name} subcircuit, but ${cell ? `Cell ${cell.authoredName}` : `external subcircuit ${external}`} also exports as ${name}; rename it`,
+          [instance.id],
+        );
+        continue;
+      }
+      if (!magneticSubcircuits.has(name))
+        magneticSubcircuits.set(name, magneticSubcircuit(network, definition));
+    }
+  }
   if (resolvedOptions.groundPin === "pin") {
     // Supply markers share identity inside the drawing. Once that supply is
     // exposed by a module pin, its exported node belongs to that module:
@@ -2238,6 +2424,13 @@ function analyzeDesign(
       externalMasters: [...externalMasters.values()].sort((left, right) =>
         compareText(left.name, right.name),
       ),
+      ...(magneticSubcircuits.size > 0
+        ? {
+            magneticSubcircuits: [...magneticSubcircuits.values()].sort(
+              (left, right) => compareText(left.name, right.name),
+            ),
+          }
+        : {}),
     },
     diagnostics,
   };

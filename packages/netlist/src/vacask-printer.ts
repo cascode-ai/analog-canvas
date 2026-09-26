@@ -164,6 +164,9 @@ export function printVacaskWithLocations(
       : vacaskProjectValue(raw, names);
   const cellsById = new Map(ir.cells.map((cell) => [cell.id, cell]));
   const cellsByName = new Map(ir.cells.map((cell) => [cell.name, cell]));
+  const magneticNames = new Set(
+    (ir.magneticSubcircuits ?? []).map((subcircuit) => subcircuit.name),
+  );
   const mastersByName = new Map(
     [...ir.cells, ...(ir.externalMasters ?? [])].map((master) => [
       master.name,
@@ -263,6 +266,16 @@ export function printVacaskWithLocations(
 
   const emitCard = (cellId: string, card: DesignNetlistInstance) => {
     if (card.deviceClass === "net-marker") return;
+    if (
+      card.invocationKind === "subcircuit" &&
+      card.target &&
+      magneticNames.has(card.target) &&
+      !cellsByName.has(card.target)
+    )
+      throw new ProjectionError(
+        "VACASK_UNSUPPORTED_DEVICE",
+        `${card.reference} is coupled windings, and native VACASK has no mutual inductance; simulate it with ngspice.`,
+      );
     const start = text.length;
     const localSpans: PrintedNetlistParameter[] = [];
     const assigned = new Set<string>();

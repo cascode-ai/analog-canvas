@@ -46,6 +46,7 @@ export * from "./topology-hash.js";
 export * from "./visual.js";
 export * from "./label-clearance.js";
 export * from "./drawn-switch.js";
+export * from "./drawn-magnetic.js";
 export * from "./simulatability.js";
 export * from "./arrow-artwork.js";
 export * from "./master-names.js";

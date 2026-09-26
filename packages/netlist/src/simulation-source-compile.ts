@@ -244,9 +244,16 @@ export function compileSourceSimulation(
     NonNullable<DesignNetlistIR["externalMasters"]>[number]
   >();
   const globals = new Set<string>();
+  // Kept so the native printer can say which drawn device it cannot write.
+  const magneticSubcircuits = new Map<
+    string,
+    NonNullable<DesignNetlistIR["magneticSubcircuits"]>[number]
+  >();
   for (const binding of bindings) {
     const ir = plans.get(binding.id)!;
     for (const name of ir.globals) globals.add(name);
+    for (const subcircuit of ir.magneticSubcircuits ?? [])
+      magneticSubcircuits.set(subcircuit.name, subcircuit);
     for (const master of ir.externalMasters ?? [])
       masters.set(master.id, master);
     for (const cell of ir.cells) {
@@ -329,6 +336,7 @@ export function compileSourceSimulation(
         cells: [...cells.values()],
         globals: [...globals],
         externalMasters: [...masters.values()],
+        magneticSubcircuits: [...magneticSubcircuits.values()],
       },
       binding.emission === "top-level",
       { cellIds, preamble: index === 0, reservedNames: authoredMasters },
