@@ -4,7 +4,12 @@ import {
   type AgentSessionSnapshot,
 } from "@icm/agent-adapter";
 import { agentRazaviAuthoringCatalog } from "@icm/agent-adapter/kit";
-import { flattenRichText, type RichTextDocument } from "@icm/model";
+import {
+  createDraftText,
+  flattenRichText,
+  rewriteRichTextContent,
+  type RichTextDocument,
+} from "@icm/model";
 import { z } from "zod";
 import {
   AuthoringActionSchema,
@@ -618,16 +623,13 @@ export function compileActions(
       case "annotate":
         pushEdit(index, action.kind, {
           kind: "upsert_drafting_object",
-          object: {
-            kind: "text",
+          object: createDraftText({
             id: allocateId("text"),
-            locked: false,
-            zIndex: 0,
-            anchor: { kind: "free", position: action.position },
-            content: richText(action.text),
-            alignment: action.alignment ?? "start",
-            rotation: action.rotation ?? 0,
-          },
+            position: action.position,
+            content: action.text,
+            alignment: action.alignment,
+            rotation: action.rotation,
+          }),
         });
         break;
       case "arrange": {
@@ -1051,6 +1053,20 @@ function compileEditText(
   document: ResolvedDocument,
   pushEdit: PushEdit,
 ): void {
+  const contentUpdate = (previous: unknown): RichTextDocument => {
+    if (typeof action.text !== "string") return action.text;
+    const rewritten = rewriteRichTextContent(
+      previous as RichTextDocument,
+      action.text,
+    );
+    if (!rewritten)
+      throw new ActionCompileError(
+        index,
+        action.kind,
+        "This text contains a formula or fraction; supply explicit RichText to replace it without losing its structure",
+      );
+    return rewritten;
+  };
   const reference = action.target.id ?? action.target.name ?? "";
   if (action.target.kind === "annotation") {
     const annotation = resolveByIdOrName(
@@ -1073,17 +1089,26 @@ function compileEditText(
           "bound labels can only be restyled with edit-text; change their underlying name or value through its owning object",
         );
       }
+      // A same-text string is content-only, not an explicit format override.
+      if (typeof action.text === "string") {
+        return;
+      }
       pushEdit(index, action.kind, {
         kind: "upsert_schematic_annotation",
         annotation: { ...source, formatOverride: nextText },
       });
       return;
     }
+    if (
+      typeof action.text === "string" &&
+      flattenRichText(_content as RichTextDocument) === action.text
+    )
+      return;
     pushEdit(index, action.kind, {
       kind: "upsert_schematic_annotation",
       annotation: {
         ...source,
-        content: nextText,
+        content: contentUpdate(_content),
       },
     });
     return;
@@ -1102,11 +1127,16 @@ function compileEditText(
       `drafting object "${drafting.id}" is a ${String(drafting.object.kind)}, not text`,
     );
   }
+  if (
+    typeof action.text === "string" &&
+    flattenRichText(drafting.object.content as RichTextDocument) === action.text
+  )
+    return;
   pushEdit(index, action.kind, {
     kind: "upsert_drafting_object",
     object: {
       ...drafting.object,
-      content: richText(action.text),
+      content: contentUpdate(drafting.object.content),
     },
   });
 }

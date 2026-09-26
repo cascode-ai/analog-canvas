@@ -76,6 +76,7 @@ function collectStyledCharacters(
   runs: readonly RichTextRun[],
   styles: readonly RichTextStyle[],
   output: StyledCharacter[],
+  allowLineBreaks = false,
 ): boolean {
   for (const run of runs) {
     if (run.kind === "text") {
@@ -86,9 +87,18 @@ function collectStyledCharacters(
     }
     if (run.kind === "span") {
       if (
-        !collectStyledCharacters(run.children, [...styles, run.style], output)
+        !collectStyledCharacters(
+          run.children,
+          [...styles, run.style],
+          output,
+          allowLineBreaks,
+        )
       )
         return false;
+      continue;
+    }
+    if (allowLineBreaks && run.kind === "line-break") {
+      output.push({ value: "\n", styles: [] });
       continue;
     }
     // Semantic names are styled text, not formulas, fractions, or multiline
@@ -182,6 +192,28 @@ export function rewriteRichTextPlainText(
   if (!collectStyledCharacters(document.runs, [], source)) {
     return { runs: [{ kind: "text", value: replacement }] };
   }
+  return rewriteStyledCharacters(source, replacement);
+}
+
+/** Content-only editing of prose preserves authored spans, including unbold.
+ * Formulas/fractions require an explicit RichText replacement, never flattening.
+ */
+export function rewriteRichTextContent(
+  document: RichTextDocument,
+  replacement: string,
+): RichTextDocument | undefined {
+  if (flattenRichText(document) === replacement) return document;
+  const source: StyledCharacter[] = [];
+  if (!collectStyledCharacters(document.runs, [], source, true))
+    return undefined;
+  return rewriteStyledCharacters(source, replacement, true);
+}
+
+function rewriteStyledCharacters(
+  source: StyledCharacter[],
+  replacement: string,
+  allowLineBreaks = false,
+): RichTextDocument {
   const target = [...replacement];
   let prefixLength = 0;
   while (
@@ -216,6 +248,10 @@ export function rewriteRichTextPlainText(
 
   const runs: RichTextRun[] = [];
   for (const character of styledTarget) {
+    if (allowLineBreaks && character.value === "\n") {
+      runs.push({ kind: "line-break" });
+      continue;
+    }
     const previous = runs.at(-1);
     const previousStyles =
       previous?.kind === "text"

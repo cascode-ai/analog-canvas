@@ -589,7 +589,13 @@ export function planBrowserAgentCommand(
                 ...(rebound?.kind === "upsert_schematic_annotation"
                   ? rebound.annotation
                   : existing),
-                formatOverride: command.text,
+                // Plain text is a semantic rename. The shared marker planner
+                // already preserves/customizes its look; only explicit RichText
+                // replaces that format rather than erasing it with bare text.
+                ...(command.text.runs.length === 1 &&
+                command.text.runs[0]?.kind === "text"
+                  ? {}
+                  : { formatOverride: command.text }),
               },
             },
           ],

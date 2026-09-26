@@ -26,7 +26,7 @@ import type {
   Point,
   SchematicDocument,
 } from "@icm/model";
-import { defaultDraftTextDocument } from "@icm/model";
+import { createDraftText, defaultDraftTextDocument } from "@icm/model";
 import { hierarchicalSymbolId, type SymbolResolver } from "@icm/symbols";
 
 import type { ComponentInsertRequest } from "./component-insert-request";
@@ -625,19 +625,14 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     // The semantic-text helper turns the suffix into a true subscript. The
     // authored value is therefore "Vx"; a literal underscore would be drawn.
     const object: Extract<DraftingObject, { kind: "text" }> = {
-      id,
-      kind: "text",
-      locked: false,
-      zIndex: 0,
-      anchor: { kind: "free", position },
-      content: bare
-        ? { runs: [{ kind: "line-break" as const }] }
-        : preset
-          ? { runs: [{ kind: "text" as const, value: preset }] }
-          : defaultDraftTextDocument("Vx"),
-      alignment: "middle",
-      rotation: options.componentPlacementRotation,
-      typographyToken: "label",
+      ...createDraftText({
+        id,
+        position,
+        content: bare
+          ? { runs: [{ kind: "line-break" as const }] }
+          : preset || defaultDraftTextDocument("Vx"),
+        rotation: options.componentPlacementRotation,
+      }),
       ...(placementRequest.polarity
         ? { polarity: placementRequest.polarity }
         : {}),

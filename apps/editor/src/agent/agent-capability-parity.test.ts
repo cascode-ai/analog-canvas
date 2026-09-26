@@ -12,6 +12,45 @@ import { EditorDocumentController } from "../document/document-controller";
 import { BrowserAgentHost } from "./browser-agent-host";
 import { planBrowserAgentCommand } from "./browser-agent-command";
 
+it("keeps the native power-label look through a plain-text rename", async () => {
+  const { client, controller } = await folder();
+  const placed = await client.applyActions([
+    {
+      kind: "place-component",
+      symbol: "vdd-port",
+      position: { x: 100, y: 100 },
+    },
+  ]);
+  expect(placed.ok, placed.message).toBe(true);
+  expect(
+    (
+      await client.applyActions([
+        {
+          kind: "set-vdd-mode",
+          instanceId: controller.document.instances[0]!.id,
+          mode: "global",
+        },
+      ])
+    ).ok,
+  ).toBe(true);
+  const label = controller.document.annotations.find(
+    (a) => a.kind === "power-label",
+  )!;
+  expect(label).toBeDefined();
+  expect(JSON.stringify(label.formatOverride)).toContain("italic");
+  const edited = await client.applyActions([
+    {
+      kind: "edit-text",
+      target: { kind: "annotation", id: label.id },
+      text: "VCC",
+    },
+  ]);
+  expect(edited.ok, edited.message).toBe(true);
+  const after = controller.document.annotations.find((a) => a.id === label.id)!;
+  expect(JSON.stringify(after.formatOverride)).toContain("italic");
+  expect(flattenRichText(after.formatOverride!)).toBe("VCC");
+});
+
 it("explains formal Pin disconnection and removes seven terminals atomically instead", async () => {
   const { client, controller, tool } = await folder();
   const placed = await tool("circuit_place", {

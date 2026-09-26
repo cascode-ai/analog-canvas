@@ -9,9 +9,23 @@ import { testSnapshot } from "./test-support/snapshot-fixture.js";
 import type { AgentSessionSnapshot } from "@icm/agent-adapter";
 import { AuthoringActionSchema } from "./authoring-actions.js";
 import { z } from "zod";
+import {
+  createDraftText,
+  defaultDraftTextDocument,
+  flattenRichText,
+} from "@icm/model";
 
 let idCounter = 0;
 const allocateId = (prefix: string) => `${prefix}-alloc-${(idCounter += 1)}`;
+const textGeometry = {
+  kind: "text" as const,
+  position: { x: 0, y: 0 },
+  textPosition: { x: 0, y: 0 },
+  rotation: 0 as const,
+  polarityLines: [],
+  bounds: { x: 0, y: 0, width: 100, height: 30 },
+  diagnostics: [],
+};
 
 function compile(
   actions: unknown[],
@@ -34,6 +48,117 @@ function expectCompileError(actions: unknown[], fragment: string): void {
 }
 
 describe("authoring helper compilation", () => {
+  it("uses native text insertion defaults and preserves explicit formatting", () => {
+    for (const content of ["Design note", defaultDraftTextDocument("Vx")]) {
+      const action = {
+        kind: "annotate",
+        text: content,
+        position: { x: 10, y: 20 },
+      };
+      const edit = compile([action])[0]!.edits![0]!;
+      if (edit.kind !== "upsert_drafting_object") return expect.unreachable();
+      expect(edit.object).toEqual(
+        createDraftText({
+          id: edit.object.id,
+          position: action.position,
+          content,
+        }),
+      );
+    }
+  });
+  it("keeps GUI-authored bold/italic spans and explicit unbold when replacing text", () => {
+    const snapshot = testSnapshot();
+    const content = defaultDraftTextDocument("Bias branch");
+    const object = {
+      ...createDraftText({ id: "note", position: { x: 17, y: 21 }, content }),
+      styleOverride: { weight: "normal" as const, sizeScale: 1.5 },
+    };
+    snapshot.document.drafting = {
+      objects: [{ object, resolvedGeometry: textGeometry, diagnostics: [] }],
+    };
+    const action = {
+      kind: "edit-text",
+      target: { kind: "drafting", id: "note" },
+      text: "Input branch",
+    };
+    const edit = compile([action], snapshot)[0]!.edits![0]!;
+    expect(edit).toMatchObject({
+      object: { ...object, content: defaultDraftTextDocument("Input branch") },
+    });
+    expect(compile([{ ...action, text: "Bias branch" }], snapshot)).toEqual([]);
+    const explicit = { runs: [{ kind: "text" as const, value: "Plain" }] };
+    const restyled = compile([{ ...action, text: explicit }], snapshot)[0]!
+      .edits![0]!;
+    expect(restyled).toMatchObject({
+      object: { content: explicit, styleOverride: object.styleOverride },
+    });
+  });
+  it("does not erase a bound label's default look for a same-text string", () => {
+    const snapshot = testSnapshot();
+    snapshot.document.annotations.push({
+      id: "ref",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "instance-1" },
+      resolvedText: "M1",
+      formatOverride: defaultDraftTextDocument("M1"),
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    expect(
+      compile(
+        [
+          {
+            kind: "edit-text",
+            target: { kind: "annotation", id: "ref" },
+            text: "M1",
+          },
+        ],
+        snapshot,
+      ),
+    ).toEqual([]);
+  });
+  it("requires explicit RichText for a structural formula replacement", () => {
+    const snapshot = testSnapshot();
+    const content = {
+      runs: [
+        {
+          kind: "fraction" as const,
+          numerator: { runs: [{ kind: "text" as const, value: "a" }] },
+          denominator: { runs: [{ kind: "text" as const, value: "b" }] },
+        },
+      ],
+    };
+    snapshot.document.drafting = {
+      objects: [
+        {
+          object: createDraftText({
+            id: "formula",
+            position: { x: 0, y: 0 },
+            content,
+          }),
+          resolvedGeometry: textGeometry,
+          diagnostics: [],
+        },
+      ],
+    };
+    const action = {
+      kind: "edit-text",
+      target: { kind: "drafting", id: "formula" },
+      text: "c/d",
+    };
+    expect(() => compile([action], snapshot)).toThrow("explicit RichText");
+    expect(
+      compile([{ ...action, text: flattenRichText(content) }], snapshot),
+    ).toEqual([]);
+    expect(
+      compile(
+        [{ ...action, text: { runs: [{ kind: "text", value: "c/d" }] } }],
+        snapshot,
+      ),
+    ).toHaveLength(1);
+  });
   it("does not drop route-net when a caller uses the Snapshot-backed compiler", () => {
     const command = {
       kind: "route-net",
