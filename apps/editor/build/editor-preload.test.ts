@@ -9,6 +9,13 @@ function preload(path: string) {
     }
   ).handler;
   const bundle = {
+    "assets/web-editor-12345678.js": {
+      type: "chunk",
+      fileName: "assets/web-editor-12345678.js",
+      facadeModuleId: "E:\\repo\\src\\entries\\web-editor.tsx",
+      imports: ["assets/App-12345678.js", "assets/web-services-12345678.js"],
+    },
+    "assets/web-services-12345678.js": { type: "chunk", imports: [] },
     "assets/App-12345678.js": {
       type: "chunk",
       fileName: "assets/App-12345678.js",
@@ -72,8 +79,10 @@ describe("route resource preload", () => {
     (path) => {
       const links = preload(path);
       expect(links.map((link) => link.href)).toEqual([
+        "/assets/web-editor-12345678.js",
         "/assets/App-12345678.js",
         "//assets/shared-12345678.js".slice(1),
+        "/assets/web-services-12345678.js",
         "/assets/App-12345678.css",
       ]);
       expect(links.at(-1)).toMatchObject({ rel: "preload", as: "style" });

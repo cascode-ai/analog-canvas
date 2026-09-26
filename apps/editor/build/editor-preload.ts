@@ -13,7 +13,9 @@ export function editorPreload(): Plugin {
         const editorEntry = Object.values(bundle).find(
           (item) =>
             item.type === "chunk" &&
-            item.facadeModuleId?.replaceAll("\\", "/").endsWith("/app/App.tsx"),
+            item.facadeModuleId
+              ?.replaceAll("\\", "/")
+              .endsWith("/entries/web-editor.tsx"),
         );
         const galleryEntry = Object.values(bundle).find(
           (item) =>
@@ -23,7 +25,9 @@ export function editorPreload(): Plugin {
               .endsWith("/components/gallery-feed.tsx"),
         );
         if (!editorEntry || editorEntry.type !== "chunk")
-          throw new Error("Editor preload could not locate the App entry");
+          throw new Error(
+            "Editor preload could not locate the Web editor entry",
+          );
         if (!galleryEntry || galleryEntry.type !== "chunk") {
           throw new Error("Gallery preload could not locate the feed entry");
         }

@@ -1,3 +1,4 @@
+import type { CloudProjectStore } from "../services/editor-services";
 import { useEffect, useRef, useState } from "react";
 
 import { createEmptyProject, createId } from "@icm/model";
@@ -33,13 +34,10 @@ import {
 } from "./project-save-coordinator";
 import { projectHasMeaningfulContent } from "./project-content";
 import { normalizeImportedProject } from "./project-import-normalization";
-import {
-  CLOUD_PROJECT_LIMIT,
-  openCloudProject,
-  saveCloudProject,
-  type CloudProjectBinding,
-  type CloudProjectSaveOutcome,
-  type CloudProjectSummary,
+import type {
+  CloudProjectBinding,
+  CloudProjectSaveOutcome,
+  CloudProjectSummary,
 } from "../features/editor-shell/cloud-projects";
 import {
   forgetRecentCloudProject,
@@ -98,6 +96,7 @@ type RecoveryLifecycle = Pick<
 };
 
 export interface UseProjectFileLifecycleOptions {
+  projectStore: CloudProjectStore;
   restoreWorkingSession?: boolean;
   externalWorkspaceRestored?: boolean;
   openProjectInTab?(
@@ -127,6 +126,7 @@ export interface UseProjectFileLifecycleOptions {
 }
 
 export function useProjectFileLifecycle({
+  projectStore,
   restoreWorkingSession = false,
   externalWorkspaceRestored = false,
   openProjectInTab,
@@ -299,10 +299,9 @@ export function useProjectFileLifecycle({
     );
     recovery.stage(savedCandidate, { unsavedAtSnapshot: true, cloudBinding });
     await recovery.flushNow();
-    const outcome = await saveCloudProject(
+    const outcome = await projectStore.save(
       savedCandidate,
       asNew ? null : cloudBinding,
-      fetch,
       galleryEntryId,
     );
     if (!snapshot.isCurrent()) return outcome;
@@ -357,7 +356,7 @@ export function useProjectFileLifecycle({
         : outcome.status === "too-large"
           ? `Project is too large for ${CLOUD_PROJECT_COPY.plural}; download a backup`
           : outcome.status === "limit"
-            ? `${CLOUD_PROJECT_COPY.singular} limit reached (${outcome.projects.length}/${CLOUD_PROJECT_LIMIT})`
+            ? `${CLOUD_PROJECT_COPY.singular} limit reached (${outcome.projects.length}/${projectStore.limit})`
             : outcome.status === "not-found"
               ? `${CLOUD_PROJECT_COPY.singular} no longer exists; current work remains local`
               : outcome.message,
@@ -705,7 +704,7 @@ export function useProjectFileLifecycle({
     inTab = false,
     background = false,
   ): Promise<{ applied: boolean; message?: string }> {
-    const fetched = await openCloudProject(projectId);
+    const fetched = await projectStore.open(projectId);
     if (fetched.status !== "opened") {
       if (fetched.status === "not-found") forgetRecentCloudProject();
       setStatus(

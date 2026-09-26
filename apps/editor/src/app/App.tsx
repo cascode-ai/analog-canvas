@@ -166,7 +166,11 @@ import {
   type SpiceImportReport,
 } from "../features/editor-shell/editor-file-commands";
 import { EditorStatusbar } from "../features/editor-shell/editor-statusbar";
-import { browserExportDelivery } from "../hosts/browser-export-delivery";
+import {
+  EditorServicesProvider,
+  useEditorServices,
+  type EditorServices,
+} from "../services/editor-services";
 import { normalizedStyleOverrides } from "../features/editor-shell/style-knobs";
 import {
   deriveSimulationProbeOptions,
@@ -253,7 +257,7 @@ import {
 } from "../gallery-client";
 import { projectWithTopologyRoot } from "../features/editor-shell/gallery-topology-project";
 import { GalleryTopologyTaskNotice } from "../features/editor-shell/gallery-topology-task-notice";
-import { fetchSessionUser, type SessionUser } from "../components/account";
+import type { SessionUser } from "../components/account";
 import {
   evaluateSubmissionGates,
   type SubmissionGateReport,
@@ -312,13 +316,7 @@ import {
   logicalNetChoiceForNet,
   logicalNetChoices,
 } from "../features/logical-net-choices";
-import {
-  CLOUD_PROJECT_LIMIT,
-  deleteCloudProject,
-  listCloudProjects,
-  saveCloudProject,
-  type CloudProjectSummary,
-} from "../features/editor-shell/cloud-projects";
+import type { CloudProjectSummary } from "../features/editor-shell/cloud-projects";
 import { projectChangeToken } from "../document/project-session-lifecycle";
 import { captureProjectSaveSnapshot } from "../document/project-save-coordinator";
 import {
@@ -442,6 +440,7 @@ const NET_LABEL_SNAP_CAPTURE_RADIUS_PX = 12;
 // transient object so the formal SVG renderer can redraw both a curved shaft
 // and its arrow head from the same latest control point before pointer-up.
 export interface AppProps {
+  services: EditorServices;
   project?: CircuitProject;
   visitStats?: { pv: number; uv: number } | null;
   /** Override the deployment's Agent UI capability in tests. */
@@ -491,13 +490,15 @@ export function App(props: AppProps) {
   }, []);
   if (!boot) return <div role="status">Restoring project tabs…</div>;
   return (
-    <WorkspaceAgentProvider>
-      <WorkspaceEditor
-        {...props}
-        restoredWorkspace={boot.workspace}
-        workspaceError={boot.error ?? null}
-      />
-    </WorkspaceAgentProvider>
+    <EditorServicesProvider services={props.services}>
+      <WorkspaceAgentProvider>
+        <WorkspaceEditor
+          {...props}
+          restoredWorkspace={boot.workspace}
+          workspaceError={boot.error ?? null}
+        />
+      </WorkspaceAgentProvider>
+    </EditorServicesProvider>
   );
 }
 
@@ -528,6 +529,7 @@ function WorkspaceEditor({
   restoredWorkspace: ProjectWorkspace | null;
   workspaceError: string | null;
 }) {
+  const { identity, projectStore, exportDelivery } = useEditorServices();
   const [restoringWorkspace, setRestoringWorkspace] = useState(
     restoredWorkspace !== null,
   );
@@ -906,7 +908,7 @@ function WorkspaceEditor({
   const reloadCloudProjects = useCallback(async (): Promise<void> => {
     const request = ++cloudListRequestRef.current;
     const mutationAtStart = cloudListMutationRef.current;
-    const outcome = await listCloudProjects();
+    const outcome = await projectStore.list();
     if (request !== cloudListRequestRef.current) return;
     setCloudProjectsReady(true);
     if (outcome.status !== "listed") return;
@@ -914,7 +916,7 @@ function WorkspaceEditor({
     // the response, so the stale list must not erase that mutation.
     if (mutationAtStart !== cloudListMutationRef.current) return;
     setCloudProjects(outcome.projects);
-  }, []);
+  }, [projectStore]);
   const [galleryEntryContext, setGalleryEntryContext] =
     useState<GalleryEntryContext | null>(null);
   const [publicationLinkLoading, setPublicationLinkLoading] = useState(false);
@@ -943,7 +945,7 @@ function WorkspaceEditor({
   // list shown by the File menu.
   useEffect(() => {
     let cancelled = false;
-    void fetchSessionUser().then(async (user) => {
+    void identity.getSessionUser().then(async (user) => {
       if (cancelled) return;
       setPublishSession(user);
       if (!user) {
@@ -955,7 +957,7 @@ function WorkspaceEditor({
     return () => {
       cancelled = true;
     };
-  }, [reloadCloudProjects]);
+  }, [identity, reloadCloudProjects]);
 
   useEffect(() => {
     if (!publishSession) return;
@@ -967,7 +969,7 @@ function WorkspaceEditor({
   useEffect(() => {
     if (!publishGalleryOpen) return;
     let cancelled = false;
-    void fetchSessionUser().then((user) => {
+    void identity.getSessionUser().then((user) => {
       if (!cancelled) setPublishSession(user);
     });
     // The same evaluator the worker enforces, run live on the open Project.
@@ -976,7 +978,7 @@ function WorkspaceEditor({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- evaluated once per dialog open
-  }, [publishGalleryOpen]);
+  }, [identity, publishGalleryOpen]);
   const [agentFileCandidate, setAgentFileCandidate] =
     useState<AgentFileCandidateSummary | null>(null);
   // Execution and artifacts belong to their originating controller, not the
@@ -1221,6 +1223,7 @@ function WorkspaceEditor({
     openProjectFile,
     openCloudProjectById,
   } = useProjectFileLifecycle({
+    projectStore,
     openProjectInTab: (project, view, options, background) =>
       openProjectInTabRef.current(project, view, options, background),
     restoreWorkingSession: agentStartupRecovery !== null,
@@ -1296,7 +1299,7 @@ function WorkspaceEditor({
     void (async () => {
       try {
         // Read current metadata even for recovery: another tab may have changed the source.
-        const listed = await listCloudProjects();
+        const listed = await projectStore.list();
         const saved =
           listed.status === "listed"
             ? listed.projects.find((item) => item.id === cloudBinding.id)
@@ -1337,6 +1340,7 @@ function WorkspaceEditor({
     projectSessionId,
     galleryEntryContext,
     publicationLinkRetry,
+    projectStore,
   ]);
 
   const linkExistingPublication = async (input: string): Promise<void> => {
@@ -4280,7 +4284,7 @@ function WorkspaceEditor({
       project,
       document,
       resolver,
-      exportDelivery: browserExportDelivery,
+      exportDelivery,
       defaultViewBox: DEFAULT_VIEWBOX,
       // Asked at export time, which is one of the moments an
       // electrical verdict belongs to.
@@ -5153,7 +5157,7 @@ function WorkspaceEditor({
           const candidate = snapshot.project;
           target.session.file.persistenceState = "saving";
           projectTabs.changed();
-          const outcome = await saveCloudProject(
+          const outcome = await projectStore.save(
             candidate,
             request.asNew ? null : target.session.file.cloudBinding,
           );
@@ -5541,7 +5545,7 @@ function WorkspaceEditor({
           onOpenCloudProject: (summary) =>
             void openCloudProjectById(summary.id),
           onDeleteCloudProject: (summary) => {
-            return deleteCloudProject(summary.id).then((outcome) => {
+            return projectStore.delete(summary.id).then((outcome) => {
               if (outcome.status === "deleted") {
                 cloudListMutationRef.current += 1;
                 setCloudProjects(outcome.projects);
@@ -5805,7 +5809,7 @@ function WorkspaceEditor({
           replaceGuard !== null
             ? {
                 intent: replaceGuard.intent,
-                cloudProjectLimit: CLOUD_PROJECT_LIMIT,
+                cloudProjectLimit: projectStore.limit,
                 saving: replaceGuardSaving,
                 onCancel: cancelReplaceGuard,
                 onSaveAndContinue: saveAndContinueReplaceGuard,

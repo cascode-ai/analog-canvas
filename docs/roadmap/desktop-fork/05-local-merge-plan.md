@@ -24,6 +24,20 @@
 
 **当前可继续的目标：**U-A 的 Web 侧装配抽离与回归验证，只处理 upstream 既有实现，并形成逐目标来源对照。此前拟采用的 fork 桌面入口/菜单片段不属于这个子目标。
 
+**U-A 第一批本地实现：**现有 Web 路由/预加载/统计和 service worker 装配移到 `entries/web.tsx`；懒加载的 `entries/web-editor.tsx` 创建稳定的 Web 服务，通过同一 `EditorServices` 注入身份查询、Cloud 存储和已有导出交付。App 和文件生命周期消费这些依赖，前台/后台保存共用一个 Cloud store，保留 revision、conflict、publication 与恢复语义。构建预加载跟随 Web 装配入口，Gallery 首屏仍不提前加载 editor。此批仅抽取 upstream 代码，尚未交付 Production；验证与限制记录在实现提交。
+
+| 启动/订阅路径 | 本批处理 | U-A 后续边界 |
+| --- | --- | --- |
+| Gallery landing preload、Web 路由、访问统计 | 归入 Web entry，保留原请求时机、过滤和统计规则 | Desktop 不使用这个 Web entry；尚未实现 Desktop 构建 |
+| service worker 注册/开发态注销 | Web 启动函数明确管理，保留 base path 与注销后重载规则 | Desktop 接入时验证不注册 |
+| App 身份查询、Cloud 初始/聚焦刷新、列表/打开/保存/删除 | 使用宿主注入的 identity / Cloud projectStore；原 effects 的时机与清理保留 | 尚未把 identity/Cloud 缺席作为可运行的配置，也未引入 Native store |
+| AccountMenu、Gallery 页面及发布/版本 UI | 现有自身加载行为保留；身份查询仍与原 account 模块共享缓存 | 后续整组装配其 UI、请求和订阅，不能认为 App 注入已覆盖所有账号调用 |
+| GalleryTopologyTaskNotice / gallery-topology-task | 原订阅与后台轮询保持 | 需在 community 缺席时同时处理挂载、订阅与模块初始化 |
+| WorkspaceAgentProvider / useAgentSession | 保持跨路由恢复与共享会话；未配对 Gallery 保持懒加载 | Agent transport 及恢复入口尚未改成可缺席能力 |
+| BrowserSimulationSession / shared component library | 本批不改变其执行与加载方式 | 后续对齐 simulation/community 能力工厂与 UI |
+
+这份清单是未完成范围，不是 offline 验收记录；U-A 整体仍未完成。Web 本地正式保存和 fork 实现复用仍遵守上述边界。
+
 **当前停点：**贡献处理方式尚未最终敲定，实际 fork 代码、测试、注释或素材复用继续暂停。恢复后，每个目标在写代码前核对原作者、原提交、原文件/函数和适用声明，在首次采用的提交处理来源与署名，并核验最终 squash 提交。不能按阶段名称延后，也不能把已阅读的具体实现改名后记作独立原创。本节不替代待确认的详细署名方案。
 
 ## 1. 任何时候都能找到原代码

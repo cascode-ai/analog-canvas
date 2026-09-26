@@ -4,6 +4,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
+import { createWebEditorServices } from "../services/web-editor-services";
+
+const services = createWebEditorServices();
 
 describe("editor scene reuse", () => {
   afterEach(() => vi.restoreAllMocks());
@@ -12,7 +15,10 @@ describe("editor scene reuse", () => {
     const build = vi.spyOn(renderSvg, "buildSvgScene");
 
     renderToStaticMarkup(
-      <App project={createEmptyProject("scene-reuse", "Scene reuse")} />,
+      <App
+        services={services}
+        project={createEmptyProject("scene-reuse", "Scene reuse")}
+      />,
     );
 
     expect(build).toHaveBeenCalledTimes(1);
