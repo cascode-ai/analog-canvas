@@ -137,7 +137,7 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
   z
     .strictObject({
       kind: z.literal("delete-selection"),
-      selection: SelectionSchema,
+      selection: SelectionSchema.extend({ noConnectIds: SelectedIdsSchema }),
     })
     .describe(
       "Explicit selection. Includes owned displays and formal interface declarations; unselected wires remain dangling, as in the GUI. Select all object IDs for complete Cell deletion.",

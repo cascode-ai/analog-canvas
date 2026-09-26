@@ -25,7 +25,10 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   `place-component`), which creates attached Reference/Value displays.
   `port`/`port-filled`/`vdd-port` also create the formal Cell terminal and Net
   atomically; `reference` is the terminal name (VDD defaults to `VDD`). Optional
-  `direction` applies to these markers only. `set-port-direction` addresses one
+  `direction` applies to these markers only; native `terminalDirections` keys
+  must identify new Cell markers. The first explicit supply in a placement batch
+  initializes an absent bulk default; later supplies do not overwrite it.
+  `set-port-direction` addresses one
   terminal or every declaration of a projected Port; `set-vdd-mode` explicitly
   switches VDD between Cell Pin and Global. Do not substitute a bare `add_instance`.
 - For exact pin placement, `place-component` accepts `pinAnchor:{pinName,position}`
@@ -91,7 +94,7 @@ it does not assert unchanged parameters, bulk or hierarchy. Omitted means unknow
 Use reset-placement only for intentional redraw, with its documented effects.
 `delete` uses the GUI selection-deletion planner, including owned displays and
 formal interface declarations. `delete-selection` accepts multiple explicit
-object IDs in one transaction; selecting every object clears a Cell, while
+object IDs (including `noConnectIds`) in one transaction; selecting every object clears a Cell, while
 unselected wires remain dangling. Reset modes retain their existing meanings
 and must not be used as a synonym for deleting the entire Cell.
 

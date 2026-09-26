@@ -32,6 +32,7 @@ import {
   planEnsureNamedNet,
   planElectricalMarkerRename,
   proposedStandalonePowerConnection,
+  powerConnectionForSymbol,
   type SchematicEdit,
   type TransformOperation,
 } from "@icm/edit-engine";
@@ -80,6 +81,7 @@ import { instanceParameterVisibilityEdits } from "../features/instance-display/i
 import { dragNetLabelAttachmentAtPoint } from "../features/wiring/route-interaction-geometry";
 import { planPlacedCellPin } from "../features/component-insert/cell-pin-placement";
 import { planVddRailEdits } from "../features/component-insert/vdd-rail";
+import { planInitialMosBulkDefault } from "../features/component-insert/mos-bulk-defaults";
 
 /** No second geometry/model/clipboard implementation: plan exactly as the GUI does. */
 export function planBrowserAgentCommand(
@@ -278,6 +280,22 @@ export function planBrowserAgentCommand(
         if (!command.instances.some((item) => item.id === id))
           throw new Error(`Pin anchor targets an unknown new Instance: ${id}`);
       }
+      for (const id of Object.keys(command.terminalDirections ?? {})) {
+        const index = command.instances.findIndex((item) => item.id === id);
+        if (index < 0)
+          throw new Error(
+            `Terminal direction targets an unknown new Instance: ${id}`,
+          );
+        if (
+          !["port", "port-filled", "vdd-port"].includes(
+            command.instances[index]!.symbolId,
+          )
+        )
+          throw new AgentCommandPlanningError(
+            index,
+            `Terminal direction requires a Cell interface marker: ${id}`,
+          );
+      }
       for (const [index, source] of command.instances.entries()) {
         const pinAnchor = command.pinAnchors?.[source.id];
         let instance = source;
@@ -309,8 +327,6 @@ export function planBrowserAgentCommand(
           // The compact action's reference names a Cell terminal, not a
           // device. Use the GUI's interface planner and bound name display.
           const { reference, netlist: _netlist, ...port } = instance;
-          if (!reference?.trim())
-            throw new Error("A Cell interface marker requires a name");
           const terminalId = deriveStableId("terminal", instance.id);
           const netId = deriveStableId("net-cell-pin", instance.id);
           const endpoint = {
@@ -321,7 +337,8 @@ export function planBrowserAgentCommand(
           const plan = planPlacedCellPin(project, documentId, resolver, {
             instance: port,
             terminalId,
-            name: reference.trim(),
+            name: reference,
+            precedingEdits: edits,
             netId,
             direction:
               command.terminalDirections?.[instance.id] ??
@@ -351,6 +368,16 @@ export function planBrowserAgentCommand(
         const power = proposedStandalonePowerConnection(document, instance);
         if (power.rejected) throw new Error(power.rejected);
         edits.push({ kind: "add_instance", instance }, ...power.edits);
+        const supply = powerConnectionForSymbol(instance.symbolId);
+        if (supply && power.powerNetId)
+          edits.push(
+            ...planInitialMosBulkDefault(
+              document,
+              supply.domain,
+              power.powerNetId,
+              edits,
+            ),
+          );
         edits.push(
           ...defaultInstanceDisplayAnnotations(
             document,

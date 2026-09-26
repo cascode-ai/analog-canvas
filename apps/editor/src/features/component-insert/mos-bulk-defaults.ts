@@ -11,16 +11,25 @@ export function planInitialMosBulkDefault(
   document: SchematicDocument,
   domain: "ground" | "vdd",
   netId: string,
+  precedingEdits: readonly SchematicEdit[] = [],
 ): readonly SchematicEdit[] {
+  // A placement batch has not committed yet. Project only this small authored
+  // setting from its preceding edits; do not re-run a transaction per device.
+  const field = domain === "ground" ? "nmosNetId" : "pmosNetId";
+  let current = document.mosBulkDefaults?.[field];
+  for (const edit of precedingEdits) {
+    if (edit.kind === "set_mos_bulk_defaults" && edit[field] !== undefined)
+      current = edit[field] ?? undefined;
+  }
   if (domain === "ground") {
-    return document.mosBulkDefaults?.nmosNetId
+    return current
       ? []
       : [
           { kind: "set_mos_bulk_defaults", nmosNetId: netId },
           { kind: "reconcile_mos_bulk" },
         ];
   }
-  return document.mosBulkDefaults?.pmosNetId
+  return current
     ? []
     : [
         { kind: "set_mos_bulk_defaults", pmosNetId: netId },

@@ -654,8 +654,7 @@ export function compileActions(
       if (
         transaction.form === "edits" &&
         transaction.actionKinds.every((kind) => kind === "delete") &&
-        transaction.edits?.length &&
-        transaction.edits.every((edit) => edit.kind !== "remove_no_connect")
+        transaction.edits?.length
       ) {
         const selection = {
           instanceIds: [] as string[],
@@ -663,6 +662,7 @@ export function compileActions(
           junctionIds: [] as string[],
           annotationIds: [] as string[],
           draftingIds: [] as string[],
+          noConnectIds: [] as string[],
         };
         for (const edit of transaction.edits) {
           if (edit.kind === "remove_instance")
@@ -675,6 +675,8 @@ export function compileActions(
             selection.annotationIds.push(edit.annotationId);
           if (edit.kind === "remove_drafting_object")
             selection.draftingIds.push(edit.objectId);
+          if (edit.kind === "remove_no_connect")
+            selection.noConnectIds.push(edit.noConnectId);
         }
         return {
           form: "command",

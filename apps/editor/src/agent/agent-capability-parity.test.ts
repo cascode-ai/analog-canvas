@@ -10,6 +10,133 @@ import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-suppor
 import { callTool, type ToolSessionState } from "../../../mcp-server/src/tools";
 import { EditorDocumentController } from "../document/document-controller";
 import { BrowserAgentHost } from "./browser-agent-host";
+import { planBrowserAgentCommand } from "./browser-agent-command";
+
+it("keeps the first supply default in a placement batch and preserves it in later batches", async () => {
+  const { client, controller } = await folder();
+  for (const references of [
+    ["AVDD", "DVDD"],
+    ["VDDH", "VDDL"],
+  ]) {
+    const previous = controller.document.mosBulkDefaults?.pmosNetId;
+    const result = await client.applyActions(
+      references.map((reference, i) => ({
+        kind: "place-component",
+        symbol: "vdd-port",
+        reference,
+        position: { x: 100 + i * 100, y: previous ? 200 : 100 },
+      })),
+    );
+    expect(result.ok, result.message).toBe(true);
+    expect(controller.document.mosBulkDefaults?.pmosNetId).toBe(
+      previous ??
+        controller.document.netlist!.terminals.find((t) => t.name === "AVDD")!
+          .netId,
+    );
+  }
+  const result = await client.applyActions([
+    { kind: "place-component", symbol: "ground", position: { x: 0, y: 0 } },
+  ]);
+  expect(result.ok, result.message).toBe(true);
+  const ground = controller.document.instances.find(
+    (i) => i.symbolId === "ground",
+  )!;
+  expect(controller.document.mosBulkDefaults?.nmosNetId).toBe(
+    controller.document.nets.find((n) =>
+      n.terminals.some((p) => p.instanceId === ground.id),
+    )!.id,
+  );
+});
+
+it("defaults a native VDD name and rejects unused or non-Port direction targets", async () => {
+  const { controller } = await folder();
+  const instance = {
+    id: "vdd",
+    symbolId: "vdd-port",
+    placement: {
+      position: { x: 100, y: 100 },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    },
+  };
+  const plan = planBrowserAgentCommand(
+    controller.project,
+    controller.document.id,
+    controller.resolver,
+    { kind: "place-components", instances: [instance] },
+  );
+  expect("structureEdits" in plan).toBe(true);
+  if (!("structureEdits" in plan))
+    throw new Error("Expected Cell interface edits");
+  expect(plan.structureEdits).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        kind: "transact_document",
+        edits: expect.arrayContaining([
+          expect.objectContaining({
+            kind: "add_cell_terminal",
+            terminal: expect.objectContaining({ name: "VDD" }),
+          }),
+        ]),
+      }),
+    ]),
+  );
+  for (const [id, symbolId] of [
+    ["missing", "vdd-port"],
+    ["vdd", "resistor"],
+  ]) {
+    expect(() =>
+      planBrowserAgentCommand(
+        controller.project,
+        controller.document.id,
+        controller.resolver,
+        {
+          kind: "place-components",
+          instances: [{ ...instance, symbolId: symbolId! }],
+          terminalDirections: { [id!]: "input" },
+        },
+      ),
+    ).toThrow(/direction/i);
+  }
+});
+
+it("atomically deletes mixed Instances and NoConnects through selection cleanup, without duplicate removal", async () => {
+  const { client, controller, add } = await folder();
+  const id = await add();
+  expect(
+    controller.transact([
+      {
+        kind: "add_no_connect",
+        noConnect: {
+          id: "nc",
+          endpoint: { kind: "terminal", instanceId: id, pinName: "G" },
+        },
+      },
+    ]).ok,
+  ).toBe(true);
+  const before = structuredClone(controller.document);
+  const result = await client.applyActions([
+    { kind: "delete", target: { kind: "instance", id } },
+    { kind: "delete", target: { kind: "no-connect", id: "nc" } },
+  ]);
+  expect(result.ok, result.message).toBe(true);
+  expect(controller.document.instances).toEqual([]);
+  expect(controller.document.annotations).toEqual([]);
+  expect(controller.document.noConnects).toEqual([]);
+  expect(controller.document.revision).toBe(before.revision + 1);
+  await client.applyActions([{ kind: "undo" }]);
+  expect(controller.document.noConnects).toEqual(before.noConnects);
+  expect(controller.document.annotations).toEqual(before.annotations);
+  expect(
+    (
+      await client.applyActions([
+        { kind: "delete", target: { kind: "no-connect", id: "nc" } },
+      ])
+    ).ok,
+  ).toBe(true);
+  expect(controller.document.instances).toHaveLength(1);
+  expect(controller.document.noConnects).toEqual([]);
+});
 
 it("routes one Net through the existing authoring tool, preserves the service edit budget and never partially commits", async () => {
   const { client, controller, tool } = await folder();

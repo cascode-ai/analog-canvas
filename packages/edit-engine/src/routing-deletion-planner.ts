@@ -19,6 +19,7 @@ import type { SchematicEdit } from "./edit-schema.js";
 
 export interface RoutingDeletionSeed extends RoutingSelectionSeed {
   readonly draftingIds?: readonly string[];
+  readonly noConnectIds?: readonly string[];
 }
 
 /** A selected rail label owns the same deletion component as its rail. */
@@ -89,6 +90,18 @@ export function planRoutingDeletion(
     affected.instances.length > 0
       ? planInstanceDeletion(document, resolver, affected.instances, sequence)
       : [];
+  const removedNoConnects = new Set(
+    instanceEdits.flatMap((edit) =>
+      edit.kind === "remove_no_connect" ? [edit.noConnectId] : [],
+    ),
+  );
+  const explicitNoConnects = [...new Set(seed.noConnectIds ?? [])].filter(
+    (id) => {
+      if (!document.noConnects.some((item) => item.id === id))
+        throw new Error(`NoConnect not found: ${id}`);
+      return !removedNoConnects.has(id);
+    },
+  );
   const removedWithInstances = instanceOwnedAnnotationIds(
     document,
     selectedInstances,
@@ -111,6 +124,10 @@ export function planRoutingDeletion(
   const edits: SchematicEdit[] = [
     ...instanceEdits,
     ...routeDeletion.edits,
+    ...explicitNoConnects.map((noConnectId): SchematicEdit => ({
+      kind: "remove_no_connect",
+      noConnectId,
+    })),
     ...explicitAnnotationIds.map((annotationId): SchematicEdit => ({
       kind: "remove_schematic_annotation",
       annotationId,
