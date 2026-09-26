@@ -48,6 +48,7 @@ type InternalRun = {
   source: PrepareSource;
   inputArtifacts?: InputArtifact[];
   retryEvidence?: (() => Promise<void>) | undefined;
+  retryResult?: (() => Promise<void>) | undefined;
   savingEvidence?: Promise<void> | undefined;
 };
 type StoredPrepared = {
@@ -409,6 +410,18 @@ export class SimulationService {
               ),
             op,
           );
+        if (
+          op.operation === "read" &&
+          run.view.state === "lost" &&
+          run.retryResult
+        ) {
+          // Resume collection of this known server run, never admission. The
+          // state change deduplicates simultaneous read requests.
+          const retry = run.retryResult;
+          run.retryResult = undefined;
+          run.view.state = "running";
+          run.done = retry();
+        }
         if (
           op.operation === "read" &&
           ["running", "cancelling"].includes(run.view.state)
@@ -1171,7 +1184,9 @@ export class SimulationService {
     input: ExecutionInput,
     timeoutMs: number | undefined,
     epoch: number,
-    acceptedOutput?: Awaited<ReturnType<Executor["execute"]>>,
+    acceptedOutput?:
+      | Awaited<ReturnType<Executor["execute"]>>
+      | (() => ReturnType<Executor["execute"]>),
   ) {
     const totalStarted = performance.now();
     let executionWaitMs = 0;
@@ -1183,7 +1198,9 @@ export class SimulationService {
     let terminalState: Run["state"] = "finished";
     try {
       const executionOutput =
-        acceptedOutput ??
+        (typeof acceptedOutput === "function"
+          ? await acceptedOutput()
+          : acceptedOutput) ??
         (await this.executor.execute(input, run.token, timeoutMs, {
           preparedId: run.prepared.id,
           preparedDigest: run.prepared.digest,
@@ -1388,6 +1405,11 @@ export class SimulationService {
         resultMaterializationMs = performance.now() - materializationStarted;
       if (epoch !== this.epoch) return;
       if (error instanceof ExecutionFailure) {
+        if (error.readResult) {
+          const readResult = error.readResult;
+          run.retryResult = () =>
+            this.execute(run, input, timeoutMs, epoch, readResult);
+        }
         terminalState =
           error.problem.code === "run-cancelled"
             ? "cancelled"

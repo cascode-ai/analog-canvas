@@ -184,6 +184,56 @@ describe("managed hosted executor", () => {
     expect(admissions[0]?.[1]?.body).toBe(admissions[1]?.[1]?.body);
     expect(resultReads).toBe(2);
   });
+  it("recovers an admitted run with GET only after an interrupted body", async () => {
+    let reads = 0;
+    const fetch = vi.fn<typeof globalThis.fetch>(async (path) => {
+      if (String(path).includes("/result?")) {
+        if (++reads === 1)
+          return new Response("broken json", {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        return Response.json(result);
+      }
+      return Response.json({
+        run: { ...baseRun, state: "succeeded", finishedAt: 3 },
+      });
+    });
+    const executor = createManagedHostedExecutor({ fetch });
+    const failure = await executor
+      .execute(input, "once", undefined, {
+        preparedId: "p",
+        preparedDigest: "b".repeat(64),
+      })
+      .catch((e) => e);
+    expect(failure.problem.message).toContain("HTTP 200, application/json");
+    await expect(failure.readResult()).resolves.toMatchObject({
+      result: { outcome: { status: "completed" } },
+    });
+    expect(
+      fetch.mock.calls.filter(([, init]) => init?.method === "POST"),
+    ).toHaveLength(1);
+    expect(reads).toBe(2);
+  });
+  it("does not offer result recovery or repeat admission when no run identity was received", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async () => {
+      throw Error("offline");
+    });
+    const executor = createManagedHostedExecutor({ fetch });
+    const failure = await executor
+      .execute(input, "unknown", undefined, {
+        preparedId: "p",
+        preparedDigest: "b".repeat(64),
+      })
+      .catch((e) => e);
+    expect(failure).toMatchObject({
+      acceptedUnknown: true,
+      problem: { code: "RUN_RESPONSE_UNKNOWN" },
+    });
+    expect(failure.readResult).toBeUndefined();
+    await executor.cancel("unknown");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
   it("keeps a failed analysis result instead of replacing its evidence with the run error", async () => {
     const failed = {
       ...result,

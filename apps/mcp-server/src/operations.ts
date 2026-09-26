@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { simulationAuthoringTools } from "./simulation-authoring-tools.js";
 import { PreparePlotSchema, preparePlot } from "./prepare-plot.js";
 import { workspaceSyncReceipt } from "./workspace-receipt.js";
+import { preparedSummary } from "./prepared-summary.js";
 import {
   SimulationOperationSchema,
   ArtifactRefSchema,
@@ -38,6 +39,7 @@ import type { OperationSession } from "./operation-session.js";
 import type { ContractTool } from "./tool-contracts.js";
 import {
   diagnosticsCompact,
+  compactActionReport,
   inspectConnectivity,
   inspectDocument,
   inspectObject,
@@ -418,7 +420,9 @@ const ApplyActionsArgs = z.strictObject({
   detail: z
     .enum(["compact", "full"])
     .optional()
-    .describe("Default compact: removed diagnostic IDs; full: removed bodies."),
+    .describe(
+      "Default compact: counts, sampled warnings, all errors; full: all.",
+    ),
   documentId: z.string().min(1).optional(),
   actions: z.array(AuthoringActionSchema).min(1).max(256),
 });
@@ -781,38 +785,19 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           ? await waitForSimulation(session.client, response, remainingWaitMs)
           : response;
         if (detail === "summary" && result.ok && "prepared" in result) {
-          const {
-            vectors,
-            signalNames,
-            signalTargets,
-            outputs,
-            deviceOperatingPoints,
-            measurements,
-            ...prepared
-          } = result.prepared;
-          const detailsArtifact = prepared.artifacts.find(
-            (a) => a.name === "preparation.json",
-          );
-          // Older editors may not publish preparation details yet. Preserve access then.
-          if (detailsArtifact)
-            return {
-              ...result,
-              prepared: {
-                ...prepared,
-                projection: "summary",
-                detailsArtifact,
-                acquisition:
-                  "Mappings describe available vectors, not captured data. Native source controls save/write; check collected dataset signals.",
-                counts: {
-                  vectors: vectors.length,
-                  signalNames: Object.keys(signalNames ?? {}).length,
-                  signalTargets: Object.keys(signalTargets ?? {}).length,
-                  outputs: outputs.length,
-                  deviceOperatingPoints: deviceOperatingPoints.length,
-                  measurements: measurements?.length ?? 0,
-                },
-              },
-            };
+          return { ...result, prepared: preparedSummary(result.prepared) };
+        }
+        if (detail === "summary" && result.ok && "batch" in result) {
+          return {
+            ...result,
+            batch: {
+              ...result.batch,
+              items: result.batch.items.map((item) => ({
+                ...item,
+                prepared: preparedSummary(item.prepared),
+              })),
+            },
+          };
         }
         if (
           detail === "summary" &&
@@ -1219,7 +1204,7 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
         diagnosticDeltaDetail: parsed.detail ?? "compact",
         ...(parsed.documentId ? { documentId: parsed.documentId } : {}),
       });
-      return report;
+      return parsed.detail === "full" ? report : compactActionReport(report);
     },
   },
   {
@@ -1236,11 +1221,12 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
         detail: _detail,
         ...payload
       } = parsed;
-      return session.client.advancedTransact(payload, {
+      const report = await session.client.advancedTransact(payload, {
         diagnosticDeltaDetail: parsed.detail ?? "compact",
         ...(parsed.documentId ? { documentId: parsed.documentId } : {}),
         ...(parsed.dryRun !== undefined ? { dryRun: parsed.dryRun } : {}),
       });
+      return parsed.detail === "full" ? report : compactActionReport(report);
     },
   },
   {

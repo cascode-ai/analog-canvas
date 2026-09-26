@@ -1,5 +1,5 @@
 import type { AgentDiagnostic, AgentSessionSnapshot } from "@icm/agent-adapter";
-import type { CachedSnapshot } from "@icm/agent-client";
+import type { CachedSnapshot, ApplyActionsReport } from "@icm/agent-client";
 import { RichTextDocumentSchema, flattenRichText } from "@icm/model";
 
 /**
@@ -59,6 +59,50 @@ export function diagnosticsCompact(entry: CachedSnapshot): DiagnosticsReport {
       total: all.length,
     },
     items: all.map(diagnosticCompact),
+  };
+}
+
+/** Successful edit receipts: all errors, one example per warning/info code.
+ * Complete diagnostic derivation and the explicit full response are unchanged.
+ */
+export function compactActionReport(report: ApplyActionsReport) {
+  if (!report.ok || !report.diagnostics) return report;
+  const byCode: Record<string, number> = {};
+  const seen = new Set<string>();
+  const diagnostics = report.diagnostics.filter((d) => {
+    const key = `${d.severity}:${d.code}`;
+    byCode[key] = (byCode[key] ?? 0) + 1;
+    if (d.severity === "error") return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const { diagnosticDelta, ...rest } = report;
+  return {
+    ...rest,
+    diagnostics,
+    diagnosticSummary: {
+      total: report.diagnostics.length,
+      omitted: report.diagnostics.length - diagnostics.length,
+      byCode,
+      details: {
+        tool: "inspect",
+        target: { kind: "diagnostics" },
+        detail: "full",
+        ...(report.documentId ? { documentId: report.documentId } : {}),
+      },
+    },
+    ...(diagnosticDelta
+      ? {
+          diagnosticDelta: {
+            projection: "summary",
+            addedCount: diagnosticDelta.added.length,
+            removedCount:
+              diagnosticDelta.removed.length +
+              (diagnosticDelta.removedIds?.length ?? 0),
+          },
+        }
+      : {}),
   };
 }
 

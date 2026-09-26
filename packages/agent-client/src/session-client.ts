@@ -1699,7 +1699,22 @@ export class AgentSessionClient {
     // One request, no client-side dry-run pass: the commit validates the
     // whole transaction atomically and returns the same diagnostics a
     // dry-run would, without the extra relayed round trip per edit.
-    let response = await this.send(request(options.dryRun ?? false));
+    const submit = async (value: AgentCircuitRequest) => {
+      try {
+        return await this.send(value);
+      } catch (error) {
+        if (!options.dryRun) {
+          // No authoritative receipt: the write may already be committed.
+          // Retain the pairing and exact in-flight retry identity, but never
+          // let the next operation reuse pre-write revisions. A command may
+          // also have changed shared definitions/Project structure.
+          this.cache.clear();
+          this.knownRevisions.clear();
+        }
+        throw error;
+      }
+    };
+    let response = await submit(request(options.dryRun ?? false));
     if (
       !response.ok &&
       response.error.code === "INVALID_REQUEST" &&
@@ -1715,7 +1730,7 @@ export class AgentSessionClient {
       // still have an older Editor open; retry once without the projection.
       const legacy = request(options.dryRun ?? false);
       if (legacy.operation === "transact") delete legacy.diagnosticDeltaDetail;
-      response = await this.send(legacy);
+      response = await submit(legacy);
     }
     if (!response.ok) {
       if (

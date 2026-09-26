@@ -34,6 +34,8 @@ describe("importChunk", () => {
     // The user-facing message never contains the technical string.
     expect(chunkError.message).not.toContain("Failed to fetch");
     expect(chunkError.message).toContain("PDF export");
+    expect(chunkError.message).not.toContain("has been updated");
+    expect(chunkError.message).toContain("check your connection");
   });
 
   it("phrases the status line as remedy, not stack trace", () => {
@@ -41,6 +43,7 @@ describe("importChunk", () => {
     expect(status).toContain("PDF export could not load");
     expect(status).toContain("Refresh");
     expect(status).toContain("restored automatically");
+    expect(status).not.toContain("has been updated");
   });
 });
 

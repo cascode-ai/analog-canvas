@@ -278,6 +278,11 @@ describe.each(["compatibility", "focused", "cli"])(
           ],
         });
         expect(executions).toBe(0);
+        for (const item of prepared.batch.items) {
+          expect(item.prepared.projection).toBe("summary");
+          expect(item.prepared.deviceOperatingPoints).toBeUndefined();
+          expect(item.prepared.detailsArtifact.name).toBe("preparation.json");
+        }
         const started = await invoke(
           { operation: "start-batch", batchId: prepared.batch.id },
           "batch-start-once",

@@ -192,6 +192,26 @@ it("resolves a nearest Net target after it was created by an earlier wire", () =
   expect(f.document.nets[0]!.terminals).toHaveLength(3);
 });
 
+it("reuses an existing terminal selected by a newly created Net", () => {
+  const f = fixture();
+  const result = f.submit([
+    f.wire("base", "R0", "R3"),
+    {
+      id: "tap-end",
+      from: { kind: "free", point: { x: -60, y: 80 } },
+      to: { kind: "net", net: "base-net" },
+    },
+  ]);
+  expect(result, JSON.stringify(result)).toMatchObject({
+    ok: true,
+    applied: true,
+  });
+  expect(f.commits).toBe(1);
+  expect(f.document.nets).toHaveLength(1);
+  expect(f.document.junctions).toHaveLength(1);
+  expect(f.document.junctions[0]!.position).toEqual({ x: -60, y: 80 });
+});
+
 it("rebases two taps on one original route within a single atomic batch", () => {
   const f = fixture(64, [
     [0, 100],

@@ -127,9 +127,9 @@ export function ChunkLoadBanner({
       aria-label="Feature failed to load"
     >
       <p>
-        {feature} could not load — the app has been updated since this tab
-        opened. Refresh to load the new version; your current circuit is
-        restored automatically.
+        {feature} could not load — check your connection and retry. This tab may
+        reference an older app version. Refresh if the problem persists; your
+        current circuit is restored automatically.
       </p>
       <div>
         <button type="button" onClick={refreshWithRestore}>

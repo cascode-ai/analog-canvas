@@ -1508,6 +1508,50 @@ describe("agent session client", () => {
         .map((request) => request.expectedRevision),
     ).toEqual([5, 6, 7]);
   });
+  it("refreshes a revision after an uncertain commit instead of reusing the pre-write cache", async () => {
+    const { client, http } = await freshClient();
+    await client.connect("session-1.code");
+    let uncertain = true;
+    const payloads: string[] = [];
+    const transform = {
+      kind: "transform",
+      selection: { instanceIds: ["instance-1"] },
+      transform: { kind: "translate", delta: { x: 20, y: 0 } },
+    };
+    http.circuitHandler = async ({ request, payload }) => {
+      if (request.operation === "transact") {
+        if (uncertain) {
+          payloads.push(payload);
+          throw new AgentSessionError(
+            "NETWORK_FAILURE",
+            "receipt lost",
+            "network",
+          );
+        }
+        expect(request.expectedRevision).toBe(6);
+        return transactSuccessResponse(
+          request.requestId,
+          request.expectedRevision,
+        );
+      }
+      if (request.operation === "snapshot") {
+        const response = snapshotResponse(request.requestId);
+        response.snapshot.document.revision = 6;
+        response.revision = 6;
+        return response;
+      }
+      throw Error(`unexpected ${request.operation}`);
+    };
+    await expect(client.applyActions([transform])).rejects.toMatchObject({
+      code: "NETWORK_FAILURE",
+    });
+    expect(new Set(payloads).size).toBe(1);
+    uncertain = false;
+    expect(await client.applyActions([transform])).toMatchObject({
+      ok: true,
+      revision: 7,
+    });
+  });
 
   it("does not reuse a revision across browser contexts", async () => {
     const { client, http } = await freshClient();

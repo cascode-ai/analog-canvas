@@ -5,6 +5,7 @@ import { planDirectEndpointConnection } from "./direct-contact-planner.js";
 import { applyNetPowerEdit } from "./transaction-net-power.js";
 import { applyRouteTopologyEdit } from "./transaction-route-topology.js";
 import { applyPresentationLayoutEdit } from "./transaction-presentation-layout.js";
+import { applyRouteGeometryEdit } from "./transaction-route-geometry.js";
 
 /**
  * The membership phase of a composite contact gesture. Use the transaction's
@@ -28,9 +29,25 @@ export function createContactPlanningDraft(
       throw new Error(message);
     },
   };
+  const apply = (edit: SchematicEdit) => {
+    if (edit.kind === "connect_endpoints" || edit.kind === "add_junction")
+      applyRouteTopologyEdit(edit, context);
+    else if (edit.kind === "set_route_path")
+      applyRouteGeometryEdit(edit, context);
+    else if (
+      edit.kind === "merge_nets" ||
+      edit.kind === "remove_connectivity_evidence"
+    )
+      applyNetPowerEdit(edit, context);
+    else if (edit.kind === "remove_schematic_annotation")
+      applyPresentationLayoutEdit(edit, context);
+    else throw new Error(`Unexpected contact edit: ${edit.kind}`);
+    edits.push(edit);
+  };
   return {
     document: draft,
     edits,
+    apply,
     connect(from: RouteEndpoint, to: RouteEndpoint, newNetId: string) {
       const connection = planDirectEndpointConnection(draft, {
         from,
@@ -38,19 +55,7 @@ export function createContactPlanningDraft(
         newNetId,
       });
       if (!connection.ok) return connection;
-      for (const edit of connection.edits) {
-        if (edit.kind === "connect_endpoints")
-          applyRouteTopologyEdit(edit, context);
-        else if (
-          edit.kind === "merge_nets" ||
-          edit.kind === "remove_connectivity_evidence"
-        )
-          applyNetPowerEdit(edit, context);
-        else if (edit.kind === "remove_schematic_annotation")
-          applyPresentationLayoutEdit(edit, context);
-        else throw new Error(`Unexpected contact edit: ${edit.kind}`);
-        edits.push(edit);
-      }
+      for (const edit of connection.edits) apply(edit);
       return connection;
     },
   };
