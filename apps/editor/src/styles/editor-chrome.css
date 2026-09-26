@@ -1524,3 +1524,38 @@
   border-radius: var(--icm-radius-sm);
   font: inherit;
 }
+
+/* After a publish or an update: what reached the Gallery, and a way to it. */
+.gallery-published-notice {
+  position: fixed;
+  top: 96px;
+  left: 50%;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 14px;
+  border: 1px solid var(--icm-border);
+  border-radius: 8px;
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  box-shadow: 0 4px 20px rgb(0 0 0 / 12%);
+  font-size: 13px;
+  transform: translateX(-50%);
+}
+
+.gallery-published-notice-mark {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.gallery-published-notice a,
+.gallery-published-notice button {
+  border: 0;
+  background: none;
+  color: var(--icm-accent);
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}

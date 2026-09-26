@@ -3346,6 +3346,14 @@ test("a signed-in member publishes directly, bylined by the account", async ({
   await expect(page.getByTestId("status")).toHaveText(
     'Published "Session Publish" to the gallery',
   );
+  // A publish says it landed where it cannot be missed, with the way there.
+  const notice = page.getByTestId("gallery-published-notice");
+  await expect(notice).toContainText(
+    "Published “Session Publish” to the Gallery",
+  );
+  await expect(
+    notice.getByRole("link", { name: "View in Gallery" }),
+  ).toHaveAttribute("href", /^\/g\//u);
   expect(posted).toEqual([
     {
       authorization: null,
@@ -3374,6 +3382,9 @@ test("a signed-in member publishes directly, bylined by the account", async ({
     .click();
   await expect(page.getByTestId("status")).toHaveText(
     'Updated "Session Publish" in the gallery',
+  );
+  await expect(page.getByTestId("gallery-published-notice")).toContainText(
+    "Updated “Session Publish” in the Gallery",
   );
   expect(posted).toHaveLength(1);
   expect(updated).toEqual([{ name: "Session Publish", instanceCount: 1 }]);

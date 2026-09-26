@@ -265,6 +265,8 @@ import {
 } from "../gallery-client";
 import { projectWithTopologyRoot } from "../features/editor-shell/gallery-topology-project";
 import { LazyGalleryTopologyTaskNotice as GalleryTopologyTaskNotice } from "./lazy-editor-dialogs";
+import { LazyGalleryPublishedNotice as GalleryPublishedNotice } from "./lazy-editor-dialogs";
+import type { GalleryPublishedNoticeState } from "../features/editor-shell/gallery-published-notice";
 import type { SessionUser } from "../components/account";
 import {
   evaluateSubmissionGates,
@@ -924,6 +926,8 @@ function WorkspaceEditor({
   const [documentSettingsOpen, setDocumentSettingsOpen] = useState(false);
   const [projectNameDraft, setProjectNameDraft] = useState<string | null>(null);
   const [publishGalleryOpen, setPublishGalleryOpen] = useState(false);
+  const [publishedNotice, setPublishedNotice] =
+    useState<GalleryPublishedNoticeState | null>(null);
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
   const [publishSession, setPublishSession] = useState<SessionUser | null>(
     null,
@@ -5669,6 +5673,14 @@ function WorkspaceEditor({
 
   return (
     <main className="app-shell">
+      {publishedNotice ? (
+        <Suspense fallback={null}>
+          <GalleryPublishedNotice
+            notice={publishedNotice}
+            onDismiss={() => setPublishedNotice(null)}
+          />
+        </Suspense>
+      ) : null}
       {capabilities.community ? (
         <Suspense fallback={null}>
           <GalleryTopologyTaskNotice
@@ -6410,6 +6422,7 @@ function WorkspaceEditor({
                       ? `Updated "${name}" in the gallery`
                       : `Published "${name}" to the gallery`,
                   );
+                  setPublishedNotice({ id, name, updated });
                 },
                 ...(galleryEntryContext
                   ? {
