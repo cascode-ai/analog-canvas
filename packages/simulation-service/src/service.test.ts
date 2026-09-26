@@ -65,6 +65,69 @@ it("offers compact Profile discovery and an explicit complete query without losi
   );
 });
 
+it("coalesces read-only recovery of known runs without another execution", async () => {
+  const f = fixture("ngspice");
+  let release!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const recover = vi.fn(async () => {
+    await ready;
+    return { result: await ngspiceResult(savedInput) };
+  });
+  let savedInput!: ExecutionInput;
+  vi.mocked(f.executor.execute).mockImplementation(async (input) => {
+    savedInput = input;
+    throw new ExecutionFailure(
+      {
+        code: "RUN_RESPONSE_UNKNOWN",
+        message: "body interrupted",
+        stage: "read",
+        recovery: "retry-same-request",
+      },
+      true,
+      recover,
+    );
+  });
+  const { prepared } = await prepareRaw(f);
+  const run = unwrap(
+    await f.service.handle(
+      { operation: "start", preparedId: prepared.id, digest: prepared.digest },
+      "start",
+    ),
+    "run",
+  );
+  await vi.waitFor(async () => {
+    const r = await f.service.handle(
+      { operation: "catalog", runId: run.id },
+      "catalog",
+    );
+    expect(r).toMatchObject({ ok: true, catalog: { execution: "lost" } });
+  });
+  await Promise.all(
+    ["read-a", "read-b"].map((id) =>
+      f.service.handle({ operation: "read", runId: run.id }, id),
+    ),
+  );
+  expect(recover).toHaveBeenCalledTimes(1);
+  release();
+  await vi.waitFor(async () => {
+    expect(
+      unwrap(
+        await f.service.handle({ operation: "read", runId: run.id }, "done"),
+        "run",
+      ),
+    ).toMatchObject({ state: "finished", details: { collection: "complete" } });
+  });
+  expect(f.executor.execute).toHaveBeenCalledTimes(1);
+  expect(
+    unwrap(
+      await f.service.handle({ operation: "read", runId: run.id }, "again"),
+      "run",
+    ).error,
+  ).toBeUndefined();
+});
+
 it("retries failed evidence storage through export without executing or duplicating files", async () => {
   const f = fixture("ngspice");
   vi.mocked(f.executor.execute).mockImplementation(async (input) => ({

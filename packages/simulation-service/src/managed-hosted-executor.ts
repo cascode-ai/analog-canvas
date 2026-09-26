@@ -42,7 +42,7 @@ export function createManagedHostedExecutor(
     0,
     Math.min(options.resultWaitMs ?? 20_000, 20_000),
   );
-  const serverRuns = new Map<string, Promise<string>>();
+  const serverRuns = new Map<string, Promise<string | undefined>>();
   const capabilityCache = new Map<
     string,
     { expiresAt: number; promise: Promise<Capabilities> }
@@ -77,8 +77,7 @@ export function createManagedHostedExecutor(
       throw new ExecutionFailure(
         {
           code: "RUN_RESPONSE_UNKNOWN",
-          message:
-            "The managed response body could not be read completely. The existing run remains server-owned; do not submit a new start.",
+          message: `The managed response body could not be read or parsed (HTTP ${response.status}, ${response.headers.get("content-type") ?? "unknown content type"}). The existing run remains server-owned; do not submit a new start.`,
           stage: "read",
           recovery: "retry-same-request",
         },
@@ -333,10 +332,32 @@ export function createManagedHostedExecutor(
       });
       serverRuns.set(
         runToken,
-        starting.then((run) => run.id),
+        // execute awaits the admission failure; cancellation must not leave a
+        // second, unobserved rejection when admission never returned an ID.
+        starting.then(
+          (run) => run.id,
+          () => undefined,
+        ),
       );
       try {
-        return await waitForResult(input, await starting);
+        const admitted = await starting;
+        const readResult = async (): ReturnType<Executor["execute"]> => {
+          serverRuns.set(runToken, Promise.resolve(admitted.id));
+          try {
+            return await waitForResult(input, admitted);
+          } catch (error) {
+            if (
+              error instanceof ExecutionFailure &&
+              (error.problem.code === "RUN_RESPONSE_UNKNOWN" ||
+                error.problem.recovery === "retry-after")
+            )
+              throw new ExecutionFailure(error.problem, true, readResult);
+            throw error;
+          } finally {
+            serverRuns.delete(runToken);
+          }
+        };
+        return await readResult();
       } finally {
         serverRuns.delete(runToken);
       }

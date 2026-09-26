@@ -168,6 +168,8 @@ export class ExecutionFailure extends Error {
   constructor(
     readonly problem: Problem,
     readonly acceptedUnknown = false,
+    /** Read an already-admitted run only; never submit or execute new work. */
+    readonly readResult?: () => Promise<ExecutionOutput>,
   ) {
     super(problem.message);
   }
