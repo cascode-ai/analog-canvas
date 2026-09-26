@@ -786,6 +786,7 @@ export function defaultInstanceValue(
   instance: SchematicDocument["instances"][number],
   resolver: SymbolResolver,
   styleProfile: SchematicStyleProfile,
+  slot: "reference" | "value" = "value",
 ): Annotation | null {
   if (!instance.placement) return null;
   if (instanceValueAnnotation(document, instance.id)) return null;
@@ -800,7 +801,7 @@ export function defaultInstanceValue(
     resolved,
     styleProfile,
     document.presentation.grid,
-    "value",
+    slot,
   );
   if (!placement) return null;
   const position = placement.position;

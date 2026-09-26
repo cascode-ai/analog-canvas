@@ -18,6 +18,54 @@ import {
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("default instance display annotations", () => {
+  it.each([0, 90, 180, 270] as const)(
+    "uses the first label slot for a new value-only resistor at %s degrees",
+    (rotation) => {
+      const document = createEmptyDocument("value-only", "Value only");
+      const instance = createNewInstance(document, {
+        symbolId: "resistor",
+        placement: { position: { x: 100, y: 100 }, rotation, mirror: "none" },
+        netlist: initialInstanceNetlist("resistor", { value: "10k" }),
+      });
+      document.instances.push(instance);
+      const profile = resolveSchematicStyleProfile(
+        document.presentation.styleProfileId,
+      );
+      const all = defaultInstanceDisplayAnnotations(
+        document,
+        instance,
+        resolver,
+        profile,
+        { showValue: true },
+      );
+      const onlyValue = defaultInstanceDisplayAnnotations(
+        document,
+        instance,
+        resolver,
+        profile,
+        { showDesignator: false, showValue: true },
+      );
+      expect(onlyValue).toHaveLength(1);
+      expect(onlyValue[0]).toMatchObject({
+        kind: "instance-value",
+        anchor: all[0]!.anchor,
+        alignment: all[0]!.alignment,
+      });
+      document.annotations.push({
+        ...onlyValue[0]!,
+        sizeScale: 1.5,
+        anchor: { kind: "free", position: { x: 317, y: 219 } },
+      });
+      expect(
+        missingDefaultInstanceDisplayAnnotations(
+          document,
+          instance,
+          resolver,
+          profile,
+        ).filter((a) => a.kind === "instance-value"),
+      ).toEqual([]);
+    },
+  );
   it("shows a live, editable Battery Reference with no default netlist binding", () => {
     const document = createEmptyDocument("battery", "Battery");
     const instance = createNewInstance(document, {
