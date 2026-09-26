@@ -85,6 +85,42 @@ async function awaitCanvasSettled(canvas: Locator): Promise<void> {
   );
 }
 
+test("Enter finishes wire at the latest pointer without waiting for a preview frame", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.waitFor();
+  await canvas.focus();
+  await page.keyboard.press("w");
+  await canvas.click({ position: { x: 240, y: 200 } });
+  await canvas.evaluate((element) => {
+    const svg = element as SVGSVGElement;
+    const screen = new DOMPoint(500, 400).matrixTransform(svg.getScreenCTM()!);
+    svg.dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true,
+        clientX: screen.x,
+        clientY: screen.y,
+        buttons: 0,
+        pointerId: 1,
+        pointerType: "mouse",
+      }),
+    );
+    svg.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    );
+  });
+  const route = page.locator('[data-canvas-hit-kind="route"]');
+  await expect(route).toHaveCount(1);
+  const endpoint = await route.evaluate((element) => {
+    const points = (element as SVGPolylineElement).points;
+    const end = points.getItem(points.numberOfItems - 1);
+    return { x: end.x, y: end.y };
+  });
+  expect(endpoint).toEqual({ x: 500, y: 400 });
+});
+
 for (const scale of [0.5, 1, 2, 4]) {
   for (const targetKind of ["pin", "route"] as const) {
     test(`single click captures ${targetKind} at canvas scale ${scale}`, async ({

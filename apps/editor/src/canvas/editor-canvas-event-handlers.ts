@@ -86,6 +86,7 @@ interface CanvasEventHandlerDependencies {
     onDrop: (event: ReactDragEvent<SVGSVGElement>) => void;
   };
   drafting: {
+    clearHover: () => void;
     selected: DraftingObject | null | undefined;
     sourceActive: boolean;
     beginCreatePointer?: (event: CanvasPointerEvent) => boolean;
@@ -103,6 +104,7 @@ interface CanvasEventHandlerDependencies {
     cancelCreate: () => void;
   };
   wiring: {
+    clearHover: () => void;
     source: WireSource | null;
     draftStepCount: number;
     applyCanvasPoint: (
@@ -167,6 +169,7 @@ export function createEditorCanvasEventHandlers({
     onDrop,
   },
   drafting: {
+    clearHover: clearDraftingHover,
     selected: selectedDrafting,
     sourceActive: draftingSourceActive,
     beginCreatePointer,
@@ -179,6 +182,7 @@ export function createEditorCanvasEventHandlers({
     cancelCreate: cancelDraftingCreate,
   },
   wiring: {
+    clearHover: clearWireHover,
     source: wireSource,
     draftStepCount: wireDraftStepCount,
     applyCanvasPoint: applyWireCanvasPoint,
@@ -342,8 +346,11 @@ export function createEditorCanvasEventHandlers({
     },
     onPointerDown: beginCanvasGesture,
     onPointerMove: continueCanvasGesture,
-    onPointerLeave() {
+    onPointerLeave(event: CanvasPointerEvent) {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) return;
       const kind = interactionKind();
+      clearDraftingHover();
+      clearWireHover();
       if (netLabelPlacement.active) netLabelPlacement.clearHover();
       if (pendingSymbolId) clearComponentPreview();
       if (vddRailMode) clearVddRailPreview();

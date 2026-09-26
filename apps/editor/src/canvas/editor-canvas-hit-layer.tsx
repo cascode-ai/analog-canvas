@@ -334,12 +334,49 @@ function SelectionHitTargets({
     () => resolveDocumentLogicalNets(document),
     [document],
   );
+  // Hover changes neither visible ink nor text bounds. Resolve them only when
+  // their document/style inputs change, including projected move documents.
+  const instanceHitBoxes = useMemo(
+    () =>
+      new Map(
+        document.instances.map((instance) => [
+          instance.id,
+          instanceHitBox(instance, resolver),
+        ]),
+      ),
+    [document, resolver],
+  );
+  const annotationHitBoxes = useMemo(
+    () =>
+      new Map(
+        document.annotations.map((annotation) => [
+          annotation.id,
+          annotationHitBox(
+            document,
+            resolver,
+            annotation,
+            routeGeometryRecords,
+            styleProfile,
+            routingGeometry,
+            logicalNets,
+          ),
+        ]),
+      ),
+    [
+      document,
+      resolver,
+      routeGeometryRecords,
+      styleProfile,
+      routingGeometry,
+      logicalNets,
+    ],
+  );
   return (
     <>
       {document.instances
         .filter((instance) => instance.placement !== null)
         .map((instance) => {
-          const hitBox = instanceHitBox(instance, resolver);
+          const hitBox = instanceHitBoxes.get(instance.id);
           if (!hitBox || cellSymbolLayoutInstanceId === instance.id)
             return null;
           const resolved = resolver.resolve(
@@ -488,15 +525,7 @@ function SelectionHitTargets({
           isSchematicAnnotationVisible(document, annotation, logicalNets),
         )
         .map((annotation) => {
-          const hitBox = annotationHitBox(
-            document,
-            resolver,
-            annotation,
-            routeGeometryRecords,
-            styleProfile,
-            routingGeometry,
-            logicalNets,
-          );
+          const hitBox = annotationHitBoxes.get(annotation.id)!;
           const selected =
             selectedAnnotationId === annotation.id ||
             supplementalAnnotationIds.includes(annotation.id);

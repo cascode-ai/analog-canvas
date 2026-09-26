@@ -63,6 +63,47 @@ export type DrawingTool = Extract<
   "construction-line" | "arrow" | "polyline" | "rectangle" | "circle"
 >;
 
+export function isDrawingTool(tool: EditorTool): tool is DrawingTool {
+  return (
+    tool === "arrow" ||
+    tool === "polyline" ||
+    tool === "construction-line" ||
+    tool === "rectangle" ||
+    tool === "circle"
+  );
+}
+
+function samePoint(left: Point | null, right: Point | null): boolean {
+  return (
+    left === right ||
+    (left !== null &&
+      right !== null &&
+      left.x === right.x &&
+      left.y === right.y)
+  );
+}
+
+function sameWireTarget(
+  left: WireDraftTarget | null,
+  right: WireDraftTarget | null,
+): boolean {
+  if (left === right) return true;
+  if (
+    !left ||
+    !right ||
+    left.kind !== right.kind ||
+    !samePoint(left.point, right.point)
+  )
+    return false;
+  if (left.kind === "endpoint" && right.kind === "endpoint")
+    return left.source === right.source;
+  if (left.kind === "route" && right.kind === "route")
+    return (
+      left.routeId === right.routeId && left.segmentIndex === right.segmentIndex
+    );
+  return left.kind === "free";
+}
+
 export type InteractionMode = InteractionState<unknown>["kind"];
 
 export interface PendingComponentPlacement {
@@ -390,7 +431,8 @@ export function interactionReducer<TClipboard>(
           }
         : state;
     case "set-wire-preview":
-      return state.kind === "wire"
+      return state.kind === "wire" &&
+        !sameWireTarget(state.preview, action.target)
         ? { ...state, preview: action.target }
         : state;
     case "set-wire-steps":
@@ -436,7 +478,7 @@ export function interactionReducer<TClipboard>(
         ? { ...state, source: action.point }
         : state;
     case "set-drawing-hover":
-      return state.kind === "drawing"
+      return state.kind === "drawing" && !samePoint(state.hover, action.point)
         ? { ...state, hover: action.point }
         : state;
     case "set-drawing-waypoints":
@@ -444,7 +486,8 @@ export function interactionReducer<TClipboard>(
         ? { ...state, waypoints: applyUpdate(state.waypoints, action.update) }
         : state;
     case "set-drawing-snap":
-      return state.kind === "drawing"
+      return state.kind === "drawing" &&
+        !samePoint(state.snapPoint, action.point)
         ? { ...state, snapPoint: action.point }
         : state;
     case "clear-drawing":

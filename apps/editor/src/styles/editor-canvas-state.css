@@ -26,11 +26,18 @@
   pointer-events: none;
 }
 
-.schematic-canvas.drawing-mode {
+.schematic-canvas.drawing-mode,
+.schematic-canvas.drawing-mode * {
   cursor: crosshair;
 }
 
-.schematic-canvas.pan-mode {
+.schematic-canvas.drawing-mode [data-testid="canvas-text-editor"],
+.schematic-canvas.drawing-mode [data-testid="canvas-text-editor"] * {
+  cursor: auto;
+}
+
+.schematic-canvas.pan-mode,
+.schematic-canvas.pan-mode * {
   cursor: grabbing;
 }
 

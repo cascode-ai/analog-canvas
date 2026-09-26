@@ -23,6 +23,93 @@ import {
   downloadBytes,
 } from "./editor-fixtures.js";
 
+test("drawing tools keep a visible locator before the first point and clear queued hover on leave and Escape", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  const project = createEmptyProject("pointer-feedback", "Pointer feedback");
+  project.documents[0]!.instances.push({
+    id: "R1",
+    reference: "R1",
+    symbolId: "resistor",
+    placement: { position: { x: 250, y: 200 }, rotation: 0, mirror: "none" },
+  });
+  await page.getByTestId("project-file").setInputFiles({
+    name: "pointer-feedback.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(project)),
+  });
+  const canvas = page.getByTestId("schematic-canvas");
+  await expect(page.getByTestId("hit-R1")).toBeVisible();
+  for (const name of ["line", "rectangle", "circle", "polyline", "arrow"]) {
+    await page.getByTestId("annotation-menu").locator("summary").click();
+    await page.getByTestId(`annotation-shortcut-annotation-${name}`).click();
+    const box = (await canvas.boundingBox())!;
+    await page.mouse.move(box.x + box.width * 0.65, box.y + box.height * 0.65);
+    await expect(page.getByTestId("drawing-position-marker")).toHaveCount(1);
+    await expect(page.getByTestId("hit-R1")).toHaveCSS("cursor", "crosshair");
+    await expect(
+      page.getByTestId("drawing-position-marker").locator("path").first(),
+    ).toHaveAttribute("vector-effect", "non-scaling-stroke");
+    await page.mouse.move(box.x + box.width * 0.66, box.y + box.height * 0.66);
+    await page.mouse.move(1, 1);
+    await expect(page.getByTestId("drawing-position-marker")).toHaveCount(0);
+    await canvas.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    await expect(page.getByTestId("drawing-position-marker")).toHaveCount(0);
+    await page.mouse.move(box.x + box.width * 0.65, box.y + box.height * 0.65);
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("drawing-position-marker")).toHaveCount(0);
+  }
+});
+
+test("Enter finishes an annotation at the newest pointer before its preview frame", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await clickDrawTool(page, "line");
+  const canvas = page.getByTestId("schematic-canvas");
+  const box = (await canvas.boundingBox())!;
+  await page.mouse.click(box.x + 200, box.y + 180);
+  const endpoint = await canvas.evaluate((element) => {
+    const svg = element as SVGSVGElement;
+    const matrix = svg.getScreenCTM()!;
+    const screen = new DOMPoint(500, 400).matrixTransform(matrix);
+    svg.dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true,
+        clientX: screen.x,
+        clientY: screen.y,
+        buttons: 0,
+        pointerId: 1,
+        pointerType: "mouse",
+        altKey: true,
+      }),
+    );
+    svg.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    );
+    return { x: 500, y: 400 };
+  });
+  const line = page.locator(
+    '[data-layer="drafting"] polyline[data-kind="construction-line"]',
+  );
+  await expect(line).toHaveCount(1);
+  const actual = await line.evaluate((element) => {
+    const points = (element as SVGPolylineElement).points;
+    const end = points.getItem(points.numberOfItems - 1);
+    return { x: end.x, y: end.y };
+  });
+  expect(actual.x).toBeCloseTo(endpoint.x);
+  expect(actual.y).toBeCloseTo(endpoint.y);
+});
+
 test("a Library arrow stays fully editable without occupying the toolbar", async ({
   page,
 }) => {

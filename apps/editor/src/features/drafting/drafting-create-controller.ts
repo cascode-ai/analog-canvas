@@ -11,7 +11,10 @@ import { closestPointOnSegment } from "../../canvas/canvas-geometry";
 import type { EditorTool } from "../../interaction/interaction-state";
 import {
   buildDraftingProjectionSnapTargets,
-  buildSceneSnapTargets,
+  buildDraftingProjectionSnapIndex,
+  buildSceneSnapTargetIndex,
+  sceneSnapTargetsExcluding,
+  type SceneSnapTargetIndex,
 } from "../../snap/candidates";
 import {
   resolvePointSnap,
@@ -44,6 +47,31 @@ type DraftingTool = Extract<
 
 export type DrawAngleMode = "free" | "45" | "orthogonal";
 
+/** Immutable geometry shared by all hover samples until the Document changes. */
+export function buildDraftingCreateSnapIndex(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  visibleEndpoints: readonly WireSource[],
+  routeGeometryRecords: readonly RouteGeometryRecord[],
+  sceneIndex: SceneSnapTargetIndex = buildSceneSnapTargetIndex(
+    document,
+    resolver,
+    visibleEndpoints,
+  ),
+) {
+  return {
+    scene: sceneSnapTargetsExcluding(sceneIndex),
+    drafting: buildDraftingProjectionSnapIndex(document, resolver),
+    segments: routeGeometryRecords.flatMap(({ route, geometry }) =>
+      geometry.centerline.slice(0, -1).map((from, index) => ({
+        id: `route:${route.id}:${index}`,
+        from,
+        to: geometry.centerline[index + 1]!,
+      })),
+    ),
+  };
+}
+
 export function constrainDraftingAngle(
   origin: Point,
   target: DerivedPoint,
@@ -67,6 +95,7 @@ export function createDraftingCreateController({
   resolver,
   visibleEndpoints,
   routeGeometryRecords,
+  snapIndex,
   tool,
   arrowPreset = DEFAULT_ARROW_PRESET,
   pointer,
@@ -91,6 +120,7 @@ export function createDraftingCreateController({
   resolver: SymbolResolver;
   visibleEndpoints: readonly WireSource[];
   routeGeometryRecords: readonly RouteGeometryRecord[];
+  snapIndex?: ReturnType<typeof buildDraftingCreateSnapIndex>;
   tool: EditorTool;
   arrowPreset?: ArrowPreset;
   pointer?: {
@@ -110,6 +140,7 @@ export function createDraftingCreateController({
   setStatus: (status: string) => void;
   nextId: (prefix: string) => string;
 }) {
+  let geometryIndex = snapIndex;
   const activeTool = (): DraftingTool | null =>
     tool === "arrow" ||
     tool === "polyline" ||
@@ -162,17 +193,17 @@ export function createDraftingCreateController({
         guides: [],
       };
     }
-    const routeTargets = routeGeometryRecords.flatMap(({ route, geometry }) =>
-      geometry.centerline.slice(0, -1).map((from, segmentIndex) => ({
-        id: `route:${route.id}:${segmentIndex}`,
-        point: closestPointOnSegment(
-          point,
-          from,
-          geometry.centerline[segmentIndex + 1]!,
-        ),
-        kind: "route" as const,
-      })),
+    geometryIndex ??= buildDraftingCreateSnapIndex(
+      document,
+      resolver,
+      visibleEndpoints,
+      routeGeometryRecords,
     );
+    const routeTargets = geometryIndex.segments.map(({ id, from, to }) => ({
+      id,
+      point: closestPointOnSegment(point, from, to),
+      kind: "route" as const,
+    }));
     const constrained =
       angleStep && origin
         ? constrainDraftingAngle(origin, point, angleStep)
@@ -180,8 +211,14 @@ export function createDraftingCreateController({
     const resolved = resolvePointSnap(
       constrained,
       [
-        ...buildSceneSnapTargets(document, resolver, visibleEndpoints),
-        ...buildDraftingProjectionSnapTargets(document, resolver, constrained),
+        ...geometryIndex.scene,
+        ...buildDraftingProjectionSnapTargets(
+          document,
+          resolver,
+          constrained,
+          undefined,
+          geometryIndex.drafting,
+        ),
         ...routeTargets,
       ],
       {

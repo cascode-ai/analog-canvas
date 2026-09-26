@@ -229,13 +229,9 @@ export function EditorInteractionPreviews({
           styleProfile={styleProfile}
         />
       ) : null}
+      {draftingHover ? <CanvasPositionMarker point={draftingHover} /> : null}
       {tool === "wire" && wirePreviewPoint ? (
-        <circle
-          className="snap-preview"
-          cx={wirePreviewPoint.x}
-          cy={wirePreviewPoint.y}
-          r="4"
-        />
+        <CanvasPositionMarker point={wirePreviewPoint} />
       ) : null}
       {textEditing && textEditingBounds ? (
         <CanvasTextEditorOverlay
@@ -252,5 +248,40 @@ export function EditorInteractionPreviews({
         />
       ) : null}
     </>
+  );
+}
+
+/** Round zero-length strokes retain their screen size through SVG zoom. */
+function CanvasPositionMarker({ point }: { point: Point }) {
+  const d = `M ${point.x} ${point.y} l 0 0`;
+  return (
+    <g
+      data-testid="drawing-position-marker"
+      pointerEvents="none"
+      aria-hidden="true"
+    >
+      <path
+        d={d}
+        stroke="white"
+        strokeWidth={11}
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+      <path
+        className="snap-preview"
+        d={d}
+        strokeWidth={7}
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+        style={{ strokeWidth: 7 }}
+      />
+      <path
+        d={d}
+        stroke="white"
+        strokeWidth={3}
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </g>
   );
 }
