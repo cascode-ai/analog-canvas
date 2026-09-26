@@ -673,8 +673,13 @@ component does not automatically carry its unselected dangling wires. Explicitly
 selected wires can travel alone: unselected terminal endpoints become local free
 wire ends, without bringing the external devices. Route markers remap both Route
 and Leg identity. External visual anchors on copied drafting resolve to free
-positions; bound component labels require their component. Bulk connections are
-materialized as instance-owned connections rather than adopting target defaults.
+positions; bound component labels require their component. A copied MOS body
+stays on the Net its source body used, whether it joined that Net or followed
+the Cell default or supply marker to it, whenever that Net travels with the
+copy; a body whose Net stays behind takes the target Cell's body default, as a
+newly inserted MOS does. A body drawn with a dashed wire travels with that wire,
+like any other pin. Composing a whole Cell, as Gallery insertion does, keeps
+every body as an instance-owned connection rather than adopting target defaults.
 Necessary Net names whose original owners were outside the selection receive
 copy-owned labels. Name equality in the target Cell retains its ordinary electrical
 meaning; copying does not introduce an invisible Net namespace.

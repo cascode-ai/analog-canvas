@@ -14,7 +14,10 @@ import {
   type OperationIdRemap,
   type RoutingOperationPlan,
 } from "@icm/edit-engine";
-import { resolveMosBulkConnection } from "@icm/derived";
+import {
+  hasExplicitMosBulkRoute,
+  resolveMosBulkConnection,
+} from "@icm/derived";
 import { translateDraftingObject } from "@icm/edit-engine";
 import type { SchematicEdit } from "@icm/edit-engine";
 import type {
@@ -872,6 +875,18 @@ export function copySelection(
         : [],
     ),
   ]);
+  // A copy keeps each MOS body where its source put it whenever that Net
+  // travels with the copy: the Net the body joins, or the Cell default or
+  // supply it follows. A body whose Net stays behind follows the target. A
+  // body drawn with a dashed wire is wired like any pin: it comes with its
+  // wire or not at all.
+  const bodyNets = new Map<string, string>();
+  for (const instance of instances) {
+    if (hasExplicitMosBulkRoute(document, instance.id)) continue;
+    const body = resolveMosBulkConnection(document, instance);
+    if (body?.net && netIds.has(body.net.id))
+      bodyNets.set(instance.id, body.net.id);
+  }
   const annotationIds = new Set(annotations.map((annotation) => annotation.id));
   const copiedLayoutObjectIds = new Set<string>([
     ...selectedIds,
@@ -921,15 +936,31 @@ export function copySelection(
         // explicitly selected Route promotes its whole net to internal, but
         // that net can still land on instances outside the copy, and their
         // terminals would map to nothing at paste time.
-        terminals: net.terminals.filter(
-          (terminal) =>
-            selectedIds.has(terminal.instanceId) &&
-            (preserveElectrical ||
-              ownedMarkerIds.has(terminal.instanceId) ||
-              copiedTerminalKeys.has(
-                `${terminal.instanceId}\0${terminal.pinName}`,
-              )),
-        ),
+        terminals: [
+          ...net.terminals.filter(
+            (terminal) =>
+              selectedIds.has(terminal.instanceId) &&
+              (preserveElectrical ||
+                ownedMarkerIds.has(terminal.instanceId) ||
+                copiedTerminalKeys.has(
+                  `${terminal.instanceId}\0${terminal.pinName}`,
+                ) ||
+                (terminal.pinName === "B" &&
+                  bodyNets.get(terminal.instanceId) === net.id)),
+          ),
+          // A body that followed a default joins that Net explicitly.
+          ...[...bodyNets]
+            .filter(
+              ([instanceId, netId]) =>
+                netId === net.id &&
+                !net.terminals.some(
+                  (terminal) =>
+                    terminal.instanceId === instanceId &&
+                    terminal.pinName === "B",
+                ),
+            )
+            .map(([instanceId]) => ({ instanceId, pinName: "B" })),
+        ],
       })),
     routes: document.routes.filter((route) => routeIds.has(route.id)),
     junctions: document.junctions.filter((junction) =>
