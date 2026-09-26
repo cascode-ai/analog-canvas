@@ -178,7 +178,7 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
       ]),
       position: PointInputSchema.optional(),
       pinAnchor: AgentPinAnchorSchema.optional().describe(
-          "Placed Instance only; instead of position. Keeps orientation.",
+        "Placed Instance only; instead of position. Keeps orientation.",
       ),
     })
     .superRefine((action, ctx) => {
