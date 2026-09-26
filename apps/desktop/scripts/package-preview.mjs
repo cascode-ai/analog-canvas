@@ -2,6 +2,7 @@ import { cp, mkdir, rename, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
+import { assertPublicDistributionPath } from "../../../scripts/lib/distribution-security.mjs";
 
 const root = resolve(import.meta.dirname, "../../..");
 const require = createRequire(import.meta.url);
@@ -13,6 +14,17 @@ const dirty = execFileSync("git", ["status", "--porcelain"], {
 });
 if (dirty.trim())
   throw new Error("Commit the preview sources before producing a package");
+const sourcePaths = execFileSync(
+  "git",
+  ["ls-tree", "-rz", "--name-only", "HEAD"],
+  {
+    cwd: root,
+    encoding: "utf8",
+  },
+)
+  .split("\0")
+  .filter(Boolean);
+for (const path of sourcePaths) assertPublicDistributionPath(path);
 
 // Unique output: never recursively remove a previous package or user data.
 const output = join(

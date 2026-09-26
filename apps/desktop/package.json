@@ -12,7 +12,8 @@
     "build:preview": "node scripts/build.mjs",
     "start": "electron .",
     "package:preview": "node scripts/package-preview.mjs",
-    "test:preview": "node scripts/accept-preview.mjs"
+    "test:preview": "node scripts/accept-preview.mjs",
+    "security:preview": "node ../../scripts/desktop-package-security.mjs"
   },
   "devDependencies": {
     "electron": "44.4.2",

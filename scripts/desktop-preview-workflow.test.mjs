@@ -28,15 +28,23 @@ describe("desktop distribution gates", () => {
     const archive = workflow.indexOf(
       "Compress-Archive -LiteralPath $packageManifest.output",
     );
+    const security = workflow.indexOf(
+      "run: pnpm --filter @icm/desktop security:preview",
+    );
     const upload = workflow.indexOf("uses: actions/upload-artifact@v4");
     expect(assemble).toBeGreaterThan(-1);
     expect(accept).toBeGreaterThan(assemble);
-    expect(archive).toBeGreaterThan(accept);
+    expect(security).toBeGreaterThan(accept);
+    expect(archive).toBeGreaterThan(security);
     expect(upload).toBeGreaterThan(archive);
     expect(workflow).toContain(
       "$acceptance.source -ne $packageManifest.commit",
     );
     expect(workflow).toContain("!$acceptance.packaged");
+    expect(workflow).toContain("$security.source -ne $packageManifest.commit");
+    expect(workflow).not.toContain("plan/preview-acceptance-*/\n");
+    expect(workflow).not.toContain("secrets.");
+    expect(workflow).toContain("persist-credentials: false");
   });
 
   it("only explicitly publishes accepted mainline builds as desktop prereleases", () => {
