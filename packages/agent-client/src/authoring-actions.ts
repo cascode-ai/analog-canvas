@@ -168,15 +168,33 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
       z.strictObject({ kind: z.literal("route"), route: z.string().min(1) }),
     ]),
   }),
-  z.strictObject({
-    kind: z.literal("move"),
-    target: z.union([
-      InstanceRefSchema,
-      NamedObjectRefSchema.safeExtend({ kind: z.literal("junction") }),
-      AnnotationRefSchema,
-    ]),
-    position: PointInputSchema,
-  }),
+  z
+    .strictObject({
+      kind: z.literal("move"),
+      target: z.union([
+        InstanceRefSchema,
+        NamedObjectRefSchema.safeExtend({ kind: z.literal("junction") }),
+        AnnotationRefSchema,
+      ]),
+      position: PointInputSchema.optional(),
+      pinAnchor: AgentPinAnchorSchema.optional().describe(
+        "Placed Instance only; instead of position. Keeps orientation.",
+      ),
+    })
+    .superRefine((action, ctx) => {
+      if ((action.position === undefined) === (action.pinAnchor === undefined))
+        ctx.addIssue({
+          code: "custom",
+          path: ["position"],
+          message: "Provide exactly one of position or pinAnchor",
+        });
+      if (action.pinAnchor && action.target.kind !== "instance")
+        ctx.addIssue({
+          code: "custom",
+          path: ["pinAnchor"],
+          message: "pinAnchor requires an Instance target",
+        });
+    }),
   z.strictObject({
     kind: z.literal("rotate"),
     target: InstanceRefSchema,

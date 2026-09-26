@@ -21,7 +21,7 @@
     },
     {
       "source": "docs/agent/shared/authoring.md",
-      "sha256": "767093460c3b330e436fe305ebd6fff166f69586a9cffa41004108b488f45f65"
+      "sha256": "dc3a0fb92899c1b8f58e74d169a5731093ee3d18c85fac9037466c91a5605cc9"
     },
     {
       "source": "docs/agent/workflow.md",
@@ -97,7 +97,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "df89ae9a102a9c06f1c8893df045cea6701bf788920fa707416301951ea017eb"
+      "sha256": "44dfa3119c63b786f3a00e9b5cfd395396cb1556c9784c8643f301dc83abb9f5"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
@@ -121,7 +121,7 @@
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "878804d59f22859a2cb66d17274550e20b7f49672768c498872c6f4cb70a3117"
+      "sha256": "816482fba3010131f8ba8585932df58f0d03b5c68cbcc152827a914cef12a668"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
@@ -629,7 +629,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/knowledge/patterns.md"
       ],
-      "sha256": "3219eb9a124674131d9782d684c08c27393f1da52c9551d14e95deea545460b0"
+      "sha256": "fc48b4d973d2902906de5866fbeb5dad2fbec2c18ad35b20ee5da43c4eb7e33a"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -658,7 +658,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/knowledge/patterns.md"
       ],
-      "sha256": "08c7a07914dcce6ad4269d9c0d2de8d2d1ce05e2f73d313465c65c9a9a916d4a"
+      "sha256": "035294a17f4a79840990445d1523b7a7cf6e305bfcc5672c170fb8a6d93d4dcc"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",
@@ -675,7 +675,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "d71914ee367654acda7f7f29cc0b93ee000db7451eda0b2a9f876ca30df2883a"
+      "sha256": "38b9223e4f13bb29458dcf087c2047cf909b30f365320bc1c52ff848cdd1c834"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",

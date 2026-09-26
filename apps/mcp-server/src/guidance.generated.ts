@@ -23,7 +23,7 @@ export const agentToolHelp = {
   circuit_selection:
     "Translate/rotate/mirror/copy/align a selection. Uses original selection IDs, topology rules and atomic planner. For individual targets use circuit_transform; for mixed families use apply_actions.",
   circuit_text:
-    "Add/edit labels and annotations, or move their anchors, through the original atomic action planner. Plain text is accepted where declared; exact rich text or unfamiliar fields are available from describe_tool by operation/field. Binding semantics stay unchanged.",
+    "Edit native labels or independent drafting text. Device placement already creates bound Reference/Value displays: reuse them, do not imitate them with annotate. annotate uses GUI text defaults; edit-text strings preserve existing formatting, explicit RichText replaces it. Bound labels retain their semantic owner. Same atomic planner; unfamiliar fields are available from describe_tool.",
   circuit_properties:
     "Set device references, parameters, models and display flags with the original action planner. Keep physical units such as 10u. Model bindings and bulk semantics are unchanged. Mixed action families remain available through apply_actions.",
   describe_tool:
@@ -57,9 +57,9 @@ export const agentToolHelp = {
   search:
     "Case-insensitive search, including LaTeX, over one authorized document or scope:project. Results include documentId. Reuses clean Snapshots by default and loads authorized Project documents concurrently.",
   apply_actions:
-    "Atomic high-level edits, Cell structure and history. circuit_* tools select common families. For unfamiliar fields use describe_tool operations:[kind]; no lookup prerequisite. detail:full includes removed diagnostic bodies.",
+    "Atomic edits/Cells/history; circuit_* selects families. Optional: describe_tool operations:[kind]. detail:full includes removed diagnostics.",
   advanced_transact:
-    "Full transaction access: exactly one of edits, structureEdits, wireIntent, semanticIntent or command. Client supplies IDs/revisions; reconcile stale conflicts. Edit contracts are optional references.",
+    "Full transactions: exactly one of edits, structureEdits, wireIntent, semanticIntent, command. Client supplies IDs/revisions; reconcile stale conflicts. Contracts optional.",
   verify:
     "Fresh Snapshot and diagnostic counts for milestones, not every edit. Optional expectedNetlist compares structural SPICE through the existing export; details adds bounded differences. Expressions/unsupported declarations are inconclusive, never electrical acceptance.",
   render:

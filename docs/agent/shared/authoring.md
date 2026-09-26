@@ -36,10 +36,17 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   routing landing (including variants and fine-pitch pins), not artwork contact,
   and rejects unreachable targets with a nearest reachable landing. Native
   `place-components` accepts `pinAnchors` by Instance ID; `place-cell` and
-  `place-existing` accept `pinAnchor` to override their placement origin. No
+  `place-existing` accept `pinAnchor` to override their placement origin.
+  `move` also accepts `pinAnchor` instead
+  of `position` for a placed Instance, preserving its rotation/mirror and using
+  the current resolved pin landing; tray Instances use `place-existing`. No
   electrical connection is inferred. For one-shot symmetry use these placements
   or the existing selection `transform` mirror with an explicit center; this
   neither copies connectivity nor installs a persistent symmetry constraint.
+  For free drafting text, selection `transform` translation preserves fine
+  offsets and formatting. Attached drafting objects follow a selected owner;
+  moving one separately requires an explicit anchor edit. Locked targets reject
+  the atomic request. Other drafting transforms retain their existing limits.
 - `vdd-rail` is an authoring primitive, not a symbol. Use `add-power-rail`
   with optional `name`/`scope` (existing scope is retained, otherwise local).
   Explicit `global` is not the default. Like GUI supply placement it initializes
@@ -49,6 +56,12 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
 - Set electrical values before their display. MOS sizes are physical quantities:
   `w:"10u", l:"1u"`, not `10/1` assuming micrometres. Use
   `set-instance-display` for Reference/Value/parameters, not detached text.
+  Use `annotate` only for independent notes or authored notation. Its alignment
+  and typography defaults match GUI Text insertion; explicit RichText keeps its
+  authored look. `edit-text` strings change content without clearing existing
+  spans. A same-text string on a bound display leaves its format alone; use
+  explicit RichText to restyle it. Fractions/formulas need explicit RichText
+  for a structural replacement, not a lossy plain-text projection.
   Transformer parameter keys are `k/lp/ls`; T-Coil keys are `k/l1/l2/cb`.
 - Use `set-model` with the product's reviewed target. SKY130 MOS targets reuse
   the GUI binding path, preserve terminal mapping and export the required `X`

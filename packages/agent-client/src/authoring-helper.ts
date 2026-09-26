@@ -4,7 +4,12 @@ import {
   type AgentSessionSnapshot,
 } from "@icm/agent-adapter";
 import { agentRazaviAuthoringCatalog } from "@icm/agent-adapter/kit";
-import { flattenRichText, type RichTextDocument } from "@icm/model";
+import {
+  createDraftText,
+  flattenRichText,
+  rewriteRichTextContent,
+  type RichTextDocument,
+} from "@icm/model";
 import { z } from "zod";
 import {
   AuthoringActionSchema,
@@ -62,6 +67,7 @@ interface SnapshotInstance {
   reference: string | null;
   symbolId: string;
   placed: boolean;
+  position: { x: number; y: number } | undefined;
   pins: readonly {
     name: string;
     connection: {
@@ -117,6 +123,7 @@ function resolvedDocument(snapshot: AgentSessionSnapshot): ResolvedDocument {
       reference: instance.reference,
       symbolId: instance.symbolId,
       placed: instance.placement !== null,
+      position: instance.placement?.position,
       pins: instance.pins.map((pin) => ({
         name: pin.name,
         connection: pin.connection,
@@ -466,7 +473,7 @@ export function compileActions(
             command: {
               kind: "move-annotation",
               annotationId: annotation.id,
-              position: action.position,
+              position: action.position!,
             },
           });
         } else if (action.target.kind === "junction") {
@@ -480,7 +487,7 @@ export function compileActions(
           pushEdit(index, action.kind, {
             kind: "move_junction",
             junctionId: junction.id,
-            position: action.position,
+            position: action.position!,
           });
         } else {
           const instance = resolveInstance(
@@ -490,6 +497,12 @@ export function compileActions(
             action.target,
           );
           if (!instance.placed) {
+            if (action.pinAnchor)
+              throw new ActionCompileError(
+                index,
+                action.kind,
+                "move pinAnchor requires a placed Instance; use place-existing with pinAnchor for a tray Instance",
+              );
             transactions.push({
               form: "command",
               actionKinds: [action.kind],
@@ -497,7 +510,7 @@ export function compileActions(
                 kind: "place-existing",
                 instanceId: instance.id,
                 placement: {
-                  position: action.position,
+                  position: action.position!,
                   rotation: 0,
                   mirror: "none",
                 },
@@ -505,10 +518,27 @@ export function compileActions(
             });
             break;
           }
+          let position = action.position!;
+          if (action.pinAnchor) {
+            requirePin(index, action.kind, instance, action.pinAnchor.pinName);
+            const landing = instance.pins.find(
+              (pin) => pin.name === action.pinAnchor!.pinName,
+            )?.connection?.gridLanding;
+            if (!landing || !instance.position)
+              throw new ActionCompileError(
+                index,
+                action.kind,
+                `Pin ${action.pinAnchor.pinName} has no resolved routing landing`,
+              );
+            position = {
+              x: instance.position.x + action.pinAnchor.position.x - landing.x,
+              y: instance.position.y + action.pinAnchor.position.y - landing.y,
+            };
+          }
           pushEdit(index, action.kind, {
             kind: "move_instance",
             instanceId: instance.id,
-            position: action.position,
+            position,
           });
         }
         break;
@@ -618,16 +648,13 @@ export function compileActions(
       case "annotate":
         pushEdit(index, action.kind, {
           kind: "upsert_drafting_object",
-          object: {
-            kind: "text",
+          object: createDraftText({
             id: allocateId("text"),
-            locked: false,
-            zIndex: 0,
-            anchor: { kind: "free", position: action.position },
-            content: richText(action.text),
-            alignment: action.alignment ?? "start",
-            rotation: action.rotation ?? 0,
-          },
+            position: action.position,
+            content: action.text,
+            alignment: action.alignment,
+            rotation: action.rotation,
+          }),
         });
         break;
       case "arrange": {
@@ -1051,6 +1078,20 @@ function compileEditText(
   document: ResolvedDocument,
   pushEdit: PushEdit,
 ): void {
+  const contentUpdate = (previous: unknown): RichTextDocument => {
+    if (typeof action.text !== "string") return action.text;
+    const rewritten = rewriteRichTextContent(
+      previous as RichTextDocument,
+      action.text,
+    );
+    if (!rewritten)
+      throw new ActionCompileError(
+        index,
+        action.kind,
+        "This text contains a formula or fraction; supply explicit RichText to replace it without losing its structure",
+      );
+    return rewritten;
+  };
   const reference = action.target.id ?? action.target.name ?? "";
   if (action.target.kind === "annotation") {
     const annotation = resolveByIdOrName(
@@ -1073,17 +1114,26 @@ function compileEditText(
           "bound labels can only be restyled with edit-text; change their underlying name or value through its owning object",
         );
       }
+      // A same-text string is content-only, not an explicit format override.
+      if (typeof action.text === "string") {
+        return;
+      }
       pushEdit(index, action.kind, {
         kind: "upsert_schematic_annotation",
         annotation: { ...source, formatOverride: nextText },
       });
       return;
     }
+    if (
+      typeof action.text === "string" &&
+      flattenRichText(_content as RichTextDocument) === action.text
+    )
+      return;
     pushEdit(index, action.kind, {
       kind: "upsert_schematic_annotation",
       annotation: {
         ...source,
-        content: nextText,
+        content: contentUpdate(_content),
       },
     });
     return;
@@ -1102,11 +1152,16 @@ function compileEditText(
       `drafting object "${drafting.id}" is a ${String(drafting.object.kind)}, not text`,
     );
   }
+  if (
+    typeof action.text === "string" &&
+    flattenRichText(drafting.object.content as RichTextDocument) === action.text
+  )
+    return;
   pushEdit(index, action.kind, {
     kind: "upsert_drafting_object",
     object: {
       ...drafting.object,
-      content: richText(action.text),
+      content: contentUpdate(drafting.object.content),
     },
   });
 }

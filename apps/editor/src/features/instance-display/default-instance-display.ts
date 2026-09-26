@@ -124,6 +124,12 @@ export function defaultInstanceDisplayAnnotations(
       instance,
       resolver,
       styleProfile,
+      // Only an explicitly value-only new projection occupies the first slot.
+      // Existing annotations and ordinary visibility toggles keep their layout.
+      options.showDesignator === false &&
+        !instanceLabelAnnotationFor(document, instance.id)
+        ? "reference"
+        : "value",
     );
     if (value) annotations.push(value);
   }

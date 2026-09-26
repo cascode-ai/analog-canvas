@@ -14,12 +14,94 @@ import {
   clickDrawTool,
   readComponentPropertyCode,
   setComponentParameter,
+  placeText,
 } from "./editor-fixtures.js";
 
 // The live-host cases open relay sockets and one test starts a sibling Vite
 // server. Keep this file in one worker while unrelated browser specs stay
 // fully parallel.
 test.describe.configure({ mode: "default" });
+
+test("Agent text editing preserves the GUI's effective font and native insertion defaults", async ({
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(90000);
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await placeText(page);
+  const input = page.getByRole("textbox", { name: "Canvas text editor" });
+  await input.fill("Bias branch");
+  await input.press("ControlOrMeta+A");
+  await page.getByRole("button", { name: "Italic", exact: true }).click();
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  await page.getByTestId("open-agent").click();
+  const panel = page.getByTestId("connect-agent-panel");
+  const message = panel.getByTestId("agent-copy-text");
+  await expect(message).toHaveValue(/Claim: /, { timeout: 45000 });
+  const { claimCode } = JSON.parse(
+    /^Claim: (.+)$/mu.exec(await message.inputValue())![1]!,
+  );
+  const client = new AgentSessionClient({
+    http: new AgentHttpClient({ baseUrl: baseURL! }),
+  });
+  await client.connect(claimCode);
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+  const initial = (await client.refreshSnapshot()).snapshot.document;
+  const note = initial.drafting.objects[0]!.object;
+  const glyphStyle = () =>
+    page
+      .locator(`[data-object-id="${note.id}"] tspan`)
+      .last()
+      .evaluate((node) => {
+        const style = getComputedStyle(node);
+        return {
+          weight: style.fontWeight,
+          italic: style.fontStyle,
+          size: style.fontSize,
+        };
+      });
+  expect(await glyphStyle()).toMatchObject({ weight: "700", italic: "italic" });
+  const beforeStyle = await glyphStyle();
+  const changed = await client.applyActions([
+    {
+      kind: "edit-text",
+      target: { kind: "drafting", id: note.id },
+      text: "Input branch",
+    },
+  ]);
+  expect(changed.ok, changed.message).toBe(true);
+  await expect(page.locator(`[data-object-id="${note.id}"]`)).toContainText(
+    "Input branch",
+  );
+  expect(await glyphStyle()).toEqual(beforeStyle);
+  const noOp = await client.applyActions([
+    {
+      kind: "edit-text",
+      target: { kind: "drafting", id: note.id },
+      text: "Input branch",
+    },
+  ]);
+  expect(noOp.ok, noOp.message).toBe(true);
+  expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+  expect(
+    (await client.refreshSnapshot()).snapshot.document.drafting.objects[0]!
+      .object,
+  ).toEqual(note);
+  const placed = await client.applyActions([
+    { kind: "annotate", position: { x: 200, y: 100 }, text: "Design note" },
+  ]);
+  expect(placed.ok, placed.message).toBe(true);
+  const newNote = (
+    await client.refreshSnapshot()
+  ).snapshot.document.drafting.objects.find(
+    (item) => item.object.id !== note.id,
+  )!.object;
+  expect(newNote).toMatchObject({
+    alignment: "middle",
+    typographyToken: "label",
+  });
+});
 
 async function controlledConnections(page: Page) {
   const creates: Route[] = [];

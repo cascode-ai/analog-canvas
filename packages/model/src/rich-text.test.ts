@@ -4,11 +4,57 @@ import {
   flattenRichText,
   normalizeRichText,
   rewriteRichTextPlainText,
+  rewriteRichTextContent,
 } from "./rich-text.js";
 import { RichTextDocumentSchema } from "./schema.js";
 import type { RichTextDocument } from "./schema.js";
 
 describe("canonical RichText helpers", () => {
+  it("replaces multiline prose without dropping spans or modifying its source", () => {
+    const original: RichTextDocument = {
+      runs: [
+        {
+          kind: "span",
+          style: "italic",
+          children: [
+            {
+              kind: "span",
+              style: "bold",
+              children: [{ kind: "text", value: "输入 A" }],
+            },
+          ],
+        },
+        { kind: "line-break" },
+        { kind: "text", value: "plain" },
+      ],
+    };
+    const before = structuredClone(original);
+    const updated = rewriteRichTextContent(original, "输入 B\nplain");
+    expect(updated).toEqual({
+      runs: [
+        {
+          kind: "span",
+          style: "italic",
+          children: [
+            {
+              kind: "span",
+              style: "bold",
+              children: [{ kind: "text", value: "输入 B" }],
+            },
+          ],
+        },
+        { kind: "line-break" },
+        { kind: "text", value: "plain" },
+      ],
+    });
+    expect(original).toEqual(before);
+    expect(rewriteRichTextContent(original, flattenRichText(original))).toBe(
+      original,
+    );
+    expect(rewriteRichTextContent(original, "")).toEqual({
+      runs: [{ kind: "line-break" }],
+    });
+  });
   it("normalizes nested spans and flattens retained formatting", () => {
     const content: RichTextDocument = {
       runs: [

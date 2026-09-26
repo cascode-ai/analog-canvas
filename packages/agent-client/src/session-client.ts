@@ -1468,6 +1468,37 @@ export class AgentSessionClient {
         },
       );
     }
+    if (compiled.length === 0) {
+      // Content-only no-ops must not create an undo entry. Check authority with
+      // the existing lightweight state read, not another full Snapshot/write.
+      const current = await this.documentState(entry.documentId, {
+        refresh: true,
+      });
+      if (
+        current.projectId !== entry.snapshot.project.id ||
+        current.revision !== entry.revision ||
+        current.structureRevision !== entry.snapshot.project.structureRevision
+      )
+        return {
+          ok: false,
+          stage: "compile",
+          code: "STATE_CHANGED",
+          revision: current.revision,
+          message: "Refresh the document before planning",
+        };
+      return {
+        ok: true,
+        stage: "done",
+        projectId: entry.snapshot.project.id,
+        documentId: entry.documentId,
+        revision: entry.revision,
+        applied: false,
+        transactions: 0,
+        changedObjectIds: [],
+        editKinds: [],
+        dryRun: options.dryRunOnly ?? false,
+      };
+    }
     if (compiled.length !== 1)
       return {
         ok: false,
