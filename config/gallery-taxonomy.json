@@ -216,12 +216,27 @@
     ]
   },
   "issueKinds": [
+    "global-vdd",
+    "undefined-component",
     "suspected-disconnection",
+    "missing-netlist",
     "unintended-diagonal",
     "overlap",
     "clipped-content",
     "unreadable-label",
     "incomplete-drawing",
     "other"
-  ]
+  ],
+  "issueKindLabels": {
+    "global-vdd": "Global VDD",
+    "undefined-component": "Undefined component",
+    "suspected-disconnection": "Wiring break",
+    "missing-netlist": "Component without netlist",
+    "unintended-diagonal": "Diagonal wire",
+    "overlap": "Overlap",
+    "clipped-content": "Clipped content",
+    "unreadable-label": "Unreadable label",
+    "incomplete-drawing": "Incomplete drawing",
+    "other": "Other"
+  }
 }

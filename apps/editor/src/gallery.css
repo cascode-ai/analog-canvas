@@ -582,6 +582,23 @@
   filter: brightness(1.05);
 }
 
+/* A search reads the wall page by page; this says how far it has read. */
+.gallery-search-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: 0 0 12px;
+  color: var(--icm-text-muted);
+  font-size: 13px;
+}
+
+.gallery-search-progress progress {
+  width: min(240px, 100%);
+  height: 6px;
+  accent-color: var(--icm-accent);
+}
+
 .gallery-status,
 .gallery-footnote {
   padding: 18px 22px;

@@ -3406,6 +3406,61 @@ test("draws a new subscript upright, lights the looks it has, and keeps one the 
   await expect(rendered).toHaveText("CLKE");
 });
 
+test("italic over a whole label slants its subscript too, and takes it off everywhere", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 280, y: 180 });
+  await placeComponent(page, "resistor", { x: 480, y: 180 });
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-R1-2").click();
+  await page.getByTestId("terminal-R2-1").click();
+  await page.keyboard.press("Escape");
+  await clickRoute(page, "route-ui-1", 0.5, 0);
+  await openSelectionShelf(page);
+  await editComponentPropertyCode(page, (code) => {
+    code.name = "CLKE";
+  });
+  const hit = page.getByTestId("annotation-hit-net-label-route-ui-1");
+  const rendered = page.locator('[data-object-id="net-label-route-ui-1"]');
+  const editor = page.getByRole("textbox", { name: "Canvas text editor" });
+  const italic = page.getByRole("button", { name: "Italic" });
+  const apply = page.getByRole("button", { name: "Apply text changes" });
+  const subscript = rendered.locator('[data-text-run="subscript"]');
+  await hit.dblclick();
+  await selectRichTextOffsets(editor, 3, 4);
+  await page.getByRole("button", { name: "Subscript" }).click();
+  await apply.click();
+  await expect(subscript).toHaveCSS("font-style", "normal");
+
+  // Bold italic CLK with an upright E is not italic throughout, so Italic
+  // over all of it slants the subscript as well.
+  await hit.dblclick();
+  await editor.press("ControlOrMeta+A");
+  await expect(italic).toHaveAttribute("aria-pressed", "false");
+  await italic.click();
+  await expect(italic).toHaveAttribute("aria-pressed", "true");
+  await apply.click();
+  await expect(subscript.locator('[data-text-run="span"]').first()).toHaveCSS(
+    "font-style",
+    "italic",
+  );
+
+  // Italic throughout, the same press takes it off every character.
+  await hit.dblclick();
+  await editor.press("ControlOrMeta+A");
+  await expect(italic).toHaveAttribute("aria-pressed", "true");
+  await italic.click();
+  await expect(italic).toHaveAttribute("aria-pressed", "false");
+  await apply.click();
+  await expect(subscript).toHaveCSS("font-style", "normal");
+  await expect(rendered.locator('[data-text-run="span"]').first()).toHaveCSS(
+    "font-style",
+    "normal",
+  );
+  await expect(rendered).toHaveText("CLKE");
+});
+
 test("keeps literal text line breaks and overbars visible while editing", async ({
   page,
 }) => {
@@ -6729,7 +6784,7 @@ test("keeps the chosen corner shape when the wire tool is picked again", async (
   expect(dx).not.toBe(dy);
 });
 
-test("Net Label overbars stay the label's look through source edits, undo and reload", async ({
+test("a Net Label drawn under an overbar names the complement Net, through undo and reload", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -6765,9 +6820,9 @@ test("Net Label overbars stay the label's look through source edits, undo and re
   await expect(label).toHaveText("F");
   const saved = await downloadBytes(page, "File", "Export Project File…");
   const document = parseSavedProject(saved.toString()).documents[0];
-  // The bar is how the label is drawn; the Net keeps its name F.
+  // An overbar over a Net Label means its complement: the Net is F_bar.
   expect(document.connectivityEvidence).toContainEqual(
-    expect.objectContaining({ kind: "name-claim", name: "F" }),
+    expect.objectContaining({ kind: "name-claim", name: "F_bar" }),
   );
   await page.getByTestId("draw-tool-undo").click();
   await expect(bar).toHaveCount(0);
@@ -6792,19 +6847,19 @@ test("Net Label overbars stay the label's look through source edits, undo and re
   )
     await page.getByTestId("netlist-panel-toggle").click();
   const code = page.getByLabel("Netlist code", { exact: true });
-  await expect(code).not.toContainText("F_bar");
+  await expect(code).toContainText("F_bar");
   await page
     .getByLabel("Netlist format", { exact: true })
     .selectOption("spice");
-  await expect(code).not.toContainText("F_bar");
+  await expect(code).toContainText("F_bar");
   await page
     .getByLabel("Netlist format", { exact: true })
     .selectOption("spectre");
   await clickRoute(page, "route-ui-1", 0.5, 0);
   await openSelectionShelf(page);
-  // Renaming keeps the author's bar on the new name.
+  // Renamed to another complement, the label keeps the author's bar.
   await editComponentPropertyCode(page, (code) => {
-    code.name = "Q";
+    code.name = "Q_bar";
   });
   await expect(label).toHaveText("Q");
   await expect(bar).toHaveCount(1);

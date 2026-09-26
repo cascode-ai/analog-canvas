@@ -238,7 +238,9 @@ choice is kept.
 A label without its own formatting, such as one in an older drawing, keeps
 its historical look: an underscore starts a subscript, so `M_1` is drawn as
 M₁, and a name ending in `_bar` is drawn with an overbar. The name itself
-keeps the underscore. Free text and explicit display aliases remain
+keeps the underscore. The other way round, putting an overbar over a Net or
+Cell Pin label names its complement: D with an overbar is `D_bar`, a signal
+apart from D. Free text and explicit display aliases remain
 presentation-only.
 
 Clear the selection and open **Properties** to change the current drawing's

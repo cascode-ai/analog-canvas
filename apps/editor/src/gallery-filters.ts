@@ -11,10 +11,22 @@
 
 export type GalleryView = "gallery" | "shelf";
 
+/**
+ * A reason as the link or storage spells it. The taxonomy stays out of this
+ * shared module; the Worker ignores a reason it does not know.
+ */
+function readReason(value: unknown): string | null {
+  return typeof value === "string" && /^[a-z][a-z-]{0,39}$/u.test(value)
+    ? value
+    : null;
+}
+
 export interface GalleryFilterState {
   /** Which wall: the community gallery, or the reader's own shelf. */
   view: GalleryView;
   attention: boolean;
+  /** One reason Needs attention narrows to; null for every reason. */
+  attentionKind: string | null;
   author: string | null;
   /** Stable identity for the selected author; null for legacy links/entries. */
   ownerUserId: string | null;
@@ -46,12 +58,14 @@ const NARROWING_PARAMS = [
   "netlist",
   "liked",
   "attention",
+  "reason",
 ] as const;
 
 export function createDefaultGalleryFilters(): GalleryFilterState {
   return {
     view: "gallery",
     attention: false,
+    attentionKind: null,
     author: null,
     ownerUserId: null,
     tags: [],
@@ -124,6 +138,10 @@ export function parseGalleryFilterQuery(search: string): {
       netlistable: params.get("netlist") === "1",
       liked: params.get("liked") === "1",
       attention: params.get("attention") === "1",
+      attentionKind:
+        params.get("attention") === "1"
+          ? readReason(params.get("reason"))
+          : null,
     },
     narrowed: NARROWING_PARAMS.some((name) => (params.get(name) ?? "") !== ""),
     namesView: params.has("view"),
@@ -154,6 +172,7 @@ export function galleryFilterSearch(
   // old links instead of preserving a parameter the Gallery no longer reads.
   params.delete("category");
   set("attention", filters.attention ? "1" : null);
+  set("reason", filters.attention ? filters.attentionKind : null);
   const query = params.toString();
   return query.length > 0 ? `?${query}` : "";
 }
@@ -189,6 +208,8 @@ export function parseStoredGalleryFilters(
     netlistable: record.netlistable === true,
     liked: record.liked === true,
     attention: record.attention === true,
+    attentionKind:
+      record.attention === true ? readReason(record.attentionKind) : null,
   };
 }
 

@@ -208,12 +208,34 @@ export function spliceVisibleEdit(
   ].join("");
 }
 
+/** Whether any character of a label is drawn under an overbar. */
+function carriesOverbar(
+  runs: readonly RichTextDocument["runs"][number][],
+  overbar = false,
+): boolean {
+  return runs.some((run) =>
+    run.kind === "span"
+      ? carriesOverbar(run.children, overbar || run.style === "overbar")
+      : run.kind === "text"
+        ? overbar && run.value.trim().length > 0
+        : run.kind === "fraction"
+          ? carriesOverbar(run.numerator.runs, overbar) ||
+            carriesOverbar(run.denominator.runs, overbar)
+          : false,
+  );
+}
+
 /**
  * The name an edited bound label now spells, for an Instance, Net or Cell
  * terminal alike. Changed characters rename exactly as typed: nothing is
  * inserted, removed or re-cased. A styling-only edit (subscript, slant,
- * overbar) never renames. Each owner still commits the name through its own
+ * weight) never renames. Each owner still commits the name through its own
  * electrical transaction boundary.
+ *
+ * An overbar over a signal's name is the one style that renames, because it
+ * means the complement: drawn over D it names D_bar, a signal apart from D,
+ * and taken off again it gives the plain name back. A device reference has
+ * no complement, so there it stays styling.
  */
 export function editedBoundAnnotationName(
   document: SchematicDocument,
@@ -222,10 +244,24 @@ export function editedBoundAnnotationName(
   currentName: string,
 ): string {
   if (!session.contentEdited) return currentName;
-  const before = flattenRichText(resolveAnnotationText(document, annotation));
+  const original = resolveAnnotationText(document, annotation);
+  const before = flattenRichText(original);
   const after = flattenRichText(session.content);
-  if (after === before) return currentName;
-  return spliceVisibleEdit(currentName, before, after).trim();
+  const name =
+    after === before
+      ? currentName
+      : spliceVisibleEdit(currentName, before, after).trim();
+  const signal =
+    annotation.binding?.kind === "net-name" ||
+    annotation.binding?.kind === "cell-terminal-name";
+  if (!signal) return name;
+  const wasComplement = carriesOverbar(original.runs);
+  const isComplement = carriesOverbar(session.content.runs);
+  if (isComplement && !wasComplement && !name.endsWith("_bar"))
+    return `${name}_bar`;
+  if (wasComplement && !isComplement && name.endsWith("_bar"))
+    return name.slice(0, -"_bar".length);
+  return name;
 }
 
 export function createTextEditingSession(

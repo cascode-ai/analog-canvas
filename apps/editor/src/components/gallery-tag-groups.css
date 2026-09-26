@@ -29,6 +29,23 @@
   font-weight: 600;
 }
 
+/* Under Needs attention: which reason the wall narrows to. */
+.gallery-attention-reason {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 4px 20px;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+}
+
+.gallery-attention-reason select {
+  min-width: 0;
+  flex: 1;
+  font: inherit;
+}
+
 .gallery-tag-group {
   margin-bottom: 4px;
 }

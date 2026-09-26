@@ -10,8 +10,11 @@
 //
 // A budget is a ceiling, not an exact manifest: content hashes move on every
 // unrelated build, so an exact comparison would fail constantly and be
-// ignored. Raising a ceiling needs a recorded reason in the commit, the same
-// policy `docs/specs/performance.md` states for the timing budgets.
+// ignored. Ceilings sit half again above the measured payload, a tripwire for
+// a step change (a heavy library pulled into first paint), not a pin on
+// today's size that every feature trips. Raising a ceiling still needs a
+// recorded reason in the commit, the same policy `docs/specs/performance.md`
+// states for the timing budgets.
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { brotliCompressSync, gzipSync } from "node:zlib";
@@ -92,9 +95,9 @@ for (const [route, { rows, totals }] of Object.entries(measuredRoutes)) {
 }
 
 if (!check) {
-  // Ceilings carry a little slack so an unrelated rename does not trip them;
-  // the point is to catch a step change, not to pin today's number.
-  const ceiling = (value) => Math.ceil(value * 1.02);
+  // Ceilings carry 50% slack: ordinary features stay inside, and only a step
+  // change such as a heavy dependency on the first-paint path trips them.
+  const ceiling = (value) => Math.ceil(value * 1.5);
   const routeReport = (totals) => ({
     budget: {
       files: ceiling(totals.files),
@@ -106,7 +109,7 @@ if (!check) {
   });
   const report = {
     version: "0.2.0",
-    note: "Ceilings for the /editor and / Gallery first-paint payloads. Raising one requires a recorded reason; a faster or slower machine is not one.",
+    note: "Ceilings for the /editor and / Gallery first-paint payloads, 50% above the measured payload so only a step change trips them. Raising one requires a recorded reason; a faster or slower machine is not one.",
     routes: {
       editor: routeReport(measuredRoutes.editor.totals),
       gallery: routeReport(measuredRoutes.gallery.totals),

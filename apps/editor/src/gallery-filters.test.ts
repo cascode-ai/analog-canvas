@@ -23,8 +23,46 @@ describe("gallery filter preferences", () => {
       netlistable: true,
       liked: true,
       attention: false,
+      attentionKind: null,
     });
     expect(narrowed).toBe(true);
+  });
+
+  it("carries one attention reason, and only under Needs attention", () => {
+    expect(
+      parseGalleryFilterQuery("?attention=1&reason=global-vdd").filters
+        .attentionKind,
+    ).toBe("global-vdd");
+    // A reason without Needs attention, or one no reason could spell, is
+    // dropped; the Worker ignores a well-formed reason it does not know.
+    expect(
+      parseGalleryFilterQuery("?reason=global-vdd").filters.attentionKind,
+    ).toBeNull();
+    expect(
+      parseGalleryFilterQuery("?attention=1&reason=Not%20a%20reason").filters
+        .attentionKind,
+    ).toBeNull();
+    const params = new URLSearchParams(
+      galleryFilterSearch("", {
+        ...createDefaultGalleryFilters(),
+        attention: true,
+        attentionKind: "suspected-disconnection",
+      }),
+    );
+    expect(params.get("reason")).toBe("suspected-disconnection");
+    expect(
+      new URLSearchParams(
+        galleryFilterSearch("?attention=1&reason=global-vdd", {
+          ...createDefaultGalleryFilters(),
+          attentionKind: "global-vdd",
+        }),
+      ).has("reason"),
+    ).toBe(false);
+    expect(
+      parseStoredGalleryFilters(
+        JSON.stringify({ attention: true, attentionKind: "global-vdd" }),
+      )?.attentionKind,
+    ).toBe("global-vdd");
   });
 
   it("treats a bare wall as no request at all", () => {
@@ -102,6 +140,7 @@ describe("gallery filter preferences", () => {
     expect(resolveGalleryFilters("", stored)).toEqual({
       view: "gallery",
       attention: false,
+      attentionKind: null,
       author: "alice",
       ownerUserId: "account-alice",
       tags: ["bias"],

@@ -6,6 +6,7 @@ import {
   loadGalleryTagSummary,
   primeGalleryPreview,
   subscribeGalleryRefresh,
+  withLoadedTail,
 } from "./gallery-client";
 
 class FakeBroadcastChannel {
@@ -154,5 +155,54 @@ describe("Gallery refresh notifications", () => {
       { entryId: "entry-2", previewRevision: "revision-6" },
     ]);
     unsubscribe();
+  });
+});
+
+describe("refreshing a loaded wall", () => {
+  const entry = (id: string, second: number) => ({
+    id,
+    name: id,
+    author: "tz",
+    description: "",
+    createdAt: `2026-09-20T00:00:${String(second).padStart(2, "0")}.000Z`,
+    schemaVersion: 1,
+  });
+  const cursor = (item: ReturnType<typeof entry>) =>
+    `${item.createdAt}|${item.id}`;
+
+  it("keeps the older pages it had loaded behind the new first page", () => {
+    const loaded = [entry("c", 50), entry("b", 40), entry("a", 30)];
+    // A new circuit arrived: the first page now ends one entry earlier.
+    const page = {
+      entries: [entry("new", 55), entry("c", 50)],
+      nextCursor: cursor(entry("c", 50)),
+      total: 4,
+    };
+    const merged = withLoadedTail({ entries: loaded, nextCursor: null }, page);
+    expect(merged.entries.map((item) => item.id)).toEqual([
+      "new",
+      "c",
+      "b",
+      "a",
+    ]);
+    expect(merged.nextCursor).toBeNull();
+    expect(merged.total).toBe(4);
+  });
+
+  it("answers with the page when nothing older was loaded or all fits", () => {
+    const page = {
+      entries: [entry("c", 50)],
+      nextCursor: cursor(entry("c", 50)),
+    };
+    expect(
+      withLoadedTail({ entries: [entry("c", 50)], nextCursor: "x" }, page),
+    ).toBe(page);
+    const whole = { entries: [entry("c", 50)], nextCursor: null };
+    expect(
+      withLoadedTail(
+        { entries: [entry("c", 50), entry("a", 30)], nextCursor: null },
+        whole,
+      ),
+    ).toBe(whole);
   });
 });

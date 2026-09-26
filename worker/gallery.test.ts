@@ -5564,6 +5564,107 @@ describe("Gallery visual curation", () => {
     expect((await update(env, mine, maker)).status).toBe(200);
     expect((await feed(maker, "?attention=1")).total).toBe(1);
   });
+  it("narrows Needs attention by reason and counts each reason", async () => {
+    const env = environment();
+    const admin = await adminOf(env);
+    const maker = await makerOf(env);
+    const other = await signIn(env.authDurable, "other@example.com");
+    const supply = await submitOne(env, "Global supply", { cookie: maker });
+    const broken = await submitOne(env, "Broken wire", { cookie: other });
+    const fixed = await submitOne(env, "Fixed overlap", { cookie: other });
+    const pending = (issues: { kind: string; detail: string }[]) => ({
+      attention: { status: "needs-attention", issues },
+    });
+    expect(
+      (
+        await update(
+          env,
+          supply,
+          admin,
+          pending([{ kind: "global-vdd", detail: ".global VDD" }]),
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await update(
+          env,
+          broken,
+          admin,
+          pending([
+            { kind: "suspected-disconnection", detail: "Gap at the output." },
+            { kind: "global-vdd", detail: ".global VDD" },
+          ]),
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await update(env, fixed, admin, {
+          attention: {
+            status: "resolved",
+            issues: [{ kind: "overlap", detail: "Labels overlapped." }],
+          },
+        })
+      ).status,
+    ).toBe(200);
+    const feed = async (cookie: string, query: string) =>
+      (await (
+        await route(
+          env,
+          new Request(`${ORIGIN}/api/gallery${query}`, {
+            headers: cookieHeaders(cookie),
+          }),
+        )
+      ).json()) as {
+        entries: { id: string }[];
+        total: number;
+        filterCounts: {
+          attention: number;
+          attentionKinds?: Record<string, number>;
+        };
+      };
+    // Each reason counts the entries still needing attention for it; a
+    // resolved finding counts for nothing.
+    const all = await feed(admin, "?attention=1");
+    expect(all.total).toBe(2);
+    expect(all.filterCounts.attentionKinds).toEqual({
+      "global-vdd": 2,
+      "suspected-disconnection": 1,
+    });
+    // Choosing a reason narrows the wall, not the reason counts beside it.
+    const wiring = await feed(
+      admin,
+      "?attention=1&reason=suspected-disconnection",
+    );
+    expect(wiring.entries.map((entry) => entry.id)).toEqual([broken]);
+    expect(wiring.filterCounts.attentionKinds).toEqual(
+      all.filterCounts.attentionKinds,
+    );
+    // An author counts only their own; an unknown reason narrows nothing.
+    expect(
+      (await feed(maker, "?attention=1")).filterCounts.attentionKinds,
+    ).toEqual({ "global-vdd": 1 });
+    expect((await feed(admin, "?attention=1&reason=nonsense")).total).toBe(2);
+    expect((await feed(admin, "")).filterCounts.attentionKinds).toBeUndefined();
+    // The tag counts beside the wall follow the reason too.
+    const tagCount = async (query: string) => {
+      const { tags } = (await (
+        await route(
+          env,
+          new Request(`${ORIGIN}/api/gallery/tags${query}`, {
+            headers: cookieHeaders(admin),
+          }),
+        )
+      ).json()) as { tags: { tag: string; count: number }[] };
+      return tags.find((item) => item.tag === "ota")?.count ?? 0;
+    };
+    expect(await tagCount("?attention=1")).toBe(2);
+    expect(await tagCount("?attention=1&reason=suspected-disconnection")).toBe(
+      1,
+    );
+  });
+
   it("rejects outdated reviews and invalid attention without changing metadata", async () => {
     const env = environment();
     const cookie = await adminOf(env);

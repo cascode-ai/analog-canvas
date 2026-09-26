@@ -3346,6 +3346,14 @@ test("a signed-in member publishes directly, bylined by the account", async ({
   await expect(page.getByTestId("status")).toHaveText(
     'Published "Session Publish" to the gallery',
   );
+  // A publish says it landed where it cannot be missed, with the way there.
+  const notice = page.getByTestId("gallery-published-notice");
+  await expect(notice).toContainText(
+    "Published “Session Publish” to the Gallery",
+  );
+  await expect(
+    notice.getByRole("link", { name: "View in Gallery" }),
+  ).toHaveAttribute("href", /^\/g\//u);
   expect(posted).toEqual([
     {
       authorization: null,
@@ -3374,6 +3382,9 @@ test("a signed-in member publishes directly, bylined by the account", async ({
     .click();
   await expect(page.getByTestId("status")).toHaveText(
     'Updated "Session Publish" in the gallery',
+  );
+  await expect(page.getByTestId("gallery-published-notice")).toContainText(
+    "Updated “Session Publish” in the Gallery",
   );
   expect(posted).toHaveLength(1);
   expect(updated).toEqual([{ name: "Session Publish", instanceCount: 1 }]);
@@ -4604,6 +4615,189 @@ test("authors can filter pending visual reviews and resolve their own drawing", 
   await expect(page.getByTestId("gallery-attention-review-me")).toContainText(
     "Reviewed · resolved",
   );
+});
+
+test("a search keeps what it found when the window comes back into focus", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "reader-1",
+          displayName: "Reader",
+          email: "reader@example.com",
+          provider: "github",
+          isAdmin: false,
+          role: "user",
+        },
+      },
+    }),
+  );
+  // Newest first, as the server orders them: a full first page, one more.
+  const at = (index: number) =>
+    new Date(Date.UTC(2026, 8, 20, 0, 0, 60 - index)).toISOString();
+  const firstPage = Array.from({ length: 30 }, (_, index) => ({
+    ...ENTRY,
+    id: index === 3 ? "bandgap-new" : `clock-${index}`,
+    name: index === 3 ? "Bandgap reference" : `Clock ${index}`,
+    createdAt: at(index),
+  }));
+  const older = {
+    ...ENTRY,
+    id: "bandgap-old",
+    name: "Bandgap core",
+    createdAt: at(40),
+  };
+  const last = firstPage.at(-1)!;
+  let firstPages = 0;
+  let holdOlder = false;
+  await page.route("**/api/gallery**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/gallery/tags")
+      return route.fulfill({ json: { tags: [] } });
+    if (url.pathname.endsWith("/preview.svg"))
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"/>',
+      });
+    if (url.pathname !== "/api/gallery") return route.fallback();
+    if (url.searchParams.has("cursor")) {
+      // After the refresh, the older page answers slowly: a wall that
+      // dropped it would show one match for all that time.
+      if (holdOlder) await new Promise((resolve) => setTimeout(resolve, 4000));
+      return route.fulfill({
+        json: { entries: [older], total: 31, nextCursor: null },
+      });
+    }
+    firstPages += 1;
+    return route.fulfill({
+      json: {
+        entries: firstPage,
+        total: 31,
+        nextCursor: `${last.createdAt}|${last.id}`,
+      },
+    });
+  });
+  await page.goto("/");
+  await page.getByTestId("gallery-search").fill("bandgap");
+  const progress = page.getByTestId("gallery-search-progress");
+  await expect(progress).toHaveText("Searched all 31 circuits · 2 matches");
+  await expect(page.getByTestId("gallery-tile-bandgap-old")).toBeVisible();
+  const before = firstPages;
+  holdOlder = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect.poll(() => firstPages).toBe(before + 1);
+  // The refreshed newest page leaves the older one it had already read.
+  await expect(page.getByTestId("gallery-tile-bandgap-old")).toBeVisible({
+    timeout: 1000,
+  });
+  await expect(page.getByTestId("gallery-tile-bandgap-new")).toBeVisible();
+  await expect(progress).toHaveText("Searched all 31 circuits · 2 matches");
+});
+
+test("administrators narrow Needs attention to one reason", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "admin-1",
+          displayName: "Admin",
+          email: "admin@example.com",
+          provider: "github",
+          isAdmin: true,
+          role: "admin",
+        },
+      },
+    }),
+  );
+  const pending = (id: string, kinds: [string, string][]) => ({
+    ...ENTRY,
+    id,
+    ownerUserId: "someone",
+    tags: ["amplifier"],
+    curationRevision: 1,
+    attention: {
+      status: "needs-attention",
+      issues: kinds.map(([kind, detail]) => ({ kind, detail })),
+    },
+    assessedPreviewRevision: ENTRY.previewRevision,
+  });
+  const entries = [
+    pending("supply-only", [["global-vdd", ".global VDD in the netlist"]]),
+    pending("broken-wire", [
+      ["suspected-disconnection", "Gap between OUT and its wire."],
+      ["global-vdd", ".global VDD in the netlist"],
+    ]),
+  ];
+  const reasons: (string | null)[] = [];
+  await page.route("**/api/gallery**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/gallery/tags")
+      return route.fulfill({
+        json: { tags: [{ tag: "amplifier", count: 2 }] },
+      });
+    if (url.pathname === "/api/gallery") {
+      const reason = url.searchParams.get("reason");
+      if (url.searchParams.get("attention") === "1") reasons.push(reason);
+      const shown = entries.filter(
+        (entry) =>
+          !reason || entry.attention.issues.some((i) => i.kind === reason),
+      );
+      return route.fulfill({
+        json: {
+          entries: shown,
+          nextCursor: null,
+          total: shown.length,
+          filterCounts: {
+            attention: shown.length,
+            netlistable: 0,
+            liked: 0,
+            ...(url.searchParams.get("attention") === "1"
+              ? {
+                  attentionKinds: {
+                    "global-vdd": 2,
+                    "suspected-disconnection": 1,
+                  },
+                }
+              : {}),
+          },
+        },
+      });
+    }
+    if (url.pathname.endsWith("/preview.svg"))
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"/>',
+      });
+    return route.fallback();
+  });
+  await page.goto("/");
+  const reason = page.getByTestId("gallery-filter-attention-reason");
+  await expect(reason).toHaveCount(0);
+  await page.getByTestId("gallery-filter-attention").click();
+  // Each reason with something pending, with how many entries carry it.
+  await expect(reason.locator("option")).toHaveText([
+    "Every reason",
+    "Global VDD (2)",
+    "Wiring break (1)",
+  ]);
+  await reason.selectOption("suspected-disconnection");
+  await expect(page).toHaveURL(/reason=suspected-disconnection/);
+  await expect(page.getByTestId("gallery-tile-broken-wire")).toBeVisible();
+  await expect(page.getByTestId("gallery-tile-supply-only")).toHaveCount(0);
+  expect(reasons.at(-1)).toBe("suspected-disconnection");
+  // The review lists every finding under its reason.
+  const review = page.getByTestId("gallery-attention-broken-wire");
+  await review.locator("summary").click();
+  await expect(review).toContainText("Wiring break · Gap between OUT");
+  await expect(review).toContainText("Global VDD · .global VDD");
+  // Leaving Needs attention forgets the reason.
+  await page.getByTestId("gallery-filter-attention").click();
+  await expect(reason).toHaveCount(0);
+  await expect(page).not.toHaveURL(/reason=/);
 });
 
 for (const scenario of [

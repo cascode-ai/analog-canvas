@@ -4,12 +4,18 @@ import type { GalleryFeedEntry } from "../gallery-client";
 /** Private curation controls: only rendered for the author or an administrator. */
 export function GalleryAttentionReview({
   entry,
+  reasons,
   onChange,
 }: {
   entry: GalleryFeedEntry;
+  /** Every reason with its name, in the Gallery's order. */
+  reasons: readonly { kind: string; label: string }[];
   onChange: (entry: GalleryFeedEntry) => void;
 }) {
+  const labelOf = (kind: string) =>
+    reasons.find((reason) => reason.kind === kind)?.label ?? kind;
   const [note, setNote] = useState("");
+  const [kind, setKind] = useState("other");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const pending = entry.attention?.status === "needs-attention";
@@ -20,10 +26,7 @@ export function GalleryAttentionReview({
     setBusy(true);
     setError("");
     const issues = note.trim()
-      ? [
-          ...(entry.attention?.issues ?? []),
-          { kind: "other", detail: note.trim() },
-        ]
+      ? [...(entry.attention?.issues ?? []), { kind, detail: note.trim() }]
       : (entry.attention?.issues ?? []);
     try {
       const response = await fetch(`/api/gallery/${entry.id}/curation`, {
@@ -77,12 +80,27 @@ export function GalleryAttentionReview({
       {entry.attention?.issues.length ? (
         <ul>
           {entry.attention.issues.map((issue, index) => (
-            <li key={index}>{issue.detail}</li>
+            <li key={index}>
+              <strong>{labelOf(issue.kind)}</strong> · {issue.detail}
+            </li>
           ))}
         </ul>
       ) : (
-        <p>Flag a visible drawing problem for the author and administrators.</p>
+        <p>
+          Flag a drawing or netlist problem for the author and administrators.
+        </p>
       )}
+      <select
+        aria-label="Reason"
+        value={kind}
+        onChange={(event) => setKind(event.currentTarget.value)}
+      >
+        {reasons.map((reason) => (
+          <option key={reason.kind} value={reason.kind}>
+            {reason.label}
+          </option>
+        ))}
+      </select>
       <textarea
         aria-label="Review note"
         placeholder="Describe the problem and its location…"

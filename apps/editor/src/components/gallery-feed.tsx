@@ -23,6 +23,7 @@ import {
   type GalleryFeedState,
   type GalleryTagOption,
   type GalleryLandingPreload,
+  withLoadedTail,
 } from "../gallery-client";
 import {
   GALLERY_FILTERS_KEY,
@@ -34,6 +35,10 @@ import {
 } from "../gallery-filters";
 import type { BundledGalleryTile } from "./gallery-bundled-fallback";
 import { galleryTagLabel } from "../gallery-tag-label";
+import {
+  GALLERY_ISSUE_KINDS,
+  galleryIssueKindLabel,
+} from "../gallery-issue-kinds";
 
 // The wall and the canvas-side panel share one data layer, so a search that
 // finds a circuit here finds it there too. These re-exports keep every
@@ -196,6 +201,42 @@ function GalleryContributorRow({
   );
 }
 
+/**
+ * A search reads the wall page by page in this browser; this says how far it
+ * has read, so a short list is never mistaken for the answer.
+ */
+function GallerySearchProgress({
+  checked,
+  total,
+  matches,
+  settled,
+}: {
+  checked: number;
+  total: number | null;
+  matches: number;
+  settled: boolean;
+}) {
+  const of = total ?? checked;
+  const found = `${matches.toLocaleString()} ${matches === 1 ? "match" : "matches"}`;
+  return (
+    <div
+      className="gallery-search-progress"
+      role="status"
+      data-testid="gallery-search-progress"
+      data-settled={settled}
+    >
+      <span>
+        {settled
+          ? `Searched all ${of.toLocaleString()} circuits · ${found}`
+          : `Searching… ${checked.toLocaleString()} / ${of.toLocaleString()} circuits checked · ${found} so far`}
+      </span>
+      {settled ? null : (
+        <progress value={checked} max={Math.max(of, checked, 1)} />
+      )}
+    </div>
+  );
+}
+
 export function GalleryCountPanel({
   total,
   filtered = false,
@@ -301,6 +342,40 @@ export function canReuseGalleryLandingFeed(
   );
 }
 
+/** Every attention reason with its name, for the lazy review card. */
+const GALLERY_ATTENTION_REASONS = GALLERY_ISSUE_KINDS.map((kind) => ({
+  kind,
+  label: galleryIssueKindLabel(kind),
+}));
+
+/** Entries still needing attention, per reason they carry. */
+function countAttentionKinds(
+  entries: readonly GalleryFeedEntry[],
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const entry of entries) {
+    if (entry.attention?.status !== "needs-attention") continue;
+    for (const kind of new Set(entry.attention.issues.map((i) => i.kind)))
+      counts[kind] = (counts[kind] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/** The reason counts once one entry has left the wall. */
+function attentionKindsWithout(
+  counts: Record<string, number> | undefined,
+  entry: GalleryFeedEntry,
+  removed: boolean,
+): { attentionKinds?: Record<string, number> } {
+  if (!counts) return {};
+  if (!removed || entry.attention?.status !== "needs-attention")
+    return { attentionKinds: counts };
+  const next = { ...counts };
+  for (const kind of new Set(entry.attention.issues.map((i) => i.kind)))
+    if (next[kind]) next[kind] -= 1;
+  return { attentionKinds: next };
+}
+
 /** One feed page; the plain first request stays exactly `/api/gallery`. */
 /**
  * Full-screen landing feed: every tile is one published circuit that opens
@@ -340,6 +415,7 @@ export function GalleryFeed({
     netlistable: netlistableOnly,
     liked: likedOnly,
     attention: attentionOnly,
+    attentionKind,
   } = filters;
   function updateFilters(patch: Partial<GalleryFilterState>): void {
     setFilters((previous) => ({ ...previous, ...patch }));
@@ -365,6 +441,7 @@ export function GalleryFeed({
     netlistable: netlistableOnly,
     liked: likedOnly,
     attention: attentionOnly,
+    attentionKind,
   });
   const [refreshSignal, setRefreshSignal] = useState(0);
   // A like taken back under Liked removes its drawing from the wall without
@@ -432,6 +509,7 @@ export function GalleryFeed({
       netlistable: netlistableOnly,
       liked: likedOnly,
       attention: attentionOnly,
+      attentionKind,
     });
     const request =
       refreshSignal === 0 &&
@@ -443,6 +521,7 @@ export function GalleryFeed({
             netlistable: netlistableOnly,
             liked: likedOnly,
             attention: attentionOnly,
+            attentionKind,
           });
     void request.then((payload) => {
       if (!cancelled) {
@@ -465,6 +544,7 @@ export function GalleryFeed({
     netlistableOnly,
     likedOnly,
     attentionOnly,
+    attentionKind,
   ]);
   const [state, setState] = useState<GalleryFeedState>({
     status: "loading",
@@ -566,6 +646,11 @@ export function GalleryFeed({
                   previous.filterCounts.liked +
                   Number(liked) -
                   Number(entry.likedByViewer === true),
+                ...attentionKindsWithout(
+                  previous.filterCounts.attentionKinds,
+                  entry,
+                  removed,
+                ),
               },
             }
           : {}),
@@ -589,6 +674,7 @@ export function GalleryFeed({
       netlistableOnly ? "netlist" : "",
       likedOnly ? "liked" : "",
       attentionOnly ? "attention" : "",
+      attentionOnly ? (attentionKind ?? "") : "",
     ].join("\u0000");
     const changingQuery = loadedQueryRef.current !== queryKey;
     if (changingQuery) {
@@ -617,6 +703,7 @@ export function GalleryFeed({
             netlistable: netlistableOnly,
             liked: likedOnly,
             attention: attentionOnly,
+            attentionKind,
           });
     void request.then((page) => {
       if (cancelled || generation !== feedGenerationRef.current) return;
@@ -631,7 +718,22 @@ export function GalleryFeed({
         });
       } else if (page) {
         loadedQueryRef.current = queryKey;
-        setState({ status: "ready", ...page });
+        // The same wall refreshed (the window came back into focus, another
+        // tab published) keeps the older pages it had loaded.
+        setState((previous) =>
+          !changingQuery && previous.status === "ready"
+            ? {
+                status: "ready",
+                ...withLoadedTail(
+                  {
+                    entries: previous.entries,
+                    nextCursor: previous.nextCursor,
+                  },
+                  page,
+                ),
+              }
+            : { status: "ready", ...page },
+        );
       } else if (changingQuery) {
         loadedQueryRef.current = queryKey;
         setState({
@@ -652,6 +754,7 @@ export function GalleryFeed({
     netlistableOnly,
     likedOnly,
     attentionOnly,
+    attentionKind,
     preload,
     refreshSignal,
   ]);
@@ -677,6 +780,7 @@ export function GalleryFeed({
         netlistable: netlistableOnly,
         liked: likedOnly,
         attention: attentionOnly,
+        attentionKind,
         cursor: nextCursor,
       }).then((page) => {
         if (generation !== feedGenerationRef.current) return;
@@ -718,6 +822,7 @@ export function GalleryFeed({
     netlistableOnly,
     likedOnly,
     attentionOnly,
+    attentionKind,
   ]);
 
   function selectAuthor(
@@ -765,6 +870,11 @@ export function GalleryFeed({
               liked:
                 previous.filterCounts.liked -
                 Number(entry.likedByViewer === true),
+              ...attentionKindsWithout(
+                previous.filterCounts.attentionKinds,
+                entry,
+                true,
+              ),
             },
           }
         : {}),
@@ -877,7 +987,11 @@ export function GalleryFeed({
       }
     : state.filterCounts!;
   const quickCountsPartial = localQuickCounts && state.nextCursor !== null;
-  const quickCount = (key: keyof typeof quickCounts) => (
+  // The reason menu counts the same wall the Needs attention count does.
+  const attentionKindCounts: Record<string, number> = localQuickCounts
+    ? countAttentionKinds(visibleEntries)
+    : (state.filterCounts?.attentionKinds ?? {});
+  const quickCount = (key: "attention" | "netlistable" | "liked") => (
     <span
       className="gallery-sidebar-count"
       title={
@@ -997,7 +1111,12 @@ export function GalleryFeed({
                     type="button"
                     className="gallery-sidebar-option"
                     aria-pressed={attentionOnly}
-                    onClick={() => updateFilters({ attention: !attentionOnly })}
+                    onClick={() =>
+                      updateFilters({
+                        attention: !attentionOnly,
+                        attentionKind: null,
+                      })
+                    }
                     data-testid="gallery-filter-attention"
                   >
                     <span>
@@ -1005,6 +1124,32 @@ export function GalleryFeed({
                     </span>
                     {quickCount("attention")}
                   </button>
+                ) : null}
+                {attentionOnly ? (
+                  <label className="gallery-attention-reason">
+                    <span>Reason</span>
+                    <select
+                      value={attentionKind ?? ""}
+                      onChange={(event) =>
+                        updateFilters({
+                          attentionKind: event.currentTarget.value || null,
+                        })
+                      }
+                      data-testid="gallery-filter-attention-reason"
+                    >
+                      <option value="">Every reason</option>
+                      {GALLERY_ISSUE_KINDS.filter(
+                        (kind) =>
+                          kind === attentionKind ||
+                          (attentionKindCounts[kind] ?? 0) > 0,
+                      ).map((kind) => (
+                        <option key={kind} value={kind}>
+                          {galleryIssueKindLabel(kind)} (
+                          {(attentionKindCounts[kind] ?? 0).toLocaleString()})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 ) : null}
                 <button
                   type="button"
@@ -1093,6 +1238,14 @@ export function GalleryFeed({
               </p>
             ) : (
               <section className="gallery-wall">
+                {normalizedSearchQuery && state.status === "ready" ? (
+                  <GallerySearchProgress
+                    checked={entries.length}
+                    total={state.total}
+                    matches={visibleEntries.length}
+                    settled={state.nextCursor === null}
+                  />
+                ) : null}
                 <Masonry
                   aria-label="Published circuits"
                   items={[
@@ -1232,6 +1385,7 @@ export function GalleryFeed({
                             <Suspense fallback={null}>
                               <GalleryAttentionReview
                                 entry={entry}
+                                reasons={GALLERY_ATTENTION_REASONS}
                                 onChange={(updated) => {
                                   setState((previous) => ({
                                     ...previous,

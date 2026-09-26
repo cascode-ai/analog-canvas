@@ -135,7 +135,7 @@ asks the AuthDO once.
   external device pin mappings; unknown black-box targets remain distinct.
   The administrator's stricter netlist duplicate contract is unchanged.
 
-## Classification and visual attention
+## Classification and attention
 
 [The taxonomy](../../config/gallery-taxonomy.json) defines one tag vocabulary
 covering circuit function, topology, implementation and architecture. A circuit
@@ -145,16 +145,27 @@ tags remain browsable. Visual group headings organize the tag list but are not
 a second filtering system. Tag search and multi-selection live in the resizable
 left sidebar; its preferred width is local to the browser.
 
-Visual attention is independent of publication status and netlist extraction.
-A suspected gap, unintended diagonal, overlap, clipping, unreadable label or
-incomplete drawing may be flagged with a location-specific explanation. A
-textbook abstraction, intentional open port or missing simulation model alone
-is not a drawing defect. Visual review does not certify electrical correctness.
+Attention is independent of publication status. Each finding carries one
+reason from the taxonomy's `issueKinds` and explains where it is. The netlist
+reasons are a global VDD (the netlist declares `.global VDD` instead of the Cell
+exposing its supply as a Pin), an undefined component (a part the netlist has no
+definition for) and a component without netlist (a block with no circuit
+inside it). The drawing reasons are a wiring break (a suspected gap), an
+unintended diagonal, an overlap, clipping, an unreadable label and an
+incomplete drawing; anything else is `other`. A textbook abstraction,
+intentional open port or missing simulation model alone is not a defect.
+Review does not certify electrical correctness.
 
 `attention=1` requires a session. Authors receive only their own pending entries;
-administrators receive all pending entries. Attention details on both the feed
+administrators receive all pending entries. Under it, `reason=<kind>` narrows
+the wall to the entries with a pending finding of that reason, and the tag
+counts follow. The list's `filterCounts.attentionKinds` counts the pending
+entries per reason over the wall with every other filter applied, so the
+Gallery's reason menu shows each reason with how many entries carry it. An
+unknown reason narrows nothing. Attention details on both the feed
 and individual entries are omitted for everyone else. The author/admin card
-allows adding a note, marking the finding resolved and reopening it. None of
+lists each finding under its reason and allows adding a note with a reason,
+marking the findings resolved and reopening them. None of
 these actions unpublishes the circuit or changes its Project, name, owner,
 likes, preview, or visitor statistics.
 
