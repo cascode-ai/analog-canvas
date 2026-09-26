@@ -6,14 +6,14 @@
       "budget": {
         "files": 36,
         "rawKib": 2745,
-        "gzipKib": 692,
-        "brotliKib": 579
+        "gzipKib": 700,
+        "brotliKib": 588
       },
       "measured": {
-        "files": 36,
-        "rawKib": 2737.4,
-        "gzipKib": 689,
-        "brotliKib": 577.2
+        "files": 34,
+        "rawKib": 2579.8,
+        "gzipKib": 697.3,
+        "brotliKib": 585
       }
     },
     "gallery": {

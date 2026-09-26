@@ -182,7 +182,8 @@
                           "discard",
                           "request-approval",
                           "open",
-                          "simulation-input"
+                          "simulation-input",
+                          "import-cell"
                         ]
                       }
                     },
