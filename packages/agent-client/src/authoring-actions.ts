@@ -119,19 +119,19 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("place-component"),
     /** Reviewed built-in Razavi symbol ID from the authoring catalog. */
     symbol: z.string().min(1),
-    /** Required for devices; omit for ground and VDD power markers. */
+    /** Required for devices/Ports; VDD defaults to VDD as a formal Port name. Omit for ground. */
     reference: z.string().min(1).max(128).optional(),
     position: PointInputSchema,
     rotation: RotationInputSchema.optional(),
     mirror: MirrorInputSchema.optional(),
     variant: z.string().min(1).optional(),
     parameters: z.record(z.string().min(1), z.string().min(1)).optional(),
-  }),
-  z.strictObject({
-    /** Named VDD rail primitive (`add_power_rail`), never a `vdd` symbol. */
-    kind: z.literal("add-power-rail"),
-    start: PointInputSchema,
-    end: PointInputSchema,
+    direction: z
+      .enum(["input", "output", "inout", "passive"])
+      .optional()
+      .describe(
+        "Cell interface markers only; VDD defaults to inout, ordinary Port to passive.",
+      ),
   }),
   z.strictObject({
     kind: z.literal("connect"),

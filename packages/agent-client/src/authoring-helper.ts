@@ -376,7 +376,9 @@ export function compileActions(
       last.editActionIndices &&
       last.edits.length < maxEdits &&
       (kind === "place-component") ===
-        last.actionKinds.every((item) => item === "place-component")
+        last.actionKinds.every((item) => item === "place-component") &&
+      (kind === "delete") ===
+        last.actionKinds.every((item) => item === "delete")
     ) {
       return {
         edits: last.edits,
@@ -436,6 +438,10 @@ export function compileActions(
   parsed.data.forEach((action, index) => {
     switch (action.kind) {
       case "set-model":
+      case "set-port-direction":
+      case "set-vdd-mode":
+      case "delete-selection":
+      case "add-power-rail":
       case "move-annotation":
       case "batch":
       case "place-components":
@@ -471,9 +477,6 @@ export function compileActions(
         break;
       case "place-component":
         compilePlaceComponent(index, action, document, allocateId, pushEdit);
-        break;
-      case "add-power-rail":
-        compileAddPowerRail(index, action, document, allocateId, pushEdit);
         break;
       case "connect":
         compileConnect(index, action, document, allocateId, pushWireIntent);
@@ -691,6 +694,37 @@ export function compileActions(
     .map((transaction): CompiledTransaction => {
       if (
         transaction.form === "edits" &&
+        transaction.actionKinds.every((kind) => kind === "delete") &&
+        transaction.edits?.length &&
+        transaction.edits.every((edit) => edit.kind !== "remove_no_connect")
+      ) {
+        const selection = {
+          instanceIds: [] as string[],
+          routeIds: [] as string[],
+          junctionIds: [] as string[],
+          annotationIds: [] as string[],
+          draftingIds: [] as string[],
+        };
+        for (const edit of transaction.edits) {
+          if (edit.kind === "remove_instance")
+            selection.instanceIds.push(edit.instanceId);
+          if (edit.kind === "cut_connection")
+            selection.routeIds.push(edit.routeId);
+          if (edit.kind === "remove_junction")
+            selection.junctionIds.push(edit.junctionId);
+          if (edit.kind === "remove_schematic_annotation")
+            selection.annotationIds.push(edit.annotationId);
+          if (edit.kind === "remove_drafting_object")
+            selection.draftingIds.push(edit.objectId);
+        }
+        return {
+          form: "command",
+          command: { kind: "delete-selection", selection },
+          actionKinds: transaction.actionKinds,
+        };
+      }
+      if (
+        transaction.form === "edits" &&
         transaction.edits &&
         transaction.edits.length > 0 &&
         transaction.actionKinds.every((kind) => kind === "place-component")
@@ -701,6 +735,17 @@ export function compileActions(
             kind: "place-components",
             instances: transaction.edits.flatMap((edit) =>
               edit.kind === "add_instance" ? [edit.instance] : [],
+            ),
+            terminalDirections: Object.fromEntries(
+              transaction.edits.flatMap((edit, index) => {
+                const source =
+                  parsed.data[transaction.editActionIndices![index]!];
+                return edit.kind === "add_instance" &&
+                  source?.kind === "place-component" &&
+                  source.direction
+                  ? [[edit.instance.id, source.direction]]
+                  : [];
+              }),
             ),
           },
           actionKinds: transaction.actionKinds,
@@ -746,9 +791,19 @@ function compilePlaceComponent(
       `"${action.symbol}" is not in the reviewed built-in catalog; a custom, imported, or PDK symbol is a human-fact boundary (see analog-canvas://reference/authoring)`,
     );
   }
-  const powerMarker =
-    action.symbol === "ground" || action.symbol === "vdd-port";
-  if (powerMarker ? action.reference !== undefined : !action.reference) {
+  const powerMarker = action.symbol === "ground";
+  const cellPin = ["port", "port-filled", "vdd-port"].includes(action.symbol);
+  if (action.direction && !cellPin)
+    throw new ActionCompileError(
+      index,
+      action.kind,
+      "direction is only valid for Cell interface markers",
+    );
+  if (
+    powerMarker
+      ? action.reference !== undefined
+      : !action.reference && action.symbol !== "vdd-port"
+  ) {
     throw new ActionCompileError(
       index,
       action.kind,
@@ -758,6 +813,7 @@ function compilePlaceComponent(
     );
   }
   if (
+    !cellPin &&
     action.reference !== undefined &&
     document.instances.some(
       (instance) => instance.reference === action.reference,
@@ -775,7 +831,8 @@ function compilePlaceComponent(
     instance: {
       id: allocateId("instance"),
       symbolId: action.symbol,
-      reference: action.reference,
+      reference:
+        action.reference ?? (action.symbol === "vdd-port" ? "VDD" : undefined),
       ...(variant ? { symbolVariantId: variant } : {}),
       placement: {
         position: action.position,
@@ -786,42 +843,6 @@ function compilePlaceComponent(
         ? { netlist: { parameters: action.parameters ?? {} } }
         : {}),
     },
-  });
-}
-
-function compileAddPowerRail(
-  index: number,
-  action: ActionOfKind<"add-power-rail">,
-  document: ResolvedDocument,
-  allocateId: AllocateId,
-  pushEdit: PushEdit,
-): void {
-  const horizontal =
-    action.start.y === action.end.y && action.start.x !== action.end.x;
-  const vertical =
-    action.start.x === action.end.x && action.start.y !== action.end.y;
-  if (!horizontal && !vertical) {
-    throw new ActionCompileError(
-      index,
-      action.kind,
-      "a Power Rail must be one non-zero horizontal or vertical segment",
-    );
-  }
-  const supplyNet = document.nets.find(
-    (net) => net.name?.toLocaleLowerCase("en-US") === "vdd",
-  );
-  pushEdit(index, action.kind, {
-    kind: "add_power_rail",
-    netId: supplyNet ? supplyNet.id : allocateId("net"),
-    routeId: allocateId("route"),
-    startJunctionId: allocateId("junction"),
-    endJunctionId: allocateId("junction"),
-    labelId: allocateId("label"),
-    netName: supplyNet?.name ?? "VDD",
-    scope: supplyNet?.scope ?? "global",
-    powerDomain: "vdd",
-    start: action.start,
-    end: action.end,
   });
 }
 

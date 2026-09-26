@@ -6,6 +6,7 @@ import {
   AgentGeometrySnapshotResponseSchema,
   AgentPinsSnapshotResponseSchema,
   AgentAuthoringCommandSchema,
+  isBatchableAuthoringCommand,
   AgentCapabilitiesResponseSchema,
   AgentRenderResponseSchema,
   AgentTransactionPayloadSchema,
@@ -158,12 +159,6 @@ function baseRequest(requestId: string): {
 } {
   return { apiVersion: AGENT_API_VERSION, requestId };
 }
-
-const BATCHABLE_COMMAND_KINDS = new Set([
-  "set-net-label",
-  "set-model",
-  "move-annotation",
-]);
 
 /**
  * Unified Agent-side Helper (Agent rationale). Owns claim/resume, token and session
@@ -1399,7 +1394,7 @@ export class AgentSessionClient {
     if (
       direct.length > 1 &&
       direct.length <= 64 &&
-      direct.every((action) => BATCHABLE_COMMAND_KINDS.has(action.kind))
+      direct.every(isBatchableAuthoringCommand)
     ) {
       const revision = await this.revisionFor(options.documentId);
       return this.submitTransaction(
@@ -1448,9 +1443,7 @@ export class AgentSessionClient {
     const batchCommands = compiled.flatMap((item) =>
       item.form === "command" &&
       item.command &&
-      (item.command.kind === "set-net-label" ||
-        item.command.kind === "set-model" ||
-        item.command.kind === "move-annotation")
+      isBatchableAuthoringCommand(item.command)
         ? [item.command]
         : [],
     );
@@ -1698,6 +1691,12 @@ export class AgentSessionClient {
         code: response.error.code,
         message: response.error.message,
         diagnostics: response.diagnostics,
+        ...(() => {
+          const actionIndex = response.diagnostics.find(
+            (item) => typeof item.parameters?.actionIndex === "number",
+          )?.parameters?.actionIndex;
+          return typeof actionIndex === "number" ? { actionIndex } : {};
+        })(),
         revision: entry.revision,
         requestId: response.requestId,
       };

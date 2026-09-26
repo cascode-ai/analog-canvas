@@ -26,6 +26,7 @@ import {
   agentVisualDiagnostics,
 } from "./diagnostics.js";
 import type { AgentOperationHost } from "./host.js";
+import { AgentCommandPlanningError } from "./host.js";
 import { parseAgentCircuitRequest } from "./request-contract.js";
 import {
   AGENT_API_VERSION,
@@ -846,6 +847,7 @@ export function createAgentCircuitService(
       }
 
       if (request.operation === "transact") {
+        let commandSourceActions: readonly number[] | undefined;
         const placedInstanceIds =
           request.command?.kind === "place-components"
             ? request.command.instances.map((instance) => instance.id)
@@ -870,6 +872,7 @@ export function createAgentCircuitService(
               documentId,
               request.command,
             );
+            commandSourceActions = planned.sourceActions;
             const { command: _command, ...base } = request;
             if ("structureEdits" in planned) {
               if (request.expectedStructureRevision === undefined)
@@ -896,6 +899,17 @@ export function createAgentCircuitService(
               "EDIT_PRECONDITION",
               error instanceof Error ? error.message : String(error),
               document.revision,
+              error instanceof AgentCommandPlanningError
+                ? [
+                    {
+                      code: "EDIT_PRECONDITION",
+                      severity: "error",
+                      message: error.message,
+                      path: ["actions", error.actionIndex],
+                      parameters: { actionIndex: error.actionIndex },
+                    },
+                  ]
+                : [],
             );
           }
         }
@@ -1059,13 +1073,44 @@ export function createAgentCircuitService(
               result.error.code,
               result.error.message,
               document.revision,
-              result.diagnostics.map((item) => ({
-                code: item.code,
-                severity: item.severity,
-                message: item.message,
-                ...(item.objectIds ? { objectIds: [...item.objectIds] } : {}),
-                ...(item.path ? { path: [...item.path] } : {}),
-              })),
+              result.diagnostics.map((item) => {
+                const projectEditIndex = item.parameters?.projectEditIndex;
+                const outer =
+                  typeof projectEditIndex === "number"
+                    ? transaction.edits?.[projectEditIndex]
+                    : undefined;
+                const innerIndex =
+                  item.path?.[0] === "edits" && typeof item.path[1] === "number"
+                    ? item.path[1]
+                    : undefined;
+                const inner =
+                  outer?.kind === "transact_document" &&
+                  innerIndex !== undefined
+                    ? outer.edits[innerIndex]
+                    : undefined;
+                const instanceIndex =
+                  inner?.kind === "add_instance"
+                    ? placedInstanceIds?.indexOf(inner.instance.id)
+                    : undefined;
+                const actionIndex =
+                  typeof projectEditIndex === "number"
+                    ? commandSourceActions?.[projectEditIndex]
+                    : undefined;
+                return {
+                  code: item.code,
+                  severity: item.severity,
+                  message: item.message,
+                  ...(item.objectIds ? { objectIds: [...item.objectIds] } : {}),
+                  ...(item.path ? { path: [...item.path] } : {}),
+                  parameters: {
+                    ...item.parameters,
+                    ...(instanceIndex !== undefined && instanceIndex >= 0
+                      ? { instanceIndex }
+                      : {}),
+                    ...(actionIndex !== undefined ? { actionIndex } : {}),
+                  },
+                };
+              }),
             );
           }
           if (result.applied && !useHost) {
@@ -1251,10 +1296,16 @@ export function createAgentCircuitService(
               ...(item.objectIds ? { objectIds: [...item.objectIds] } : {}),
               ...(item.path ? { path: [...item.path] } : {}),
               ...(item.parameters ||
+              commandSourceActions ||
               instanceIndexForPath(item.path) !== undefined
                 ? {
                     parameters: {
                       ...item.parameters,
+                      ...(item.path?.[0] === "edits" &&
+                      typeof item.path[1] === "number" &&
+                      commandSourceActions?.[item.path[1]] !== undefined
+                        ? { actionIndex: commandSourceActions[item.path[1]]! }
+                        : {}),
                       ...(instanceIndexForPath(item.path) === undefined
                         ? {}
                         : { instanceIndex: instanceIndexForPath(item.path)! }),

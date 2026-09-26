@@ -17,6 +17,40 @@ const SelectionSchema = z.strictObject({
 });
 const BatchItemSchema = z.discriminatedUnion("kind", [
   z.strictObject({
+    kind: z.literal("set-port-direction"),
+    target: z.discriminatedUnion("kind", [
+      z.strictObject({ kind: z.literal("terminal"), id: StableIdSchema }),
+      z.strictObject({ kind: z.literal("port"), id: StableIdSchema }),
+      z.strictObject({ kind: z.literal("port-name"), name: z.string().min(1) }),
+    ]),
+    direction: z.enum(["input", "output", "inout", "passive"]),
+  }),
+  z.strictObject({
+    kind: z.literal("set-vdd-mode"),
+    instanceId: StableIdSchema,
+    mode: z.enum(["cell-pin", "global"]),
+  }),
+  z.strictObject({
+    kind: z.literal("remove-cell-terminal"),
+    terminalId: StableIdSchema,
+  }),
+  z.strictObject({
+    kind: z.literal("set-instance-display"),
+    instanceIds: z.array(StableIdSchema).min(1).max(64),
+    showReference: z.boolean().optional(),
+    showValue: z.boolean().optional(),
+    showParameters: z
+      .strictObject({
+        k: z.boolean().optional(),
+        lp: z.boolean().optional(),
+        ls: z.boolean().optional(),
+        l1: z.boolean().optional(),
+        l2: z.boolean().optional(),
+        cb: z.boolean().optional(),
+      })
+      .optional(),
+  }),
+  z.strictObject({
     kind: z.literal("set-net-label"),
     annotationId: StableIdSchema,
     netId: StableIdSchema,
@@ -36,8 +70,21 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     ),
   }),
 ]);
+export function isBatchableAuthoringCommand(command: {
+  kind: string;
+}): command is z.infer<typeof BatchItemSchema> {
+  return BatchItemSchema.options.some(
+    (option) => option.shape.kind.value === command.kind,
+  );
+}
 export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
   ...BatchItemSchema.options,
+  z.strictObject({
+    kind: z.literal("delete-selection"),
+    selection: SelectionSchema.describe(
+      "Explicit selection. Includes owned displays and formal interface declarations; unselected wires remain dangling, as in the GUI. Select all object IDs for complete Cell deletion.",
+    ),
+  }),
   z.strictObject({
     kind: z.literal("batch"),
     commands: z
@@ -45,28 +92,28 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
       .min(1)
       .max(64)
       .describe(
-        "Ordered atomic label, annotation-move or model commands; one undo, no partial commit.",
+        "Ordered atomic label, model, display, annotation move, direction, VDD mode or terminal removal commands; one undo, no partial commit.",
       ),
   }),
   z.strictObject({
     kind: z.literal("place-components"),
     instances: z.array(InstanceSchema).min(1).max(64),
+    terminalDirections: z
+      .record(StableIdSchema, z.enum(["input", "output", "inout", "passive"]))
+      .optional(),
   }),
   z.strictObject({
-    kind: z.literal("set-instance-display"),
-    instanceIds: z.array(StableIdSchema).min(1).max(64),
-    showReference: z.boolean().optional(),
-    showValue: z.boolean().optional(),
-    showParameters: z
-      .strictObject({
-        k: z.boolean().optional(),
-        lp: z.boolean().optional(),
-        ls: z.boolean().optional(),
-        l1: z.boolean().optional(),
-        l2: z.boolean().optional(),
-        cb: z.boolean().optional(),
-      })
-      .optional(),
+    kind: z.literal("add-power-rail"),
+    start: PointSchema,
+    end: PointSchema,
+    netId: StableIdSchema.optional(),
+    name: z.string().min(1).max(128).optional(),
+    scope: z
+      .enum(["local", "global"])
+      .optional()
+      .describe(
+        "Defaults to the existing Net scope, otherwise local; global must be intentional.",
+      ),
   }),
   z.strictObject({
     kind: z.literal("place-cell"),
@@ -165,10 +212,6 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     terminalId: StableIdSchema,
     name: z.string().min(1).max(128),
     mergeExistingPort: z.boolean().optional(),
-  }),
-  z.strictObject({
-    kind: z.literal("remove-cell-terminal"),
-    terminalId: StableIdSchema,
   }),
 ]);
 export type AgentAuthoringCommand = z.infer<typeof AgentAuthoringCommandSchema>;

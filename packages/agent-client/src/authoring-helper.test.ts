@@ -205,7 +205,7 @@ describe("authoring helper compilation", () => {
     );
   });
 
-  it("compiles add-power-rail and reuses the existing global VDD net", () => {
+  it("delegates Power Rail semantics to the shared browser planner", () => {
     const [transaction] = compile([
       {
         kind: "add-power-rail",
@@ -213,21 +213,15 @@ describe("authoring helper compilation", () => {
         end: { x: 500, y: 80 },
       },
     ]);
-    const edit = transaction?.edits?.[0];
-    expect(edit?.kind).toBe("add_power_rail");
-    if (edit?.kind === "add_power_rail") {
-      expect(edit.netId).toBe("net-vdd");
-      expect(edit).toMatchObject({
-        netName: "VDD",
-        scope: "global",
-        powerDomain: "vdd",
-      });
-      expect(edit.routeId).not.toBe(edit.netId);
-      expect(edit.startJunctionId).not.toBe(edit.endJunctionId);
-    }
+    expect(transaction?.command).toMatchObject({
+      kind: "add-power-rail",
+      start: { x: 100, y: 80 },
+      end: { x: 500, y: 80 },
+    });
+    expect(transaction?.command).not.toHaveProperty("scope");
   });
 
-  it("compiles vertical Power Rails and rejects diagonal geometry", () => {
+  it("preserves vertical Power Rail geometry for server validation", () => {
     const [transaction] = compile([
       {
         kind: "add-power-rail",
@@ -235,21 +229,11 @@ describe("authoring helper compilation", () => {
         end: { x: 40, y: 160 },
       },
     ]);
-    expect(transaction?.edits?.[0]).toMatchObject({
-      kind: "add_power_rail",
+    expect(transaction?.command).toMatchObject({
+      kind: "add-power-rail",
       start: { x: 40, y: 0 },
       end: { x: 40, y: 160 },
     });
-    expectCompileError(
-      [
-        {
-          kind: "add-power-rail",
-          start: { x: 0, y: 0 },
-          end: { x: 100, y: 40 },
-        },
-      ],
-      "horizontal or vertical",
-    );
   });
 
   it("compiles pin-to-pin connect into one visible wire intent with waypoints", () => {
@@ -679,11 +663,14 @@ describe("authoring helper compilation", () => {
       { kind: "delete", target: { kind: "route", id: "route-1" } },
       { kind: "delete", target: { kind: "annotation", id: "label-1" } },
     ]);
-    expect(transaction?.edits?.map((edit) => edit.kind)).toEqual([
-      "remove_instance",
-      "cut_connection",
-      "remove_schematic_annotation",
-    ]);
+    expect(transaction?.command).toMatchObject({
+      kind: "delete-selection",
+      selection: {
+        instanceIds: ["instance-2"],
+        routeIds: ["route-1"],
+        annotationIds: ["label-1"],
+      },
+    });
     expectCompileError(
       [{ kind: "delete", target: { kind: "net", name: "Vout" } }],
       "disconnect",

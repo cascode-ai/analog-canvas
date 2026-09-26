@@ -18,6 +18,7 @@ export * from "./routing-operation-plan.js";
 export * from "./routing-transform-planner.js";
 export * from "./routing-copy-fragment.js";
 export * from "./routing-deletion-planner.js";
+export * from "./cell-selection-deletion.js";
 export * from "./net-name-operation-planner.js";
 export * from "./instance-lifecycle.js";
 export * from "./undrawn-instances.js";

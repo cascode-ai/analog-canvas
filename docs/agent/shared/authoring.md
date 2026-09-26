@@ -23,11 +23,17 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
 
 - Place through native `place-components` (MCP `circuit_place` actions
   `place-component`), which creates attached Reference/Value displays.
-  `port`/`port-filled` also create the formal Cell terminal and Net atomically;
-  `reference` is the terminal name. Do not substitute a bare Port `add_instance`.
+  `port`/`port-filled`/`vdd-port` also create the formal Cell terminal and Net
+  atomically; `reference` is the terminal name (VDD defaults to `VDD`). Optional
+  `direction` applies to these markers only. `set-port-direction` addresses one
+  terminal or every declaration of a projected Port; `set-vdd-mode` explicitly
+  switches VDD between Cell Pin and Global. Do not substitute a bare `add_instance`.
 - `vdd-rail` is an authoring primitive, not a symbol. Use `add-power-rail`
-  (typed `add_power_rail`) with explicit Net name/scope and `powerDomain:"vdd"`.
-  Ground and power markers are not named devices.
+  with optional `name`/`scope` (existing scope is retained, otherwise local).
+  Explicit `global` is not the default. Like GUI supply placement it initializes
+  the default PMOS bulk; geometry alone does not connect nearby pins in Agent
+  placement. The complete typed `add_power_rail` remains available. Ground and
+  power markers are not named devices.
 - Set electrical values before their display. MOS sizes are physical quantities:
   `w:"10u", l:"1u"`, not `10/1` assuming micrometres. Use
   `set-instance-display` for Reference/Value/parameters, not detached text.
@@ -49,6 +55,9 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
 
 Multiple placements, wires, labels, model assignments and annotation moves have
 existing atomic batch paths. Failure commits nothing; success has one undo.
+Display flags, Port directions, VDD mode and terminal removal can share the
+existing command batch. Pure Document presentation batches do not advance the
+Project structure revision. Failures identify the originating action where known.
 Keep unrelated command forms separate rather than assuming arbitrary mixtures
 are atomic. Both ordinary and full typed editing remain available.
 
@@ -57,6 +66,11 @@ do not perform GUI drag-to-connect snapping. `terminalConnectivityChanged` in
 ordinary transaction receipts compares document-local terminal equivalence;
 it does not assert unchanged parameters, bulk or hierarchy. Omitted means unknown.
 Use reset-placement only for intentional redraw, with its documented effects.
+`delete` uses the GUI selection-deletion planner, including owned displays and
+formal interface declarations. `delete-selection` accepts multiple explicit
+object IDs in one transaction; selecting every object clears a Cell, while
+unselected wires remain dangling. Reset modes retain their existing meanings
+and must not be used as a synonym for deleting the entire Cell.
 
 The focused `circuit_text` action `move-annotation` sets an absolute position;
 the legacy `apply_actions` annotation `move` uses the same semantics, while

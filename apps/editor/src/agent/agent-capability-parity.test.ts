@@ -1,11 +1,149 @@
 import { describe, expect, it } from "vitest";
 import { createEmptyProject, flattenRichText } from "@icm/model";
+import { resolveDocumentLogicalNets } from "@icm/derived";
 import { createAgentCircuitService } from "@icm/agent-adapter";
 import { AgentSessionClient } from "../../../../packages/agent-client/src/session-client";
 import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-support/fake-relay";
 import { callTool, type ToolSessionState } from "../../../mcp-server/src/tools";
 import { EditorDocumentController } from "../document/document-controller";
 import { BrowserAgentHost } from "./browser-agent-host";
+
+it("uses Cell-Pin supply semantics and explicit directions, with reversible mode changes", async () => {
+  const { client, controller } = await folder();
+  const placed = await client.applyActions([
+    {
+      kind: "place-component",
+      symbol: "vdd-port",
+      position: { x: 100, y: 100 },
+    },
+    {
+      kind: "place-component",
+      symbol: "port",
+      reference: "IN",
+      direction: "input",
+      position: { x: 200, y: 100 },
+    },
+  ]);
+  expect(placed.ok, placed.message).toBe(true);
+  const [supply, input] = controller.document.netlist!.terminals;
+  expect(supply).toMatchObject({ name: "VDD", direction: "inout" });
+  expect(input).toMatchObject({ name: "IN", direction: "input" });
+  expect(controller.document.mosBulkDefaults?.pmosNetId).toBe(supply!.netId);
+  expect(
+    resolveDocumentLogicalNets(controller.document).byBaseNetId.get(
+      supply!.netId,
+    )?.scope,
+  ).toBe("local");
+  expect(
+    controller.document.annotations.some(
+      (a) =>
+        a.kind === "power-label" && a.binding?.kind === "cell-terminal-name",
+    ),
+  ).toBe(true);
+  const before = structuredClone(controller.project);
+  const changed = await client.applyActions([
+    {
+      kind: "set-vdd-mode",
+      instanceId: supply!.interfaceInstanceIds[0]!,
+      mode: "global",
+    },
+    {
+      kind: "set-port-direction",
+      target: { kind: "port-name", name: "IN" },
+      direction: "output",
+    },
+  ]);
+  expect(changed.ok, changed.message).toBe(true);
+  expect(
+    controller.document.netlist!.terminals.map((t) => [t.name, t.direction]),
+  ).toEqual([["IN", "output"]]);
+  expect(
+    resolveDocumentLogicalNets(controller.document).byBaseNetId.get(
+      supply!.netId,
+    )?.scope,
+  ).toBe("global");
+  expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+  expect(controller.document.netlist).toEqual(before.documents[0]!.netlist);
+});
+
+it("uses local supply rails by default, preserves explicit global and rejects diagonals atomically", async () => {
+  const { client, controller } = await folder();
+  for (const [name, scope, y] of [
+    ["VDD", undefined, 100],
+    ["AVDD", "global", 200],
+  ] as const) {
+    const report = await client.applyActions([
+      {
+        kind: "add-power-rail",
+        name,
+        ...(scope ? { scope } : {}),
+        start: { x: 100, y },
+        end: { x: 300, y },
+      },
+    ]);
+    expect(report.ok, report.message).toBe(true);
+    const net = [
+      ...resolveDocumentLogicalNets(controller.document).byBaseNetId.values(),
+    ].find((n) => n.name === name);
+    expect(net?.scope).toBe(scope ?? "local");
+  }
+  const before = structuredClone(controller.project);
+  const report = await client.applyActions([
+    { kind: "add-power-rail", start: { x: 0, y: 0 }, end: { x: 100, y: 20 } },
+  ]);
+  expect(report.ok).toBe(false);
+  expect(report.message).toContain("horizontal or vertical");
+  expect(controller.project).toEqual(before);
+});
+
+it("batches different display preferences once without advancing structure revision; errors locate the source action", async () => {
+  const { client, controller } = await folder();
+  await client.applyActions(
+    ["R1", "R2"].map((reference, i) => ({
+      kind: "place-component",
+      symbol: "resistor",
+      reference,
+      position: { x: 100 + i * 100, y: 100 },
+    })),
+  );
+  const [first, second] = controller.document.instances;
+  const before = structuredClone(controller.project);
+  const changed = await client.applyActions([
+    {
+      kind: "set-instance-display",
+      instanceIds: [first!.id],
+      showReference: false,
+    },
+    {
+      kind: "set-instance-display",
+      instanceIds: [second!.id],
+      showValue: false,
+    },
+  ]);
+  expect(changed.ok, changed.message).toBe(true);
+  expect(controller.project.structureRevision).toBe(before.structureRevision);
+  expect(controller.document.revision).toBe(before.documents[0]!.revision + 1);
+  await client.applyActions([{ kind: "undo" }]);
+  expect(controller.document.annotations).toEqual(
+    before.documents[0]!.annotations,
+  );
+  const failed = await client.applyActions([
+    {
+      kind: "set-instance-display",
+      instanceIds: [first!.id],
+      showReference: false,
+    },
+    {
+      kind: "set-port-direction",
+      target: { kind: "port-name", name: "missing" },
+      direction: "input",
+    },
+  ]);
+  expect(failed).toMatchObject({ ok: false, actionIndex: 1 });
+  expect(controller.document.annotations).toEqual(
+    before.documents[0]!.annotations,
+  );
+});
 
 async function folder() {
   const project = createEmptyProject("project-1", "Parity");
@@ -51,6 +189,105 @@ async function folder() {
 }
 
 describe("MCP → API → shared editor parity", () => {
+  it("deletes connected instances and their owned labels like GUI selection, and clears a Cell in one undo", async () => {
+    const { client, controller } = await folder();
+    await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "R1",
+        position: { x: 100, y: 100 },
+      },
+      {
+        kind: "place-component",
+        symbol: "port",
+        reference: "IN",
+        position: { x: 200, y: 100 },
+      },
+    ]);
+    const terminal = controller.document.netlist!.terminals[0]!;
+    expect(
+      (
+        await client.applyActions([
+          {
+            kind: "connect",
+            from: { kind: "pin", instance: "R1", pin: "2" },
+            to: {
+              kind: "pin",
+              instance: {
+                kind: "instance",
+                id: terminal.interfaceInstanceIds[0]!,
+              },
+              pin: "P",
+            },
+          },
+        ])
+      ).ok,
+    ).toBe(true);
+    const before = structuredClone(controller.document);
+    const removed = await client.applyActions([
+      { kind: "delete", target: { kind: "instance", reference: "R1" } },
+    ]);
+    expect(removed.ok, removed.message).toBe(true);
+    expect(
+      controller.document.instances.some((i) => i.reference === "R1"),
+    ).toBe(false);
+    expect(controller.document.routes).toHaveLength(before.routes.length);
+    expect(
+      controller.document.annotations.some(
+        (a) =>
+          a.anchor.kind === "object" &&
+          a.anchor.objectId === before.instances[0]!.id,
+      ),
+    ).toBe(false);
+    await client.applyActions([{ kind: "undo" }]);
+    expect(controller.document.instances).toEqual(before.instances);
+    const cleared = await client.applyActions([
+      {
+        kind: "delete-selection",
+        selection: {
+          instanceIds: controller.document.instances.map((i) => i.id),
+          routeIds: controller.document.routes.map((i) => i.id),
+          junctionIds: controller.document.junctions.map((i) => i.id),
+          annotationIds: controller.document.annotations.map((i) => i.id),
+        },
+      },
+    ]);
+    expect(cleared.ok, cleared.message).toBe(true);
+    expect(controller.document.instances).toEqual([]);
+    expect(controller.document.netlist!.terminals).toEqual([]);
+    expect(controller.document.routes).toEqual([]);
+    await client.applyActions([{ kind: "undo" }]);
+    expect(controller.document.instances).toEqual(before.instances);
+    expect(controller.document.netlist).toEqual(before.netlist);
+  });
+  it("retains the action location for off-grid placement in a Project transaction", async () => {
+    const { client, controller } = await folder();
+    const before = structuredClone(controller.project);
+    const report = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "port",
+        reference: "IN",
+        position: { x: 100, y: 100 },
+      },
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "R1",
+        position: { x: 155, y: 100 },
+      },
+    ]);
+    expect(report).toMatchObject({
+      ok: false,
+      actionIndex: 1,
+      actionKind: "place-component",
+    });
+    expect(
+      report.diagnostics?.some((d) => d.parameters?.instanceIndex === 1),
+    ).toBe(true);
+    expect(controller.project).toEqual(before);
+  });
   it("reports the input action behind a rejected placement edit", async () => {
     const { client, controller } = await folder();
     const before = structuredClone(controller.document);
