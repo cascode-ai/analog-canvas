@@ -133,8 +133,10 @@ returns these fields, `signalFlowParameters`, Cell interfaces, and external
 Model definitions. Netlist parameter values are strings, for example `"1u"`.
 
 `annotate` and `edit-text` accept plain text or canonical RichText.
+New notes share GUI Text defaults. Plain-string editing preserves existing spans;
+explicit RichText replaces formatting. Structural formulas require RichText.
 For bound Cell Pin and Value labels, `edit-text` changes the look only and
-requires the same displayed characters. A Value look follows later parameter
+requires the same displayed characters; a same-text string is a no-op. A Value look follows later parameter
 changes; the electrical parameter remains authoritative.
 
 `connect`/`disconnect` pin targets accept an Instance Reference string or

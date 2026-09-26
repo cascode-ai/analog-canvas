@@ -23,7 +23,7 @@ export const agentToolHelp = {
   circuit_selection:
     "Translate/rotate/mirror/copy/align a selection. Uses original selection IDs, topology rules and atomic planner. For individual targets use circuit_transform; for mixed families use apply_actions.",
   circuit_text:
-    "Add/edit labels and annotations, or move their anchors, through the original atomic action planner. Plain text is accepted where declared; exact rich text or unfamiliar fields are available from describe_tool by operation/field. Binding semantics stay unchanged.",
+    "Edit native labels or independent drafting text. Device placement already creates bound Reference/Value displays: reuse them, do not imitate them with annotate. annotate uses GUI text defaults; edit-text strings preserve existing formatting, explicit RichText replaces it. Bound labels retain their semantic owner. Same atomic planner; unfamiliar fields are available from describe_tool.",
   circuit_properties:
     "Set device references, parameters, models and display flags with the original action planner. Keep physical units such as 10u. Model bindings and bulk semantics are unchanged. Mixed action families remain available through apply_actions.",
   describe_tool:
