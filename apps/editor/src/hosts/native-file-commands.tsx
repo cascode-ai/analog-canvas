@@ -27,7 +27,12 @@ export function NativeFileCommands(
         className="command-group-label"
         data-testid="native-file-location"
         title={nativeFiles.path ?? undefined}
-        style={{ overflowWrap: "anywhere", whiteSpace: "normal" }}
+        style={{
+          overflowWrap: "anywhere",
+          whiteSpace: "normal",
+          textTransform: "none",
+          letterSpacing: "normal",
+        }}
       >
         {nativeFiles.path ?? "Not saved to a file"}
       </span>
@@ -38,10 +43,11 @@ export function NativeFileCommands(
             <button
               type="button"
               title={file.path}
+              className="cloud-project-open"
               disabled={nativeFiles.busy}
               onClick={() => nativeFiles.open(file.id)}
             >
-              {file.name}
+              <span className="cloud-project-name">{file.name}</span>
               <small
                 style={{
                   display: "block",
