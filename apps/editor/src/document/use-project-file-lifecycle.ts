@@ -27,6 +27,10 @@ import {
   stageProjectFile,
 } from "./project-file-service";
 import { projectChangeToken } from "./project-session-lifecycle";
+import {
+  createProjectSaveCoordinator,
+  type ProjectSaveSnapshot,
+} from "./project-save-coordinator";
 import { projectHasMeaningfulContent } from "./project-content";
 import { normalizeImportedProject } from "./project-import-normalization";
 import {
@@ -158,7 +162,9 @@ export function useProjectFileLifecycle({
   }, [restoreAfterRefresh]);
   const [startupCloudProjectId] = useState(readRecentCloudProjectId);
   const refreshRestoreAttemptedRef = useRef(false);
-  const saveInFlightRef = useRef<Promise<CloudProjectSaveOutcome> | null>(null);
+  const [saveCoordinator] = useState(() =>
+    createProjectSaveCoordinator<CloudProjectSaveOutcome>(),
+  );
   const liveProjectRef = useRef(project);
   liveProjectRef.current = project;
   const liveSessionRef = useRef(projectSessionId);
@@ -283,12 +289,10 @@ export function useProjectFileLifecycle({
   }
 
   async function performProjectSaveToCloud(
-    candidate: CircuitProject,
+    snapshot: ProjectSaveSnapshot,
     asNew = false,
   ): Promise<CloudProjectSaveOutcome> {
-    // Capture before the recovery/network awaits: save exactly the checked version.
-    const savedCandidate = structuredClone(candidate);
-    const savedCandidateToken = projectChangeToken(savedCandidate);
+    const savedCandidate = snapshot.project;
     setPersistenceState("saving");
     setStatus(
       `Saving ${savedCandidate.name} to ${CLOUD_PROJECT_COPY.destination}`,
@@ -301,7 +305,7 @@ export function useProjectFileLifecycle({
       fetch,
       galleryEntryId,
     );
-    if (liveSessionRef.current !== projectSessionId) return outcome;
+    if (!snapshot.isCurrent()) return outcome;
     if (outcome.status === "saved") {
       const nextBinding = {
         id: outcome.project.id,
@@ -315,16 +319,14 @@ export function useProjectFileLifecycle({
         viewBox: { ...viewBox },
       });
       const liveProject = liveProjectRef.current;
-      let stillMatchesSavedCandidate =
-        projectChangeToken(liveProject) === savedCandidateToken;
+      let stillMatchesSavedCandidate = snapshot.matchesCurrentProject();
       recovery.stage(liveProject, {
         unsavedAtSnapshot: !stillMatchesSavedCandidate,
         cloudBinding: nextBinding,
       });
       await recovery.flushNow();
-      if (liveSessionRef.current !== projectSessionId) return outcome;
-      stillMatchesSavedCandidate =
-        projectChangeToken(liveProjectRef.current) === savedCandidateToken;
+      if (!snapshot.isCurrent()) return outcome;
+      stillMatchesSavedCandidate = snapshot.matchesCurrentProject();
       setPersistenceState(stillMatchesSavedCandidate ? "clean" : "dirty");
       onCloudProjectSaved(outcome.project);
       setStatus(
@@ -367,44 +369,34 @@ export function useProjectFileLifecycle({
     candidate?: CircuitProject,
     asNew = false,
   ): Promise<CloudProjectSaveOutcome> {
-    const inFlight = saveInFlightRef.current;
-    if (inFlight)
-      return asNew
-        ? Promise.resolve({
-            status: "rejected",
-            message:
-              "Another Cloud save is in progress; retry Save As after it completes",
-          })
-        : inFlight;
-    const operation = (async (): Promise<CloudProjectSaveOutcome> => {
-      const snapshot =
-        candidate ??
-        (beforeSnapshot ? await beforeSnapshot() : liveProjectRef.current);
-      if (!snapshot)
-        return {
-          status: "rejected",
-          message: "Source edits need attention; no work was discarded",
-        };
-      if (liveSessionRef.current !== projectSessionId)
-        return {
-          status: "rejected",
-          message: "Project changed before Cloud save; no new save was started",
-        };
-      return performProjectSaveToCloud(snapshot, asNew);
-    })().catch((error: unknown): CloudProjectSaveOutcome => {
-      const message = error instanceof Error ? error.message : "Save failed";
-      if (liveSessionRef.current === projectSessionId) {
-        setPersistenceState("failed");
-        setStatus(`Save failed; work remains local (${message})`);
-      }
-      return { status: "rejected", message };
+    return saveCoordinator.save({
+      sessionId: projectSessionId,
+      current: () => ({
+        id: liveSessionRef.current,
+        project: liveProjectRef.current,
+      }),
+      ...(candidate ? { candidate } : {}),
+      ...(beforeSnapshot ? { beforeSnapshot } : {}),
+      asNew,
+      write: (snapshot) => performProjectSaveToCloud(snapshot, asNew),
+      rejected: (reason) => ({
+        status: "rejected",
+        message:
+          reason === "busy"
+            ? "Another Cloud save is in progress; retry Save As after it completes"
+            : reason === "drafts"
+              ? "Source edits need attention; no work was discarded"
+              : "Project changed before Cloud save; no new save was started",
+      }),
+      failed: (error, stillCurrent) => {
+        const message = error instanceof Error ? error.message : "Save failed";
+        if (stillCurrent) {
+          setPersistenceState("failed");
+          setStatus(`Save failed; work remains local (${message})`);
+        }
+        return { status: "rejected", message };
+      },
     });
-    saveInFlightRef.current = operation;
-    const clear = () => {
-      if (saveInFlightRef.current === operation) saveInFlightRef.current = null;
-    };
-    void operation.then(clear, clear);
-    return operation;
   }
 
   async function exportProjectFile(): Promise<void> {
@@ -929,7 +921,7 @@ export function useProjectFileLifecycle({
     noteProjectPublished,
     replaceActiveProject,
     saveProjectToCloud,
-    isSaveInFlight: () => saveInFlightRef.current !== null,
+    isSaveInFlight: saveCoordinator.isSaving,
     saveBusy: persistenceState === "saving",
     exportProjectFile,
     downloadCurrentProjectBackup,

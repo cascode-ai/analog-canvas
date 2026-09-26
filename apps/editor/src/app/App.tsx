@@ -320,6 +320,7 @@ import {
   type CloudProjectSummary,
 } from "../features/editor-shell/cloud-projects";
 import { projectChangeToken } from "../document/project-session-lifecycle";
+import { captureProjectSaveSnapshot } from "../document/project-save-coordinator";
 import {
   defaultRazaviSymbolVariantId,
   materializeRazaviProjectBulkConnections,
@@ -5130,8 +5131,26 @@ function WorkspaceEditor({
               "Working copy is no longer open",
             );
           const controller = target.session.controller;
-          const candidate = structuredClone(controller.project);
-          const token = projectChangeToken(candidate);
+          const snapshot = captureProjectSaveSnapshot(
+            controller.project,
+            controller.projectSessionId,
+            () => {
+              const live = projectTabs
+                .entries()
+                .find(
+                  (item) =>
+                    item.id === targetWorkspaceId &&
+                    item.session.controller === controller,
+                );
+              return live
+                ? {
+                    id: controller.projectSessionId,
+                    project: controller.project,
+                  }
+                : null;
+            },
+          );
+          const candidate = snapshot.project;
           target.session.file.persistenceState = "saving";
           projectTabs.changed();
           const outcome = await saveCloudProject(
@@ -5152,7 +5171,7 @@ function WorkspaceEditor({
             );
           if (outcome.status === "saved") {
             const stillCurrent =
-              projectChangeToken(controller.project) === token &&
+              snapshot.matchesCurrentProject() &&
               (targetWorkspaceId !== projectTabs.activeId ||
                 (!codeDraftDirty &&
                   simulationSourceBuffer.current?.dirty !== true));
