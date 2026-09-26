@@ -2,11 +2,33 @@
 
 Windows x64, unsigned unpacked application. Run `Analog Canvas Preview/Analog Canvas Preview.exe` from the generated folder. Keep that entire folder together.
 
-Draw a circuit, then use **File → Export Project File…** (or Ctrl+S). Choose a destination and wait for **Exported**. Close the application, start it again, and use **File → Import → Project File…** or **Open file in new tab** to open that copy. SVG/PNG/PDF exports are available through File → Export.
+Use **File → Open Project…** or **Open file in new tab** to open a local
+`.icproj.json` file. **Save / Ctrl+S** updates that file; a new Project asks for
+a destination once. **Save As…** changes the destination only after a successful
+write. **Export → Project File…** writes a separate copy without changing the
+Save destination. SVG/PNG/PDF remain under File → Export.
+
+File shows the current location and **Recent Projects**. The recent list survives
+restarts; removing an entry only removes the shortcut. If a file moved, use Open
+Project to locate it. Each tab owns its file binding, and reopening an already
+open file selects that tab. Changing the Project's internal name does not rename
+its file. Close a changed tab with Save and close, Close without saving, or Keep
+open; closing the window offers to save all changed Projects.
+
+If a file changes outside the editor, Save refuses to overwrite it. Use Save As
+to keep your edits in another file, or explicitly close the old tab and reopen
+the file. Writes replace the destination atomically after checking its bytes;
+this is optimistic conflict detection, not an operating-system-wide write lock.
 
 This preview has no account, Cloud, community, Agent, simulation, external links or service worker. It retains the current editor and Project schema. Some dormant online implementation remains in shared editor chunks; this is not completion of build-time module separation. Network and navigation are blocked independently in the shell.
 
-There is **no native in-place Save**, automatic file association, installer, update mechanism or coordinated multi-tab Save-on-close. Export every tab you need before closing. The close reminder defaults to **Keep open**. Local recovery is a safety copy, not a saved file. After restarting, use **File → Recover Unsaved Work…** to inspect retained copies; automatic reopening of all tabs across application launches is not promised. Data is stored separately under the user's `Analog Canvas Preview` application-data directory.
+There is no automatic file association, installer or update mechanism. The close
+decision defaults to **Keep open**; cancelled or failed saves keep the window.
+Local recovery is a safety copy, not a saved file. After restarting, use
+**File → Recover Unsaved Work…** to inspect retained copies; recovery opens an
+unbound working copy rather than silently overwriting an existing file.
+Automatic reopening of all tabs across launches is not promised. Data and the
+recent-file index live under the user's `Analog Canvas Preview` application-data directory.
 
 ## Build and validate
 
@@ -36,6 +58,8 @@ The merge queue runs the [Windows packaging and acceptance workflow](../../.gith
 
 After merging, run [Desktop preview release](../../.github/workflows/desktop-release.yml) from Actions with the merged commit as `ref`. Keep `publish` off to inspect an unpublished Actions artifact, or enable it to publish the accepted ZIP as a GitHub prerelease. The workflow rejects commits outside `main`, rebuilds and validates the exact selected commit, and uses a `desktop-preview-…` tag that does not match the Web deployment's `v*` tags. It does not replace existing releases or mark the preview as Latest.
 
-The ZIP includes `ACCEPTANCE.json` and `preview.png` from the packaged run, corresponding source and attribution. This distribution step does not add signing, an installer or native Save semantics; the preview limitations above still apply.
+The ZIP includes `ACCEPTANCE.json` and `preview.png` from the packaged run,
+corresponding source and attribution. Signing, an installer and automatic updates
+remain outside this minimum desktop scope.
 
 Before either Actions artifact upload or prerelease publication, the same workflow rejects private/configuration paths and scans runtime files plus nested source for credentials. Successful packages include `SECURITY.json`. Desktop builds do not load local `.env` files or expose `VITE_*` environment values. See the [credential audit and distribution boundary](../../docs/desktop-distribution-security.md) for evidence, scanner limitations and the server-side administrator model.

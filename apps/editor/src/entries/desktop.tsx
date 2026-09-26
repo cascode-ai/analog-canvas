@@ -19,7 +19,7 @@ document.addEventListener(
     if (url.protocol === "app:" && url.host === window.location.host) return;
     event.preventDefault();
     window.alert(
-      "External links are unavailable in this offline preview. Use File → Export → Project File to keep your work.",
+      "External links are unavailable in this offline preview. Use File → Save to keep your work.",
     );
   },
   true,

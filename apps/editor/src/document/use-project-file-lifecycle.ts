@@ -1,5 +1,10 @@
 import type { EditorExportDelivery } from "../hosts/export-delivery";
 import type { CloudProjectStore } from "../services/editor-services";
+import type {
+  NativeFileBinding,
+  NativeProjectStore,
+  NativeSaveOutcome,
+} from "../hosts/native-project-store";
 import { useEffect, useRef, useState } from "react";
 
 import { createEmptyProject, createId } from "@icm/model";
@@ -50,6 +55,7 @@ import { CLOUD_PROJECT_COPY } from "./cloud-project-copy";
 export const REFRESH_RESTORE_STORAGE_KEY = "icm.restore-after-refresh.v1";
 
 export interface ProjectFileSession {
+  nativeBinding?: NativeFileBinding | null;
   persistenceState: PersistenceState;
   cloudBinding: CloudProjectBinding | null;
   savedBaseline: SavedProjectBaseline | null;
@@ -72,6 +78,7 @@ interface ReplaceGuardState {
 }
 
 export interface ReplaceProjectOptions {
+  nativeBinding?: NativeFileBinding | null;
   source?: BrowserRecoverySource;
   keepWorkingCopy?: boolean;
   formalFileHint?: BrowserRecoveryFormalFileHint;
@@ -97,6 +104,7 @@ type RecoveryLifecycle = Pick<
 };
 
 export interface UseProjectFileLifecycleOptions {
+  nativeProjectStore?: NativeProjectStore;
   projectStore: CloudProjectStore | null;
   exportDelivery?: EditorExportDelivery;
   restoreWorkingSession?: boolean;
@@ -129,6 +137,7 @@ export interface UseProjectFileLifecycleOptions {
 
 export function useProjectFileLifecycle({
   projectStore,
+  nativeProjectStore,
   exportDelivery,
   restoreWorkingSession = false,
   externalWorkspaceRestored = false,
@@ -170,6 +179,17 @@ export function useProjectFileLifecycle({
   const [saveCoordinator] = useState(() =>
     createProjectSaveCoordinator<CloudProjectSaveOutcome>(),
   );
+  const [nativeSaveCoordinator] = useState(() =>
+    createProjectSaveCoordinator<NativeSaveOutcome>(),
+  );
+  const [nativeBinding, setNativeBindingState] =
+    useState<NativeFileBinding | null>(null);
+  const nativeBindingRef = useRef(nativeBinding);
+  const nativeSavedTokenRef = useRef<string | null>(null);
+  const setNativeBinding = (binding: NativeFileBinding | null) => {
+    nativeBindingRef.current = binding;
+    setNativeBindingState(binding);
+  };
   const liveProjectRef = useRef(project);
   liveProjectRef.current = project;
   const liveSessionRef = useRef(projectSessionId);
@@ -239,6 +259,7 @@ export function useProjectFileLifecycle({
    */
   function hasUnsafeWork(): boolean {
     if (hasPendingEdits?.()) return true;
+    if (nativeProjectStore) return isDirtyWork();
     if (!isDirtyWork()) return false;
     if (!projectHasMeaningfulContent(liveProjectRef.current)) return false;
     return !holdsLiveProject(safeSnapshotTokenRef.current);
@@ -258,6 +279,10 @@ export function useProjectFileLifecycle({
     nextViewBox: GridRect = defaultViewBox,
     options: ReplaceProjectOptions = {},
   ): SchematicDocument {
+    const previousBinding = nativeBindingRef.current;
+    if (previousBinding && previousBinding.id !== options.nativeBinding?.id)
+      void nativeProjectStore?.release(previousBinding.id).catch(() => {});
+    setNativeBinding(options.nativeBinding ?? null);
     recovery.cancelPending();
     if (options.keepWorkingCopy !== true) {
       recovery.beginWorkingCopy(options.source ?? "new");
@@ -408,6 +433,85 @@ export function useProjectFileLifecycle({
     });
   }
 
+  function saveProjectToNative(
+    candidate?: CircuitProject,
+    asNew = false,
+  ): Promise<NativeSaveOutcome> {
+    return nativeSaveCoordinator.save({
+      sessionId: projectSessionId,
+      current: () => ({
+        id: liveSessionRef.current,
+        project: liveProjectRef.current,
+      }),
+      ...(candidate ? { candidate } : {}),
+      ...(beforeSnapshot ? { beforeSnapshot } : {}),
+      asNew,
+      async write(snapshot) {
+        if (!nativeProjectStore)
+          return {
+            status: "failed",
+            message: "Local file storage is unavailable",
+          };
+        const previousState = persistenceState;
+        const binding = nativeBindingRef.current;
+        setPersistenceState("saving");
+        recovery.stage(snapshot.project, { unsavedAtSnapshot: true });
+        await recovery.flushNow();
+        if (!snapshot.isCurrent())
+          return { status: "failed", message: "Project changed before saving" };
+        const outcome = await nativeProjectStore.save(
+          snapshot.project,
+          binding,
+          asNew,
+        );
+        if (!snapshot.isCurrent()) return outcome;
+        if (outcome.status === "saved") {
+          nativeSavedTokenRef.current = projectChangeToken(snapshot.project);
+          setNativeBinding(outcome.file);
+          setSavedProjectBaseline({
+            project: snapshot.project,
+            viewBox: { ...viewBox },
+          });
+          const unchanged = snapshot.matchesCurrentProject();
+          setPersistenceState(unchanged ? "clean" : "dirty");
+          recovery.stage(liveProjectRef.current, {
+            unsavedAtSnapshot: !unchanged,
+          });
+          setStatus(
+            outcome.warning ??
+              `Saved: ${outcome.file.path}${unchanged ? "" : "; newer edits remain unsaved"}`,
+          );
+        } else if (outcome.status === "cancelled") {
+          setPersistenceState(
+            snapshot.matchesCurrentProject() ? previousState : "dirty",
+          );
+          setStatus("Save cancelled");
+        } else {
+          setPersistenceState(
+            outcome.status === "conflict" ? "conflict" : "failed",
+          );
+          setStatus(`Save failed: ${outcome.message}`);
+        }
+        return outcome;
+      },
+      rejected: (reason) => ({
+        status: "failed",
+        message:
+          reason === "busy"
+            ? "Another save is in progress"
+            : "Finish current edits before saving",
+      }),
+      failed: (error, current) => {
+        const message = error instanceof Error ? error.message : "Save failed";
+        if (current) {
+          setPersistenceState("failed");
+          setStatus(`Save failed: ${message}`);
+        }
+        return { status: "failed", message };
+      },
+    });
+  }
+
   async function exportProjectFile(): Promise<void> {
     const exportSessionId = liveSessionRef.current;
     const snapshot = beforeSnapshot
@@ -481,6 +585,12 @@ export function useProjectFileLifecycle({
     intent: string,
     perform: () => void | Promise<void>,
   ): Promise<void> {
+    if (nativeProjectStore && nativeSaveCoordinator.isSaving()) {
+      setStatus(
+        "Wait for the file save to finish before replacing this Project",
+      );
+      return;
+    }
     const snapshot = beforeSnapshot
       ? await beforeSnapshot()
       : liveProjectRef.current;
@@ -521,6 +631,25 @@ export function useProjectFileLifecycle({
     if (!guard || replaceGuardSaving) return;
     setReplaceGuardSaving(true);
     void (async () => {
+      if (nativeProjectStore) {
+        const savingSession = liveSessionRef.current;
+        const outcome = await saveProjectToNative();
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve()),
+        );
+        if (
+          outcome.status === "saved" &&
+          liveSessionRef.current === savingSession &&
+          !hasPendingEdits?.() &&
+          projectChangeToken(liveProjectRef.current) ===
+            nativeSavedTokenRef.current
+        ) {
+          setReplaceGuard(null);
+          await guard.perform();
+        }
+        setReplaceGuardSaving(false);
+        return;
+      }
       if (!projectStore) {
         const guardSessionId = liveSessionRef.current;
         await exportProjectFile();
@@ -564,6 +693,7 @@ export function useProjectFileLifecycle({
           persistenceState: "clean",
           cloudBinding,
           savedBaseline: baseline,
+          nativeBinding: nativeBindingRef.current,
         },
       );
       setStatus(`Reverted to saved Project revision ${restored.revision}`);
@@ -688,9 +818,13 @@ export function useProjectFileLifecycle({
 
   async function openProjectFile(
     file: File | null,
-    options: { allowExactCurrentReplacement?: boolean; inTab?: boolean } = {},
-  ): Promise<void> {
-    if (!file) return;
+    options: {
+      allowExactCurrentReplacement?: boolean;
+      inTab?: boolean;
+      nativeBinding?: NativeFileBinding;
+    } = {},
+  ): Promise<boolean> {
+    if (!file) return false;
     const staged = await stageProjectFile(file, (candidate) =>
       findUnsupportedProjectSymbolIds(candidate, builtInSymbols),
     );
@@ -698,7 +832,7 @@ export function useProjectFileLifecycle({
       setStatus(
         `Project not opened — ${formatProjectOpenDiagnostics(staged.diagnostics)}`,
       );
-      return;
+      return false;
     }
     const normalized = normalizeImportedProject(
       staged.project,
@@ -712,11 +846,27 @@ export function useProjectFileLifecycle({
         ? `, drew ${drawn} ${drawn === 1 ? "Instance" : "Instances"} the file kept off the sheet`
         : "";
     const openOptions: ReplaceProjectOptions = {
+      ...(options.nativeBinding
+        ? {
+            nativeBinding: options.nativeBinding,
+            savedBaseline: {
+              project: structuredClone(openedProject),
+              viewBox: defaultViewBox,
+            },
+          }
+        : {}),
       source: "opened-file",
       formalFileHint: { name: staged.fileName },
       persistenceState:
-        staged.migrated || normalizedDocumentCount > 0 ? "dirty" : "unbound",
+        staged.migrated || normalizedDocumentCount > 0
+          ? "dirty"
+          : options.nativeBinding
+            ? "clean"
+            : nativeProjectStore
+              ? "dirty"
+              : "unbound",
     };
+    let applied = false;
     const performOpen = async () => {
       if (options.inTab && openProjectInTab) {
         if (
@@ -724,6 +874,7 @@ export function useProjectFileLifecycle({
         )
           return;
       } else replaceActiveProject(openedProject, defaultViewBox, openOptions);
+      applied = true;
       setStatus(
         staged.migrated
           ? `Imported and upgraded ${staged.fileName} from schema ${staged.sourceSchemaVersion} to schema ${CURRENT_PROJECT_FILE_VERSION}${normalizedDocumentCount > 0 ? ` and normalized connectivity and Wire topology in ${normalizedDocumentCount} Cell${normalizedDocumentCount === 1 ? "" : "s"}${drawnNote}` : ""} — ${projectStore ? "save to Cloud or export" : "export"} to keep the upgrade`
@@ -734,16 +885,17 @@ export function useProjectFileLifecycle({
     };
     if (options.inTab && openProjectInTab) {
       await performOpen();
-      return;
+      return applied;
     }
     if (
       options.allowExactCurrentReplacement &&
       serializeProject(openedProject) === serializeProject(project)
     ) {
       await performOpen();
-      return;
+      return applied;
     }
     await guardDirtyReplacement(`Open ${file.name}`, performOpen);
+    return applied;
   }
 
   async function openCloudProjectById(
@@ -925,6 +1077,7 @@ export function useProjectFileLifecycle({
 
   return {
     captureFileSession: (): ProjectFileSession => ({
+      nativeBinding: nativeBindingRef.current,
       persistenceState,
       cloudBinding,
       savedBaseline: savedProjectBaseline,
@@ -932,6 +1085,7 @@ export function useProjectFileLifecycle({
       publishedSnapshotToken: publishedSnapshotTokenRef.current,
     }),
     restoreFileSession: (session: ProjectFileSession) => {
+      setNativeBinding(session.nativeBinding ?? null);
       setPersistenceState(session.persistenceState);
       setCloudBinding(session.cloudBinding);
       setSavedProjectBaseline(session.savedBaseline);
@@ -949,6 +1103,7 @@ export function useProjectFileLifecycle({
     startupRestoreReady,
     persistenceState,
     cloudBinding,
+    nativeBinding,
     noteGalleryPublication: (id: string | null) =>
       setCloudBinding((current) =>
         current ? { ...current, galleryEntryId: id } : current,
@@ -969,7 +1124,9 @@ export function useProjectFileLifecycle({
     noteProjectPublished,
     replaceActiveProject,
     saveProjectToCloud,
-    isSaveInFlight: saveCoordinator.isSaving,
+    saveProjectToNative,
+    isSaveInFlight: () =>
+      saveCoordinator.isSaving() || nativeSaveCoordinator.isSaving(),
     saveBusy: persistenceState === "saving",
     exportProjectFile,
     downloadCurrentProjectBackup,

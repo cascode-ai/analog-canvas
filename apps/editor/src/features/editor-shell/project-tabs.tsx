@@ -15,6 +15,7 @@ export function ProjectTabs({
   busy,
   onSelect,
   onClose,
+  onSaveClose,
   onNew,
   onOpenFile,
   cloudProjects,
@@ -27,6 +28,7 @@ export function ProjectTabs({
   busy: boolean;
   onSelect(id: string): void;
   onClose(id: string): void;
+  onSaveClose?(id: string): Promise<boolean>;
   onNew(): void;
   onOpenFile(): void;
   cloudProjects: readonly CloudProjectSummary[];
@@ -172,6 +174,19 @@ export function ProjectTabs({
           className="project-tab-close-decision"
           data-testid="project-tab-close-decision"
         >
+          {onSaveClose ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                void onSaveClose(closeTarget.id).then((closed) => {
+                  if (closed) setClosing(null);
+                });
+              }}
+            >
+              Save and close
+            </button>
+          ) : null}
           <Suspense fallback={null}>
             <InlineConfirm
               key={closeTarget.id}

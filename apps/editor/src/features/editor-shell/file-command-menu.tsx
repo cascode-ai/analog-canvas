@@ -6,6 +6,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
+  type ComponentType,
   type RefObject,
 } from "react";
 
@@ -13,6 +14,7 @@ import {
   CLOUD_PROJECT_LIMIT,
   type CloudProjectSummary,
 } from "./cloud-projects";
+import type { RecentProjectFile } from "../../hosts/native-project-store";
 const InlineConfirm = lazy(() =>
   import("../../components/inline-confirm").then((module) => ({
     default: module.InlineConfirm,
@@ -20,6 +22,19 @@ const InlineConfirm = lazy(() =>
 );
 
 export interface FileCommandMenuProps {
+  NativeFileCommands?: ComponentType<
+    NonNullable<FileCommandMenuProps["nativeFiles"]>
+  >;
+  nativeFiles?: {
+    projectName: string;
+    path: string | null;
+    recent: RecentProjectFile[];
+    busy: boolean;
+    refresh(): void;
+    open(id?: string): void;
+    saveAs(): void;
+    forget(id: string): void;
+  };
   cloudEnabled?: boolean;
   cloudProjects: readonly CloudProjectSummary[];
   activeCloudProjectId: string | null;
@@ -120,6 +135,8 @@ function CommandSubmenu({
 }
 
 export function FileCommandMenu({
+  NativeFileCommands,
+  nativeFiles,
   cloudEnabled = true,
   cloudProjects,
   activeCloudProjectId,
@@ -172,6 +189,7 @@ export function FileCommandMenu({
       className="command-menu"
       name="editor-command-menu"
       onToggle={(event) => {
+        if (event.currentTarget.open) nativeFiles?.refresh();
         if (event.currentTarget.open && cloudEnabled) onRefreshCloudProjects();
         else setOpenSubmenu(null);
       }}
@@ -184,9 +202,17 @@ export function FileCommandMenu({
         <button type="button" onClick={onNewProject}>
           New Project
         </button>
-        <button type="button" data-testid="save-cloud-project" onClick={onSave}>
-          {cloudEnabled ? "Save" : "Export Project File…"}
+        <button
+          type="button"
+          data-testid="save-cloud-project"
+          onClick={onSave}
+          disabled={nativeFiles?.busy}
+        >
+          {cloudEnabled || nativeFiles ? "Save" : "Export Project File…"}
         </button>
+        {nativeFiles && NativeFileCommands ? (
+          <NativeFileCommands {...nativeFiles} />
+        ) : null}
         {cloudEnabled ? (
           <>
             <button

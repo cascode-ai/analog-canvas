@@ -38,6 +38,15 @@ a located explanation, not silently converted into guessed connectivity.
 
 ## Internal desktop preview decision (2026-09-26)
 
+The minimum desktop follow-up extends the preview to file-bound Save/Save As,
+recent Projects and all-tab close protection, using the same Project protocol
+and upstream save coordination. Main-process grants own paths and acknowledged
+bytes; the renderer cannot supply write authority. See the desktop file ownership
+section in [persistence and recovery](../specs/persistence-and-recovery.md).
+Web Cloud Save is unchanged. Palette/grid/Visio/schema fork migrations and formal
+installer/update work are deferred after this minimum version. The paragraph
+below records the original export-only preview boundary.
+
 Add an isolated Electron preview alongside the Web/loopback products to test
 bundled rendering and canonical file roundtrips. It uses an application origin,
 no listening socket, and blocked external navigation/network. It does not

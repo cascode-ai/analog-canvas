@@ -155,7 +155,7 @@ export function EditorAppChrome({
             title={
               communityEnabled
                 ? "Back to the gallery"
-                : "Desktop preview · Export files to keep your work"
+                : "Desktop preview · Save projects to local files"
             }
             onClick={(event) => {
               if (

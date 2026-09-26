@@ -9,6 +9,8 @@ import type {
   deleteCloudProject,
 } from "../features/editor-shell/cloud-projects";
 import type { EditorExportDelivery } from "../hosts/export-delivery";
+import type { FileCommandMenuProps } from "../features/editor-shell/file-command-menu";
+import type { NativeProjectStore } from "../hosts/native-project-store";
 
 /** Current Cloud contract, including revisions/conflicts; not a native store. */
 export interface CloudProjectStore {
@@ -28,6 +30,8 @@ export interface CloudProjectStore {
 export interface EditorServices {
   readonly identity: { getSessionUser(): Promise<SessionUser | null> } | null;
   readonly projectStore: CloudProjectStore | null;
+  readonly nativeProjectStore?: NativeProjectStore;
+  readonly NativeFileCommands?: FileCommandMenuProps["NativeFileCommands"];
   readonly capabilities: {
     readonly community: boolean;
     readonly agent: boolean;

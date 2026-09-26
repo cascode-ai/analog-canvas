@@ -68,7 +68,7 @@ const commit = execFileSync("git", ["rev-parse", "HEAD"], {
 }).trim();
 await writeFile(
   join(output, "BUILD.txt"),
-  `Internal Windows x64 preview\nSource commit: ${commit}\nExport/import only; not D-A or an installer release.\n`,
+  `Internal Windows x64 preview\nSource commit: ${commit}\nNative Project files and recent Projects; no installer or updater.\n`,
 );
 await mkdir(join(root, "plan"), { recursive: true });
 await writeFile(

@@ -1,5 +1,25 @@
 # Desktop preview source map
 
+## Native file management (2026-09-26)
+
+This bounded migration adopts the file dialog/result flow and close decision
+ports from LXY-freshman. The original implementation author is recorded as
+`Co-authored-by: LXY-freshman <57762866+LXY-freshman@users.noreply.github.com>`
+in the adopting commits; verify that trailer on the final squash as well.
+
+| Destination | Fixed original | Reuse and adaptation |
+| --- | --- | --- |
+| `src/project-files.ts` | [Project file API](https://github.com/LXY-freshman/schematic-draft/blob/5231840f31b551f231441976efc0d18e6f9e5f80/apps/desktop/src/project-files.ts), originating in [desktop c15d9f2d](https://github.com/LXY-freshman/schematic-draft/commit/c15d9f2db22cfbf19bdbc84d743460f5a384b7f6) | Retain native Open/Save/Save-As routing, cancelled/failed/saved outcomes and bounded Project size. Replace renderer-selected paths with main-process grants, optimistic byte comparisons and atomic replacement. Add recent-file index. No `.schdraft`, file associations or arbitrary path read API. |
+| `../editor/src/hosts/native-project-store.ts` | [Renderer file bridge](https://github.com/LXY-freshman/schematic-draft/blob/5231840f31b551f231441976efc0d18e6f9e5f80/apps/editor/src/features/editor-shell/project-files.ts) | Adapt POST transport, canonical serialization and defensive outcome decoding to injected services and opaque revisioned bindings. Paths in receipts are display metadata, never write authority. |
+| `src/close-guard.ts` and its test | [Close guard](https://github.com/LXY-freshman/schematic-draft/blob/5231840f31b551f231441976efc0d18e6f9e5f80/apps/desktop/src/close-guard.ts), [original close change](https://github.com/LXY-freshman/schematic-draft/commit/54179d29be1c04f17d20fd22deaf98418fc9ff5e), [tests](https://github.com/LXY-freshman/schematic-draft/blob/5231840f31b551f231441976efc0d18e6f9e5f80/apps/desktop/src/close-guard.test.ts) | Retain pure decision ports and save/cancel/failure branches. Aggregate all tabs, recheck after Save, default to Keep open, and require explicit discard if the renderer is unavailable. Current-workspace assertions replace the original single-Project fixtures. |
+
+The recent index, tab integration, current Project protocol adaptation and new
+storage regression cases are upstream integration work. Original source commits
+retain their historical AI-tool trailers; this adapted implementation's credit
+does not claim that those tools participated in the new adaptation.
+
+## First preview
+
 This first migration uses the frozen [Schematic Draft source](https://github.com/LXY-freshman/schematic-draft/tree/5231840f31b551f231441976efc0d18e6f9e5f80), by **LXY-freshman** (`57762866+LXY-freshman@users.noreply.github.com`). The source and upstream are AGPL-3.0-only. This inventory was prepared before adopting the shell implementation.
 
 | Destination                | Original implementation and history                                                                                                                                                                                                                                         | Adaptation / omissions                                                                                                                                                                                                                                                                                                                                                                        |

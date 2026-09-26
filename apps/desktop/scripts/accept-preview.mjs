@@ -57,11 +57,36 @@ async function chooseExport(path) {
 async function exportProject(page, path) {
   await chooseExport(path);
   await page.keyboard.press("Escape");
-  await page.keyboard.press("Control+s");
+  const menu = page
+    .locator("details.command-menu")
+    .filter({ has: page.locator("summary").filter({ hasText: /^File$/ }) });
+  if (!(await menu.evaluate((element) => element.open)))
+    await menu.locator("summary").click();
+  await menu.getByRole("button", { name: "Export", exact: true }).click();
+  await menu
+    .getByRole("button", { name: "Export Project File…", exact: true })
+    .click();
   await expect(page.getByText(/^Exported:/)).toBeVisible({ timeout: 20000 });
   return parseProject(await readFile(path, "utf8"));
 }
 async function closePreview() {
+  const state = await running.evaluate(async ({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].webContents.executeJavaScript(
+      "window.__analogCanvasDesktop.state()",
+    ),
+  );
+  if (!state.dirty.length && !state.pendingEdits && !state.busy) {
+    const closed = running.waitForEvent("close");
+    await running.evaluate(({ BrowserWindow, dialog }) => {
+      dialog.showMessageBox = async () => {
+        throw new Error("Clean workspace must not prompt");
+      };
+      BrowserWindow.getAllWindows()[0].close();
+    });
+    await closed;
+    running = undefined;
+    return;
+  }
   await running.evaluate(({ BrowserWindow, dialog }) => {
     dialog.showMessageBox = async (_window, options) => {
       if (options.defaultId !== 0 || options.cancelId !== 0)
@@ -125,7 +150,7 @@ try {
   await chooseExport(null);
   await first.keyboard.press("Control+s");
   await expect(
-    first.getByText("Export cancelled", { exact: true }),
+    first.getByText("Save cancelled", { exact: true }),
   ).toBeVisible();
   await first
     .locator("summary")
@@ -138,11 +163,11 @@ try {
   });
   await expect(replaceGuard).toBeVisible();
   await replaceGuard
-    .getByRole("button", { name: "Export and continue", exact: true })
+    .getByRole("button", { name: "Save and continue", exact: true })
     .click();
   await expect(
     replaceGuard.getByRole("button", {
-      name: "Export and continue",
+      name: "Save and continue",
       exact: true,
     }),
   ).toBeEnabled();
@@ -150,7 +175,7 @@ try {
   await replaceGuard.getByRole("button", { name: "Stay", exact: true }).click();
   await chooseExport(join(output, "does-not-exist", "failed.json"));
   await first.keyboard.press("Control+s");
-  await expect(first.getByText(/^Export failed:/)).toBeVisible();
+  await expect(first.getByText(/^Save failed:/)).toBeVisible();
   const path = join(output, "roundtrip.icproj.json");
   const before = await exportProject(first, path);
   assert.equal(before.documents[0].instances.length, 3);
@@ -264,6 +289,147 @@ try {
   await helpClick;
   assert.equal(running.windows().length, 1);
   await closePreview();
+  // Native persistence uses the same real executable and dialog boundary.
+  const native = await launch("native");
+  const nativeA = join(output, "native-A.icproj.json");
+  const nativeB = join(output, "native-B.icproj.json");
+  const nativeCopy = join(output, "native-copy.icproj.json");
+  await cp(path, nativeA);
+  async function fileCommand(page, name) {
+    await page.keyboard.press("Escape");
+    const menu = page
+      .locator("details.command-menu")
+      .filter({ has: page.locator("summary").filter({ hasText: /^File$/ }) });
+    if (!(await menu.evaluate((element) => element.open)))
+      await menu.locator("summary").click();
+    await menu.getByRole("button", { name, exact: true }).click();
+  }
+  async function renameProject(page, name) {
+    await page.getByTestId("project-menu-toggle").click();
+    await page.getByTestId("project-name-input").fill(name);
+    await page.getByTestId("project-name-input").press("Enter");
+  }
+  await running.evaluate(({ dialog }, path) => {
+    dialog.showOpenDialog = async () => ({
+      canceled: false,
+      filePaths: [path],
+    });
+  }, nativeA);
+  await fileCommand(native, "Open Project…");
+  await expect(native.getByTestId("instance-count")).toHaveText("3");
+  await renameProject(native, "Native A");
+  await running.evaluate(({ dialog }) => {
+    dialog.showSaveDialog = async () => {
+      throw new Error("Bound Save must not open a dialog");
+    };
+  });
+  await native.keyboard.press("Control+s");
+  await expect
+    .poll(async () => parseProject(await readFile(nativeA, "utf8")).name)
+    .toBe("Native A");
+  await renameProject(native, "Native A again");
+  await native.keyboard.press("Control+s");
+  await expect
+    .poll(async () => parseProject(await readFile(nativeA, "utf8")).name)
+    .toBe("Native A again");
+  await chooseExport(null);
+  await fileCommand(native, "Save As…");
+  await expect(
+    native.getByText("Save cancelled", { exact: true }),
+  ).toBeVisible();
+  await expect(native.getByTestId("native-file-location")).toHaveText(nativeA);
+  await chooseExport(nativeB);
+  await fileCommand(native, "Save As…");
+  await expect(native.getByTestId("native-file-location")).toHaveText(nativeB);
+  await exportProject(native, nativeCopy);
+  await expect(native.getByTestId("native-file-location")).toHaveText(nativeB);
+  await renameProject(native, "Native B");
+  await running.evaluate(({ dialog }) => {
+    dialog.showSaveDialog = async () => {
+      throw new Error("Export must not rebind Save");
+    };
+  });
+  await native.keyboard.press("Control+s");
+  await expect
+    .poll(async () => parseProject(await readFile(nativeB, "utf8")).name)
+    .toBe("Native B");
+  assert.equal(
+    parseProject(await readFile(nativeA, "utf8")).name,
+    "Native A again",
+  );
+  // Two open files retain independent destinations; reopening selects the tab.
+  await fileCommand(native, "Open Project…");
+  await expect(native.getByTestId("native-file-location")).toHaveText(nativeA);
+  await renameProject(native, "Independent A");
+  await native.keyboard.press("Control+s");
+  await expect
+    .poll(async () => parseProject(await readFile(nativeA, "utf8")).name)
+    .toBe("Independent A");
+  await native.getByRole("tab", { name: "Native B", exact: true }).click();
+  await expect(native.getByTestId("native-file-location")).toHaveText(nativeB);
+  const tabCount = await native.getByRole("tab").count();
+  await fileCommand(native, "Open Project…");
+  await expect(native.getByRole("tab")).toHaveCount(tabCount);
+  await expect(native.getByTestId("native-file-location")).toHaveText(nativeA);
+  // A late external write must survive Save, including through the UI wiring.
+  const external = parseProject(await readFile(nativeA, "utf8"));
+  external.name = "External edit";
+  await writeFile(nativeA, serializeProject(external));
+  await renameProject(native, "Unsaved local edit");
+  await native.keyboard.press("Control+s");
+  await expect(
+    native.getByText(/Save failed: File changed outside the editor/),
+  ).toBeVisible();
+  assert.equal(
+    parseProject(await readFile(nativeA, "utf8")).name,
+    "External edit",
+  );
+  await native.screenshot({ path: join(output, "native-files.png") });
+  await closePreview();
+  const restarted = await launch("native");
+  const fileMenu = restarted.locator("details.command-menu").filter({
+    has: restarted.locator("summary").filter({ hasText: /^File$/ }),
+  });
+  await fileMenu.locator("summary").click();
+  await expect(
+    fileMenu.getByRole("button").filter({ hasText: "native-B.icproj.json" }),
+  ).toHaveCount(1);
+  await fileMenu
+    .getByRole("button")
+    .filter({ hasText: "native-B.icproj.json" })
+    .click();
+  await expect(restarted.getByTestId("instance-count")).toHaveText("3");
+  await renameProject(restarted, "Native B restarted");
+  await running.evaluate(({ dialog }) => {
+    dialog.showSaveDialog = async () => {
+      throw new Error("Reopened recent Project must remain bound");
+    };
+  });
+  await restarted.keyboard.press("Control+s");
+  await expect
+    .poll(async () => parseProject(await readFile(nativeB, "utf8")).name)
+    .toBe("Native B restarted");
+  // A background dirty tab must be included in Save all and close.
+  await renameProject(restarted, "Background saved on close");
+  await restarted
+    .getByRole("button", { name: "New project tab", exact: true })
+    .click();
+  await expect(restarted.getByTestId("instance-count")).toHaveText("0");
+  const savedClose = running.waitForEvent("close");
+  await running.evaluate(({ BrowserWindow, dialog }) => {
+    dialog.showMessageBox = async (_window, options) => {
+      if (!options.buttons.includes("Save all and close"))
+        throw new Error(`Unexpected close failure: ${options.detail}`);
+      return { response: 2, checkboxChecked: false };
+    };
+    BrowserWindow.getAllWindows()[0].close();
+  });
+  await savedClose;
+  running = undefined;
+  assert.equal(
+    parseProject(await readFile(nativeB, "utf8")).name,
+    "Background saved on close",
+  );
   for (const audit of auditFiles) {
     const requests = (await readFile(audit, "utf8"))
       .trim()
@@ -307,6 +473,13 @@ try {
           "external-help-feedback",
           "no-service-worker",
           "sandbox",
+          "native-bound-save-without-dialog",
+          "native-save-as-cancel-and-rebind",
+          "export-does-not-rebind",
+          "recent-project-relaunch",
+          "independent-file-tabs-and-deduplication",
+          "external-write-conflict-preserves-both-versions",
+          "background-tab-save-on-close",
         ],
         output,
       },
@@ -325,6 +498,23 @@ try {
     );
   }
   console.log(`PASS: ${output}`);
+} catch (error) {
+  if (running) {
+    const page = running.windows()[0];
+    if (page) {
+      console.error(
+        "Acceptance status:",
+        await page
+          .getByTestId("status")
+          .textContent()
+          .catch(() => "unavailable"),
+      );
+      await page
+        .screenshot({ path: join(output, "failure.png") })
+        .catch(() => {});
+    }
+  }
+  throw error;
 } finally {
   if (running) {
     await running.evaluate(({ app }) => app.exit(0)).catch(() => {});

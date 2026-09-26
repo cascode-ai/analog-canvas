@@ -9,6 +9,8 @@ import {
   createAppProtocolHandler,
 } from "./app-protocol.js";
 import { createExportHandler } from "./export-file.js";
+import { createProjectFileHandler } from "./project-files.js";
+import { decideClose, workspaceCloseState } from "./close-guard.js";
 
 const PRODUCT_NAME = "Analog Canvas Preview";
 const auditPath = process.env.ICM_PREVIEW_AUDIT;
@@ -89,28 +91,59 @@ async function createWindow() {
     if (!url.startsWith(`${APP_ORIGIN}/`)) event.preventDefault();
   });
   let deciding = false;
-  // Deliberately conservative: does not claim coordinated multi-tab native Save.
   window.on("close", (event) => {
     event.preventDefault();
     if (deciding) return;
     deciding = true;
-    void dialog
-      .showMessageBox(window, {
-        type: "question",
-        title: PRODUCT_NAME,
-        message: "Have you exported every project you want to keep?",
-        detail:
-          "This preview exports copies and does not save files in place. Recovery is a safety copy only. Keep the window open to export any remaining work.",
-        buttons: ["Keep open", "Close preview"],
-        defaultId: 0,
-        cancelId: 0,
-        noLink: true,
+    void decideClose({
+      readState: async () =>
+        workspaceCloseState(
+          await window.webContents.executeJavaScript(
+            "window.__analogCanvasDesktop?.state() ?? null",
+          ),
+        ),
+      ask: async (state) => {
+        const { response } = await dialog.showMessageBox(window, {
+          type: "question",
+          title: PRODUCT_NAME,
+          message: state
+            ? "Save changes before closing?"
+            : "The editor is not answering. Close without saving?",
+          detail: state
+            ? state.dirty.map((tab) => tab.name).join("\n")
+            : "Keep the window open to retry. Closing may lose unsaved work.",
+          buttons: ["Keep open", "Discard and close", "Save all and close"],
+          defaultId: 0,
+          cancelId: 0,
+          noLink: true,
+        });
+        return response === 2 ? "save" : response === 1 ? "discard" : "cancel";
+      },
+      save: async () => {
+        const value = (await window.webContents.executeJavaScript(
+          "window.__analogCanvasDesktop?.save() ?? { status: 'failed', message: 'The editor stopped answering' }",
+        )) as { status?: unknown; message?: unknown } | null;
+        return {
+          status: typeof value?.status === "string" ? value.status : "failed",
+          ...(typeof value?.message === "string"
+            ? { message: value.message }
+            : {}),
+        };
+      },
+      reportFailure: async (message) => {
+        await dialog.showMessageBox(window, {
+          type: "warning",
+          message: "The window stayed open",
+          detail: message,
+          buttons: ["OK"],
+        });
+      },
+    })
+      .then((decision) => {
+        if (decision === "close" && !window.isDestroyed()) window.destroy();
       })
-      .then(({ response }) => {
-        deciding = false;
-        if (response === 1 && !window.isDestroyed()) window.destroy();
-      })
-      .catch(() => {
+      .catch(() => {})
+      .finally(() => {
         deciding = false;
       });
   });
@@ -147,6 +180,42 @@ else {
           ? join(process.resourcesPath, "editor")
           : resolve(import.meta.dirname, "../../editor/dist-desktop"),
         exportFile,
+        projectFile: createProjectFileHandler(
+          {
+            async promptOpen() {
+              const window = BrowserWindow.getAllWindows()[0];
+              if (!window) return null;
+              const result = await dialog.showOpenDialog(window, {
+                title: "Open Project",
+                properties: ["openFile"],
+                filters: [
+                  {
+                    name: "Analog Canvas Project",
+                    extensions: ["icproj.json", "json"],
+                  },
+                ],
+              });
+              return result.canceled ? null : (result.filePaths[0] ?? null);
+            },
+            async promptSave(name, currentPath) {
+              const window = BrowserWindow.getAllWindows()[0];
+              if (!window) return null;
+              const result = await dialog.showSaveDialog(window, {
+                title: "Save Project",
+                defaultPath:
+                  currentPath ?? join(app.getPath("documents"), name),
+                filters: [
+                  {
+                    name: "Analog Canvas Project",
+                    extensions: ["icproj.json"],
+                  },
+                ],
+              });
+              return result.canceled ? null : (result.filePath ?? null);
+            },
+          },
+          join(userData, "recent-projects.json"),
+        ),
       });
       protocol.handle(APP_SCHEME, (request) => {
         audit(`${request.url}`);

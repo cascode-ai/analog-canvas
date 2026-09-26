@@ -1,10 +1,14 @@
 import type { EditorServices } from "./editor-services";
+import { NativeFileCommands } from "../hosts/native-file-commands";
+import { createNativeProjectStore } from "../hosts/native-project-store";
 
 /** No Cloud adapter or identity provider is constructed for the preview. */
 export function createPreviewEditorServices(): EditorServices {
   return {
     identity: null,
     projectStore: null,
+    nativeProjectStore: createNativeProjectStore(),
+    NativeFileCommands,
     capabilities: {
       community: false,
       agent: false,
