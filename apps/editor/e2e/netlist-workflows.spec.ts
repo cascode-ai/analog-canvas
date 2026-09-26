@@ -457,8 +457,15 @@ test("copies structural SPICE and Spectre netlists while exposing instance autho
   // The panel's own copy button, beside the code, copies the same netlist.
   await page.evaluate(() => navigator.clipboard.writeText("unchanged"));
   await page.getByTestId("copy-netlist-panel").click();
+  // Match copyNetlistText's line-ending-neutral clipboard contract: Windows
+  // returns CRLF even though the generated netlist uses LF.
   await expect
-    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .poll(async () =>
+      (await page.evaluate(() => navigator.clipboard.readText())).replace(
+        /\r\n?/gu,
+        "\n",
+      ),
+    )
     .toBe(spectre);
   await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(
     0,

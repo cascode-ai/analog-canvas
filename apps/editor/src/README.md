@@ -25,6 +25,10 @@ and Durable Object storage. `src/` and the top-level Worker only mount it.
   state.
 - `document/`: document navigation, transaction, and project recovery
   lifecycle boundaries.
+- `hosts/`: host-owned I/O supplied by the composition root. Export delivery
+  owns visual-export downloads and netlist clipboard writes; file/visual commands
+  retain generation, validation, suggested filenames and reports. A download request is
+  distinct from a completed native write, and neither marks the Project saved.
 - `interaction/`: application-wide interaction state, shortcut intent mapping
   and reference, deferred focus handoff, and orientation commands shared by
   feature adapters.
