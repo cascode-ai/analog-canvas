@@ -48,6 +48,34 @@ describe("netlist-crawler structural conversion", () => {
     expect(spice).toContain("X1 z a leaf w=0.000003");
     expect(spice).toContain("M1 out in 0 0 NMOS w={(w*2)} l=1.5e-7");
   });
+  it("converts coupled inductors both ways, as the T-coil subcircuit is written", () => {
+    const tcoil = [
+      ".subckt tcoil n1 n2 n3 params: l1=1n l2=1n k=1 cb=1p",
+      "L1 n1 n3 {l1}",
+      "L2 n3 n2 {l2}",
+      "K12 L1 L2 {k}",
+      "CB n1 n2 {cb}",
+      ".ends tcoil",
+      "",
+    ].join("\n");
+    const scs = converted(tcoil, "spice");
+    expect(scs).toContain("L1 (n1 n3) inductor l=(l1)");
+    expect(scs).toContain("K12 mutual_inductor coupling=(k) ind1=L1 ind2=L2");
+    const spice = converted(scs);
+    expect(spice).toContain("L1 n1 n3 {(l1)}");
+    expect(spice).toContain("K12 L1 L2 {(k)}");
+    // Spectre inductors need no L; SPICE spells them, and their coupling,
+    // with the prefixes it requires.
+    expect(
+      converted(
+        "W1 (a b) inductor l=1n\nW2 (c d) inductor l=2n\nM0 mutual_inductor coupling=0.5 ind1=W1 ind2=W2",
+      ),
+    ).toContain("LW1 a b 1e-9\nLW2 c d 2e-9\nKM0 LW1 LW2 0.5");
+    for (const text of ["K1 L1 L2 L3 0.9", "K1 L1 0.9"])
+      expect(
+        convertNetlist({ text, source: "spice", target: "spectre" }).status,
+      ).toBe("blocked");
+  });
   it("distinguishes mega and milli and translates arithmetic coefficients", () => {
     expect(
       converted("R1 (a b) resistor r=1M\nR2 (b 0) resistor r=1m"),
