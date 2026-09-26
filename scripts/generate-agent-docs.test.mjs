@@ -2,7 +2,7 @@ import { test } from "vitest";
 import assert from "node:assert/strict";
 import { readFile, mkdtemp, writeFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import {
   compile,
   validateRegistry,
@@ -141,4 +141,52 @@ test("every declared Kit destination and resource is emitted; no phantom fallbac
           .includes(d.kitPath),
       );
   }
+});
+
+test("layout lookup is self-contained and legacy addresses share its canonical source", async () => {
+  const ids = [
+    "reference/razavi-style",
+    "reference/routing",
+    "reference/knowledge/patterns",
+  ];
+  const entries = ids.map((id) => registry.documents.find((d) => d.id === id));
+  const canonical = entries[0];
+  assert.equal(
+    registry.documents.find((d) => d.source === canonical.source).id,
+    canonical.id,
+    "ordinary links must resolve to the canonical layout resource, not an alias",
+  );
+  const { mcpResources } =
+    await import("../apps/mcp-server/src/resources.generated.ts");
+  const { agentKitFiles } =
+    await import("../packages/agent-adapter/src/agent-docs.generated.ts");
+  const texts = entries.map(
+    (entry) => mcpResources.find((r) => r.uri === entry.uri).text,
+  );
+  // Kit aliases live at different depths; compare the resolved link targets.
+  const kitTexts = entries.map((entry) =>
+    agentKitFiles
+      .find((f) => f.path === entry.kitPath)
+      .content.replace(
+        /\]\(([^)]+)\)/g,
+        (_, href) =>
+          `](${posix.normalize(posix.join(posix.dirname(entry.kitPath), href))})`,
+      ),
+  );
+  for (const [index, entry] of entries.entries()) {
+    assert.equal(entry.source, canonical.source);
+    assert.equal(entry.load, "on-demand");
+    assert.deepEqual(entry.requires, []);
+    assert.equal(texts[index], texts[0]);
+    assert.equal(kitTexts[index], kitTexts[0]);
+  }
+  for (const heading of ["Structure", "Layout", "Wiring", "Example:"])
+    assert.ok(texts[0].includes(`## ${heading}`));
+  assert.ok(!texts[0].includes("analog-canvas://reference/routing"));
+  assert.ok(!texts[0].includes("analog-canvas://reference/knowledge/patterns"));
+  assert.ok(
+    mcpResources
+      .find((r) => r.uri === "analog-canvas://reference/workflow")
+      .text.includes("(analog-canvas://reference/razavi-style)"),
+  );
 });

@@ -1,7 +1,7 @@
 {
   "format": "analog-canvas-agent-distribution-v1",
   "version": 1,
-  "registrySha256": "584fe2291ef9264377b3969bd4f3482461ada6d5099765dc35de47b337bbeeab",
+  "registrySha256": "8d0b89fbcf42cd47f85a2b1c17a7e752f6d9116e60cd30d6ce1def654b5eea1e",
   "sources": [
     {
       "source": "docs/agent/simulation-specs.md",
@@ -36,16 +36,12 @@
       "sha256": "4ace05b796fb2dffd30d7106f0cae8101dea511f28d0baf2651f02f7db1d61ae"
     },
     {
-      "source": "docs/agent/knowledge/route-tree-shapes.md",
-      "sha256": "0e2c45dcbbdcf76a86654164cce14097ecd1e6dd4c003f0d071738c76f390cf0"
+      "source": "docs/agent/circuit-style-knowledge.md",
+      "sha256": "931ec18c173bff38211dcf7c850f5d53204ea010fac8873e16a99cb270ae5355"
     },
     {
       "source": "docs/agent/shared/diagnostics.md",
       "sha256": "7f832fe62dd1ce8e78a681e4cfa413084137f46a49f6de3b8096b9988091cdf5"
-    },
-    {
-      "source": "docs/agent/circuit-style-knowledge.md",
-      "sha256": "9c0650d029f0240583ceb91f2922e9034322ba5a8e5780931f55a7516f0c073c"
     },
     {
       "source": "fixtures/agent-api/agent-circuit-request.schema.json",
@@ -110,10 +106,6 @@
     {
       "source": "docs/agent/shared/simulation.md",
       "sha256": "8d239682ac8608d4f4a6beb265a1bed19f26db7cc5b57830c92c9b871b781b46"
-    },
-    {
-      "source": "docs/agent/knowledge/patterns.md",
-      "sha256": "da7c2766436f1bb9216a25681c4ae77d261234862cc005a9e66e015ccb060ba4"
     },
     {
       "source": "docs/agent/repo-skill/routegraph.md",
@@ -265,19 +257,19 @@
       "kitPath": "references/response-semantics.md"
     },
     {
-      "id": "reference/routing",
-      "source": "docs/agent/knowledge/route-tree-shapes.md",
+      "id": "reference/razavi-style",
+      "source": "docs/agent/circuit-style-knowledge.md",
       "consumers": [
         "mcp",
         "http-cli",
         "http-kit",
         "repo-skill"
       ],
-      "task": "Route tree shapes",
+      "task": "Look up schematic layout rules",
       "load": "on-demand",
       "requires": [],
-      "uri": "analog-canvas://reference/routing",
-      "kitPath": "references/route-tree-shapes.md"
+      "uri": "analog-canvas://reference/razavi-style",
+      "kitPath": "references/circuit-style-knowledge.md"
     },
     {
       "id": "reference/diagnostics",
@@ -295,7 +287,7 @@
       "kitPath": "references/diagnostics.md"
     },
     {
-      "id": "reference/razavi-style",
+      "id": "reference/routing",
       "source": "docs/agent/circuit-style-knowledge.md",
       "consumers": [
         "mcp",
@@ -303,11 +295,11 @@
         "http-kit",
         "repo-skill"
       ],
-      "task": "Circuit style knowledge",
+      "task": "Layout lookup alias; do not reread",
       "load": "on-demand",
       "requires": [],
-      "uri": "analog-canvas://reference/razavi-style",
-      "kitPath": "references/circuit-style-knowledge.md"
+      "uri": "analog-canvas://reference/routing",
+      "kitPath": "references/route-tree-shapes.md"
     },
     {
       "id": "contract/advanced-edits",
@@ -536,14 +528,14 @@
     },
     {
       "id": "reference/knowledge/patterns",
-      "source": "docs/agent/knowledge/patterns.md",
+      "source": "docs/agent/circuit-style-knowledge.md",
       "consumers": [
         "mcp",
         "http-cli",
         "http-kit",
         "repo-skill"
       ],
-      "task": "Place recognizable circuit groups",
+      "task": "Layout lookup alias; do not reread",
       "load": "on-demand",
       "requires": [],
       "uri": "analog-canvas://reference/knowledge/patterns",
@@ -612,7 +604,7 @@
         "docs/agent/workflow.md",
         "docs/agent/tool-behavior.md",
         "docs/agent/response-semantics.md",
-        "docs/agent/knowledge/route-tree-shapes.md",
+        "docs/agent/circuit-style-knowledge.md",
         "docs/agent/shared/diagnostics.md",
         "docs/agent/circuit-style-knowledge.md",
         "fixtures/agent-api/agent-circuit-request.schema.json",
@@ -627,9 +619,9 @@
         "docs/agent/mcp/simulation.md",
         "docs/agent/mcp/simulation-reference.md",
         "docs/agent/shared/simulation.md",
-        "docs/agent/knowledge/patterns.md"
+        "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "ee9ba3e0de1d98f93702e883c30098171af89562412d383d107813df74504f03"
+      "sha256": "167244bcc5b0000d5e76a730e36326c24c21c88bf1ac2972d685ab64f15c4a9c"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -642,7 +634,7 @@
         "docs/agent/workflow.md",
         "docs/agent/tool-behavior.md",
         "docs/agent/response-semantics.md",
-        "docs/agent/knowledge/route-tree-shapes.md",
+        "docs/agent/circuit-style-knowledge.md",
         "docs/agent/shared/diagnostics.md",
         "docs/agent/circuit-style-knowledge.md",
         "fixtures/agent-api/agent-circuit-request.schema.json",
@@ -656,9 +648,9 @@
         "docs/agent/examples.md",
         "docs/agent/simulation-result-handoff.md",
         "docs/agent/shared/simulation.md",
-        "docs/agent/knowledge/patterns.md"
+        "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "709fdbfb79a1603a540fdd5aef5cf05a92be13266239e6513c5fc5b6c70eb037"
+      "sha256": "64a05830256c692b7335f7bc7efc00b17cc920fae742f713a3d55cbdfc7ccdb6"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",
@@ -706,7 +698,7 @@
       "sources": [
         "docs/agent/distribution.json"
       ],
-      "sha256": "6bd9a5ee58f2197c08c03624701aa3d3a39080447c8d9c9b931cb55ad12ceccc"
+      "sha256": "9ad21b4f2896494e2a4be7f38250e7bfefd357e2e686c53345c0c69859397bd1"
     }
   ]
 }
