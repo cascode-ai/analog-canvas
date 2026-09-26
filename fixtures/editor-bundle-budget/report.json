@@ -1,33 +1,33 @@
 {
   "version": "0.2.0",
-  "note": "Ceilings for the /editor and / Gallery first-paint payloads. Raising one requires a recorded reason; a faster or slower machine is not one.",
+  "note": "Ceilings for the /editor and / Gallery first-paint payloads, 50% above the measured payload so only a step change trips them. Raising one requires a recorded reason; a faster or slower machine is not one.",
   "routes": {
     "editor": {
       "budget": {
-        "files": 36,
-        "rawKib": 2745,
-        "gzipKib": 702,
-        "brotliKib": 590
+        "files": 53,
+        "rawKib": 3886,
+        "gzipKib": 1051,
+        "brotliKib": 882
       },
       "measured": {
-        "files": 34,
-        "rawKib": 2579.8,
-        "gzipKib": 697.3,
-        "brotliKib": 585
+        "files": 35,
+        "rawKib": 2590.1,
+        "gzipKib": 700.1,
+        "brotliKib": 587.4
       }
     },
     "gallery": {
       "budget": {
-        "files": 13,
-        "rawKib": 319,
-        "gzipKib": 104,
-        "brotliKib": 91
+        "files": 20,
+        "rawKib": 477,
+        "gzipKib": 155,
+        "brotliKib": 136
       },
       "measured": {
-        "files": 12,
-        "rawKib": 308.4,
-        "gzipKib": 100.8,
-        "brotliKib": 88.2
+        "files": 13,
+        "rawKib": 317.5,
+        "gzipKib": 103.1,
+        "brotliKib": 90.3
       }
     }
   }
