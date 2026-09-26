@@ -284,47 +284,6 @@ function resolveByIdOrName<T extends NamedId>(
   return found;
 }
 
-function nearestPointOnPolyline(
-  origin: { x: number; y: number },
-  polyline: readonly { x: number; y: number }[],
-): { point: { x: number; y: number }; segmentIndex: number } | null {
-  let best: { point: { x: number; y: number }; segmentIndex: number } | null =
-    null;
-  let bestDistance = Number.POSITIVE_INFINITY;
-  for (
-    let segmentIndex = 0;
-    segmentIndex < polyline.length - 1;
-    segmentIndex += 1
-  ) {
-    const a = polyline[segmentIndex]!;
-    const b = polyline[segmentIndex + 1]!;
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const lengthSquared = dx * dx + dy * dy;
-    const t =
-      lengthSquared === 0
-        ? 0
-        : Math.max(
-            0,
-            Math.min(
-              1,
-              ((origin.x - a.x) * dx + (origin.y - a.y) * dy) / lengthSquared,
-            ),
-          );
-    const px = a.x + t * dx;
-    const py = a.y + t * dy;
-    const distance = (origin.x - px) ** 2 + (origin.y - py) ** 2;
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = {
-        point: { x: Math.round(px), y: Math.round(py) },
-        segmentIndex,
-      };
-    }
-  }
-  return best;
-}
-
 /**
  * Compile a batch of high-level actions against one Snapshot into an ordered
  * list of server transactions. The compiler only resolves names/geometry and
@@ -376,7 +335,9 @@ export function compileActions(
       last.editActionIndices &&
       last.edits.length < maxEdits &&
       (kind === "place-component") ===
-        last.actionKinds.every((item) => item === "place-component")
+        last.actionKinds.every((item) => item === "place-component") &&
+      (kind === "delete") ===
+        last.actionKinds.every((item) => item === "delete")
     ) {
       return {
         edits: last.edits,
@@ -436,10 +397,15 @@ export function compileActions(
   parsed.data.forEach((action, index) => {
     switch (action.kind) {
       case "set-model":
+      case "set-port-direction":
+      case "set-vdd-mode":
+      case "delete-selection":
+      case "add-power-rail":
       case "move-annotation":
       case "batch":
       case "place-components":
       case "set-instance-display":
+      case "arrange-labels":
       case "place-existing":
       case "place-cell":
       case "set-net-label":
@@ -471,9 +437,6 @@ export function compileActions(
         break;
       case "place-component":
         compilePlaceComponent(index, action, document, allocateId, pushEdit);
-        break;
-      case "add-power-rail":
-        compileAddPowerRail(index, action, document, allocateId, pushEdit);
         break;
       case "connect":
         compileConnect(index, action, document, allocateId, pushWireIntent);
@@ -691,6 +654,39 @@ export function compileActions(
     .map((transaction): CompiledTransaction => {
       if (
         transaction.form === "edits" &&
+        transaction.actionKinds.every((kind) => kind === "delete") &&
+        transaction.edits?.length
+      ) {
+        const selection = {
+          instanceIds: [] as string[],
+          routeIds: [] as string[],
+          junctionIds: [] as string[],
+          annotationIds: [] as string[],
+          draftingIds: [] as string[],
+          noConnectIds: [] as string[],
+        };
+        for (const edit of transaction.edits) {
+          if (edit.kind === "remove_instance")
+            selection.instanceIds.push(edit.instanceId);
+          if (edit.kind === "cut_connection")
+            selection.routeIds.push(edit.routeId);
+          if (edit.kind === "remove_junction")
+            selection.junctionIds.push(edit.junctionId);
+          if (edit.kind === "remove_schematic_annotation")
+            selection.annotationIds.push(edit.annotationId);
+          if (edit.kind === "remove_drafting_object")
+            selection.draftingIds.push(edit.objectId);
+          if (edit.kind === "remove_no_connect")
+            selection.noConnectIds.push(edit.noConnectId);
+        }
+        return {
+          form: "command",
+          command: { kind: "delete-selection", selection },
+          actionKinds: transaction.actionKinds,
+        };
+      }
+      if (
+        transaction.form === "edits" &&
         transaction.edits &&
         transaction.edits.length > 0 &&
         transaction.actionKinds.every((kind) => kind === "place-component")
@@ -701,6 +697,28 @@ export function compileActions(
             kind: "place-components",
             instances: transaction.edits.flatMap((edit) =>
               edit.kind === "add_instance" ? [edit.instance] : [],
+            ),
+            terminalDirections: Object.fromEntries(
+              transaction.edits.flatMap((edit, index) => {
+                const source =
+                  parsed.data[transaction.editActionIndices![index]!];
+                return edit.kind === "add_instance" &&
+                  source?.kind === "place-component" &&
+                  source.direction
+                  ? [[edit.instance.id, source.direction]]
+                  : [];
+              }),
+            ),
+            pinAnchors: Object.fromEntries(
+              transaction.edits.flatMap((edit, index) => {
+                const source =
+                  parsed.data[transaction.editActionIndices![index]!];
+                return edit.kind === "add_instance" &&
+                  source?.kind === "place-component" &&
+                  source.pinAnchor
+                  ? [[edit.instance.id, source.pinAnchor]]
+                  : [];
+              }),
             ),
           },
           actionKinds: transaction.actionKinds,
@@ -746,9 +764,19 @@ function compilePlaceComponent(
       `"${action.symbol}" is not in the reviewed built-in catalog; a custom, imported, or PDK symbol is a human-fact boundary (see analog-canvas://reference/authoring)`,
     );
   }
-  const powerMarker =
-    action.symbol === "ground" || action.symbol === "vdd-port";
-  if (powerMarker ? action.reference !== undefined : !action.reference) {
+  const powerMarker = action.symbol === "ground";
+  const cellPin = ["port", "port-filled", "vdd-port"].includes(action.symbol);
+  if (action.direction && !cellPin)
+    throw new ActionCompileError(
+      index,
+      action.kind,
+      "direction is only valid for Cell interface markers",
+    );
+  if (
+    powerMarker
+      ? action.reference !== undefined
+      : !action.reference && action.symbol !== "vdd-port"
+  ) {
     throw new ActionCompileError(
       index,
       action.kind,
@@ -758,6 +786,7 @@ function compilePlaceComponent(
     );
   }
   if (
+    !cellPin &&
     action.reference !== undefined &&
     document.instances.some(
       (instance) => instance.reference === action.reference,
@@ -775,10 +804,11 @@ function compilePlaceComponent(
     instance: {
       id: allocateId("instance"),
       symbolId: action.symbol,
-      reference: action.reference,
+      reference:
+        action.reference ?? (action.symbol === "vdd-port" ? "VDD" : undefined),
       ...(variant ? { symbolVariantId: variant } : {}),
       placement: {
-        position: action.position,
+        position: action.position ?? { x: 0, y: 0 },
         rotation: action.rotation ?? 0,
         mirror: action.mirror ?? "none",
       },
@@ -786,42 +816,6 @@ function compilePlaceComponent(
         ? { netlist: { parameters: action.parameters ?? {} } }
         : {}),
     },
-  });
-}
-
-function compileAddPowerRail(
-  index: number,
-  action: ActionOfKind<"add-power-rail">,
-  document: ResolvedDocument,
-  allocateId: AllocateId,
-  pushEdit: PushEdit,
-): void {
-  const horizontal =
-    action.start.y === action.end.y && action.start.x !== action.end.x;
-  const vertical =
-    action.start.x === action.end.x && action.start.y !== action.end.y;
-  if (!horizontal && !vertical) {
-    throw new ActionCompileError(
-      index,
-      action.kind,
-      "a Power Rail must be one non-zero horizontal or vertical segment",
-    );
-  }
-  const supplyNet = document.nets.find(
-    (net) => net.name?.toLocaleLowerCase("en-US") === "vdd",
-  );
-  pushEdit(index, action.kind, {
-    kind: "add_power_rail",
-    netId: supplyNet ? supplyNet.id : allocateId("net"),
-    routeId: allocateId("route"),
-    startJunctionId: allocateId("junction"),
-    endJunctionId: allocateId("junction"),
-    labelId: allocateId("label"),
-    netName: supplyNet?.name ?? "VDD",
-    scope: supplyNet?.scope ?? "global",
-    powerDomain: "vdd",
-    start: action.start,
-    end: action.end,
   });
 }
 
@@ -833,6 +827,7 @@ export function directConnectIntent(
 ): WireIntent | undefined {
   if (action.kind !== "connect") return undefined;
   const anchor = (target: ConnectTarget): WireIntent["from"] | undefined => {
+    if (target.kind === "wire-at" || target.kind === "net") return target;
     if (target.kind === "route-segment") return target;
     if (target.kind === "point")
       return { kind: "free", point: { x: target.x, y: target.y } };
@@ -897,52 +892,9 @@ function compileConnect(
   // Every normal connection routes through one wireIntent. In particular,
   // pin-to-pin must create visible Route geometry rather than only adding the
   // two terminals to a logical Net.
-  const pinSide =
-    from.kind === "pin" ? from : to.kind === "pin" ? to : undefined;
-  const pinOrigin = (() => {
-    if (pinSide) {
-      const instance = resolveInstance(document, index, action.kind, {
-        kind: "instance",
-        ...(typeof pinSide.instance === "string"
-          ? { reference: pinSide.instance }
-          : pinSide.instance),
-      });
-      requirePin(index, action.kind, instance, pinSide.pin);
-      const pin = instance.pins.find(
-        (candidate) => candidate.name === pinSide.pin,
-      );
-      if (!pin?.connection) {
-        throw new ActionCompileError(
-          index,
-          action.kind,
-          `pin ${pinSide.instance}.${pinSide.pin} has no resolved grid landing`,
-        );
-      }
-      return pin.connection.gridLanding;
-    }
-    const geometric = from.kind === "net" ? to : from;
-    if (geometric.kind === "route-segment") return geometric.point;
-    if (geometric.kind === "point") {
-      return { x: geometric.x, y: geometric.y };
-    }
-    if (geometric.kind === "junction") {
-      const junction = resolveByIdOrName(
-        index,
-        action.kind,
-        "junction",
-        document.junctions,
-        { id: geometric.junction },
-      );
-      return junction.position;
-    }
-    throw new ActionCompileError(
-      index,
-      action.kind,
-      "a Net connection needs a pin, point, or Junction on its other side",
-    );
-  })();
 
   const anchorFor = (target: ConnectTarget): Record<string, unknown> => {
+    if (target.kind === "wire-at" || target.kind === "net") return target;
     if (target.kind === "route-segment") return target;
     if (target.kind === "pin") {
       const instance = resolveInstance(document, index, action.kind, {
@@ -976,71 +928,7 @@ function compileConnect(
         endpoint: { kind: "junction", junctionId: junction.id },
       };
     }
-    // Net target: attach at the nearest existing geometry of that net.
-    const net = resolveNet(document, index, action.kind, {
-      kind: "net",
-      name: target.net,
-    });
-    const routes = net.routeIds
-      .map((routeId) => document.routes.find((route) => route.id === routeId))
-      .filter(
-        (route): route is (typeof document.routes)[number] =>
-          route !== undefined,
-      );
-    let best: {
-      routeId: string;
-      legId: string;
-      point: { x: number; y: number };
-    } | null = null;
-    let bestDistance = Number.POSITIVE_INFINITY;
-    for (const route of routes) {
-      if (!route.polyline) continue;
-      const candidate = nearestPointOnPolyline(pinOrigin, route.polyline);
-      if (!candidate) continue;
-      const distance =
-        (pinOrigin.x - candidate.point.x) ** 2 +
-        (pinOrigin.y - candidate.point.y) ** 2;
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        const leg = route.legs[candidate.segmentIndex];
-        if (!leg) continue;
-        best = { routeId: route.id, legId: leg.id, point: candidate.point };
-      }
-    }
-    if (best) {
-      return {
-        kind: "route-segment",
-        routeId: best.routeId,
-        legId: best.legId,
-        point: best.point,
-      };
-    }
-    const junction = net.junctionIds
-      .map((junctionId) =>
-        document.junctions.find((candidate) => candidate.id === junctionId),
-      )
-      .filter(
-        (candidate): candidate is (typeof document.junctions)[number] =>
-          candidate !== undefined,
-      )
-      .sort(
-        (a, b) =>
-          (pinOrigin.x - a.position.x) ** 2 +
-          (pinOrigin.y - a.position.y) ** 2 -
-          ((pinOrigin.x - b.position.x) ** 2 +
-            (pinOrigin.y - b.position.y) ** 2),
-      )[0];
-    if (junction) {
-      return {
-        kind: "endpoint",
-        endpoint: { kind: "junction", junctionId: junction.id },
-      };
-    }
-    throw new ActionCompileError(
-      index,
-      action.kind,
-      `net "${net.name ?? net.id}" has no route or junction geometry to attach to; connect pin-to-pin first or place a junction`,
-    );
+    return target;
   };
 
   pushWireIntent(

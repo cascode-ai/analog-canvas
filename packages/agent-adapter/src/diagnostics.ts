@@ -1,4 +1,8 @@
-import { diagnoseProject, diagnoseVisualQuality } from "@icm/derived";
+import {
+  diagnoseProject,
+  diagnoseVisualQuality,
+  diagnoseLabelClearance,
+} from "@icm/derived";
 import type { Diagnostic, ObjectLocator } from "@icm/derived";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
@@ -25,7 +29,10 @@ export function agentVisualDiagnostics(
   document: SchematicDocument,
   resolver: SymbolResolver,
 ): AgentDiagnostic[] {
-  return diagnoseVisualQuality(document, resolver).map((item) => ({
+  return [
+    ...diagnoseVisualQuality(document, resolver),
+    ...diagnoseLabelClearance(document, resolver),
+  ].map((item) => ({
     code: item.code,
     severity: item.severity,
     category: item.category,
@@ -46,7 +53,7 @@ export function agentProjectDiagnostics(
   documentId: string,
   revision: number,
 ): AgentDiagnostic[] {
-  return diagnoseProject(project, resolver)
+  const diagnostics: AgentDiagnostic[] = diagnoseProject(project, resolver)
     .filter((diagnostic) => diagnostic.primary.documentId === documentId)
     .map((diagnostic) => ({
       code: diagnostic.code,
@@ -61,6 +68,16 @@ export function agentProjectDiagnostics(
       revision,
       parameters: { ...diagnostic.parameters },
     }));
+  const document = project.documents.find((d) => d.id === documentId);
+  if (document)
+    diagnostics.push(
+      ...diagnoseLabelClearance(document, resolver).map((item) => ({
+        ...item,
+        objectIds: [...item.objectIds],
+        revision,
+      })),
+    );
+  return diagnostics;
 }
 
 export function agentDiagnosticIdentity(diagnostic: AgentDiagnostic): string {

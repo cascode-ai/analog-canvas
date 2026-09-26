@@ -48,6 +48,12 @@ ordered array (up to 64); the combined generated edits still obey the session's
 edit limit. Mixed placement/wire/command calls still need separate phases.
 Multiple taps on one original Route may use the same pre-batch Route/leg IDs;
 the planner follows the split children within that batch.
+For a new trunk created earlier in the same batch, use
+`{kind:"wire-at",point:{x,y},member:{instanceId,pinName}}` (or optional `net`)
+instead of fetching its generated Route IDs. Existing Junctions are reused.
+`{kind:"net",net:"name-or-id"}` resolves the nearest conductor on that same
+draft. Ordinary `point` remains a free endpoint. A tap at a different-Net
+crossing is rejected even with a qualifier: a Junction there would short Nets.
 
 `copy` follows GUI copy for internal wires and references. `detach-move` leaves
 wires behind; `unplace` retains electrical facts in the Placement Tray.
@@ -205,10 +211,44 @@ The client carries context stamps automatically and never redirects old writes.
 
 ## Files and boundaries
 
+For a read-only milestone, `verify` optionally accepts
+`expectedNetlist:{text:"<structural SPICE>",cell:"<reference root>"}` and
+`details:true`. Omit it to retain the ordinary Snapshot-only check. Comparison
+reads the existing structural netlist, pairs unique device References and pin
+positions, and compares formal port order, targets, literal parameters, scope
+and endpoint membership; internal auto Net names do not matter. It recursively
+checks matched child definitions, without flattening or guessing renamed devices.
+Counts are default; details includes at most 200 differences with an explicit
+truncation flag. A difference may affect several endpoint memberships.
+Parameterized hierarchy, expressions, model bodies, unresolved or preserved
+statements yield `inconclusive`, possibly alongside known differences.
+SPICE has no Port direction metadata: this comparison does not test directions,
+library model internals or simulated performance. Snapshot diagnostics and the
+subsequent structural export are separate reads, not an atomic revision snapshot.
+No import reference is rewritten and no verification call is required before edits.
+
 `export_file` writes Project/SVG/PNG/PDF to an explicit local path.
 `import_file` stages a Project or structural SPICE bundle. Inspect the candidate,
 then use `action:"open"` to open it in a new Project tab without replacing the
 current work. Staging alone is not a completed import. Use
+`action:"inspect",candidateId,documentId` to read one staged Cell as
+`documentCode`; stage summaries list Cell IDs. `action:"import-cell"` with
+`sourceDocumentId,targetDocumentId,mode:"replace-body"|"append"` commits into
+an existing Cell, including its dependency closure, in one undoable Project
+edit. The shared client supplies missing `expectedRevision` and
+`expectedStructureRevision`; explicit stale values reject. The candidate is
+consumed only on success. This operation requires `project.import` and the
+existing geometry/connectivity/presentation edit scopes, not a GUI approval.
+It preserves the target Cell ID, formal terminal IDs/order, symbol pin layout
+and parent callers. An uncalled Cell with no terminals can adopt the imported
+interface. Otherwise named terminals must match (append may use a subset), and
+parameters must already be compatible. Append retains existing interface
+owners, joins only declared matching terminals or compatible global Nets,
+and rejects local-name/Reference conflicts rather than guessing a rename.
+Resolve missing MOS bulk first; append does not retarget existing bulk.
+Append retains the destination's frozen import-reference baseline and source
+status becomes modified; it does not silently redefine a verification target.
+Geometry is not auto-arranged. Use whole-Project
 `action:"request-approval"` only when the human wants to replace the current
 Project in the browser. After either Project switch, refresh connection status
 and read the new Document context; the existing pairing remains valid.

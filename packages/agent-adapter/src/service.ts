@@ -1,16 +1,11 @@
-import {
-  resolveDocumentRoutingGeometry,
-  resolveRouteGeometry,
-  sha256Hex,
-} from "@icm/derived";
+import { resolveDocumentRoutingGeometry, sha256Hex } from "@icm/derived";
 import {
   executeTransaction,
   executeProjectTransaction,
-  proposeWireIntent,
+  planWireBatch,
   SchematicEditSchema,
 } from "@icm/edit-engine";
 import type { SchematicEdit } from "@icm/edit-engine";
-import { routeEnd } from "@icm/model";
 import type { CircuitProject, Point, SchematicDocument } from "@icm/model";
 import { buildSvgScene, renderDocumentSvg } from "@icm/render-svg";
 import {
@@ -26,6 +21,7 @@ import {
   agentVisualDiagnostics,
 } from "./diagnostics.js";
 import type { AgentOperationHost } from "./host.js";
+import { AgentCommandPlanningError } from "./host.js";
 import { parseAgentCircuitRequest } from "./request-contract.js";
 import {
   AGENT_API_VERSION,
@@ -56,128 +52,6 @@ import { terminalConnectivity } from "./terminal-connectivity.js";
 
 const OPERATIONS = ["capabilities", "snapshot", "transact", "render"] as const;
 
-/** Plan on private evolving state, then dispatch the combined edits once. */
-function planWireBatch(
-  document: SchematicDocument,
-  resolver: SymbolResolver,
-  input:
-    | Parameters<typeof proposeWireIntent>[2]
-    | Parameters<typeof proposeWireIntent>[2][],
-  limit: number,
-): { edits: SchematicEdit[] } | string {
-  if (!Array.isArray(input))
-    return proposeWireIntent(document, resolver, input);
-  let working = document;
-  const edits: SchematicEdit[] = [];
-  const descendants = new Map(
-    document.routes.map((route) => [route.id, new Set([route.id])]),
-  );
-  const onSegment = (point: Point, from: Point, to: Point): boolean =>
-    (point.x - from.x) * (to.y - from.y) ===
-      (point.y - from.y) * (to.x - from.x) &&
-    point.x >= Math.min(from.x, to.x) &&
-    point.x <= Math.max(from.x, to.x) &&
-    point.y >= Math.min(from.y, to.y) &&
-    point.y <= Math.max(from.y, to.y);
-  const rebaseAnchor = (
-    anchor: Parameters<typeof proposeWireIntent>[2]["from"],
-  ): typeof anchor | string => {
-    if (
-      anchor.kind !== "route-segment" ||
-      working.routes.some((route) => route.id === anchor.routeId)
-    )
-      return anchor;
-    const original = document.routes.find(
-      (route) => route.id === anchor.routeId,
-    );
-    if (!original || !original.legs.some((leg) => leg.id === anchor.legId))
-      return `Wire route or leg does not exist: ${anchor.routeId}/${anchor.legId}`;
-    const originalSegment = resolveRouteGeometry(
-      document,
-      resolver,
-      original,
-    )?.segments.find((segment) => segment.address.legId === anchor.legId);
-    if (
-      !originalSegment ||
-      !onSegment(anchor.point, originalSegment.from, originalSegment.to)
-    )
-      return `Wire route point is not on the original leg: ${anchor.routeId}/${anchor.legId}`;
-    const candidates = [...(descendants.get(anchor.routeId) ?? [])].flatMap(
-      (routeId) => {
-        const route = working.routes.find((entry) => entry.id === routeId);
-        if (!route) return [];
-        const geometry = resolveRouteGeometry(working, resolver, route);
-        if (!geometry) return [];
-        return geometry.segments
-          .filter((segment) =>
-            onSegment(anchor.point, segment.from, segment.to),
-          )
-          .map((segment) => ({ route, segment, geometry }));
-      },
-    );
-    const junction = candidates.flatMap(({ route, geometry }) => {
-      const endpoints = [
-        { endpoint: route.start, point: geometry.centerline[0] },
-        { endpoint: routeEnd(route), point: geometry.centerline.at(-1) },
-      ];
-      return endpoints
-        .filter(
-          ({ endpoint, point }) =>
-            endpoint.kind === "junction" &&
-            point?.x === anchor.point.x &&
-            point.y === anchor.point.y,
-        )
-        .map(({ endpoint }) => endpoint);
-    })[0];
-    if (junction) return { kind: "endpoint", endpoint: junction };
-    if (candidates.length !== 1)
-      return `Wire route segment has ${candidates.length} descendants at the requested point: ${anchor.routeId}/${anchor.legId}`;
-    const match = candidates[0]!;
-    return {
-      ...anchor,
-      routeId: match.route.id,
-      legId: match.segment.address.legId,
-    };
-  };
-  for (const [index, intent] of input.entries()) {
-    const from = rebaseAnchor(intent.from);
-    if (typeof from === "string") return `Wire ${index + 1}: ${from}`;
-    const to = rebaseAnchor(intent.to);
-    if (typeof to === "string") return `Wire ${index + 1}: ${to}`;
-    const planned = proposeWireIntent(working, resolver, {
-      ...intent,
-      from,
-      to,
-    });
-    if (typeof planned === "string") return `Wire ${index + 1}: ${planned}`;
-    edits.push(...planned.edits);
-    if (edits.length > limit)
-      return `Wire batch exceeds the ${limit}-edit transaction limit`;
-    const preview = executeTransaction(
-      working,
-      {
-        transactionId: `wire-batch-preview-${index}`,
-        documentId: working.id,
-        expectedRevision: working.revision,
-        actor: { kind: "agent", id: "wire-planner" },
-        dryRun: true,
-        edits: planned.edits,
-      },
-      { symbolResolver: resolver },
-    );
-    if (!preview.ok) return `Wire ${index + 1}: ${preview.error.message}`;
-    working = preview.document;
-    for (const edit of planned.edits) {
-      if (edit.kind !== "add_junction" || !edit.split) continue;
-      for (const lineage of descendants.values()) {
-        if (!lineage.delete(edit.split.routeId)) continue;
-        lineage.add(edit.split.firstRouteId);
-        lineage.add(edit.split.secondRouteId);
-      }
-    }
-  }
-  return { edits };
-}
 /**
  * The Edit Engine schema is the sole list of typed edit kinds. `wire` is the
  * one deliberate extra capability: it advertises the mutually-exclusive
@@ -846,6 +720,7 @@ export function createAgentCircuitService(
       }
 
       if (request.operation === "transact") {
+        let commandSourceActions: readonly number[] | undefined;
         const placedInstanceIds =
           request.command?.kind === "place-components"
             ? request.command.instances.map((instance) => instance.id)
@@ -869,7 +744,9 @@ export function createAgentCircuitService(
             const planned = host.planAuthoringCommand(
               documentId,
               request.command,
+              limits.maxTransactionEdits,
             );
+            commandSourceActions = planned.sourceActions;
             const { command: _command, ...base } = request;
             if ("structureEdits" in planned) {
               if (request.expectedStructureRevision === undefined)
@@ -883,11 +760,38 @@ export function createAgentCircuitService(
                 ? { ...base, structureEdits: [...planned.structureEdits] }
                 : { ...base, edits: [{ kind: "noop" }] };
             } else {
+              // A completed convenience plan may have nothing left to do.
+              // Do not synthesize a persisted noop/Undo entry for a repeat.
+              if (planned.edits.length === 0) {
+                return response({
+                  apiVersion: request.apiVersion,
+                  requestId: request.requestId,
+                  operation: "transact",
+                  ok: true,
+                  applied: false,
+                  revision: document.revision,
+                  proposedRevision: document.revision,
+                  diff: {
+                    documentId,
+                    fromRevision: document.revision,
+                    toRevision: document.revision,
+                    editKinds: [],
+                    changedObjectIds: [],
+                  },
+                  terminalConnectivityChanged: false,
+                  diagnostics: diagnosticsFor(project, document, resolver),
+                  diagnosticDelta: {
+                    added: [],
+                    removed: [],
+                    ...(request.diagnosticDeltaDetail === "compact"
+                      ? { removedIds: [] }
+                      : {}),
+                  },
+                });
+              }
               request = {
                 ...base,
-                edits: planned.edits.length
-                  ? [...planned.edits]
-                  : [{ kind: "noop" }],
+                edits: [...planned.edits],
               };
             }
           } catch (error) {
@@ -896,6 +800,17 @@ export function createAgentCircuitService(
               "EDIT_PRECONDITION",
               error instanceof Error ? error.message : String(error),
               document.revision,
+              error instanceof AgentCommandPlanningError
+                ? [
+                    {
+                      code: "EDIT_PRECONDITION",
+                      severity: "error",
+                      message: error.message,
+                      path: ["actions", error.actionIndex],
+                      parameters: { actionIndex: error.actionIndex },
+                    },
+                  ]
+                : [],
             );
           }
         }
@@ -1059,13 +974,44 @@ export function createAgentCircuitService(
               result.error.code,
               result.error.message,
               document.revision,
-              result.diagnostics.map((item) => ({
-                code: item.code,
-                severity: item.severity,
-                message: item.message,
-                ...(item.objectIds ? { objectIds: [...item.objectIds] } : {}),
-                ...(item.path ? { path: [...item.path] } : {}),
-              })),
+              result.diagnostics.map((item) => {
+                const projectEditIndex = item.parameters?.projectEditIndex;
+                const outer =
+                  typeof projectEditIndex === "number"
+                    ? transaction.edits?.[projectEditIndex]
+                    : undefined;
+                const innerIndex =
+                  item.path?.[0] === "edits" && typeof item.path[1] === "number"
+                    ? item.path[1]
+                    : undefined;
+                const inner =
+                  outer?.kind === "transact_document" &&
+                  innerIndex !== undefined
+                    ? outer.edits[innerIndex]
+                    : undefined;
+                const instanceIndex =
+                  inner?.kind === "add_instance"
+                    ? placedInstanceIds?.indexOf(inner.instance.id)
+                    : undefined;
+                const actionIndex =
+                  typeof projectEditIndex === "number"
+                    ? commandSourceActions?.[projectEditIndex]
+                    : undefined;
+                return {
+                  code: item.code,
+                  severity: item.severity,
+                  message: item.message,
+                  ...(item.objectIds ? { objectIds: [...item.objectIds] } : {}),
+                  ...(item.path ? { path: [...item.path] } : {}),
+                  parameters: {
+                    ...item.parameters,
+                    ...(instanceIndex !== undefined && instanceIndex >= 0
+                      ? { instanceIndex }
+                      : {}),
+                    ...(actionIndex !== undefined ? { actionIndex } : {}),
+                  },
+                };
+              }),
             );
           }
           if (result.applied && !useHost) {
@@ -1251,10 +1197,16 @@ export function createAgentCircuitService(
               ...(item.objectIds ? { objectIds: [...item.objectIds] } : {}),
               ...(item.path ? { path: [...item.path] } : {}),
               ...(item.parameters ||
+              commandSourceActions ||
               instanceIndexForPath(item.path) !== undefined
                 ? {
                     parameters: {
                       ...item.parameters,
+                      ...(item.path?.[0] === "edits" &&
+                      typeof item.path[1] === "number" &&
+                      commandSourceActions?.[item.path[1]] !== undefined
+                        ? { actionIndex: commandSourceActions[item.path[1]]! }
+                        : {}),
                       ...(instanceIndexForPath(item.path) === undefined
                         ? {}
                         : { instanceIndex: instanceIndexForPath(item.path)! }),

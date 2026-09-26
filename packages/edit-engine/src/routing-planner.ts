@@ -57,6 +57,7 @@ import { routeHasExternalOwner } from "./direct-contact-route-normalization.js";
 import { rebuildRoutePath } from "./route-leg-mutation.js";
 import { planPowerRailPinContacts } from "./power-rail-contact-planner.js";
 import type { ExpectedElectricalEffect } from "./routing-operation-plan.js";
+import { resolveWireIntentTarget } from "./wire-intent-target.js";
 
 export interface WireEndpointGeometry {
   connection: EndpointRoutingGeometry;
@@ -276,6 +277,13 @@ export function proposeEndpointsRouteAttachment(
 }
 
 export type WireIntentAnchor =
+  | {
+      kind: "wire-at";
+      point: Point;
+      net?: string | undefined;
+      member?: { instanceId: string; pinName: string } | undefined;
+    }
+  | { kind: "net"; net: string }
   | { kind: "endpoint"; endpoint: RouteEndpoint }
   | {
       kind: "route-segment";
@@ -2128,6 +2136,22 @@ export function proposeWireIntent(
   resolver: SymbolResolver,
   intent: WireIntent,
 ): WireCommitProposal | string {
+  if (
+    [intent.from, intent.to].some(
+      (anchor) => anchor.kind === "wire-at" || anchor.kind === "net",
+    )
+  ) {
+    const from = resolveWireIntentTarget(
+      document,
+      resolver,
+      intent.from,
+      intent.to,
+    );
+    if (typeof from === "string") return from;
+    const to = resolveWireIntentTarget(document, resolver, intent.to, from);
+    if (typeof to === "string") return to;
+    return proposeWireIntent(document, resolver, { ...intent, from, to });
+  }
   const routeFor = (
     anchor: Extract<WireIntentAnchor, { kind: "route-segment" }>,
   ) => document.routes.find((route) => route.id === anchor.routeId);
@@ -2146,6 +2170,7 @@ export function proposeWireIntent(
     anchor: WireIntentAnchor,
     side: "from" | "to",
   ): WireSource | string => {
+    if (anchor.kind === "net") return "Unresolved Net target";
     if (anchor.kind === "endpoint") {
       return endpointWireSource(document, resolver, anchor.endpoint);
     }

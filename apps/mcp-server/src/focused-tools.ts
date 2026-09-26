@@ -96,6 +96,7 @@ export const FOCUSED_TOOLS = [
       "annotate",
       "move-annotation",
       "set-net-label",
+      "arrange-labels",
     ],
   },
   {

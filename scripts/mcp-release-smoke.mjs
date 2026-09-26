@@ -43,6 +43,7 @@ const sessionId = "release-session";
 const connectorToken = "release-connector-token";
 let revision = 5;
 let resumeCount = 0;
+let lastCircuitWorkspace;
 const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>', "utf8");
 const projectBytes = Buffer.from('{"release":true}\n', "utf8");
 const sha256 = (data) => createHash("sha256").update(data).digest("hex");
@@ -489,6 +490,7 @@ const relay = createServer(async (request, response) => {
               },
             });
   } else if (url.pathname.endsWith("/circuit")) {
+    lastCircuitWorkspace = request.headers["x-agent-workspace"];
     const body = await requestBody(request);
     if (body.operation === "capabilities") {
       result = json({
@@ -988,6 +990,24 @@ try {
     4,
     "A fresh get_context must resume without another claim",
   );
+  // Two independent installed CLI processes share only task-local identity.
+  // No in-process MCP handler or current working directory can preserve this.
+  const bound = await httpCommand("project_cells", {
+    action: "bind-workspace",
+    workspaceId: "release-tab",
+  });
+  assert.equal(JSON.parse(bound.content[0].text).workspaceId, "release-tab");
+  const boundRead = await httpCommand("get_context");
+  assert.equal(boundRead.isError, undefined, JSON.stringify(boundRead));
+  assert.equal(
+    lastCircuitWorkspace,
+    "release-tab",
+    "Next CLI process lost the task target",
+  );
+  await httpCommand("project_cells", {
+    action: "bind-workspace",
+    workspaceId: null,
+  });
   const cliSync = JSON.parse(
     (
       await httpCommand("simulation_data", {

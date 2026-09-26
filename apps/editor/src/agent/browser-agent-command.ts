@@ -2,6 +2,7 @@ import type {
   AgentAuthoringCommand,
   AgentCommandPlan,
 } from "@icm/agent-adapter";
+import { AgentCommandPlanningError } from "@icm/agent-adapter";
 import {
   planSetDeviceModelTarget,
   executeProjectTransaction,
@@ -9,8 +10,12 @@ import {
   planRoutingTransform,
   planInstanceUnplacement,
   planCellReset,
+  pinAnchoredPlacement,
+  planRouteNet,
   planCreateCell,
-  planCreateCellPin,
+  planSetVddConnectionMode,
+  planUpdateCellTerminalDirection,
+  planUpdateCellPortDirection,
   createHierarchyInstance,
   planPlaceCellInstance,
   planRenameCell,
@@ -21,9 +26,13 @@ import {
   planRemoveCellParameter,
   planRenameCellTerminal,
   planRemoveCellTerminal,
+  planRemoveCellTerminals,
+  planCellSelectionDeletion,
+  gateRoutingOperationPlan,
   planEnsureNamedNet,
   planElectricalMarkerRename,
   proposedStandalonePowerConnection,
+  powerConnectionForSymbol,
   type SchematicEdit,
   type TransformOperation,
 } from "@icm/edit-engine";
@@ -33,6 +42,8 @@ import {
   flattenRichText,
   renamedLabelFormat,
   roleLabelFormat,
+  projectCellInterface,
+  foldNetName,
   type CircuitProject,
 } from "@icm/model";
 import {
@@ -66,8 +77,15 @@ import {
   missingDefaultInstanceDisplayAnnotations,
 } from "../features/instance-display/default-instance-display";
 import { instanceDisplayEdits } from "../features/instance-display/instance-display-edits";
+import { arrangeInstanceLabels } from "../features/instance-display/arrange-instance-labels";
 import { instanceParameterVisibilityEdits } from "../features/instance-display/instance-parameter-display";
-import { dragNetLabelAttachmentAtPoint } from "../features/wiring/route-interaction-geometry";
+import {
+  dragNetLabelAttachmentAtPoint,
+  netLabelPlacementTargetAtPoint,
+} from "../features/wiring/route-interaction-geometry";
+import { planPlacedCellPin } from "../features/component-insert/cell-pin-placement";
+import { planVddRailEdits } from "../features/component-insert/vdd-rail";
+import { planInitialMosBulkDefault } from "../features/component-insert/mos-bulk-defaults";
 
 /** No second geometry/model/clipboard implementation: plan exactly as the GUI does. */
 export function planBrowserAgentCommand(
@@ -75,51 +93,175 @@ export function planBrowserAgentCommand(
   documentId: string,
   resolver: SymbolResolver,
   command: AgentAuthoringCommand,
+  maxTransactionEdits = Number.POSITIVE_INFINITY,
 ): AgentCommandPlan {
   const document = project.documents.find((item) => item.id === documentId);
   if (!document) throw new Error("Document not found");
   const sequence = document.revision + 1;
   switch (command.kind) {
+    case "arrange-labels":
+      return {
+        edits: arrangeInstanceLabels(
+          document,
+          resolver,
+          command.instanceIds,
+          command,
+        ),
+      };
+    case "route-net":
+      return planRouteNet(document, resolver, command, maxTransactionEdits);
+    case "delete-selection": {
+      const selected = planCellSelectionDeletion(
+        document,
+        resolver,
+        command.selection,
+        sequence,
+      );
+      if (selected.terminalIds.length)
+        return {
+          structureEdits: planRemoveCellTerminals(
+            project,
+            documentId,
+            selected.terminalIds,
+            [...selected.routing.edits],
+          ),
+        };
+      const gate = gateRoutingOperationPlan(document, selected.routing, {
+        symbolResolver: resolver,
+      });
+      if (!gate.ok) throw new Error(gate.message);
+      return { edits: [...gate.edits] };
+    }
+    case "set-port-direction": {
+      if (command.target.kind === "terminal")
+        return {
+          structureEdits: planUpdateCellTerminalDirection(
+            project,
+            documentId,
+            command.target.id,
+            command.direction,
+          ),
+        };
+      const target = command.target;
+      const ports = projectCellInterface(document.netlist).ports.filter(
+        (port) =>
+          target.kind === "port"
+            ? port.id === target.id
+            : foldNetName(port.name) === foldNetName(target.name),
+      );
+      if (ports.length !== 1)
+        throw new Error(
+          `Expected one formal Port; matched ${ports.map((port) => port.id).join(", ") || "none"}`,
+        );
+      return {
+        structureEdits: planUpdateCellPortDirection(
+          project,
+          documentId,
+          ports[0]!.id,
+          command.direction,
+        ),
+      };
+    }
+    case "set-vdd-mode":
+      return {
+        structureEdits: planSetVddConnectionMode(
+          project,
+          documentId,
+          command.instanceId,
+          command.mode,
+        ),
+      };
+    case "add-power-rail": {
+      if (
+        (command.start.x === command.end.x) ===
+        (command.start.y === command.end.y)
+      )
+        throw new Error(
+          "A Power Rail must be one non-zero horizontal or vertical segment",
+        );
+      const logical = resolveDocumentLogicalNets(document);
+      const named = [...logical.byBaseNetId.entries()].find(
+        ([, net]) =>
+          foldNetName(net.name ?? "") === foldNetName(command.name ?? "VDD"),
+      );
+      // GUI contact capture is intentional for its gesture. Agent geometry alone
+      // is not permission to join other pins: explicit wiring remains explicit.
+      const plan = planVddRailEdits(document, {
+        instanceId: deriveStableId("agent-rail", `${documentId}:${sequence}`),
+        start: command.start,
+        end: command.end,
+        ...((command.netId ?? named?.[0])
+          ? { netId: (command.netId ?? named?.[0])! }
+          : {}),
+        netName: command.name ?? "VDD",
+        ...(command.scope ? { scope: command.scope } : {}),
+      });
+      if (!plan.ok) throw new Error(plan.message);
+      return { edits: [...plan.edits] };
+    }
     case "batch": {
       // Plan each command against the preceding private result. Only the final
       // ordinary Project transaction reaches the live controller/history.
       let draft = project;
       const edits: ProjectStructureEdit[] = [];
+      let onlyDocument = true;
+      const sourceActions: number[] = [];
       for (const [index, item] of command.commands.entries()) {
-        const current = draft.documents.find((d) => d.id === documentId)!;
-        const plan = planBrowserAgentCommand(
-          draft,
-          documentId,
-          createProjectSymbolResolver(draft, builtInSymbols),
-          item,
-        );
-        const next: ProjectStructureEdit[] =
-          "structureEdits" in plan
-            ? [...plan.structureEdits]
-            : plan.edits.length
-              ? [
-                  {
-                    kind: "transact_document",
-                    documentId,
-                    expectedRevision: current.revision,
-                    edits: [...plan.edits],
-                  },
-                ]
-              : [];
-        if (!next.length) continue;
-        const result = executeProjectTransaction(draft, {
-          transactionId: `agent-command-plan-${index}`,
-          projectId: draft.id,
-          expectedStructureRevision: draft.structureRevision,
-          actor: { kind: "agent", id: "command-planner" },
-          edits: next,
-        });
-        if (!result.ok)
-          throw new Error(`Batch command ${index}: ${result.error.message}`);
-        draft = result.project;
-        edits.push(...next);
+        try {
+          const current = draft.documents.find((d) => d.id === documentId)!;
+          const plan = planBrowserAgentCommand(
+            draft,
+            documentId,
+            createProjectSymbolResolver(draft, builtInSymbols),
+            item,
+            maxTransactionEdits,
+          );
+          onlyDocument &&= !("structureEdits" in plan);
+          const next: ProjectStructureEdit[] =
+            "structureEdits" in plan
+              ? [...plan.structureEdits]
+              : plan.edits.length
+                ? [
+                    {
+                      kind: "transact_document",
+                      documentId,
+                      expectedRevision: current.revision,
+                      edits: [...plan.edits],
+                    },
+                  ]
+                : [];
+          if (!next.length) continue;
+          const result = executeProjectTransaction(draft, {
+            transactionId: `agent-command-plan-${index}`,
+            projectId: draft.id,
+            expectedStructureRevision: draft.structureRevision,
+            actor: { kind: "agent", id: "command-planner" },
+            edits: next,
+          });
+          if (!result.ok)
+            throw new Error(`Batch command ${index}: ${result.error.message}`);
+          draft = result.project;
+          edits.push(...next);
+          sourceActions.push(...next.map(() => index));
+        } catch (error) {
+          throw new AgentCommandPlanningError(
+            index,
+            error instanceof Error ? error.message : String(error),
+          );
+        }
       }
-      return { structureEdits: edits };
+      return onlyDocument
+        ? {
+            edits: edits.flatMap((edit) =>
+              edit.kind === "transact_document" ? edit.edits : [],
+            ),
+            sourceActions: edits.flatMap((edit, index) =>
+              edit.kind === "transact_document"
+                ? edit.edits.map(() => sourceActions[index]!)
+                : [],
+            ),
+          }
+        : { structureEdits: edits, sourceActions };
     }
     case "move-annotation": {
       const annotation = document.annotations.find(
@@ -147,18 +289,57 @@ export function planBrowserAgentCommand(
     case "place-components": {
       const edits: SchematicEdit[] = [];
       let changesInterface = false;
-      for (const instance of command.instances) {
+      for (const id of Object.keys(command.pinAnchors ?? {})) {
+        if (!command.instances.some((item) => item.id === id))
+          throw new Error(`Pin anchor targets an unknown new Instance: ${id}`);
+      }
+      for (const id of Object.keys(command.terminalDirections ?? {})) {
+        const index = command.instances.findIndex((item) => item.id === id);
+        if (index < 0)
+          throw new Error(
+            `Terminal direction targets an unknown new Instance: ${id}`,
+          );
+        if (
+          !["port", "port-filled", "vdd-port"].includes(
+            command.instances[index]!.symbolId,
+          )
+        )
+          throw new AgentCommandPlanningError(
+            index,
+            `Terminal direction requires a Cell interface marker: ${id}`,
+          );
+      }
+      for (const [index, source] of command.instances.entries()) {
+        const pinAnchor = command.pinAnchors?.[source.id];
+        let instance = source;
+        if (pinAnchor) {
+          try {
+            instance = {
+              ...source,
+              placement: pinAnchoredPlacement(
+                document,
+                resolver,
+                source,
+                pinAnchor,
+              ),
+            };
+          } catch (error) {
+            throw new AgentCommandPlanningError(
+              index,
+              error instanceof Error ? error.message : String(error),
+            );
+          }
+        }
         if (!instance.placement)
           throw new Error("New component requires placement");
         if (
           instance.symbolId === "port" ||
-          instance.symbolId === "port-filled"
+          instance.symbolId === "port-filled" ||
+          instance.symbolId === "vdd-port"
         ) {
           // The compact action's reference names a Cell terminal, not a
           // device. Use the GUI's interface planner and bound name display.
           const { reference, netlist: _netlist, ...port } = instance;
-          if (!reference?.trim())
-            throw new Error("A Cell interface marker requires a name");
           const terminalId = deriveStableId("terminal", instance.id);
           const netId = deriveStableId("net-cell-pin", instance.id);
           const endpoint = {
@@ -166,22 +347,15 @@ export function planBrowserAgentCommand(
             instanceId: instance.id,
             pinName: "P",
           };
-          const annotation = defaultInstanceDisplayAnnotations(
-            document,
-            port,
-            resolver,
-            resolveDocumentStyleProfile(document.presentation),
-            { formalTerminalId: terminalId, formalName: reference.trim() },
-          )[0];
-          const plan = planCreateCellPin(project, documentId, {
+          const plan = planPlacedCellPin(project, documentId, resolver, {
             instance: port,
-            terminal: {
-              id: terminalId,
-              name: reference.trim(),
-              netId,
-              direction: "passive",
-              interfaceInstanceIds: [instance.id],
-            },
+            terminalId,
+            name: reference,
+            precedingEdits: edits,
+            netId,
+            direction:
+              command.terminalDirections?.[instance.id] ??
+              (instance.symbolId === "vdd-port" ? "inout" : "passive"),
             connectionEdits: [
               {
                 kind: "connect_endpoints",
@@ -190,7 +364,6 @@ export function planBrowserAgentCommand(
                 newNetId: netId,
               },
             ],
-            ...(annotation ? { annotation } : {}),
           });
           for (const entry of plan) {
             if (
@@ -208,6 +381,16 @@ export function planBrowserAgentCommand(
         const power = proposedStandalonePowerConnection(document, instance);
         if (power.rejected) throw new Error(power.rejected);
         edits.push({ kind: "add_instance", instance }, ...power.edits);
+        const supply = powerConnectionForSymbol(instance.symbolId);
+        if (supply && power.powerNetId)
+          edits.push(
+            ...planInitialMosBulkDefault(
+              document,
+              supply.domain,
+              power.powerNetId,
+              edits,
+            ),
+          );
         edits.push(
           ...defaultInstanceDisplayAnnotations(
             document,
@@ -282,6 +465,13 @@ export function planBrowserAgentCommand(
         command.placement,
         command.reference,
       );
+      if (command.pinAnchor)
+        instance.placement = pinAnchoredPlacement(
+          document,
+          resolver,
+          instance,
+          command.pinAnchor,
+        );
       const annotations = defaultInstanceDisplayAnnotations(
         document,
         instance,
@@ -304,9 +494,17 @@ export function planBrowserAgentCommand(
       );
       if (!instance || instance.placement)
         throw new Error("place-existing requires an unplaced Instance");
+      const placement = command.pinAnchor
+        ? pinAnchoredPlacement(
+            document,
+            resolver,
+            { ...instance, placement: command.placement },
+            command.pinAnchor,
+          )
+        : command.placement;
       const annotations = missingDefaultInstanceDisplayAnnotations(
         document,
-        { ...instance, placement: command.placement },
+        { ...instance, placement },
         resolver,
         resolveDocumentStyleProfile(document.presentation),
       );
@@ -315,7 +513,7 @@ export function planBrowserAgentCommand(
           {
             kind: "place_instance",
             instanceId: instance.id,
-            placement: command.placement,
+            placement,
           },
           ...annotations.map((annotation): SchematicEdit => ({
             kind: "upsert_schematic_annotation",
@@ -456,20 +654,35 @@ export function planBrowserAgentCommand(
                 ),
             )[0]
         : undefined;
-      const anchor = attached
+      const createdPlacement =
+        !existing && position
+          ? netLabelPlacementTargetAtPoint(
+              records,
+              position,
+              Number.POSITIVE_INFINITY,
+            )
+          : null;
+      const anchor = createdPlacement
         ? {
             kind: "route" as const,
-            routeId: attached.routeId,
-            legId: attached.legId,
-            t: attached.t,
-            normalOffset: attached.normalOffset,
-            direction: "forward" as const,
+            ...createdPlacement.routeAttachment,
             orientation: "horizontal" as const,
-            fallbackPosition: attached.labelPosition,
+            fallbackPosition: createdPlacement.labelPosition,
           }
-        : position
-          ? { kind: "free" as const, position }
-          : existing!.anchor;
+        : attached
+          ? {
+              kind: "route" as const,
+              routeId: attached.routeId,
+              legId: attached.legId,
+              t: attached.t,
+              normalOffset: attached.normalOffset,
+              direction: "forward" as const,
+              orientation: "horizontal" as const,
+              fallbackPosition: attached.labelPosition,
+            }
+          : position
+            ? { kind: "free" as const, position }
+            : existing!.anchor;
       return {
         edits: [
           ...plan.edits,
@@ -483,7 +696,7 @@ export function planBrowserAgentCommand(
                     ? ("net-label" as const)
                     : ("power-label" as const),
                 anchor: { kind: "free" as const, position: command.position! },
-                alignment: "middle" as const,
+                alignment: createdPlacement?.alignment ?? ("middle" as const),
                 rotation: 0 as const,
                 locked: false,
               }),

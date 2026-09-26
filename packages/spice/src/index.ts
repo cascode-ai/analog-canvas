@@ -1,4 +1,5 @@
 export * from "./compiler.js";
+export * from "./comparison.js";
 export * from "./diagnostics.js";
 export * from "./dialect.js";
 export * from "./expression.js";

@@ -567,6 +567,7 @@ export function useAgentSession(
                       "request-approval",
                       "open",
                       "simulation-input",
+                      "import-cell",
                     ] as const,
                     maxBytes: AGENT_FILE_RESOURCE_MAX_BYTES,
                     humanApprovalOperations: ["request-approval"] as const,

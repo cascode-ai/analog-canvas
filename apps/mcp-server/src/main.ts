@@ -30,7 +30,9 @@ if (process.argv[2] === "--install") {
         }
       }
       const result = await runHttpCommand(
-        { toolSession: createOperationSession() },
+        {
+          toolSession: createOperationSession(undefined, { shortLived: true }),
+        },
         command,
         input,
       );

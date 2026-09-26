@@ -1,6 +1,7 @@
 import type { CircuitProject } from "@icm/model";
 
 import type { SchematicEdit } from "./edit-schema.js";
+import { orphanedCellResetJunctionIds } from "./cell-reset-junctions.js";
 import type { EditDiagnostic } from "./transaction-result.js";
 
 export type CellResetIntent =
@@ -68,18 +69,22 @@ export function planCellReset(
   let summary: string;
 
   if (intent === "clear-drawing") {
+    const orphanedJunctions = orphanedCellResetJunctionIds(document, intent);
     affectedObjectIds = uniqueIds([
+      ...orphanedJunctions,
       ...document.routes.map((route) => route.id),
       ...routeOwnedEvidenceIds(document),
       ...(document.drafting?.objects.map((object) => object.id) ?? []),
     ]);
     edit = { kind: "clear_cell_drawing" };
-    summary = `Remove ${document.routes.length} Route geometries and ${document.drafting?.objects.length ?? 0} drafting objects; retain Instances, Nets, ports, and semantic annotations`;
+    summary = `Remove ${document.routes.length} Route geometries, ${orphanedJunctions.size} unreferenced Junctions and ${document.drafting?.objects.length ?? 0} drafting objects; retain Instances, Nets, ports, and semantic annotations`;
   } else if (intent === "reset-placement") {
+    const orphanedJunctions = orphanedCellResetJunctionIds(document, intent);
     const placedInstances = document.instances.filter(
       (instance) => instance.placement !== null,
     );
     affectedObjectIds = uniqueIds([
+      ...orphanedJunctions,
       ...placedInstances.map((instance) => instance.id),
       ...document.routes.map((route) => route.id),
       ...routeOwnedEvidenceIds(document),
@@ -87,7 +92,7 @@ export function planCellReset(
       ...document.constraints.map((constraint) => constraint.id),
     ]);
     edit = { kind: "reset_cell_placement" };
-    summary = `Return ${placedInstances.length} Instances to the tray and remove ${document.routes.length} Route geometries; retain devices, Nets, and formal interface`;
+    summary = `Return ${placedInstances.length} Instances to the tray and remove ${document.routes.length} Route geometries and ${orphanedJunctions.size} unreferenced Junctions; retain devices, Nets, and formal interface`;
   } else {
     const cellPinInstanceIds = new Set(
       document.netlist?.terminals.flatMap(
@@ -127,6 +132,14 @@ export function planCellReset(
         }
       }),
     );
+    const retainedJunctionIds = new Set(
+      document.annotations.flatMap((annotation) =>
+        retainedAnnotationIds.has(annotation.id) &&
+        annotation.anchor.kind === "object"
+          ? [annotation.anchor.objectId]
+          : [],
+      ),
+    );
     const allObjects = [
       ...document.instances,
       ...document.nets,
@@ -150,7 +163,9 @@ export function planCellReset(
             )) ||
           retainedAnnotationIds.has(object.id);
         const retainedWithEvidence =
-          retained || retainedEvidenceIds.has(object.id);
+          retained ||
+          retainedEvidenceIds.has(object.id) ||
+          retainedJunctionIds.has(object.id);
         return retainedWithEvidence ? [] : [object.id];
       }),
       ...(document.mosBulkDefaults ? [document.id] : []),

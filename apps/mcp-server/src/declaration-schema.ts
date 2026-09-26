@@ -9,6 +9,17 @@ export function declarationSchema(input: Schema, tool?: string): Schema {
     if (!value || typeof value !== "object" || Array.isArray(value))
       return value;
     const schema = { ...(value as Schema) };
+    // Zod repeats JS safe-integer limits on every grid coordinate. Keep the
+    // integer type and meaningful domain bounds; execution/exact contracts
+    // still enforce these machine-representation limits.
+    if (schema.type === "integer") {
+      if (schema.minimum === Number.MIN_SAFE_INTEGER) delete schema.minimum;
+      if (schema.maximum === Number.MAX_SAFE_INTEGER) delete schema.maximum;
+    }
+    // Non-empty identifiers/names remain typed strings; their exact lower
+    // bound is runtime validation, not repeated discovery guidance.
+    if (schema.type === "string" && schema.minLength === 1)
+      delete schema.minLength;
     // Only the bounded recursive RichText payload is deferred. Keep every action,
     // wrapper, plain-string alternative, target and position directly callable.
     // The complete original remains in describe_tool and the contract resource.

@@ -44,6 +44,27 @@ const limits: Partial<AgentSessionLimits> = {
   rateLimit: { windowMs: 60_000, maxRequests: 10 },
 };
 
+it("requires import and all existing edit scopes for staged Cell body writes", () => {
+  expect(
+    fileOperationScopes({
+      apiVersion: "3.0",
+      requestId: "body",
+      operation: "import-cell",
+      candidateId: "c",
+      sourceDocumentId: "s",
+      targetDocumentId: "t",
+      mode: "append",
+      expectedStructureRevision: 0,
+      expectedRevision: 0,
+    }),
+  ).toEqual([
+    "project.import",
+    "circuit.edit.geometry",
+    "circuit.edit.connectivity",
+    "circuit.edit.presentation",
+  ]);
+});
+
 it("requires no spending grant for static authoring help without relaxing run access", () => {
   const scopes = (op: object) =>
     simulationOperationScopes(

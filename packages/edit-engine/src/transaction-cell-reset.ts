@@ -1,6 +1,7 @@
 import type { SchematicDocument } from "@icm/model";
 
 import type { EditTransaction } from "./edit-schema.js";
+import { orphanedCellResetJunctionIds } from "./cell-reset-junctions.js";
 import { removeConnectivityEvidenceOwnedBy } from "./transaction-connectivity.js";
 import type { AppliedEditMutation } from "./transaction-domain.js";
 
@@ -29,6 +30,10 @@ export function applyCellResetEdit(
 
   switch (edit.kind) {
     case "clear_cell_drawing": {
+      const orphanedJunctions = orphanedCellResetJunctionIds(
+        draft,
+        "clear-drawing",
+      );
       const routeIds = new Set(draft.routes.map((route) => route.id));
       const ownerNetIds = removeConnectivityEvidenceOwnedBy(
         draft,
@@ -42,6 +47,10 @@ export function applyCellResetEdit(
         changedObjectIds.add(object.id);
       }
       draft.routes = [];
+      draft.junctions = draft.junctions.filter(
+        (junction) => !orphanedJunctions.has(junction.id),
+      );
+      for (const id of orphanedJunctions) changedObjectIds.add(id);
       draft.drafting = { objects: [] };
       for (const netId of ownerNetIds) deferNetPrune(netId);
       return {
@@ -51,6 +60,10 @@ export function applyCellResetEdit(
       };
     }
     case "reset_cell_placement": {
+      const orphanedJunctions = orphanedCellResetJunctionIds(
+        draft,
+        "reset-placement",
+      );
       const routeIds = new Set(draft.routes.map((route) => route.id));
       const ownerNetIds = removeConnectivityEvidenceOwnedBy(
         draft,
@@ -67,6 +80,10 @@ export function applyCellResetEdit(
       }
       for (const instance of draft.instances) instance.placement = null;
       draft.routes = [];
+      draft.junctions = draft.junctions.filter(
+        (junction) => !orphanedJunctions.has(junction.id),
+      );
+      for (const id of orphanedJunctions) changedObjectIds.add(id);
       draft.layoutGroups = [];
       draft.constraints = [];
       for (const netId of ownerNetIds) deferNetPrune(netId);

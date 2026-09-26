@@ -1187,6 +1187,7 @@ describe("mcp tool surface", () => {
     expect(value.revision).toBe(6);
     expect(value.changedObjectIds).toContain("net-vout");
     expect(value.warnings).toBe(1);
+    expect(http.projectCalls).toHaveLength(0);
   });
 
   it("render returns an svg image block plus a compact summary", async () => {

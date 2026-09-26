@@ -20,8 +20,20 @@ import type { SymbolResolver } from "@icm/symbols";
 import type { AgentSemanticIntent, AgentAuthoringCommand } from "./schema.js";
 
 export type AgentCommandPlan =
-  | { edits: readonly SchematicEdit[] }
-  | { structureEdits: readonly ProjectStructureEdit[] };
+  | { edits: readonly SchematicEdit[]; sourceActions?: readonly number[] }
+  | {
+      structureEdits: readonly ProjectStructureEdit[];
+      sourceActions?: readonly number[];
+    };
+
+export class AgentCommandPlanningError extends Error {
+  constructor(
+    readonly actionIndex: number,
+    message: string,
+  ) {
+    super(`actions[${actionIndex}]: ${message}`);
+  }
+}
 
 /** An Agent transaction submitted to the host. The actor is always an Agent. */
 export interface AgentHostTransactionRequest {
@@ -61,6 +73,7 @@ export interface AgentOperationHost {
   planAuthoringCommand?(
     documentId: string,
     command: AgentAuthoringCommand,
+    maxTransactionEdits?: number,
   ): AgentCommandPlan;
   getDocument(documentId: string): SchematicDocument | null;
   getProject?(): CircuitProject;

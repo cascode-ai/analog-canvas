@@ -25,8 +25,12 @@ import {
 } from "../features/hierarchy/cloud-cell-import";
 import { GALLERY_SIGN_IN_REQUIRED, loadGalleryFeed } from "../gallery-client";
 import { planNetlistCodeEdit } from "../features/netlist-export/netlist-code-edit";
+import { importChunk } from "../components/chunk-import";
 
 export interface BrowserAgentProjectHostOptions {
+  loadProjectCode?: () => Promise<
+    typeof import("../features/project-code/project-code")
+  >;
   workspace?: (
     request: Extract<AgentProjectResourceRequest, { operation: "workspace" }>,
   ) => Promise<AgentProjectResourceResponse>;
@@ -60,11 +64,29 @@ export class BrowserAgentProjectHost {
   async handle(
     request: AgentProjectResourceRequest,
   ): Promise<AgentProjectResourceResponse> {
-    const projectCode =
+    let projectCode:
+      typeof import("../features/project-code/project-code") | null = null;
+    if (
       request.operation === "read-project-code" ||
       request.operation === "replace-project-code"
-        ? await import("../features/project-code/project-code")
-        : null;
+    ) {
+      try {
+        projectCode = await importChunk(
+          "Project Code",
+          this.options.loadProjectCode ??
+            (() => import("../features/project-code/project-code")),
+        );
+      } catch {
+        // importChunk retains the original cause in the browser console. A load
+        // failure is not proof of a stale deployment, nor a failed code commit.
+        return this.error(
+          request,
+          "PROJECT_FEATURE_LOAD_FAILED",
+          "Project Code could not load; no edit was attempted. Check connectivity and save work before refreshing the Editor page. Repeating this tool call may not recover a stale page. The browser console contains the load cause; the Agent session remains usable.",
+          "refresh",
+        );
+      }
+    }
     // Load before checking session/revision, so a change during the deferred
     // import cannot apply an old request to a replacement Project.
     if (request.operation === "workspace") {

@@ -186,6 +186,9 @@ importers:
       "@icm/simulation-service":
         specifier: workspace:*
         version: link:../../packages/simulation-service
+      "@icm/spice":
+        specifier: workspace:*
+        version: link:../../packages/spice
       zod:
         specifier: 4.4.3
         version: 4.4.3

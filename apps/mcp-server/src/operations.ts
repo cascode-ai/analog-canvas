@@ -1,4 +1,5 @@
 import { agentToolHelp } from "./guidance.generated.js";
+import { compareExpectedNetlist } from "./netlist-comparison.js";
 import { z } from "zod";
 import { downloadSimulationArtifact } from "./artifact-download.js";
 import { LocalWorkspace, defaultWorkspacePath } from "./local-workspace.js";
@@ -265,6 +266,7 @@ const ImportFileArgs = z
     action: z.enum([
       "stage-project",
       "stage-spice",
+      "import-cell",
       "inspect",
       "discard",
       "request-approval",
@@ -277,6 +279,16 @@ const ImportFileArgs = z
     namingProfile: z.enum(["native", "cadence-bang"]).optional(),
     candidateId: z.string().min(1).optional(),
     background: z.boolean().optional(),
+    documentId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("For inspect, return this staged Cell as documentCode."),
+    sourceDocumentId: z.string().min(1).optional(),
+    targetDocumentId: z.string().min(1).optional(),
+    mode: z.enum(["replace-body", "append"]).optional(),
+    expectedStructureRevision: z.number().int().nonnegative().optional(),
+    expectedRevision: z.number().int().nonnegative().optional(),
   })
   .superRefine((value, context) => {
     const required =
@@ -284,7 +296,14 @@ const ImportFileArgs = z
         ? (["path"] as const)
         : value.action === "stage-spice"
           ? (["rootPath", "entryPath"] as const)
-          : (["candidateId"] as const);
+          : value.action === "import-cell"
+            ? ([
+                "candidateId",
+                "sourceDocumentId",
+                "targetDocumentId",
+                "mode",
+              ] as const)
+            : (["candidateId"] as const);
     for (const field of required) {
       if (!value[field]) {
         context.addIssue({
@@ -299,6 +318,30 @@ const ImportFileArgs = z
 const DocumentArgs = z.strictObject({
   documentId: z.string().min(1).optional(),
   refresh: z.boolean().optional(),
+});
+const VerifyArgs = DocumentArgs.extend({
+  expectedNetlist: z
+    .strictObject({
+      text: z
+        .string()
+        .min(1)
+        .max(2_200_000)
+        .describe(
+          "Structural SPICE reference, not a simulator deck. Comparison is read-only and optional.",
+        ),
+      cell: z
+        .string()
+        .min(1)
+        .optional()
+        .describe("Reference root Cell if more than one is present."),
+    })
+    .optional(),
+  details: z
+    .boolean()
+    .optional()
+    .describe(
+      "Include up to 200 endpoint/device differences; default returns counts and inconclusive reasons.",
+    ),
 });
 
 const InspectArgs = z.strictObject({
@@ -1006,7 +1049,33 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
                   ? { includePaths: parsed.includePaths }
                   : {}),
               }
-            : { action: parsed.action, candidateId: parsed.candidateId! },
+            : parsed.action === "import-cell"
+              ? {
+                  action: parsed.action,
+                  candidateId: parsed.candidateId!,
+                  sourceDocumentId: parsed.sourceDocumentId!,
+                  targetDocumentId: parsed.targetDocumentId!,
+                  mode: parsed.mode!,
+                  ...(parsed.expectedStructureRevision === undefined
+                    ? {}
+                    : {
+                        expectedStructureRevision:
+                          parsed.expectedStructureRevision,
+                      }),
+                  ...(parsed.expectedRevision === undefined
+                    ? {}
+                    : { expectedRevision: parsed.expectedRevision }),
+                }
+              : {
+                  action: parsed.action,
+                  candidateId: parsed.candidateId!,
+                  ...(parsed.documentId
+                    ? { documentId: parsed.documentId }
+                    : {}),
+                  ...(parsed.background === undefined
+                    ? {}
+                    : { background: parsed.background }),
+                },
       );
     },
   },
@@ -1178,11 +1247,11 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     definition: {
       name: "verify",
       description: agentToolHelp["verify"],
-      inputSchema: jsonSchemaOf(DocumentArgs),
+      inputSchema: jsonSchemaOf(VerifyArgs),
     },
     handle: async (args, session) => {
       const client = session.client;
-      const parsed = DocumentArgs.parse(args ?? {});
+      const parsed = VerifyArgs.parse(args ?? {});
       const documentId = parsed.documentId;
       const before = client.cachedSnapshot(documentId);
       const fresh = await client.refreshSnapshot(documentId);
@@ -1191,7 +1260,21 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           ? changedObjectIds(before.snapshot, fresh.snapshot)
           : [];
       const counts = diagnosticsCompact(fresh).counts;
-      return { revision: fresh.revision, ...counts, changedObjectIds: changed };
+      return {
+        revision: fresh.revision,
+        ...counts,
+        changedObjectIds: changed,
+        ...(parsed.expectedNetlist
+          ? {
+              comparison: await compareExpectedNetlist(
+                client,
+                fresh.documentId,
+                parsed.expectedNetlist,
+                parsed.details,
+              ),
+            }
+          : {}),
+      };
     },
   },
   {

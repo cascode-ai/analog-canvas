@@ -359,14 +359,19 @@ describe("current Agent Circuit API service", () => {
     // retaining the complete operation union and runtime validation. Keep the
     // allowance close to the measured projection so accidental unfolding is
     // still caught.
+    // Pin-anchored placement and route-net add real input contracts (172,484
+    // characters after shared field schemas). This complete offline/HTTP
+    // union is not a discovery declaration; focused MCP tools retain their
+    // separate unchanged 5,000-byte normalized budget.
     expect(JSON.stringify(AgentCircuitRequestJsonSchema).length).toBeLessThan(
-      172_000,
+      174_000,
     );
     expect(JSON.stringify(AgentCircuitResponseJsonSchema).length).toBeLessThan(
       180_000,
     );
-    // Pins and compact/source projections: 519,555 chars measured, not tokens.
-    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(520_000);
+    // Complete OpenAPI including staged Cell composition: 531,880 characters,
+    // not a token count or a host discovery payload.
+    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(533_000);
   });
 
   it("publishes the flat Snapshot workflow and returns complete facts", () => {

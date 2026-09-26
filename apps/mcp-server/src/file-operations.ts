@@ -27,6 +27,16 @@ export type ImportFileOperation =
       action: "inspect" | "discard" | "request-approval" | "open";
       candidateId: string;
       background?: boolean;
+      documentId?: string;
+    }
+  | {
+      action: "import-cell";
+      candidateId: string;
+      sourceDocumentId: string;
+      targetDocumentId: string;
+      mode: "replace-body" | "append";
+      expectedStructureRevision?: number;
+      expectedRevision?: number;
     };
 
 function requestId(): string {
@@ -156,12 +166,31 @@ export async function importFile(
         ? { namingProfile: operation.namingProfile }
         : {}),
     };
+  } else if (operation.action === "import-cell") {
+    const { action: _action, ...input } = operation;
+    const state =
+      operation.expectedStructureRevision === undefined ||
+      operation.expectedRevision === undefined
+        ? await client.documentState(operation.targetDocumentId)
+        : undefined;
+    request = {
+      ...input,
+      apiVersion: AGENT_API_VERSION,
+      requestId: requestId(),
+      operation: "import-cell",
+      expectedStructureRevision:
+        operation.expectedStructureRevision ?? state!.structureRevision,
+      expectedRevision: operation.expectedRevision ?? state!.revision,
+    };
   } else {
     request = {
       apiVersion: AGENT_API_VERSION,
       requestId: requestId(),
       operation: operation.action,
       candidateId: operation.candidateId,
+      ...(operation.action === "inspect" && operation.documentId
+        ? { documentId: operation.documentId }
+        : {}),
       ...(operation.action === "open" && operation.background
         ? { background: true }
         : {}),

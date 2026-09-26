@@ -1,11 +1,513 @@
 import { describe, expect, it } from "vitest";
 import { createEmptyProject, flattenRichText } from "@icm/model";
+import {
+  resolveDocumentLogicalNets,
+  resolveEndpointConnection,
+} from "@icm/derived";
 import { createAgentCircuitService } from "@icm/agent-adapter";
 import { AgentSessionClient } from "../../../../packages/agent-client/src/session-client";
 import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-support/fake-relay";
 import { callTool, type ToolSessionState } from "../../../mcp-server/src/tools";
 import { EditorDocumentController } from "../document/document-controller";
 import { BrowserAgentHost } from "./browser-agent-host";
+import { planBrowserAgentCommand } from "./browser-agent-command";
+
+it("arranges default labels through the focused MCP entry in one undo, without changing topology", async () => {
+  const { tool, controller, client, add } = await folder();
+  const id = await add();
+  expect(
+    (
+      await client.applyActions([
+        {
+          kind: "set-reference",
+          target: { kind: "instance", id },
+          reference: "MBIAS",
+        },
+      ])
+    ).ok,
+  ).toBe(true);
+  const before = structuredClone(controller.document);
+  const result = await tool("circuit_text", {
+    actions: [
+      {
+        kind: "arrange-labels",
+        instanceIds: [id],
+        referenceStyle: "first-letter-subscript",
+      },
+    ],
+  });
+  expect(result.ok, result.message).toBe(true);
+  expect(controller.document.instances).toEqual(before.instances);
+  expect(controller.document.nets).toEqual(before.nets);
+  expect(controller.document.revision).toBe(before.revision + 1);
+  await client.applyActions([{ kind: "undo" }]);
+  expect(controller.document.annotations).toEqual(before.annotations);
+  const rejected = await tool("circuit_text", {
+    actions: [{ kind: "arrange-labels", instanceIds: [id, "missing"] }],
+  });
+  expect(rejected.ok).toBe(false);
+  expect(controller.document.annotations).toEqual(before.annotations);
+});
+
+it("keeps the first supply default in a placement batch and preserves it in later batches", async () => {
+  const { client, controller } = await folder();
+  for (const references of [
+    ["AVDD", "DVDD"],
+    ["VDDH", "VDDL"],
+  ]) {
+    const previous = controller.document.mosBulkDefaults?.pmosNetId;
+    const result = await client.applyActions(
+      references.map((reference, i) => ({
+        kind: "place-component",
+        symbol: "vdd-port",
+        reference,
+        position: { x: 100 + i * 100, y: previous ? 200 : 100 },
+      })),
+    );
+    expect(result.ok, result.message).toBe(true);
+    expect(controller.document.mosBulkDefaults?.pmosNetId).toBe(
+      previous ??
+        controller.document.netlist!.terminals.find((t) => t.name === "AVDD")!
+          .netId,
+    );
+  }
+  const result = await client.applyActions([
+    { kind: "place-component", symbol: "ground", position: { x: 0, y: 0 } },
+  ]);
+  expect(result.ok, result.message).toBe(true);
+  const ground = controller.document.instances.find(
+    (i) => i.symbolId === "ground",
+  )!;
+  expect(controller.document.mosBulkDefaults?.nmosNetId).toBe(
+    controller.document.nets.find((n) =>
+      n.terminals.some((p) => p.instanceId === ground.id),
+    )!.id,
+  );
+});
+
+it("defaults a native VDD name and rejects unused or non-Port direction targets", async () => {
+  const { controller } = await folder();
+  const instance = {
+    id: "vdd",
+    symbolId: "vdd-port",
+    placement: {
+      position: { x: 100, y: 100 },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    },
+  };
+  const plan = planBrowserAgentCommand(
+    controller.project,
+    controller.document.id,
+    controller.resolver,
+    { kind: "place-components", instances: [instance] },
+  );
+  expect("structureEdits" in plan).toBe(true);
+  if (!("structureEdits" in plan))
+    throw new Error("Expected Cell interface edits");
+  expect(plan.structureEdits).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        kind: "transact_document",
+        edits: expect.arrayContaining([
+          expect.objectContaining({
+            kind: "add_cell_terminal",
+            terminal: expect.objectContaining({ name: "VDD" }),
+          }),
+        ]),
+      }),
+    ]),
+  );
+  for (const [id, symbolId] of [
+    ["missing", "vdd-port"],
+    ["vdd", "resistor"],
+  ]) {
+    expect(() =>
+      planBrowserAgentCommand(
+        controller.project,
+        controller.document.id,
+        controller.resolver,
+        {
+          kind: "place-components",
+          instances: [{ ...instance, symbolId: symbolId! }],
+          terminalDirections: { [id!]: "input" },
+        },
+      ),
+    ).toThrow(/direction/i);
+  }
+});
+
+it("atomically deletes mixed Instances and NoConnects through selection cleanup, without duplicate removal", async () => {
+  const { client, controller, add } = await folder();
+  const id = await add();
+  expect(
+    controller.transact([
+      {
+        kind: "add_no_connect",
+        noConnect: {
+          id: "nc",
+          endpoint: { kind: "terminal", instanceId: id, pinName: "G" },
+        },
+      },
+    ]).ok,
+  ).toBe(true);
+  const before = structuredClone(controller.document);
+  const result = await client.applyActions([
+    { kind: "delete", target: { kind: "instance", id } },
+    { kind: "delete", target: { kind: "no-connect", id: "nc" } },
+  ]);
+  expect(result.ok, result.message).toBe(true);
+  expect(controller.document.instances).toEqual([]);
+  expect(controller.document.annotations).toEqual([]);
+  expect(controller.document.noConnects).toEqual([]);
+  expect(controller.document.revision).toBe(before.revision + 1);
+  await client.applyActions([{ kind: "undo" }]);
+  expect(controller.document.noConnects).toEqual(before.noConnects);
+  expect(controller.document.annotations).toEqual(before.annotations);
+  expect(
+    (
+      await client.applyActions([
+        { kind: "delete", target: { kind: "no-connect", id: "nc" } },
+      ])
+    ).ok,
+  ).toBe(true);
+  expect(controller.document.instances).toHaveLength(1);
+  expect(controller.document.noConnects).toEqual([]);
+});
+
+it("routes one Net through the existing authoring tool, preserves the service edit budget and never partially commits", async () => {
+  const { client, controller, tool } = await folder();
+  expect(
+    (
+      await client.applyActions(
+        [0, 1, 2].map((i) => ({
+          kind: "place-component",
+          symbol: "resistor",
+          reference: `R${i}`,
+          position: { x: i * 100, y: 100 },
+        })),
+      )
+    ).ok,
+  ).toBe(true);
+  const target = {
+    kind: "pins",
+    pins: controller.document.instances.map((instance) => ({
+      instanceId: instance.id,
+      pinName: "1",
+    })),
+  };
+  const command = {
+    kind: "route-net",
+    target,
+    trunk: { start: { x: -40, y: 0 }, end: { x: 260, y: 0 } },
+  };
+  const limited = createAgentCircuitService({
+    agentId: "test",
+    host: new BrowserAgentHost(controller),
+    permissions: {
+      snapshot: true,
+      render: true,
+      sourceSpans: false,
+      edit: { geometry: true, connectivity: true, presentation: true },
+    },
+    limits: { maxTransactionEdits: 3 },
+  });
+  const before = structuredClone(controller.project);
+  expect(
+    limited.handle({
+      apiVersion: "3.0",
+      requestId: "limited",
+      operation: "transact",
+      transactionId: "limited",
+      documentId: controller.document.id,
+      expectedRevision: controller.document.revision,
+      command,
+    }).ok,
+  ).toBe(false);
+  expect(controller.project).toEqual(before);
+  const result = await tool("apply_actions", { actions: [command] });
+  expect(result.ok, JSON.stringify(result)).toBe(true);
+  expect(controller.document.revision).toBe(before.documents[0]!.revision + 1);
+  expect(controller.document.nets).toHaveLength(1);
+  const after = structuredClone(controller.document);
+  expect((await tool("apply_actions", { actions: [command] })).ok).toBe(true);
+  expect(controller.document.revision).toBe(after.revision);
+  expect(controller.document.routes).toEqual(after.routes);
+  expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+  expect(controller.document.routes).toEqual([]);
+});
+
+it("shares pin anchoring for hierarchical and retained Instances", async () => {
+  const { client, controller, add } = await folder();
+  const id = await add();
+  expect(
+    (await client.applyActions([{ kind: "unplace", instanceIds: [id] }])).ok,
+  ).toBe(true);
+  const placed = await client.applyActions([
+    {
+      kind: "place-existing",
+      instanceId: id,
+      placement: { position: { x: 0, y: 0 }, rotation: 90, mirror: "none" },
+      pinAnchor: { pinName: "G", position: { x: 200, y: 200 } },
+    },
+  ]);
+  expect(placed.ok, placed.message).toBe(true);
+  expect(
+    resolveEndpointConnection(controller.document, controller.resolver, {
+      kind: "terminal",
+      instanceId: id,
+      pinName: "G",
+    })?.gridLanding,
+  ).toEqual({ x: 200, y: 200 });
+  expect(
+    (
+      await client.applyActions([
+        {
+          kind: "place-component",
+          symbol: "port",
+          reference: "IN",
+          position: { x: 0, y: 0 },
+        },
+      ])
+    ).ok,
+  ).toBe(true);
+  expect(
+    (
+      await client.applyActions([
+        { kind: "create-cell", id: "tb", name: "Testbench" },
+      ])
+    ).ok,
+  ).toBe(true);
+  const hierarchical = await client.applyActions(
+    [
+      {
+        kind: "place-cell",
+        childDocumentId: "main",
+        instanceId: "xdut",
+        reference: "XDUT",
+        placement: {
+          position: { x: 0, y: 0 },
+          rotation: 0,
+          mirror: "horizontal",
+        },
+        pinAnchor: { pinName: "IN", position: { x: 100, y: 100 } },
+      },
+    ],
+    { documentId: "tb" },
+  );
+  expect(hierarchical.ok, hierarchical.message).toBe(true);
+  const tb = controller.project.documents.find((item) => item.id === "tb")!;
+  expect(
+    resolveEndpointConnection(tb, controller.resolver, {
+      kind: "terminal",
+      instanceId: "xdut",
+      pinName: "IN",
+    })?.gridLanding,
+  ).toEqual({ x: 100, y: 100 });
+});
+
+it("places matched devices by pin landing in one commit and preserves symmetry through shared transforms", async () => {
+  const { client, controller } = await folder();
+  const placed = await client.applyActions([
+    {
+      kind: "place-component",
+      symbol: "nmos",
+      reference: "M1",
+      pinAnchor: { pinName: "G", position: { x: 100, y: 100 } },
+    },
+    {
+      kind: "place-component",
+      symbol: "nmos",
+      reference: "M2",
+      mirror: "horizontal",
+      pinAnchor: { pinName: "G", position: { x: 300, y: 100 } },
+    },
+  ]);
+  expect(placed.ok, placed.message).toBe(true);
+  const [left, right] = controller.document.instances;
+  expect(left!.placement!.position.x + right!.placement!.position.x).toBe(400);
+  for (const [instance, x] of [
+    [left!, 100],
+    [right!, 300],
+  ] as const) {
+    expect(
+      resolveEndpointConnection(controller.document, controller.resolver, {
+        kind: "terminal",
+        instanceId: instance.id,
+        pinName: "G",
+      })?.gridLanding,
+    ).toEqual({ x, y: 100 });
+  }
+  const before = structuredClone(controller.document);
+  const mirrored = await client.applyActions([
+    {
+      kind: "transform",
+      selection: { instanceIds: [left!.id, right!.id] },
+      transform: { kind: "mirror", axis: "y", center: { x: 200, y: 100 } },
+    },
+  ]);
+  expect(mirrored.ok, mirrored.message).toBe(true);
+  expect(controller.document.instances.map((item) => item.reference)).toEqual([
+    "M1",
+    "M2",
+  ]);
+  expect(controller.document.nets).toEqual(before.nets);
+  expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+  expect(controller.document.annotations).toEqual(before.annotations);
+  const rejected = await client.applyActions([
+    {
+      kind: "place-component",
+      symbol: "resistor",
+      reference: "R1",
+      position: { x: 400, y: 100 },
+    },
+    {
+      kind: "place-component",
+      symbol: "resistor",
+      reference: "R2",
+      pinAnchor: { pinName: "missing", position: { x: 500, y: 100 } },
+    },
+  ]);
+  expect(rejected).toMatchObject({ ok: false, actionIndex: 1 });
+  expect(controller.document.instances).toEqual(before.instances);
+});
+
+it("uses Cell-Pin supply semantics and explicit directions, with reversible mode changes", async () => {
+  const { client, controller } = await folder();
+  const placed = await client.applyActions([
+    {
+      kind: "place-component",
+      symbol: "vdd-port",
+      position: { x: 100, y: 100 },
+    },
+    {
+      kind: "place-component",
+      symbol: "port",
+      reference: "IN",
+      direction: "input",
+      position: { x: 200, y: 100 },
+    },
+  ]);
+  expect(placed.ok, placed.message).toBe(true);
+  const [supply, input] = controller.document.netlist!.terminals;
+  expect(supply).toMatchObject({ name: "VDD", direction: "inout" });
+  expect(input).toMatchObject({ name: "IN", direction: "input" });
+  expect(controller.document.mosBulkDefaults?.pmosNetId).toBe(supply!.netId);
+  expect(
+    resolveDocumentLogicalNets(controller.document).byBaseNetId.get(
+      supply!.netId,
+    )?.scope,
+  ).toBe("local");
+  expect(
+    controller.document.annotations.some(
+      (a) =>
+        a.kind === "power-label" && a.binding?.kind === "cell-terminal-name",
+    ),
+  ).toBe(true);
+  const before = structuredClone(controller.project);
+  const changed = await client.applyActions([
+    {
+      kind: "set-vdd-mode",
+      instanceId: supply!.interfaceInstanceIds[0]!,
+      mode: "global",
+    },
+    {
+      kind: "set-port-direction",
+      target: { kind: "port-name", name: "IN" },
+      direction: "output",
+    },
+  ]);
+  expect(changed.ok, changed.message).toBe(true);
+  expect(
+    controller.document.netlist!.terminals.map((t) => [t.name, t.direction]),
+  ).toEqual([["IN", "output"]]);
+  expect(
+    resolveDocumentLogicalNets(controller.document).byBaseNetId.get(
+      supply!.netId,
+    )?.scope,
+  ).toBe("global");
+  expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+  expect(controller.document.netlist).toEqual(before.documents[0]!.netlist);
+});
+
+it("uses local supply rails by default, preserves explicit global and rejects diagonals atomically", async () => {
+  const { client, controller } = await folder();
+  for (const [name, scope, y] of [
+    ["VDD", undefined, 100],
+    ["AVDD", "global", 200],
+  ] as const) {
+    const report = await client.applyActions([
+      {
+        kind: "add-power-rail",
+        name,
+        ...(scope ? { scope } : {}),
+        start: { x: 100, y },
+        end: { x: 300, y },
+      },
+    ]);
+    expect(report.ok, report.message).toBe(true);
+    const net = [
+      ...resolveDocumentLogicalNets(controller.document).byBaseNetId.values(),
+    ].find((n) => n.name === name);
+    expect(net?.scope).toBe(scope ?? "local");
+  }
+  const before = structuredClone(controller.project);
+  const report = await client.applyActions([
+    { kind: "add-power-rail", start: { x: 0, y: 0 }, end: { x: 100, y: 20 } },
+  ]);
+  expect(report.ok).toBe(false);
+  expect(report.message).toContain("horizontal or vertical");
+  expect(controller.project).toEqual(before);
+});
+
+it("batches different display preferences once without advancing structure revision; errors locate the source action", async () => {
+  const { client, controller } = await folder();
+  await client.applyActions(
+    ["R1", "R2"].map((reference, i) => ({
+      kind: "place-component",
+      symbol: "resistor",
+      reference,
+      position: { x: 100 + i * 100, y: 100 },
+    })),
+  );
+  const [first, second] = controller.document.instances;
+  const before = structuredClone(controller.project);
+  const changed = await client.applyActions([
+    {
+      kind: "set-instance-display",
+      instanceIds: [first!.id],
+      showReference: false,
+    },
+    {
+      kind: "set-instance-display",
+      instanceIds: [second!.id],
+      showValue: false,
+    },
+  ]);
+  expect(changed.ok, changed.message).toBe(true);
+  expect(controller.project.structureRevision).toBe(before.structureRevision);
+  expect(controller.document.revision).toBe(before.documents[0]!.revision + 1);
+  await client.applyActions([{ kind: "undo" }]);
+  expect(controller.document.annotations).toEqual(
+    before.documents[0]!.annotations,
+  );
+  const failed = await client.applyActions([
+    {
+      kind: "set-instance-display",
+      instanceIds: [first!.id],
+      showReference: false,
+    },
+    {
+      kind: "set-port-direction",
+      target: { kind: "port-name", name: "missing" },
+      direction: "input",
+    },
+  ]);
+  expect(failed).toMatchObject({ ok: false, actionIndex: 1 });
+  expect(controller.document.annotations).toEqual(
+    before.documents[0]!.annotations,
+  );
+});
 
 async function folder() {
   const project = createEmptyProject("project-1", "Parity");
@@ -51,6 +553,105 @@ async function folder() {
 }
 
 describe("MCP → API → shared editor parity", () => {
+  it("deletes connected instances and their owned labels like GUI selection, and clears a Cell in one undo", async () => {
+    const { client, controller } = await folder();
+    await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "R1",
+        position: { x: 100, y: 100 },
+      },
+      {
+        kind: "place-component",
+        symbol: "port",
+        reference: "IN",
+        position: { x: 200, y: 100 },
+      },
+    ]);
+    const terminal = controller.document.netlist!.terminals[0]!;
+    expect(
+      (
+        await client.applyActions([
+          {
+            kind: "connect",
+            from: { kind: "pin", instance: "R1", pin: "2" },
+            to: {
+              kind: "pin",
+              instance: {
+                kind: "instance",
+                id: terminal.interfaceInstanceIds[0]!,
+              },
+              pin: "P",
+            },
+          },
+        ])
+      ).ok,
+    ).toBe(true);
+    const before = structuredClone(controller.document);
+    const removed = await client.applyActions([
+      { kind: "delete", target: { kind: "instance", reference: "R1" } },
+    ]);
+    expect(removed.ok, removed.message).toBe(true);
+    expect(
+      controller.document.instances.some((i) => i.reference === "R1"),
+    ).toBe(false);
+    expect(controller.document.routes).toHaveLength(before.routes.length);
+    expect(
+      controller.document.annotations.some(
+        (a) =>
+          a.anchor.kind === "object" &&
+          a.anchor.objectId === before.instances[0]!.id,
+      ),
+    ).toBe(false);
+    await client.applyActions([{ kind: "undo" }]);
+    expect(controller.document.instances).toEqual(before.instances);
+    const cleared = await client.applyActions([
+      {
+        kind: "delete-selection",
+        selection: {
+          instanceIds: controller.document.instances.map((i) => i.id),
+          routeIds: controller.document.routes.map((i) => i.id),
+          junctionIds: controller.document.junctions.map((i) => i.id),
+          annotationIds: controller.document.annotations.map((i) => i.id),
+        },
+      },
+    ]);
+    expect(cleared.ok, cleared.message).toBe(true);
+    expect(controller.document.instances).toEqual([]);
+    expect(controller.document.netlist!.terminals).toEqual([]);
+    expect(controller.document.routes).toEqual([]);
+    await client.applyActions([{ kind: "undo" }]);
+    expect(controller.document.instances).toEqual(before.instances);
+    expect(controller.document.netlist).toEqual(before.netlist);
+  });
+  it("retains the action location for off-grid placement in a Project transaction", async () => {
+    const { client, controller } = await folder();
+    const before = structuredClone(controller.project);
+    const report = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "port",
+        reference: "IN",
+        position: { x: 100, y: 100 },
+      },
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "R1",
+        position: { x: 155, y: 100 },
+      },
+    ]);
+    expect(report).toMatchObject({
+      ok: false,
+      actionIndex: 1,
+      actionKind: "place-component",
+    });
+    expect(
+      report.diagnostics?.some((d) => d.parameters?.instanceIndex === 1),
+    ).toBe(true);
+    expect(controller.project).toEqual(before);
+  });
   it("reports the input action behind a rejected placement edit", async () => {
     const { client, controller } = await folder();
     const before = structuredClone(controller.document);

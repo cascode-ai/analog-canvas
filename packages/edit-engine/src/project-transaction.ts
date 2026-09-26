@@ -660,7 +660,14 @@ export function executeProjectTransaction(
         project,
         "DOCUMENT_TRANSACTION_REJECTED",
         result.error.message,
-        result.diagnostics,
+        result.diagnostics.map((diagnostic) => ({
+          ...diagnostic,
+          parameters: {
+            ...diagnostic.parameters,
+            projectEditIndex: editIndex,
+            documentId: edit.documentId,
+          },
+        })),
       );
     }
     if (result.applied) {

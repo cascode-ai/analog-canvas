@@ -3,6 +3,10 @@
 // loopback transport lives in `./loopback.ts` and the `./loopback` subpath.
 
 export * from "./envelope.js";
+export {
+  isBatchableAuthoringCommand,
+  AgentPinAnchorSchema,
+} from "./authoring-command.js";
 export { planEnsureNamedNet } from "@icm/edit-engine";
 export * from "./file-resource.js";
 export * from "./host.js";

@@ -23,11 +23,29 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
 
 - Place through native `place-components` (MCP `circuit_place` actions
   `place-component`), which creates attached Reference/Value displays.
-  `port`/`port-filled` also create the formal Cell terminal and Net atomically;
-  `reference` is the terminal name. Do not substitute a bare Port `add_instance`.
+  `port`/`port-filled`/`vdd-port` also create the formal Cell terminal and Net
+  atomically; `reference` is the terminal name (VDD defaults to `VDD`). Optional
+  `direction` applies to these markers only; native `terminalDirections` keys
+  must identify new Cell markers. The first explicit supply in a placement batch
+  initializes an absent bulk default; later supplies do not overwrite it.
+  `set-port-direction` addresses one
+  terminal or every declaration of a projected Port; `set-vdd-mode` explicitly
+  switches VDD between Cell Pin and Global. Do not substitute a bare `add_instance`.
+- For exact pin placement, `place-component` accepts `pinAnchor:{pinName,position}`
+  instead of origin `position`; rotation/mirror still apply. It uses the shared
+  routing landing (including variants and fine-pitch pins), not artwork contact,
+  and rejects unreachable targets with a nearest reachable landing. Native
+  `place-components` accepts `pinAnchors` by Instance ID; `place-cell` and
+  `place-existing` accept `pinAnchor` to override their placement origin. No
+  electrical connection is inferred. For one-shot symmetry use these placements
+  or the existing selection `transform` mirror with an explicit center; this
+  neither copies connectivity nor installs a persistent symmetry constraint.
 - `vdd-rail` is an authoring primitive, not a symbol. Use `add-power-rail`
-  (typed `add_power_rail`) with explicit Net name/scope and `powerDomain:"vdd"`.
-  Ground and power markers are not named devices.
+  with optional `name`/`scope` (existing scope is retained, otherwise local).
+  Explicit `global` is not the default. Like GUI supply placement it initializes
+  the default PMOS bulk; geometry alone does not connect nearby pins in Agent
+  placement. The complete typed `add_power_rail` remains available. Ground and
+  power markers are not named devices.
 - Set electrical values before their display. MOS sizes are physical quantities:
   `w:"10u", l:"1u"`, not `10/1` assuming micrometres. Use
   `set-instance-display` for Reference/Value/parameters, not detached text.
@@ -49,14 +67,47 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
 
 Multiple placements, wires, labels, model assignments and annotation moves have
 existing atomic batch paths. Failure commits nothing; success has one undo.
+Display flags, Port directions, VDD mode and terminal removal can share the
+existing command batch. Pure Document presentation batches do not advance the
+Project structure revision. Failures identify the originating action where known.
 Keep unrelated command forms separate rather than assuming arbitrary mixtures
 are atomic. Both ordinary and full typed editing remain available.
+
+`route-net` (in `apply_actions`, native `command`) fills missing visible connections for a
+current Net ID/name, one member pin, an explicit list of pins to join, or a
+frozen import-reference `sourceNetId`. An import ID is not a current Net ID.
+It reuses the visible connectivity/MST and atomic wire planners, skipping already
+connected components. Optional `trunk:{start,end}` specifies one straight
+horizontal/vertical trunk; otherwise follow the shared guide tree. This is not
+an obstacle autorouter: conflicting taps or excess expanded edits reject the
+whole operation. Ordinary crossings without a Junction remain legal. It does
+not move devices, infer bulk wiring or override import-reference shorts/scope
+conflicts; place missing devices and fix those facts first.
+Its focused contract is `describe_tool({tool:"apply_actions",operations:["route-net"]})`;
+use it when parameters are unfamiliar, not as a mandatory preflight. Ordinary
+`circuit_wire` keeps its compact connect/disconnect declaration.
 
 For cleanup, prefer move/mirror/group transforms and route edits. Geometry moves
 do not perform GUI drag-to-connect snapping. `terminalConnectivityChanged` in
 ordinary transaction receipts compares document-local terminal equivalence;
 it does not assert unchanged parameters, bulk or hierarchy. Omitted means unknown.
 Use reset-placement only for intentional redraw, with its documented effects.
+`delete` uses the GUI selection-deletion planner, including owned displays and
+formal interface declarations. `delete-selection` accepts multiple explicit
+object IDs (including `noConnectIds`) in one transaction; selecting every object clears a Cell, while
+unselected wires remain dangling. Reset modes retain their existing meanings
+and must not be used as a synonym for deleting the entire Cell.
+
+For an explicit label cleanup, `circuit_text` / `apply_actions` accepts
+`{kind:"arrange-labels",instanceIds:["…"]}`. It compacts visible default label
+slots and tries a fixed set of nearby collision-avoiding positions in one
+undoable operation. Set `compact:false` or `avoidCollisions:false` to disable
+either part; `referenceStyle:"first-letter-subscript"` optionally displays
+`RBIAS` as an R with BIAS subscript without changing the Reference. Manual/free,
+locked, hidden and custom-styled labels are preserved. This is not an autorouter
+or a whole-drawing beautifier. Informational label-clearance/owner-distance
+observations may remain and never gate editing. New Net labels use the GUI's
+standard side/alignment; existing explicit label moves retain their semantics.
 
 The focused `circuit_text` action `move-annotation` sets an absolute position;
 the legacy `apply_actions` annotation `move` uses the same semantics, while

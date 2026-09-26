@@ -83,6 +83,7 @@ export const AgentFileResourceCapabilitySchema = z.strictObject({
       "request-approval",
       "open",
       "simulation-input",
+      "import-cell",
     ]),
   ),
   maxBytes: z.number().int().positive(),
@@ -153,7 +154,28 @@ export const AgentSnapshotRequestSchema = RequestBaseSchema.extend({
     })
     .optional(),
 });
+export const AgentWireAtAnchorSchema = z
+  .strictObject({
+    kind: z.literal("wire-at"),
+    point: PointSchema,
+    net: z.string().min(1).optional(),
+    member: z
+      .strictObject({
+        instanceId: StableIdSchema,
+        pinName: z.string().min(1),
+      })
+      .optional(),
+  })
+  .describe(
+    "Resolve a tap on the current draft, including earlier wires. Optional net or member restricts the intended Net; a tap joining a different crossing Net is rejected.",
+  );
 export const AgentWireIntentAnchorSchema = z.discriminatedUnion("kind", [
+  AgentWireAtAnchorSchema,
+  z
+    .strictObject({ kind: z.literal("net"), net: z.string().min(1) })
+    .describe(
+      "Net ID or name; choose its nearest route to the other endpoint on the current draft.",
+    ),
   z.strictObject({
     kind: z.literal("endpoint"),
     endpoint: RouteEndpointSchema,

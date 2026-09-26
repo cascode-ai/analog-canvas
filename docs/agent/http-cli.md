@@ -16,6 +16,17 @@ This is a local entry into the same AgentSessionClient and operation registry, n
 another network protocol. The package must be installed, but no MCP-host
 configuration or restart is required. Each invocation is a new process:
 persisted connector credentials survive, process-local context does not.
+An explicit `project_cells` / `bind-workspace` target also survives when
+`ANALOG_CANVAS_TASK_DIR` names an absolute task directory. Use the same directory
+on subsequent invocations; give separate Agent tasks separate directories.
+The shared client stores only origin/session/workspace/Project identity there,
+separately from credentials, and validates the open working copy once when a
+new process resumes. Human tab switching does not retarget it. A closed or
+replaced working copy fails closed; explicitly `bind-workspace` with
+`workspaceId:null` before choosing a new one. Clearing returns to the human
+active Project; a new Claim also clears this task's old binding. CLI binding
+without a task directory is rejected rather than pretending it is durable.
+MCP uses the same store when configured, otherwise its binding is process-local.
 CLI invokes operations directly, not through the MCP handler; its existing JSON
 content-block output and failure exit codes are retained for compatibility.
 Both entries use the same validation, error classification and download logic.

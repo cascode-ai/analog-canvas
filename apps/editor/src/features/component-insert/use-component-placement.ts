@@ -10,7 +10,6 @@ import type {
 import {
   createHierarchyInstance,
   createExternalSubcircuitInstance,
-  planCreateCellPin,
   planPlaceExternalSubcircuitInstance,
   planPlaceCellInstance,
 } from "@icm/edit-engine";
@@ -40,9 +39,8 @@ import {
   proposePlacementContact,
   planInsertedInstanceConnections,
 } from "./placement-connectivity";
-import { planInitialMosBulkDefault } from "./mos-bulk-defaults";
+import { planPlacedCellPin } from "./cell-pin-placement";
 import { constrainedPowerRailEndpoint, planVddRailEdits } from "./vdd-rail";
-import { vddPowerLabelAnnotation } from "./vdd-power-label";
 import {
   defaultInstanceDisplayAnnotations,
   missingDefaultInstanceDisplayAnnotations,
@@ -512,56 +510,27 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
               newNetId: netId,
             },
           ]),
-      ...(supply
-        ? planInitialMosBulkDefault(options.document, "vdd", netId)
-        : []),
     ];
     const terminalId = `terminal-${id.toLowerCase()}`;
-    const resolvedSupply = supply
-      ? options.resolver.resolve(instance.symbolId)
-      : undefined;
-    const annotations =
-      supply && resolvedSupply
-        ? [
-            {
-              ...vddPowerLabelAnnotation({
-                instance,
-                resolved: resolvedSupply,
-                netId,
-                grid: options.document.presentation.grid,
-                name: formalName,
-              }),
-              binding: {
-                kind: "cell-terminal-name" as const,
-                terminalId,
-              },
-            },
-          ]
-        : defaultInstanceDisplayAnnotations(
-            options.document,
-            instance,
-            options.resolver,
-            options.styleProfile,
-            { formalTerminalId: terminalId, formalName },
-          );
-    const annotation = annotations[0];
     const committed = options.transactProject(
       "place-cell-pin",
-      planCreateCellPin(options.project, options.document.id, {
-        instance,
-        connectionEdits,
-        terminal: {
-          id: terminalId,
+      planPlacedCellPin(
+        options.project,
+        options.document.id,
+        options.resolver,
+        {
+          instance,
+          connectionEdits,
+          terminalId,
           name: formalName,
           netId,
           direction:
             supply || placementRequest.kind !== "cell-pin"
               ? "inout"
               : placementRequest.direction!,
-          interfaceInstanceIds: [id],
+          styleProfile: options.styleProfile,
         },
-        ...(annotation ? { annotation } : {}),
-      }),
+      ),
     );
     if (!committed) return;
     options.selectOnly("instance", [id]);

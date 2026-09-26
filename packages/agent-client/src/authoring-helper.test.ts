@@ -34,6 +34,55 @@ function expectCompileError(actions: unknown[], fragment: string): void {
 }
 
 describe("authoring helper compilation", () => {
+  it("forwards pin anchors to the shared server planner and requires one position form", () => {
+    const action = {
+      kind: "place-component",
+      symbol: "nmos",
+      reference: "M2",
+      pinAnchor: { pinName: "G", position: { x: 200, y: 100 } },
+      mirror: "horizontal",
+    };
+    const command = compile([action])[0]!.command;
+    expect(command?.kind).toBe("place-components");
+    if (command?.kind !== "place-components") return;
+    expect(command.pinAnchors?.[command.instances[0]!.id]).toEqual(
+      action.pinAnchor,
+    );
+    expect(command.instances[0]!.placement?.mirror).toBe("horizontal");
+    expect(
+      AuthoringActionSchema.safeParse({ ...action, position: { x: 0, y: 0 } })
+        .success,
+    ).toBe(false);
+    expect(
+      AuthoringActionSchema.safeParse({
+        kind: "place-component",
+        symbol: "nmos",
+        reference: "M2",
+      }).success,
+    ).toBe(false);
+  });
+  it.each([
+    { kind: "net", net: "new-trunk" },
+    {
+      kind: "wire-at",
+      point: { x: 200, y: 100 },
+      member: { instanceId: "new-device", pinName: "D" },
+    },
+  ])(
+    "can directly send a draft-resolved wire target without a Snapshot: $kind",
+    (to) => {
+      const action = AuthoringActionSchema.parse({
+        kind: "connect",
+        from: { kind: "point", x: 200, y: 0 },
+        to,
+      });
+      expect(directConnectIntent(action, () => "new-wire")).toMatchObject({
+        id: "new-wire",
+        from: { kind: "free", point: { x: 200, y: 0 } },
+        to,
+      });
+    },
+  );
   it("uses the same wire request for explicit identities and resolved helper input", () => {
     const action = AuthoringActionSchema.parse({
       kind: "connect",
@@ -205,7 +254,7 @@ describe("authoring helper compilation", () => {
     );
   });
 
-  it("compiles add-power-rail and reuses the existing global VDD net", () => {
+  it("delegates Power Rail semantics to the shared browser planner", () => {
     const [transaction] = compile([
       {
         kind: "add-power-rail",
@@ -213,21 +262,15 @@ describe("authoring helper compilation", () => {
         end: { x: 500, y: 80 },
       },
     ]);
-    const edit = transaction?.edits?.[0];
-    expect(edit?.kind).toBe("add_power_rail");
-    if (edit?.kind === "add_power_rail") {
-      expect(edit.netId).toBe("net-vdd");
-      expect(edit).toMatchObject({
-        netName: "VDD",
-        scope: "global",
-        powerDomain: "vdd",
-      });
-      expect(edit.routeId).not.toBe(edit.netId);
-      expect(edit.startJunctionId).not.toBe(edit.endJunctionId);
-    }
+    expect(transaction?.command).toMatchObject({
+      kind: "add-power-rail",
+      start: { x: 100, y: 80 },
+      end: { x: 500, y: 80 },
+    });
+    expect(transaction?.command).not.toHaveProperty("scope");
   });
 
-  it("compiles vertical Power Rails and rejects diagonal geometry", () => {
+  it("preserves vertical Power Rail geometry for server validation", () => {
     const [transaction] = compile([
       {
         kind: "add-power-rail",
@@ -235,21 +278,11 @@ describe("authoring helper compilation", () => {
         end: { x: 40, y: 160 },
       },
     ]);
-    expect(transaction?.edits?.[0]).toMatchObject({
-      kind: "add_power_rail",
+    expect(transaction?.command).toMatchObject({
+      kind: "add-power-rail",
       start: { x: 40, y: 0 },
       end: { x: 40, y: 160 },
     });
-    expectCompileError(
-      [
-        {
-          kind: "add-power-rail",
-          start: { x: 0, y: 0 },
-          end: { x: 100, y: 40 },
-        },
-      ],
-      "horizontal or vertical",
-    );
   });
 
   it("compiles pin-to-pin connect into one visible wire intent with waypoints", () => {
@@ -289,7 +322,7 @@ describe("authoring helper compilation", () => {
     });
   });
 
-  it("uses a free point, not the page origin, when attaching it to a Net", () => {
+  it("passes the free point and Net identity to the shared wire planner", () => {
     const [transaction] = compile([
       {
         kind: "connect",
@@ -297,11 +330,9 @@ describe("authoring helper compilation", () => {
         to: { kind: "net", net: "Vout" },
       },
     ]);
-    expect(transaction?.wireIntent?.to).toEqual({
-      kind: "route-segment",
-      routeId: "route-1",
-      legId: testSnapshot().document.routes[0]!.legs[1]!.id,
-      point: { x: 460, y: 160 },
+    expect(transaction?.wireIntent).toMatchObject({
+      from: { kind: "free", point: { x: 480, y: 160 } },
+      to: { kind: "net", net: "Vout" },
     });
   });
 
@@ -329,7 +360,7 @@ describe("authoring helper compilation", () => {
     }
   });
 
-  it("compiles pin-to-net connect into a wire intent anchored on the nearest route segment", () => {
+  it("delegates Net geometry to the current server draft, including newly created Nets", () => {
     const [transaction] = compile([
       {
         kind: "connect",
@@ -337,63 +368,12 @@ describe("authoring helper compilation", () => {
         to: { kind: "net", net: "Vout" },
       },
     ]);
-    expect(transaction?.form).toBe("wire-intent");
-    const intent = transaction?.wireIntent;
-    expect(intent?.from).toEqual({
+    expect(transaction?.wireIntent?.to).toEqual({ kind: "net", net: "Vout" });
+    expect(transaction?.wireIntent?.from).toMatchObject({
       kind: "endpoint",
-      endpoint: { kind: "terminal", instanceId: "instance-2", pinName: "2" },
-    });
-    expect(intent?.to.kind).toBe("route-segment");
-    if (intent?.to.kind === "route-segment") {
-      expect(intent.to.routeId).toBe("route-1");
-      // R1 pin 2 sits at (460,180); nearest point on the polyline is the
-      // (460,160) corner reached on segment index 1.
-      expect(intent.to.point).toEqual({ x: 460, y: 160 });
-      expect(intent.to.legId).toBe(
-        testSnapshot().document.routes[0]!.legs[1]!.id,
-      );
-    }
-  });
-
-  it("falls back to the nearest junction when the net has no routes", () => {
-    const [transaction] = compile([
-      {
-        kind: "connect",
-        from: { kind: "pin", instance: "M1", pin: "D" },
-        to: { kind: "net", net: "VDD" },
-      },
-    ]);
-    const intent = transaction?.wireIntent;
-    expect(intent?.to).toEqual({
-      kind: "endpoint",
-      endpoint: { kind: "junction", junctionId: "junction-1" },
+      endpoint: { instanceId: "instance-2", pinName: "2" },
     });
   });
-
-  it("refuses net targets without attachable geometry", () => {
-    const bare = testSnapshot();
-    bare.document.nets[0]!.routeIds = [];
-    bare.document.nets[0]!.junctionIds = [];
-    try {
-      compileActions(
-        [
-          {
-            kind: "connect",
-            from: { kind: "pin", instance: "R1", pin: "2" },
-            to: { kind: "net", net: "Vout" },
-          },
-        ],
-        { snapshot: bare, allocateId },
-      );
-      expect.unreachable("expected ActionCompileError");
-    } catch (error) {
-      expect(error).toBeInstanceOf(ActionCompileError);
-      expect((error as Error).message).toContain(
-        "no route or junction geometry",
-      );
-    }
-  });
-
   it("refuses pin targets the snapshot does not report", () => {
     expectCompileError(
       [
@@ -679,11 +659,14 @@ describe("authoring helper compilation", () => {
       { kind: "delete", target: { kind: "route", id: "route-1" } },
       { kind: "delete", target: { kind: "annotation", id: "label-1" } },
     ]);
-    expect(transaction?.edits?.map((edit) => edit.kind)).toEqual([
-      "remove_instance",
-      "cut_connection",
-      "remove_schematic_annotation",
-    ]);
+    expect(transaction?.command).toMatchObject({
+      kind: "delete-selection",
+      selection: {
+        instanceIds: ["instance-2"],
+        routeIds: ["route-1"],
+        annotationIds: ["label-1"],
+      },
+    });
     expectCompileError(
       [{ kind: "delete", target: { kind: "net", name: "Vout" } }],
       "disconnect",

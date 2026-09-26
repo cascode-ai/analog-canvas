@@ -8,6 +8,54 @@ import { declarationSchema } from "./declaration-schema.js";
 import { describeToolContract } from "./tools.js";
 
 describe("focused tools", () => {
+  it("omits repetitive scalar bounds only in discovery while preserving domain bounds and exact rejection", async () => {
+    const exact = {
+      type: "object",
+      properties: {
+        coordinate: {
+          type: "integer",
+          minimum: Number.MIN_SAFE_INTEGER,
+          maximum: Number.MAX_SAFE_INTEGER,
+        },
+        count: { type: "integer", minimum: 1, maximum: 64 },
+        identifier: { type: "string", minLength: 1 },
+        pair: { type: "string", minLength: 2 },
+      },
+    };
+    expect(declarationSchema(exact, "circuit_place")).toEqual({
+      type: "object",
+      properties: {
+        coordinate: { type: "integer" },
+        count: { type: "integer", minimum: 1, maximum: 64 },
+        identifier: { type: "string" },
+        pair: { type: "string", minLength: 2 },
+      },
+    });
+    expect(exact.properties.coordinate.maximum).toBe(Number.MAX_SAFE_INTEGER);
+    const coordinate = describeToolContract({
+      tool: "circuit_place",
+      operations: ["place-component"],
+      field: "/actions/*/position/x",
+    }) as any;
+    expect(JSON.stringify(coordinate)).toContain(
+      String(Number.MAX_SAFE_INTEGER),
+    );
+    const rejected = await callTool(
+      "circuit_place",
+      {
+        actions: [
+          {
+            kind: "place-component",
+            symbol: "resistor",
+            reference: "R1",
+            position: { x: Number.MAX_SAFE_INTEGER + 1, y: 0 },
+          },
+        ],
+      },
+      {} as any,
+    );
+    expect(rejected.isError).toBe(true);
+  });
   it.each(FOCUSED_TOOLS)(
     "$name derives its full contract and delegates unchanged",
     async ({ name, source, operations }) => {

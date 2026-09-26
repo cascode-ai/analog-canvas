@@ -11,6 +11,25 @@ import {
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("initial MOS bulk defaults", () => {
+  it("honors preceding batch defaults and explicit clearing without mutating the document", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.mosBulkDefaults = { pmosNetId: "old" };
+    expect(
+      planInitialMosBulkDefault(document, "vdd", "next", [
+        { kind: "set_mos_bulk_defaults", pmosNetId: "first" },
+      ]),
+    ).toEqual([]);
+    expect(
+      planInitialMosBulkDefault(document, "vdd", "next", [
+        { kind: "set_mos_bulk_defaults", pmosNetId: null },
+        { kind: "set_mos_bulk_defaults", nmosNetId: "zero" },
+      ]),
+    ).toEqual([
+      { kind: "set_mos_bulk_defaults", pmosNetId: "next" },
+      { kind: "reconcile_mos_bulk" },
+    ]);
+    expect(document.mosBulkDefaults).toEqual({ pmosNetId: "old" });
+  });
   it("uses the explicit first ground Net as the NMOS default", () => {
     const document = createEmptyDocument("main", "Main");
     expect(planInitialMosBulkDefault(document, "ground", "net-zero")).toEqual([
