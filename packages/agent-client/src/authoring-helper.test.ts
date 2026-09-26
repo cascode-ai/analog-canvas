@@ -27,6 +27,25 @@ const textGeometry = {
   diagnostics: [],
 };
 
+it("requires exactly one move coordinate mode and restricts pin anchors to Instances", () => {
+  const target = { kind: "instance", id: "M1" };
+  const position = { x: 100, y: 100 };
+  const pinAnchor = { pinName: "G", position };
+  for (const action of [
+    { kind: "move", target },
+    { kind: "move", target, position, pinAnchor },
+    { kind: "move", target: { kind: "annotation", id: "note" }, pinAnchor },
+  ])
+    expect(AuthoringActionSchema.safeParse(action).success).toBe(false);
+  expect(
+    AuthoringActionSchema.safeParse({ kind: "move", target, pinAnchor })
+      .success,
+  ).toBe(true);
+  expect(
+    AuthoringActionSchema.safeParse({ kind: "move", target, position }).success,
+  ).toBe(true);
+});
+
 function compile(
   actions: unknown[],
   snapshot: AgentSessionSnapshot = testSnapshot(),

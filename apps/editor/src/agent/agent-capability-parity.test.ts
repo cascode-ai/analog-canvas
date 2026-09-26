@@ -12,6 +12,155 @@ import { EditorDocumentController } from "../document/document-controller";
 import { BrowserAgentHost } from "./browser-agent-host";
 import { planBrowserAgentCommand } from "./browser-agent-command";
 
+it("keeps the native power-label look through a plain-text rename", async () => {
+  const { client, controller } = await folder();
+  const placed = await client.applyActions([
+    {
+      kind: "place-component",
+      symbol: "vdd-port",
+      position: { x: 100, y: 100 },
+    },
+  ]);
+  expect(placed.ok, placed.message).toBe(true);
+  expect(
+    (
+      await client.applyActions([
+        {
+          kind: "set-vdd-mode",
+          instanceId: controller.document.instances[0]!.id,
+          mode: "global",
+        },
+      ])
+    ).ok,
+  ).toBe(true);
+  const label = controller.document.annotations.find(
+    (a) => a.kind === "power-label",
+  )!;
+  expect(label).toBeDefined();
+  expect(JSON.stringify(label.formatOverride)).toContain("italic");
+  const edited = await client.applyActions([
+    {
+      kind: "edit-text",
+      target: { kind: "annotation", id: label.id },
+      text: "VCC",
+    },
+  ]);
+  expect(edited.ok, edited.message).toBe(true);
+  const after = controller.document.annotations.find((a) => a.id === label.id)!;
+  expect(JSON.stringify(after.formatOverride)).toContain("italic");
+  expect(flattenRichText(after.formatOverride!)).toBe("VCC");
+});
+
+it.each([0, 90, 180, 270] as const)(
+  "moves a mirrored Instance by its pin landing at rotation %s without changing its look or connectivity",
+  async (rotation) => {
+    const { client, controller } = await folder();
+    expect(
+      (
+        await client.applyActions([
+          {
+            kind: "place-component",
+            symbol: "nmos",
+            reference: "M1",
+            pinAnchor: { pinName: "G", position: { x: 100, y: 100 } },
+            rotation,
+            mirror: "horizontal",
+          },
+        ])
+      ).ok,
+    ).toBe(true);
+    const before = structuredClone(controller.document);
+    const instance = controller.document.instances[0]!;
+    const moved = await client.applyActions([
+      {
+        kind: "move",
+        target: { kind: "instance", id: instance.id },
+        pinAnchor: { pinName: "D", position: { x: 300, y: 300 } },
+      },
+    ]);
+    expect(moved.ok, moved.message).toBe(true);
+    expect(
+      resolveEndpointConnection(controller.document, controller.resolver, {
+        kind: "terminal",
+        instanceId: instance.id,
+        pinName: "D",
+      })?.gridLanding,
+    ).toEqual({ x: 300, y: 300 });
+    expect(controller.document.instances[0]!.placement).toMatchObject({
+      rotation,
+      mirror: "horizontal",
+    });
+    expect(controller.document.nets).toEqual(before.nets);
+    expect(
+      controller.document.annotations.map((a) => [
+        a.id,
+        a.binding,
+        a.formatOverride,
+      ]),
+    ).toEqual(
+      before.annotations.map((a) => [a.id, a.binding, a.formatOverride]),
+    );
+    expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+    expect(controller.document.instances).toEqual(before.instances);
+    const rejected = await client.applyActions([
+      {
+        kind: "move",
+        target: { kind: "instance", id: instance.id },
+        pinAnchor: { pinName: "missing", position: { x: 300, y: 300 } },
+      },
+    ]);
+    expect(rejected.ok).toBe(false);
+    expect(rejected.message).toContain("missing");
+    expect(controller.document.instances).toEqual(before.instances);
+    const offGrid = await client.applyActions([
+      {
+        kind: "move",
+        target: { kind: "instance", id: instance.id },
+        pinAnchor: { pinName: "G", position: { x: 301, y: 300 } },
+      },
+    ]);
+    expect(offGrid.ok).toBe(false);
+    expect(controller.document.instances).toEqual(before.instances);
+  },
+);
+
+it("copies one side and mirrors the new identity around an explicit axis without linking the originals", async () => {
+  const { client, controller, add } = await folder();
+  const id = await add();
+  const original = structuredClone(controller.document.instances[0]!);
+  const copied = await client.applyActions([
+    { kind: "copy", selection: { instanceIds: [id] }, offset: { x: 0, y: 0 } },
+  ]);
+  expect(copied.ok, copied.message).toBe(true);
+  const other = controller.document.instances.find((item) => item.id !== id)!;
+  expect(other.reference).not.toBe(original.reference);
+  const afterCopy = structuredClone(controller.document);
+  const mirrored = await client.applyActions([
+    {
+      kind: "transform",
+      selection: { instanceIds: [other.id] },
+      transform: { kind: "mirror", axis: "y", center: { x: 200, y: 100 } },
+    },
+  ]);
+  expect(mirrored.ok, mirrored.message).toBe(true);
+  expect(controller.document.instances.find((item) => item.id === id)).toEqual(
+    original,
+  );
+  expect(
+    controller.document.instances.find((item) => item.id === other.id)
+      ?.placement,
+  ).toMatchObject({ position: { x: 300, y: 100 }, mirror: "horizontal" });
+  expect(controller.document.nets).toEqual(afterCopy.nets);
+  expect(
+    controller.document.annotations.filter(
+      (a) => a.anchor.kind === "object" && a.anchor.objectId === other.id,
+    ),
+  ).toHaveLength(1);
+  expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+  expect(controller.document.instances).toEqual(afterCopy.instances);
+  expect(controller.document.annotations).toEqual(afterCopy.annotations);
+});
+
 it("translates free drafting text atomically, preserves fine placement, and rejects locked or separately attached text", async () => {
   const { tool, controller, client, add } = await folder();
   const instanceId = await add();
@@ -103,45 +252,6 @@ it("translates free drafting text atomically, preserves fine placement, and reje
   });
   expect(together.ok, together.message).toBe(true);
   expect(controller.document.drafting!.objects[0]).toEqual(anchored);
-});
-
-it("keeps the native power-label look through a plain-text rename", async () => {
-  const { client, controller } = await folder();
-  const placed = await client.applyActions([
-    {
-      kind: "place-component",
-      symbol: "vdd-port",
-      position: { x: 100, y: 100 },
-    },
-  ]);
-  expect(placed.ok, placed.message).toBe(true);
-  expect(
-    (
-      await client.applyActions([
-        {
-          kind: "set-vdd-mode",
-          instanceId: controller.document.instances[0]!.id,
-          mode: "global",
-        },
-      ])
-    ).ok,
-  ).toBe(true);
-  const label = controller.document.annotations.find(
-    (a) => a.kind === "power-label",
-  )!;
-  expect(label).toBeDefined();
-  expect(JSON.stringify(label.formatOverride)).toContain("italic");
-  const edited = await client.applyActions([
-    {
-      kind: "edit-text",
-      target: { kind: "annotation", id: label.id },
-      text: "VCC",
-    },
-  ]);
-  expect(edited.ok, edited.message).toBe(true);
-  const after = controller.document.annotations.find((a) => a.id === label.id)!;
-  expect(JSON.stringify(after.formatOverride)).toContain("italic");
-  expect(flattenRichText(after.formatOverride!)).toBe("VCC");
 });
 
 it("explains formal Pin disconnection and removes seven terminals atomically instead", async () => {

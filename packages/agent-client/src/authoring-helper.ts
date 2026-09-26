@@ -67,6 +67,7 @@ interface SnapshotInstance {
   reference: string | null;
   symbolId: string;
   placed: boolean;
+  position: { x: number; y: number } | undefined;
   pins: readonly {
     name: string;
     connection: {
@@ -122,6 +123,7 @@ function resolvedDocument(snapshot: AgentSessionSnapshot): ResolvedDocument {
       reference: instance.reference,
       symbolId: instance.symbolId,
       placed: instance.placement !== null,
+      position: instance.placement?.position,
       pins: instance.pins.map((pin) => ({
         name: pin.name,
         connection: pin.connection,
@@ -471,7 +473,7 @@ export function compileActions(
             command: {
               kind: "move-annotation",
               annotationId: annotation.id,
-              position: action.position,
+              position: action.position!,
             },
           });
         } else if (action.target.kind === "junction") {
@@ -485,7 +487,7 @@ export function compileActions(
           pushEdit(index, action.kind, {
             kind: "move_junction",
             junctionId: junction.id,
-            position: action.position,
+            position: action.position!,
           });
         } else {
           const instance = resolveInstance(
@@ -495,6 +497,12 @@ export function compileActions(
             action.target,
           );
           if (!instance.placed) {
+            if (action.pinAnchor)
+              throw new ActionCompileError(
+                index,
+                action.kind,
+                "move pinAnchor requires a placed Instance; use place-existing with pinAnchor for a tray Instance",
+              );
             transactions.push({
               form: "command",
               actionKinds: [action.kind],
@@ -502,7 +510,7 @@ export function compileActions(
                 kind: "place-existing",
                 instanceId: instance.id,
                 placement: {
-                  position: action.position,
+                  position: action.position!,
                   rotation: 0,
                   mirror: "none",
                 },
@@ -510,10 +518,27 @@ export function compileActions(
             });
             break;
           }
+          let position = action.position!;
+          if (action.pinAnchor) {
+            requirePin(index, action.kind, instance, action.pinAnchor.pinName);
+            const landing = instance.pins.find(
+              (pin) => pin.name === action.pinAnchor!.pinName,
+            )?.connection?.gridLanding;
+            if (!landing || !instance.position)
+              throw new ActionCompileError(
+                index,
+                action.kind,
+                `Pin ${action.pinAnchor.pinName} has no resolved routing landing`,
+              );
+            position = {
+              x: instance.position.x + action.pinAnchor.position.x - landing.x,
+              y: instance.position.y + action.pinAnchor.position.y - landing.y,
+            };
+          }
           pushEdit(index, action.kind, {
             kind: "move_instance",
             instanceId: instance.id,
-            position: action.position,
+            position,
           });
         }
         break;
