@@ -4,6 +4,10 @@ import react from "@vitejs/plugin-react";
 /** Separate composition entry/output: Web routes, telemetry and SW never boot. */
 export default defineConfig({
   base: "/",
+  // Offline artifacts never inherit local .env files or public-prefixed values.
+  // Hosted feature flags and credentials belong to the Web/server composition.
+  envDir: false,
+  envPrefix: [],
   plugins: [
     react(),
     {

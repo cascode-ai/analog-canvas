@@ -20,6 +20,8 @@ pnpm --filter @icm/desktop build:preview
 # Commit the source and provenance before assembling the package.
 pnpm --filter @icm/desktop package:preview
 pnpm --filter @icm/desktop test:preview
+# Install Gitleaks 8.30.1; set GITLEAKS_BINARY if it is not on PATH.
+pnpm --filter @icm/desktop security:preview
 ```
 
 The package script writes a new timestamped folder under `output/`, retains Electron's license files, and includes `source.zip`, `LICENSE.md`, the original fork notice and the [source/adaptation inventory](SOURCES.md). `plan/preview-package.json` identifies the latest local package for acceptance. The acceptance script uses an isolated application-data directory, intercepts native dialog choices in the test process, writes real files and relaunches the packaged executable.
@@ -35,3 +37,5 @@ The merge queue runs the [Windows packaging and acceptance workflow](../../.gith
 After merging, run [Desktop preview release](../../.github/workflows/desktop-release.yml) from Actions with the merged commit as `ref`. Keep `publish` off to inspect an unpublished Actions artifact, or enable it to publish the accepted ZIP as a GitHub prerelease. The workflow rejects commits outside `main`, rebuilds and validates the exact selected commit, and uses a `desktop-preview-…` tag that does not match the Web deployment's `v*` tags. It does not replace existing releases or mark the preview as Latest.
 
 The ZIP includes `ACCEPTANCE.json` and `preview.png` from the packaged run, corresponding source and attribution. This distribution step does not add signing, an installer or native Save semantics; the preview limitations above still apply.
+
+Before either Actions artifact upload or prerelease publication, the same workflow rejects private/configuration paths and scans runtime files plus nested source for credentials. Successful packages include `SECURITY.json`. Desktop builds do not load local `.env` files or expose `VITE_*` environment values. See the [credential audit and distribution boundary](../../docs/desktop-distribution-security.md) for evidence, scanner limitations and the server-side administrator model.

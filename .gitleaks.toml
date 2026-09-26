@@ -1,0 +1,14 @@
+title = "Distribution credential policy"
+
+[extend]
+useDefault = true
+
+# Reviewed loopback test-only fixture, not a deployed credential. Both its
+# exact value AND its one source path must match; never exclude all tests.
+[[rules]]
+id = "generic-api-key"
+[[rules.allowlists]]
+condition = "AND"
+regexTarget = "secret"
+paths = ['''(^|[/\\]|!)packages[/\\]agent-adapter[/\\]src[/\\]http\.test\.ts$''']
+regexes = ['''^0123456789abcdef0123456789abcdef$''']

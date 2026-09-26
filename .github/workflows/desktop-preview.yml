@@ -31,6 +31,7 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.sha }}
           fetch-depth: 0
+          persist-credentials: false
       - name: Resolve source and restrict manual releases to mainline
         id: source
         env:
@@ -61,12 +62,28 @@ jobs:
         run: pnpm --filter @icm/desktop package:preview
       - name: Accept actual packaged executable
         run: pnpm --filter @icm/desktop test:preview
+      - name: Install pinned credential scanner
+        run: |
+          $scannerDirectory = Join-Path $env:RUNNER_TEMP 'desktop-gitleaks'
+          New-Item -ItemType Directory -Force $scannerDirectory | Out-Null
+          $scannerArchive = Join-Path $scannerDirectory 'gitleaks.zip'
+          Invoke-WebRequest 'https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_windows_x64.zip' -OutFile $scannerArchive
+          Expand-Archive -LiteralPath $scannerArchive -DestinationPath $scannerDirectory
+          "GITLEAKS_BINARY=$(Join-Path $scannerDirectory 'gitleaks.exe')" >> $env:GITHUB_ENV
+      - name: Verify scanner rejection with synthetic credentials
+        run: node scripts/desktop-security-scanner-contract.mjs
+      - name: Reject credentials and private files before distribution
+        run: pnpm --filter @icm/desktop security:preview
       - name: Archive accepted application
         run: |
           $packageManifest = Get-Content plan/preview-package.json -Raw | ConvertFrom-Json
           $acceptance = Get-Content (Join-Path $packageManifest.output 'ACCEPTANCE.json') -Raw | ConvertFrom-Json
           if ($acceptance.status -ne 'passed' -or !$acceptance.packaged -or $acceptance.source -ne $packageManifest.commit) {
             throw 'Packaged acceptance must match the distributed source.'
+          }
+          $security = Get-Content (Join-Path $packageManifest.output 'SECURITY.json') -Raw | ConvertFrom-Json
+          if ($security.status -ne 'passed' -or $security.source -ne $packageManifest.commit) {
+            throw 'Distribution security checks must match the distributed source.'
           }
           Compress-Archive -LiteralPath $packageManifest.output -DestinationPath output/analog-canvas-desktop-windows-x64.zip -CompressionLevel Optimal
       - uses: actions/upload-artifact@v4
@@ -80,7 +97,7 @@ jobs:
         with:
           name: desktop-failure-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            plan/preview-acceptance-*/
-            plan/preview-package.json
+            plan/preview-acceptance-*/result.json
+            plan/desktop-security-gate/findings.json
           if-no-files-found: ignore
           retention-days: 7
