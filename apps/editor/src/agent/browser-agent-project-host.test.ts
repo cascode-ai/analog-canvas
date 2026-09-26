@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { AGENT_API_VERSION } from "@icm/agent-adapter";
 import { executeProjectTransaction } from "@icm/edit-engine";
@@ -8,6 +8,45 @@ import { serializeProject } from "@icm/project-protocol";
 import { BrowserAgentProjectHost } from "./browser-agent-project-host";
 
 describe("BrowserAgentProjectHost", () => {
+  it("reports deferred feature failures without blaming deployments, committing or disabling other resources", async () => {
+    const project = createEmptyProject("destination", "Before");
+    const cause = new TypeError("injected import failure");
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const commit = vi.fn();
+    const host = new BrowserAgentProjectHost({
+      getProjectSessionId: () => "session",
+      getProject: () => project,
+      getActiveDocumentId: () => project.topDocumentId,
+      commitProjectStructure: commit,
+      dispatchProjectTransaction: vi.fn(),
+      loadProjectCode: async () => {
+        throw cause;
+      },
+    });
+    try {
+      expect(
+        await host.handle({
+          apiVersion: AGENT_API_VERSION,
+          requestId: "bad-load",
+          operation: "read-project-code",
+        }),
+      ).toMatchObject({
+        ok: false,
+        error: { code: "PROJECT_FEATURE_LOAD_FAILED", recovery: "refresh" },
+      });
+      expect(commit).not.toHaveBeenCalled();
+      expect(log).toHaveBeenCalledWith(expect.any(String), cause);
+      expect(
+        await host.handle({
+          apiVersion: AGENT_API_VERSION,
+          requestId: "other-resource",
+          operation: "read-netlist",
+        }),
+      ).toMatchObject({ ok: true, operation: "read-netlist" });
+    } finally {
+      log.mockRestore();
+    }
+  });
   it.each(["session", "revision"])(
     "rechecks %s after loading the Project Code planner",
     async (change) => {
