@@ -259,10 +259,26 @@ export function compileNgspiceSourceSimulation(
         definitions.set(cell.id, { cell, bindingId: binding.id });
     }
   }
+  // A drawn T-coil's or transformer's subcircuit is generated too: defined
+  // once, by the first bound root that calls it.
+  const magneticOwners = new Map<string, string>();
+  for (const binding of bindings) {
+    for (const subcircuit of plans.get(binding.id)!.circuit
+      .magneticSubcircuits ?? []) {
+      const name = subcircuit.name.toLowerCase();
+      if (names.has(name))
+        fail(
+          "SIMULATION_GENERATED_NAME_COLLISION",
+          `Generated Cell ${subcircuit.name} shares its name with the built-in ${subcircuit.name} subcircuit`,
+        );
+      if (!magneticOwners.has(name)) magneticOwners.set(name, binding.id);
+    }
+  }
   for (const { path, statement } of graph.statements) {
     if (
       statement.kind === "subckt_start" &&
-      names.has(statement.name.toLowerCase())
+      (names.has(statement.name.toLowerCase()) ||
+        magneticOwners.has(statement.name.toLowerCase()))
     )
       diagnostics.push({
         code: "SIMULATION_GENERATED_DEFINITION_SHADOWED",
@@ -296,7 +312,14 @@ export function compileNgspiceSourceSimulation(
           (binding.emission === "top-level" && cell.id === binding.documentId),
       );
       const printed = printSpiceWithLocations(
-        { ...ir, cells },
+        {
+          ...ir,
+          cells,
+          magneticSubcircuits: (ir.magneticSubcircuits ?? []).filter(
+            (subcircuit) =>
+              magneticOwners.get(subcircuit.name.toLowerCase()) === binding.id,
+          ),
+        },
         binding.emission === "top-level",
       );
       return { bindingId: binding.id, path: binding.path, ...printed };

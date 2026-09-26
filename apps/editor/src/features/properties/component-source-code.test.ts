@@ -100,4 +100,23 @@ describe("component source code", () => {
     expect(preview.code).toContain("<subcircuit-model>");
     expect(preview.note).toContain("Subcircuit template");
   });
+
+  it("calls a T-coil's own subcircuit, even before it is wired", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "X1",
+      symbolId: "tcoil",
+      placement: null,
+      reference: "X1",
+      netlist: { parameters: { cb: "1p", k: "0.5", l1: "1n", l2: "2n" } },
+    });
+
+    const preview = componentSourceCode(project, document.id, "X1", resolver);
+    expect(preview.exact).toBe(false);
+    expect(preview.code).toBe(
+      "X1 <unconnected:1> <unconnected:2> <unconnected:3> tcoil l1=1n l2=2n k=0.5 cb=1p",
+    );
+    expect(preview.note).not.toContain("Subcircuit template");
+  });
 });

@@ -1137,3 +1137,70 @@ test("exports a MOS pair without bulk wiring or supply symbols", async ({
       .some((pin: { pinName: string }) => pin.pinName === "B"),
   ).toBe(false);
 });
+
+test("writes a drawn T-coil as a call on its coupled-winding subcircuit", async ({
+  page,
+}) => {
+  const project = createEmptyProject("tcoil-netlist", "T-coil netlist", "dut");
+  const document = project.documents[0]!;
+  document.netlist!.name = "dut";
+  document.instances.push({
+    id: "X1",
+    symbolId: "tcoil",
+    reference: "X1",
+    netlist: { parameters: { l1: "1n", l2: "2n", k: "0.5", cb: "10f" } },
+    placement: { position: { x: 300, y: 300 }, rotation: 0, mirror: "none" },
+  });
+  for (const [pin, node] of [
+    ["1", "a"],
+    ["2", "b"],
+    ["3", "tap"],
+  ] as const) {
+    document.instances.push({
+      id: `pin-${node}`,
+      symbolId: "port",
+      placement: null,
+    });
+    document.nets.push({
+      id: `net-${node}`,
+      terminals: [
+        { instanceId: "X1", pinName: pin },
+        { instanceId: `pin-${node}`, pinName: "P" },
+      ],
+    });
+    document.netlist!.terminals.push({
+      id: `terminal-${node}`,
+      name: node,
+      netId: `net-${node}`,
+      direction: "inout",
+      interfaceInstanceIds: [`pin-${node}`],
+    });
+  }
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "tcoil.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(project)),
+  });
+  await expect(page.getByTestId("status")).toContainText(
+    "Opened tcoil.icproj.json",
+  );
+
+  const spice = await copyNetlistText(page, "spice");
+  expect(spice).toContain("X1 a b tap tcoil l1=1n l2=2n k=0.5 cb=10f");
+  // Each winding from its polarity dot: L1 at pin 1, L2 at the tap.
+  expect(spice).toContain(
+    [
+      ".subckt tcoil n1 n2 n3 params: l1=1n l2=1n k=1 cb=1p",
+      "L1 n1 n3 {l1}",
+      "L2 n3 n2 {l2}",
+      "K12 L1 L2 {k}",
+      "CB n1 n2 {cb}",
+      ".ends tcoil",
+    ].join("\n"),
+  );
+  const spectre = await copyNetlistText(page, "spectre");
+  expect(spectre).toContain("X1 (a b tap) tcoil l1=1n l2=2n k=0.5 cb=10f");
+  expect(spectre).toContain("K12 mutual_inductor coupling=k ind1=L1 ind2=L2");
+});

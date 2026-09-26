@@ -235,7 +235,7 @@
     "pinOrder": ["P-", "P+", "S-", "S+"],
     "palette": true,
     "automaticMappings": [],
-    "manualOnlyReason": "A transformer lowers to two inductors plus mutual coupling; structural export requires an explicit compound-device or subcircuit mapping.",
+    "manualOnlyReason": "A transformer is two inductors plus mutual coupling that SPICE import does not recognize, so it is placed by hand; netlist export writes it as the built-in xfmr subcircuit.",
     "assetPath": "xfmr.json",
     "visualAuthority": {
       "kind": "razavi-reference-v1",

@@ -1,4 +1,8 @@
-import { resolveDocumentLogicalNets } from "@icm/derived";
+import {
+  drawnMagneticNetwork,
+  drawnMagneticParameters,
+  resolveDocumentLogicalNets,
+} from "@icm/derived";
 import { deviceDescriptor } from "@icm/devices";
 import {
   spellGreekLetters,
@@ -138,16 +142,30 @@ function fallbackSpiceCard(
     parameters.push({ name: "dc", rawValue: "<value>" });
   }
 
+  // A T-coil or transformer already has its subcircuit: the library's
+  // coupled windings, called with its own values in their declared order.
+  const magnetic = descriptor ? drawnMagneticNetwork(descriptor) : null;
+  if (magnetic) {
+    const order = drawnMagneticParameters(magnetic);
+    const rank = (name: string) => {
+      const index = order.indexOf(name.toLowerCase());
+      return index < 0 ? order.length : index;
+    };
+    parameters.sort((left, right) => rank(left.name) - rank(right.name));
+  }
   const useSubcircuitTemplate =
-    !descriptor || descriptor.targetPolicy === "none";
+    !magnetic && (!descriptor || descriptor.targetPolicy === "none");
   const preview: DesignNetlistInstance = {
     id: instance.id,
     reference: spellGreekLetters(instance.reference ?? instance.id),
-    invocationKind: useSubcircuitTemplate ? "subcircuit" : "primitive",
-    deviceClass: useSubcircuitTemplate
-      ? "hierarchical"
-      : descriptor.deviceClass,
+    invocationKind:
+      useSubcircuitTemplate || magnetic ? "subcircuit" : "primitive",
+    deviceClass:
+      useSubcircuitTemplate || magnetic || !descriptor
+        ? "hierarchical"
+        : descriptor.deviceClass,
     target:
+      magnetic?.subcircuit ??
       targetFor(project, instance) ??
       (useSubcircuitTemplate
         ? "<subcircuit-model>"

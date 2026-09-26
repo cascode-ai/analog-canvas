@@ -380,7 +380,7 @@
     "pinOrder": ["1", "2", "3"],
     "palette": true,
     "automaticMappings": [],
-    "manualOnlyReason": "A bridged T-coil is a composite L1/L2/K/CB network; structural export requires an explicit fixed-cell or subcircuit mapping.",
+    "manualOnlyReason": "A bridged T-coil is a composite L1/L2/K/CB network that SPICE import does not recognize, so it is placed by hand; netlist export writes it as the built-in tcoil subcircuit.",
     "assetPath": "tcoil.json",
     "visualAuthority": {
       "kind": "razavi-reference-v1",

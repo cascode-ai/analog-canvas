@@ -104,8 +104,10 @@ The product set is exactly the reviewed, Reference-calibrated entries:
   `inductor-compact` path. T-coil additionally reuses the reviewed Capacitor
   plates and leads. PDF-native evidence governs winding placement, bridge
   topology, and polarity-dot clearance; neither Symbol draws a circle at an
-  external pin. Both remain manual-only until compound L/K/C or subcircuit
-  lowering has an explicit contract. Placement still authors complete starting
+  external pin. Netlist export lowers both to built-in coupled-winding
+  subcircuits that follow the drawn dots (see the
+  [netlist export spec](../../docs/specs/netlist-export.md#device-definition));
+  SPICE import still places them only by hand. Placement still authors complete starting
   parameters: T-coil uses `L1=1n`, `L2=1n`, `K=1`, and `CB=1p`; XFMR uses
   `Lp=1n`, `Ls=1n`, and `K=1`;
 - `diode` and `zener-diode`. The Zener body is direct PDF-vector evidence from

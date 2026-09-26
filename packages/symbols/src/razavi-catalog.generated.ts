@@ -928,7 +928,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     palette: true,
     automaticMappings: [],
     manualOnlyReason:
-      "A bridged T-coil is a composite L1/L2/K/CB network; structural export requires an explicit fixed-cell or subcircuit mapping.",
+      "A bridged T-coil is a composite L1/L2/K/CB network that SPICE import does not recognize, so it is placed by hand; netlist export writes it as the built-in tcoil subcircuit.",
     assetPath: "tcoil.json",
     assetHash:
       "edb4cde9993cc82ecfc57f32ba53bf466cefa85dd574fc4a9666de7f2c30a9ee",
@@ -960,7 +960,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     palette: true,
     automaticMappings: [],
     manualOnlyReason:
-      "A transformer lowers to two inductors plus mutual coupling; structural export requires an explicit compound-device or subcircuit mapping.",
+      "A transformer is two inductors plus mutual coupling that SPICE import does not recognize, so it is placed by hand; netlist export writes it as the built-in xfmr subcircuit.",
     assetPath: "xfmr.json",
     assetHash:
       "95b6f2fb48fdee7051a5fc6171ee3ea2349b7755c49a00261fddebeb33370e71",

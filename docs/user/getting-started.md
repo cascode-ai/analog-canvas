@@ -23,9 +23,11 @@ authoring; no Project file needs to be opened first.
 New Resistor, Capacitor, and Inductor instances—including their adjustable
 variants—start with `1k`, `1p`, and `1n` respectively. T-coil starts with
 `L1=1n`, `L2=1n`, `K=1`, and `CB=1p`; XFMR starts with `Lp=1n`, `Ls=1n`, and
-`K=1`. These are authored parameter values rather than placeholders. T-coil
-and XFMR remain manual-only compound devices until structural netlist lowering
-is defined.
+`K=1`. These are authored parameter values rather than placeholders. In the
+netlist, a T-coil or XFMR calls a built-in `tcoil` or `xfmr` subcircuit of
+coupled inductors (plus the T-coil's bridge capacitor), written once in the
+file; each winding starts at its polarity dot. SPICE import still does not
+recognize such a network, so both are placed by hand.
 
 ## Edit and connect
 

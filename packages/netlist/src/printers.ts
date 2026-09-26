@@ -2,6 +2,7 @@ import type {
   DesignNetlistCell,
   DesignNetlistIR,
   DesignNetlistInstance,
+  DesignNetlistMagneticSubcircuit,
   DesignNetlistParameter,
 } from "./ir.js";
 import type { NetlistFormat } from "./net-name-codec.js";
@@ -203,6 +204,37 @@ function spiceModels(cell: DesignNetlistCell): string[] {
   );
 }
 
+/**
+ * A drawn T-coil's or transformer's coupled windings, as the subcircuit its
+ * `X` calls name. Each inductor is written from its dotted node, which is how
+ * the `K` card reads polarity.
+ */
+function spiceMagneticSubcircuit(
+  subcircuit: DesignNetlistMagneticSubcircuit,
+): string[] {
+  return [
+    ...wrapSpice([
+      ".subckt",
+      subcircuit.name,
+      ...subcircuit.ports,
+      "params:",
+      ...subcircuit.formalParameters.map(
+        (parameter) => `${parameter.name}=${parameter.defaultValue}`,
+      ),
+    ]),
+    ...subcircuit.inductors.map(
+      (inductor) =>
+        `${inductor.name} ${inductor.nodes.join(" ")} {${inductor.parameter}}`,
+    ),
+    `${subcircuit.coupling.name} ${subcircuit.coupling.inductors.join(" ")} {${subcircuit.coupling.parameter}}`,
+    ...subcircuit.capacitors.map(
+      (capacitor) =>
+        `${capacitor.name} ${capacitor.nodes.join(" ")} {${capacitor.parameter}}`,
+    ),
+    `.ends ${subcircuit.name}`,
+  ];
+}
+
 function spiceCell(
   cell: DesignNetlistCell,
   onInstance?: (instance: DesignNetlistInstance, offset: number) => void,
@@ -326,6 +358,10 @@ function renderSpice(
   };
   const globals = ir.globals.filter((name) => name !== "0");
   if (globals.length) append(...wrapSpice([".global", ...globals]));
+  for (const subcircuit of ir.magneticSubcircuits ?? []) {
+    append("");
+    append(...spiceMagneticSubcircuit(subcircuit));
+  }
   for (const cell of ir.cells) {
     if (rootAsTopLevel && cell.id === ir.topCellId) continue;
     append("");
@@ -419,6 +455,29 @@ function spectreInstance(instance: DesignNetlistInstance): string {
   return [prefix, master, ...values].join(" ");
 }
 
+/** The Spectre form of a drawn magnetic device's coupled windings. */
+function spectreMagneticSubcircuit(
+  subcircuit: DesignNetlistMagneticSubcircuit,
+): string[] {
+  const [first, second] = subcircuit.coupling.inductors;
+  return [
+    `subckt ${subcircuit.name} (${subcircuit.ports.join(" ")})`,
+    `parameters ${subcircuit.formalParameters
+      .map((parameter) => `${parameter.name}=${parameter.defaultValue}`)
+      .join(" ")}`,
+    ...subcircuit.inductors.map(
+      (inductor) =>
+        `${inductor.name} (${inductor.nodes.join(" ")}) inductor l=${inductor.parameter}`,
+    ),
+    `${subcircuit.coupling.name} mutual_inductor coupling=${subcircuit.coupling.parameter} ind1=${first} ind2=${second}`,
+    ...subcircuit.capacitors.map(
+      (capacitor) =>
+        `${capacitor.name} (${capacitor.nodes.join(" ")}) capacitor c=${capacitor.parameter}`,
+    ),
+    `ends ${subcircuit.name}`,
+  ];
+}
+
 function spectreCell(
   cell: DesignNetlistCell,
   onInstance?: (instance: DesignNetlistInstance, offset: number) => void,
@@ -461,6 +520,8 @@ function renderSpectre(
   const instances: PrintedNetlistInstance[] = [];
   const globals = ir.globals.filter((name) => name !== "0");
   if (globals.length) lines.push(`global ${globals.join(" ")}`);
+  for (const subcircuit of ir.magneticSubcircuits ?? [])
+    lines.push("", ...spectreMagneticSubcircuit(subcircuit));
   let length = lines.join("\n").length;
   for (const cell of ir.cells) {
     const offset = length + 2;
@@ -529,8 +590,12 @@ export function locateDesignNetlist(
   );
   for (const cell of ir.cells) {
     // A card the Cell prints itself, such as the ideal switch, is not a model
-    // binding anyone authored, so its name is not an editable field.
-    const ownModels = new Set((cell.models ?? []).map((model) => model.name));
+    // binding anyone authored, so its name is not an editable field. Nor is
+    // the subcircuit a T-coil or transformer calls: the Symbol decides it.
+    const ownModels = new Set([
+      ...(cell.models ?? []).map((model) => model.name),
+      ...(ir.magneticSubcircuits ?? []).map((subcircuit) => subcircuit.name),
+    ]);
     for (const instance of cell.instances) {
       const original = card(instance);
       if (!original) continue;
