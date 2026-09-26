@@ -121,7 +121,7 @@
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "c81b658c6f1c6c9601f98732184a4de73984749a8b8e824ada96c29dd57202e1"
+      "sha256": "816482fba3010131f8ba8585932df58f0d03b5c68cbcc152827a914cef12a668"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
@@ -675,7 +675,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "b84f6e920f3397a7820ec817ef41c5c8fd8444c6028870bbd8d9930a3d38f587"
+      "sha256": "38b9223e4f13bb29458dcf087c2047cf909b30f365320bc1c52ff848cdd1c834"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",

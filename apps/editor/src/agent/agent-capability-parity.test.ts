@@ -54,7 +54,7 @@ it("keeps the native power-label look through a plain-text rename", async () => 
 it.each([0, 90, 180, 270] as const)(
   "moves a mirrored Instance by its pin landing at rotation %s without changing its look or connectivity",
   async (rotation) => {
-    const { client, controller } = await folder();
+    const { client, controller, tool } = await folder();
     expect(
       (
         await client.applyActions([
@@ -71,13 +71,15 @@ it.each([0, 90, 180, 270] as const)(
     ).toBe(true);
     const before = structuredClone(controller.document);
     const instance = controller.document.instances[0]!;
-    const moved = await client.applyActions([
-      {
-        kind: "move",
-        target: { kind: "instance", id: instance.id },
-        pinAnchor: { pinName: "D", position: { x: 300, y: 300 } },
-      },
-    ]);
+    const moved = await tool("circuit_transform", {
+      actions: [
+        {
+          kind: "move",
+          target: { kind: "instance", id: instance.id },
+          pinAnchor: { pinName: "D", position: { x: 300, y: 300 } },
+        },
+      ],
+    });
     expect(moved.ok, moved.message).toBe(true);
     expect(
       resolveEndpointConnection(controller.document, controller.resolver, {

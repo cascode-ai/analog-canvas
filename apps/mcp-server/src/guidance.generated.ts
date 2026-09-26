@@ -57,9 +57,9 @@ export const agentToolHelp = {
   search:
     "Case-insensitive search, including LaTeX, over one authorized document or scope:project. Results include documentId. Reuses clean Snapshots by default and loads authorized Project documents concurrently.",
   apply_actions:
-    "Atomic high-level edits, Cell structure and history. circuit_* tools select common families. For unfamiliar fields use describe_tool operations:[kind]; no lookup prerequisite. detail:full includes removed diagnostic bodies.",
+    "Atomic edits/Cells/history; circuit_* selects families. Optional: describe_tool operations:[kind]. detail:full includes removed diagnostics.",
   advanced_transact:
-    "Full transaction access: exactly one of edits, structureEdits, wireIntent, semanticIntent or command. Client supplies IDs/revisions; reconcile stale conflicts. Edit contracts are optional references.",
+    "Full transactions: exactly one of edits, structureEdits, wireIntent, semanticIntent, command. Client supplies IDs/revisions; reconcile stale conflicts. Contracts optional.",
   verify:
     "Fresh Snapshot and diagnostic counts for milestones, not every edit. Optional expectedNetlist compares structural SPICE through the existing export; details adds bounded differences. Expressions/unsupported declarations are inconclusive, never electrical acceptance.",
   render:

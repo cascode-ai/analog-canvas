@@ -176,11 +176,9 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
         NamedObjectRefSchema.safeExtend({ kind: z.literal("junction") }),
         AnnotationRefSchema,
       ]),
-      position: PointInputSchema.optional().describe(
-        "Absolute target origin; mutually exclusive with pinAnchor.",
-      ),
+      position: PointInputSchema.optional(),
       pinAnchor: AgentPinAnchorSchema.optional().describe(
-        "Placed Instance only: move its resolved routing landing here, keeping orientation.",
+          "Placed Instance only; instead of position. Keeps orientation.",
       ),
     })
     .superRefine((action, ctx) => {
