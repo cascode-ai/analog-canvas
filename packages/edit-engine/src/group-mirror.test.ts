@@ -266,4 +266,74 @@ describe("group mirror", () => {
     expect(after.x + after.width).toBeCloseTo(-before.x, 0);
     expect(after.width).toBeCloseTo(before.width, 5);
   });
+
+  it("moves, turns and mirrors parts older versions joined pin to pin", () => {
+    // R2's top pin sits on R1's bottom pin, and an older version drew a
+    // zero-length wire between them; R1's top pin has a wire whose first
+    // bend sits on the pin itself. Rewriting either as it was is refused.
+    const document = createEmptyDocument("doc", "Contacts");
+    for (const [id, y] of [
+      ["R1", 0],
+      ["R2", 40],
+    ] as const) {
+      document.instances.push({
+        id,
+        symbolId: "resistor",
+        placement: { position: { x: 0, y }, rotation: 0, mirror: "none" },
+        reference: id,
+        netlist: { parameters: { value: "1k" } },
+      });
+    }
+    document.nets.push(
+      {
+        id: "net-mid",
+        terminals: [
+          { instanceId: "R1", pinName: "2" },
+          { instanceId: "R2", pinName: "1" },
+        ],
+      },
+      { id: "net-top", terminals: [{ instanceId: "R1", pinName: "1" }] },
+    );
+    document.junctions.push({
+      id: "J",
+      netId: "net-top",
+      position: { x: 40, y: -20 },
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "contact",
+        netId: "net-mid",
+        start: { kind: "terminal", instanceId: "R1", pinName: "2" },
+        end: { kind: "terminal", instanceId: "R2", pinName: "1" },
+        bends: [],
+        modes: ["manual"],
+      }),
+      createRoutePath({
+        id: "stub",
+        netId: "net-top",
+        start: { kind: "terminal", instanceId: "R1", pinName: "1" },
+        end: { kind: "junction", junctionId: "J" },
+        bends: [{ x: 0, y: -20 }],
+        modes: ["manual", "manual"],
+      }),
+    );
+    const seed = {
+      instanceIds: ["R1", "R2"],
+      routeIds: ["contact", "stub"],
+      junctionIds: ["J"],
+      annotationIds: [],
+    };
+    for (const operation of [
+      { kind: "translate" as const, delta: { x: 20, y: 0 } },
+      { kind: "rotate" as const, degrees: 90 as const },
+      { kind: "mirror" as const, axis: "y" as const },
+    ]) {
+      const plan = planRoutingTransform(document, resolver, seed, operation);
+      const moved = apply(document, plan.edits);
+      // The contact keeps both pins on one Net without its empty wire.
+      expect(moved.routes.map((route) => route.id)).toEqual(["stub"]);
+      expect(moved.nets).toEqual(document.nets);
+      expect(routeBends(moved.routes[0]!)).toEqual([]);
+    }
+  });
 });
