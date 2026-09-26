@@ -23,7 +23,11 @@ import {
   type Instance,
   type SchematicDocument,
 } from "@icm/model";
-import { createDesignNetlistExport } from "@icm/netlist";
+import {
+  compareElectricalGraphs,
+  createDesignNetlistExport,
+  projectElectricalGraph,
+} from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
 import { renderDocumentSvg } from "@icm/render-svg";
 import {
@@ -129,6 +133,29 @@ function look(project: CircuitProject, document: SchematicDocument): string[] {
   return [...svg.matchAll(/(?<=\s)(stroke-width|font-size|r)="([^"]+)"/gu)]
     .map((match) => `${match[1]}=${match[2]}`)
     .sort();
+}
+
+/**
+ * A copy joins exactly what its source joins. A link that lives only in the
+ * record, with no wire or touching pin, is lost; geometry that touches but was
+ * never connected gains one. Both are contradictions in the source drawing.
+ * Drawings neither side can analyse are not judged.
+ */
+function connectionDifference(
+  source: CircuitProject,
+  copy: CircuitProject,
+): string {
+  const before = projectElectricalGraph(source);
+  const after = projectElectricalGraph(copy);
+  if (before.status === "ready" && after.status === "ready") {
+    const comparison = compareElectricalGraphs(before.graph, after.graph);
+    return comparison === "equal" ? "" : `connections ${comparison}`;
+  }
+  if (before.status === "ready" && after.status !== "ready")
+    return `copy: ${after.reason}`;
+  if (before.status !== "ready" && after.status === "ready")
+    return `source: ${before.reason}`;
+  return "";
 }
 
 function lookDifference(before: string[], after: string[]): string {
@@ -473,6 +500,9 @@ function censusEntry(row: {
             look(copied!, copied!.documents[0]!),
           ) || OK,
       )
+    : "no copy";
+  entry.checks.copyKeepsConnections = copied
+    ? attempt(() => connectionDifference(project, copied!) || OK)
     : "no copy";
 
   let once: ReturnType<typeof pasteInPlace> | undefined;
