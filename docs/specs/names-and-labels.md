@@ -35,15 +35,19 @@ identifier encoding). The schema refuses any other stored display.
 Labels whose look follows from what they label, never from guessing at a
 spelling, are created with a stored standard look:
 
-| Role                                             | Names                                                 | Stored look                                            |
-| ------------------------------------------------ | ----------------------------------------------------- | ------------------------------------------------------ |
-| Supply (VDD Power, drawn rail)                   | `V` followed by letters/digits                        | Italic `V`, upright subscript rest: V_DD, V_DDH        |
-| Device Reference                                 | letters followed by digits                            | Italic letters, upright subscript index: M₁, R₁₂       |
-| Voltage node (Cell Pin, Bias Voltage, Net label) | `V` followed by letters/digits                        | Italic `V`, upright subscript rest: V_in, V_BP, V_casP |
-| Current (Cell Pin, Net label)                    | `I` followed by letters/digits, except `IN…` and `IO` | Italic `I`, upright subscript rest: I_out, I_REF, I₁   |
+| Role                                             | Names                                                     | Stored look                                                             |
+| ------------------------------------------------ | --------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Supply (VDD Power, drawn rail)                   | `V` followed by letters/digits                            | Italic `V`, upright subscript rest: V_DD, V_DDH                         |
+| Device Reference starting with its device letter | the device's one-letter prefix followed by letters/digits | Italic letter, upright subscript rest: M₁, R₁₂, R_L1, C_L, R_FB, M_TAIL |
+| Any other device Reference                       | letters followed by digits                                | Italic letters, upright subscript index: XU₀, OA₁                       |
+| Voltage node (Cell Pin, Bias Voltage, Net label) | `V` followed by letters/digits                            | Italic `V`, upright subscript rest: V_in, V_BP, V_casP                  |
+| Current (Cell Pin, Net label)                    | `I` followed by letters/digits, except `IN…` and `IO`     | Italic `I`, upright subscript rest: I_out, I_REF, I₁                    |
 
-The look applies whether the name was typed, connected or generated. Any other
-spelling (`AVDD`, `MTAIL`, `RL`, `M_1`, `CLK`, `Vin-`, an input such as `IN`,
+The look applies whether the name was typed, connected or generated. A device
+letter is the one-letter Reference prefix a device declares (R, C, L, M, Q,
+D, V, I, S, B); a subcircuit call's `X` names how SPICE invokes it rather than
+what it is, so X-called parts and Blocks have none. Any other spelling
+(`AVDD`, a MOS named `XBIAS`, `M_1`, `CLK`, `Vin-`, an input such as `IN`,
 `INP` or `INN`, an `IO` pin) gets no standard look and is shown as written. A
 stored standard look is recognised by comparing its styled characters with
 the standard look of the label's current name; only a
@@ -135,7 +139,8 @@ than merged. Parameter names are not rewritten, because values refer to them.
 | `VBP`   | Bias Voltage Pin   | V_BP; turning the subscript off keeps `VBP` | `VBP`   |
 | `φ1`    | Net label          | φ1, or φ₁ with the 1 subscripted            | `phi1`  |
 | `Vout`  | Net label          | V_out                                       | `Vout`  |
-| `MTAIL` | device             | MTAIL                                       | `MTAIL` |
+| `MTAIL` | device             | M_TAIL                                      | `MTAIL` |
+| `RL1`   | resistor           | R_L1                                        | `RL1`   |
 | `CLK1`  | typed Pin          | CLK1; subscripting 1 keeps `CLK1`           | `CLK1`  |
 | `V_ref` | Pin without format | V with subscript ref                        | `V_ref` |
 | `D_bar` | Pin without format | D with an overbar                           | `D_bar` |

@@ -8,6 +8,7 @@ import {
   labelRole,
   roleLabelFormat,
   type LabelRole,
+  type RoleLabelFormatOptions,
 } from "@icm/model";
 import type { SchematicEdit } from "@icm/edit-engine";
 import {
@@ -24,6 +25,7 @@ import { resolveAnnotationText, resolveAnnotationName } from "@icm/derived";
 import {
   createReferenceIndex,
   deviceDescriptor,
+  referenceDeviceLetter,
   referenceIssuesForInstance,
 } from "@icm/devices";
 import type {
@@ -125,9 +127,30 @@ export function roleLabelDefault(
   const role = labelRole(annotation);
   if (!role || !annotation.formatOverride) return undefined;
   const name = resolveAnnotationName(document, annotation).trim();
-  return isRoleLabelFormat(annotation.formatOverride, role, name)
+  return isRoleLabelFormat(
+    annotation.formatOverride,
+    role,
+    name,
+    referenceLookOptions(document, annotation),
+  )
     ? { role, name }
     : undefined;
+}
+
+/** The device letter a Reference label's standard look starts from. */
+function referenceLookOptions(
+  document: SchematicDocument,
+  annotation: Annotation,
+): RoleLabelFormatOptions {
+  const binding = annotation.binding;
+  if (binding?.kind !== "instance-reference") return {};
+  const instance = document.instances.find(
+    (candidate) => candidate.id === binding.instanceId,
+  );
+  const deviceLetter = instance
+    ? referenceDeviceLetter(instance.symbolId)
+    : undefined;
+  return deviceLetter ? { deviceLetter } : {};
 }
 
 /**
@@ -147,7 +170,11 @@ export function editedRoleLabelFormat(
     format:
       session.formatEdited && flattenRichText(session.content) === name
         ? session.content
-        : roleLabelFormat(current.role, name),
+        : roleLabelFormat(
+            current.role,
+            name,
+            referenceLookOptions(document, annotation),
+          ),
   };
 }
 
@@ -744,6 +771,7 @@ export function proposeTextEditingCommit(
           ? (roleLabelFormat(
               "device-reference",
               flattenRichText(session.content).trim(),
+              referenceLookOptions(document, annotation),
             ) ?? session.content)
           : session.content;
       const next: Annotation = {

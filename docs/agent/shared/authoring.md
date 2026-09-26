@@ -46,7 +46,12 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
   For free drafting text, selection `transform` translation preserves fine
   offsets and formatting. Attached drafting objects follow a selected owner;
   moving one separately requires an explicit anchor edit. Locked targets reject
-  the atomic request. Other drafting transforms retain their existing limits.
+  the atomic request. A selection `transform` mirror without a center reflects
+  the whole selection about its own axis, as the editor's Mirror does: parts,
+  wires alone or with them, Junctions, labels and drafting objects, with every
+  connection unchanged; a wire held by an unselected part stays with it. With
+  an explicit center, labels and drafting objects are rejected. Other drafting
+  transforms retain their existing limits.
 - `vdd-rail` is an authoring primitive, not a symbol. Use `add-power-rail`
   with optional `name`/`scope` (existing scope is retained, otherwise local).
   Explicit `global` is not the default. Like GUI supply placement it initializes

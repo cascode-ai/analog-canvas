@@ -11,6 +11,7 @@ import {
   instanceLabelRowOffset,
   resolveDocumentStyleProfile,
 } from "@icm/derived";
+import { referenceDeviceLetter } from "@icm/devices";
 import type { SchematicEdit } from "@icm/edit-engine";
 import type { SymbolResolver } from "@icm/symbols";
 import { draggedAnnotationAtPosition } from "../text-editing/annotation-drag-model";
@@ -52,6 +53,7 @@ export function arrangeInstanceLabels(
     const instance = document.instances.find((i) => i.id === ownerId)!;
     if (!instance.placement || binding.instanceId !== instance.id) continue;
     const reference = binding.kind === "instance-reference";
+    const deviceLetter = referenceDeviceLetter(instance.symbolId);
     if (
       original.content ||
       (original.formatOverride &&
@@ -60,6 +62,7 @@ export function arrangeInstanceLabels(
             original.formatOverride,
             "device-reference",
             instance.reference ?? "",
+            deviceLetter ? { deviceLetter } : {},
           )))
     )
       continue;

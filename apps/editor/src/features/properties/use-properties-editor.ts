@@ -5,6 +5,7 @@ import {
   labelTextDocument,
 } from "@icm/model";
 import { resolveAnnotationName } from "@icm/derived";
+import { referenceDeviceLetter } from "@icm/devices";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -1134,14 +1135,19 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     enabled: boolean,
   ): RichTextDocument | undefined => {
     if (!textEditing?.visualInstanceId) return;
-    const reference = options.document.instances.find(
+    const labelled = options.document.instances.find(
       (instance) => instance.id === textEditing.visualInstanceId,
-    )?.reference;
-    if (!reference) return;
+    );
+    const reference = labelled?.reference;
+    if (!labelled || !reference) return;
+    const deviceLetter = referenceDeviceLetter(labelled.symbolId);
     const content = enabled
       ? textEditing.content
-      : (roleLabelFormat("device-reference", reference) ??
-        semanticTextDocument(reference, "instance-label"));
+      : (roleLabelFormat(
+          "device-reference",
+          reference,
+          deviceLetter ? { deviceLetter } : {},
+        ) ?? semanticTextDocument(reference, "instance-label"));
     const next = { ...textEditing, content, displayAlias: enabled };
     const proposal = proposeTextEditingCommit(options.document, next);
     if (proposal.kind === "blocked" || proposal.kind === "delete") return;

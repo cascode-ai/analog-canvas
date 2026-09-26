@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { APP_ORIGIN } from "./app-protocol.js";
@@ -11,7 +18,11 @@ afterEach(async () => {
     await rm(path, { recursive: true, force: true });
 });
 async function setup() {
-  const root = await mkdtemp(join(tmpdir(), "analog-native-files-"));
+  // Saved paths are canonical; on macOS the temporary directory sits behind
+  // the /var → /private/var link, so compare against its canonical form.
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), "analog-native-files-")),
+  );
   directories.push(root);
   const a = join(root, "A.icproj.json"),
     b = join(root, "B.icproj.json");

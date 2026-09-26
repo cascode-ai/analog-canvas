@@ -227,8 +227,10 @@ New parts start in their standard look, saved with the label:
 - VDD Power and a drawn VDD Rail: an italic V with an upright subscript, as
   V_DD. A supply named `VDDH` or `VCC` keeps that look; `AVDD` is shown as
   written.
-- A device name such as `M1` or `R12`: italic letters with an upright
-  subscript index, as M₁. `MTAIL` or `RL` is shown as written.
+- A device name: its device letter in italic over an upright subscript of the
+  rest, as M₁, R₁₂, R_L1, C_L or R_FB. A part called through a subcircuit
+  (an `X` name) or a block keeps its letters together over an index, as XU₀;
+  a name without one, such as `XBIAS`, is shown as written.
 - A Pin or Net name that is a V followed by letters or digits, such as `Vin`,
   `Vout`, `VBP`, `VBN` or `VcasP`, whether you typed it or the editor chose
   it: an italic V with an upright subscript, as V_BP.

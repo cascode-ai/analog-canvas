@@ -4,6 +4,7 @@ import { validGalleryAttention } from "./gallery-curation";
 // gallery-do.ts; this module only authenticates and maps API requests.
 
 import { prepareDocumentFormulaArtifacts, sha256Hex } from "@icm/derived";
+import { referenceDeviceLetter } from "@icm/devices";
 import { createDesignNetlistExport, designExtractsNetlist } from "@icm/netlist";
 import {
   CURRENT_PROJECT_FILE_VERSION,
@@ -451,6 +452,16 @@ async function labelLookEntry(
   for (const document of project.documents) {
     const changes = labelLookChanges(document, {
       legacyLooks: options.legacyLooks,
+      deviceLetterOf: (annotation) => {
+        const binding = annotation.binding;
+        if (binding?.kind !== "instance-reference") return undefined;
+        const instance = document.instances.find(
+          (candidate) => candidate.id === binding.instanceId,
+        );
+        return instance
+          ? referenceDeviceLetter(instance.symbolId, project)
+          : undefined;
+      },
     });
     for (const change of changes.labels) {
       // A label the planner could not keep clear keeps its current look.

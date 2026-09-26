@@ -146,6 +146,20 @@ export function deviceReferenceTextDocument(value: string): RichTextDocument {
   return { runs: [mathBase(match[1]!), uprightMathSubscript(match[2]!)] };
 }
 
+/**
+ * Presentation for a device Reference that starts with its device letter,
+ * written the way textbooks write R_L1, C_L, R_FB or M_N1: the letter in bold
+ * italic over a smaller bold upright subscript of everything after it. For
+ * a plain index this is the same look as `deviceReferenceTextDocument` (M₁).
+ */
+export function deviceLetterReferenceTextDocument(
+  value: string,
+): RichTextDocument {
+  const match = /^(\p{L})([\p{L}\p{N}]+)$/u.exec(value);
+  if (!match) return { runs: [{ kind: "text", value }] };
+  return { runs: [mathBase(match[1]!), uprightMathSubscript(match[2]!)] };
+}
+
 export type PortLabelSuffixCase = "preserve" | "uppercase" | "lowercase";
 export type PortLabelSuffixPlacement = "subscript" | "baseline";
 
