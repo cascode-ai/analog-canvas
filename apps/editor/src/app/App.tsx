@@ -92,7 +92,6 @@ import {
   symbolCarriesReference,
   symbolSupportsValueAnnotation,
   resolveMosBulkConnection,
-  resolveDocumentLogicalNets,
   supplyDefaultMosBulkNet,
   resolveDocumentStyleProfile,
   summarizeProjectCells,
@@ -338,6 +337,10 @@ import {
   logicalNetChoiceForNet,
   logicalNetChoices,
 } from "../features/logical-net-choices";
+import {
+  advanceControlPick,
+  type ControlPickState,
+} from "../features/properties/controlled-source-canvas-pick";
 import type { CloudProjectSummary } from "../features/editor-shell/cloud-projects";
 import { projectChangeToken } from "../document/project-session-lifecycle";
 import { captureProjectSaveSnapshot } from "../document/project-save-coordinator";
@@ -1689,6 +1692,14 @@ function WorkspaceEditor({
   const [simulationPickMode, setSimulationPickModeState] = useState<
     "net" | "terminal" | null
   >(null);
+  const [controlPickState, setControlPickState] =
+    useState<ControlPickState | null>(null);
+  const controlPickMode =
+    controlPickState?.kind === "voltage"
+      ? "net"
+      : controlPickState?.kind === "current"
+        ? "sensor"
+        : null;
   const simulationPickNetsActive = simulationPickMode === "net";
   const simulationPickTerminalsActive = simulationPickMode === "terminal";
   const simulationPickActive = simulationPickMode !== null;
@@ -1724,12 +1735,14 @@ function WorkspaceEditor({
     if (!analogSimulationOpen) setSimulationPickModeState(null);
     setSimulationTerminalPickStart(null);
     setSimulationHoverNetId(null);
+    setControlPickState(null);
   }, [document.id]);
   useEffect(() => {
     setSimulationPickModeState(null);
     setAnalogPickedNet(null);
     setAnalogPickedTerminal(null);
     setSimulationTerminalPickStart(null);
+    setControlPickState(null);
   }, [projectSessionId]);
   useEffect(() => {
     setSimulationTerminalPickStart(null);
@@ -1977,6 +1990,13 @@ function WorkspaceEditor({
     selection: visualSelection,
     selectedEndpoint,
   });
+  useEffect(() => {
+    if (
+      controlPickState &&
+      selectedInstance?.id !== controlPickState.instanceId
+    )
+      setControlPickState(null);
+  }, [selectedInstance?.id]);
   const selectedAnnotationOwnerInstanceId = selectedAnnotation
     ? annotationOwningInstanceId(selectedAnnotation)
     : undefined;
@@ -2177,7 +2197,8 @@ function WorkspaceEditor({
   }
   const simulationPickHighlight = useMemo(
     () =>
-      simulationPickNetsActive && simulationHoverNetId
+      (simulationPickNetsActive || controlPickMode === "net") &&
+      simulationHoverNetId
         ? computeNetHighlight(
             projectConnectivityIndex,
             document.id,
@@ -2192,6 +2213,7 @@ function WorkspaceEditor({
       projectConnectivityIndex,
       simulationHoverNetId,
       simulationPickMode,
+      controlPickMode,
     ],
   );
   const codeNetHighlight = useMemo(
@@ -2290,6 +2312,80 @@ function WorkspaceEditor({
     }));
     setStatus(`Added voltage Output ${group?.name ?? baseNetId}`);
   };
+  const startControlPick = (): void => {
+    if (
+      !selectedInstance ||
+      !LINEAR_CONTROLLED_SOURCE_KINDS.has(selectedInstance.symbolId)
+    )
+      return;
+    activateTool("pointer");
+    setSimulationPickModeState(null);
+    setSimulationHoverNetId(null);
+    const kind =
+      selectedInstance.symbolId === "vcvs" ||
+      selectedInstance.symbolId === "vccs"
+        ? "voltage"
+        : "current";
+    setControlPickState({
+      documentId: document.id,
+      instanceId: selectedInstance.id,
+      kind,
+    });
+    setStatus(
+      kind === "voltage"
+        ? "Pick control + Net, then control − Net · Esc cancels"
+        : "Pick a voltage source or its pin for branch current · Esc cancels",
+    );
+  };
+  const pickControlledSourceTarget = (
+    target:
+      { kind: "net"; netId: string } | { kind: "sensor"; instanceId: string },
+  ): void => {
+    if (!controlPickState) return;
+    const result = advanceControlPick(
+      controlPickState,
+      document,
+      target,
+      (symbolId) =>
+        deviceDescriptor(symbolId, project)?.deviceClass === "voltage-source",
+    );
+    if (result.kind === "continue") setControlPickState(result.state);
+    if (result.kind === "complete") {
+      const instance = document.instances.find(
+        (candidate) => candidate.id === controlPickState.instanceId,
+      );
+      if (!instance) {
+        setControlPickState(null);
+        setStatus("The controlled source is no longer in this Cell");
+        return;
+      }
+      if (target.kind === "sensor") {
+        suppressInstanceClick.current = true;
+        window.setTimeout(() => {
+          suppressInstanceClick.current = false;
+        }, 0);
+      }
+      const applied = transact([
+        {
+          kind: "set_instance_netlist",
+          instanceId: instance.id,
+          netlist: {
+            ...(instance.netlist?.binding
+              ? { binding: instance.netlist.binding }
+              : {}),
+            parameters: instance.netlist?.parameters ?? {},
+            control: result.control,
+          },
+        },
+      ]);
+      if (applied.ok) setControlPickState(null);
+      else {
+        setStatus("Could not apply controlled-source selection");
+        return;
+      }
+    }
+    setStatus(result.message);
+  };
   const pickSimulationTerminal = (endpoint: WireSource): void => {
     if (endpoint.endpoint.kind !== "terminal" || !analogSimulationOpen) return;
     const terminal = endpoint.endpoint;
@@ -2377,6 +2473,7 @@ function WorkspaceEditor({
   };
   const setSimulationPickMode = (mode: "net" | "terminal" | null): void => {
     if (mode) activateTool("pointer");
+    if (mode) setControlPickState(null);
     setSimulationPickModeState(mode);
     if (mode !== "terminal") setSimulationTerminalPickStart(null);
     if (mode !== "net") setSimulationHoverNetId(null);
@@ -2580,11 +2677,13 @@ function WorkspaceEditor({
   const selectedInstanceValue = selectedInstance
     ? instanceValueAnnotation(document, selectedInstance.id)
     : null;
-  const controlNetNames =
-    selectedInstance &&
-    LINEAR_CONTROLLED_SOURCE_KINDS.has(selectedInstance.symbolId)
-      ? resolveDocumentLogicalNets(document).byBaseNetId
-      : null;
+  const selectedControl = selectedInstance?.netlist?.control;
+  const controlSummary =
+    selectedControl?.kind === "voltage"
+      ? `+ ${logicalNetChoiceForNet(netChoices, selectedControl.positiveNetId)?.label ?? "unset"} · − ${logicalNetChoiceForNet(netChoices, selectedControl.negativeNetId)?.label ?? "unset"}`
+      : selectedControl?.kind === "current"
+        ? `Sensor: ${document.instances.find((candidate) => candidate.id === selectedControl.sensorInstanceId)?.reference ?? "unset"}`
+        : undefined;
   const selectedGroupInstances = selectedIds.flatMap((id) => {
     const instance = document.instances.find((item) => item.id === id);
     return instance ? [instance] : [];
@@ -3362,6 +3461,7 @@ function WorkspaceEditor({
       tool,
       cellSymbolLayoutEnabled,
       simulationPickMode,
+      controlPickMode,
     },
     actions: {
       beginInstanceMove: beginMoveFromSelection,
@@ -3404,6 +3504,39 @@ function WorkspaceEditor({
                     ?.netId
                 : undefined;
         if (netId) pickAnalogSimulationNet(netId);
+      },
+      pickControlledSource: (kind, id) => {
+        if (
+          controlPickMode === "sensor" &&
+          (kind === "instance" ||
+            kind === "instance-label" ||
+            kind === "annotation")
+        ) {
+          const annotation =
+            kind === "instance-label" || kind === "annotation"
+              ? document.annotations.find((candidate) => candidate.id === id)
+              : undefined;
+          const instanceId =
+            kind === "instance"
+              ? id
+              : annotation
+                ? annotationOwningInstanceId(annotation)
+                : undefined;
+          if (instanceId)
+            pickControlledSourceTarget({ kind: "sensor", instanceId });
+          return;
+        }
+        const netId =
+          kind === "route"
+            ? document.routes.find((route) => route.id === id)?.netId
+            : kind === "annotation"
+              ? document.annotations.find((annotation) => annotation.id === id)
+                  ?.netId
+              : kind === "junction"
+                ? document.junctions.find((junction) => junction.id === id)
+                    ?.netId
+                : undefined;
+        if (netId) pickControlledSourceTarget({ kind: "net", netId });
       },
       consumeArmedVerb: (kind, id) => {
         if (kind === "instance") return consumeArmedVerbOnInstance(id);
@@ -4528,6 +4661,13 @@ function WorkspaceEditor({
       if (event.key === "Escape" && simulationPickActive) {
         event.preventDefault();
         setSimulationPickMode(null);
+        return;
+      }
+      if (event.key === "Escape" && controlPickState) {
+        event.preventDefault();
+        setControlPickState(null);
+        setSimulationHoverNetId(null);
+        setStatus("Cancelled control pick");
         return;
       }
       if (event.key === "Escape" && searchOpen) {
@@ -7303,30 +7443,25 @@ function WorkspaceEditor({
                           selectedInstance.symbolId,
                         )
                           ? {
-                              controlNetOptions: [
-                                { value: "", label: "Select Net" },
-                                ...document.nets.map((net) => ({
-                                  value: net.id,
-                                  label:
-                                    controlNetNames?.get(net.id)?.name ??
-                                    net.id,
-                                })),
-                              ],
-                              controlSensorOptions: [
-                                { value: "", label: "Select voltage source" },
-                                ...document.instances
-                                  .filter(
-                                    (candidate) =>
-                                      deviceDescriptor(
-                                        candidate.symbolId,
-                                        project,
-                                      )?.deviceClass === "voltage-source",
-                                  )
-                                  .map((candidate) => ({
-                                    value: candidate.id,
-                                    label: candidate.reference ?? candidate.id,
-                                  })),
-                              ],
+                              controlPick:
+                                controlPickState?.instanceId ===
+                                selectedInstance.id
+                                  ? {
+                                      step:
+                                        controlPickState.kind === "current"
+                                          ? ("sensor" as const)
+                                          : controlPickState.positiveNetId
+                                            ? ("negative" as const)
+                                            : ("positive" as const),
+                                    }
+                                  : null,
+                              ...(controlSummary ? { controlSummary } : {}),
+                              onStartControlPick: startControlPick,
+                              onCancelControlPick: () => {
+                                setControlPickState(null);
+                                setSimulationHoverNetId(null);
+                                setStatus("Cancelled control pick");
+                              },
                             }
                           : {}),
                         onApply: (value: ComponentPropertyCodeValue) => {
@@ -7928,7 +8063,10 @@ function WorkspaceEditor({
               : "",
             projectedMovePreviewDocument ? "semantic-move-preview" : "",
             panPreview ? "pan-mode" : "",
-            simulationPickNetsActive ? "simulation-net-pick-active" : "",
+            simulationPickNetsActive || controlPickMode === "net"
+              ? "simulation-net-pick-active"
+              : "",
+            controlPickMode === "sensor" ? "control-sensor-pick-active" : "",
             simulationPickTerminalsActive
               ? "simulation-terminal-pick-active"
               : "",
@@ -8087,7 +8225,7 @@ function WorkspaceEditor({
               wouldMoveIds,
               selectionPolicy,
               onInstanceClick: (instance, additive) => {
-                if (simulationPickActive) return;
+                if (simulationPickActive || controlPickState) return;
                 if (suppressInstanceClick.current) {
                   suppressInstanceClick.current = false;
                   return;
@@ -8117,6 +8255,19 @@ function WorkspaceEditor({
               onRoutePointerDown: (event, routeId) => {
                 // Reached only while a drawing tool is up: the pointer tool's
                 // presses are claimed and stopped by the capture-phase router.
+                if (controlPickState) {
+                  event.stopPropagation();
+                  event.preventDefault();
+                  const route = document.routes.find(
+                    (candidate) => candidate.id === routeId,
+                  );
+                  if (route && controlPickMode === "net")
+                    pickControlledSourceTarget({
+                      kind: "net",
+                      netId: route.netId,
+                    });
+                  return;
+                }
                 if (simulationPickActive) {
                   event.stopPropagation();
                   event.preventDefault();
@@ -8151,10 +8302,12 @@ function WorkspaceEditor({
                 ),
               onAnnotationEdit: beginAnnotationTextEditing,
               onNetPointerEnter: (netId) => {
-                if (simulationPickNetsActive) setSimulationHoverNetId(netId);
+                if (simulationPickNetsActive || controlPickMode === "net")
+                  setSimulationHoverNetId(netId);
               },
               onNetPointerLeave: () => {
-                if (simulationPickNetsActive) setSimulationHoverNetId(null);
+                if (simulationPickNetsActive || controlPickMode === "net")
+                  setSimulationHoverNetId(null);
               },
             },
             endpoints: {
@@ -8169,13 +8322,17 @@ function WorkspaceEditor({
                   )
                 : wiringEndpoints,
               tool,
-              selectedRoute: simulationPickActive ? undefined : selectedRoute,
+              selectedRoute:
+                simulationPickActive || controlPickState
+                  ? undefined
+                  : selectedRoute,
               selectedRouteSegmentIndex,
               selectedEndpoint,
               supplementalJunctionIds: supplementalSelection.junctionIds,
-              selectionPolicy: simulationPickActive
-                ? unfilteredSelectionPolicy
-                : selectionPolicy,
+              selectionPolicy:
+                simulationPickActive || controlPickState
+                  ? unfilteredSelectionPolicy
+                  : selectionPolicy,
               endpointLabel: endpointTestId,
               ...(simulationPickTerminalsActive
                 ? {
@@ -8228,6 +8385,14 @@ function WorkspaceEditor({
               ),
               onRouteStretch: beginRouteStretch,
               onJunctionSelect: (candidate) => {
+                if (controlPickState) {
+                  if (controlPickMode === "net" && candidate.netId)
+                    pickControlledSourceTarget({
+                      kind: "net",
+                      netId: candidate.netId,
+                    });
+                  return;
+                }
                 if (simulationPickActive) {
                   if (simulationPickNetsActive && candidate.netId)
                     pickAnalogSimulationNet(candidate.netId);
@@ -8246,6 +8411,24 @@ function WorkspaceEditor({
                 setStatus(`Selected ${endpointTestId(candidate.endpoint)}`);
               },
               onWireEndpoint: (event, candidate) => {
+                if (controlPickState) {
+                  event.stopPropagation();
+                  event.preventDefault();
+                  if (controlPickMode === "net" && candidate.netId)
+                    pickControlledSourceTarget({
+                      kind: "net",
+                      netId: candidate.netId,
+                    });
+                  else if (
+                    controlPickMode === "sensor" &&
+                    candidate.endpoint.kind === "terminal"
+                  )
+                    pickControlledSourceTarget({
+                      kind: "sensor",
+                      instanceId: candidate.endpoint.instanceId,
+                    });
+                  return;
+                }
                 if (simulationPickActive) {
                   event.stopPropagation();
                   event.preventDefault();
@@ -8273,10 +8456,12 @@ function WorkspaceEditor({
                 }
               },
               onNetPointerEnter: (netId) => {
-                if (simulationPickNetsActive) setSimulationHoverNetId(netId);
+                if (simulationPickNetsActive || controlPickMode === "net")
+                  setSimulationHoverNetId(netId);
               },
               onNetPointerLeave: () => {
-                if (simulationPickNetsActive) setSimulationHoverNetId(null);
+                if (simulationPickNetsActive || controlPickMode === "net")
+                  setSimulationHoverNetId(null);
               },
             },
           }}

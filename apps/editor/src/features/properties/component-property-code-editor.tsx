@@ -41,8 +41,10 @@ export interface ComponentPropertyCodeEditorProps {
   netName?: string | null;
   defaultForeground?: string;
   details?: ComponentPropertyCodeContext["details"];
-  controlNetOptions?: ComponentPropertyCodeContext["controlNetOptions"];
-  controlSensorOptions?: ComponentPropertyCodeContext["controlSensorOptions"];
+  controlPick?: { step: "positive" | "negative" | "sensor" } | null;
+  controlSummary?: string;
+  onStartControlPick?: () => void;
+  onCancelControlPick?: () => void;
   onApply: (
     value: ComponentPropertyCodeValue,
   ) => { ok: true } | { ok: false; message: string };
@@ -61,8 +63,10 @@ export function ComponentPropertyCodeEditor({
   netName,
   defaultForeground = "#000000",
   details,
-  controlNetOptions,
-  controlSensorOptions,
+  controlPick,
+  controlSummary,
+  onStartControlPick,
+  onCancelControlPick,
   onApply,
 }: ComponentPropertyCodeEditorProps) {
   const context = useMemo<ComponentPropertyCodeContext>(
@@ -75,8 +79,6 @@ export function ComponentPropertyCodeEditor({
       ...(connection !== undefined ? { connection } : {}),
       ...(netName !== undefined ? { netName } : {}),
       ...(details ? { details } : {}),
-      ...(controlNetOptions ? { controlNetOptions } : {}),
-      ...(controlSensorOptions ? { controlSensorOptions } : {}),
     }),
     [
       instance,
@@ -87,8 +89,6 @@ export function ComponentPropertyCodeEditor({
       connection,
       netName,
       details,
-      controlNetOptions,
-      controlSensorOptions,
     ],
   );
   const nativeBaseline = useMemo(
@@ -247,6 +247,28 @@ export function ComponentPropertyCodeEditor({
           </button>
         </div>
       </header>
+      {onStartControlPick ? (
+        <div
+          className="component-control-pick"
+          data-testid="component-control-pick"
+        >
+          <button
+            type="button"
+            onClick={controlPick ? onCancelControlPick : onStartControlPick}
+          >
+            {controlPick ? "Cancel pick" : "Pick control on canvas"}
+          </button>
+          <span aria-live="polite">
+            {controlPick?.step === "positive"
+              ? "Click control + Net (wire, junction, label, or connected pin)"
+              : controlPick?.step === "negative"
+                ? "Click control − Net; the pick then finishes"
+                : controlPick?.step === "sensor"
+                  ? "Click a voltage source or its pin to sense branch current"
+                  : (controlSummary ?? "Control not selected")}
+          </span>
+        </div>
+      ) : null}
       <Suspense
         fallback={
           <textarea

@@ -30,6 +30,7 @@ export interface CanvasHitControllerDependencies {
     cellSymbolLayoutEnabled: boolean;
     /** Which Simulation probe domain currently owns canvas presses. */
     simulationPickMode: "net" | "terminal" | null;
+    controlPickMode: "net" | "sensor" | null;
   };
   actions: {
     beginInstanceMove: (
@@ -74,6 +75,7 @@ export interface CanvasHitControllerDependencies {
     suppressNextClick?: () => void;
     /** Name the Net a picked conductor, Junction, or Net label belongs to. */
     pickSimulationNet?: (kind: CanvasHitKind, id: string) => void;
+    pickControlledSource?: (kind: CanvasHitKind, id: string) => void;
   };
 }
 
@@ -94,6 +96,7 @@ export function createCanvasHitController({
     tool,
     cellSymbolLayoutEnabled,
     simulationPickMode,
+    controlPickMode,
   },
   actions: {
     beginInstanceMove,
@@ -108,6 +111,7 @@ export function createCanvasHitController({
     consumeArmedVerb,
     suppressNextClick,
     pickSimulationNet,
+    pickControlledSource,
   },
 }: CanvasHitControllerDependencies) {
   const compositeSelectionOwnsHit = (
@@ -187,7 +191,7 @@ export function createCanvasHitController({
           event.currentTarget.ownerDocument,
           { x: event.clientX, y: event.clientY },
           event.altKey ? 1 : 0,
-          simulationPickMode === null
+          simulationPickMode === null && controlPickMode === null
             ? (candidate) =>
                 selectionPolicy.allowsCanvasHit(candidate, "select")
             : undefined,
@@ -199,6 +203,7 @@ export function createCanvasHitController({
       hit !== null &&
       hit.kind !== "handle" &&
       simulationPickMode === null &&
+      controlPickMode === null &&
       Boolean(consumeArmedVerb?.(hit.kind, hit.id));
     const compositeOwnsHit = Boolean(
       hit &&
@@ -230,6 +235,7 @@ export function createCanvasHitController({
       primaryInstanceId,
       armedVerbConsumesHit,
       simulationPickMode,
+      controlPickMode,
     });
 
     // Only an action this dispatcher owns claims the press; everything else
@@ -253,6 +259,9 @@ export function createCanvasHitController({
     switch (action.kind) {
       case "simulation-pick":
         pickSimulationNet?.(action.hitKind, action.id);
+        return;
+      case "control-pick":
+        pickControlledSource?.(action.hitKind, action.id);
         return;
       case "consume-armed-verb":
         // The offer already ran the verb. The click that follows this press

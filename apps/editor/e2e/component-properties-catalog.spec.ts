@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, createRoutePath } from "@icm/model";
 
 import {
+  awaitEditorReady,
   revealPropertiesShelf,
   chooseComponent,
   editComponentPropertyCode,
@@ -128,5 +129,128 @@ for (const [symbolId, formula, parameter, netlistName] of [
     await expectComponentCodeField(page, `parameters.${parameter}`, "2m");
     await expectComponentCodeField(page, "netlistName", netlistName);
     expect(errors).toEqual([]);
+  });
+}
+
+async function openFixture(
+  page: import("@playwright/test").Page,
+  symbolId: string,
+) {
+  const project = createEmptyProject("control-pick", "Control pick");
+  const document = project.documents[0]!;
+  document.instances.push(
+    {
+      id: "controlled",
+      symbolId,
+      reference: "X1",
+      placement: { position: { x: 470, y: 360 }, rotation: 0, mirror: "none" },
+    },
+    {
+      id: "sensor",
+      symbolId: "voltage-source",
+      reference: "V1",
+      placement: { position: { x: 670, y: 360 }, rotation: 0, mirror: "none" },
+    },
+    {
+      id: "invalid",
+      symbolId: "resistor",
+      reference: "R1",
+      placement: { position: { x: 780, y: 360 }, rotation: 0, mirror: "none" },
+    },
+  );
+  for (const [name, y] of [
+    ["plus", 210],
+    ["minus", 270],
+  ] as const) {
+    const netId = `net-${name}`;
+    const leftId = `${name}-left`;
+    const rightId = `${name}-right`;
+    document.nets.push({
+      id: netId,
+      terminals:
+        name === "plus" ? [{ instanceId: "sensor", pinName: "+" }] : [],
+    });
+    document.junctions.push(
+      { id: leftId, netId, position: { x: 330, y }, role: "route-anchor" },
+      { id: rightId, netId, position: { x: 430, y }, role: "route-anchor" },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: `route-${name}`,
+        netId,
+        start: { kind: "junction", junctionId: leftId },
+        end: { kind: "junction", junctionId: rightId },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+  }
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "control-pick.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await revealPropertiesShelf(page);
+  await page.getByTestId("hit-controlled").click({ force: true });
+  const shelf = page.getByTestId("selection-shelf");
+  if ((await shelf.getAttribute("aria-expanded")) === "true")
+    await shelf.click();
+  await page.keyboard.press("q");
+  await expect(page.getByTestId("component-control-pick")).toBeVisible();
+}
+
+for (const symbolId of ["vcvs", "vccs"]) {
+  test(`${symbolId} picks two control Nets atomically on canvas`, async ({
+    page,
+  }) => {
+    await openFixture(page, symbolId);
+    const picker = page.getByTestId("component-control-pick");
+    await picker
+      .getByRole("button", { name: "Pick control on canvas" })
+      .click();
+    await page.getByTestId("route-hit-route-plus").click({ force: true });
+    await expect(picker).toContainText("Click control − Net");
+    await page.keyboard.press("Escape");
+    await expectComponentCodeField(page, "control", {
+      positiveNetId: "",
+      negativeNetId: "",
+    });
+    await picker
+      .getByRole("button", { name: "Pick control on canvas" })
+      .click();
+    await page.getByTestId("terminal-sensor-+").click({ force: true });
+    await page.getByTestId("route-hit-route-minus").click({ force: true });
+    await expectComponentCodeField(page, "control", {
+      positiveNetId: "net-plus",
+      negativeNetId: "net-minus",
+    });
+    await expect(
+      picker.getByRole("button", { name: "Pick control on canvas" }),
+    ).toBeVisible();
+  });
+}
+
+for (const symbolId of ["cccs", "ccvs"]) {
+  test(`${symbolId} picks a voltage-source current sensor, not an arbitrary part`, async ({
+    page,
+  }) => {
+    await openFixture(page, symbolId);
+    const picker = page.getByTestId("component-control-pick");
+    await picker
+      .getByRole("button", { name: "Pick control on canvas" })
+      .click();
+    await page.getByTestId("hit-invalid").click({ force: true });
+    await expect(picker).toContainText("Click a voltage source");
+    await page
+      .getByTestId(symbolId === "cccs" ? "terminal-sensor-+" : "hit-sensor")
+      .click({ force: true });
+    await expectComponentCodeField(page, "control", {
+      sensorInstanceId: "sensor",
+    });
+    await expect(
+      picker.getByRole("button", { name: "Pick control on canvas" }),
+    ).toBeVisible();
   });
 }

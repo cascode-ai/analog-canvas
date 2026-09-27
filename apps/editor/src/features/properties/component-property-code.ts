@@ -71,8 +71,6 @@ export interface ComponentPropertyCodeContext {
   /** Null when this component does not own an editable electrical marker name. */
   netName?: string | null;
   details?: ComponentPropertyDetailsContext;
-  controlNetOptions?: readonly { value: string; label: string }[];
-  controlSensorOptions?: readonly { value: string; label: string }[];
 }
 
 export type ComponentPropertyCodeParseResult =
