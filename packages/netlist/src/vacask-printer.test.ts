@@ -94,16 +94,47 @@ function multipliedDesign(): DesignNetlistIR {
 }
 
 describe("native VACASK circuit projection", () => {
-  it("reports unsupported controlled-source primitives instead of treating them as an unnamed native model", () => {
+  it("projects all linear controlled sources with native gain units and probe strings", () => {
+    const result = printed(
+      design([
+        card("G1", "vccs", { gm: "1m" }, ["out", "0", "control", "0"]),
+        card("E1", "vcvs", { gain: "2" }, ["out2", "0", "control", "0"]),
+        {
+          ...card("F1", "cccs", { gain: "3" }),
+          controlSourceReference: "Vprobe",
+          controlCurrentSign: -1,
+        },
+        {
+          ...card("H1", "ccvs", { rm: "2k" }),
+          controlSourceReference: "Vprobe",
+        },
+        card("Vprobe", "voltage-source", { dc: "0" }),
+      ]),
+    );
+    expect(result.text).toContain(
+      "G1 (out 0 'control' 0) __icm_vccs gain=0.001",
+    );
+    expect(result.text).toContain("E1 (out2 0 'control' 0) __icm_vcvs gain=2");
+    expect(result.text).toContain(
+      'F1 (input 0) __icm_cccs gain=-(3) ctlinst="Vprobe"',
+    );
+    expect(result.text).toContain(
+      'H1 (input 0) __icm_ccvs gain=2000 ctlinst="Vprobe"',
+    );
+    const gm = result.parameters.find(
+      (p) => p.instanceId === "G1" && p.parameter === "gm",
+    )!;
+    expect(result.text.slice(gm.startOffset, gm.endOffset)).toBe("0.001");
+  });
+  it("rejects an unresolved native current control instead of emitting an invalid reference", () => {
     const result = printVacaskWithLocations(
-      design([card("G1", "vccs", { gm: "1m" }, ["out", "0", "control", "0"])]),
-      true,
+      design([card("F1", "cccs", { gain: "2" })]),
     );
     expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({ code: "VACASK_UNSUPPORTED_CONTROLLED_SOURCE" }),
-    );
+    if (!result.ok)
+      expect(result.diagnostics[0]?.code).toBe(
+        "VACASK_MISSING_CURRENT_CONTROL",
+      );
   });
   it("uses native calls with dimensional numeric values, not copied SPICE suffixes", () => {
     const result = printed(
@@ -469,6 +500,94 @@ describe("project scalar semantics at the VACASK boundary", () => {
 
 // Opt-in real-kernel evidence. Ordinary unit CI does not pretend to qualify a
 // missing simulator. Set both variables to a pinned VACASK installation.
+it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
+  "executes all four controlled sources and local probe references in repeated hierarchy",
+  () => {
+    const ir = design(
+      [1, 2].map((n) => ({
+        ...card(`X${n}`, "hierarchical", {}, []),
+        invocationKind: "subcircuit" as const,
+        target: "controls",
+      })),
+    );
+    ir.cells.push({
+      id: "controls",
+      name: "controls",
+      ports: [],
+      nets: [],
+      instances: [
+        card("Vin", "voltage-source", { dc: "1", acMagnitude: "1" }, [
+          "input",
+          "0",
+        ]),
+        card("Probe", "voltage-source", { dc: "0" }, ["input", "sense"]),
+        card("Rs", "resistor", { value: "1k" }, ["sense", "0"]),
+        card("E", "vcvs", { gain: "2" }, ["e", "0", "input", "0"]),
+        card("G", "vccs", { gm: "1m" }, ["g", "0", "input", "0"]),
+        {
+          ...card("F", "cccs", { gain: "3" }, ["f", "0"]),
+          controlSourceReference: "Probe",
+        },
+        {
+          ...card("H", "ccvs", { rm: "2k" }, ["h", "0"]),
+          controlSourceReference: "Probe",
+          controlCurrentSign: -1,
+        },
+        ...["e", "g", "f", "h"].map((n) =>
+          card(`R${n}`, "resistor", { value: "1k" }, [n, "0"]),
+        ),
+      ],
+    });
+    const cwd = mkdtempSync(join(tmpdir(), "icm-vacask-controls-"));
+    writeFileSync(
+      join(cwd, "circuit.sim"),
+      printed(ir).text +
+        '\ncontrol\nabort always\noptions rawfile="ascii"\nsave default\nanalysis op1 op\nanalysis ac1 ac from=1 to=1Meg mode="dec" points=2\nendc\n',
+    );
+    const startup = join(cwd, "vacaskrc.toml");
+    writeFileSync(startup, "# controlled source qualification\n");
+    const run = spawnSync(
+      process.env.VACASK_BIN!,
+      ["--tomlfile", startup, "-se", "-sp", "-qp", "circuit.sim"],
+      {
+        cwd,
+        encoding: "utf8",
+        windowsHide: true,
+        timeout: 15000,
+        env: {
+          ...process.env,
+          SIM_MODULE_PATH: process.env.VACASK_MODULES,
+          OMP_NUM_THREADS: "1",
+        },
+      },
+    );
+    expect(run.error, cwd).toBeUndefined();
+    expect(run.status, `${run.stdout}\n${run.stderr}\n${cwd}`).toBe(0);
+    for (const file of ["op1.raw", "ac1.raw"]) {
+      const parsed = parseVacaskRawfile(readFileSync(join(cwd, file), "utf8"));
+      if (!parsed.ok) throw Error(parsed.error.message);
+      const plot = parsed.plots[0]!;
+      for (const x of ["X1", "X2"])
+        for (const [node, expected] of [
+          ["e", 2],
+          ["g", -1],
+          ["f", -3],
+          ["h", -2],
+        ] as const) {
+          const vector = plot.vectors.find(
+            (v) => v.variable.name === `${x}:${node}`,
+          )!;
+          expect(vector, `${file} ${x}:${node}`).toBeDefined();
+          for (const value of vector.real)
+            expect(value).toBeCloseTo(expected, 9);
+          for (const value of vector.imag ?? [])
+            expect(value).toBeCloseTo(0, 9);
+        }
+    }
+  },
+  20000,
+);
+
 it.skipIf(!process.env.VACASK_BIN || !process.env.VACASK_MODULES)(
   "executes printer-generated hierarchy, multiplicity and waveform sources in native VACASK",
   () => {
