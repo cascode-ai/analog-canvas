@@ -41,7 +41,7 @@ export function RoutePropertyCodeEditor({
   return (
     <AnnotationPropertyCodeEditor
       item={{
-        type: "wire",
+        type: route.presentation === "power-rail" ? "power-rail" : "wire",
         name: "",
         namePath: "net.name",
         coordinate: position ? [position.x, position.y] : null,

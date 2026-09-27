@@ -26,6 +26,11 @@ export interface PointerDownFacts {
   readonly interactionKind: string;
   /** A component is being placed, so the canvas belongs to placement. */
   readonly placementOwnsCanvas: boolean;
+  /**
+   * The placement in progress is a part from the library (not a copy, a Net
+   * Label or a Power Rail), which a press on a label may end.
+   */
+  readonly componentPlacementPending?: boolean;
   /** The press landed inside the Cell symbol layout overlay. */
   readonly cellSymbolLayoutTarget: boolean;
   /**
@@ -71,6 +76,10 @@ export type PointerDownAction =
   | { readonly kind: "begin-instance-move"; readonly instanceId: string }
   | { readonly kind: "begin-visual-selection-move" }
   | { readonly kind: "begin-annotation-drag"; readonly annotationId: string }
+  | {
+      readonly kind: "end-placement-drag-annotation";
+      readonly annotationId: string;
+    }
   | { readonly kind: "route-pointer-down"; readonly routeId: string }
   | { readonly kind: "begin-drafting-drag"; readonly draftingId: string }
   | { readonly kind: "select-junction"; readonly junctionId: string };
@@ -89,6 +98,22 @@ export function resolvePointerDownAction(
   facts: PointerDownFacts,
 ): PointerDownAction {
   if (facts.placementOwnsCanvas) {
+    // A press on a label while a part is being placed is offered to the
+    // label: a click still places the part, but a drag ends placement and
+    // carries the label, so the name of a Pin just put down moves at once
+    // instead of another Pin dropping where the drag ends.
+    if (
+      facts.componentPlacementPending &&
+      facts.button === 0 &&
+      facts.tool === "pointer" &&
+      !facts.handleAtPoint &&
+      facts.hit?.kind === "annotation"
+    ) {
+      return {
+        kind: "end-placement-drag-annotation",
+        annotationId: facts.hit.id,
+      };
+    }
     return { kind: "ignore", reason: "placement owns the canvas" };
   }
 

@@ -29,6 +29,8 @@ export interface DrawingToolbarProps {
   onActivateTool: (tool: EditorTool) => void;
   onAddText: () => void;
   onOpenDocumentSettings: () => void;
+  /** Every label back to the default size and look, in one undoable step. */
+  resetLabels?: ToolbarCommand;
 }
 
 function ImmediatePanelButton({
@@ -145,6 +147,7 @@ export function DrawingToolbar({
   onActivateTool,
   onAddText,
   onOpenDocumentSettings,
+  resetLabels,
 }: DrawingToolbarProps) {
   const examplesOpen = leftPanelMode === "examples" && libraryPanelOpen;
   const libraryOpen = leftPanelMode === "library" && libraryPanelOpen;
@@ -280,6 +283,19 @@ export function DrawingToolbar({
         <ToolIcon name="style" />
         <span>Properties</span>
       </button>
+      {resetLabels ? (
+        <button
+          type="button"
+          className="draw-tool"
+          data-testid="draw-tool-reset-labels"
+          title="Reset labels: every label to the default size and look (italic first letter, upright subscript)"
+          disabled={!resetLabels.enabled}
+          onClick={resetLabels.execute}
+        >
+          <ToolIcon name="reset-labels" />
+          <span>Reset labels</span>
+        </button>
+      ) : null}
     </div>
   );
 }

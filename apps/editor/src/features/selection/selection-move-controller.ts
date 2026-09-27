@@ -157,15 +157,14 @@ export function createSelectionMoveController({
         const object = sourceDocument.drafting?.objects.find(
           (candidate) => candidate.id === draftingId,
         );
+        // Like the labels above: the delta is already on its grid, and
+        // re-snapping each object would pull one set on the finer label
+        // grid out of place.
         return object
           ? [
               {
                 kind: "upsert_drafting_object" as const,
-                object: translateDraftingObject(
-                  object,
-                  delta,
-                  sourceDocument.presentation.grid,
-                ),
+                object: translateDraftingObject(object, delta, 1),
               },
             ]
           : [];

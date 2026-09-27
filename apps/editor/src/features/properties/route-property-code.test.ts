@@ -142,4 +142,53 @@ describe("Route property code", () => {
       },
     });
   });
+  it("names a power rail by its power label and shows or hides that label", () => {
+    const { document, route } = fixture();
+    const rail = { ...route, presentation: "power-rail" as const };
+    const label: Annotation = {
+      id: "power-label-rail",
+      kind: "power-label",
+      netId: "net-1",
+      binding: { kind: "net-name", netId: "net-1" },
+      anchor: {
+        kind: "object",
+        objectId: "j2",
+        localOffset: { x: 10, y: 10 },
+        fallbackPosition: { x: 110, y: 10 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    };
+    const railDocument = {
+      ...document,
+      routes: [rail],
+      annotations: [label],
+      connectivityEvidence: [
+        {
+          id: "claim-rail",
+          kind: "name-claim" as const,
+          netId: "net-1",
+          name: "VDD",
+          scope: "global" as const,
+          owner: { kind: "power-marker" as const, objectId: label.id },
+        },
+      ],
+    };
+    expect(routePropertyCodeValue(railDocument, rail, null)).toMatchObject({
+      net: { name: "VDD", scope: "global" },
+      display: { visualAnnotation: true },
+    });
+    const hidden = {
+      ...railDocument,
+      annotations: [{ ...label, visible: false }],
+    };
+    expect(routePropertyCodeValue(hidden, rail, null).display).toEqual({
+      visualAnnotation: false,
+    });
+    // An ordinary wire on the same Net shows no rail label switch.
+    expect(
+      routePropertyCodeValue(railDocument, route, null),
+    ).not.toHaveProperty("display");
+  });
 });

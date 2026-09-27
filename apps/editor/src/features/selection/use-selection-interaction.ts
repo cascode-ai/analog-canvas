@@ -46,6 +46,7 @@ import { planDetachedMove } from "./detached-move";
 import type { VisualSelection } from "./visual-selection";
 import {
   planSelectionMove,
+  selectionMovePitch,
   type SelectionMovePlan,
 } from "./selection-move-plan";
 
@@ -183,6 +184,8 @@ export interface UseSelectionInteractionOptions {
     delta: Point,
   ) => void;
   snapCoordinate: (value: number, grid: number) => number;
+  /** The finer step labels and drawing objects move by on their own. */
+  annotationGrid?: number;
   updateInstanceSelection: (instanceId: string, additive: boolean) => void;
   suppressInstanceClickRef: MutableRefObject<boolean>;
   resolveInstanceMove: (
@@ -698,15 +701,14 @@ export function useSelectionInteraction(
       return true;
     }
 
+    const pitch = selectionMovePitch(
+      session.movePlan,
+      options.document.presentation.grid,
+      options.annotationGrid ?? options.document.presentation.grid,
+    );
     session.lastDelta = {
-      x: options.snapCoordinate(
-        point.x - session.pointerOrigin.x,
-        options.document.presentation.grid,
-      ),
-      y: options.snapCoordinate(
-        point.y - session.pointerOrigin.y,
-        options.document.presentation.grid,
-      ),
+      x: options.snapCoordinate(point.x - session.pointerOrigin.x, pitch),
+      y: options.snapCoordinate(point.y - session.pointerOrigin.y, pitch),
     };
     options.setProjectedMovePreview(null);
     options.snapGuides([]);
@@ -1233,17 +1235,16 @@ export function useSelectionInteraction(
     let visual: ReturnType<typeof startCanvasDragVisual> | null = null;
     const dragVisual = () =>
       (visual ??= startCanvasDragVisual(svg, movePlan.previewObjectIds));
+    const pitch = selectionMovePitch(
+      movePlan,
+      options.document.presentation.grid,
+      options.annotationGrid ?? options.document.presentation.grid,
+    );
     const deltaAt = (client: Point): Point => {
       const point = options.pointFromClient(client.x, client.y, svg, false);
       return {
-        x: options.snapCoordinate(
-          point.x - start.x,
-          options.document.presentation.grid,
-        ),
-        y: options.snapCoordinate(
-          point.y - start.y,
-          options.document.presentation.grid,
-        ),
+        x: options.snapCoordinate(point.x - start.x, pitch),
+        y: options.snapCoordinate(point.y - start.y, pitch),
       };
     };
     options.canvasDragSessionRef.current = startCanvasDragSession({

@@ -171,6 +171,50 @@ describe("who owns one press on the canvas", () => {
     ).toBe("ignore");
   });
 
+  it("offers a label pressed during placement to the label: a drag carries it", () => {
+    const placing = {
+      placementOwnsCanvas: true,
+      componentPlacementPending: true,
+    };
+    expect(
+      resolvePointerDownAction(
+        facts({ ...placing, hit: hitOf("annotation", "instance-label-P1") }),
+      ),
+    ).toEqual({
+      kind: "end-placement-drag-annotation",
+      annotationId: "instance-label-P1",
+    });
+    // Anywhere else the press still places the part.
+    expect(resolvePointerDownAction(facts(placing)).kind).toBe("ignore");
+    expect(
+      resolvePointerDownAction(facts({ ...placing, hit: null })).kind,
+    ).toBe("ignore");
+    // A copy, a Net Label or a Power Rail being placed keeps the canvas.
+    expect(
+      resolvePointerDownAction(
+        facts({
+          placementOwnsCanvas: true,
+          hit: hitOf("annotation", "instance-label-P1"),
+        }),
+      ).kind,
+    ).toBe("ignore");
+    // So does a handle under the point, and any button but the primary.
+    expect(
+      resolvePointerDownAction(
+        facts({
+          ...placing,
+          handleAtPoint: true,
+          hit: hitOf("annotation", "a1"),
+        }),
+      ).kind,
+    ).toBe("ignore");
+    expect(
+      resolvePointerDownAction(
+        facts({ ...placing, button: 2, hit: hitOf("annotation", "a1") }),
+      ).kind,
+    ).toBe("ignore");
+  });
+
   it("keeps handles ahead of the scene", () => {
     // A route handle can sit under a Junction circle, and the buried-wire
     // span exists exactly because a symbol covers the wire.

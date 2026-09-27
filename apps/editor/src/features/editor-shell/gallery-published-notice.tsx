@@ -8,8 +8,8 @@ export interface GalleryPublishedNoticeState {
 
 /**
  * Says that a publish or an update reached the Gallery, and links to the
- * circuit there. The dialog closes on success, and a line in the status bar
- * alone was easy to miss.
+ * circuit there: the Gallery wall opens and scrolls to its tile. The dialog
+ * closes on success, and a line in the status bar alone was easy to miss.
  */
 export function GalleryPublishedNotice({
   notice,
@@ -38,7 +38,11 @@ export function GalleryPublishedNotice({
           ? `Updated “${notice.name}” in the Gallery`
           : `Published “${notice.name}” to the Gallery`}
       </span>
-      <a href={`/g/${notice.id}`} target="_blank" rel="noreferrer">
+      <a
+        href={`/?entry=${encodeURIComponent(notice.id)}`}
+        target="_blank"
+        rel="noreferrer"
+      >
         View in Gallery
       </a>
       <button

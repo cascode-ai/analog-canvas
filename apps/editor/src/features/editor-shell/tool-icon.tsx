@@ -23,7 +23,8 @@ export type ToolIconName =
   | "inspect"
   | "undo"
   | "redo"
-  | "delete";
+  | "delete"
+  | "reset-labels";
 
 export function ToolIcon({ name }: { name: ToolIconName }) {
   const common = {
@@ -183,6 +184,15 @@ export function ToolIcon({ name }: { name: ToolIconName }) {
       {name === "delete" ? (
         <>
           <path d="M4 6h12M8 6V4h4v2M7 6l.6 10h4.8L13 6" {...common} />
+        </>
+      ) : null}
+      {name === "reset-labels" ? (
+        <>
+          {/* An italic letter over its subscript, with a turning-back arrow. */}
+          <path d="M5 13l2-8M4 5h5" {...common} />
+          <path d="M9 15h3" {...common} />
+          <path d="M14 4.5a4 4 0 1 1-1.2 6.6" {...common} />
+          <path d="M14 2v2.8h2.8" {...common} />
         </>
       ) : null}
     </svg>

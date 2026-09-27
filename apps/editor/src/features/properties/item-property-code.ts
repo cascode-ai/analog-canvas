@@ -6,7 +6,8 @@ type RecordValue = Record<string, unknown>;
 export interface ItemPropertyIdentity {
   type: string;
   typePath?: string;
-  name: string;
+  /** One name, or, for a batch, each component's name by its key. */
+  name: string | Readonly<Record<string, string>>;
   /** Existing authoring field, when this object's name is editable. */
   namePath?: string;
   coordinate?: readonly [number, number] | null;
@@ -137,7 +138,9 @@ export function itemPropertyCode(
           anchor.fallbackPosition = { x: position[0], y: position[1] };
         } else if (changed)
           throw new Error(
-            `${key} is read-only for this object${fixed[key] === null ? " (not applicable)" : ""}`,
+            key === "name" && record(fixed[key])
+              ? "name lists each selected component; select one to rename it"
+              : `${key} is read-only for this object${fixed[key] === null ? " (not applicable)" : ""}`,
           );
       } else {
         if (get(value, path) !== undefined)

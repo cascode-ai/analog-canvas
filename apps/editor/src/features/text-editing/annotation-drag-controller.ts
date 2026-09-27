@@ -64,21 +64,35 @@ export function createAnnotationDragController({
     event: ReactPointerEvent<SVGElement>,
     annotation: Annotation,
     hitTarget: SVGElement = event.currentTarget,
+    options: {
+      /**
+       * The press only picks the label up once it moves: until then it is a
+       * click, which is left to whoever owns the canvas (a part being placed).
+       * Called as the drag begins, before the label is selected.
+       */
+      onDragStart?: () => void;
+    } = {},
   ): void => {
     if (event.button !== 0) return;
-    if (onCompositeMove(event, hitTarget)) return;
+    const deferred = options.onDragStart !== undefined;
+    if (!deferred && onCompositeMove(event, hitTarget)) return;
     event.stopPropagation();
     const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
-    selectAnnotation(annotation.id, additiveSelection);
-    clearSelectedEndpoint();
-    if (annotation.locked) {
-      setStatus("Selected locked annotation");
+    const select = () => {
+      selectAnnotation(annotation.id, additiveSelection);
+      clearSelectedEndpoint();
+    };
+    if (annotation.locked || (!deferred && additiveSelection)) {
+      if (deferred) return;
+      select();
+      setStatus(
+        annotation.locked
+          ? "Selected locked annotation"
+          : `Selected annotation ${annotation.id}`,
+      );
       return;
     }
-    if (additiveSelection) {
-      setStatus(`Selected annotation ${annotation.id}`);
-      return;
-    }
+    if (!deferred) select();
     dragSessionRef.current?.cancel();
     const svg = hitTarget.ownerSVGElement!;
     const pointerStart = pointFromClient(event.clientX, event.clientY, svg);
@@ -93,8 +107,13 @@ export function createAnnotationDragController({
       annotation,
     );
     let visual: ReturnType<typeof startCanvasDragVisual> | null = null;
-    const dragVisual = () =>
-      (visual ??= startCanvasDragVisual(svg, [annotation.id]));
+    const dragVisual = () => {
+      if (!visual && deferred) {
+        options.onDragStart!();
+        select();
+      }
+      return (visual ??= startCanvasDragVisual(svg, [annotation.id]));
+    };
     const positionAt = (clientX: number, clientY: number): DerivedPoint => {
       const pointer = pointFromClient(clientX, clientY, svg);
       return {

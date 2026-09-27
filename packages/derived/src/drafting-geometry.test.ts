@@ -7,7 +7,10 @@ import {
   draftTextLayoutContent,
   resolveDraftingObjectGeometry,
 } from "./drafting-geometry.js";
-import { richTextMetrics } from "./rich-text-layout.js";
+import {
+  measureRichTextDocument,
+  richTextMetrics,
+} from "./rich-text-layout.js";
 import { resolveDocumentStyleProfile } from "./style-profile.js";
 
 /** The metrics a label lays out with, so a test measures what the app does. */
@@ -254,6 +257,59 @@ describe("object-anchored drafting text on rectangles", () => {
   });
 });
 
+describe("the box of free drafting text", () => {
+  it("sits on the glyphs above the baseline, as a label's box does", () => {
+    // Free text stands on its anchor by its first baseline. Its box used to
+    // be centered on that baseline, leaving half of it empty below R_P.
+    const note: Extract<DraftingObject, { kind: "text" }> = {
+      id: "note-rp",
+      kind: "text",
+      locked: false,
+      zIndex: 0,
+      anchor: { kind: "free", position: { x: 430, y: 185 } },
+      content: {
+        runs: [
+          { kind: "text", value: "R" },
+          {
+            kind: "span",
+            style: "subscript",
+            children: [{ kind: "text", value: "P" }],
+          },
+        ],
+      },
+      alignment: "middle",
+      rotation: 0,
+      typographyToken: "label",
+    };
+    const document = documentWith([note]);
+    const geometry = resolveDraftingObjectGeometry(document, resolver, note);
+    const fontSize = labelMetrics(document).fontSize;
+    expect(geometry.bounds.y).toBeCloseTo(185 - fontSize * 1.05);
+    // Past the baseline only by a descent, not by half the box.
+    const below = geometry.bounds.y + geometry.bounds.height - 185;
+    expect(below).toBeGreaterThan(0);
+    expect(below).toBeLessThan(fontSize * 0.5);
+    // Centered text keeps a box centered on its anchor.
+    const box = rectangle("box-1", { x: 100, y: 60 });
+    const centered: Extract<DraftingObject, { kind: "text" }> = {
+      ...note,
+      id: "note-centered",
+      anchor: {
+        kind: "object",
+        objectId: box.id,
+        localOffset: { x: 0, y: 0 },
+        fallbackPosition: { x: 100, y: 60 },
+      },
+    };
+    const inBox = resolveDraftingObjectGeometry(
+      documentWith([box, centered]),
+      resolver,
+      centered,
+    );
+    expect(inBox.bounds.y + inBox.bounds.height / 2).toBeCloseTo(60);
+  });
+});
+
 describe("polarity drafting text", () => {
   function polarityText(
     polarity: "both" | "positive" | "negative",
@@ -370,5 +426,48 @@ describe("polarity drafting text", () => {
     expect(verticalPositiveStem.from.x).toBeCloseTo(verticalPositiveStem.to.x);
     expect(verticalGeometry.position).toEqual({ x: 100, y: 80 });
     expect(verticalGeometry.textPosition).toEqual({ x: 100, y: 80 });
+  });
+
+  it("moves marks beside the text out with a longer name", () => {
+    const beside = (value: string) => {
+      const object = {
+        ...polarityText("both", 270),
+        content: { runs: [{ kind: "text" as const, value }] },
+      };
+      const document = documentWith([object]);
+      const geometry = resolveDraftingObjectGeometry(
+        document,
+        resolver,
+        object,
+      );
+      if (geometry.kind !== "text") throw new Error("expected text geometry");
+      const [positive, , negative] = geometry.polarityLines;
+      // Measured as drafting text draws by default: bold, upright.
+      const textWidth = measureRichTextDocument(
+        object.content,
+        richTextMetrics(
+          resolveDocumentStyleProfile(document.presentation),
+          "label",
+          1,
+          { bold: true, italic: false },
+        ),
+      ).width;
+      return { positive: positive!, negative: negative!, textWidth };
+    };
+    const short = beside("Q");
+    const long = beside("Qin0long");
+    expect(long.textWidth).toBeGreaterThan(short.textWidth);
+    // + on the left and − on the right, each clear of the text's side.
+    for (const { positive, negative, textWidth } of [short, long]) {
+      expect(Math.max(positive.from.x, positive.to.x)).toBeLessThan(
+        100 - textWidth / 2,
+      );
+      expect(Math.min(negative.from.x, negative.to.x)).toBeGreaterThan(
+        100 + textWidth / 2,
+      );
+    }
+    expect(long.negative.from.x - short.negative.from.x).toBeCloseTo(
+      (long.textWidth - short.textWidth) / 2,
+    );
   });
 });

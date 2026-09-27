@@ -52,13 +52,45 @@ export function arrowEndStyles(
   return { start: resolve(true), end: resolve(false) };
 }
 
+const samePoint = (a: Point, b: Point) =>
+  Math.hypot(a.x - b.x, a.y - b.y) <= 1e-6;
+
+/**
+ * A leg of zero length draws nothing, but kept in the shaft it runs the shaft
+ * on to the tip — a path that ends on a repeated point would draw its line
+ * through and past the head. Drop every point that repeats the one before it
+ * with nothing bending the leg between them.
+ */
+function drawnLegs(
+  points: readonly Point[],
+  controls: readonly (Point | null)[],
+): { points: readonly Point[]; controls: readonly (Point | null)[] } {
+  const kept: Point[] = [points[0]!];
+  const keptControls: (Point | null)[] = [];
+  for (let index = 1; index < points.length; index++) {
+    const point = points[index]!;
+    const control = controls[index - 1] ?? null;
+    if (
+      samePoint(point, kept[kept.length - 1]!) &&
+      (!control || samePoint(control, point))
+    )
+      continue;
+    kept.push(point);
+    keptControls.push(control);
+  }
+  return kept.length >= 2
+    ? { points: kept, controls: keptControls }
+    : { points, controls };
+}
+
 /** One construction for export, preview, picker icons and hit geometry. */
 export function arrowArtwork(
   object: Pick<Arrow, "styleOverride" | "outline">,
-  points: readonly Point[],
-  controls: readonly (Point | null)[],
+  pathPoints: readonly Point[],
+  pathControls: readonly (Point | null)[],
   profile: SchematicStyleProfile,
 ): ArrowArtwork {
+  const { points, controls } = drawnLegs(pathPoints, pathControls);
   const scale = object.styleOverride?.strokeScale ?? 1;
   const strokeWidth = profile.strokes.annotation * scale;
   const ends = arrowEndStyles(object);

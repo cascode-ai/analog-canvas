@@ -355,7 +355,9 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
     ...spans
       .filter(
         (span) =>
-          span.field.path.startsWith("display.parameters.") &&
+          // A batch lists one switch per component where they differ.
+          (span.field.path.startsWith("display.parameters.") ||
+            /^display\.(?:visualAnnotation|value)\./u.test(span.field.path)) &&
           span.field.kind === "boolean",
       )
       .map((span) => span.field),

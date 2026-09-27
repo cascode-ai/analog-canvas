@@ -921,10 +921,41 @@ export function RichTextEditor({
   };
 
   const insertSymbol = (symbol: string): void => {
-    if (disabled || !editableRef.current) return;
-    editableRef.current.focus();
+    const editable = editableRef.current;
+    if (disabled || !editable) return;
+    editable.focus();
     restoreSelection();
-    document.execCommand("insertText", false, symbol);
+    // A caret the person never placed, or one left in text the editor has
+    // since redrawn, is no place to insert: the symbol goes at the end.
+    const selection = window.getSelection();
+    if (!selection) return;
+    if (
+      !selectionRangeRef.current ||
+      selection.rangeCount === 0 ||
+      !editable.contains(selection.anchorNode) ||
+      !editable.contains(selection.focusNode)
+    ) {
+      const end = document.createRange();
+      end.selectNodeContents(editable);
+      end.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(end);
+    }
+    // An engine that refuses the edit command inside the canvas's embedded
+    // editor still gets the symbol, placed directly with the caret after it.
+    if (
+      !document.execCommand("insertText", false, symbol) &&
+      selection.rangeCount > 0
+    ) {
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      const text = document.createTextNode(symbol);
+      range.insertNode(text);
+      range.setStartAfter(text);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
     rememberSelection();
     sync();
   };

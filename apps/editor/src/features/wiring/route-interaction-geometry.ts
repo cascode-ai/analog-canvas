@@ -102,9 +102,22 @@ export function closestNetConductorPoint(
   netId: string,
   candidate: Point,
 ): Point | null {
+  return closestRoutePoint(
+    routeGeometryRecords,
+    candidate,
+    (route) => route.netId === netId,
+  );
+}
+
+/** The point nearest `candidate` on the centerlines of the chosen routes. */
+export function closestRoutePoint(
+  routeGeometryRecords: readonly RouteGeometryRecord[],
+  candidate: Point,
+  include: (route: RouteGeometryRecord["route"]) => boolean,
+): Point | null {
   return (
     routeGeometryRecords
-      .filter(({ route }) => route.netId === netId)
+      .filter(({ route }) => include(route))
       .flatMap(({ geometry }) =>
         geometry.centerline.slice(0, -1).map((from, index) => {
           const point = closestPointOnSegment(

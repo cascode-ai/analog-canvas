@@ -650,6 +650,14 @@
   position: relative;
 }
 
+/* The circuit a "View in Gallery" link asked for, ringed once it is found. */
+.gallery-tile-wrap.is-linked > .gallery-tile {
+  border-color: var(--icm-accent);
+  box-shadow:
+    0 0 0 3px var(--icm-accent-soft),
+    0 4px 16px rgb(0 0 0 / 8%);
+}
+
 .gallery-owner-menu {
   position: absolute;
   z-index: 3;

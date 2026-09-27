@@ -17,6 +17,8 @@ import {
   type ResolvedDocumentRoutingGeometry,
 } from "./resolved-route-geometry.js";
 import {
+  fractionExtraAscentEm,
+  fractionPartScale,
   measureRichTextDocument,
   richTextMetrics,
   wrapRichTextDocument,
@@ -24,6 +26,7 @@ import {
 import {
   objectStyleProfile,
   resolveDocumentStyleProfile,
+  type SchematicStyleProfile,
 } from "./style-profile.js";
 import { arrowArtwork, arrowArtworkBounds } from "./arrow-artwork.js";
 
@@ -303,16 +306,22 @@ function resolveText(
         content,
         metrics,
         rotation,
+        object.alignment,
       )
     : null;
   const textPosition = polarity?.textPosition ?? position;
-  const resolvedTextBounds = textBounds(
-    textPosition,
-    object.alignment,
-    0,
-    content,
-    metrics,
-  );
+  // As the renderer places it: text on an object or between polarity marks
+  // is centered on its anchor, any other text stands on it by its baseline.
+  const resolvedTextBounds =
+    object.anchor.kind === "object" || object.polarity
+      ? textBounds(textPosition, object.alignment, 0, content, metrics)
+      : baselineTextBounds(
+          textPosition,
+          object.alignment,
+          content,
+          metrics,
+          profile,
+        );
   const barePolarity =
     object.polarity === "positive" || object.polarity === "negative";
   const bounds = polarity
@@ -341,19 +350,36 @@ export function resolvePolarityTextGeometry(
   content: RichTextDocument,
   metrics: ReturnType<typeof richTextMetrics>,
   rotation: Rotation,
+  alignment: "start" | "middle" | "end" = "middle",
 ): {
   textPosition: DerivedPoint;
   lines: Extract<ResolvedDraftingGeometry, { kind: "text" }>["polarityLines"];
 } {
   const layout = measureRichTextDocument(content, metrics);
-  const textHalfHeight = layout.height / 2;
   const markerHalfArm = metrics.fontSize * 0.23;
-  const separation = textHalfHeight + markerHalfArm + metrics.fontSize * 0.18;
+  // The text stays upright while its marks turn with the rotation, so each
+  // mark clears the text by the text's own reach toward it: half its height
+  // above or below it, and its width from the anchor to either side. Marks
+  // beside a long name move out with it instead of running into it.
+  const left =
+    alignment === "start"
+      ? 0
+      : alignment === "end"
+        ? layout.width
+        : layout.width / 2;
+  const reach = (dx: number, dy: number) =>
+    (dx >= 0 ? dx * (layout.width - left) : -dx * left) +
+    Math.abs(dy) * (layout.height / 2);
+  const radians = (rotation * Math.PI) / 180;
+  // The marks' axis: + sits toward -axis, − toward +axis.
+  const axis = { x: -Math.sin(radians), y: Math.cos(radians) };
+  const separation = (dx: number, dy: number) =>
+    reach(dx, dy) + markerHalfArm + metrics.fontSize * 0.18;
   let positiveOffset: number | null = null;
   let negativeOffset: number | null = null;
   if (polarity === "both") {
-    positiveOffset = -separation;
-    negativeOffset = separation;
+    positiveOffset = -separation(-axis.x, -axis.y);
+    negativeOffset = separation(axis.x, axis.y);
   } else if (polarity === "positive") {
     positiveOffset = 0;
   } else {
@@ -363,13 +389,10 @@ export function resolvePolarityTextGeometry(
     ResolvedDraftingGeometry,
     { kind: "text" }
   >["polarityLines"] = [];
-  const markerCenter = (offsetY: number): DerivedPoint => {
-    const radians = (rotation * Math.PI) / 180;
-    return {
-      x: position.x - offsetY * Math.sin(radians),
-      y: position.y + offsetY * Math.cos(radians),
-    };
-  };
+  const markerCenter = (offsetY: number): DerivedPoint => ({
+    x: position.x - offsetY * Math.sin(radians),
+    y: position.y + offsetY * Math.cos(radians),
+  });
   if (positiveOffset !== null) {
     const center = markerCenter(positiveOffset);
     lines.push(
@@ -765,6 +788,43 @@ function textBounds(
   const box: DerivedRect = { x: left, y: top, width, height };
   if (rotation === 0) return box;
   return rotatedRectBounds(box, position, rotation);
+}
+
+/**
+ * The box of text drawn with its first baseline on its anchor: free text and
+ * text on a wire. It is measured as a label's is — from an ascent above the
+ * baseline down past the last line — so it sits on the glyphs. A box centered
+ * on the baseline, as for text centered on its anchor, left half of itself
+ * hanging empty below the words.
+ */
+function baselineTextBounds(
+  position: DerivedPoint,
+  alignment: "start" | "middle" | "end",
+  content: RichTextDocument,
+  metrics: ReturnType<typeof richTextMetrics>,
+  profile: SchematicStyleProfile,
+): DerivedRect {
+  const layout = measureRichTextDocument(content, metrics);
+  const fontSize = metrics.fontSize;
+  // A stacked fraction raises its numerator past the plain first-line ascent.
+  const fractionAscent =
+    fontSize *
+    fractionPartScale(profile.typography.subscriptScale) *
+    fractionExtraAscentEm(content, profile.typography);
+  const width = Math.max(fontSize * 0.6, layout.width);
+  const height = Math.max(fontSize * 1.35, layout.height) + fractionAscent;
+  const left =
+    alignment === "start"
+      ? position.x
+      : alignment === "end"
+        ? position.x - width
+        : position.x - width / 2;
+  return {
+    x: left,
+    y: position.y - fontSize * 1.05 - fractionAscent,
+    width,
+    height,
+  };
 }
 
 function rotatedRectBounds(

@@ -26,6 +26,12 @@
   pointer-events: none;
 }
 
+/* A label stays pressable while a part is placed: a click on it still places
+   the part, and a drag ends placement and carries the label. */
+.schematic-canvas.component-mode .hit-target.annotation-text-hit {
+  pointer-events: auto;
+}
+
 .schematic-canvas.drawing-mode,
 .schematic-canvas.drawing-mode * {
   cursor: crosshair;

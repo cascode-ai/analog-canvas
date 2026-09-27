@@ -3,7 +3,40 @@ import { describe, expect, it } from "vitest";
 
 import { createEmptyDocument } from "@icm/model";
 
-import { planSelectionMove } from "./selection-move-plan";
+import { planSelectionMove, selectionMovePitch } from "./selection-move-plan";
+
+describe("the step a selection moves by", () => {
+  const plan = (
+    overrides: Partial<ReturnType<typeof planSelectionMove>> = {},
+  ): ReturnType<typeof planSelectionMove> => ({
+    intent: "move-selection",
+    instanceIds: [],
+    translatedRouteIds: [],
+    translatedJunctionIds: [],
+    looseRouteIds: [],
+    previewObjectIds: [],
+    independentAnnotationIds: ["label-a", "label-b"],
+    draftingIds: ["note-1"],
+    fixedObjectIds: [],
+    ...overrides,
+  });
+
+  it("moves labels and drawing objects together on the label grid", () => {
+    // One label dragged alone takes the label grid's step; several dragged
+    // together take the same step.
+    expect(selectionMovePitch(plan(), 10, 5)).toBe(5);
+  });
+
+  it("keeps parts and wires on the drawing grid", () => {
+    for (const overrides of [
+      { instanceIds: ["R1"] },
+      { translatedRouteIds: ["w1"] },
+      { translatedJunctionIds: ["j1"] },
+      { looseRouteIds: ["w2"] },
+    ])
+      expect(selectionMovePitch(plan(overrides), 10, 5)).toBe(10);
+  });
+});
 
 describe("selection move plan", () => {
   it("keeps an internal wire, its Junction, and anchored labels in one visual closure", () => {

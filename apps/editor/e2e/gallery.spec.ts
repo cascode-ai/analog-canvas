@@ -3353,7 +3353,7 @@ test("a signed-in member publishes directly, bylined by the account", async ({
   );
   await expect(
     notice.getByRole("link", { name: "View in Gallery" }),
-  ).toHaveAttribute("href", /^\/g\//u);
+  ).toHaveAttribute("href", /^\/\?entry=[A-Za-z0-9-]+$/u);
   expect(posted).toEqual([
     {
       authorization: null,

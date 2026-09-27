@@ -140,15 +140,23 @@ describe("label tethers", () => {
     const { document, context } = fixture();
     const [pin, wire] = resolveLabelTethers(context, ["P1-name", "wire-name"]);
     const pinName = resolver.resolve("port")!.definition.pins[0]!.name;
+    const contact = resolveEndpointConnection(document, resolver, {
+      kind: "terminal",
+      instanceId: "P1",
+      pinName,
+    })!.contactPoint;
+    // The line ends in the Pin's circle, not at the lead's end where a wire
+    // joins: the circle sits left of the contact on an unturned Pin.
+    const circle = resolver
+      .resolve("port")!
+      .definition.primitives.find((primitive) => primitive.kind === "circle");
+    if (circle?.kind !== "circle") throw new Error("the Pin draws a circle");
     expect(pin).toMatchObject({
       kind: "pin",
       ownerId: "P1",
-      target: resolveEndpointConnection(document, resolver, {
-        kind: "terminal",
-        instanceId: "P1",
-        pinName,
-      })!.contactPoint,
+      target: { x: 200 + circle.center.x, y: circle.center.y },
     });
+    expect(pin!.target.x).toBeLessThan(contact.x);
     expect(wire).toMatchObject({
       kind: "wire",
       ownerId: "wire",
@@ -161,5 +169,77 @@ describe("label tethers", () => {
     expect(resolveLabelTethers(context, ["R1-hidden"])).toEqual([]);
     expect(labelsOwnedBy(document, "R1")).toEqual(["R1-name"]);
     expect(labelsOwnedBy(document, "P1")).toEqual(["P1-name"]);
+  });
+
+  it("joins a supply's name to the VDD bar and a rail's name to the rail", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push({
+      id: "VDD1",
+      symbolId: "vdd-port",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+    });
+    document.nets.push({ id: "rail-net", terminals: [] });
+    document.junctions.push(
+      { id: "r0", netId: "rail-net", position: { x: 300, y: 200 } },
+      { id: "r1", netId: "rail-net", position: { x: 500, y: 200 } },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "rail",
+        netId: "rail-net",
+        start: { kind: "junction", junctionId: "r0" },
+        end: { kind: "junction", junctionId: "r1" },
+        bends: [],
+        modes: ["manual"],
+        presentation: "power-rail",
+      }),
+    );
+    const powerLabel = (
+      id: string,
+      objectId: string,
+      offset: { x: number; y: number },
+    ) => ({
+      id,
+      kind: "power-label" as const,
+      binding: { kind: "net-name" as const, netId: "rail-net" },
+      netId: "rail-net",
+      anchor: {
+        kind: "object" as const,
+        objectId,
+        localOffset: offset,
+        fallbackPosition: offset,
+      },
+      alignment: "start" as const,
+      rotation: 0 as const,
+      locked: false,
+    });
+    // The VDD label sits right of the bar; the rail's name above its middle,
+    // though it hangs on the rail's right-hand end.
+    document.annotations.push(
+      powerLabel("vdd-name", "VDD1", { x: 20, y: 0 }),
+      powerLabel("rail-name", "r1", { x: -110, y: -20 }),
+    );
+    const routing = resolveDocumentRoutingGeometry(document, resolver);
+    const [supply, rail] = resolveLabelTethers(
+      {
+        document,
+        resolver,
+        styleProfile: razaviTextbookProfile,
+        routeGeometryRecords: document.routes.flatMap((route) => {
+          const geometry = routing.routes.get(route.id);
+          return geometry ? [{ route, geometry }] : [];
+        }),
+      },
+      ["vdd-name", "rail-name"],
+    );
+    // On the bar's midline at its right end, not at the stem's foot below.
+    expect(supply).toMatchObject({ kind: "pin", ownerId: "VDD1" });
+    expect(supply!.target.x).toBeCloseTo(110);
+    expect(supply!.target.y).toBeLessThan(105);
+    // Straight down onto the rail, not across to the Junction at its end.
+    expect(rail).toMatchObject({ kind: "pin", ownerId: "r1" });
+    expect(rail!.target.y).toBe(200);
+    expect(rail!.target.x).toBeGreaterThan(300);
+    expect(rail!.target.x).toBeLessThan(500);
   });
 });

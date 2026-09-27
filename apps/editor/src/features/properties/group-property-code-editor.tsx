@@ -11,6 +11,7 @@ import {
   formatGroupPropertyCode,
   groupPropertyCodeChanges,
   groupPropertyCodeSpans,
+  groupPropertyItemNames,
   parseGroupPropertyCode,
   serializeGroupPropertyCode,
   type GroupPropertyCodeContext,
@@ -51,9 +52,10 @@ export function GroupPropertyCodeEditor({
       itemPropertyCode(nativeBaseline, {
         type: context.symbol,
         typePath: "symbol",
-        name: "",
+        // Each component by its Reference, so a batch reads who is who.
+        name: groupPropertyItemNames(context),
       }),
-    [nativeBaseline, context.symbol],
+    [nativeBaseline, context],
   );
   const baseline = projection.format(nativeBaseline);
   const previousBaseline = useRef(baseline);
@@ -190,8 +192,10 @@ export function GroupPropertyCodeEditor({
         />
       </Suspense>
       <small className="group-property-hint">
-        Empty values keep each component’s current setting. Enter a value to
-        apply it to all selected components. Type is shown for reference.
+        Where components differ, each is listed by its Reference: edit its entry
+        to change that one, or enter a single value to apply it to all. Names
+        are listed for reference. Empty values keep each component’s current
+        setting.
         {context.parameters === null
           ? " Select one component type to edit parameters together."
           : ""}

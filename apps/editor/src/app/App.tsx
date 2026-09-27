@@ -368,14 +368,23 @@ import {
   instanceParameterVisibility,
   instanceParameterVisibilityEdits,
 } from "../features/instance-display/instance-parameter-display";
+import { resetLabelLookEdits } from "../features/instance-display/reset-label-look";
 import { createSelectionPropertyCommands } from "../features/properties/selection-property-commands";
 import { planComponentPropertyCodeEdits } from "../features/properties/component-property-code-edits";
-import { planGroupPropertyCodeEdits } from "../features/properties/group-property-code-edits";
+import {
+  groupVisibilityTargets,
+  planGroupPropertyCodeEdits,
+} from "../features/properties/group-property-code-edits";
+import {
+  batchAnnotationEdits,
+  batchDraftingEdits,
+} from "../features/properties/batch-property-apply";
 import type { ComponentPropertyCodeValue } from "../features/properties/component-property-code";
 import {
   commonGroupValue,
   groupForeground,
   groupParameterContext,
+  groupPropertyItems,
   type GroupPropertyCodeValue,
 } from "../features/properties/group-property-code";
 import {
@@ -2844,14 +2853,42 @@ function WorkspaceEditor({
     selectedGroupInstances,
     styleProfile.foreground,
   );
+  const selectedGroupParameters = groupParameterContext(
+    selectedGroupInstances,
+    propertyParametersForInstance,
+  );
   const selectedGroupContext = {
-    ...groupParameterContext(
-      selectedGroupInstances,
-      propertyParametersForInstance,
-    ),
+    ...selectedGroupParameters,
     reference: selectedGroupReferenceVisibility,
     value: selectedGroupValueVisibility,
     foreground: selectedGroupForeground,
+    // Where the components differ, the batch lists what each one has.
+    items:
+      selectedGroupInstances.length < 2
+        ? []
+        : groupPropertyItems(selectedGroupInstances, {
+            parametersFor: propertyParametersForInstance,
+            parameterKeys: Object.keys(
+              selectedGroupParameters.parameters ?? {},
+            ),
+            nameOf: (instance) =>
+              document.netlist?.terminals.find((terminal) =>
+                terminal.interfaceInstanceIds.includes(instance.id),
+              )?.name ??
+              instance.reference ??
+              instance.id,
+            referenceVisible: (instance) => {
+              const label = instanceLabelAnnotationFor(document, instance.id);
+              return label !== undefined && label.visible !== false;
+            },
+            valueVisible: (instance) => {
+              if (!symbolSupportsValueAnnotation(instance.symbolId))
+                return null;
+              const value = instanceValueAnnotation(document, instance.id);
+              return value !== null && value.visible !== false;
+            },
+            defaultForeground: styleProfile.foreground,
+          }),
   };
   const wireUnderSymbolWarnings = useMemo(
     () =>
@@ -3263,6 +3300,7 @@ function WorkspaceEditor({
     pointFromClient,
     completeVisualSelectionMove,
     snapCoordinate,
+    annotationGrid,
     updateInstanceSelection,
     suppressInstanceClickRef: suppressInstanceClick,
     resolveInstanceMove: instanceMoveAt,
@@ -3592,6 +3630,9 @@ function WorkspaceEditor({
         copyPlacement !== null ||
         netLabelPlacement?.phase === "placing",
       ),
+      componentPlacementPending: Boolean(
+        pendingSymbolId && pendingComponentPlacement && !vddRailMode,
+      ),
       tool,
       cellSymbolLayoutEnabled,
       simulationPickMode,
@@ -3625,6 +3666,13 @@ function WorkspaceEditor({
       setStatus,
       suppressNextClick: () => {
         suppressInstanceClick.current = true;
+      },
+      // Ends the placement a label drag has taken over, leaving that drag's
+      // own session running.
+      endComponentPlacement: () => {
+        cancelInteraction();
+        setComponentPreviewPoint(null);
+        setStatus("Component placement ended");
       },
       pickSimulationNet: (kind, id) => {
         const netId =
@@ -6337,6 +6385,22 @@ function WorkspaceEditor({
             setProjectPanel(null);
             setSelectionOpen(true);
           },
+          resetLabels: {
+            enabled: document.annotations.some(
+              (annotation) => annotation.binding && !annotation.locked,
+            ),
+            execute: () => {
+              const edits = resetLabelLookEdits(document, project);
+              if (edits.length === 0) {
+                setStatus("Every label already has the default look");
+                return;
+              }
+              if (transact(edits).ok)
+                setStatus(
+                  `Reset ${edits.length} label${edits.length === 1 ? "" : "s"} to the default size and look`,
+                );
+            },
+          },
         }}
         hierarchyToolbar={{
           documents: project.documents,
@@ -7453,22 +7517,31 @@ function WorkspaceEditor({
                     value,
                     selectedGroupContext,
                   );
-                  if (
-                    value.display.visualAnnotation !== "" &&
-                    value.display.visualAnnotation !==
-                      selectedGroupReferenceVisibility
-                  )
+                  // A shared switch turns every component; a dictionary
+                  // turns each one by its own entry.
+                  const labels = groupVisibilityTargets(
+                    value.display.visualAnnotation,
+                    selectedGroupReferenceVisibility,
+                    selectedIds,
+                    selectedGroupContext.items,
+                    (item) => item.reference,
+                  );
+                  if (labels.show.length > 0)
                     edits.push(
-                      ...referenceLabelVisibilityEdits(
-                        selectedIds,
-                        value.display.visualAnnotation,
-                      ),
+                      ...referenceLabelVisibilityEdits(labels.show, true),
                     );
-                  if (
-                    value.display.value !== undefined &&
-                    value.display.value !== "" &&
-                    value.display.value !== selectedGroupValueVisibility
-                  ) {
+                  if (labels.hide.length > 0)
+                    edits.push(
+                      ...referenceLabelVisibilityEdits(labels.hide, false),
+                    );
+                  const values = groupVisibilityTargets(
+                    value.display.value,
+                    selectedGroupValueVisibility,
+                    selectedGroupValueInstances.map((instance) => instance.id),
+                    selectedGroupContext.items,
+                    (item) => item.value,
+                  );
+                  if (values.show.length > 0 || values.hide.length > 0) {
                     // Display creation must see parameter changes in this same
                     // transaction, including components that had no value yet.
                     const patches = new Map(
@@ -7497,10 +7570,9 @@ function WorkspaceEditor({
                       }),
                     };
                     if (
-                      value.display.value &&
                       candidateDocument.instances.some(
                         (instance) =>
-                          selectedIds.includes(instance.id) &&
+                          values.show.includes(instance.id) &&
                           symbolSupportsValueAnnotation(instance.symbolId) &&
                           displayableInstanceValue(instance).kind !==
                             "displayable",
@@ -7511,13 +7583,22 @@ function WorkspaceEditor({
                         message:
                           "Set valid component values before enabling their display",
                       };
-                    edits.push(
-                      ...valueVisibilityEdits(
-                        candidateDocument,
-                        selectedIds,
-                        value.display.value,
-                      ),
-                    );
+                    if (values.show.length > 0)
+                      edits.push(
+                        ...valueVisibilityEdits(
+                          candidateDocument,
+                          values.show,
+                          true,
+                        ),
+                      );
+                    if (values.hide.length > 0)
+                      edits.push(
+                        ...valueVisibilityEdits(
+                          candidateDocument,
+                          values.hide,
+                          false,
+                        ),
+                      );
                   }
                   if (edits.length === 0) return { ok: true };
                   if (transact(edits).ok) {
@@ -7548,9 +7629,12 @@ function WorkspaceEditor({
                           selectedInstance.id,
                         defaultForeground: styleProfile.foreground,
                         revision: document.revision,
+                        // A Cell Pin's name label is shown or hidden like a
+                        // device Reference, though the Pin has no Reference.
                         referenceVisible:
                           selectedLabelRenderable &&
-                          symbolCarriesReference(selectedInstance.symbolId)
+                          (symbolCarriesReference(selectedInstance.symbolId) ||
+                            selectedFormalTerminal !== undefined)
                             ? selectedInstanceLabel !== undefined &&
                               selectedInstanceLabel.visible !== false
                             : null,
@@ -8031,11 +8115,24 @@ function WorkspaceEditor({
                       resolver,
                       inheritedColor: selectedAnnotationInheritedTextColor,
                       onApply: (annotation) => {
+                        // An edit made for one of several selected labels is
+                        // made for all of them.
+                        const batch = batchAnnotationEdits(
+                          document,
+                          selectedAnnotation,
+                          annotation,
+                          visualSelection.annotationIds,
+                        );
                         const result = transact([
                           { kind: "upsert_schematic_annotation", annotation },
+                          ...batch,
                         ]);
                         if (result.ok)
-                          setStatus("Updated annotation properties");
+                          setStatus(
+                            batch.length > 0
+                              ? `Updated ${batch.length + 1} labels`
+                              : "Updated annotation properties",
+                          );
                         return result;
                       },
                     }
@@ -8075,10 +8172,26 @@ function WorkspaceEditor({
                       defaultColor: styleProfile.foreground,
                       grid: annotationGrid,
                       onApply: (object) => {
+                        // An edit made for one of several selected drawing
+                        // objects is made for every one that has the setting.
+                        const batch = batchDraftingEdits(
+                          document,
+                          resolver,
+                          annotationGrid,
+                          selectedDrafting,
+                          object,
+                          visualSelection.draftingIds,
+                        );
                         const result = transact([
                           { kind: "upsert_drafting_object", object },
+                          ...batch,
                         ]);
-                        if (result.ok) setStatus("Updated drawing properties");
+                        if (result.ok)
+                          setStatus(
+                            batch.length > 0
+                              ? `Updated ${batch.length + 1} drawing objects`
+                              : "Updated drawing properties",
+                          );
                         return result;
                       },
                       onStackingChange: setDraftingStacking,

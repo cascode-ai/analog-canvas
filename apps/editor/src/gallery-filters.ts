@@ -9,6 +9,8 @@
  * of thing to a reader, so they persist as one thing.
  */
 
+import { galleryFocusEntryId } from "./gallery-focus";
+
 export type GalleryView = "gallery" | "shelf";
 
 /**
@@ -217,6 +219,8 @@ export function parseStoredGalleryFilters(
  * The filters the wall opens with. A link that narrows the wall wins outright
  * — it is somebody's request for that slice — and otherwise the reader's own
  * last choice is restored, including the empty one they cleared on purpose.
+ * A link to one circuit (`?entry=`) asks for the whole wall, where that
+ * circuit is sure to be.
  */
 export function resolveGalleryFilters(
   search: string,
@@ -224,6 +228,6 @@ export function resolveGalleryFilters(
 ): GalleryFilterState {
   const { filters, narrowed, namesView } = parseGalleryFilterQuery(search);
   const stored = parseStoredGalleryFilters(storedRaw);
-  if (narrowed || !stored) return filters;
+  if (narrowed || !stored || galleryFocusEntryId(search)) return filters;
   return { ...stored, view: namesView ? filters.view : stored.view };
 }
