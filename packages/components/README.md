@@ -77,13 +77,16 @@ The product set is exactly the reviewed, Reference-calibrated entries:
 - `voltage-source`, `pulse-voltage-source`, `current-source`; the two-terminal
   Digital Clock composes the calibrated independent voltage-source body with
   the Figure 16.8 clock-pulse mark and owns its timing semantics separately;
-- `battery`, the drawing-only single-cell plate symbol extracted from
+- `battery`, the single-cell plate symbol extracted from
   _Fundamentals of Microelectronics_ Figure 3.11(a). Its long/short plate
   lengths, spacing, and stroke ratio use the circular voltage source in the
-  same panel as the scale reference. Its authoring-only descriptor assigns an
-  editable `B`-series Reference and a side annotation, with `targetPolicy:
-  "none"`: placing it does not create a DC source or physical battery model,
-  and netlist export still requires an explicit electrical mapping;
+  same panel as the scale reference. It shares the independent voltage source's
+  DC, AC, and transient parameter contract and built-in netlist/simulation
+  semantics while retaining an editable `B`-series canvas Reference. SPICE
+  projects `B1` to a legal V-source card such as `VB1`; ordinary imported V
+  cards still use the circular source because the netlist has no Battery
+  artwork identity. This is an ideal voltage source, not a physical battery
+  discharge or chemistry model;
 - `resistor`, `capacitor`, `inductor-compact`, their adjustable siblings
   `variable-resistor`, `variable-capacitor`, and `variable-inductor` (the base
   body plus one diagonal adjustment arrow), `port`, and `port-filled`;
