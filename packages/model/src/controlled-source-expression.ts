@@ -12,16 +12,19 @@ export const LINEAR_CONTROLLED_SOURCE_KINDS = new Set<string>([
 /** Drawing-only copy; neither its spelling nor its formatting binds a Net. */
 export function defaultControlledSourceExpression(
   kind: LinearControlledSourceKind,
+  ordinal = "",
 ): string {
+  const inputVoltage = `v_{i${ordinal}}`;
+  const sensedCurrent = `i_{x${ordinal}}`;
   switch (kind) {
     case "vcvs":
-      return "A_{v}v_{i}";
+      return `A_{v}${inputVoltage}`;
     case "vccs":
-      return "g_{m}v_{i}";
+      return `g_{m}${inputVoltage}`;
     case "cccs":
-      return "βi_{x}";
+      return `β${sensedCurrent}`;
     case "ccvs":
-      return "R_{m}i_{x}";
+      return `R_{m}${sensedCurrent}`;
   }
 }
 

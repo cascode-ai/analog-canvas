@@ -82,7 +82,7 @@ for (const symbolId of componentSymbolIds) {
       await expectComponentCodeField(page, "connection", "cell-pin");
     }
     if (symbolId === "vccs") {
-      await expectComponentCodeField(page, "name", "g_{m}v_{i}");
+      await expectComponentCodeField(page, "name", "g_{m}v_{i1}");
       await expectComponentCodeField(page, "control", {
         positiveNetId: "",
         negativeNetId: "",
@@ -98,10 +98,10 @@ for (const symbolId of componentSymbolIds) {
 }
 
 for (const [symbolId, formula, parameter, netlistName] of [
-  ["vcvs", "A_{v}v_{i}", "gain", "E1"],
-  ["vccs", "g_{m}v_{i}", "gm", "G1"],
-  ["cccs", "βi_{x}", "gain", "F1"],
-  ["ccvs", "R_{m}i_{x}", "rm", "H1"],
+  ["vcvs", "A_{v}v_{i1}", "gain", "E1"],
+  ["vccs", "g_{m}v_{i1}", "gm", "G1"],
+  ["cccs", "βi_{x1}", "gain", "F1"],
+  ["ccvs", "R_{m}i_{x1}", "rm", "H1"],
 ] as const) {
   test(`${symbolId} Visual Annotation edits without crashing or changing electrical identity`, async ({
     page,
@@ -252,5 +252,28 @@ for (const symbolId of ["cccs", "ccvs"]) {
     await expect(
       picker.getByRole("button", { name: "Pick control on canvas" }),
     ).toBeVisible();
+  });
+}
+
+for (const [symbolId, secondId, expression] of [
+  ["vcvs", "E2", "A_{v}v_{i2}"],
+  ["cccs", "F2", "βi_{x2}"],
+] as const) {
+  test(`${symbolId} increments the default input/sensor subscript on placement`, async ({
+    page,
+  }) => {
+    await page.goto("/editor");
+    await chooseComponent(page, symbolId);
+    const canvas = page.getByTestId("schematic-canvas");
+    await canvas.click({ position: { x: 420, y: 350 } });
+    await canvas.click({ position: { x: 620, y: 350 } });
+    await page.keyboard.press("Escape");
+    await page.getByTestId(`hit-${secondId}`).click({ force: true });
+    await revealPropertiesShelf(page);
+    const shelf = page.getByTestId("selection-shelf");
+    if ((await shelf.getAttribute("aria-expanded")) === "true")
+      await shelf.click();
+    await page.keyboard.press("q");
+    await expectComponentCodeField(page, "name", expression);
   });
 }
