@@ -261,6 +261,45 @@ describe("render svg", () => {
     );
   });
 
+  it("colors a branch dot like its incident wires when they share one color", () => {
+    const doc = createEmptyDocument("junction-color", "Junction color");
+    doc.nets.push({ id: "net", terminals: [] });
+    doc.junctions.push(
+      { id: "J", netId: "net", position: { x: 40, y: 0 } },
+      { id: "L", netId: "net", position: { x: 0, y: 0 } },
+      { id: "R", netId: "net", position: { x: 80, y: 0 } },
+      { id: "B", netId: "net", position: { x: 40, y: 40 } },
+    );
+    for (const [id, to] of [
+      ["left", "L"],
+      ["right", "R"],
+      ["bottom", "B"],
+    ] as const) {
+      doc.routes.push(
+        createRoutePath({
+          id,
+          netId: "net",
+          start: { kind: "junction", junctionId: "J" },
+          end: { kind: "junction", junctionId: to },
+          bends: [],
+          modes: ["manual"],
+          styleOverride: { color: "#008000" },
+        }),
+      );
+    }
+    const resolver = new InMemorySymbolResolver([]);
+    const dot = () =>
+      buildSvgScene(doc, resolver).formalBody.match(
+        /<circle data-object-id="J"[^>]*\/>/u,
+      )?.[0];
+
+    expect(dot()).toContain('fill="#008000"');
+
+    // A contact between differently colored Routes has no single wire color.
+    doc.routes[2]!.styleOverride = { color: "#0000FF" };
+    expect(dot()).toContain('fill="#000"');
+  });
+
   it("renders each Route's middle or end arrow as vector geometry", () => {
     const doc = createEmptyDocument("wire-arrows", "Wire arrows");
     doc.nets.push({ id: "net", terminals: [] });
