@@ -128,13 +128,13 @@ describe("mcp resources single-source projection", () => {
     // Schema 64's kept Document style reached 117,275 bytes. The four linear
     // controlled-source classes and typed control selector bring this to
     // 118,131 bytes. Terminal-current's device/pin/direction branch now measures
-    // 118,765 bytes; keep less than 235 bytes of compatibility headroom. The
+    // 118,765 bytes. Control authoring adds 857 bytes (119,622 total); the
     // focused per-tool budgets and complete expanded contract checks stay fixed.
     const compatibility = tools.filter(
       (t) => !FOCUSED_TOOLS.some((f) => f.name === t.name),
     );
     expect(Buffer.byteLength(JSON.stringify(compatibility))).toBeLessThan(
-      119_000,
+      119_800,
     );
     for (const tool of tools) {
       const complete = JSON.parse(

@@ -105,6 +105,7 @@ export const FOCUSED_TOOLS = [
     operations: [
       "set-reference",
       "set-property",
+      "set-source-control",
       "set-model",
       "set-instance-display",
     ],

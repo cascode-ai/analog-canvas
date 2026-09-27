@@ -35,6 +35,63 @@ function parseText(result: {
 }
 
 describe("mcp tool surface", () => {
+  it("circuit_properties forwards terminal control with the source's existing parameters", async () => {
+    const { session, http } = await toolSession();
+    await callTool("connect", { claimCode: "session-1.code" }, session);
+    const snapshot = testSnapshot();
+    const source = snapshot.document.instances[0]!;
+    source.symbolId = "cccs";
+    source.netlist = {
+      parameters: { gain: "4" },
+      control: { kind: "current", sensorInstanceId: "sensor" },
+    };
+    http.circuitHandler = async ({ request }) => {
+      if (request.operation === "snapshot")
+        return snapshotResponse(request.requestId, snapshot);
+      if (request.operation === "transact")
+        return transactSuccessResponse(
+          request.requestId,
+          request.expectedRevision,
+          [source.id],
+        );
+      return capabilitiesResponse(request.requestId);
+    };
+    const control = {
+      kind: "terminal-current",
+      instanceId: "instance-2",
+      pinName: "1",
+      direction: "out",
+    };
+    const result = await callTool(
+      "circuit_properties",
+      {
+        actions: [
+          {
+            kind: "set-source-control",
+            target: { kind: "instance", id: source.id },
+            control,
+          },
+        ],
+      },
+      session,
+    );
+    expect(parseText(result)).toMatchObject({ ok: true });
+    expect(
+      http.circuitCalls
+        .filter(({ request }) => request.operation === "transact")
+        .map(({ request }) => request),
+    ).toMatchObject([
+      {
+        edits: [
+          {
+            kind: "set_instance_netlist",
+            instanceId: source.id,
+            netlist: { parameters: { gain: "4" }, control },
+          },
+        ],
+      },
+    ]);
+  });
   it("reads context, diagnostics and folder names through lightweight server projections", async () => {
     const { session, http } = await toolSession();
     await callTool("connect", { claimCode: "session-1.code" }, session);

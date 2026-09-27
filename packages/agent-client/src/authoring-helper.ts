@@ -609,6 +609,34 @@ export function compileActions(
           ...(action.set ? { set: action.set } : {}),
           ...(action.unset ? { unset: action.unset } : {}),
         });
+        // Subsequent control replacements in this batch must keep earlier
+        // parameter edits, not restore the pre-batch Snapshot values.
+        const parameters = {
+          ...(instance.netlist?.parameters ?? {}),
+          ...action.set,
+        };
+        for (const key of action.unset ?? []) delete parameters[key];
+        instance.netlist = { ...instance.netlist, parameters };
+        break;
+      }
+      case "set-source-control": {
+        const instance = resolveInstance(
+          document,
+          index,
+          action.kind,
+          action.target,
+        );
+        pushEdit(index, action.kind, {
+          kind: "set_instance_netlist",
+          instanceId: instance.id,
+          netlist: {
+            ...(instance.netlist?.binding
+              ? { binding: instance.netlist.binding }
+              : {}),
+            parameters: { ...(instance.netlist?.parameters ?? {}) },
+            ...(action.control ? { control: action.control } : {}),
+          },
+        });
         break;
       }
       case "add-label":
@@ -847,7 +875,12 @@ function compilePlaceComponent(
         mirror: action.mirror ?? "none",
       },
       ...(!powerMarker
-        ? { netlist: { parameters: action.parameters ?? {} } }
+        ? {
+            netlist: {
+              parameters: action.parameters ?? {},
+              ...(action.control ? { control: action.control } : {}),
+            },
+          }
         : {}),
     },
   });

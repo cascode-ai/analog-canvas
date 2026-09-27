@@ -22,6 +22,129 @@ import {
 // fully parallel.
 test.describe.configure({ mode: "default" });
 
+test("Agent places and edits all controlled sources without losing control facts or Annotation", async ({
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(90000);
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("open-agent").click();
+  const panel = page.getByTestId("connect-agent-panel");
+  const message = panel.getByTestId("agent-copy-text");
+  await expect(message).toHaveValue(/Claim: /, { timeout: 45000 });
+  const { claimCode } = JSON.parse(
+    /^Claim: (.+)$/mu.exec(await message.inputValue())![1]!,
+  );
+  const client = new AgentSessionClient({
+    http: new AgentHttpClient({ baseUrl: baseURL! }),
+  });
+  await client.connect(claimCode);
+  await panel.getByRole("button", { name: "Close Agent dialog" }).click();
+  const placed = await client.applyActions([
+    {
+      kind: "place-component",
+      symbol: "resistor",
+      reference: "R1",
+      position: { x: 100, y: 100 },
+      parameters: { value: "1k" },
+    },
+    {
+      kind: "place-component",
+      symbol: "port",
+      reference: "IN",
+      position: { x: 0, y: 0 },
+    },
+    {
+      kind: "place-component",
+      symbol: "port",
+      reference: "REF",
+      position: { x: 0, y: 200 },
+    },
+  ]);
+  expect(placed.ok, placed.message).toBe(true);
+  const initial = (await client.refreshSnapshot()).snapshot.document;
+  const resistor = initial.instances.find((i) => i.reference === "R1")!;
+  const voltage = {
+    kind: "voltage",
+    positiveNetId: initial.nets[0]!.id,
+    negativeNetId: initial.nets[1]!.id,
+  };
+  const current = {
+    kind: "terminal-current",
+    instanceId: resistor.id,
+    pinName: "1",
+    direction: "into",
+  };
+  const sources = [
+    {
+      symbol: "vcvs",
+      reference: "E1",
+      parameters: { gain: "2" },
+      control: voltage,
+    },
+    {
+      symbol: "vccs",
+      reference: "G1",
+      parameters: { gm: "1m" },
+      control: voltage,
+    },
+    {
+      symbol: "cccs",
+      reference: "F1",
+      parameters: { gain: "3" },
+      control: current,
+    },
+    {
+      symbol: "ccvs",
+      reference: "H1",
+      parameters: { rm: "1k" },
+      control: current,
+    },
+  ];
+  const added = await client.applyActions(
+    sources.map((source, index) => ({
+      kind: "place-component",
+      ...source,
+      position: { x: 300 + index * 120, y: 200 },
+    })),
+  );
+  expect(added.ok, added.message).toBe(true);
+  const before = (await client.refreshSnapshot()).snapshot.document;
+  for (const source of sources)
+    expect(
+      before.instances.find((i) => i.reference === source.reference)?.netlist,
+    ).toMatchObject({ parameters: source.parameters, control: source.control });
+  const target = before.instances.find((i) => i.reference === "F1")!;
+  const changed = await client.applyActions([
+    {
+      kind: "set-property",
+      target: { kind: "instance", id: target.id },
+      set: { gain: "7" },
+    },
+    {
+      kind: "set-source-control",
+      target: { kind: "instance", id: target.id },
+      control: { ...current, direction: "out" },
+    },
+  ]);
+  expect(changed.ok, changed.message).toBe(true);
+  const after = (await client.refreshSnapshot()).snapshot.document;
+  expect(
+    after.instances.find((i) => i.id === target.id)?.netlist,
+  ).toMatchObject({
+    parameters: { gain: "7" },
+    control: { ...current, direction: "out" },
+  });
+  expect(after.annotations).toEqual(before.annotations);
+  expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+  expect(
+    (await client.refreshSnapshot()).snapshot.document.instances.find(
+      (i) => i.id === target.id,
+    )?.netlist,
+  ).toEqual(target.netlist);
+});
+
 test("Agent text editing preserves the GUI's effective font and native insertion defaults", async ({
   page,
   baseURL,

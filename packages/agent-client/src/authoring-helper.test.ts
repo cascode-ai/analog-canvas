@@ -67,6 +67,98 @@ function expectCompileError(actions: unknown[], fragment: string): void {
 }
 
 describe("authoring helper compilation", () => {
+  it.each(["vcvs", "vccs", "cccs", "ccvs"])(
+    "places %s with canonical controls through native placement",
+    (symbol) => {
+      const control = symbol.startsWith("v")
+        ? { kind: "voltage", positiveNetId: "net-1", negativeNetId: "net-2" }
+        : {
+            kind: "terminal-current",
+            instanceId: "instance-2",
+            pinName: "1",
+            direction: "out",
+          };
+      const transaction = compile([
+        {
+          kind: "place-component",
+          symbol,
+          reference: "X9",
+          position: { x: 100, y: 100 },
+          parameters: { gain: "2" },
+          control,
+        },
+      ])[0]!;
+      expect(transaction.command).toMatchObject({
+        kind: "place-components",
+        instances: [
+          { symbolId: symbol, netlist: { parameters: { gain: "2" }, control } },
+        ],
+      });
+    },
+  );
+
+  it("changes and clears control without losing binding or same-batch parameters", () => {
+    const snapshot = testSnapshot();
+    const source = snapshot.document.instances[0]!;
+    source.symbolId = "cccs";
+    source.netlist = {
+      binding: { kind: "primitive", deviceClass: "cccs" },
+      parameters: { gain: "2", obsolete: "1" },
+      control: { kind: "current", sensorInstanceId: "sensor" },
+    };
+    const before = structuredClone(snapshot);
+    const control = {
+      kind: "terminal-current",
+      instanceId: "instance-2",
+      pinName: "1",
+      direction: "into",
+    };
+    const transactions = compile(
+      [
+        {
+          kind: "set-property",
+          target: { kind: "instance", id: source.id },
+          set: { gain: "3" },
+          unset: ["obsolete"],
+        },
+        {
+          kind: "set-source-control",
+          target: { kind: "instance", id: source.id },
+          control,
+        },
+        {
+          kind: "set-source-control",
+          target: { kind: "instance", id: source.id },
+          control: null,
+        },
+      ],
+      snapshot,
+    );
+    expect(transactions[0]!.edits!.slice(1)).toEqual([
+      {
+        kind: "set_instance_netlist",
+        instanceId: source.id,
+        netlist: {
+          binding: source.netlist.binding,
+          parameters: { gain: "3" },
+          control,
+        },
+      },
+      {
+        kind: "set_instance_netlist",
+        instanceId: source.id,
+        netlist: { binding: source.netlist.binding, parameters: { gain: "3" } },
+      },
+    ]);
+    expect(snapshot).toEqual(before);
+    expect(
+      AuthoringActionSchema.safeParse({
+        kind: "set-source-control",
+        target: { kind: "instance", id: source.id },
+        control: { ...control, direction: "sideways" },
+      }).success,
+    ).toBe(false);
+  });
   it("uses native text insertion defaults and preserves explicit formatting", () => {
     for (const content of ["Design note", defaultDraftTextDocument("Vx")]) {
       const action = {
