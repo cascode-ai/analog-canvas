@@ -59,6 +59,18 @@ asks the AuthDO once.
   re-answered whenever an entry is written, so repairing a published circuit
   lights its mark immediately, and the scheduled maintenance pass below
   re-answers stored marks after the rule itself changes.
+  Each entry may also carry `componentCount`: the parts its top Cell draws —
+  devices, sources, switches, blocks and gates, a subcircuit block counting
+  once — leaving out Ports, supply and ground markers, drafting objects and
+  undrawn Instances. It is stored with its rule version beside the netlist
+  mark, answered on every write and by the same scheduled pass; an entry not
+  counted yet omits it. `parts=0-5,6-10` keeps the entries in ANY listed
+  size, from the sizes `config/gallery-taxonomy.json` defines (≤ 5, 6–10,
+  11–15, 16–25, 26+); an unknown size narrows nothing.
+  `filterCounts.componentRanges` counts the entries per size with every other
+  filter applied, so each size shows what choosing it would add. The landing
+  Gallery lists the sizes under Components in the left sidebar, above the
+  tags, for any multi-selection; the tag counts follow the chosen sizes.
 - `GET /api/gallery/tags` — distinct public tags with counts, most
   frequent first. The landing Gallery places these in a left sidebar grouped
   by circuit family, with per-tag counts and clearable multi-selection. Groups

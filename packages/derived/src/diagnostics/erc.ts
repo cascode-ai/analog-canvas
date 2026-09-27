@@ -671,13 +671,16 @@ export function runErcChecks(
 
 /**
  * A pin the picture shows as wired while the model says it is not: its contact
- * point sits exactly on another Net's wire or Junction dot.
+ * point sits exactly on another Net's wire or Junction dot, or on another
+ * part's pin that is not on its Net.
  *
  * Drawing geometry never creates a connection, and a Crossing is not a
  * Junction — so nothing repairs this and nothing else reports it. To the
- * author the wire visibly reaches the pin; to the netlist the pin is on
- * nothing, or on a different Net entirely. Only a terminal is judged: two
- * Routes crossing is the ordinary, deliberate case the model already names.
+ * author the wire or pin visibly reaches the pin; to the netlist the pin is on
+ * nothing, or on a different Net entirely, and a copy of the drawing, which
+ * joins the pins it lands together, reads differently. Only terminals are
+ * judged: two Routes crossing is the ordinary, deliberate case the model
+ * already names.
  */
 function reportPinsTouchingAnotherNet(
   document: CircuitProject["documents"][number],
@@ -686,10 +689,12 @@ function reportPinsTouchingAnotherNet(
   resolver: SymbolResolver,
   diagnostics: ErcDiagnostic[],
 ): void {
-  if (document.routes.length === 0 || document.instances.length === 0) return;
+  if (document.instances.length === 0) return;
   const geometry =
-    docIndex?.routingGeometry ??
-    resolveDocumentRoutingGeometry(document, resolver);
+    document.routes.length === 0
+      ? undefined
+      : (docIndex?.routingGeometry ??
+        resolveDocumentRoutingGeometry(document, resolver));
   const routeById = new Map(document.routes.map((route) => [route.id, route]));
   const logicalIdOf = (baseNetId: string | undefined): string | undefined =>
     baseNetId ? logicalNets.byBaseNetId.get(baseNetId)?.id : undefined;
@@ -707,6 +712,15 @@ function reportPinsTouchingAnotherNet(
         : [],
     ),
   );
+  const pinsAtPoint = new Map<
+    string,
+    {
+      instanceId: string;
+      pinName: string;
+      netId: string | undefined;
+      logicalId: string | undefined;
+    }[]
+  >();
 
   for (const instance of [...document.instances].sort((left, right) =>
     left.id.localeCompare(right.id, "en"),
@@ -728,7 +742,18 @@ function reportPinsTouchingAnotherNet(
         pinName: pin.name,
       });
       if (!point) continue;
-      const pinLogicalId = logicalIdOf(netIdByTerminalKey.get(key));
+      const pinNetId = netIdByTerminalKey.get(key);
+      const pinLogicalId = logicalIdOf(pinNetId);
+      const at = `${Math.round(point.x * 1000)}:${Math.round(point.y * 1000)}`;
+      const here = pinsAtPoint.get(at) ?? [];
+      here.push({
+        instanceId: instance.id,
+        pinName: pin.name,
+        netId: pinNetId,
+        logicalId: pinLogicalId,
+      });
+      pinsAtPoint.set(at, here);
+      if (!geometry) continue;
       const foreign = findRouteSegmentsAtPoint(geometry, point).flatMap(
         (address) => {
           const route = routeById.get(address.routeId);
@@ -763,6 +788,56 @@ function reportPinsTouchingAnotherNet(
           netId: first.netId,
         },
       });
+    }
+  }
+
+  // Two parts' pins on one point read as joined. Unless they share a Logical
+  // Net, the netlist keeps them apart (often leaving one a dangling node), so
+  // each such pair is reported once. Pins on one Net, such as two Ground
+  // markers, are the ordinary case.
+  for (const pins of pinsAtPoint.values()) {
+    for (let index = 0; index < pins.length; index += 1) {
+      for (let other = index + 1; other < pins.length; other += 1) {
+        const first = pins[index]!;
+        const second = pins[other]!;
+        if (first.instanceId === second.instanceId) continue;
+        if (
+          first.logicalId !== undefined &&
+          first.logicalId === second.logicalId
+        )
+          continue;
+        const firstName = `${first.instanceId}.${first.pinName}`;
+        const secondName = `${second.instanceId}.${second.pinName}`;
+        diagnostics.push({
+          id: `erc:touching-pin-not-connected:${document.id}:${first.instanceId}:${first.pinName}:${second.instanceId}:${second.pinName}`,
+          domain: "erc",
+          code: "ERC_TOUCHING_NOT_CONNECTED",
+          severity: "warning",
+          confidence: "high",
+          gateEligible: false,
+          message:
+            first.logicalId && second.logicalId
+              ? `Pins ${firstName} and ${secondName} sit on one point but belong to different Nets`
+              : `Pins ${firstName} and ${secondName} sit on one point without being connected`,
+          primary: terminalLocator(
+            document.id,
+            first.instanceId,
+            first.pinName,
+          ),
+          related: [
+            terminalLocator(document.id, second.instanceId, second.pinName),
+            ...[first.netId, second.netId].flatMap((netId) =>
+              netId ? [directObjectLocator(document.id, "net", netId)] : [],
+            ),
+          ],
+          parameters: {
+            instanceId: first.instanceId,
+            pinName: first.pinName,
+            otherInstanceId: second.instanceId,
+            otherPinName: second.pinName,
+          },
+        });
+      }
     }
   }
 }

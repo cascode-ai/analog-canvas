@@ -26,6 +26,7 @@ describe("Gallery landing preload", () => {
     netlistable: false,
     liked: false,
     attention: false,
+    parts: [] as string[],
   };
 
   it("is consumed only for the first unfiltered wall request", () => {
@@ -41,6 +42,7 @@ describe("Gallery landing preload", () => {
       { ...defaultFilters, netlistable: true },
       { ...defaultFilters, liked: true },
       { ...defaultFilters, attention: true },
+      { ...defaultFilters, parts: ["6-10"] },
     ]) {
       expect(canReuseGalleryLandingFeed(0, null, filters)).toBe(false);
     }

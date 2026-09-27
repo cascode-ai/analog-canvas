@@ -158,6 +158,16 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The part-count sizes, set apart from the tags below like the quick
+   filters above. */
+.gallery-sidebar-sizes {
+  display: grid;
+  gap: 2px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--icm-border);
+}
+
 .gallery-sidebar-empty {
   padding: 4px 8px;
   color: var(--icm-text-muted);

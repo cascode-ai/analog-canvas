@@ -351,10 +351,13 @@ singleton pin is not connected merely because it has a Base Net. ERC and
 downstream checks consume the shared assessment rather than another stored
 status. One ERC check reads geometry rather than membership:
 `ERC_TOUCHING_NOT_CONNECTED` reports an instance pin whose contact point lies
-on a Route of a different Logical Net. Geometry never creates a connection and
-a Crossing is not a Junction, so nothing repairs that arrangement and nothing
-else reports it — the author sees a wire reaching the pin while the netlist
-sees the pin on another Net or on nothing. It judges terminals only: two
+on a Route of a different Logical Net, and two parts' pins on one point that
+do not share a Logical Net (each such pair once). Geometry never creates a
+connection and a Crossing is not a Junction, so nothing repairs that
+arrangement and nothing else reports it — the author sees a wire or a pin
+reaching the pin while the netlist sees the pin on another Net or on nothing,
+and a copy of the drawing, which joins the pins it lands together, reads
+differently. It judges terminals only: two
 Routes crossing is the ordinary case the model already names, and a pin the
 author declared `NoConnect` has been answered for. `ERC_INSTANCE_NOT_DRAWN`
 counts the Instances a Cell holds that the sheet does not draw: they keep their

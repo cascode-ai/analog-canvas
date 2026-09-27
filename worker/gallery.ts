@@ -6,6 +6,7 @@ import { validGalleryAttention } from "./gallery-curation";
 import { prepareDocumentFormulaArtifacts, sha256Hex } from "@icm/derived";
 import { referenceDeviceLetter } from "@icm/devices";
 import { createDesignNetlistExport, designExtractsNetlist } from "@icm/netlist";
+import { galleryComponentCount } from "./gallery-components";
 import {
   CURRENT_PROJECT_FILE_VERSION,
   parseProject,
@@ -1009,6 +1010,7 @@ async function handleSubmission(
       // Recorded, never enforced: a circuit that does not extract is
       // published exactly the same way, it simply does not wear the badge.
       netlistable: designExtractsNetlist(project) ? 1 : 0,
+      component_count: galleryComponentCount(project),
       name,
       author,
       description,
@@ -1126,6 +1128,7 @@ async function handleEntryUpdate(
     svgText: await renderPreview(project, projectResolver),
     schemaVersion: CURRENT_PROJECT_FILE_VERSION,
     netlistable,
+    componentCount: galleryComponentCount(project),
     status: nextStatus,
     tags: wrapTags(sanitizeGalleryTags(body.tags)),
   });
@@ -1142,6 +1145,15 @@ async function handleEntryUpdate(
  * staleness is found: the moderation button when somebody wants it now, and
  * the schedule so that nobody has to.
  */
+/** The part-count sizes a wall request names (`parts=0-5,6-10`). */
+function requestedParts(url: URL): string[] {
+  return (url.searchParams.get("parts") ?? "")
+    .split(",")
+    .map((key) => key.trim())
+    .filter((key) => key.length > 0)
+    .slice(0, 16);
+}
+
 export async function refreshNetlistMarks(
   env: GalleryEnv,
   limit?: number,
@@ -1660,6 +1672,8 @@ export async function routeGalleryRequest(
       // session, so signed out it selects nothing rather than everything.
       netlistable: url.searchParams.get("netlistable") === "1",
       liked: url.searchParams.get("liked") === "1",
+      // Sizes by part count; several mean any of them.
+      parts: requestedParts(url),
     });
     return Response.json(payload, {
       headers: { "cache-control": "no-store" },
@@ -1924,6 +1938,7 @@ export async function routeGalleryRequest(
       attentionKind: url.searchParams.get("reason"),
       liked,
       netlistable: url.searchParams.get("netlistable") === "1",
+      parts: requestedParts(url),
     });
     return Response.json(payload, { headers: { "cache-control": "no-store" } });
   }

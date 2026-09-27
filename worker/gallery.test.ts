@@ -530,6 +530,31 @@ function projectText(name = "Fixture"): string {
   return serializeProject(createEmptyProject("gallery-fixture", name));
 }
 
+/** Counts per part-count size, with `small` drawings of at most five parts. */
+function sizes(small: number, rest: Partial<Record<string, number>> = {}) {
+  return { "0-5": small, "6-10": 0, "11-15": 0, "16-25": 0, "26-": 0, ...rest };
+}
+
+/** A drawing of `parts` resistors and a Ground, which is not a part. */
+function partsProjectText(name: string, parts: number): string {
+  const project = createEmptyProject("gallery-parts", name);
+  const placement = (index: number) => ({
+    position: { x: 40 * index, y: 0 },
+    rotation: 0 as const,
+    mirror: "none" as const,
+  });
+  project.documents[0]!.instances.push(
+    ...Array.from({ length: parts }, (_, index) => ({
+      id: `R${index + 1}`,
+      symbolId: "resistor",
+      reference: `R${index + 1}`,
+      placement: placement(index),
+    })),
+    { id: "GND1", symbolId: "ground", placement: placement(parts + 1) },
+  );
+  return serializeProject(project);
+}
+
 function formulaProjectText(
   latex = String.raw`\frac{1}{\sqrt{L_1C_1}}`,
 ): string {
@@ -1083,6 +1108,8 @@ describe("newest-first gallery feed", () => {
       "author=Other",
       "liked=1",
       "attention=1",
+      "parts=0-5",
+      "parts=6-10,26-",
     ];
     const read = async () => {
       const results = [];
@@ -1102,7 +1129,7 @@ describe("newest-first gallery feed", () => {
       }
       return results;
     };
-    env.gallerySql.exec("DROP INDEX idx_gallery_entries_feed_stats");
+    env.gallerySql.exec("DROP INDEX idx_gallery_entries_feed_stats_parts");
     const before = await read();
     env.gallerySql.exec(createIndex);
     const after = await read();
@@ -1191,7 +1218,12 @@ describe("newest-first gallery feed", () => {
       entries: [],
       nextCursor: null,
       total: 0,
-      filterCounts: { attention: 0, netlistable: 0, liked: 0 },
+      filterCounts: {
+        attention: 0,
+        netlistable: 0,
+        liked: 0,
+        componentRanges: sizes(0),
+      },
       authors: [],
     });
 
@@ -1512,7 +1544,12 @@ describe("netlist marks and thumbs", () => {
         entries: { id: string }[];
         total: number;
         nextCursor: string | null;
-        filterCounts: { attention: number; netlistable: number; liked: number };
+        filterCounts: {
+          attention: number;
+          netlistable: number;
+          liked: number;
+          componentRanges: Record<string, number>;
+        };
         authors: { author: string; ownerUserId: string; count: number }[];
       };
     };
@@ -1523,6 +1560,7 @@ describe("netlist marks and thumbs", () => {
       attention: 0,
       netlistable: 1,
       liked: 1,
+      componentRanges: sizes(2),
     });
     const secondPage = await list(
       `limit=1&cursor=${encodeURIComponent(firstPage.nextCursor!)}`,
@@ -1536,6 +1574,7 @@ describe("netlist marks and thumbs", () => {
       attention: 0,
       netlistable: 1,
       liked: 0,
+      componentRanges: sizes(2),
     });
 
     const marked = await list("netlistable=1", cookie);
@@ -1547,6 +1586,7 @@ describe("netlist marks and thumbs", () => {
       attention: 0,
       netlistable: 1,
       liked: 0,
+      componentRanges: sizes(1),
     });
 
     const liked = await list("liked=1", cookie);
@@ -1557,6 +1597,7 @@ describe("netlist marks and thumbs", () => {
       attention: 0,
       netlistable: 0,
       liked: 1,
+      componentRanges: sizes(1),
     });
 
     // The marks compose, and here nothing satisfies both.
@@ -1568,6 +1609,7 @@ describe("netlist marks and thumbs", () => {
       attention: 0,
       netlistable: 0,
       liked: 0,
+      componentRanges: sizes(0),
     });
 
     // A like belongs to an account: signed out, "the ones I liked" is none of
@@ -1577,6 +1619,88 @@ describe("netlist marks and thumbs", () => {
     expect(anonymous.total).toBe(0);
     expect(anonymous.authors).toEqual([]);
     expect((await list("", cookie)).entries).toHaveLength(2);
+  });
+
+  it("narrows the wall by size in parts, any of several sizes at once", async () => {
+    // Supply and ground markers name Nets rather than add parts: three
+    // resistors and a Ground make a three-part drawing.
+    const env = environment();
+    const cookie = await adminOf(env);
+    const submit = (name: string, parts: number) =>
+      submitOne(env, name, { cookie, text: partsProjectText(name, parts) });
+    const small = await submit("Small", 3);
+    const medium = await submit("Medium", 7);
+    const large = await submit("Large", 12);
+    const list = async (query: string) => {
+      const response = await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery?${query}`, {
+          headers: cookieHeaders(cookie),
+        }),
+      );
+      return (await response.json()) as {
+        entries: { id: string; componentCount?: number }[];
+        total: number;
+        filterCounts: { componentRanges: Record<string, number> };
+      };
+    };
+    const ids = (page: { entries: { id: string }[] }) =>
+      page.entries.map((entry) => entry.id).sort();
+
+    const all = await list("");
+    expect(
+      Object.fromEntries(
+        all.entries.map((entry) => [entry.id, entry.componentCount]),
+      ),
+    ).toEqual({ [small]: 3, [medium]: 7, [large]: 12 });
+    expect(all.filterCounts.componentRanges).toEqual(
+      sizes(1, { "6-10": 1, "11-15": 1 }),
+    );
+
+    const one = await list("parts=6-10");
+    expect(ids(one)).toEqual([medium]);
+    expect(one.total).toBe(1);
+    // The size counts leave the size choice out, so the other sizes still
+    // say what choosing them would add.
+    expect(one.filterCounts.componentRanges).toEqual(
+      all.filterCounts.componentRanges,
+    );
+    // Several sizes mean any of them.
+    expect(ids(await list("parts=0-5,11-15"))).toEqual([small, large].sort());
+    expect((await list("parts=16-25,26-")).total).toBe(0);
+    // A size this build does not know narrows nothing.
+    expect((await list("parts=huge")).total).toBe(3);
+  });
+
+  it("counts the parts of entries published before the count existed", async () => {
+    const env = environment();
+    const cookie = await adminOf(env);
+    const id = await submitOne(env, "Older", {
+      cookie,
+      text: partsProjectText("Older", 7),
+    });
+    // As an entry stored before this rule reads: never counted.
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET component_count = 0, component_count_version = 0",
+    );
+    const counted = async () => {
+      const response = await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery`, {
+          headers: cookieHeaders(cookie),
+        }),
+      );
+      const page = (await response.json()) as {
+        entries: { id: string; componentCount?: number }[];
+      };
+      return page.entries.find((entry) => entry.id === id)!.componentCount;
+    };
+    expect(await counted()).toBeUndefined();
+
+    const { status, payload } = await refreshNetlistMarks(env, 50);
+    expect(status).toBe(200);
+    expect(payload).toMatchObject({ scanned: 1, changed: 1, remaining: 0 });
+    expect(await counted()).toBe(7);
   });
 
   it("marks a circuit with missing process fields as not netlistable", async () => {

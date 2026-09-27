@@ -32,6 +32,9 @@ export function GalleryTagSidebar({
   search,
   onSearchChange,
   quickFilters,
+  sizeFilters,
+  sizeSelected = 0,
+  onClearSizes,
   adminTools,
 }: {
   tags: GalleryTagOption[];
@@ -42,6 +45,10 @@ export function GalleryTagSidebar({
   search: string;
   onSearchChange: (search: string) => void;
   quickFilters: ReactNode;
+  /** The part-count sizes, any number of which may be chosen. */
+  sizeFilters?: ReactNode;
+  sizeSelected?: number;
+  onClearSizes?: () => void;
   adminTools?: ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -111,7 +118,9 @@ export function GalleryTagSidebar({
         aria-controls="gallery-tag-sidebar"
       >
         Search & filters
-        {selected.length ? ` · ${selected.length} selected` : ""}
+        {selected.length + sizeSelected
+          ? ` · ${selected.length + sizeSelected} selected`
+          : ""}
         <span aria-hidden="true">{mobileOpen ? "−" : "+"}</span>
       </button>
       <aside
@@ -122,6 +131,24 @@ export function GalleryTagSidebar({
         aria-label="Gallery filters"
       >
         <div className="gallery-sidebar-quick">{quickFilters}</div>
+        {sizeFilters ? (
+          <>
+            <div className="gallery-sidebar-heading">
+              <h2>Components</h2>
+              {sizeSelected && onClearSizes ? (
+                <button
+                  type="button"
+                  className="gallery-sidebar-clear"
+                  data-testid="gallery-parts-clear"
+                  onClick={onClearSizes}
+                >
+                  Clear {sizeSelected} selected
+                </button>
+              ) : null}
+            </div>
+            <div className="gallery-sidebar-sizes">{sizeFilters}</div>
+          </>
+        ) : null}
         <div className="gallery-sidebar-heading">
           <h2>Tags</h2>
           {selected.length ? (

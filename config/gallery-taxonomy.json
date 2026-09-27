@@ -238,5 +238,12 @@
     "unreadable-label": "Unreadable label",
     "incomplete-drawing": "Incomplete drawing",
     "other": "Other"
-  }
+  },
+  "componentRanges": [
+    { "key": "0-5", "max": 5 },
+    { "key": "6-10", "min": 6, "max": 10 },
+    { "key": "11-15", "min": 11, "max": 15 },
+    { "key": "16-25", "min": 16, "max": 25 },
+    { "key": "26-", "min": 26 }
+  ]
 }

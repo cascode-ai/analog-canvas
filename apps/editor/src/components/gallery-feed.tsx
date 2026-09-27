@@ -39,6 +39,10 @@ import {
   galleryFocusPlacement,
   withoutGalleryFocus,
 } from "../gallery-focus";
+import {
+  GALLERY_COMPONENT_RANGES,
+  galleryComponentRangeOf,
+} from "../gallery-component-ranges";
 import type { BundledGalleryTile } from "./gallery-bundled-fallback";
 import { galleryTagLabel } from "../gallery-tag-label";
 import {
@@ -321,7 +325,13 @@ function savedAtLabel(createdAt: string): string {
 
 type ServerGalleryFilters = Pick<
   GalleryFilterState,
-  "author" | "ownerUserId" | "tags" | "netlistable" | "liked" | "attention"
+  | "author"
+  | "ownerUserId"
+  | "tags"
+  | "netlistable"
+  | "liked"
+  | "attention"
+  | "parts"
 >;
 
 /** The eager landing request is one-use and unfiltered; never replay it after
@@ -339,7 +349,8 @@ export function canReuseGalleryLandingFeed(
     filters.tags.length === 0 &&
     !filters.netlistable &&
     !filters.liked &&
-    !filters.attention
+    !filters.attention &&
+    filters.parts.length === 0
   );
 }
 
@@ -350,6 +361,19 @@ const GALLERY_ATTENTION_REASONS = GALLERY_ISSUE_KINDS.map((kind) => ({
 }));
 
 /** Entries still needing attention, per reason they carry. */
+/** Circuits per part-count size, over what has loaded. */
+function countComponentRanges(
+  entries: readonly GalleryFeedEntry[],
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const entry of entries) {
+    if (entry.componentCount === undefined) continue;
+    const key = galleryComponentRangeOf(entry.componentCount);
+    if (key) counts[key] = (counts[key] ?? 0) + 1;
+  }
+  return counts;
+}
+
 function countAttentionKinds(
   entries: readonly GalleryFeedEntry[],
 ): Record<string, number> {
@@ -417,6 +441,7 @@ export function GalleryFeed({
     liked: likedOnly,
     attention: attentionOnly,
     attentionKind,
+    parts: selectedParts,
   } = filters;
   function updateFilters(patch: Partial<GalleryFilterState>): void {
     setFilters((previous) => ({ ...previous, ...patch }));
@@ -444,6 +469,7 @@ export function GalleryFeed({
     liked: likedOnly,
     attention: attentionOnly,
     attentionKind,
+    parts: selectedParts,
   });
   const [refreshSignal, setRefreshSignal] = useState(0);
   // A like taken back under Liked removes its drawing from the wall without
@@ -512,6 +538,7 @@ export function GalleryFeed({
       liked: likedOnly,
       attention: attentionOnly,
       attentionKind,
+      parts: selectedParts,
     });
     const request =
       refreshSignal === 0 &&
@@ -524,6 +551,7 @@ export function GalleryFeed({
             liked: likedOnly,
             attention: attentionOnly,
             attentionKind,
+            parts: selectedParts,
           });
     void request.then((payload) => {
       if (!cancelled) {
@@ -547,6 +575,7 @@ export function GalleryFeed({
     likedOnly,
     attentionOnly,
     attentionKind,
+    selectedParts,
   ]);
   const [state, setState] = useState<GalleryFeedState>({
     status: "loading",
@@ -677,6 +706,7 @@ export function GalleryFeed({
       likedOnly ? "liked" : "",
       attentionOnly ? "attention" : "",
       attentionOnly ? (attentionKind ?? "") : "",
+      selectedParts.join(","),
     ].join("\u0000");
     const changingQuery = loadedQueryRef.current !== queryKey;
     if (changingQuery) {
@@ -696,6 +726,7 @@ export function GalleryFeed({
         netlistable: netlistableOnly,
         liked: likedOnly,
         attention: attentionOnly,
+        parts: selectedParts,
       })
         ? preload.feed
         : loadGalleryFeed(fetch, {
@@ -706,6 +737,7 @@ export function GalleryFeed({
             liked: likedOnly,
             attention: attentionOnly,
             attentionKind,
+            parts: selectedParts,
           });
     void request.then((page) => {
       if (cancelled || generation !== feedGenerationRef.current) return;
@@ -757,6 +789,7 @@ export function GalleryFeed({
     likedOnly,
     attentionOnly,
     attentionKind,
+    selectedParts,
     preload,
     refreshSignal,
   ]);
@@ -778,6 +811,7 @@ export function GalleryFeed({
       liked: likedOnly,
       attention: attentionOnly,
       attentionKind,
+      parts: selectedParts,
       cursor,
     }).then((page) => {
       if (generation !== feedGenerationRef.current) return;
@@ -840,6 +874,7 @@ export function GalleryFeed({
     likedOnly,
     attentionOnly,
     attentionKind,
+    selectedParts,
   ]);
 
   function selectAuthor(
@@ -1110,6 +1145,49 @@ export function GalleryFeed({
   const attentionKindCounts: Record<string, number> = localQuickCounts
     ? countAttentionKinds(visibleEntries)
     : (state.filterCounts?.attentionKinds ?? {});
+  // Each size says what choosing it would show, every other filter applied.
+  const componentRangeCounts: Record<string, number> = localQuickCounts
+    ? countComponentRanges(visibleEntries)
+    : (state.filterCounts?.componentRanges ?? {});
+  const sizeFilters = GALLERY_COMPONENT_RANGES.map((range) => {
+    const chosen = selectedParts.includes(range.key);
+    const span =
+      range.max === null
+        ? `${range.min} or more`
+        : range.min === 0
+          ? `at most ${range.max}`
+          : `${range.min} to ${range.max}`;
+    return (
+      <button
+        key={range.key}
+        type="button"
+        className="gallery-sidebar-option gallery-sidebar-tag"
+        data-testid={`gallery-filter-parts-${range.key}`}
+        aria-pressed={chosen}
+        title={`Circuits with ${span} components (Ports and supply markers are not counted)`}
+        onClick={() =>
+          updateFilters({
+            parts: GALLERY_COMPONENT_RANGES.map((each) => each.key).filter(
+              (key) =>
+                key === range.key ? !chosen : selectedParts.includes(key),
+            ),
+          })
+        }
+      >
+        <span className="gallery-tag-check" aria-hidden="true">
+          {chosen ? "✓" : ""}
+        </span>
+        <span className="gallery-tag-name">{range.label}</span>
+        <span className="gallery-sidebar-count">
+          {state.status === "loading"
+            ? "…"
+            : state.status === "unavailable"
+              ? "—"
+              : `${(componentRangeCounts[range.key] ?? 0).toLocaleString()}${quickCountsPartial ? "+" : ""}`}
+        </span>
+      </button>
+    );
+  });
   const quickCount = (key: "attention" | "netlistable" | "liked") => (
     <span
       className="gallery-sidebar-count"
@@ -1223,6 +1301,9 @@ export function GalleryFeed({
             onChange={(tags) => updateFilters({ tags })}
             search={searchQuery}
             onSearchChange={(search) => updateFilters({ search })}
+            sizeFilters={sizeFilters}
+            sizeSelected={selectedParts.length}
+            onClearSizes={() => updateFilters({ parts: [] })}
             quickFilters={
               <>
                 {signedIn || attentionOnly ? (
@@ -1589,6 +1670,19 @@ export function GalleryFeed({
                     data-testid="gallery-filter-empty"
                   >
                     No public circuits by {author} yet.
+                  </p>
+                ) : null}
+                {entries.length === 0 &&
+                author === null &&
+                selectedTags.length === 0 &&
+                !netlistableOnly &&
+                !likedOnly &&
+                selectedParts.length > 0 ? (
+                  <p
+                    className="gallery-status"
+                    data-testid="gallery-parts-empty"
+                  >
+                    No circuits of the chosen sizes.
                   </p>
                 ) : null}
                 {entries.length === 0 &&

@@ -317,6 +317,77 @@ describe("ERC engine", () => {
     ).toEqual([]);
   });
 
+  it("reports two parts' pins on one point that are not on one Net", () => {
+    // A Port set on a gate, or a Ground on a Port, reads as joined, but the
+    // netlist keeps them apart and a copy of the drawing joins them.
+    type Document = CircuitProject["documents"][number];
+    const net = (id: string, ...terminals: string[]) => ({
+      id,
+      terminals: terminals.map((terminal) => {
+        const [instanceId, pinName] = terminal.split(".");
+        return { instanceId: instanceId!, pinName: pinName! };
+      }),
+    });
+    // I1.R and I2.L both sit at (20, 0); no wire is drawn.
+    const touching = (
+      nets: Document["nets"],
+      noConnects: Document["noConnects"] = [],
+    ) => {
+      const project = emptyProject();
+      const document = project.documents[0]!;
+      document.instances = [
+        instance("I1"),
+        {
+          ...instance("I2"),
+          placement: {
+            position: { x: 40, y: 0 },
+            rotation: 0 as const,
+            mirror: "none" as const,
+          },
+        },
+      ];
+      document.nets = nets;
+      document.noConnects = noConnects;
+      return run(project).filter(
+        (diagnostic) => diagnostic.code === "ERC_TOUCHING_NOT_CONNECTED",
+      );
+    };
+
+    const [finding, ...rest] = touching([
+      net("net-a", "I1.L", "I1.R"),
+      net("net-b", "I2.L", "I2.R"),
+    ]);
+    expect(rest).toEqual([]);
+    expect(finding!.message).toBe(
+      "Pins I1.R and I2.L sit on one point but belong to different Nets",
+    );
+    expect(finding!.parameters).toEqual({
+      instanceId: "I1",
+      pinName: "R",
+      otherInstanceId: "I2",
+      otherPinName: "L",
+    });
+    // A pin on nothing at that point is reported too.
+    expect(
+      touching([net("net-a", "I1.L", "I1.R")]).map(
+        (diagnostic) => diagnostic.message,
+      ),
+    ).toEqual(["Pins I1.R and I2.L sit on one point without being connected"]);
+    // Pins on one Net are the ordinary joined case.
+    expect(
+      touching([net("net-joined", "I1.L", "I1.R", "I2.L", "I2.R")]),
+    ).toEqual([]);
+    // A pin the author declared open has been answered for.
+    expect(
+      touching([net("net-a", "I1.L", "I1.R"), net("net-b", "I2.R")], [
+        {
+          id: "nc-1",
+          endpoint: { kind: "terminal", instanceId: "I2", pinName: "L" },
+        },
+      ] as Document["noConnects"]),
+    ).toEqual([]);
+  });
+
   it("flags unconnected visible pins and suppresses them via NoConnect", () => {
     const project = emptyProject();
     project.documents[0]!.instances = [instance("I1")];

@@ -1,5 +1,12 @@
 import { formulaPreviewNeedsRefresh } from "./gallery-preview";
 import {
+  COMPONENT_COUNT_RULE_VERSION,
+  GALLERY_COMPONENT_RANGES,
+  componentRangeSql,
+  galleryComponentCount,
+  requestedComponentRanges,
+} from "./gallery-components";
+import {
   GALLERY_ISSUE_KINDS,
   readGalleryCuration,
   type GalleryAttention,
@@ -328,6 +335,11 @@ export interface GalleryEntrySummary {
    * never a gate: circuits without it are published and browsed alike.
    */
   netlistable: boolean;
+  /**
+   * How many parts the top Cell draws (see `galleryComponentCount`); absent
+   * until the scheduled refresh has counted an older entry.
+   */
+  componentCount?: number;
   likes: number;
   /** Whether the requesting account has liked it; false when signed out. */
   likedByViewer: boolean;
@@ -390,6 +402,8 @@ interface EntryRow {
   project_text: string;
   svg_text: string;
   netlistable: number;
+  component_count: number;
+  component_count_version: number;
   preview_revision: string;
   preview_width: number | null;
   preview_height: number | null;
@@ -410,7 +424,8 @@ type EntrySummaryRow = Pick<
   | "preview_revision"
   | "preview_width"
   | "preview_height"
->;
+> &
+  Partial<Pick<EntryRow, "component_count" | "component_count_version">>;
 
 interface PreviewAccessRow {
   status: string;
@@ -429,6 +444,16 @@ const MAGIC_LI_LEGACY_BYLINE = "3187863239-netizen";
 const MAGIC_LI_BYLINE = "Magic Li";
 const VERSION_RETENTION_MIGRATION = "2026-08-27-gallery-version-retention-2";
 const PREVIEW_DIMENSIONS_MIGRATION = "2026-09-02-gallery-preview-dimensions";
+
+/**
+ * A part count as stored: with this build's rule version when the writer
+ * counted it, or unversioned, so the scheduled refresh counts it, when not.
+ */
+function countedParts(value: unknown): [number, number] {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0
+    ? [value, COMPONENT_COUNT_RULE_VERSION]
+    : [0, 0];
+}
 
 function summaryOf(
   row: EntrySummaryRow & { likes?: number; liked_by_viewer?: number },
@@ -462,6 +487,9 @@ function summaryOf(
     schemaVersion: row.schema_version,
     tags: unwrapTags(row.tags),
     netlistable: row.netlistable === 1,
+    ...(row.component_count_version && row.component_count !== undefined
+      ? { componentCount: row.component_count }
+      : {}),
     likes: row.likes ?? 0,
     likedByViewer: (row.liked_by_viewer ?? 0) === 1,
   };
@@ -632,6 +660,8 @@ export class GalleryDO {
       "ALTER TABLE gallery_entries ADD COLUMN submitter_provider TEXT",
       "ALTER TABLE gallery_entries ADD COLUMN netlistable INTEGER NOT NULL DEFAULT 0",
       "ALTER TABLE gallery_entries ADD COLUMN netlistable_version INTEGER NOT NULL DEFAULT 0",
+      "ALTER TABLE gallery_entries ADD COLUMN component_count INTEGER NOT NULL DEFAULT 0",
+      "ALTER TABLE gallery_entries ADD COLUMN component_count_version INTEGER NOT NULL DEFAULT 0",
       "ALTER TABLE gallery_entries ADD COLUMN preview_revision TEXT NOT NULL DEFAULT ''",
       "ALTER TABLE gallery_entries ADD COLUMN preview_width REAL",
       "ALTER TABLE gallery_entries ADD COLUMN preview_height REAL",
@@ -650,9 +680,13 @@ export class GalleryDO {
     // Keep after the additive columns for existing databases. No query, cursor,
     // permission, freshness or result ordering changes; SQLite maintains this
     // index atomically with the same writes that update Gallery metadata.
+    // The part count joined the counts and filters later, so the index that
+    // covers them was rebuilt with it.
+    this.sql.exec("DROP INDEX IF EXISTS idx_gallery_entries_feed_stats");
     this.sql.exec(`
-      CREATE INDEX IF NOT EXISTS idx_gallery_entries_feed_stats
-      ON gallery_entries(status, owner_user_id, author, netlistable, tags, curation_json)
+      CREATE INDEX IF NOT EXISTS idx_gallery_entries_feed_stats_parts
+      ON gallery_entries(status, owner_user_id, author, netlistable, tags,
+        curation_json, component_count)
     `);
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS data_migrations (
@@ -1066,8 +1100,9 @@ export class GalleryDO {
           id, name, author, description, created_at, schema_version,
           status, recycled_at, owner_user_id, submitter_email,
           submitter_provider, tags, project_text, svg_text, netlistable,
-          netlistable_version, preview_revision, preview_width, preview_height
-        ) VALUES (?, ?, ?, ?, ?, ?, 'public', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          netlistable_version, component_count, component_count_version,
+          preview_revision, preview_width, preview_height
+        ) VALUES (?, ?, ?, ?, ?, ?, 'public', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         entry.id,
         entry.name,
         entry.author,
@@ -1082,6 +1117,7 @@ export class GalleryDO {
         entry.svg_text,
         entry.netlistable ?? 0,
         NETLIST_MARK_RULE_VERSION,
+        ...countedParts(entry.component_count),
         previewRevision,
         previewDimensions?.width ?? null,
         previewDimensions?.height ?? null,
@@ -1104,7 +1140,7 @@ export class GalleryDO {
    */
   private feedConditions(
     body: Record<string, unknown>,
-    options: { tags: boolean; attentionKind?: boolean },
+    options: { tags: boolean; attentionKind?: boolean; parts?: boolean },
   ): {
     conditions: string[];
     bindings: (string | number)[];
@@ -1154,6 +1190,18 @@ export class GalleryDO {
       }
     }
     if (body.netlistable === true) conditions.push("e.netlistable = 1");
+    // Several sizes mean any of them. The size counts leave the choice out,
+    // or choosing one size would zero the others beside it.
+    const ranges =
+      options.parts === false ? [] : requestedComponentRanges(body.parts);
+    if (ranges.length > 0) {
+      const { sql, bindings: rangeBindings } = componentRangeSql(
+        "e.component_count",
+        ranges,
+      );
+      conditions.push(sql);
+      bindings.push(...rangeBindings);
+    }
     // Whose likes: the session's, so a signed-out reader asking for their
     // liked circuits is answered with none instead of with everybody's.
     if (body.liked === true) {
@@ -1201,6 +1249,7 @@ export class GalleryDO {
       .toArray()[0]!;
     const attentionKinds =
       body.attention === true ? this.attentionKindCounts(body) : undefined;
+    const componentRanges = this.componentRangeCounts(body);
     const authors = this.contributorCounts(conditions, bindings);
     if (cursor) {
       conditions.push("(e.created_at || '|' || e.id) < ?");
@@ -1211,7 +1260,8 @@ export class GalleryDO {
         `SELECT e.id, e.name, e.author, e.description, e.created_at,
            e.owner_user_id,
            e.schema_version, e.tags, e.curation_json, e.netlistable, e.preview_revision,
-           e.preview_width, e.preview_height,
+           e.preview_width, e.preview_height, e.component_count,
+           e.component_count_version,
            (SELECT COUNT(*) FROM gallery_likes WHERE entry_id = e.id) AS likes,
            (SELECT COUNT(*) FROM gallery_likes
              WHERE entry_id = e.id AND user_id = ?) AS liked_by_viewer
@@ -1243,8 +1293,46 @@ export class GalleryDO {
         netlistable: Number(counts.netlistable),
         liked: Number(counts.liked),
         ...(attentionKinds ? { attentionKinds } : {}),
+        componentRanges,
       },
     });
+  }
+
+  /**
+   * How many entries fall in each size, with every other filter applied: the
+   * counts beside the size choices.
+   */
+  private componentRangeCounts(
+    body: Record<string, unknown>,
+  ): Record<string, number> {
+    const { conditions, bindings } = this.feedConditions(body, {
+      tags: true,
+      parts: false,
+    });
+    const columns: string[] = [];
+    const columnBindings: number[] = [];
+    GALLERY_COMPONENT_RANGES.forEach((range, index) => {
+      const { sql, bindings: rangeBindings } = componentRangeSql(
+        "e.component_count",
+        [range],
+      );
+      columns.push(`COUNT(CASE WHEN ${sql} THEN 1 END) AS r${index}`);
+      columnBindings.push(...rangeBindings);
+    });
+    const row = this.sql
+      .exec<Record<string, number>>(
+        `SELECT ${columns.join(", ")}
+         FROM gallery_entries e WHERE ${conditions.join(" AND ")}`,
+        ...columnBindings,
+        ...bindings,
+      )
+      .toArray()[0];
+    return Object.fromEntries(
+      GALLERY_COMPONENT_RANGES.map((range, index) => [
+        range.key,
+        Number(row?.[`r${index}`] ?? 0),
+      ]),
+    );
   }
 
   /**
@@ -1481,7 +1569,8 @@ export class GalleryDO {
         `UPDATE gallery_entries
          SET name = ?, author = ?, description = ?, project_text = ?,
              svg_text = ?, schema_version = ?, status = ?, tags = ?,
-             netlistable = ?, netlistable_version = ?, preview_revision = ?,
+             netlistable = ?, netlistable_version = ?, component_count = ?,
+             component_count_version = ?, preview_revision = ?,
              preview_width = ?, preview_height = ?, curation_json = ?
          WHERE id = ?`,
         String(body.name),
@@ -1494,6 +1583,7 @@ export class GalleryDO {
         typeof body.tags === "string" ? body.tags : "",
         Number(body.netlistable) === 1 ? 1 : 0,
         NETLIST_MARK_RULE_VERSION,
+        ...countedParts(body.componentCount),
         previewRevision,
         previewDimensions?.width ?? null,
         previewDimensions?.height ?? null,
@@ -1679,8 +1769,9 @@ export class GalleryDO {
         `UPDATE gallery_entries
          SET name = ?, author = ?, description = ?, project_text = ?,
              svg_text = ?, schema_version = ?, tags = ?, netlistable = ?,
-             netlistable_version = ?, preview_revision = ?, preview_width = ?,
-             preview_height = ?, curation_json = ?
+             netlistable_version = ?, component_count = ?,
+             component_count_version = ?, preview_revision = ?,
+             preview_width = ?, preview_height = ?, curation_json = ?
          WHERE id = ?`,
         version.name,
         entry.author,
@@ -1691,6 +1782,7 @@ export class GalleryDO {
         version.tags ?? "",
         netlistable,
         NETLIST_MARK_RULE_VERSION,
+        ...countedParts(galleryComponentCount(restoredProject)),
         previewRevision,
         previewDimensions?.width ?? null,
         previewDimensions?.height ?? null,
@@ -3042,11 +3134,20 @@ export class GalleryDO {
    */
   private refreshNetlistable(body: Record<string, unknown>): Response {
     const limit = Math.min(Math.max(Number(body.limit) || 50, 1), 200);
+    // The part count is the same kind of answer about the drawing, kept
+    // current by the same pass.
+    const stale = `netlistable_version < ? OR component_count_version < ?`;
     const rows = this.sql
-      .exec<{ id: string; project_text: string; netlistable: number }>(
-        `SELECT id, project_text, netlistable FROM gallery_entries
-         WHERE netlistable_version < ? ORDER BY id LIMIT ?`,
+      .exec<{
+        id: string;
+        project_text: string;
+        netlistable: number;
+        component_count: number;
+      }>(
+        `SELECT id, project_text, netlistable, component_count
+         FROM gallery_entries WHERE ${stale} ORDER BY id LIMIT ?`,
         NETLIST_MARK_RULE_VERSION,
+        COMPONENT_COUNT_RULE_VERSION,
         limit,
       )
       .toArray();
@@ -3054,35 +3155,45 @@ export class GalleryDO {
     let unreadable = 0;
     for (const row of rows) {
       let answer: number;
+      let parts: number;
       try {
-        answer = designExtractsNetlist(parseProject(row.project_text)) ? 1 : 0;
+        const project = parseProject(row.project_text);
+        answer = designExtractsNetlist(project) ? 1 : 0;
+        parts = galleryComponentCount(project);
       } catch {
         // A Project this build cannot parse keeps the answer it has; the
         // schema maintenance pass owns that repair. Stamping it anyway stops
         // the pass from meeting the same unreadable row for ever.
         unreadable += 1;
         this.sql.exec(
-          "UPDATE gallery_entries SET netlistable_version = ? WHERE id = ?",
+          `UPDATE gallery_entries
+           SET netlistable_version = ?, component_count_version = ?
+           WHERE id = ?`,
           NETLIST_MARK_RULE_VERSION,
+          COMPONENT_COUNT_RULE_VERSION,
           row.id,
         );
         continue;
       }
-      if (answer !== row.netlistable) changed += 1;
+      if (answer !== row.netlistable || parts !== row.component_count)
+        changed += 1;
       this.sql.exec(
-        `UPDATE gallery_entries SET netlistable = ?, netlistable_version = ?
+        `UPDATE gallery_entries SET netlistable = ?, netlistable_version = ?,
+           component_count = ?, component_count_version = ?
          WHERE id = ?`,
         answer,
         NETLIST_MARK_RULE_VERSION,
+        parts,
+        COMPONENT_COUNT_RULE_VERSION,
         row.id,
       );
     }
     const remaining = Number(
       this.sql
         .exec<{ count: number }>(
-          `SELECT COUNT(*) AS count FROM gallery_entries
-           WHERE netlistable_version < ?`,
+          `SELECT COUNT(*) AS count FROM gallery_entries WHERE ${stale}`,
           NETLIST_MARK_RULE_VERSION,
+          COMPONENT_COUNT_RULE_VERSION,
         )
         .one().count,
     );
