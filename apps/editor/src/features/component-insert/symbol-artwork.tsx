@@ -35,12 +35,15 @@ export function SymbolArtwork({
   symbol,
   className,
   rotation,
+  libraryMark,
   /** Fraction of max(viewBox width, height) added around the glyph. */
   paddingRatio = 0.18,
 }: {
   symbol: SymbolDefinition;
   className: string;
   rotation?: Rotation;
+  /** A Library-only source class mark; placed Symbols retain their reviewed artwork. */
+  libraryMark?: string;
   paddingRatio?: number;
 }) {
   const variantId =
@@ -102,7 +105,23 @@ export function SymbolArtwork({
         strokeLinejoin="miter"
         dangerouslySetInnerHTML={{
           __html: renderSymbolDefinitionBody(
-            symbol,
+            libraryMark
+              ? {
+                  ...symbol,
+                  primitives: symbol.primitives.filter(
+                    (primitive) =>
+                      primitive.kind === "circle" ||
+                      (primitive.kind === "line" &&
+                        symbol.pins.some(
+                          (pin) =>
+                            (primitive.from.x === pin.at.x &&
+                              primitive.from.y === pin.at.y) ||
+                            (primitive.to.x === pin.at.x &&
+                              primitive.to.y === pin.at.y),
+                        )),
+                  ),
+                }
+              : symbol,
             variant?.hiddenPrimitiveParts,
             variant?.additionalPrimitives,
             razaviTextbookProfile,
@@ -112,6 +131,22 @@ export function SymbolArtwork({
           ),
         }}
       />
+      {libraryMark ? (
+        <text
+          x="0"
+          y="0"
+          fill="currentColor"
+          stroke="none"
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontFamily={razaviTextbookProfile.typography.fontFamily}
+          fontSize="11"
+          fontWeight="700"
+          data-library-source-mark={libraryMark}
+        >
+          {libraryMark}
+        </text>
+      ) : null}
       {formula ? <g dangerouslySetInnerHTML={{ __html: formula }} /> : null}
       {pinNames ? (
         <g

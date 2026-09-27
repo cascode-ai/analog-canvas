@@ -102,7 +102,6 @@ import {
   createEmptyProject,
   createId,
   LINEAR_CONTROLLED_SOURCE_KINDS,
-  controlledSourceExpressionDocument,
   controlledSourceExpressionSource,
 } from "@icm/model";
 import {
@@ -2571,7 +2570,12 @@ function WorkspaceEditor({
     : undefined;
   const selectedDisplayName =
     selectedInstanceLabel?.kind === "instance-label"
-      ? resolveAnnotationName(document, selectedInstanceLabel).trim() || null
+      ? selectedInstance &&
+        LINEAR_CONTROLLED_SOURCE_KINDS.has(selectedInstance.symbolId) &&
+        selectedInstanceLabel.content
+        ? controlledSourceExpressionSource(selectedInstanceLabel.content) ||
+          null
+        : resolveAnnotationName(document, selectedInstanceLabel).trim() || null
       : null;
   const selectedInstanceValue = selectedInstance
     ? instanceValueAnnotation(document, selectedInstance.id)
@@ -7265,13 +7269,9 @@ function WorkspaceEditor({
                           selectedFormalTerminal?.name ?? selectedDisplayName,
                         itemName:
                           selectedFormalTerminal?.name ??
-                          (selectedInstanceLabel
-                            ? resolveAnnotationName(
-                                document,
-                                selectedInstanceLabel,
-                              )
-                            : (selectedInstance.reference ??
-                              selectedInstance.id)),
+                          selectedDisplayName ??
+                          selectedInstance.reference ??
+                          selectedInstance.id,
                         defaultForeground: styleProfile.foreground,
                         revision: document.revision,
                         referenceVisible:
@@ -7299,17 +7299,6 @@ function WorkspaceEditor({
                           selectedSupplyMarker && !selectedFormalTerminal
                             ? (selectedPortLogicalName ?? "")
                             : null,
-                        ...(selectedInstanceValue?.content &&
-                        LINEAR_CONTROLLED_SOURCE_KINDS.has(
-                          selectedInstance.symbolId,
-                        )
-                          ? {
-                              displayExpression:
-                                controlledSourceExpressionSource(
-                                  selectedInstanceValue.content,
-                                ),
-                            }
-                          : {}),
                         ...(LINEAR_CONTROLLED_SOURCE_KINDS.has(
                           selectedInstance.symbolId,
                         )
@@ -7362,37 +7351,6 @@ function WorkspaceEditor({
                                 selectedInstance,
                                 selectedFormalTerminal ? nonNameValues : value,
                               );
-                            if (
-                              value.displayExpression !== undefined &&
-                              LINEAR_CONTROLLED_SOURCE_KINDS.has(
-                                selectedInstance.symbolId,
-                              )
-                            ) {
-                              const prior = selectedInstanceValue?.content
-                                ? controlledSourceExpressionSource(
-                                    selectedInstanceValue.content,
-                                  )
-                                : null;
-                              if (
-                                prior !== value.displayExpression &&
-                                selectedInstanceValue
-                              ) {
-                                const {
-                                  binding: _binding,
-                                  content: _content,
-                                  ...visual
-                                } = selectedInstanceValue;
-                                edits.push({
-                                  kind: "upsert_schematic_annotation",
-                                  annotation: {
-                                    ...visual,
-                                    content: controlledSourceExpressionDocument(
-                                      value.displayExpression,
-                                    ),
-                                  },
-                                });
-                              }
-                            }
                             if (
                               !selectedInstance.placement &&
                               value.placement

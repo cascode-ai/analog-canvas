@@ -31,7 +31,7 @@ describe("planComponentPropertyCodeEdits", () => {
       }),
       control: { positiveNetId: "plus", negativeNetId: "minus" },
       parameters: { gm: "2m" },
-      displayExpression: "g_{custom}v_{x}",
+      displayName: "g_{custom}v_{x}",
     };
     expect(
       planComponentPropertyCodeEdits(document, instance, value),

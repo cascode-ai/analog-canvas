@@ -3,6 +3,7 @@ import {
   resolveSchematicStyleProfile,
 } from "@icm/derived";
 import {
+  controlledSourceExpressionSource,
   createEmptyDocument,
   flattenRichText,
   roleLabelFormat,
@@ -29,7 +30,7 @@ describe("default instance display annotations", () => {
     ["ccvs", "voltage-source", "R_{m}i_{x}"],
   ])(
     "places %s's literal expression at the existing %s source label slot",
-    (symbolId, sourceId, _expression) => {
+    (symbolId, sourceId, expression) => {
       const document = createEmptyDocument(
         "controlled-label",
         "Controlled label",
@@ -56,29 +57,36 @@ describe("default instance display annotations", () => {
       const ordinarySymbol = resolver.resolve(sourceId)!.definition;
       expect(controlledSymbol.primitives).toEqual(ordinarySymbol.primitives);
       expect(controlledSymbol.pins).toEqual(ordinarySymbol.pins);
-      const controlledValue = defaultInstanceDisplayAnnotations(
+      const controlledAnnotations = defaultInstanceDisplayAnnotations(
         document,
         controlled,
         resolver,
         profile,
         { showValue: true },
-      ).find((annotation) => annotation.kind === "instance-value")!;
-      const ordinaryValue = defaultInstanceDisplayAnnotations(
+      );
+      const controlledLabel = controlledAnnotations.find(
+        (annotation) => annotation.kind === "instance-label",
+      )!;
+      const ordinaryLabel = defaultInstanceDisplayAnnotations(
         document,
         ordinary,
         resolver,
         profile,
         { showValue: true },
-      ).find((annotation) => annotation.kind === "instance-value")!;
-      expect(controlledValue.alignment).toBe(ordinaryValue.alignment);
-      expect(controlledValue.anchor).toMatchObject({
+      ).find((annotation) => annotation.kind === "instance-label")!;
+      expect(controlledAnnotations).toHaveLength(1);
+      expect(controlledLabel.alignment).toBe(ordinaryLabel.alignment);
+      expect(controlledLabel.anchor).toMatchObject({
         kind: "object",
-        ...(ordinaryValue.anchor.kind === "object"
-          ? { localOffset: ordinaryValue.anchor.localOffset }
+        ...(ordinaryLabel.anchor.kind === "object"
+          ? { localOffset: ordinaryLabel.anchor.localOffset }
           : {}),
       });
-      expect(controlledValue.binding).toBeUndefined();
-      expect(flattenRichText(controlledValue.content!)).toBeTruthy();
+      expect(controlledLabel.binding).toBeUndefined();
+      expect(flattenRichText(controlledLabel.content!)).toBeTruthy();
+      expect(controlledSourceExpressionSource(controlledLabel.content!)).toBe(
+        expression,
+      );
     },
   );
   it.each([0, 90, 180, 270] as const)(

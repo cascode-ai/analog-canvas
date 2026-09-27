@@ -1,10 +1,4 @@
-import {
-  controlledSourceExpressionDocument,
-  defaultControlledSourceExpression,
-  LINEAR_CONTROLLED_SOURCE_KINDS,
-  type LinearControlledSourceKind,
-  type RichTextDocument,
-} from "@icm/model";
+import type { RichTextDocument } from "@icm/model";
 import {
   deviceDescriptor,
   referencePolicyForSymbol,
@@ -163,16 +157,6 @@ export function displayableInstanceValue(
     return {
       kind: "undisplayable",
       reason: `Symbol ${instance.symbolId} has no netlist device class`,
-    };
-  }
-  if (LINEAR_CONTROLLED_SOURCE_KINDS.has(definition.deviceClass)) {
-    return {
-      kind: "displayable",
-      content: controlledSourceExpressionDocument(
-        defaultControlledSourceExpression(
-          definition.deviceClass as LinearControlledSourceKind,
-        ),
-      ),
     };
   }
   const width = definition.parameters.find(

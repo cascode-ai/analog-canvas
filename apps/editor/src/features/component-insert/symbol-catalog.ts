@@ -225,6 +225,13 @@ const SYMBOL_ORDER: readonly string[] = [
   "capacitor",
   "inductor-compact",
   "inductor",
+  // Independent sources lead; controlled sources follow in electrical order.
+  "voltage-source",
+  "current-source",
+  "vcvs",
+  "vccs",
+  "cccs",
+  "ccvs",
   // Switches: textbook two-terminal forms, then explicit-control forms.
   "ideal-switch",
   "closed-switch",
