@@ -175,7 +175,7 @@ describe("default instance display annotations", () => {
       ).toEqual([]);
     },
   );
-  it("shows a live, editable Battery Reference with no default netlist binding", () => {
+  it("shows a live Battery Reference with a voltage-source binding", () => {
     const document = createEmptyDocument("battery", "Battery");
     const instance = createNewInstance(document, {
       symbolId: "battery",
@@ -195,7 +195,10 @@ describe("default instance display annotations", () => {
     );
 
     expect(instance.reference).toBe("B1");
-    expect(instance.netlist?.binding).toBeUndefined();
+    expect(instance.netlist?.binding).toEqual({
+      kind: "primitive",
+      deviceClass: "voltage-source",
+    });
     expect(annotations).toHaveLength(1);
     expect(annotations[0]).toMatchObject({
       kind: "instance-label",

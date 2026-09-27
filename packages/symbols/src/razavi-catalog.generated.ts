@@ -104,7 +104,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     palette: true,
     automaticMappings: [],
     manualOnlyReason:
-      "The Razavi battery plate symbol records visual supply intent only; no voltage-source or physical-battery netlist model is inferred.",
+      "SPICE V cards do not distinguish battery plate artwork from a circular voltage source, so ordinary V imports keep the circular symbol.",
     assetPath: "battery.json",
     assetHash:
       "ac5a89ba8b959ffd557ab8335ac2c86caf8a5ac0105b2cdc5c2bbd9a62166b3a",

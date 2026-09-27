@@ -159,6 +159,7 @@ describe("component parameter catalogue", () => {
   it("offers all independent-source modes through the ordinary parameter path", () => {
     for (const [symbolId, unit] of [
       ["voltage-source", "V"],
+      ["battery", "V"],
       ["current-source", "A"],
     ] as const) {
       const parameters = componentParameters(symbolId);

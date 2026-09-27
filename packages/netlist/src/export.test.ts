@@ -215,21 +215,66 @@ describe("copy/export netlist projection", () => {
       );
     },
   );
-  it("keeps a named Battery drawing out of SPICE without inventing DC behavior", () => {
+  it.each(["spice", "spectre"] as const)(
+    "exports a Battery as an independent voltage source in %s",
+    (format) => {
+      const project = createEmptyProject("battery-project", "Battery");
+      const document = project.documents[0]!;
+      document.instances.push({
+        id: "B1",
+        symbolId: "battery",
+        reference: "B1",
+        placement: null,
+        netlist: { parameters: { dc: "1.8", acMagnitude: "10m" } },
+      });
+      document.nets = [
+        { id: "positive", terminals: [{ instanceId: "B1", pinName: "+" }] },
+        { id: "negative", terminals: [{ instanceId: "B1", pinName: "-" }] },
+      ];
+      const result = createDesignNetlistExport(project, { format });
+      expect(result.status).toBe("ready");
+      if (result.status !== "ready") return;
+      if (format === "spice") {
+        expect(result.file.text).toMatch(/^VB1\s+\S+\s+\S+\s+DC 1\.8 AC 10m/mu);
+      } else {
+        expect(result.file.text).toMatch(/^B1\s+\S+\s+\S+\s+vsource\s+/mu);
+        expect(result.file.text).toContain("dc=1.8");
+      }
+    },
+  );
+
+  it("requires an authored DC value on an older Battery drawing", () => {
     const project = createEmptyProject("battery-project", "Battery");
-    const document = project.documents[0]!;
-    document.instances.push({
+    project.documents[0]!.instances.push({
       id: "B1",
       symbolId: "battery",
       reference: "B1",
       placement: null,
       netlist: { parameters: {} },
     });
-
     const result = createDesignNetlistExport(project);
     expect(result.status).toBe("blocked");
     expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({ code: "NON_NETLISTABLE_DEVICE" }),
+      expect.objectContaining({
+        code: "MISSING_REQUIRED_PARAMETER",
+        parameter: "dc",
+      }),
+    );
+  });
+
+  it("keeps ordinary imported SPICE V cards on the circular source symbol", async () => {
+    const imported = await importSpiceSources(
+      [
+        {
+          path: "source.spi",
+          bytes: new TextEncoder().encode("Source\nV1 out 0 DC 1.8\n.end\n"),
+        },
+      ],
+      "source.spi",
+    );
+    expect(imported.successful).toBe(true);
+    expect(imported.project?.documents[0]?.instances[0]?.symbolId).toBe(
+      "voltage-source",
     );
   });
 

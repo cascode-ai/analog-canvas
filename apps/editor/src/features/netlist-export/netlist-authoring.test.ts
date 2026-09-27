@@ -128,6 +128,10 @@ describe("netlist authoring", () => {
       binding: { kind: "primitive", deviceClass: "voltage-source" },
       parameters: { dc: "1.8" },
     });
+    expect(initialInstanceNetlist("battery", { dc: "1.8" })).toEqual({
+      binding: { kind: "primitive", deviceClass: "voltage-source" },
+      parameters: { dc: "1.8" },
+    });
     // A typed AC magnitude is written like any other authored value; the blank
     // phase field writes nothing, so the printed card defaults it to 0.
     expect(

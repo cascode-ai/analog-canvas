@@ -475,7 +475,7 @@ test("writes an Instance Reference through post-placement Properties", async ({
     .toContain('"reference": "R7"');
 });
 
-test("Battery receives a visible editable name without a simulation binding", async ({
+test("Battery receives an editable name and voltage-source parameters", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -488,6 +488,8 @@ test("Battery receives a visible editable name without a simulation binding", as
   await page.getByTestId("hit-B1").click();
   await revealPropertiesShelf(page);
   await page.getByTestId("selection-shelf").click();
+  await expectComponentCodeField(page, "parameters.dc", "1");
+  await expectComponentCodeField(page, "parameters.waveform", "dc");
   await editComponentPropertyCode(page, (code) => {
     code.netlistName = "B7";
   });
@@ -495,6 +497,9 @@ test("Battery receives a visible editable name without a simulation binding", as
   await expect
     .poll(() => recoveryProjectTexts(page))
     .toContain('"reference": "B7"');
+  await expect
+    .poll(() => recoveryProjectTexts(page))
+    .toContain('"deviceClass": "voltage-source"');
 });
 
 test("keeps the Placement Tray out of the manual component workflow", async ({

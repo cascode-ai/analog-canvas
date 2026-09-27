@@ -160,24 +160,16 @@ describe("built-in device registry", () => {
     });
   });
 
-  it("names Battery instances without assigning a netlist target", () => {
+  it("gives Battery the voltage-source contract while retaining its own identity", () => {
     const battery = deviceDescriptor("battery");
-    expect(battery).toMatchObject({
-      deviceClass: "voltage-source",
-      referencePrefix: "B",
-      pinOrder: ["+", "-"],
-      targetPolicy: "none",
-      parameters: [],
-      capabilities: { supportsValueAnnotation: false },
-    });
     if (!battery) throw new Error("Missing Battery descriptor");
-    expect(validateDeviceDescriptors([battery])).toEqual([]);
-    expect(
-      validateDeviceDescriptors([{ ...battery, targetPolicy: "builtin" }]),
-    ).toContainEqual({
-      deviceId: "battery",
-      message: "Independent sources require a waveform default",
+    expect(battery).toEqual({
+      ...deviceDescriptor("voltage-source"),
+      id: "battery",
+      symbolId: "battery",
+      referencePrefix: "B",
     });
+    expect(validateDeviceDescriptors([battery])).toEqual([]);
     expect(referencePolicyForSymbol("battery")).toEqual({
       kind: "required",
       prefix: "B",
