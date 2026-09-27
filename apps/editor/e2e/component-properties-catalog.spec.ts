@@ -21,6 +21,7 @@ const componentSymbolIds = [
   "vdd-port",
   "ndmos",
   "xfmr",
+  "vccs",
 ];
 
 for (const symbolId of componentSymbolIds) {
@@ -77,6 +78,14 @@ for (const symbolId of componentSymbolIds) {
     ).toBeVisible();
     if (symbolId === "vdd-port") {
       await expectComponentCodeField(page, "connection", "cell-pin");
+    }
+    if (symbolId === "vccs") {
+      await expectComponentCodeField(page, "displayExpression", "g_{m}v_{i}");
+      await expectComponentCodeField(page, "control", {
+        positiveNetId: "",
+        negativeNetId: "",
+      });
+      await expectComponentCodeField(page, "parameters.gm", "1m");
     }
     await expect(properties.locator(":scope > *")).toHaveCount(1);
     await expect(properties.locator(":scope > :only-child")).toHaveAttribute(
