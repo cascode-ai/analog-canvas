@@ -69,6 +69,10 @@ describe("shapes quick-place", () => {
     expect(markup.match(/class="shapes-category" open=""/g)).toHaveLength(10);
     expect(markup.match(/class="shapes-category-header"/g)).toHaveLength(10);
     expect(markup).toContain('aria-label="Place Independent Voltage Source"');
+    for (const id of ["vcvs", "vccs", "cccs", "ccvs"])
+      expect(markup).toContain(`data-testid="shapes-chip-${id}"`);
+    for (const label of ["VCVS", "VCCS", "CCCS", "CCVS"])
+      expect(markup).toContain(`>${label}</span>`);
     expect(markup).not.toContain('aria-label="Place Digital Clock"');
     expect(markup).toContain('title="Place Capacitor"');
     expect(markup).toContain('aria-label="Place T-Coil"');
