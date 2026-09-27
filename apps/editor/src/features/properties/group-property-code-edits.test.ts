@@ -6,6 +6,7 @@ import {
   groupForeground,
   groupParameterContext,
   groupPropertyCodeValue,
+  groupPropertyItems,
   parseGroupPropertyCode,
   type GroupPropertyCodeContext,
 } from "./group-property-code";
@@ -29,6 +30,21 @@ function contextFor(instances: Instance[]): GroupPropertyCodeContext {
     reference: true,
     value: false,
     foreground: groupForeground(instances, "#000000"),
+  };
+}
+/** The context with each selected part listed, as the batch shows it. */
+function listed(instances: Instance[]): GroupPropertyCodeContext {
+  const context = contextFor(instances);
+  return {
+    ...context,
+    items: groupPropertyItems(instances, {
+      parametersFor: (instance) => componentParameters(instance.symbolId),
+      parameterKeys: Object.keys(context.parameters ?? {}),
+      nameOf: (instance) => instance.reference ?? instance.id,
+      referenceVisible: () => true,
+      valueVisible: () => null,
+      defaultForeground: "#000000",
+    }),
   };
 }
 
@@ -113,37 +129,120 @@ describe("batch property planning", () => {
       })),
     );
   });
-  it("keeps mixed types blank, allows common color, and rejects a partial parameter/type assignment", () => {
+  it("lists what parts of different types share, each by its own value", () => {
+    const nmos = {
+      ...resistor("M1", ""),
+      symbolId: "nmos",
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "mos" },
+        parameters: { w: "1u", l: "180n" },
+      },
+    } as Instance;
+    const pmos = {
+      ...nmos,
+      id: "M2",
+      reference: "M2",
+      symbolId: "pmos",
+      netlist: { ...nmos.netlist!, parameters: { w: "2u", l: "180n" } },
+    } as Instance;
+    const ctx = listed([nmos, pmos]);
+    expect(ctx.symbol).toBe("");
+    const code = JSON.parse(formatGroupPropertyCode(ctx));
+    // Width and length mean the same on both: each part is listed, and one
+    // value still sets them all.
+    expect(code.parameters).toMatchObject({
+      w: { M1: "1u", M2: "2u" },
+      l: { M1: "180n", M2: "180n" },
+    });
+    code.parameters.w = { M1: "1u", M2: "4u" };
+    code.parameters.l = "360n";
+    const parsed = parseGroupPropertyCode(JSON.stringify(code), ctx);
+    if (!parsed.ok) throw new Error(parsed.message);
+    expect(planGroupPropertyCodeEdits([nmos, pmos], parsed.value, ctx)).toEqual(
+      [
+        {
+          kind: "patch_instance_netlist_parameters",
+          instanceId: "M1",
+          set: { l: "360n" },
+        },
+        {
+          kind: "patch_instance_netlist_parameters",
+          instanceId: "M2",
+          set: { w: "4u", l: "360n" },
+        },
+      ],
+    );
+  });
+  it("keeps a parameter that means different things per type to each part's own value", () => {
     const instances = [
       resistor("R1", "1k"),
       { ...resistor("C1", "1p"), symbolId: "capacitor" },
     ];
-    const ctx = contextFor(instances);
-    expect(ctx).toMatchObject({ symbol: "", parameters: null });
+    const ctx = listed(instances);
+    // Both have a value: in ohms and in farads.
+    expect(ctx).toMatchObject({
+      symbol: "",
+      parameters: { value: "" },
+      perComponentParameters: ["value"],
+    });
     const code = JSON.parse(formatGroupPropertyCode(ctx));
-    expect(code).toMatchObject({ symbol: "", parameters: "" });
+    expect(code.parameters).toEqual({ value: { R1: "1k", C1: "1p" } });
+    code.parameters.value = { R1: "2k", C1: "1p" };
     code.appearance.color = [255, 0, 0];
     const parsed = parseGroupPropertyCode(JSON.stringify(code), ctx);
-    expect(parsed.ok).toBe(true);
-    if (parsed.ok)
-      expect(
-        planGroupPropertyCodeEdits(instances, parsed.value, ctx),
-      ).toHaveLength(2);
-    code.parameters = { value: "10k" };
-    expect(parseGroupPropertyCode(JSON.stringify(code), ctx).ok).toBe(false);
-    code.parameters = "";
+    if (!parsed.ok) throw new Error(parsed.message);
+    expect(planGroupPropertyCodeEdits(instances, parsed.value, ctx)).toEqual([
+      {
+        kind: "set_instance_style_override",
+        instanceId: "R1",
+        styleOverride: { foreground: "#ff0000" },
+      },
+      {
+        kind: "patch_instance_netlist_parameters",
+        instanceId: "R1",
+        set: { value: "2k" },
+      },
+      {
+        kind: "set_instance_style_override",
+        instanceId: "C1",
+        styleOverride: { foreground: "#ff0000" },
+      },
+    ]);
+    // One value for both would be ohms on one and farads on the other.
+    code.parameters.value = "10k";
+    expect(parseGroupPropertyCode(JSON.stringify(code), ctx)).toMatchObject({
+      ok: false,
+      message:
+        "parameters.value means something different on each component type; give each component its own value",
+    });
+    // The type stays read-only.
+    code.parameters.value = { R1: "1k", C1: "1p" };
     code.symbol = "resistor";
     expect(parseGroupPropertyCode(JSON.stringify(code), ctx).ok).toBe(false);
   });
-  it("does not combine different subcircuit interfaces even when their drawings match", () => {
-    const instances = ["a", "b"].map((id) => ({
+  it("lists a parameter two different subcircuits share, one entry each", () => {
+    const instances = ["a", "b"].map((id, index) => ({
       ...resistor(id, "1"),
       netlist: {
         binding: { kind: "external-subcircuit" as const, definitionId: id },
-        parameters: { gain: "1" },
+        parameters: { gain: String(index + 1) },
       },
     }));
-    expect(contextFor(instances).parameters).toBeNull();
+    expect(
+      JSON.parse(formatGroupPropertyCode(listed(instances))).parameters.gain,
+    ).toEqual({ a: "1", b: "2" });
+  });
+  it("offers no parameters when one selected part has none", () => {
+    const pin = { ...resistor("P1", ""), symbolId: "port" };
+    delete (pin as { netlist?: unknown }).netlist;
+    const ctx = listed([resistor("R1", "1k"), pin]);
+    expect(ctx.parameters).toBeNull();
+    const code = JSON.parse(formatGroupPropertyCode(ctx));
+    code.parameters = { value: "2k" };
+    expect(parseGroupPropertyCode(JSON.stringify(code), ctx)).toMatchObject({
+      ok: false,
+      message: "The selected components share no parameters",
+    });
   });
   it("accepts blank as keep-current and rejects missing, unknown, or invalid parameter values", () => {
     const instances = [resistor("R1", "1k"), resistor("R2", "2k")];

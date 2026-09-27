@@ -199,16 +199,21 @@ recognize such a network, so both are placed by hand.
 ## Editing multiple components
 
 Select components together with Shift-click or a selection rectangle, then
-press `Q`. Properties shows one editable JSON block. Shared colors and values
-are displayed; differences appear as `""`. Color compares the actual document
-ink, so inherited black and explicitly assigned black show the same RGB value.
-Set `appearance.color` through its swatch, RGB, or hex to recolor all
-selected components, including different types. For one component type, edit
-`parameters.value` (or individual parameters such as MOS `w` and `l`) together.
-Blank parameters keep each component's existing value. The `symbol` field
-shows the common type; it is blank for differing types and is informational.
-Each valid code edit applies atomically and can be undone once. Invalid edits
-keep the last accepted drawing. Changing selection discards its pending draft.
+press `Q`. Properties shows one editable JSON block. `name` lists each
+component by its Reference; changing an entry renames that one. Every
+parameter all the selected components have is listed the same way, one entry
+per component, even across types: an NMOS and a PMOS share `w`, `l`, `nf` and
+`m`. Edit an entry to change that component, or write one value in place of
+the list to set them all. A parameter that means something different on each
+type — a resistor's `value` in ohms and a capacitor's in farads — only takes
+one value per component. Blank parameters keep each component's existing
+value. Colors and the visibility switches show one value where the components
+agree and one entry each where they differ. Color compares the actual
+document ink, so inherited black and explicitly assigned black show the same
+RGB value. The `symbol` field shows the common type; it is blank for differing
+types and is informational. Each valid code edit applies atomically and can be
+undone once. Invalid edits keep the last accepted drawing. Changing selection
+discards its pending draft.
 
 ## Label names and typography
 

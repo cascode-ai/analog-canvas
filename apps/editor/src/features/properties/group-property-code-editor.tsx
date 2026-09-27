@@ -194,13 +194,15 @@ export function GroupPropertyCodeEditor({
         />
       </Suspense>
       <small className="group-property-hint">
-        Where components differ, each is listed by its Reference: edit its entry
-        to change that one, or enter a single value to apply it to all. Each
-        name is renamed through its own entry. Empty values keep each
-        component’s current setting.
+        Names and the parameters every selected component has list each one by
+        its Reference; other settings do where components differ. Edit an entry
+        to change that one, or enter a single value to apply it to all. Empty
+        values keep each component’s current setting.
         {context.parameters === null
-          ? " Select one component type to edit parameters together."
-          : ""}
+          ? " The selected components share no parameters."
+          : context.perComponentParameters?.length
+            ? ` ${context.perComponentParameters.join(", ")} differ by component type and take one value per component.`
+            : ""}
       </small>
       {status ? (
         <div className="component-property-code-status" aria-live="polite">

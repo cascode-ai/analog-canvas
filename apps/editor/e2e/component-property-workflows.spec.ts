@@ -1036,9 +1036,28 @@ test("Select All shows one batch code surface instead of object-specific forms",
     mirror: null,
     display: { visualAnnotation: true, value: false },
     color: [0, 0, 0],
-    parameters: { value: "1k" },
+    // A shared parameter lists each component too, even where they agree.
+    parameters: { value: { R1: "1k", R2: "1k" } },
     type: "resistor",
   });
+  // An entry changed changes only that component.
+  await editComponentPropertyCode(page, (code) => {
+    code.parameters.value.R2 = "2.2k";
+  });
+  await expect
+    .poll(async () =>
+      parseSavedProject(
+        (await downloadBytes(page, "File", "Export Project File…")).toString(
+          "utf8",
+        ),
+      ).documents[0].instances.map(
+        (instance: {
+          id: string;
+          netlist: { parameters: { value: string } };
+        }) => `${instance.id}=${instance.netlist.parameters.value}`,
+      ),
+    )
+    .toEqual(["R1=1k", "R2=2.2k"]);
   await expect(
     properties.getByText("Electrical route", { exact: true }),
   ).toHaveCount(0);
@@ -2102,7 +2121,8 @@ test("batch Code edits common resistor values and colors atomically and reopens 
   await openSelectionShelf(page);
   expect(JSON.parse(await readComponentPropertyCode(page))).toMatchObject({
     type: "resistor",
-    parameters: { value: "10k", tc: { R1: "1", R2: "2" } },
+    // Each component is listed, now with the value they share.
+    parameters: { value: { R1: "10k", R2: "10k" }, tc: { R1: "1", R2: "2" } },
     color: [255, 0, 0],
   });
   await page.screenshot({ path: "plan/batch-value-properties.png" });
@@ -2121,10 +2141,11 @@ test("batch Code colors different component types while rejecting incompatible v
   });
   await page.getByTestId("hit-C1").click({ modifiers: ["Shift"] });
   const code = JSON.parse(await readComponentPropertyCode(page));
-  // Each component's own color, where they differ.
+  // Each component's own color, where they differ; the value both types
+  // have is listed per component, in ohms and in farads.
   expect(code).toMatchObject({
     type: "",
-    parameters: "",
+    parameters: { value: { R1: "1k", C1: "1p" } },
     color: { R1: [0, 0, 255], C1: [0, 0, 0] },
   });
   const editor = page.getByLabel("Editable Canvas property code");
@@ -2186,7 +2207,8 @@ test("batch Code drafts follow selection identity even when common values are id
   ).toHaveCount(0);
   expect(
     JSON.parse(await readComponentPropertyCode(page)).parameters.value,
-  ).toBe("1k");
+  ).toEqual({ R1: "1k", R2: "1k", R3: "1k" });
+  // One value in place of the list sets all three.
   await editComponentPropertyCode(page, (code) => {
     code.parameters.value = "22k";
   });

@@ -52,9 +52,18 @@ export interface GroupPropertyItem {
 
 export interface GroupPropertyCodeContext {
   symbol: string;
-  /** Null when selection types or parameter contracts are incompatible. */
+  /**
+   * The parameters every selected component has, each with the value they
+   * share or "" where they differ; null when they share none.
+   */
   parameters: Record<string, string> | null;
+  /** Label, unit and choices of each parameter every component describes alike. */
   parameterFields?: readonly ComponentParameter[];
+  /**
+   * Parameters whose meaning differs by component type — a resistor's value
+   * and a capacitor's: each component takes its own, never one for all.
+   */
+  perComponentParameters?: readonly string[];
   reference: GroupPropertyMixedValue;
   value: GroupPropertyMixedValue | null;
   foreground: GroupPropertyColor;
@@ -78,6 +87,21 @@ export function groupPropertyItemKeys(
         : instance.id,
     ]),
   );
+}
+
+/**
+ * Each component's own value, whether or not they are the same: a
+ * parameter reads who has what, and an entry changed changes that one.
+ */
+function eachItem<T>(
+  items: readonly GroupPropertyItem[] | undefined,
+  pick: (item: GroupPropertyItem) => T | null,
+): GroupPerItem<T> | null {
+  const entries = (items ?? []).flatMap((item) => {
+    const value = pick(item);
+    return value === null ? [] : [[item.key, value] as const];
+  });
+  return entries.length > 1 ? Object.fromEntries(entries) : null;
 }
 
 /** Each component's own value, where they are not all the same. */
@@ -242,9 +266,7 @@ export function parseGroupPropertyCode(
     let parameters: GroupPropertyCodeValue["parameters"] = "";
     if (context.parameters === null) {
       if (decoded.parameters !== "")
-        throw new Error(
-          "Select components of the same type to edit parameters together",
-        );
+        throw new Error("The selected components share no parameters");
     } else {
       if (!isRecord(decoded.parameters))
         throw new Error("parameters must be an object");
@@ -256,9 +278,21 @@ export function parseGroupPropertyCode(
       parameters = {};
       for (const key of Object.keys(context.parameters)) {
         const raw = decoded.parameters[key];
-        parameters[key] = isRecord(raw)
-          ? parsePerItem(raw, `parameters.${key}`, context, parameterValue)
-          : parameterValue(raw, `parameters.${key}`);
+        if (isRecord(raw)) {
+          parameters[key] = parsePerItem(
+            raw,
+            `parameters.${key}`,
+            context,
+            parameterValue,
+          );
+          continue;
+        }
+        const single = parameterValue(raw, `parameters.${key}`);
+        if (single !== "" && context.perComponentParameters?.includes(key))
+          throw new Error(
+            `parameters.${key} means something different on each component type; give each component its own value`,
+          );
+        parameters[key] = single;
       }
     }
     if (!isRecord(decoded.display))
@@ -328,13 +362,15 @@ export function groupPropertyCodeValue(
   return {
     symbol: context.symbol,
     ...(names === "" ? {} : { names }),
+    // Every shared parameter by each component, as names are; one value
+    // written in place of the list still sets them all.
     parameters:
       context.parameters === null
         ? ""
         : Object.fromEntries(
             Object.entries(context.parameters).map(([key, common]) => [
               key,
-              perItem(items, (item) => item.parameters[key] ?? "") ?? common,
+              eachItem(items, (item) => item.parameters[key] ?? "") ?? common,
             ]),
           ),
     display: {
@@ -484,58 +520,88 @@ export function groupForeground(
   );
 }
 
+/**
+ * The parameters every selected component has, whatever its type — an NMOS
+ * and a PMOS share their width and length. The batch lists each one per
+ * component, so a key that means something different on each type, such as
+ * a resistor's and a capacitor's value, is still edited component by
+ * component; only a key every component describes alike also takes one
+ * value for all.
+ */
 export function groupParameterContext(
   instances: readonly Instance[],
   parametersFor: (instance: Instance) => readonly ComponentParameter[],
-): Pick<GroupPropertyCodeContext, "symbol" | "parameters" | "parameterFields"> {
+): Pick<
+  GroupPropertyCodeContext,
+  "symbol" | "parameters" | "parameterFields" | "perComponentParameters"
+> {
   const symbol = commonGroupValue(
     instances.map((instance) => instance.symbolId),
   );
-  const first = instances[0];
-  const bindingKey = (instance: Instance) => {
-    const binding = instance.netlist?.binding;
-    return binding?.kind === "external-subcircuit"
-      ? `external:${binding.definitionId}`
-      : binding?.kind === "subcircuit"
-        ? `subcircuit:${binding.childDocumentId}`
-        : binding?.kind === "unresolved-subcircuit"
-          ? `unresolved:${binding.name}`
-          : binding?.kind === "primitive" || binding?.kind === "model"
-            ? binding.deviceClass
-            : "";
-  };
-  if (
-    !first ||
-    !symbol ||
-    instances.some(
-      (instance) =>
-        !instance.netlist || bindingKey(instance) !== bindingKey(first),
-    )
-  )
+  if (instances.length === 0 || instances.some((instance) => !instance.netlist))
     return { symbol, parameters: null };
-  const fields = parametersFor(first).filter(
-    (field) => !field.compatibilityOnly,
+  // A value one component of a type carries explicitly, its siblings of the
+  // same type have too, as an empty entry.
+  const explicit = new Map<string, Set<string>>();
+  for (const instance of instances) {
+    const keys = explicit.get(instance.symbolId) ?? new Set<string>();
+    for (const key of Object.keys(instance.netlist!.parameters)) keys.add(key);
+    explicit.set(instance.symbolId, keys);
+  }
+  const own = instances.map((instance) => {
+    const fields = parametersFor(instance).filter(
+      (field) => !field.compatibilityOnly,
+    );
+    return {
+      instance,
+      fields,
+      keys: new Set([
+        ...fields.map((field) => field.key),
+        ...explicit.get(instance.symbolId)!,
+      ]),
+    };
+  });
+  const shared = [...own[0]!.keys].filter((key) =>
+    own.every((entry) => entry.keys.has(key)),
   );
-  const keys = new Set([
-    ...fields.map((field) => field.key),
-    ...instances.flatMap((instance) =>
-      Object.keys(instance.netlist!.parameters),
-    ),
-  ]);
+  if (shared.length === 0) return { symbol, parameters: null };
+  const fieldOf = (entry: (typeof own)[number], key: string) =>
+    entry.fields.find((field) => field.key === key);
   const parameters = Object.fromEntries(
-    [...keys].map((key) => {
-      const field = fields.find((field) => field.key === key);
-      return [
-        key,
-        commonGroupValue(
-          instances.map((instance) =>
-            field
-              ? effectiveComponentParameterValue(instance, field)
-              : (instance.netlist!.parameters[key] ?? ""),
-          ),
-        ),
-      ];
-    }),
+    shared.map((key) => [
+      key,
+      commonGroupValue(
+        own.map((entry) => {
+          const field = fieldOf(entry, key);
+          return field
+            ? effectiveComponentParameterValue(entry.instance, field)
+            : (entry.instance.netlist!.parameters[key] ?? "");
+        }),
+      ),
+    ]),
   );
-  return { symbol, parameters, parameterFields: fields };
+  const description = (field: ComponentParameter | undefined) =>
+    JSON.stringify(
+      field
+        ? [
+            field.label,
+            field.unit ?? "",
+            field.options ?? null,
+            field.definitionParameter ?? false,
+          ]
+        : null,
+    );
+  const alike = (key: string) =>
+    new Set(own.map((entry) => description(fieldOf(entry, key)))).size === 1;
+  const parameterFields = shared.flatMap((key) => {
+    const field = fieldOf(own[0]!, key);
+    return field && alike(key) ? [field] : [];
+  });
+  const perComponentParameters = shared.filter((key) => !alike(key));
+  return {
+    symbol,
+    parameters,
+    parameterFields,
+    ...(perComponentParameters.length ? { perComponentParameters } : {}),
+  };
 }
