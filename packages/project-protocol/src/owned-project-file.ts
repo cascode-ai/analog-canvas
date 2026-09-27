@@ -1,4 +1,4 @@
-/** Schema 64: an object may keep the Document style of a copy's source. */
+/** Schema 65: preserve authored controlled-source sensing references. */
 import { createProjectSymbolResolver } from "@icm/symbols";
 import type { CircuitProject } from "@icm/model";
 import { ProjectFormatError } from "./diagnostics.js";
@@ -15,7 +15,7 @@ import {
   materializeSourceConnectivity,
   type SourceConnectivity,
 } from "./source-connectivity.js";
-export const CURRENT_PROJECT_FILE_VERSION = 64;
+export const CURRENT_PROJECT_FILE_VERSION = 65;
 type Value = Record<string, any>;
 
 /** An object's kept Document style first appears in schema 64. */
@@ -98,6 +98,7 @@ export function decodeProjectFile(raw: Value): Value {
     const decoded = decodeOwned(owned, {
       allowParameterShowValue: raw.schemaVersion >= 61,
       allowFormulaFormat: raw.schemaVersion >= 62,
+      allowSourceControl: raw.schemaVersion >= 65,
     }) as unknown as CircuitProject;
     const resolver = createProjectSymbolResolver(decoded, []);
     decoded.documents.forEach((document, index) =>

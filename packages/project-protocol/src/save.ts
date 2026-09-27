@@ -60,6 +60,7 @@ function sortKeys(value: unknown): unknown {
               "backgroundColor",
               "parameters",
               "target",
+              "control",
               "labels",
             ]
           : [];

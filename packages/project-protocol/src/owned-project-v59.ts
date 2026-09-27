@@ -231,6 +231,7 @@ function encodeInstance(
       ? {
           parameters: netlist.parameters,
           ...(netlist.binding ? { target: netlist.binding } : {}),
+          ...(netlist.control ? { control: netlist.control } : {}),
         }
       : {}),
     ...(labels.length ? { labels } : {}),
@@ -308,6 +309,7 @@ export function decodeProjectFile(
   raw: ObjectValue,
   options: {
     allowParameterShowValue?: boolean;
+    allowSourceControl?: boolean;
     allowFormulaFormat?: boolean;
   } = {},
 ): ObjectValue {
@@ -425,9 +427,15 @@ export function decodeProjectFile(
               backgroundColor,
               parameters,
               target,
+              control,
               labels: ownedLabels,
               ...rest
             } = instance;
+            if (control !== undefined && !options.allowSourceControl)
+              fail(
+                [...instancePath, "control"],
+                "A source control requires Project schema 65",
+              );
             if (target !== undefined && parameters === undefined)
               fail(
                 [...instancePath, "parameters"],
@@ -492,11 +500,12 @@ export function decodeProjectFile(
                         mirror === undefined ? instanceDefaults.mirror : mirror,
                     },
               ...(style !== undefined ? { styleOverride: style } : {}),
-              ...(parameters !== undefined
+              ...(parameters !== undefined || control !== undefined
                 ? {
                     netlist: {
-                      parameters,
+                      parameters: parameters ?? {},
                       ...(target !== undefined ? { binding: target } : {}),
+                      ...(control !== undefined ? { control } : {}),
                     },
                   }
                 : {}),
