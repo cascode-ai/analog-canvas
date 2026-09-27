@@ -237,15 +237,33 @@ for (const symbolId of ["vcvs", "vccs"]) {
     await expect(picker.locator("xpath=..")).toContainText('"control": {');
     const positive = page.getByLabel("Control + Net options", { exact: true });
     const negative = page.getByLabel("Control − Net options", { exact: true });
-    await expect(positive.locator("option", { hasText: /^0$/ })).toHaveCount(1);
-    await positive.selectOption("net-plus");
-    await negative.selectOption("net-minus");
+    const menu = page.getByRole("listbox");
+    await positive.click();
+    await expect(
+      menu.getByRole("option", { name: "0", exact: true }),
+    ).toHaveCount(1);
+    const plusOption = menu.getByRole("option", { name: /plus/i });
+    await plusOption.hover();
+    await expect(page.getByTestId("net-highlight-overlay")).toHaveAttribute(
+      "data-net-id",
+      "net-plus",
+    );
+    await plusOption.click();
+    await expect(page.getByTestId("net-highlight-overlay")).toHaveCount(0);
+    await negative.click();
+    await menu.getByRole("option", { name: /minus/i }).click();
     await expectComponentCodeField(page, "control", {
       positiveNetId: "net-plus",
       negativeNetId: "net-minus",
     });
-    await positive.selectOption("");
-    await negative.selectOption("");
+    await positive.click();
+    await menu.getByRole("option", { name: /plus/i }).hover();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("net-highlight-overlay")).toHaveCount(0);
+    await positive.click();
+    await menu.getByRole("option", { name: "Select Net", exact: true }).click();
+    await negative.click();
+    await menu.getByRole("option", { name: "Select Net", exact: true }).click();
     await picker
       .getByRole("button", { name: "Pick control on canvas" })
       .click();
@@ -282,6 +300,12 @@ for (const symbolId of ["vcvs", "vccs"]) {
     await expect(
       picker.getByRole("button", { name: "Pick control on canvas" }),
     ).toBeVisible();
+    await positive.click();
+    await menu.getByRole("option", { name: /plus/i }).hover();
+    await expect(page.getByTestId("net-highlight-overlay")).toBeVisible();
+    await page.getByTestId("selection-shelf").click();
+    await expect(page.getByTestId("net-highlight-overlay")).toHaveCount(0);
+    await expect(menu).toHaveCount(0);
   });
 }
 
@@ -356,6 +380,8 @@ for (const symbolId of ["cccs", "ccvs"]) {
     });
     await expect(positive).toHaveValue(JSON.stringify(["invalid", "1"]));
     await expect(negative).toHaveValue(JSON.stringify(["invalid", "2"]));
+    expect((await positive.boundingBox())!.width).toBeLessThan(32);
+    expect((await negative.boundingBox())!.width).toBeLessThan(32);
     await picker
       .getByRole("button", { name: "Reverse control current" })
       .click();

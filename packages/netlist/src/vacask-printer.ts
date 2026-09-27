@@ -31,6 +31,10 @@ const PRIMITIVES = {
   inductor: { module: "inductor", value: "l", file: "inductor.osdi" },
   "voltage-source": { module: "vsource", file: null },
   "current-source": { module: "isource", file: null },
+  vcvs: { module: "vcvs", file: null },
+  vccs: { module: "vccs", file: null },
+  cccs: { module: "cccs", file: null },
+  ccvs: { module: "ccvs", file: null },
 } as const;
 
 class ProjectionError extends Error {
@@ -266,11 +270,6 @@ export function printVacaskWithLocations(
 
   const emitCard = (cellId: string, card: DesignNetlistInstance) => {
     if (card.deviceClass === "net-marker") return;
-    if (["vcvs", "vccs", "cccs", "ccvs"].includes(card.deviceClass))
-      throw new ProjectionError(
-        "VACASK_UNSUPPORTED_CONTROLLED_SOURCE",
-        `${card.reference} is a linear controlled source; use the SPICE or Spectre netlist exporter until the native simulator supports this primitive.`,
-      );
     if (
       card.invocationKind === "subcircuit" &&
       card.target &&
@@ -419,6 +418,39 @@ export function printVacaskWithLocations(
         for (const p of source.extraParameters)
           if (p.name.toLowerCase() !== "m")
             assignment(p.name, p.rawValue, p.name);
+      } else if (["vcvs", "vccs", "cccs", "ccvs"].includes(card.deviceClass)) {
+        // VACASK builtins use gain for all four dimensions. Current controls
+        // reuse the shared IR's zero-volt probe, scoped to this subcircuit.
+        const current =
+          card.deviceClass === "cccs" || card.deviceClass === "ccvs";
+        const key =
+          card.deviceClass === "vccs"
+            ? "gm"
+            : card.deviceClass === "ccvs"
+              ? "rm"
+              : "gain";
+        const gain = card.parameters.find((p) => p.name.toLowerCase() === key);
+        if (!gain || card.nodes.length !== (current ? 2 : 4))
+          throw new ProjectionError(
+            "VACASK_INVALID_CONTROLLED_SOURCE",
+            `${card.reference} requires a gain and complete control terminals.`,
+          );
+        const value = projectValue(gain.rawValue, parameterNames);
+        assignment(
+          "gain",
+          current && card.controlCurrentSign === -1 ? `-(${value})` : value,
+          gain.name,
+          true,
+        );
+        if (current) {
+          if (!card.controlSourceReference)
+            throw new ProjectionError(
+              "VACASK_MISSING_CURRENT_CONTROL",
+              `${card.reference} requires a resolved current probe.`,
+            );
+          // An electrical reference is not an editable scalar parameter.
+          line += ` ctlinst=${JSON.stringify(card.controlSourceReference)}`;
+        }
       } else {
         const definition =
           PRIMITIVES[card.deviceClass as "resistor" | "capacitor" | "inductor"];

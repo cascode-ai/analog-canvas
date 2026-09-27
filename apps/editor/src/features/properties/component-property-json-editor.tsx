@@ -78,6 +78,7 @@ interface Props {
   defaultForeground: string;
   ariaLabel?: string;
   onChange(source: string): void;
+  onPreviewControlNet?: (netId: string | null) => void;
   controlAction?: {
     active: boolean;
     message: string;
@@ -543,7 +544,7 @@ class ControlPickWidget extends WidgetType {
       this.read().controlAction?.onClick(),
     );
     wrapper.append(button);
-    if (this.action.active || this.action.compact) {
+    if (this.action.active) {
       const status = document.createElement("span");
       status.setAttribute("aria-live", "polite");
       status.textContent = this.action.message;
@@ -567,9 +568,18 @@ class ControlPickWidget extends WidgetType {
       for (const side of ["positive", "negative"] as const) {
         const row = document.createElement("label");
         row.className = "component-control-terminal";
-        row.textContent =
-          side === "positive" ? "Positive terminal " : "Negative terminal ";
+        row.textContent = side === "positive" ? "+ " : "− ";
+        const selected = document.createElement("span");
+        selected.textContent =
+          terminals.options.find((item) => item.value === terminals[side])
+            ?.label ?? "Select terminal";
+        const picker = document.createElement("span");
+        picker.className = "cm-netlist-target-picker";
+        const arrow = document.createElement("span");
+        arrow.className = "cm-netlist-target-arrow";
+        arrow.setAttribute("aria-hidden", "true");
         const select = document.createElement("select");
+        select.className = "cm-netlist-target-select";
         select.setAttribute(
           "aria-label",
           `${side === "positive" ? "Positive" : "Negative"} terminal options`,
@@ -606,7 +616,8 @@ class ControlPickWidget extends WidgetType {
                 : "",
             );
         });
-        row.append(select);
+        picker.append(arrow, select);
+        row.append(selected, picker);
         wrapper.append(row);
       }
     }
@@ -687,12 +698,18 @@ class PropertyChoiceSelect extends WidgetType {
       if (changes.length)
         view.dispatch({ changes, userEvent: "input.property-control" });
     };
-    if (options.some((option) => option.preview)) {
+    const netControl =
+      this.span.field.path === "control.positiveNetId" ||
+      this.span.field.path === "control.negativeNetId";
+    if (netControl || options.some((option) => option.preview)) {
       const trigger = document.createElement("button");
       trigger.type = "button";
       trigger.className = "cm-netlist-target-select";
       trigger.disabled = !this.enabled;
-      trigger.setAttribute("aria-label", `Show ${label} previews`);
+      trigger.setAttribute(
+        "aria-label",
+        netControl ? `${label} options` : `Show ${label} previews`,
+      );
       trigger.setAttribute("aria-haspopup", "listbox");
       trigger.setAttribute("aria-expanded", "false");
       trigger.addEventListener("click", async () => {
@@ -711,6 +728,12 @@ class PropertyChoiceSelect extends WidgetType {
           optionEnabled: this.optionEnabled,
           value: this.span.value,
           onSelect: applyOption,
+          ...(netControl
+            ? {
+                onPreview: (value: string | null) =>
+                  this.read().onPreviewControlNet?.(value || null),
+              }
+            : {}),
           onClose: () => {
             trigger.setAttribute("aria-expanded", "false");
             this.closePreviewMenu = null;
