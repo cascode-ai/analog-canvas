@@ -1,4 +1,4 @@
-import { resolveAnnotationName } from "@icm/derived";
+import { derivePowerRailComponent, resolveAnnotationName } from "@icm/derived";
 import { z } from "zod";
 
 import { type Annotation, type SchematicDocument } from "@icm/model";
@@ -27,6 +27,8 @@ const schema = z.strictObject({
     name: z.string().max(128),
     scope: z.enum(["local", "global"]),
   }),
+  /** A power rail's label, shown or hidden. */
+  display: z.strictObject({ visualAnnotation: z.boolean() }).optional(),
   appearance: z.strictObject({
     color,
     lineStyle: z.enum(["solid", "dashed", "dotted"]),
@@ -44,6 +46,13 @@ const fields: readonly CanvasPropertyField[] = [
     label: "Wire color",
     kind: "color",
     description: "",
+  },
+  {
+    path: "display.visualAnnotation",
+    label: "Rail label",
+    kind: "boolean",
+    description: "",
+    help: "Show or hide the rail's name label without changing its Net.",
   },
   {
     path: "net.scope",
@@ -93,16 +102,59 @@ function netLabelScope(
   return claim?.kind === "name-claim" ? claim.scope : "local";
 }
 
+/**
+ * The label that names a power rail. A rail carries no Net label: its name is
+ * its power label, attached to one of the rail's own Junctions.
+ */
+export function railPowerLabel(
+  document: SchematicDocument,
+  route: Route,
+): Annotation | null {
+  if (route.presentation !== "power-rail") return null;
+  const rail = derivePowerRailComponent(document, route.id);
+  if (!rail) return null;
+  const junctions = new Set(rail.junctionIds);
+  return (
+    document.annotations.find(
+      (annotation) =>
+        annotation.kind === "power-label" &&
+        annotation.anchor.kind === "object" &&
+        junctions.has(annotation.anchor.objectId),
+    ) ?? null
+  );
+}
+
+function powerLabelScope(
+  document: SchematicDocument,
+  label: Annotation,
+): "local" | "global" {
+  const claim = document.connectivityEvidence.find(
+    (evidence) =>
+      evidence.kind === "name-claim" &&
+      evidence.owner.kind === "power-marker" &&
+      evidence.owner.objectId === label.id,
+  );
+  if (claim?.kind === "name-claim") return claim.scope;
+  return label.binding?.kind === "cell-terminal-name" ? "local" : "global";
+}
+
 export function routePropertyCodeValue(
   document: SchematicDocument,
   route: Route,
   netLabel: Annotation | null,
 ): RoutePropertyCodeValue {
+  const railLabel = railPowerLabel(document, route);
+  const label = railLabel ?? netLabel;
   return {
     net: {
-      name: netLabel ? resolveAnnotationName(document, netLabel).trim() : "",
-      scope: netLabelScope(document, netLabel),
+      name: label ? resolveAnnotationName(document, label).trim() : "",
+      scope: railLabel
+        ? powerLabelScope(document, railLabel)
+        : netLabelScope(document, netLabel),
     },
+    ...(railLabel
+      ? { display: { visualAnnotation: railLabel.visible !== false } }
+      : {}),
     appearance: {
       color: route.styleOverride?.color
         ? parseCanvasColor(colorToRgb(route.styleOverride.color), "color")

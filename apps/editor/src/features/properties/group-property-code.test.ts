@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
+import type { Instance } from "@icm/model";
 
 import {
   formatGroupPropertyCode,
   groupPropertyCodeChanges,
+  groupPropertyCodeSpans,
+  groupPropertyItemNames,
   parseGroupPropertyCode,
   type GroupPropertyCodeContext,
 } from "./group-property-code";
+import {
+  groupVisibilityTargets,
+  planGroupPropertyCodeEdits,
+} from "./group-property-code-edits";
 
 const context: GroupPropertyCodeContext = {
   symbol: "resistor",
@@ -69,6 +76,110 @@ describe("batch component property code", () => {
         display: { visualAnnotation: true, value: false },
         appearance: { color: "#dc2626" },
       },
+    });
+  });
+
+  it("lists each component's own value where they differ, keyed by Reference", () => {
+    const items = [
+      {
+        key: "R1",
+        instanceId: "r-1",
+        name: "R1",
+        parameters: { value: "1k" },
+        reference: true,
+        value: false,
+        foreground: "auto" as const,
+      },
+      {
+        key: "R2",
+        instanceId: "r-2",
+        name: "R2",
+        parameters: { value: "2k" },
+        reference: false,
+        value: false,
+        foreground: "#dc2626" as const,
+      },
+    ];
+    const listed = {
+      ...context,
+      parameterFields: [
+        { key: "value", label: "Value", placeholder: "", help: "" },
+      ],
+      items,
+    };
+    const source = formatGroupPropertyCode(listed);
+    expect(JSON.parse(source)).toEqual({
+      symbol: "resistor",
+      parameters: { value: { R1: "1k", R2: "2k" } },
+      // The same for both: one value, as before.
+      display: { visualAnnotation: { R1: true, R2: false }, value: false },
+      appearance: { color: { R1: "auto", R2: [220, 38, 38] } },
+    });
+    expect(groupPropertyItemNames(listed)).toEqual({ R1: "R1", R2: "R2" });
+    // One entry per component, with its own control.
+    expect(
+      groupPropertyCodeSpans(source, listed).map((span) => span.field.path),
+    ).toEqual(
+      expect.arrayContaining([
+        "display.visualAnnotation.R1",
+        "display.visualAnnotation.R2",
+        "appearance.color.R2",
+        "parameters.value.R1",
+      ]),
+    );
+    const edited = source.replace('"R2": "2k"', '"R2": "4.7k"');
+    const parsed = parseGroupPropertyCode(edited, listed);
+    expect(parsed).toMatchObject({
+      ok: true,
+      value: {
+        parameters: { value: { R1: "1k", R2: "4.7k" } },
+        appearance: { color: { R1: "auto", R2: "#dc2626" } },
+      },
+    });
+    if (!parsed.ok) throw new Error(parsed.message);
+    const instances = items.map(
+      (item) =>
+        ({
+          id: item.instanceId,
+          reference: item.key,
+          symbolId: "resistor",
+          placement: null,
+          netlist: {
+            binding: { kind: "primitive", deviceClass: "resistor" },
+            parameters: { ...item.parameters },
+          },
+          ...(item.foreground === "auto"
+            ? {}
+            : { styleOverride: { foreground: item.foreground } }),
+        }) as unknown as Instance,
+    );
+    // Only the entry that changed is written.
+    expect(planGroupPropertyCodeEdits(instances, parsed.value, listed)).toEqual(
+      [
+        {
+          kind: "patch_instance_netlist_parameters",
+          instanceId: "r-2",
+          set: { value: "4.7k" },
+        },
+      ],
+    );
+    expect(
+      groupVisibilityTargets(
+        { R1: false, R2: true },
+        "",
+        ["r-1", "r-2"],
+        items,
+        (item) => item.reference,
+      ),
+    ).toEqual({ show: ["r-2"], hide: ["r-1"] });
+    expect(
+      parseGroupPropertyCode(
+        source.replace('"R2": "2k"', '"R9": "2k"'),
+        listed,
+      ),
+    ).toMatchObject({
+      ok: false,
+      message: "parameters.value.R9 is not one of the selected components",
     });
   });
 

@@ -26,6 +26,52 @@ describe("shared arrow artwork", () => {
       expect(result.shaft[index]!.y).toBeCloseTo((head[1]!.y + head[2]!.y) / 2);
     }
   });
+  it("stops the shaft at the head when the path ends on a repeated point", () => {
+    // A path whose last point repeats the one before it has a zero-length
+    // last leg. The shaft used to keep that point and run on to the tip.
+    const repeated = arrowArtwork(
+      {
+        styleOverride: { arrowStart: "medium-arrow", arrowEnd: "medium-arrow" },
+      },
+      [
+        { x: 580, y: 270 },
+        { x: 580, y: 270 },
+        { x: 580, y: 310 },
+        { x: 580, y: 310 },
+      ],
+      [null, null, null],
+      profile,
+    );
+    const plain = arrowArtwork(
+      {
+        styleOverride: { arrowStart: "medium-arrow", arrowEnd: "medium-arrow" },
+      },
+      [
+        { x: 580, y: 270 },
+        { x: 580, y: 310 },
+      ],
+      [null],
+      profile,
+    );
+    expect(repeated).toEqual(plain);
+    const [start, end] = repeated.heads;
+    expect(repeated.shaft).toHaveLength(2);
+    expect(repeated.shaft[0]!.y).toBeCloseTo(start!.points[1]!.y);
+    expect(repeated.shaft[1]!.y).toBeCloseTo(end!.points[1]!.y);
+    expect(repeated.shaft[1]!.y).toBeLessThan(310);
+
+    // A bent leg between two equal points still draws; it is kept.
+    const looped = arrowArtwork(
+      { styleOverride: { arrowEnd: "medium-arrow" } },
+      [
+        { x: 0, y: 0 },
+        { x: 0, y: 0 },
+      ],
+      [{ x: 20, y: 20 }],
+      profile,
+    );
+    expect(looped.shaft).toHaveLength(2);
+  });
   it("combines every endpoint style independently and bounds the complete artwork", () => {
     const styles: ArrowEndStyle[] = [
       "small-arrow",

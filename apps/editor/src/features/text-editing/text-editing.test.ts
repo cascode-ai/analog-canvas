@@ -364,6 +364,51 @@ describe("unified text editing", () => {
     ).toEqual({ kind: "unchanged" });
   });
 
+  it("keeps a typed formula in the drawing's weight", () => {
+    // A formula has no run of its own to carry bold, so neutralizing the
+    // object's weight after typing would thin it. It keeps the object's.
+    const object = draftingText();
+    const document = {
+      ...createEmptyDocument("text", "Text"),
+      drafting: { objects: [object] },
+    };
+    const formula = {
+      runs: [
+        { kind: "math" as const, latex: "Z_{in}", display: "block" as const },
+      ],
+    };
+    const session = createTextEditingSession({ owner: "drafting", object });
+    const proposal = proposeTextEditingCommit(
+      document,
+      updateTextEditingSession(session, { content: formula }),
+    );
+    if (
+      proposal.kind !== "update" ||
+      proposal.edit.kind !== "upsert_drafting_object" ||
+      proposal.edit.object.kind !== "text"
+    )
+      throw new Error("Expected text update");
+    expect(proposal.edit.object.content).toEqual(formula);
+    expect(proposal.edit.object.styleOverride?.weight).toBeUndefined();
+
+    // A formula the author set in normal weight stays normal.
+    const normal = {
+      ...object,
+      styleOverride: { weight: "normal" as const },
+    };
+    const normalProposal = proposeTextEditingCommit(
+      { ...document, drafting: { objects: [normal] } },
+      updateTextEditingSession(
+        createTextEditingSession({ owner: "drafting", object: normal }),
+        { content: formula },
+      ),
+    );
+    expect(normalProposal).toMatchObject({
+      kind: "update",
+      edit: { object: { styleOverride: { weight: "normal" } } },
+    });
+  });
+
   it("updates session content and size without mutating the original", () => {
     const original = createTextEditingSession({
       owner: "drafting",

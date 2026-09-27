@@ -33,6 +33,11 @@ import {
   resolveGalleryFilters,
   type GalleryFilterState,
 } from "../gallery-filters";
+import {
+  galleryFocusEntryId,
+  galleryFocusStep,
+  withoutGalleryFocus,
+} from "../gallery-focus";
 import type { BundledGalleryTile } from "./gallery-bundled-fallback";
 import { galleryTagLabel } from "../gallery-tag-label";
 import {
@@ -759,6 +764,54 @@ export function GalleryFeed({
     refreshSignal,
   ]);
 
+  // Appends the page after `cursor` unless a page is already on its way, and
+  // says whether it started one. The sentinel calls it as the wall's end comes
+  // into view; a linked circuit's search calls it until that circuit loads.
+  const loadPageAfterRef = useRef<(cursor: string) => boolean>(() => false);
+  loadPageAfterRef.current = (cursor: string): boolean => {
+    if (firstPageLoadingRef.current) return false;
+    if (loadingMoreRef.current) return false;
+    loadingMoreRef.current = true;
+    const generation = feedGenerationRef.current;
+    void loadGalleryFeed(fetch, {
+      author,
+      ownerUserId,
+      tags: selectedTags,
+      netlistable: netlistableOnly,
+      liked: likedOnly,
+      attention: attentionOnly,
+      attentionKind,
+      cursor,
+    }).then((page) => {
+      if (generation !== feedGenerationRef.current) return;
+      loadingMoreRef.current = false;
+      if (page === GALLERY_SIGN_IN_REQUIRED) {
+        // The session ended while the reader scrolled.
+        setState({
+          status: "signed-out",
+          entries: [],
+          nextCursor: null,
+          total: null,
+        });
+        return;
+      }
+      if (!page) return;
+      setState((previous) =>
+        previous.status === "ready" && previous.nextCursor === cursor
+          ? {
+              ...previous,
+              entries: [...previous.entries, ...page.entries],
+              nextCursor: page.nextCursor,
+              total: page.total ?? previous.total,
+              ...(page.authors ? { authors: page.authors } : {}),
+              ...(page.filterCounts ? { filterCounts: page.filterCounts } : {}),
+            }
+          : previous,
+      );
+    });
+    return true;
+  };
+
   // The sentinel appends the next newest-first page as it comes into view.
   // Once the server returns no cursor, the wall is complete and stops.
   const { nextCursor } = state;
@@ -769,48 +822,7 @@ export function GalleryFeed({
     if (typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver((observed) => {
       if (!observed.some((entry) => entry.isIntersecting)) return;
-      if (firstPageLoadingRef.current) return;
-      if (loadingMoreRef.current) return;
-      loadingMoreRef.current = true;
-      const generation = feedGenerationRef.current;
-      void loadGalleryFeed(fetch, {
-        author,
-        ownerUserId,
-        tags: selectedTags,
-        netlistable: netlistableOnly,
-        liked: likedOnly,
-        attention: attentionOnly,
-        attentionKind,
-        cursor: nextCursor,
-      }).then((page) => {
-        if (generation !== feedGenerationRef.current) return;
-        loadingMoreRef.current = false;
-        if (page === GALLERY_SIGN_IN_REQUIRED) {
-          // The session ended while the reader scrolled.
-          setState({
-            status: "signed-out",
-            entries: [],
-            nextCursor: null,
-            total: null,
-          });
-          return;
-        }
-        if (!page) return;
-        setState((previous) =>
-          previous.status === "ready" && previous.nextCursor === nextCursor
-            ? {
-                ...previous,
-                entries: [...previous.entries, ...page.entries],
-                nextCursor: page.nextCursor,
-                total: page.total ?? previous.total,
-                ...(page.authors ? { authors: page.authors } : {}),
-                ...(page.filterCounts
-                  ? { filterCounts: page.filterCounts }
-                  : {}),
-              }
-            : previous,
-        );
-      });
+      loadPageAfterRef.current(nextCursor);
     });
     observer.observe(sentinel);
     return () => observer.disconnect();
@@ -972,6 +984,60 @@ export function GalleryFeed({
         galleryEntryMatchesQuery(entry, normalizedSearchQuery),
       )
     : entries;
+
+  // A "View in Gallery" link names one circuit: the wall pages until that
+  // circuit has loaded, brings its tile into view and rings it for a moment.
+  const [focusId, setFocusId] = useState<string | null>(() =>
+    typeof window === "undefined"
+      ? null
+      : galleryFocusEntryId(window.location.search),
+  );
+  const [linkedId, setLinkedId] = useState<string | null>(null);
+  const [focusMissing, setFocusMissing] = useState(false);
+  const focusPagesRef = useRef(0);
+  useEffect(() => {
+    if (focusId === null || state.status !== "ready") return;
+    const step = galleryFocusStep(
+      visibleEntries.map((entry) => entry.id),
+      focusId,
+      state.nextCursor,
+      focusPagesRef.current,
+    );
+    if (step === "load-more") {
+      if (state.nextCursor && loadPageAfterRef.current(state.nextCursor))
+        focusPagesRef.current += 1;
+      return;
+    }
+    setFocusId(null);
+    window.history.replaceState(
+      null,
+      "",
+      window.location.pathname + withoutGalleryFocus(window.location.search),
+    );
+    if (step === "missing") setFocusMissing(true);
+    else setLinkedId(focusId);
+  }, [focusId, state, visibleEntries]);
+  useEffect(() => {
+    if (linkedId === null) return;
+    const reduceMotion =
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    // Masonry places the tile in the same commit; scroll on the next frame.
+    const frame = window.requestAnimationFrame(() => {
+      const tile = document.querySelector<HTMLElement>(
+        `[data-testid="gallery-tile-${linkedId}"]`,
+      );
+      tile?.scrollIntoView({
+        block: "center",
+        behavior: reduceMotion ? "auto" : "smooth",
+      });
+      tile?.focus({ preventScroll: true });
+    });
+    const timer = window.setTimeout(() => setLinkedId(null), 6_000);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [linkedId]);
   const localAuthors = Boolean(normalizedSearchQuery) || !state.authors;
   const authors = localAuthors
     ? galleryAuthorsOf(visibleEntries)
@@ -1229,6 +1295,11 @@ export function GalleryFeed({
                 {ownerNotice}
               </p>
             ) : null}
+            {focusMissing ? (
+              <p className="gallery-status" data-testid="gallery-focus-missing">
+                That circuit is not on the wall. It may have been removed.
+              </p>
+            ) : null}
             {state.status === "loading" ||
             (needsBundledFallback &&
               (bundledFallback.status === "idle" ||
@@ -1252,7 +1323,13 @@ export function GalleryFeed({
                     ...visibleEntries.map((entry) => ({
                       key: entry.id,
                       node: (
-                        <div className="gallery-tile-wrap">
+                        <div
+                          className={
+                            entry.id === linkedId
+                              ? "gallery-tile-wrap is-linked"
+                              : "gallery-tile-wrap"
+                          }
+                        >
                           <a
                             className="gallery-tile"
                             href={`/g/${entry.id}`}

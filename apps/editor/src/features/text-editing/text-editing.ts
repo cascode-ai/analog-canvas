@@ -15,6 +15,7 @@ import {
   flattenRichText,
   normalizeRichText,
   semanticTextDocument,
+  soleRichTextMathRun,
 } from "@icm/model";
 import {
   signalFlowBodyTextDocument,
@@ -842,7 +843,11 @@ export function proposeTextEditingCommit(
       sizeScale: session.sizeScale,
       // The DOM reader records effective bold spans and explicit unbold text.
       // Neutralize the object default only after content was actually edited.
-      ...(session.contentEdited ? { weight: "normal" as const } : {}),
+      // A formula carries no run weight: the object's weight is its only one,
+      // so neutralizing it would thin the formula out of the drawing's bold.
+      ...(session.contentEdited && !soleRichTextMathRun(session.content)
+        ? { weight: "normal" as const }
+        : {}),
     },
   };
   // Sessions normalize an absent scale to 1; compare the same way so an

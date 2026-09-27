@@ -873,21 +873,24 @@ test("Properties toggles reference label visibility for one or many components",
     groupEditor.getByText("2 selected", { exact: true }),
   ).toBeVisible();
   await expect(page.getByText("Canvas labels", { exact: true })).toHaveCount(0);
-  const groupToggle = groupEditor.getByRole("switch", {
-    name: "Toggle visual annotation visibility",
-  });
-  await expect(groupToggle).toBeVisible();
-  await expect(groupToggle).toHaveAttribute("data-mixed", "true");
+  // Where the two differ, each is listed with its own switch.
   expect(
     JSON.parse(await readComponentPropertyCode(page)).display.visualAnnotation,
-  ).toBe("");
-  await groupToggle.click();
+  ).toEqual({ R1: false, R2: true });
+  await groupEditor
+    .getByRole("switch", { name: "Toggle Visual annotation · R1 visibility" })
+    .click();
   await expect(
     page.getByTestId("annotation-hit-instance-label-R1"),
   ).toHaveCount(1);
   await expect(
     page.getByTestId("annotation-hit-instance-label-R2"),
   ).toHaveCount(1);
+  // Now alike, they share one switch again.
+  const groupToggle = groupEditor.getByRole("switch", {
+    name: "Toggle visual annotation visibility",
+  });
+  await expect(groupToggle).toBeVisible();
   await groupToggle.click();
   await expect(
     page.getByTestId("annotation-hit-instance-label-R1"),
@@ -922,7 +925,8 @@ test("Select All shows one batch code surface instead of object-specific forms",
   await expect(batch).toBeVisible();
   await expect(batch.getByText("2 selected", { exact: true })).toBeVisible();
   expect(JSON.parse(await readComponentPropertyCode(page))).toEqual({
-    name: "",
+    // Each component by its Reference, so the batch reads who is who.
+    name: { R1: "R1", R2: "R2" },
     coordinate: null,
     rotation: null,
     mirror: null,
@@ -1941,9 +1945,10 @@ test("batch Code edits common resistor values and colors atomically and reopens 
   await page.getByTestId("hit-R2").click({ modifiers: ["Shift"] });
   await openSelectionShelf(page);
   const code = JSON.parse(await readComponentPropertyCode(page));
+  // Values that differ are listed per component.
   expect(code).toMatchObject({
     type: "resistor",
-    parameters: { value: "", tc: "" },
+    parameters: { value: { R1: "1k", R2: "" }, tc: { R1: "1", R2: "2" } },
     color: [0, 0, 0],
   });
   const revision = Number(await page.getByTestId("revision").textContent());
@@ -1993,7 +1998,7 @@ test("batch Code edits common resistor values and colors atomically and reopens 
   await openSelectionShelf(page);
   expect(JSON.parse(await readComponentPropertyCode(page))).toMatchObject({
     type: "resistor",
-    parameters: { value: "10k", tc: "" },
+    parameters: { value: "10k", tc: { R1: "1", R2: "2" } },
     color: [255, 0, 0],
   });
   await page.screenshot({ path: "plan/batch-value-properties.png" });
@@ -2012,10 +2017,11 @@ test("batch Code colors different component types while rejecting incompatible v
   });
   await page.getByTestId("hit-C1").click({ modifiers: ["Shift"] });
   const code = JSON.parse(await readComponentPropertyCode(page));
+  // Each component's own color, where they differ.
   expect(code).toMatchObject({
     type: "",
     parameters: "",
-    color: "",
+    color: { R1: [0, 0, 255], C1: [0, 0, 0] },
   });
   const editor = page.getByLabel("Editable Canvas property code");
   const revision = await page.getByTestId("revision").textContent();
@@ -2033,12 +2039,10 @@ test("batch Code colors different component types while rejecting incompatible v
   await page
     .getByRole("button", { name: "Discard draft", exact: true })
     .click();
-  await page
-    .getByRole("button", { name: "Edit line color", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Use Red for line", exact: true })
-    .click();
+  // One color entered for the batch colors both.
+  await editComponentPropertyCode(page, (value) => {
+    value.color = [220, 38, 38];
+  });
   for (const id of ["R1", "C1"])
     await expect(
       page.locator(`[data-object-id="${id}"] [data-role="instance-symbol"]`),
@@ -2053,7 +2057,10 @@ test("batch Code colors different component types while rejecting incompatible v
     { id: "C1", netlist: { parameters: { value: "1p" } } },
   ]);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  expect(JSON.parse(await readComponentPropertyCode(page)).color).toBe("");
+  expect(JSON.parse(await readComponentPropertyCode(page)).color).toEqual({
+    R1: [0, 0, 255],
+    C1: [0, 0, 0],
+  });
 });
 
 test("batch Code drafts follow selection identity even when common values are identical", async ({

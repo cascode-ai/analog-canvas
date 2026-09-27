@@ -52,6 +52,7 @@ import type { TextEditingSession } from "../text-editing/text-editing";
 import { planElectricalMarkerName } from "./electrical-marker-name";
 import type { NetLabelPlacementTarget } from "../wiring/route-interaction-geometry";
 import {
+  railPowerLabel,
   routePropertyCodeValue,
   type RoutePropertyCodeValue,
 } from "./route-property-code";
@@ -513,6 +514,8 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       route,
       existingLabel,
     );
+    const railLabel = railPowerLabel(options.document, route);
+    if (railLabel) return applyRailProperties(route, railLabel, current, value);
     const name = value.net.name.trim();
     const scope = name ? value.net.scope : "local";
 
@@ -589,6 +592,69 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     }
     if (!name && existingLabel) options.replaceSelectionKind("annotation", []);
     options.setStatus(`Updated Route ${route.id}`);
+    return { ok: true };
+  };
+
+  /**
+   * A power rail is named by its power label. Its name is renamed the way
+   * the label's own text edit renames it, the label is shown or hidden, and
+   * the wire's look is set as for any wire.
+   */
+  const applyRailProperties = (
+    route: Route,
+    label: Annotation,
+    current: RoutePropertyCodeValue,
+    value: RoutePropertyCodeValue,
+  ): { ok: boolean; message?: string } => {
+    const name = value.net.name.trim();
+    if (!name)
+      return { ok: false, message: "A power rail's name cannot be empty" };
+    if (value.net.scope !== current.net.scope)
+      return {
+        ok: false,
+        message:
+          "A power rail's scope follows its label; set it from the rail's supply",
+      };
+    const edits: SchematicEdit[] = [];
+    const visible = value.display?.visualAnnotation ?? true;
+    if (visible !== (current.display?.visualAnnotation ?? true)) {
+      const { visible: _visible, ...shown } = label;
+      edits.push({
+        kind: "upsert_schematic_annotation",
+        annotation: visible ? shown : { ...label, visible: false },
+      });
+    }
+    const styleOverride = { ...(route.styleOverride ?? {}) };
+    if (value.appearance.color === "auto") delete styleOverride.color;
+    else styleOverride.color = value.appearance.color;
+    if (value.appearance.lineStyle === "solid") delete styleOverride.lineStyle;
+    else styleOverride.lineStyle = value.appearance.lineStyle;
+    if (value.appearance.directionArrow === "none") delete styleOverride.arrow;
+    else styleOverride.arrow = value.appearance.directionArrow;
+    const nextStyle =
+      Object.keys(styleOverride).length > 0 ? styleOverride : null;
+    if (
+      JSON.stringify(route.styleOverride ?? null) !== JSON.stringify(nextStyle)
+    )
+      edits.push({
+        kind: "set_route_style_override",
+        routeId: route.id,
+        styleOverride: nextStyle,
+      });
+    if (edits.length > 0 && !options.transact(edits).ok)
+      return { ok: false, message: "The rail properties could not be applied" };
+    if (name !== current.net.name) {
+      const renamed =
+        label.binding?.kind === "cell-terminal-name"
+          ? (options.commitCellPinAnnotation?.(label, name) ?? false)
+          : (() => {
+              const netEdits = options.netNameEditsForAnnotation?.(label, name);
+              return netEdits ? transactNamedNet(netEdits) : false;
+            })();
+      if (!renamed)
+        return { ok: false, message: "The rail's name could not be applied" };
+    }
+    options.setStatus(`Updated power rail ${name}`);
     return { ok: true };
   };
 

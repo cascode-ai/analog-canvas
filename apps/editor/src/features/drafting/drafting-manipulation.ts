@@ -12,6 +12,7 @@ import type {
   DerivedPoint,
   DraftingObject,
   GridPoint,
+  Rotation,
   ScreenFlip,
   VisualAnchor,
 } from "@icm/model";
@@ -561,6 +562,15 @@ export function rotateDraftingObject(
       rotation: (((object.rotation + deltaDegrees) % 360) + 360) % 360,
     };
   }
+  // Polarity text turns its + and − about the text: above and below it, or
+  // either side. The glyphs themselves stay upright, as all drafting text.
+  if (object.kind === "text" && object.polarity === "both") {
+    return {
+      ...object,
+      rotation: ((((object.rotation + deltaDegrees) % 360) + 360) %
+        360) as Rotation,
+    };
+  }
   return null;
 }
 
@@ -630,21 +640,29 @@ export function mirrorDraftingObject(
         object.rotation,
         direction,
       );
+      // Polarity marks reflect with the drawing: across the axis the + and −
+      // trade sides, while the glyphs stay readable.
+      const rotation =
+        object.polarity === "both"
+          ? ((((direction === "left-right" ? 360 : 540) - object.rotation) %
+              360) as Rotation)
+          : object.rotation;
       if (object.anchor.kind !== "free") {
         const next = anchor(object.anchor);
-        return next === object.anchor
+        return next === object.anchor && rotation === object.rotation
           ? null
-          : { ...object, anchor: next, alignment };
+          : { ...object, anchor: next, alignment, rotation };
       }
       const geometry = geometryOf(object);
       const realigned =
-        alignment === object.alignment
+        alignment === object.alignment && rotation === object.rotation
           ? geometry
-          : geometryOf({ ...object, alignment });
+          : geometryOf({ ...object, alignment, rotation });
       if (geometry.kind !== "text" || realigned.kind !== "text") return null;
       return {
         ...object,
         alignment,
+        rotation,
         anchor: {
           kind: "free",
           position: reflectedTextAnchor(

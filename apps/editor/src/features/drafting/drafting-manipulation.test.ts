@@ -535,6 +535,53 @@ describe("mirrorDraftingObject", () => {
     expect(downBox.y).toBeCloseTo(2 * pivot.y - (before.y + before.height), 0);
   });
 
+  it("turns and reflects a polarity text's marks, not its glyphs", () => {
+    const polarity = {
+      ...note("middle"),
+      polarity: "both" as const,
+      rotation: 90 as const,
+    };
+    const geometry = geometryOf(polarity);
+    // R turns the marks a quarter: from either side to above and below.
+    expect(rotateDraftingObject(polarity, geometry, 90, 10)).toMatchObject({
+      rotation: 180,
+      anchor: polarity.anchor,
+    });
+    expect(rotateDraftingObject(polarity, geometry, -90, 10)).toMatchObject({
+      rotation: 0,
+    });
+    // A mirror across the marks' axis trades their sides; along it, nothing.
+    expect(
+      mirrorDraftingObject(
+        polarity,
+        { x: 40, y: 0 },
+        "left-right",
+        noHosts,
+        geometryOf,
+      ),
+    ).toMatchObject({ rotation: 270, alignment: "middle" });
+    expect(
+      mirrorDraftingObject(
+        polarity,
+        { x: 0, y: 20 },
+        "top-bottom",
+        noHosts,
+        geometryOf,
+      ),
+    ).toMatchObject({ rotation: 90 });
+    expect(
+      mirrorDraftingObject(
+        { ...polarity, rotation: 0 },
+        { x: 0, y: 20 },
+        "top-bottom",
+        noHosts,
+        geometryOf,
+      ),
+    ).toMatchObject({ rotation: 180 });
+    // Plain text has no marks to turn.
+    expect(rotateDraftingObject(note("middle"), geometry, 90, 10)).toBeNull();
+  });
+
   it("mirrors an attached end's offset only when its host mirrors too", () => {
     const attached = {
       ...arrow(),

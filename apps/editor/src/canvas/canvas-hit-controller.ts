@@ -26,6 +26,8 @@ export interface CanvasHitControllerDependencies {
   session: {
     getInteractionKind: () => string;
     placementOwnsCanvas: boolean;
+    /** A library part (not a copy, Net Label or Power Rail) is being placed. */
+    componentPlacementPending?: boolean;
     tool: EditorTool;
     cellSymbolLayoutEnabled: boolean;
     /** Which Simulation probe domain currently owns canvas presses. */
@@ -47,6 +49,7 @@ export interface CanvasHitControllerDependencies {
       event: ReactPointerEvent<SVGElement>,
       annotation: Annotation,
       hitTarget: SVGElement,
+      options?: { onDragStart?: () => void },
     ) => void;
     handleRoutePointerDown: (
       event: ReactPointerEvent<SVGElement>,
@@ -73,6 +76,8 @@ export interface CanvasHitControllerDependencies {
     consumeArmedVerb?: (kind: string, id: string) => boolean;
     /** Swallow the click that follows a press an armed verb consumed. */
     suppressNextClick?: () => void;
+    /** End the part placement in progress, as Esc does. */
+    endComponentPlacement?: () => void;
     /** Name the Net a picked conductor, Junction, or Net label belongs to. */
     pickSimulationNet?: (kind: CanvasHitKind, id: string) => void;
     pickControlledSource?: (kind: CanvasHitKind, id: string) => void;
@@ -93,6 +98,7 @@ export function createCanvasHitController({
   session: {
     getInteractionKind,
     placementOwnsCanvas,
+    componentPlacementPending = false,
     tool,
     cellSymbolLayoutEnabled,
     simulationPickMode,
@@ -110,6 +116,7 @@ export function createCanvasHitController({
     setStatus,
     consumeArmedVerb,
     suppressNextClick,
+    endComponentPlacement,
     pickSimulationNet,
     pickControlledSource,
   },
@@ -195,20 +202,30 @@ export function createCanvasHitController({
       tool === "pointer" &&
       event.button === 0 &&
       !handleAtPoint;
-    const hit = dispatching
-      ? resolveCanvasHitAtPoint(
-          event.currentTarget.ownerDocument,
-          { x: event.clientX, y: event.clientY },
-          event.altKey ? 1 : 0,
-          simulationPickMode === null && controlPickMode === null
-            ? (candidate) =>
-                selectionPolicy.allowsCanvasHit(candidate, "select")
-            : undefined,
-        )
-      : null;
+    // While a part is being placed, the hit is only looked up, to tell a
+    // press on a label (which ends placement) from a press that places.
+    const placingPart =
+      placementOwnsCanvas &&
+      componentPlacementPending &&
+      tool === "pointer" &&
+      event.button === 0 &&
+      !handleAtPoint;
+    const hit =
+      dispatching || placingPart
+        ? resolveCanvasHitAtPoint(
+            event.currentTarget.ownerDocument,
+            { x: event.clientX, y: event.clientY },
+            event.altKey ? 1 : 0,
+            simulationPickMode === null && controlPickMode === null
+              ? (candidate) =>
+                  selectionPolicy.allowsCanvasHit(candidate, "select")
+              : undefined,
+          )
+        : null;
     // The offer runs the verb, so it is withheld while a simulation probe is
     // being picked: a pick must not rotate, copy, or delete what it names.
     const armedVerbConsumesHit =
+      dispatching &&
       hit !== null &&
       hit.kind !== "handle" &&
       simulationPickMode === null &&
@@ -228,6 +245,7 @@ export function createCanvasHitController({
       tool,
       interactionKind,
       placementOwnsCanvas,
+      componentPlacementPending,
       cellSymbolLayoutTarget:
         cellSymbolLayoutEnabled &&
         (event.target as Element).closest(
@@ -288,6 +306,18 @@ export function createCanvasHitController({
           (candidate) => candidate.id === action.annotationId,
         );
         if (annotation) beginAnnotationDrag(event, annotation, hitTarget);
+        return;
+      }
+      case "end-placement-drag-annotation": {
+        const annotation = document.annotations.find(
+          (candidate) => candidate.id === action.annotationId,
+        );
+        if (!annotation) return;
+        // A click here still places the part; only once the press moves does
+        // it end placement and carry the label.
+        beginAnnotationDrag(event, annotation, hitTarget, {
+          onDragStart: () => endComponentPlacement?.(),
+        });
         return;
       }
       case "route-pointer-down":

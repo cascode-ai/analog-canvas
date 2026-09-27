@@ -2,7 +2,10 @@ import { resolveDocumentStyleProfile } from "@icm/derived";
 import type { SchematicEdit } from "@icm/edit-engine";
 import type { Annotation, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
-import { instanceLabelAnnotationFor } from "./default-instance-display";
+import {
+  defaultInstanceDisplayAnnotations,
+  instanceLabelAnnotationFor,
+} from "./default-instance-display";
 import {
   defaultInstanceLabel,
   defaultInstanceValue,
@@ -45,11 +48,26 @@ export function instanceDisplayEdits(
             item.binding.instanceId === id,
         );
       let annotation: Annotation | null | undefined = existing;
-      if (!annotation && visible)
-        annotation =
+      if (!annotation && visible) {
+        // A Cell Pin shows its name, not a Reference it does not have.
+        const terminal =
           field === "reference"
+            ? document.netlist?.terminals.find((item) =>
+                item.interfaceInstanceIds.includes(id),
+              )
+            : undefined;
+        annotation = terminal
+          ? (defaultInstanceDisplayAnnotations(
+              document,
+              instance,
+              resolver,
+              style,
+              { formalTerminalId: terminal.id, formalName: terminal.name },
+            )[0] ?? null)
+          : field === "reference"
             ? defaultInstanceLabel(document, instance, resolver, style)
             : defaultInstanceValue(document, instance, resolver, style);
+      }
       if (!annotation) continue;
       if (annotation.anchor.kind === "free") {
         const position = annotation.anchor.position;

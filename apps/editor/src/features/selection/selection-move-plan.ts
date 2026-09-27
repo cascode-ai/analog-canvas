@@ -39,6 +39,24 @@ export interface SelectionMovePlan {
   fixedObjectIds: string[];
 }
 
+/**
+ * The step a selection moves by. Parts and wires keep the drawing's grid, so
+ * every connection stays on it. Labels and drawing objects alone move on the
+ * finer label grid, the step one of them takes when dragged by itself.
+ */
+export function selectionMovePitch(
+  plan: SelectionMovePlan,
+  grid: number,
+  annotationGrid: number,
+): number {
+  return plan.instanceIds.length === 0 &&
+    plan.translatedRouteIds.length === 0 &&
+    plan.translatedJunctionIds.length === 0 &&
+    plan.looseRouteIds.length === 0
+    ? annotationGrid
+    : grid;
+}
+
 function stable(ids: Iterable<string>): string[] {
   return [...new Set(ids)].sort((left, right) =>
     left.localeCompare(right, "en"),

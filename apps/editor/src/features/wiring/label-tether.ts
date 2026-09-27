@@ -1,4 +1,5 @@
 import {
+  derivePowerRailComponent,
   resolveEndpointConnection,
   resolveRouteAttachment,
 } from "@icm/derived";
@@ -7,14 +8,22 @@ import type {
   ResolvedDocumentRoutingGeometry,
   SchematicStyleProfile,
 } from "@icm/derived";
-import type { Annotation, Point, Rect, SchematicDocument } from "@icm/model";
+import { routeEnd, transformPoint } from "@icm/model";
+import type {
+  Annotation,
+  Point,
+  Rect,
+  RouteEndpoint,
+  SchematicDocument,
+} from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-import { clamp } from "../../canvas/canvas-geometry";
+import { clamp, closestPointOnSegment } from "../../canvas/canvas-geometry";
 import {
   annotationAnchor,
   annotationHitBox,
   closestNetConductorPoint,
+  closestRoutePoint,
   instanceHitBox,
   type RouteGeometryRecord,
 } from "./route-interaction-geometry";
@@ -50,6 +59,9 @@ function nearestOnRect(rect: Rect, point: Point): Point {
     y: clamp(point.y, rect.y, rect.y + rect.height),
   };
 }
+
+const endpointJunctionId = (endpoint: RouteEndpoint) =>
+  endpoint.kind === "junction" ? endpoint.junctionId : null;
 
 function center(rect: Rect): Point {
   return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
@@ -100,23 +112,83 @@ function wireTarget(
   return conductor ? { target: conductor, ownerId: null } : null;
 }
 
-/** Where a pin sits: a lone-pin part's pin, or the Junction a name hangs on. */
+/**
+ * Where a pin's name points: the mark that reads as the pin, near the label.
+ * A Pin's circle, a VDD marker's bar, or a rail's own thick line — not the
+ * end of a lead or of a rail where a wire happens to join.
+ */
 function pinTarget(
   context: LabelTetherContext,
   objectId: string,
+  label: Point,
 ): Point | null {
   const junction = context.document.junctions.find(
     (candidate) => candidate.id === objectId,
   );
-  if (junction) return junction.position;
+  if (junction) {
+    // A rail's name hangs on a Junction at its end; it points at the rail.
+    const rail = context.document.routes.find(
+      (route) =>
+        route.presentation === "power-rail" &&
+        route.netId === junction.netId &&
+        (endpointJunctionId(route.start) === junction.id ||
+          endpointJunctionId(routeEnd(route)) === junction.id),
+    );
+    const railRoutes = rail
+      ? new Set(
+          derivePowerRailComponent(context.document, rail.id)?.routeIds ?? [],
+        )
+      : null;
+    return (
+      (railRoutes &&
+        closestRoutePoint(context.routeGeometryRecords, label, (route) =>
+          railRoutes.has(route.id),
+        )) ??
+      junction.position
+    );
+  }
   const instance = context.document.instances.find(
     (candidate) => candidate.id === objectId,
   );
-  const pins = instance
+  const definition = instance
     ? context.resolver.resolve(instance.symbolId, instance.symbolVariantId)
-        ?.definition.pins
+        ?.definition
     : undefined;
+  const pins = definition?.pins;
   if (!instance || pins?.length !== 1) return null;
+  const placed = (point: Point) =>
+    transformPoint(point, instance.placement!.position, instance.placement!);
+  if (instance.placement) {
+    // A Pin is drawn as a small circle on a short lead: its name points at
+    // the circle, the Pin as it reads.
+    const circle = definition?.primitives.find(
+      (primitive) => primitive.kind === "circle",
+    );
+    if (circle?.kind === "circle") return placed(circle.center);
+    // A VDD marker is a Pin too, drawn as a bar on a stem: its name points
+    // at the nearest point along the bar.
+    const bar = definition?.primitives.find(
+      (primitive) =>
+        primitive.kind === "polygon" && primitive.fill === "foreground",
+    );
+    if (bar?.kind === "polygon") {
+      const xs = bar.points.map((point) => point.x);
+      const ys = bar.points.map((point) => point.y);
+      const [minX, maxX, minY, maxY] = [
+        Math.min(...xs),
+        Math.max(...xs),
+        Math.min(...ys),
+        Math.max(...ys),
+      ];
+      const across = maxX - minX >= maxY - minY;
+      const middle = across ? (minY + maxY) / 2 : (minX + maxX) / 2;
+      return closestPointOnSegment(
+        label,
+        placed(across ? { x: minX, y: middle } : { x: middle, y: minY }),
+        placed(across ? { x: maxX, y: middle } : { x: middle, y: maxY }),
+      );
+    }
+  }
   return (
     resolveEndpointConnection(context.document, context.resolver, {
       kind: "terminal",
@@ -170,7 +242,7 @@ function tetherFor(
     (annotation.kind === "instance-label" &&
       annotation.binding?.kind === "cell-terminal-name")
   ) {
-    const target = objectId ? pinTarget(context, objectId) : null;
+    const target = objectId ? pinTarget(context, objectId, reference) : null;
     if (!target) return annotation.kind === "power-label" ? wire() : null;
     return {
       annotationId: annotation.id,
