@@ -1944,7 +1944,7 @@ describe("private Cloud Projects", () => {
       .one().preview_svg;
     // A common formula is set in label type, which needs no preparation.
     expect(original).toContain(
-      'data-role="formula" data-formula-typography="label-v2"',
+      'data-role="formula" data-formula-typography="label-v3"',
     );
     const legacy = '<svg><text data-role="formula-pending">latex</text></svg>';
     env.gallerySql.exec(
@@ -1953,7 +1953,7 @@ describe("private Cloud Projects", () => {
       project.id,
     );
     clearFormulaArtifactCacheForTests();
-    const url = `${ORIGIN}/api/projects/${project.id}/preview.svg?v=${project.revision}&render=formula-label-v2`;
+    const url = `${ORIGIN}/api/projects/${project.id}/preview.svg?v=${project.revision}&render=formula-label-v3`;
     const repaired = await route(
       env,
       new Request(url, { headers: cookieHeaders(cookie) }),
@@ -2301,7 +2301,7 @@ describe("gallery submissions", () => {
     );
     const before = stored();
     const request = new Request(
-      `${ORIGIN}/api/gallery/${id}/preview.svg?v=${before.preview_revision}&render=formula-label-v2`,
+      `${ORIGIN}/api/gallery/${id}/preview.svg?v=${before.preview_revision}&render=formula-label-v3`,
     );
     const cache = memoryPreviewCache();
     await cache.put(request, new Response(legacy));

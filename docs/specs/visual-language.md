@@ -105,9 +105,13 @@ tables, but a viewer may draw the font stack in another face, such as Arial
 where DejaVu Sans is not installed. So each run of symbols with their scripts
 is one text element whose glyphs follow one another by the real face's
 advances, as a label's do; fractions, radicals, and fences are placed from the
-layout. A one-run formula stands at its anchor as a label does. Otherwise a run
-keeps against an adjacent fence or radical sign, or centres in its space, so a
-narrower face leaves even gaps. Anything else — large operators such as
+layout. A one-run formula stands at its anchor as a label does. Otherwise each
+run keeps against the box beside it: the first run in a row against what
+follows, the last against what precedes, and a run inside fences or under a
+radical against them. Fences and radical signs keep against what they enclose.
+A narrower face therefore leaves its spare width at the rows' outer edges or
+beside an operator's own space, never between a fraction and what touches it.
+Anything else — large operators such as
 `\sum`, accents, arrays and cases, blackboard letters — falls back to the
 typesetter, which emits standalone path-only SVG with deterministic width,
 height, baseline, and source identity, letters and numerals in bold

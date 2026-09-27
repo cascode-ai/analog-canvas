@@ -943,7 +943,7 @@ test("edits an unrestricted device formula in the same visual annotation", async
   // subscripts upright.
   await expect(labelFormula).toHaveAttribute(
     "data-formula-typography",
-    "label-v2",
+    "label-v3",
   );
   await expect(
     labelFormula.locator("tspan", { hasText: /^R$/u }),

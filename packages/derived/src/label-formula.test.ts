@@ -142,6 +142,22 @@ describe("formulas set in label type", () => {
     expect(negative.width).toBeCloseTo(advance("−") + advance("a"));
   });
 
+  it("keeps each run against the box beside it", () => {
+    const result = layout(
+      String.raw`a+\frac{b}{c}+d+\frac{e}{f}(g+h)+\left(1+\frac{s}{t}\right)`,
+    );
+    const anchorOf = (text: string) => glyph(result, text).anchor;
+    // The first run of a row keeps against what follows, the last against
+    // what precedes; one between two boxes, or alone in its row, centres.
+    expect(anchorOf("a")).toBe("end");
+    expect(anchorOf("d")).toBe("middle");
+    expect(anchorOf("b")).toBe("middle");
+    // Inside fences a run keeps against the opening fence.
+    expect(anchorOf("1")).toBe("start");
+    const last = layout(String.raw`\frac{e}{f}(g+h)`);
+    expect(glyph(last, "g").anchor).toBe("start");
+  });
+
   it("stacks a fraction about one bar on the axis", () => {
     const result = layout(String.raw`\frac{1}{g_m}`, { display: "block" });
     const rules = result.items.filter((item) => item.kind === "rule");

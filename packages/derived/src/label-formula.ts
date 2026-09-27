@@ -33,6 +33,15 @@ export interface LabelFormulaGlyph {
    */
   flow?: number;
   /**
+   * Where a run of flowing glyphs stands in the space the layout gave it, when
+   * the real font is narrower than the tables. A run keeps against the box
+   * beside it — the first in a row against what follows, the last against
+   * what precedes, one inside fences or a radical against them — so the
+   * spare width falls at the row's outer edges, where nothing touches it.
+   * A run between two boxes, or alone in its row, centres.
+   */
+  anchor?: "start" | "middle" | "end";
+  /**
    * The side a fence or radical sign keeps against what it encloses: an
    * opening fence or a radical sign its right, a closing fence its left.
    */
@@ -602,8 +611,16 @@ class Layout {
     };
   }
 
-  /** Children in a row, with TeX's inter-atom spacing in text styles. */
-  list(nodes: Node[], style: Style): LabelFormulaLayout {
+  /**
+   * Children in a row, with TeX's inter-atom spacing in text styles. `edges`
+   * marks a fence or radical sign standing just outside the row's start or
+   * end, which a run there keeps against.
+   */
+  list(
+    nodes: Node[],
+    style: Style,
+    edges: { start?: boolean; end?: boolean } = {},
+  ): LabelFormulaLayout {
     const size = this.size(style);
     const row: LabelFormulaLayout = {
       width: 0,
@@ -615,6 +632,8 @@ class Layout {
     // The run the next flowing node joins; a fraction, radical or fence ends
     // it.
     let flow: number | null = null;
+    // The row's visible parts in order: a run by its flow, a box as null.
+    const parts: (number | null)[] = [];
     for (const node of nodes) {
       let cls = classOf(node);
       // A sign that opens an expression, or follows another operator, is
@@ -637,10 +656,35 @@ class Layout {
         for (const item of box.items)
           if (item.kind === "glyph") item.flow = flow;
       } else flow = null;
+      if (node.kind !== "space" && (flow === null || parts.at(-1) !== flow))
+        parts.push(flow);
       append(row, box, row.width, 0);
       row.width += box.width;
       if (node.kind !== "space") previous = cls;
     }
+    parts.forEach((run, index) => {
+      if (run === null) return;
+      const first = index === 0;
+      const last = index === parts.length - 1;
+      const anchor =
+        first && last
+          ? edges.start && !edges.end
+            ? "start"
+            : edges.end && !edges.start
+              ? "end"
+              : "middle"
+          : first
+            ? edges.start
+              ? "start"
+              : "end"
+            : last
+              ? edges.end
+                ? "end"
+                : "start"
+              : "middle";
+      for (const item of row.items)
+        if (item.kind === "glyph" && item.flow === run) item.anchor = anchor;
+    });
     return row;
   }
 
@@ -704,8 +748,14 @@ class Layout {
         };
         append(box, base, 0, 0);
         let scriptWidth = 0;
-        const sup = node.sup ? this.list(node.sup, scriptStyle) : null;
-        const sub = node.sub ? this.list(node.sub, scriptStyle) : null;
+        // A script keeps against its base; on a flowing base its glyphs join
+        // the base's run instead.
+        const sup = node.sup
+          ? this.list(node.sup, scriptStyle, { start: true })
+          : null;
+        const sub = node.sub
+          ? this.list(node.sub, scriptStyle, { start: true })
+          : null;
         // As a label sets it: the subscript drops by its own shift.
         let subY = sub
           ? Math.max(
@@ -738,7 +788,7 @@ class Layout {
         return box;
       }
       case "radical": {
-        const body = this.list(node.body, style);
+        const body = this.list(node.body, style, { start: true });
         const clearance = 0.12 * size;
         const rule = RULE_EM * size;
         const top = Math.max(body.ascent, 0.7 * size) + clearance;
@@ -794,7 +844,10 @@ class Layout {
         return box;
       }
       case "delimited": {
-        const body = this.list(node.body, style);
+        const body = this.list(node.body, style, {
+          start: node.left !== null,
+          end: node.right !== null,
+        });
         const height =
           Math.max(body.ascent, 0.74 * size) +
           Math.max(body.descent, 0.22 * size);
