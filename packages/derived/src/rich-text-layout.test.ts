@@ -228,7 +228,7 @@ describe("shared rich-text layout", () => {
   it("uses path-renderer metrics for a formula label type cannot set", async () => {
     const metrics = richTextMetrics(razaviTextbookProfile);
     const request = {
-      latex: String.raw`\sum_k\frac{g_m}{1+s/\omega_p}`,
+      latex: String.raw`\boxed{\frac{g_m}{1+s/\omega_p}}`,
       display: "inline" as const,
       profileId: ANALOG_CANVAS_MATH_PROFILE_ID,
     };

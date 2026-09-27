@@ -217,7 +217,7 @@ describe("drafting layer rendering", () => {
             runs: [
               {
                 kind: "math",
-                latex: String.raw`A_v=\sum_k\frac{g_m}{1+s/\omega_p}`,
+                latex: String.raw`A_v=\boxed{\frac{g_m}{1+s/\omega_p}}`,
                 display: "inline",
               },
             ],
@@ -229,7 +229,7 @@ describe("drafting layer rendering", () => {
     };
 
     await prepareFormula({
-      latex: String.raw`A_v=\sum_k\frac{g_m}{1+s/\omega_p}`,
+      latex: String.raw`A_v=\boxed{\frac{g_m}{1+s/\omega_p}}`,
       display: "inline",
       profileId: ANALOG_CANVAS_MATH_PROFILE_ID,
     });
@@ -261,10 +261,14 @@ describe("drafting layer rendering", () => {
         locked: false,
         zIndex: 0,
         anchor: { kind: "free", position: { x: 100, y: 100 } },
-        // An accent is outside label type, so the MathJax glyphs are drawn.
+        // A brace is outside label type, so the MathJax glyphs are drawn.
         content: {
           runs: [
-            { kind: "math", latex: String.raw`\hat{L}`, display: "inline" },
+            {
+              kind: "math",
+              latex: String.raw`\overbrace{L}`,
+              display: "inline",
+            },
           ],
         },
         alignment: "middle",
@@ -306,7 +310,7 @@ describe("drafting layer rendering", () => {
     });
     const svg = renderDocumentSvg(document, resolver);
     const formula = svg.match(
-      /<g data-role="formula" data-formula-typography="label-v3"[^>]*>.*?<\/g>/u,
+      /<g data-role="formula" data-formula-typography="label-v4"[^>]*>.*?<\/g>/u,
     )?.[0];
     expect(formula).toBeDefined();
     expect(formula).toContain("ICM Round Period");

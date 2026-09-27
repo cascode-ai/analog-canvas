@@ -93,14 +93,26 @@ formal profile recognizes MathLive's `\differentialD` source as an upright
 differential operator, so source produced by the editor preview remains valid
 without rewriting the persisted LaTeX.
 
-A formula made from the common commands — letters, digits, Greek, operators
-and relations, sub- and superscripts, primes, fractions, square roots, over-
-and underlines, `\left…\right` fences, spacing, function names, and the
-upright, italic, bold, and text font commands — is set in label type: the
-label font family, weight, and size, letters italic, and subscripts, digits,
-operators, capital Greek, and function names upright, with scripts at the
-profile's subscript scale and shift. A formula and the label beside it
-therefore match glyph for glyph. The layout measures with the label advance
+Every formula is set in label type: the label font family, weight, and size,
+letters italic, and subscripts, digits, operators, capital Greek, and function
+names upright, with scripts at the profile's subscript scale and shift. A
+formula and the label beside it therefore match glyph for glyph. Label type
+sets everything the Formula editor offers and its common neighbours:
+- letters, digits, Greek, operators and relations (including `\not`
+  negations), scripts and primes;
+- fractions and binomials, square and indexed roots, over- and underlines,
+  and accents (`\hat`, `\vec`, `\dot`, `\ddot`, `\tilde` and the wide
+  forms);
+- large operators with their limits stacked in display style (sums,
+  products, `\lim`, `\max`) or set aside (integrals);
+- `\left…\middle…\right` and `\big` fences, matrices, cases and aligned rows;
+- `\overset`/`\underset` stacks, extensible arrows, and blackboard,
+  calligraphic and fraktur letters;
+- spacing, lengths, phantoms, style switches, function names, and the font
+  and class commands.
+
+The Formula editor refuses LaTeX label type cannot set, naming the command
+(for example `\boxed` or `\color`), rather than drawing it another way. The layout measures with the label advance
 tables, but a viewer may draw the font stack in another face, such as Arial
 where DejaVu Sans is not installed. So each run of symbols with their scripts
 is one text element whose glyphs follow one another by the real face's
@@ -111,11 +123,10 @@ follows, the last against what precedes, and a run inside fences or under a
 radical against them. Fences and radical signs keep against what they enclose.
 A narrower face therefore leaves its spare width at the rows' outer edges or
 beside an operator's own space, never between a fraction and what touches it.
-Anything else — large operators such as
-`\sum`, accents, arrays and cases, blackboard letters — falls back to the
-typesetter, which emits standalone path-only SVG with deterministic width,
-height, baseline, and source identity, letters and numerals in bold
-sans-serif. Drafting text and callout weight/slant overrides also apply to
+A formula stored before the editor refused such LaTeX, which label type still
+cannot set, is drawn by the typesetter: standalone path-only SVG with
+deterministic width, height, baseline, and source identity, letters and
+numerals in bold sans-serif. Drafting text and callout weight/slant overrides also apply to
 formulas; explicit LaTeX font commands retain their meaning. This is rendering
 style, not a rewrite of the stored expression. Measurement and drawing use the
 same layout, prepared before canvas, export, and server thumbnail rendering.

@@ -1944,7 +1944,7 @@ describe("private Cloud Projects", () => {
       .one().preview_svg;
     // A common formula is set in label type, which needs no preparation.
     expect(original).toContain(
-      'data-role="formula" data-formula-typography="label-v3"',
+      'data-role="formula" data-formula-typography="label-v4"',
     );
     const legacy = '<svg><text data-role="formula-pending">latex</text></svg>';
     env.gallerySql.exec(
@@ -1953,7 +1953,7 @@ describe("private Cloud Projects", () => {
       project.id,
     );
     clearFormulaArtifactCacheForTests();
-    const url = `${ORIGIN}/api/projects/${project.id}/preview.svg?v=${project.revision}&render=formula-label-v3`;
+    const url = `${ORIGIN}/api/projects/${project.id}/preview.svg?v=${project.revision}&render=formula-label-v4`;
     const repaired = await route(
       env,
       new Request(url, { headers: cookieHeaders(cookie) }),
@@ -2274,8 +2274,8 @@ describe("gallery submissions", () => {
     clearFormulaArtifactCacheForTests();
     const id = await submitOne(env, "Formula circuit", {
       cookie,
-      // Label type cannot set a sum, so the typesetter prepares this one.
-      text: formulaProjectText(String.raw`\sum_k\frac{1}{\sqrt{L_1C_1}}`),
+      // Label type cannot set a brace, so the typesetter prepares this one.
+      text: formulaProjectText(String.raw`\overbrace{\frac{1}{\sqrt{L_1C_1}}}`),
     });
     const stored = () =>
       env.gallerySql
@@ -2301,7 +2301,7 @@ describe("gallery submissions", () => {
     );
     const before = stored();
     const request = new Request(
-      `${ORIGIN}/api/gallery/${id}/preview.svg?v=${before.preview_revision}&render=formula-label-v3`,
+      `${ORIGIN}/api/gallery/${id}/preview.svg?v=${before.preview_revision}&render=formula-label-v4`,
     );
     const cache = memoryPreviewCache();
     await cache.put(request, new Response(legacy));

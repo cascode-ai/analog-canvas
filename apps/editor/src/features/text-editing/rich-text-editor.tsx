@@ -9,6 +9,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { labelFormulaProblem } from "@icm/derived";
 import { flattenRichText, soleRichTextMathRun } from "@icm/model";
 import {
   ANALOG_CANVAS_MATH_PROFILE_ID,
@@ -990,6 +991,13 @@ export function RichTextEditor({
     });
     if (!validation.ok) {
       setFormulaError(validation.diagnostic.message);
+      return;
+    }
+    // Every formula is set in label type; LaTeX it cannot set is refused
+    // here, by name, rather than drawn another way.
+    const problem = labelFormulaProblem(latex);
+    if (problem) {
+      setFormulaError(problem);
       return;
     }
     const next: RichTextDocument = {

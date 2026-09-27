@@ -24,8 +24,8 @@ function escapeXml(value: string): string {
 }
 
 /** Formula typography markers; a stored preview without them is redrawn. */
-export const LABEL_FORMULA_TYPOGRAPHY = "label-v3";
-export const MATHJAX_FORMULA_TYPOGRAPHY = "sans-v3";
+export const LABEL_FORMULA_TYPOGRAPHY = "label-v4";
+export const MATHJAX_FORMULA_TYPOGRAPHY = "sans-v4";
 
 /**
  * A formula set in label type: text in the labels' own font, letters in
@@ -97,8 +97,10 @@ function renderLabelFormula(
       return `<line x1="${number(left + x1)}" y1="${number(options.baselineY + y)}" x2="${number(left + x2)}" y2="${number(options.baselineY + y)}" stroke="${color}" stroke-width="${profile.strokes.annotation}"/>`;
     }
     if (segment.kind === "glyph") {
-      // A fence or radical sign, stretched about its baseline, kept against
-      // what it encloses: a radical sign ends where its overbar begins.
+      // A fence, radical sign, accent or operator set on its own. A fence or
+      // radical sign stretches about its baseline and keeps against what it
+      // encloses — a radical sign ends where its overbar begins; a wide
+      // accent or arrow stretches across its body about its centre.
       const { glyph } = segment;
       const anchor =
         glyph.hug === "right"
@@ -108,8 +110,10 @@ function renderLabelFormula(
             : "middle";
       const x = place(anchor, glyph.x, glyph.x + glyph.advance);
       const y = options.baselineY + glyph.y;
-      return glyph.scaleY
-        ? `<text transform="translate(${number(x)} ${number(y)}) scale(1 ${number(glyph.scaleY)})" x="0" y="0" text-anchor="${anchor}" ${font(glyph)}>${escapeXml(glyph.text)}</text>`
+      const scaleX = glyph.scaleX ?? 1;
+      const scaleY = glyph.scaleY ?? 1;
+      return scaleX !== 1 || scaleY !== 1
+        ? `<text transform="translate(${number(x)} ${number(y)}) scale(${number(scaleX)} ${number(scaleY)})" x="0" y="0" text-anchor="${anchor}" ${font(glyph)}>${escapeXml(glyph.text)}</text>`
         : `<text x="${number(x)}" y="${number(y)}" text-anchor="${anchor}" ${font(glyph)}>${escapeXml(glyph.text)}</text>`;
     }
     // One run is the whole formula: it stands at its anchor, as a label

@@ -774,9 +774,9 @@ test("authors one validated formula through the canonical text editor", async ({
     '[data-kind="draft-text"] [data-role="formula"]',
   );
   await expect(formula).toBeVisible();
-  // Label type cannot set an integral, so the typesetter draws it as paths.
-  await expect(formula).toHaveAttribute("data-formula-typography", "sans-v3");
-  await expect(formula.locator("path").first()).toBeVisible();
+  // An integral, a root and MathLive's upright d are all set in label type.
+  await expect(formula).toHaveAttribute("data-formula-typography", "label-v4");
+  await expect(formula.locator("text", { hasText: "∫" })).toHaveCount(1);
   await expect(page.locator("foreignObject", { has: formula })).toHaveCount(0);
 
   const project = parseSavedProject(
@@ -801,7 +801,7 @@ test("authors one validated formula through the canonical text editor", async ({
     "utf8",
   );
   expect(svg).toContain('data-role="formula"');
-  expect(svg).toContain("<path");
+  expect(svg).toContain('data-formula-typography="label-v4"');
   expect(svg).not.toContain("<foreignObject");
 
   const pdf = await downloadBytes(page, "File", "Export PDF");
@@ -943,7 +943,7 @@ test("edits an unrestricted device formula in the same visual annotation", async
   // subscripts upright.
   await expect(labelFormula).toHaveAttribute(
     "data-formula-typography",
-    "label-v3",
+    "label-v4",
   );
   await expect(
     labelFormula.locator("tspan", { hasText: /^R$/u }),
@@ -1004,6 +1004,20 @@ test("keeps unsafe formula source out of the Project", async ({ page }) => {
     "command is not available",
   );
   await expect(page.getByRole("dialog", { name: "Formula" })).toBeVisible();
+  await expect(page.locator('[data-role="formula"]')).toHaveCount(0);
+
+  // LaTeX that label type cannot set is refused by name, not drawn some
+  // other way.
+  await page
+    .getByRole("textbox", { name: "Formula LaTeX source" })
+    .fill(String.raw`\boxed{V}`);
+  await page
+    .getByRole("dialog", { name: "Formula" })
+    .getByRole("button", { name: "Insert", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText(
+    String.raw`\boxed is not supported in formulas`,
+  );
   await expect(page.locator('[data-role="formula"]')).toHaveCount(0);
 });
 

@@ -434,7 +434,7 @@ describe("instance style override rendering", () => {
     );
     // Set in label type, the formula takes the label's color.
     expect(svg).toMatch(
-      /<g data-role="formula" data-formula-typography="label-v3"[^>]*fill="#0000FF"[^>]*color="#0000FF"/u,
+      /<g data-role="formula" data-formula-typography="label-v4"[^>]*fill="#0000FF"[^>]*color="#0000FF"/u,
     );
     expect(svg).not.toContain('data-role="formula-pending"');
     expect(svg).toMatch(
