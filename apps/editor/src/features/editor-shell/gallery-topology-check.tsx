@@ -1,5 +1,6 @@
-import { lazy, Suspense, useState, useSyncExternalStore } from "react";
+import { lazy, Suspense, useMemo, useState, useSyncExternalStore } from "react";
 import type { CircuitProject } from "@icm/model";
+import { serializeProject } from "@icm/project-protocol";
 import { galleryPreviewUrl } from "../../gallery-client";
 import { getGalleryTopologyTask } from "./gallery-topology-task";
 import type { GalleryTopologyMatch } from "../../gallery-topology-match";
@@ -7,18 +8,41 @@ const GalleryTopologyComparison = lazy(
   () => import("./gallery-topology-comparison"),
 );
 
+// Compare portable content, not page-local object identity. Revision counters
+// advance on undo/reload but do not change the drawing being checked.
+function comparisonContent(project: CircuitProject): string {
+  return serializeProject({
+    ...project,
+    structureRevision: 0,
+    documents: project.documents.map((document) => ({
+      ...document,
+      revision: 0,
+    })),
+  });
+}
+
 export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
   const galleryTopologyTask = getGalleryTopologyTask();
   const [comparison, setComparison] = useState<{
     source: CircuitProject;
     match: GalleryTopologyMatch;
   } | null>(null);
-  const { report, running, failure, snapshot, sourceProject, durable } =
-    useSyncExternalStore(
-      galleryTopologyTask.subscribe,
-      galleryTopologyTask.getSnapshot,
-      galleryTopologyTask.getSnapshot,
-    );
+  const { report, running, failure, snapshot, durable } = useSyncExternalStore(
+    galleryTopologyTask.subscribe,
+    galleryTopologyTask.getSnapshot,
+    galleryTopologyTask.getSnapshot,
+  );
+  const currentContent = useMemo(() => comparisonContent(project), [project]);
+  const snapshotContent = useMemo(
+    () => snapshot && comparisonContent(snapshot),
+    [snapshot],
+  );
+  const otherCell =
+    !!snapshot &&
+    (snapshot.id !== project.id ||
+      snapshot.topDocumentId !== project.topDocumentId);
+  const historical =
+    !!snapshot && (otherCell || snapshotContent !== currentContent);
   const start = () => galleryTopologyTask.start(project);
   const stop = () => galleryTopologyTask.cancel();
 
@@ -75,9 +99,11 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
           className="publish-duplicate-message"
           data-testid="gallery-topology-snapshot"
         >
-          {sourceProject !== project
-            ? `Canvas changed. These results still use “${snapshot.name}” captured when you clicked Check Duplicate.`
-            : "Comparing a snapshot of this Cell. You can still publish while the check runs."}
+          {otherCell
+            ? `Historical check for another Project or Cell: “${snapshot.name}”. Click Check Again to check this Cell.`
+            : historical
+              ? `Canvas changed. Historical results use “${snapshot.name}” captured when you clicked Check Duplicate. Click Check Again to check the current Cell.`
+              : "Comparing a snapshot of this Cell. You can still publish while the check runs."}
         </p>
       ) : null}
       <span role="status" className="publish-duplicate-status">
@@ -94,9 +120,20 @@ export function GalleryTopologyCheck({ project }: { project: CircuitProject }) {
           {report.uncheckable} circuits could not be fully compared.
         </p>
       ) : null}
-      {failure || report?.sourceError || report?.error ? (
+      {failure ? (
         <p role="alert" className="publish-duplicate-message">
-          {failure ?? report?.sourceError ?? report?.error}
+          {failure}
+        </p>
+      ) : null}
+      {report?.sourceError || report?.error ? (
+        <p
+          role={historical ? undefined : "alert"}
+          className="publish-duplicate-message"
+        >
+          {historical
+            ? "Historical check only — not a current validation error: "
+            : ""}
+          {report.sourceError ?? report.error}
         </p>
       ) : null}
       {report?.complete &&

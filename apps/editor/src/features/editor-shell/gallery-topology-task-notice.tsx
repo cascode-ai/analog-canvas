@@ -26,7 +26,7 @@ export function GalleryTopologyTaskNotice({
         {task.running
           ? `Checking “${task.snapshot.name}”… ${task.report?.scanned ?? 0} compared`
           : task.failure || task.report?.error || task.report?.sourceError
-            ? "Duplicate check needs attention"
+            ? `Saved duplicate check for “${task.snapshot.name}” needs review`
             : task.report?.complete
               ? `Duplicate check finished · ${task.report.matches.length} results`
               : "Duplicate check cancelled"}

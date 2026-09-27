@@ -789,7 +789,7 @@ test("Publish checks exact and nearest duplicates without adding a Gallery contr
   await expect(page.getByTestId("status")).toContainText("edited.icproj.json");
   await page.getByTestId("publish-gallery-button").click();
   await expect(dialog.getByTestId("gallery-topology-snapshot")).toContainText(
-    "Canvas changed",
+    "Historical check for another Project or Cell",
   );
   await page.getByTestId("topology-compare-nearest").click();
   await comparison
