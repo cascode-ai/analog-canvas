@@ -466,7 +466,15 @@ function defaultPropertiesWidth(viewportWidth: number): number {
 }
 const COMPACT_LAYOUT_MEDIA_QUERY = "(max-width: 860px)";
 const DRAG_START_DISTANCE_PX = 4;
+/** Drawing tools snap quietly: a line or shape is not pulled far. */
 const SNAP_CAPTURE_RADIUS_PX = 4;
+/**
+ * A part or copy being placed reaches for a pin, wire or Junction as far as a
+ * wire end or a moved part does, so a pin set down beside another one lands on
+ * it and connects instead of a grid step away. It shared the quiet drawing
+ * radius from 2026-09-04 until this was noticed as a lost "magnet".
+ */
+const PLACEMENT_SNAP_CAPTURE_RADIUS_PX = 7;
 const NET_LABEL_SNAP_CAPTURE_RADIUS_PX = 12;
 
 /** Persisted Junctions are grid points, including on ±45° Route segments. */
@@ -4437,7 +4445,10 @@ function WorkspaceEditor({
         anchor: copyPlacement.anchor,
         position: point,
         grid: document.presentation.grid,
-        tolerance: logicalRadiusForPixels(svg, SNAP_CAPTURE_RADIUS_PX),
+        tolerance: logicalRadiusForPixels(
+          svg,
+          PLACEMENT_SNAP_CAPTURE_RADIUS_PX,
+        ),
       });
     }
     const pitch =
@@ -4471,7 +4482,7 @@ function WorkspaceEditor({
       position: point,
       rotation: componentPlacementRotation,
       mirror: componentPlacementMirror,
-      tolerance: logicalRadiusForPixels(svg, SNAP_CAPTURE_RADIUS_PX),
+      tolerance: logicalRadiusForPixels(svg, PLACEMENT_SNAP_CAPTURE_RADIUS_PX),
     });
     return { point: snapped.position, guides: snapped.snap.guides };
   }

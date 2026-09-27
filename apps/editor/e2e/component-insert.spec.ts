@@ -366,6 +366,52 @@ test("the status bar toggles the grid, labelled full-width and an icon half-widt
   await expect(toggle).toHaveAttribute("aria-pressed", "true");
 });
 
+test("a part set down beside a pin is pulled onto it and connects", async ({
+  page,
+}) => {
+  // Placement reaches for a pin as far as a moved part or a wire end does.
+  // With the quiet drawing radius a Pin put down a few pixels off a gate
+  // landed a grid step away and stayed unconnected.
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await revealPropertiesShelf(page);
+  const canvas = page.getByTestId("schematic-canvas");
+  await chooseComponent(page, "nmos");
+  await canvas.click({ position: { x: 420, y: 300 } });
+  await page.keyboard.press("Escape");
+  const [gate, box] = await Promise.all([
+    page.getByTestId("terminal-M1-G").boundingBox(),
+    canvas.boundingBox(),
+  ]);
+  if (!gate || !box) throw new Error("Gate is not measurable");
+  await chooseComponent(page, "port");
+  await canvas.click({
+    position: {
+      x: gate.x + gate.width / 2 - box.x,
+      y: gate.y + gate.height / 2 - box.y - 6,
+    },
+  });
+  await page.keyboard.press("Escape");
+  const document = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  ).documents[0];
+  const port = document.instances.find(
+    (instance: { symbolId: string }) => instance.symbolId === "port",
+  );
+  const netOf = (instanceId: string, pinName: string) =>
+    document.nets.find(
+      (net: { terminals: { instanceId: string; pinName: string }[] }) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === instanceId && terminal.pinName === pinName,
+        ),
+    )?.id;
+  expect(netOf(port.id, "P")).toBeDefined();
+  expect(netOf(port.id, "P")).toBe(netOf("M1", "G"));
+});
+
 test("mirrors component and copy placement previews before their commits", async ({
   page,
 }) => {
