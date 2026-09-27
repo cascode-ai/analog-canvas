@@ -155,6 +155,39 @@ function fallbackSpiceCard(
   }
   const useSubcircuitTemplate =
     !magnetic && (!descriptor || descriptor.targetPolicy === "none");
+  const control = instance.netlist?.control;
+  const voltageControlled =
+    descriptor?.deviceClass === "vcvs" || descriptor?.deviceClass === "vccs";
+  const currentControlled =
+    descriptor?.deviceClass === "cccs" || descriptor?.deviceClass === "ccvs";
+  const controlNetNames = voltageControlled
+    ? resolveDocumentLogicalNets(document).byBaseNetId
+    : null;
+  const controlNodes: DesignNetlistInstance["nodes"] = voltageControlled
+    ? (
+        [
+          [
+            "CTRL+",
+            control?.kind === "voltage" ? control.positiveNetId : undefined,
+          ],
+          [
+            "CTRL-",
+            control?.kind === "voltage" ? control.negativeNetId : undefined,
+          ],
+        ] as const
+      ).map(([pinName, netId]) => ({
+        pinName,
+        netName: netId
+          ? (controlNetNames?.get(netId)?.name ?? `<unconnected:${pinName}>`)
+          : `<unconnected:${pinName}>`,
+      }))
+    : [];
+  const controlSensor =
+    currentControlled && control?.kind === "current"
+      ? document.instances.find(
+          (candidate) => candidate.id === control.sensorInstanceId,
+        )
+      : undefined;
   const preview: DesignNetlistInstance = {
     id: instance.id,
     reference: spellGreekLetters(instance.reference ?? instance.id),
@@ -172,8 +205,18 @@ function fallbackSpiceCard(
         : descriptor?.targetPolicy === "required-model"
           ? "<model>"
           : null),
-    nodes: nodeTokens(document, instance, pinNames),
+    nodes: [...nodeTokens(document, instance, pinNames), ...controlNodes],
     parameters,
+    ...(currentControlled
+      ? {
+          controlSourceReference:
+            controlSensor &&
+            deviceDescriptor(controlSensor.symbolId)?.deviceClass ===
+              "voltage-source"
+              ? (controlSensor.reference ?? "<select-voltage-source>")
+              : "<select-voltage-source>",
+        }
+      : {}),
   };
   const code = printSpiceCellInstances({
     id: document.id,

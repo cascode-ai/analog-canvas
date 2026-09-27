@@ -33,6 +33,34 @@ function claimNet(
 }
 
 describe("component source code", () => {
+  it.each([
+    ["vcvs", "E1", "gain", "1", "<unconnected:CTRL+> <unconnected:CTRL->"],
+    ["vccs", "G1", "gm", "1m", "<unconnected:CTRL+> <unconnected:CTRL->"],
+    ["cccs", "F1", "gain", "1", "<select-voltage-source>"],
+    ["ccvs", "H1", "rm", "1k", "<select-voltage-source>"],
+  ] as const)(
+    "previews an incomplete %s without throwing",
+    (symbolId, reference, parameter, value, missingControl) => {
+      const project = createEmptyProject("project", "Project");
+      const document = project.documents[0]!;
+      document.instances.push({
+        id: reference,
+        symbolId,
+        placement: null,
+        reference,
+        netlist: { parameters: { [parameter]: value } },
+      });
+      const preview = componentSourceCode(
+        project,
+        document.id,
+        reference,
+        resolver,
+      );
+      expect(preview.exact).toBe(false);
+      expect(preview.code).toContain(missingControl);
+      expect(preview.note).toContain("placeholders");
+    },
+  );
   it("shows the exact emitted card for an exportable component", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;
