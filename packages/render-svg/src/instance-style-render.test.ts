@@ -432,7 +432,10 @@ describe("instance style override rendering", () => {
     expect(svg).toMatch(
       /data-object-id="formula-value"[^>]*>.*data-role="formula"/u,
     );
-    expect(svg).toMatch(/<svg[^>]*color="#0000FF"[^>]*data-role="formula"/u);
+    // Set in label type, the formula takes the label's color.
+    expect(svg).toMatch(
+      /<g data-role="formula" data-formula-typography="label-v1"[^>]*fill="#0000FF"[^>]*color="#0000FF"/u,
+    );
     expect(svg).not.toContain('data-role="formula-pending"');
     expect(svg).toMatch(
       /data-role="fraction-numerator"[^>]*fill="#0000FF"[^>]*color="#0000FF"[^>]*>.*data-text-run="overbar"/u,

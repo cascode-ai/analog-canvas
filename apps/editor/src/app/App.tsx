@@ -377,6 +377,10 @@ import {
 } from "../features/properties/group-property-code-edits";
 import { planPropertyContactMove } from "../features/properties/property-contact-move";
 import {
+  groupRenames,
+  mergeRenamePlans,
+} from "../features/properties/group-renames";
+import {
   batchAnnotationEdits,
   batchDraftingEdits,
 } from "../features/properties/batch-property-apply";
@@ -7612,8 +7616,71 @@ function WorkspaceEditor({
                         ),
                       );
                   }
-                  if (edits.length === 0) return { ok: true };
-                  if (transact(edits).ok) {
+                  // A name entry changed renames that component: a Pin
+                  // through its Cell interface, any other part through its
+                  // Reference.
+                  const renamePlan = groupRenames(value, selectedGroupContext);
+                  if (!renamePlan.ok)
+                    return { ok: false, message: renamePlan.message };
+                  const pinPlans: ProjectStructureEdit[][] = [];
+                  for (const rename of renamePlan.renames) {
+                    const terminal = document.netlist?.terminals.find(
+                      (candidate) =>
+                        candidate.interfaceInstanceIds.includes(
+                          rename.instanceId,
+                        ),
+                    );
+                    if (terminal)
+                      pinPlans.push(
+                        planRenameCellTerminal(
+                          project,
+                          document.id,
+                          terminal.id,
+                          rename.name,
+                          { mergeExistingPort: true },
+                        ),
+                      );
+                    else
+                      edits.push({
+                        kind: "set_instance_reference",
+                        instanceId: rename.instanceId,
+                        reference: rename.name,
+                      });
+                  }
+                  const structureEdits = pinPlans.length
+                    ? mergeRenamePlans(pinPlans)
+                    : [];
+                  if (!structureEdits)
+                    return {
+                      ok: false,
+                      message: "Rename these Pins one at a time",
+                    };
+                  if (edits.length === 0 && structureEdits.length === 0)
+                    return { ok: true };
+                  let applied: boolean;
+                  if (structureEdits.length > 0) {
+                    // One project transaction and one undo step, as for a
+                    // single component.
+                    const documentEdit = structureEdits.find(
+                      (edit) =>
+                        edit.kind === "transact_document" &&
+                        edit.documentId === document.id,
+                    );
+                    if (documentEdit?.kind === "transact_document")
+                      documentEdit.edits.push(...edits);
+                    else if (edits.length)
+                      structureEdits.push({
+                        kind: "transact_document",
+                        documentId: document.id,
+                        expectedRevision: document.revision,
+                        edits,
+                      });
+                    applied = commitStructure(
+                      "apply-group-property-code",
+                      structureEdits,
+                    );
+                  } else applied = transact(edits).ok;
+                  if (applied) {
                     setStatus(
                       `Updated shared properties on ${selectedIds.length} components`,
                     );

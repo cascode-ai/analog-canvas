@@ -794,6 +794,39 @@ test("resizes Properties and applies component presentation as editable code", a
   });
 });
 
+test("two Pins selected are renamed through their own name entries", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "port", { x: 280, y: 200 });
+  await placeComponent(page, "port", { x: 280, y: 320 });
+  await page.getByTestId("hit-P1").click();
+  await page.getByTestId("hit-P2").click({ modifiers: ["Shift"] });
+  await openSelectionShelf(page);
+  const code = JSON.parse(await readComponentPropertyCode(page));
+  expect(Object.keys(code.name)).toEqual(["P1", "P2"]);
+  await editComponentPropertyCode(page, (value) => {
+    value.name = { P1: "Voutp", P2: "Voutn" };
+  });
+  await expect
+    .poll(async () =>
+      parseSavedProject(
+        (await downloadBytes(page, "File", "Export Project File…")).toString(
+          "utf8",
+        ),
+      )
+        .documents[0].netlist.terminals.map(
+          (terminal: { name: string }) => terminal.name,
+        )
+        .sort(),
+    )
+    .toEqual(["Voutn", "Voutp"]);
+  expect(JSON.parse(await readComponentPropertyCode(page)).name).toEqual({
+    P1: "Voutp",
+    P2: "Voutn",
+  });
+});
+
 test("a coordinate typed in Properties joins the pin the part lands on", async ({
   page,
 }) => {

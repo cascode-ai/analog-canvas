@@ -91,17 +91,25 @@ the reviewed base, AMS, and cases command sets and rejects external resources,
 HTML/style injection, package loading, and dynamic command definitions. The
 formal profile recognizes MathLive's `\differentialD` source as an upright
 differential operator, so source produced by the editor preview remains valid
-without rewriting the persisted LaTeX. The typesetter emits standalone
-path-only SVG with deterministic width, height, baseline, and source identity.
-Formula letters and numerals default to bold sans-serif, matching schematic
-text. Drafting text and callout weight/slant overrides also apply to formulas;
-explicit LaTeX font commands retain their meaning. This is rendering style,
-not a rewrite of the stored expression. Measurement and drawing use the same
-style-aware artifact, prepared before canvas, export, and server thumbnail
-rendering.
-Formula SVG is embedded into the same formal
-scene used by canvas, SVG, PNG, and vector PDF; it is never rasterized or
-persisted.
+without rewriting the persisted LaTeX.
+
+A formula made from the common commands — letters, digits, Greek, operators
+and relations, sub- and superscripts, primes, fractions, square roots, over-
+and underlines, `\left…\right` fences, spacing, function names, and the
+upright, italic, bold, and text font commands — is set in label type: the
+label font family, weight, and size, letters italic, and subscripts, digits,
+operators, capital Greek, and function names upright, with scripts at the
+profile's subscript scale and shift. A formula and the label beside it
+therefore match glyph for glyph. Anything else — large operators such as
+`\sum`, accents, arrays and cases, blackboard letters — falls back to the
+typesetter, which emits standalone path-only SVG with deterministic width,
+height, baseline, and source identity, letters and numerals in bold
+sans-serif. Drafting text and callout weight/slant overrides also apply to
+formulas; explicit LaTeX font commands retain their meaning. This is rendering
+style, not a rewrite of the stored expression. Measurement and drawing use the
+same layout, prepared before canvas, export, and server thumbnail rendering.
+Formula artwork is embedded into the same formal scene used by canvas, SVG,
+PNG, and vector PDF; it is never rasterized or persisted.
 
 An ordinary RichText overbar is one explicit decoration over its authored
 span. A subscript/superscript stack under that span does not inherit separate

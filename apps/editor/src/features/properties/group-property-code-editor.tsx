@@ -52,8 +52,10 @@ export function GroupPropertyCodeEditor({
       itemPropertyCode(nativeBaseline, {
         type: context.symbol,
         typePath: "symbol",
-        // Each component by its Reference, so a batch reads who is who.
+        // Each component by its Reference, so a batch reads who is who, and
+        // an entry changed renames that one.
         name: groupPropertyItemNames(context),
+        namePath: "names",
       }),
     [nativeBaseline, context],
   );
@@ -193,9 +195,9 @@ export function GroupPropertyCodeEditor({
       </Suspense>
       <small className="group-property-hint">
         Where components differ, each is listed by its Reference: edit its entry
-        to change that one, or enter a single value to apply it to all. Names
-        are listed for reference. Empty values keep each component’s current
-        setting.
+        to change that one, or enter a single value to apply it to all. Each
+        name is renamed through its own entry. Empty values keep each
+        component’s current setting.
         {context.parameters === null
           ? " Select one component type to edit parameters together."
           : ""}

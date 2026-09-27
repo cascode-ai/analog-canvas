@@ -530,7 +530,9 @@ function projectText(name = "Fixture"): string {
   return serializeProject(createEmptyProject("gallery-fixture", name));
 }
 
-function formulaProjectText(): string {
+function formulaProjectText(
+  latex = String.raw`\frac{1}{\sqrt{L_1C_1}}`,
+): string {
   const project = createEmptyProject("formula-fixture", "Formula circuit");
   project.documents[0]!.drafting!.objects.push({
     id: "formula-note",
@@ -544,7 +546,7 @@ function formulaProjectText(): string {
       runs: [
         {
           kind: "math",
-          latex: String.raw`\frac{1}{\sqrt{L_1C_1}}`,
+          latex,
           display: "block",
         },
       ],
@@ -1940,7 +1942,10 @@ describe("private Cloud Projects", () => {
         project.id,
       )
       .one().preview_svg;
-    expect(original).toContain('data-role="formula"');
+    // A common formula is set in label type, which needs no preparation.
+    expect(original).toContain(
+      'data-role="formula" data-formula-typography="label-v1"',
+    );
     const legacy = '<svg><text data-role="formula-pending">latex</text></svg>';
     env.gallerySql.exec(
       "UPDATE cloud_projects SET preview_svg=? WHERE id=?",
@@ -1948,7 +1953,7 @@ describe("private Cloud Projects", () => {
       project.id,
     );
     clearFormulaArtifactCacheForTests();
-    const url = `${ORIGIN}/api/projects/${project.id}/preview.svg?v=${project.revision}&render=formula-sans-v2`;
+    const url = `${ORIGIN}/api/projects/${project.id}/preview.svg?v=${project.revision}&render=formula-label-v1`;
     const repaired = await route(
       env,
       new Request(url, { headers: cookieHeaders(cookie) }),
@@ -2269,7 +2274,8 @@ describe("gallery submissions", () => {
     clearFormulaArtifactCacheForTests();
     const id = await submitOne(env, "Formula circuit", {
       cookie,
-      text: formulaProjectText(),
+      // Label type cannot set a sum, so the typesetter prepares this one.
+      text: formulaProjectText(String.raw`\sum_k\frac{1}{\sqrt{L_1C_1}}`),
     });
     const stored = () =>
       env.gallerySql
@@ -2295,7 +2301,7 @@ describe("gallery submissions", () => {
     );
     const before = stored();
     const request = new Request(
-      `${ORIGIN}/api/gallery/${id}/preview.svg?v=${before.preview_revision}&render=formula-sans-v2`,
+      `${ORIGIN}/api/gallery/${id}/preview.svg?v=${before.preview_revision}&render=formula-label-v1`,
     );
     const cache = memoryPreviewCache();
     await cache.put(request, new Response(legacy));

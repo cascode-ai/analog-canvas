@@ -11,6 +11,7 @@ import {
   containsFractionRun,
   fractionGeometry,
   fractionPartScale,
+  labelFormulaLayout,
   measureRichTextDocument,
   richTextAdvanceEm,
   richTextMetrics,
@@ -211,10 +212,23 @@ describe("shared rich-text layout", () => {
     expect(fractionPartScale(0.5)).toBeCloseTo(0.55, 6);
   });
 
-  it("uses path-renderer metrics for an atomic formula", async () => {
+  it("measures a formula in label type by its label layout", () => {
+    const metrics = richTextMetrics(razaviTextbookProfile);
+    const latex = String.raw`\frac{g_m}{1+s/\omega_p}`;
+    const label = labelFormulaLayout(latex, "inline", metrics)!;
+    expect(label).not.toBeNull();
+    const layout = measureRichTextDocument(
+      { runs: [{ kind: "math", latex, display: "inline" }] },
+      metrics,
+    );
+    expect(layout.width).toBeCloseTo(label.width);
+    expect(layout.height).toBeCloseTo(label.ascent + label.descent);
+  });
+
+  it("uses path-renderer metrics for a formula label type cannot set", async () => {
     const metrics = richTextMetrics(razaviTextbookProfile);
     const request = {
-      latex: String.raw`\frac{g_m}{1+s/\omega_p}`,
+      latex: String.raw`\sum_k\frac{g_m}{1+s/\omega_p}`,
       display: "inline" as const,
       profileId: ANALOG_CANVAS_MATH_PROFILE_ID,
     };

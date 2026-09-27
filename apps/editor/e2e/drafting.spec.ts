@@ -774,7 +774,8 @@ test("authors one validated formula through the canonical text editor", async ({
     '[data-kind="draft-text"] [data-role="formula"]',
   );
   await expect(formula).toBeVisible();
-  await expect(formula).toHaveAttribute("data-formula-typography", "sans-v2");
+  // Label type cannot set an integral, so the typesetter draws it as paths.
+  await expect(formula).toHaveAttribute("data-formula-typography", "sans-v3");
   await expect(formula.locator("path").first()).toBeVisible();
   await expect(page.locator("foreignObject", { has: formula })).toHaveCount(0);
 
@@ -934,9 +935,22 @@ test("edits an unrestricted device formula in the same visual annotation", async
     0,
   );
   await page.getByRole("button", { name: "Apply text changes" }).click();
+  const labelFormula = page.locator(
+    '[data-object-id="instance-label-R1"] [data-role="formula"]',
+  );
+  await expect(labelFormula).toHaveCount(1);
+  // A common formula is set in the label's own type: letters italic,
+  // subscripts upright.
+  await expect(labelFormula).toHaveAttribute(
+    "data-formula-typography",
+    "label-v1",
+  );
   await expect(
-    page.locator('[data-object-id="instance-label-R1"] [data-role="formula"]'),
-  ).toHaveCount(1);
+    labelFormula.locator("text", { hasText: /^R$/u }),
+  ).toHaveAttribute("font-style", "italic");
+  await expect(
+    labelFormula.locator("text", { hasText: /^1$/u }).first(),
+  ).toHaveAttribute("font-style", "normal");
   const project = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
       "utf8",
