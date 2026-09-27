@@ -82,7 +82,12 @@ Regeneration order when symbol data changes:
 - **Before editing tracked files**: run `git status --short --branch` and audit dirty paths by ownership (unrelated dirty files don't block; overlapping or unclear ones do). Know the target's goal, owned paths, and shared contracts; `plan/` is the untracked scratch area.
 - **Test impact**: a commit that changes implementation code — `.ts/.tsx/.js/.mjs` under `apps/*/src/`, `packages/*/src/`, `worker/`, or `scripts/` — carries a `Test-Impact:` trailer: `tests-updated`, or `no-test-change — <evidence>`. `pnpm test:impact -- --base <ref>` cross-checks the claim against the diff and CI runs the same check.
 - **Validation is risk-proportional**: run the smallest deterministic checks that cover the change (documentation-only → `pnpm docs:check`); full suites only when breadth, risk, or policy justifies them. Every target closes with `git diff --check`, `git status --short --branch`, and a commit message that stands alone: what changed, why, the validation and chosen gates, and the trailer.
-- **Mainline delivery gate**: follow the selected gates and the required `Core contracts` and `Browser tests` checks in [AGENTS.md](AGENTS.md); [deployment](docs/deployment.md) owns Production release and recovery.
+- **Mainline delivery gate**: follow the selected gates and the required `Core contracts` and `Browser tests` checks in [AGENTS.md](AGENTS.md); [deployment](docs/deployment.md) owns Production release and recovery. The local check before a pull request is short:
+  - typecheck and format;
+  - unit tests of the touched areas, then one `pnpm test:local`;
+  - the browser specs `scripts/ci-plan.mjs` maps to the change.
+
+  The merge queue owns `ci:static`, the full unit suite and `release:verify`. Run build and release verification locally only for rendering, export, symbol or packaging changes, and every browser spec (4 workers) only for connectivity, Edit Engine, netlist or Project-model changes.
 - **Circuit assets**: one circuit per `netlists/<name>/` directory; `.subckt` interfaces and instance pin order are shared contracts (check every caller before changing); never claim electrical correctness from syntax inspection alone; never silently replace vendor/foundry model data with illustrative values.
 - Commit subjects use conventional scopes: `feat(editor):`, `fix(netlist):`, `docs(specs):`, `test(editor):`.
 

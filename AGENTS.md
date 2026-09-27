@@ -93,9 +93,11 @@ the boundary has moved.
   affected, build, or release gates, and use
   `pnpm gate:affected -- --base <target-base>` for the bounded gates the target
   needs. The Test-Impact check reads commit messages, so check its declaration
-  after committing. A planned `full-delivery` gate is owed at batch delivery;
-  it is not an instruction to rerun full delivery after each local edit. Run
-  broader local checks earlier when the target's actual risk requires them.
+  after committing. A planned `full-delivery` gate is owed at batch delivery,
+  where the merge queue's required checks and the short local check in the
+  Mainline Delivery Gate meet it; it is not an instruction to rerun full
+  delivery locally, after each edit or before the pull request. Run broader
+  local checks earlier when the target's actual risk requires them.
 - Prefer the smallest deterministic validation that covers changed behavior,
   direct dependencies, and credible failure risks.
 - Add tests when behavior changes, a regression needs protection, or a
@@ -225,6 +227,27 @@ Before a non-document change is merged or pushed to `main`:
    locally and remotely just because publication is next. Run `pnpm gate:full`
    locally when actual risk cannot be represented by the browser map, when it
    calls for pre-push full evidence, or when remote CI is unavailable.
+
+   The default local check before the pull request is short. The merge queue
+   already runs `ci:static`, the complete unit suite and `release:verify` on
+   the merged candidate, so they are not repeated locally.
+   - Typecheck (`pnpm typecheck`) and formatting (`pnpm format:check`).
+   - The unit tests of the touched areas, then one `pnpm test:local` for the
+     whole suite, which takes about 2.5 minutes and catches a cross-module
+     break before it costs a queue cycle.
+   - The browser specs the queue maps to the change
+     (`node scripts/ci-plan.mjs --base <base-ref>` prints them), plus the
+     specs of the areas the change touches.
+
+   Add `pnpm build` and `pnpm release:verify:built` locally only when the
+   change touches rendering, export, symbols or packaging, where goldens and
+   the bundle budget can move. Run every browser spec locally
+   (`pnpm test:e2e:local --workers=4`, about 12 minutes) only for a change
+   that ripples through the whole editor: connectivity, the Edit Engine,
+   netlist extraction, the Project model or its schema. A derived diagnostic,
+   a Gallery feature or a UI fix does not need it, even when the plan names
+   `full-delivery`. If a queue check then fails, repair it and queue again,
+   rather than going back to running everything locally.
 4. Push a review branch, open the pull request and run `gh pr merge <number>`
    right away. On the pull request itself CI only plans the change scope and
    checks the Test-Impact trailers; its two required checks are skipped, which
