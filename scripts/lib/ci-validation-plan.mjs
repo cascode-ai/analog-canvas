@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from "node:fs";
+
 function unique(values) {
   return [...new Set(values)];
 }
@@ -130,12 +132,46 @@ export function planCiValidation(plan, { forceFull = false } = {}) {
   };
 }
 
-/** Spread broad affected selections without charging small changes for four runners. */
-export function browserShardMatrix(plan) {
-  const specs = plan.e2eArgs.filter((argument) =>
-    argument.endsWith(".spec.ts"),
+/**
+ * Tests a spec file declares, read from its source. A loop that declares
+ * several counts once, so this is a floor; it only sizes the shards.
+ */
+export function countSpecTests(path) {
+  try {
+    return (
+      readFileSync(path, "utf8").match(
+        /^\s*test(?:\.(?:only|skip|fixme))?\(/gmu,
+      ) ?? []
+    ).length;
+  } catch {
+    return 0;
+  }
+}
+
+const E2E_DIRECTORY = "apps/editor/e2e";
+/** Tests per shard: a shard of about this many finds its end in a few minutes. */
+const BROWSER_TESTS_PER_SHARD = 25;
+const MIN_BROWSER_SHARDS = 2;
+const MAX_BROWSER_SHARDS = 8;
+
+/**
+ * Size the browser shards to the tests selected, about 25 to a shard, from
+ * two for a small change up to eight. The slowest shard sets the queue's
+ * pace, and Playwright splits the selected tests into equal runs, so a large
+ * selection on few shards made one of them wait on a whole slow spec.
+ */
+export function browserShardMatrix(plan, countTests = countSpecTests) {
+  const specs =
+    plan.mode === "full"
+      ? readdirSync(E2E_DIRECTORY)
+          .filter((name) => name.endsWith(".spec.ts"))
+          .map((name) => `${E2E_DIRECTORY}/${name}`)
+      : plan.e2eArgs.filter((argument) => argument.endsWith(".spec.ts"));
+  const tests = specs.reduce((sum, spec) => sum + countTests(spec), 0);
+  const count = Math.min(
+    MAX_BROWSER_SHARDS,
+    Math.max(MIN_BROWSER_SHARDS, Math.ceil(tests / BROWSER_TESTS_PER_SHARD)),
   );
-  const count = plan.mode === "full" || specs.length >= 12 ? 4 : 2;
   return Array.from({ length: count }, (_, index) => `${index + 1}/${count}`);
 }
 

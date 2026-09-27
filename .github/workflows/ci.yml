@@ -97,23 +97,18 @@ jobs:
         # explicit one-time local command instead of pulling a CI container.
         run: pnpm release:verify
 
-  desktop:
-    name: Desktop acceptance
-    needs: changes
-    if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
-    uses: ./.github/workflows/desktop-preview.yml
-
+  # The packaged Windows preview is accepted when it is released (Desktop
+  # preview release), not on every merge: no merge ships it.
   core:
     name: Core contracts
-    needs: [changes, core_suite, desktop]
+    needs: [changes, core_suite]
     if: always() && github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Require core suite and packaged Windows acceptance
+      - name: Require the core suite
         env:
           CORE_RESULT: ${{ needs.core_suite.result }}
-          DESKTOP_RESULT: ${{ needs.desktop.result }}
-        run: test "$CORE_RESULT" = "success" && test "$DESKTOP_RESULT" = "success"
+        run: test "$CORE_RESULT" = "success"
 
   browser_shard:
     name: Browser tests (${{ matrix.shard }})

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   browserShardMatrix,
+  countSpecTests,
   formatCiValidationPlan,
   planCiValidation,
 } from "./ci-validation-plan.mjs";
@@ -16,20 +17,31 @@ function ciPlan(paths, options) {
 }
 
 describe("CI validation planning", () => {
-  it("uses two shards for bounded changes and four for broad affected coverage", () => {
-    expect(browserShardMatrix(ciPlan(["worker/gallery.ts"]))).toEqual([
-      "1/2",
-      "2/2",
-    ]);
-    const broad = ciPlan([
-      "apps/editor/src/app/App.tsx",
-      "apps/editor/src/features/simulation/spice-simulation-surface.tsx",
-    ]);
-    expect(broad.mode).toBe("focused");
-    expect(browserShardMatrix(broad)).toEqual(["1/4", "2/4", "3/4", "4/4"]);
+  it("sizes the browser shards to the tests selected, from two to eight", () => {
+    const shards = (counts, mode = "focused") =>
+      browserShardMatrix(
+        { mode, e2eArgs: Object.keys(counts) },
+        (spec) => counts[spec] ?? 0,
+      );
+    // A small selection still uses two runners.
+    expect(shards({ "a.spec.ts": 10 })).toEqual(["1/2", "2/2"]);
+    // About 25 tests to a shard: 43 + 73 + 5 selected tests take five.
     expect(
-      browserShardMatrix(ciPlan(["apps/editor/src/lib/unmapped.ts"])),
-    ).toEqual(["1/2", "2/2"]);
+      shards({ "a.spec.ts": 43, "b.spec.ts": 73, "c.spec.ts": 5 }),
+    ).toEqual(["1/5", "2/5", "3/5", "4/5", "5/5"]);
+    // Arguments that are not spec files select nothing to count.
+    expect(shards({ "--grep=x": 500 })).toHaveLength(2);
+    // Every spec is capped at eight.
+    expect(
+      browserShardMatrix({ mode: "full", e2eArgs: [] }, () => 100),
+    ).toHaveLength(8);
+    // The counts are read from the spec sources.
+    const gallery = browserShardMatrix(ciPlan(["worker/gallery.ts"]));
+    expect(gallery.length).toBeGreaterThanOrEqual(2);
+    expect(gallery.length).toBeLessThanOrEqual(8);
+    expect(countSpecTests("apps/editor/e2e/gallery.spec.ts")).toBeGreaterThan(
+      25,
+    );
   });
 
   it("skips implementation jobs for documentation-only work", () => {
