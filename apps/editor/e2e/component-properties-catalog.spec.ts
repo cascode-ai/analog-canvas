@@ -348,16 +348,38 @@ for (const symbolId of ["cccs", "ccvs"]) {
       pinName: "1",
       direction: "into",
     });
+    const positive = page.getByLabel("Positive terminal options", {
+      exact: true,
+    });
+    const negative = page.getByLabel("Negative terminal options", {
+      exact: true,
+    });
+    await expect(positive).toHaveValue(JSON.stringify(["invalid", "1"]));
+    await expect(negative).toHaveValue(JSON.stringify(["invalid", "2"]));
     await picker
       .getByRole("button", { name: "Reverse control current" })
       .click();
     await expectComponentCodeField(page, "control.direction", "out");
+    await expect(positive).toHaveValue(JSON.stringify(["invalid", "2"]));
+    await expect(negative).toHaveValue(JSON.stringify(["invalid", "1"]));
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await expectComponentCodeField(page, "control.direction", "into");
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await expectComponentCodeField(page, "control.pinName", "");
     await page.getByRole("button", { name: "Redo", exact: true }).click();
     await expectComponentCodeField(page, "control.pinName", "1");
+    await positive.selectOption(JSON.stringify(["sensor", "-"]));
+    await expectComponentCodeField(page, "control", {
+      instanceId: "sensor",
+      pinName: "-",
+      direction: "into",
+    });
+    await expect(negative).toHaveValue(JSON.stringify(["sensor", "+"]));
+    await expect(negative.locator("option")).toHaveCount(2);
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(positive).toHaveValue(JSON.stringify(["invalid", "1"]));
+    await negative.selectOption("");
+    await expectComponentCodeField(page, "control.instanceId", "");
     await expect(
       picker.getByRole("button", { name: "Pick control on canvas" }),
     ).toBeVisible();

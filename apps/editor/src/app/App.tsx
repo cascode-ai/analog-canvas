@@ -341,6 +341,7 @@ import {
   advanceControlPick,
   type ControlPickState,
 } from "../features/properties/controlled-source-canvas-pick";
+import { currentControlOptions } from "../features/properties/current-control-options";
 import type { CloudProjectSummary } from "../features/editor-shell/cloud-projects";
 import { projectChangeToken } from "../document/project-session-lifecycle";
 import { captureProjectSaveSnapshot } from "../document/project-save-coordinator";
@@ -7559,6 +7560,17 @@ function WorkspaceEditor({
                                     }
                                   : null,
                               ...(controlSummary ? { controlSummary } : {}),
+                              currentTerminalOptions: currentControlOptions(
+                                currentControlDevices,
+                                (target) =>
+                                  resolver
+                                    .resolve(
+                                      target.symbolId,
+                                      target.symbolVariantId,
+                                    )
+                                    ?.definition.pins.map((pin) => pin.name) ??
+                                  [],
+                              ),
                               controlNetOptions: [
                                 { value: "", label: "Select Net" },
                                 ...netChoices.map((choice) => ({

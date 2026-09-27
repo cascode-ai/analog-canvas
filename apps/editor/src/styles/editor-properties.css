@@ -380,6 +380,18 @@
   cursor: pointer;
 }
 
+.component-control-terminal {
+  display: block;
+  flex-basis: 100%;
+}
+
+.component-control-terminal select {
+  max-width: 100%;
+  font: inherit;
+  color: inherit;
+  background: var(--icm-surface);
+}
+
 .component-property-copy {
   display: inline-flex;
   flex: 0 0 auto;
