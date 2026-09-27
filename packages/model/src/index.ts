@@ -13,6 +13,7 @@ export * from "./semantic-text.js";
 export * from "./simulation-expression.js";
 export * from "./schema/bound-annotation-text.js";
 export * from "./schema.js";
+export * from "./controlled-source-expression.js";
 export * from "./simulation-source-authoring.js";
 export * from "./greek-letters.js";
 export * from "./identifier-text.js";

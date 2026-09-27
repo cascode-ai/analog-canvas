@@ -1695,6 +1695,68 @@ function extractDeviceInstance(
     );
     return [{ pinName, netName: netName ?? `<unconnected:${pinName}>` }];
   });
+  const controlled = definition.deviceClass;
+  let controlSourceInstanceId: StableId | undefined;
+  if (controlled === "vcvs" || controlled === "vccs") {
+    const control = netlist.control;
+    if (
+      control?.kind !== "voltage" ||
+      !control.positiveNetId ||
+      !control.negativeNetId
+    ) {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "MISSING_CONTROL_NET",
+        `Instance ${instance.reference!} requires two selected control Nets`,
+        [instance.id],
+      );
+    } else {
+      for (const [pinName, netId] of [
+        ["CTRL+", control.positiveNetId],
+        ["CTRL-", control.negativeNetId],
+      ] as const) {
+        const netName = context.nameByNetId.get(netId);
+        if (!netName)
+          diagnostic(
+            diagnostics,
+            document.id,
+            "INVALID_CONTROL_NET",
+            `Control Net ${netId} is not in this Cell`,
+            [instance.id, netId],
+          );
+        nodes.push({ pinName, netName: netName ?? `<unconnected:${pinName}>` });
+      }
+    }
+  } else if (controlled === "cccs" || controlled === "ccvs") {
+    const control = netlist.control;
+    if (control?.kind !== "current" || !control.sensorInstanceId) {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "MISSING_CONTROL_SENSOR",
+        `Instance ${instance.reference!} requires a selected voltage-source current sensor`,
+        [instance.id],
+      );
+    } else {
+      const sensor = document.instances.find(
+        (candidate) => candidate.id === control.sensorInstanceId,
+      );
+      if (
+        !sensor ||
+        deviceDescriptor(sensor.symbolId, project)?.deviceClass !==
+          "voltage-source"
+      )
+        diagnostic(
+          diagnostics,
+          document.id,
+          "INVALID_CONTROL_SENSOR",
+          `Control sensor ${control.sensorInstanceId} must be a voltage source in this Cell`,
+          [instance.id, control.sensorInstanceId],
+        );
+      else controlSourceInstanceId = sensor.id;
+    }
+  }
   const target =
     netlist.binding?.kind === "model" ? netlist.binding.name : null;
   if (target && !isIdentifier(target)) {
@@ -1736,6 +1798,7 @@ function extractDeviceInstance(
     parameters: projectedParameters
       ? [...projectedParameters.parameters]
       : authoredParameters,
+    ...(controlSourceInstanceId ? { controlSourceInstanceId } : {}),
   };
 }
 
@@ -1808,6 +1871,10 @@ function projectSpiceReferences(cell: DesignNetlistCell): void {
     bjt: "Q",
     "voltage-source": "V",
     "current-source": "I",
+    vcvs: "E",
+    vccs: "G",
+    cccs: "F",
+    ccvs: "H",
     switch: "S",
     hierarchical: "X",
     "net-marker": "",
@@ -2256,6 +2323,13 @@ function analyzeDesign(
     );
     if (cell) {
       if (resolvedOptions.format === "spice") projectSpiceReferences(cell);
+      for (const instance of cell.instances) {
+        if (!instance.controlSourceInstanceId) continue;
+        const sensor = cell.instances.find(
+          (candidate) => candidate.id === instance.controlSourceInstanceId,
+        );
+        if (sensor) instance.controlSourceReference = sensor.reference;
+      }
       cells.push(cell);
     }
   }

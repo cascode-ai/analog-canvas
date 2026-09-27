@@ -94,6 +94,16 @@ function multipliedDesign(): DesignNetlistIR {
 }
 
 describe("native VACASK circuit projection", () => {
+  it("reports unsupported controlled-source primitives instead of treating them as an unnamed native model", () => {
+    const result = printVacaskWithLocations(
+      design([card("G1", "vccs", { gm: "1m" }, ["out", "0", "control", "0"])]),
+      true,
+    );
+    expect(result.ok).toBe(false);
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "VACASK_UNSUPPORTED_CONTROLLED_SOURCE" }),
+    );
+  });
   it("uses native calls with dimensional numeric values, not copied SPICE suffixes", () => {
     const result = printed(
       design([

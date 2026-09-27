@@ -30,6 +30,9 @@ export interface DesignNetlistInstance {
   target: string | null;
   nodes: DesignNetlistNode[];
   parameters: DesignNetlistParameter[];
+  /** F/H resolve their controlling voltage-source reference after dialect projection. */
+  controlSourceInstanceId?: StableId;
+  controlSourceReference?: string;
 }
 
 /** A model card a Cell carries itself, printed inside its own body. */

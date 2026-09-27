@@ -95,6 +95,126 @@ function cards(text: string) {
 }
 
 describe("copy/export netlist projection", () => {
+  it("imports E/G control nodes and F/H voltage-probe identity as typed relations", async () => {
+    const imported = await importSpiceSources(
+      [
+        {
+          path: "controlled.spi",
+          bytes: new TextEncoder().encode(
+            "Controlled sources\nV1 sense 0 DC 0\nE1 out 0 cp cn 2\nG1 out 0 cp cn 3m\nF1 out 0 V1 4\nH1 out 0 V1 5k\n.end\n",
+          ),
+        },
+      ],
+      "controlled.spi",
+    );
+    expect(imported.successful).toBe(true);
+    const document = imported.project!.documents[0]!;
+    const byName = (name: string) =>
+      document.instances.find((instance) => instance.reference === name)!;
+    expect(byName("E1").netlist?.control).toEqual({
+      kind: "voltage",
+      positiveNetId: expect.any(String),
+      negativeNetId: expect.any(String),
+    });
+    expect(byName("G1").netlist?.control).toEqual(
+      byName("E1").netlist?.control,
+    );
+    expect(byName("F1").netlist?.control).toEqual({
+      kind: "current",
+      sensorInstanceId: byName("V1").id,
+    });
+    expect(byName("H1").netlist?.control).toEqual(
+      byName("F1").netlist?.control,
+    );
+    expect(
+      document.nets
+        .flatMap((net) => net.terminals)
+        .filter((terminal) => terminal.instanceId === byName("E1").id),
+    ).toHaveLength(2);
+    const exported = createDesignNetlistExport(imported.project!);
+    expect(exported.status).toBe("ready");
+    if (exported.status === "ready") {
+      expect(exported.file.text).toMatch(/^E1\s+\S+\s+\S+\s+\S+\s+\S+\s+2$/mu);
+      expect(exported.file.text).toMatch(/^F1\s+\S+\s+\S+\s+V1\s+4$/mu);
+    }
+  });
+  it.each(["spice", "spectre"] as const)(
+    "exports four controlled-source relations in %s without reading the display formula",
+    (format) => {
+      const project = createEmptyProject("controlled", "Controlled");
+      const document = project.documents[0]!;
+      const source = [
+        ["V1", "voltage-source", { dc: "0" }, undefined],
+        [
+          "E1",
+          "vcvs",
+          { gain: "2" },
+          { kind: "voltage", positiveNetId: "cp", negativeNetId: "cn" },
+        ],
+        [
+          "G1",
+          "vccs",
+          { gm: "3m" },
+          { kind: "voltage", positiveNetId: "cp", negativeNetId: "cn" },
+        ],
+        [
+          "F1",
+          "cccs",
+          { gain: "4" },
+          { kind: "current", sensorInstanceId: "V1" },
+        ],
+        [
+          "H1",
+          "ccvs",
+          { rm: "5k" },
+          { kind: "current", sensorInstanceId: "V1" },
+        ],
+      ] as const;
+      for (const [id, symbolId, parameters, control] of source)
+        document.instances.push({
+          id,
+          reference: id,
+          symbolId,
+          placement: null,
+          netlist: {
+            parameters: { ...parameters },
+            ...(control ? { control } : {}),
+          },
+        });
+      document.nets = [
+        {
+          id: "op",
+          terminals: source.map(([id]) => ({ instanceId: id, pinName: "+" })),
+        },
+        {
+          id: "on",
+          terminals: source.map(([id]) => ({ instanceId: id, pinName: "-" })),
+        },
+        { id: "cp", terminals: [] },
+        { id: "cn", terminals: [] },
+      ];
+      const result = createDesignNetlistExport(project, { format });
+      expect(result.status).toBe("ready");
+      if (result.status !== "ready") return;
+      if (format === "spice") {
+        expect(result.file.text).toMatch(/^E1\s+\S+\s+\S+\s+\S+\s+\S+\s+2$/mu);
+        expect(result.file.text).toMatch(/^G1\s+\S+\s+\S+\s+\S+\s+\S+\s+3m$/mu);
+        expect(result.file.text).toMatch(/^F1\s+\S+\s+\S+\s+V1\s+4$/mu);
+        expect(result.file.text).toMatch(/^H1\s+\S+\s+\S+\s+V1\s+5k$/mu);
+      } else {
+        expect(result.file.text).toContain("vcvs gain=2");
+        expect(result.file.text).toContain("vccs gm=3m");
+        expect(result.file.text).toContain("cccs gain=4 probe=V1");
+        expect(result.file.text).toContain("ccvs gain=5k probe=V1");
+      }
+      document.instances[1]!.netlist!.control = { kind: "voltage" };
+      expect(
+        createDesignNetlistExport(project, { format }).diagnostics,
+      ).toContainEqual(
+        expect.objectContaining({ code: "MISSING_CONTROL_NET" }),
+      );
+    },
+  );
   it("keeps a named Battery drawing out of SPICE without inventing DC behavior", () => {
     const project = createEmptyProject("battery-project", "Battery");
     const document = project.documents[0]!;

@@ -384,6 +384,36 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "vccs",
+    name: "Voltage-Controlled Current Source",
+    category: "source",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The source body, pins, strokes and polarity/arrow marks are copied exactly from the reviewed current-source Symbol; the controlled relation and control selection are product semantics, not claimed as textbook artwork.",
+    pinOrder: ["+", "-"],
+    palette: true,
+    automaticMappings: ["spice:G"],
+    assetPath: "vccs.json",
+    assetHash:
+      "974f704bb9dab32d9cdded3008da1dbd5f9dbcd6f89b28c60d32195244272859",
+  },
+  {
+    symbolId: "cccs",
+    name: "Current-Controlled Current Source",
+    category: "source",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The source body, pins, strokes and polarity/arrow marks are copied exactly from the reviewed current-source Symbol; the controlled relation and control selection are product semantics, not claimed as textbook artwork.",
+    pinOrder: ["+", "-"],
+    palette: true,
+    automaticMappings: ["spice:F"],
+    assetPath: "cccs.json",
+    assetHash:
+      "accd56e1d36b08ad27abc3512ce5c1042bf661049435819d1fd3b97f8cd95996",
+  },
+  {
     symbolId: "d-flip-flop",
     name: "D Flip-Flop",
     category: "logic",
@@ -2508,6 +2538,36 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "vcvs",
+    name: "Voltage-Controlled Voltage Source",
+    category: "source",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The source body, pins, strokes and polarity/arrow marks are copied exactly from the reviewed voltage-source Symbol; the controlled relation and control selection are product semantics, not claimed as textbook artwork.",
+    pinOrder: ["+", "-"],
+    palette: true,
+    automaticMappings: ["spice:E"],
+    assetPath: "vcvs.json",
+    assetHash:
+      "f02cf669cffd01856c3109ec31dcb1dc8981a70cdceb3c7ec8256e38ccad941d",
+  },
+  {
+    symbolId: "ccvs",
+    name: "Current-Controlled Voltage Source",
+    category: "source",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The source body, pins, strokes and polarity/arrow marks are copied exactly from the reviewed voltage-source Symbol; the controlled relation and control selection are product semantics, not claimed as textbook artwork.",
+    pinOrder: ["+", "-"],
+    palette: true,
+    automaticMappings: ["spice:H"],
+    assetPath: "ccvs.json",
+    assetHash:
+      "405c41f95c517785cdbc434c7e8ad3bc2490f2b6188e46d6ff16538717541cfd",
+  },
+  {
     symbolId: "xnor-gate",
     name: "XNOR Gate",
     category: "logic",
@@ -4335,6 +4395,250 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     schemaVersion: 1,
     id: "current-source",
     name: "Independent Current Source",
+    viewBox: {
+      x: -15,
+      y: -24,
+      width: 30,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "+",
+        role: "positive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "-",
+        role: "negative",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "circle",
+        center: {
+          x: 0,
+          y: 0,
+        },
+        radius: 10.755814,
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -6.976744,
+        },
+        to: {
+          x: 0,
+          y: -2.325581,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: 0,
+            y: 6.976744,
+          },
+          {
+            x: -4.651163,
+            y: -2.325581,
+          },
+          {
+            x: 4.651163,
+            y: -2.325581,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -10.755814,
+        },
+        to: {
+          x: 0,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 10.755814,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "vccs",
+    name: "Voltage-Controlled Current Source",
+    viewBox: {
+      x: -15,
+      y: -24,
+      width: 30,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "+",
+        role: "positive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "-",
+        role: "negative",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "circle",
+        center: {
+          x: 0,
+          y: 0,
+        },
+        radius: 10.755814,
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -6.976744,
+        },
+        to: {
+          x: 0,
+          y: -2.325581,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: 0,
+            y: 6.976744,
+          },
+          {
+            x: -4.651163,
+            y: -2.325581,
+          },
+          {
+            x: 4.651163,
+            y: -2.325581,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -10.755814,
+        },
+        to: {
+          x: 0,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 10.755814,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "cccs",
+    name: "Current-Controlled Current Source",
     viewBox: {
       x: -15,
       y: -24,
@@ -16885,6 +17189,282 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     schemaVersion: 1,
     id: "voltage-source",
     name: "Independent Voltage Source",
+    viewBox: {
+      x: -24,
+      y: -24,
+      width: 39,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "+",
+        role: "positive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "-",
+        role: "negative",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "circle",
+        center: {
+          x: 0,
+          y: 0,
+        },
+        radius: 10.755814,
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20.058139,
+          y: -14.534884,
+        },
+        to: {
+          x: -11.918605,
+          y: -14.534884,
+        },
+        part: "upright-polarity-positive-horizontal",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -15.988372,
+          y: -18.604651,
+        },
+        to: {
+          x: -15.988372,
+          y: -10.465117,
+        },
+        part: "upright-polarity-positive-vertical",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20.058139,
+          y: 13.372093,
+        },
+        to: {
+          x: -11.918605,
+          y: 13.372093,
+        },
+        part: "upright-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -10.755814,
+        },
+        to: {
+          x: 0,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 10.755814,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "vcvs",
+    name: "Voltage-Controlled Voltage Source",
+    viewBox: {
+      x: -24,
+      y: -24,
+      width: 39,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "+",
+        role: "positive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "-",
+        role: "negative",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "circle",
+        center: {
+          x: 0,
+          y: 0,
+        },
+        radius: 10.755814,
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20.058139,
+          y: -14.534884,
+        },
+        to: {
+          x: -11.918605,
+          y: -14.534884,
+        },
+        part: "upright-polarity-positive-horizontal",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -15.988372,
+          y: -18.604651,
+        },
+        to: {
+          x: -15.988372,
+          y: -10.465117,
+        },
+        part: "upright-polarity-positive-vertical",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20.058139,
+          y: 13.372093,
+        },
+        to: {
+          x: -11.918605,
+          y: 13.372093,
+        },
+        part: "upright-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -10.755814,
+        },
+        to: {
+          x: 0,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 10.755814,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "ccvs",
+    name: "Current-Controlled Voltage Source",
     viewBox: {
       x: -24,
       y: -24,

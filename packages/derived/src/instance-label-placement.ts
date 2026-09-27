@@ -39,6 +39,10 @@ const SIDE_LABEL_SYMBOLS = new Set([
   "battery",
   "voltage-source",
   "current-source",
+  "vcvs",
+  "vccs",
+  "cccs",
+  "ccvs",
   "ac-voltage-source",
   "pulse-voltage-source",
 ]);

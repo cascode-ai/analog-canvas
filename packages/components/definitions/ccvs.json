@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "ccvs",
+    "name": "Current-Controlled Voltage Source",
+    "viewBox": {
+      "x": -24,
+      "y": -24,
+      "width": 39,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "+",
+        "role": "positive",
+        "at": {
+          "x": 0,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "-",
+        "role": "negative",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "circle",
+        "center": {
+          "x": 0,
+          "y": 0
+        },
+        "radius": 10.755814,
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -20.058139,
+          "y": -14.534884
+        },
+        "to": {
+          "x": -11.918605,
+          "y": -14.534884
+        },
+        "part": "upright-polarity-positive-horizontal",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -15.988372,
+          "y": -18.604651
+        },
+        "to": {
+          "x": -15.988372,
+          "y": -10.465117
+        },
+        "part": "upright-polarity-positive-vertical",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -20.058139,
+          "y": 13.372093
+        },
+        "to": {
+          "x": -11.918605,
+          "y": 13.372093
+        },
+        "part": "upright-polarity-negative",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -10.755814
+        },
+        "to": {
+          "x": 0,
+          "y": -20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 10.755814
+        },
+        "to": {
+          "x": 0,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": {
+    "id": "ccvs",
+    "symbolId": "ccvs",
+    "deviceClass": "ccvs",
+    "referencePrefix": "H",
+    "pinOrder": ["+", "-"],
+    "targetPolicy": "builtin",
+    "parameters": [
+      {
+        "name": "rm",
+        "label": "Transresistance",
+        "required": true,
+        "editor": "text",
+        "unitHint": "Ω",
+        "placeholder": "1k",
+        "help": "Linear transresistance for the selected control",
+        "defaultValue": "1k",
+        "displayRole": "none"
+      }
+    ],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": false,
+      "supportsBulkBinding": false,
+      "supportsValueAnnotation": true
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "ccvs",
+    "name": "Current-Controlled Voltage Source",
+    "category": "source",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "The source body, pins, strokes and polarity/arrow marks are copied exactly from the reviewed voltage-source Symbol; the controlled relation and control selection are product semantics, not claimed as textbook artwork.",
+    "pinOrder": ["+", "-"],
+    "palette": true,
+    "automaticMappings": ["spice:H"],
+    "assetPath": "ccvs.json"
+  }
+}

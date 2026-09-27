@@ -67,6 +67,10 @@ export const NetlistDeviceClassSchema = z.enum([
   "bjt",
   "voltage-source",
   "current-source",
+  "vcvs",
+  "vccs",
+  "cccs",
+  "ccvs",
   // The switch family, designated `S`. A binding of this class emits the SPICE
   // form `S<ref> n+ n- nc+ nc- MODEL` — two switched nodes, two control nodes,
   // and a required model card — so only the voltage-controlled switch reaches
@@ -109,6 +113,20 @@ export const InstanceTerminalMappingSchema = z.strictObject({
 });
 export const InstanceNetlistDataSchema = z.strictObject({
   binding: InstanceNetlistBindingSchema.optional(),
+  /** Electrical control, separate from the source's editable visual formula. */
+  control: z
+    .discriminatedUnion("kind", [
+      z.strictObject({
+        kind: z.literal("voltage"),
+        positiveNetId: StableIdSchema.optional(),
+        negativeNetId: StableIdSchema.optional(),
+      }),
+      z.strictObject({
+        kind: z.literal("current"),
+        sensorInstanceId: StableIdSchema.optional(),
+      }),
+    ])
+    .optional(),
   parameters: z
     .record(NetlistParameterNameSchema, NetlistParameterValueSchema)
     .refine((parameters) => Object.keys(parameters).length <= 128, {

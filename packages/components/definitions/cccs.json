@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "cccs",
+    "name": "Current-Controlled Current Source",
+    "viewBox": {
+      "x": -15,
+      "y": -24,
+      "width": 30,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "+",
+        "role": "positive",
+        "at": {
+          "x": 0,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "-",
+        "role": "negative",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "circle",
+        "center": {
+          "x": 0,
+          "y": 0
+        },
+        "radius": 10.755814,
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -6.976744
+        },
+        "to": {
+          "x": 0,
+          "y": -2.325581
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": 0,
+            "y": 6.976744
+          },
+          {
+            "x": -4.651163,
+            "y": -2.325581
+          },
+          {
+            "x": 4.651163,
+            "y": -2.325581
+          }
+        ],
+        "fill": "foreground",
+        "stroke": "none"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -10.755814
+        },
+        "to": {
+          "x": 0,
+          "y": -20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 10.755814
+        },
+        "to": {
+          "x": 0,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": {
+    "id": "cccs",
+    "symbolId": "cccs",
+    "deviceClass": "cccs",
+    "referencePrefix": "F",
+    "pinOrder": ["+", "-"],
+    "targetPolicy": "builtin",
+    "parameters": [
+      {
+        "name": "gain",
+        "label": "Current gain",
+        "required": true,
+        "editor": "text",
+        "placeholder": "1",
+        "help": "Linear current gain for the selected control",
+        "defaultValue": "1",
+        "displayRole": "none"
+      }
+    ],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": false,
+      "supportsBulkBinding": false,
+      "supportsValueAnnotation": true
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "cccs",
+    "name": "Current-Controlled Current Source",
+    "category": "source",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "The source body, pins, strokes and polarity/arrow marks are copied exactly from the reviewed current-source Symbol; the controlled relation and control selection are product semantics, not claimed as textbook artwork.",
+    "pinOrder": ["+", "-"],
+    "palette": true,
+    "automaticMappings": ["spice:F"],
+    "assetPath": "cccs.json"
+  }
+}

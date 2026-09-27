@@ -278,7 +278,7 @@ Q2 collector base emitter QPREF
     ]);
   });
 
-  it("keeps SPICE G syntax in IR but rejects it without a reviewed product symbol", async () => {
+  it("imports SPICE G syntax with an approved glyph and typed control Nets", async () => {
     const compiled = await compileSpiceSources(
       [
         {
@@ -301,16 +301,21 @@ Q2 collector base emitter QPREF
       family: "vccs",
     });
     const imported = importCompileResult(compiled);
-    expect(imported.successful).toBe(false);
-    expect(imported.project).toBeNull();
-    expect(imported.diagnostics).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: "SPICE_IMPORT_UNSUPPORTED_SYMBOL",
-          message: expect.stringContaining("primitive:vccs"),
-        }),
-      ]),
+    expect(imported.successful).toBe(true);
+    const drawn = imported.project!.documents[0]!.instances.find(
+      (instance) => instance.reference === "G1",
     );
+    expect(drawn).toMatchObject({
+      symbolId: "vccs",
+      netlist: {
+        parameters: { gm: "1m" },
+        control: {
+          kind: "voltage",
+          positiveNetId: expect.any(String),
+          negativeNetId: expect.any(String),
+        },
+      },
+    });
   });
 
   it("preserves mixed-device IR but rejects devices outside the Razavi catalog", async () => {
