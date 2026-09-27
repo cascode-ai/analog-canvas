@@ -56,6 +56,7 @@ export interface ComponentPropertyCodeEditorProps {
   controlTerminalOptions?: ComponentPropertyCodeContext["controlTerminalOptions"];
   onStartControlPick?: () => void;
   onCancelControlPick?: () => void;
+  onPreviewControlNet?: (netId: string | null) => void;
   onApply: (
     value: ComponentPropertyCodeValue,
   ) => { ok: true } | { ok: false; message: string };
@@ -82,6 +83,7 @@ export function ComponentPropertyCodeEditor({
   controlTerminalOptions,
   onStartControlPick,
   onCancelControlPick,
+  onPreviewControlNet,
   onApply,
 }: ComponentPropertyCodeEditorProps) {
   const context = useMemo<ComponentPropertyCodeContext>(
@@ -287,6 +289,7 @@ export function ComponentPropertyCodeEditor({
           context={context}
           defaultForeground={defaultForeground}
           onChange={change}
+          {...(onPreviewControlNet ? { onPreviewControlNet } : {})}
           {...(onStartControlPick
             ? {
                 controlAction: {

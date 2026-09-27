@@ -381,15 +381,16 @@
 }
 
 .component-control-terminal {
-  display: block;
-  flex-basis: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  max-width: 14rem;
 }
 
-.component-control-terminal select {
-  max-width: 100%;
-  font: inherit;
-  color: inherit;
-  background: var(--icm-surface);
+.component-control-terminal > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .component-property-copy {

@@ -1690,6 +1690,11 @@ function WorkspaceEditor({
     useState<HighlightedNetOrigin | null>(null);
   const [codeNetPreview, setCodeNetPreview] =
     useState<HighlightedNetOrigin | null>(null);
+  const [controlOptionPreview, setControlOptionPreview] = useState<{
+    documentId: string;
+    instanceId: string;
+    netId: string;
+  } | null>(null);
   const [simulationPickMode, setSimulationPickModeState] = useState<
     "net" | "terminal" | null
   >(null);
@@ -2217,6 +2222,33 @@ function WorkspaceEditor({
       controlPickMode,
     ],
   );
+  const controlOptionHighlight = useMemo(
+    () =>
+      selectionOpen &&
+      !documentSettingsOpen &&
+      controlOptionPreview?.documentId === document.id &&
+      controlOptionPreview.instanceId === selectedInstance?.id
+        ? computeNetHighlight(
+            projectConnectivityIndex,
+            document.id,
+            controlOptionPreview.netId,
+            undefined,
+            documentStack,
+          )
+        : undefined,
+    [
+      selectionOpen,
+      documentSettingsOpen,
+      controlOptionPreview,
+      document.id,
+      selectedInstance?.id,
+      projectConnectivityIndex,
+      documentStack,
+    ],
+  );
+  useEffect(() => {
+    setControlOptionPreview(null);
+  }, [selectionOpen, documentSettingsOpen, document.id, selectedInstance?.id]);
   const codeNetHighlight = useMemo(
     () =>
       analogSimulationOpen &&
@@ -7614,6 +7646,16 @@ function WorkspaceEditor({
                                 })(),
                               ],
                               onStartControlPick: startControlPick,
+                              onPreviewControlNet: (netId: string | null) =>
+                                setControlOptionPreview(
+                                  netId
+                                    ? {
+                                        documentId: document.id,
+                                        instanceId: selectedInstance.id,
+                                        netId,
+                                      }
+                                    : null,
+                                ),
                               onCancelControlPick: () => {
                                 setControlPickState(null);
                                 setSimulationHoverNetId(null);
@@ -8272,7 +8314,9 @@ function WorkspaceEditor({
             highlight:
               simulationPickNetsActive || controlPickMode === "net"
                 ? simulationPickHighlight
-                : (codeNetHighlight ?? highlightedNet),
+                : (controlOptionHighlight ??
+                  codeNetHighlight ??
+                  highlightedNet),
             document,
             resolver,
             routeGeometryRecords,

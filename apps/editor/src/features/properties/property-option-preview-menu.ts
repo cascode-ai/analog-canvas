@@ -18,6 +18,7 @@ interface ShowPreviewMenuOptions {
   readonly value: unknown;
   readonly onSelect: (value: string) => void;
   readonly onClose: () => void;
+  readonly onPreview?: (value: string | null) => void;
 }
 
 function renderPreview(preview: CanvasPropertyOptionPreview): HTMLElement {
@@ -90,6 +91,7 @@ export function showPropertyOptionPreviewMenu({
   value,
   onSelect,
   onClose,
+  onPreview,
 }: ShowPreviewMenuOptions): () => void {
   const menu = document.createElement("div");
   menu.className = "cm-property-preview-menu";
@@ -108,7 +110,14 @@ export function showPropertyOptionPreviewMenu({
     text.textContent = option.label;
     item.append(text);
     if (option.preview) item.append(renderPreview(option.preview));
+    item.addEventListener("pointerenter", () => {
+      if (!item.disabled) onPreview?.(String(option.value));
+    });
+    item.addEventListener("focus", () => onPreview?.(String(option.value)));
+    item.addEventListener("pointerleave", () => onPreview?.(null));
+    item.addEventListener("blur", () => onPreview?.(null));
     item.addEventListener("click", () => {
+      onPreview?.(null);
       onSelect(String(option.value));
       menu.hidePopover();
     });
@@ -118,10 +127,20 @@ export function showPropertyOptionPreviewMenu({
   const close = (): void => {
     if (closed) return;
     closed = true;
+    onPreview?.(null);
+    window.removeEventListener("keydown", dismiss, true);
     if (menu.matches(":popover-open")) menu.hidePopover();
     menu.remove();
     onClose();
   };
+  const dismiss = (event: KeyboardEvent): void => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    close();
+    if (anchor.isConnected) anchor.focus();
+  };
+  window.addEventListener("keydown", dismiss, true);
   menu.addEventListener("toggle", (event) => {
     if ((event as ToggleEvent).newState === "closed") close();
   });
