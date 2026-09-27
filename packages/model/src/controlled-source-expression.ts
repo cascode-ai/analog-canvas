@@ -14,8 +14,8 @@ export function defaultControlledSourceExpression(
   kind: LinearControlledSourceKind,
   ordinal = "",
 ): string {
-  const inputVoltage = `v_{i${ordinal}}`;
-  const sensedCurrent = `i_{x${ordinal}}`;
+  const inputVoltage = `v_{${ordinal || "i"}}`;
+  const sensedCurrent = `i_{${ordinal || "x"}}`;
   switch (kind) {
     case "vcvs":
       return `A_{v}${inputVoltage}`;

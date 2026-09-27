@@ -2,7 +2,7 @@
 // Use the same underlying grammar without pulling view/state into App startup.
 import { parser } from "@lezer/json";
 import { magneticDisplayParameters } from "@icm/derived";
-import { reflectOrientation } from "@icm/model";
+import { reflectOrientation, LINEAR_CONTROLLED_SOURCE_KINDS } from "@icm/model";
 import { componentDetailFields } from "./component-property-details";
 import {
   parseComponentPropertyCode,
@@ -31,6 +31,26 @@ export function propertyCodeSpans(
   const spans: PropertyCodeSpan[] = [];
   const fields: readonly CanvasPropertyField[] = customFields ?? [
     ...CANVAS_PROPERTY_FIELDS,
+    ...(context && LINEAR_CONTROLLED_SOURCE_KINDS.has(context.instance.symbolId)
+      ? context.instance.symbolId === "vcvs" ||
+        context.instance.symbolId === "vccs"
+        ? ["positiveNetId", "negativeNetId"].map((key) => ({
+            path: `control.${key}`,
+            label: key === "positiveNetId" ? "Control + Net" : "Control − Net",
+            kind: "choice" as const,
+            options: context.controlNetOptions ?? [],
+            description: "",
+          }))
+        : [
+            {
+              path: "control.sensorInstanceId",
+              label: "Current sensor",
+              kind: "choice" as const,
+              options: context.controlSensorOptions ?? [],
+              description: "",
+            },
+          ]
+      : []),
     ...(context
       ? magneticDisplayParameters(context.instance.symbolId).map(
           (parameter) => ({
@@ -56,13 +76,30 @@ export function propertyCodeSpans(
         const key = JSON.parse(source.slice(name.from, name.to)) as string;
         const path = prefix ? `${prefix}.${key}` : key;
         const field = fields.find((item) => item.path === path);
-        if (field)
+        if (field) {
+          const decoded: unknown = JSON.parse(
+            source.slice(value.from, value.to),
+          );
+          // A saved control can refer to any physical member of a Logical Net.
+          // Keep that ID selected without appending a second choice for the same Net.
+          const netOptions =
+            (path === "control.positiveNetId" ||
+              path === "control.negativeNetId") &&
+            typeof decoded === "string"
+              ? context?.controlNetOptions?.map((option) => ({
+                  value: option.baseNetIds?.includes(decoded)
+                    ? decoded
+                    : option.value,
+                  label: option.label,
+                }))
+              : undefined;
           spans.push({
-            field,
+            field: netOptions ? { ...field, options: netOptions } : field,
             from: value.from,
             to: value.to,
-            value: JSON.parse(source.slice(value.from, value.to)),
+            value: decoded,
           });
+        }
         if (value.name === "Object") visit(value, path);
       } catch {
         /* Incomplete JSON stays editable; do not guess value boundaries. */

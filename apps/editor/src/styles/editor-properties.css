@@ -368,11 +368,11 @@
 }
 
 .component-control-pick {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.5rem;
-  padding: 0.4rem 0.75rem;
+  margin-left: 0.5rem;
   font-size: 0.78rem;
 }
 
