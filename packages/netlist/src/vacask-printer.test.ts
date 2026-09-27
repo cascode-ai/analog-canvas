@@ -100,6 +100,7 @@ describe("native VACASK circuit projection", () => {
       true,
     );
     expect(result.ok).toBe(false);
+    if (result.ok) return;
     expect(result.diagnostics).toContainEqual(
       expect.objectContaining({ code: "VACASK_UNSUPPORTED_CONTROLLED_SOURCE" }),
     );
