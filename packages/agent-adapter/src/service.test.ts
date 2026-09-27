@@ -365,8 +365,11 @@ describe("current Agent Circuit API service", () => {
     // separate unchanged 5,000-byte normalized budget.
     // Schema 64 lets each authored object keep a copy source's Document style
     // and adds the edit that releases it (175,047 characters).
+    // Terminal-current adds the bounded device/pin/direction branch: measured
+    // 175,783 characters (+298 from main). Keep only 217 characters headroom;
+    // reference expansion and focused discovery budgets remain unchanged.
     expect(JSON.stringify(AgentCircuitRequestJsonSchema).length).toBeLessThan(
-      175_500,
+      176_000,
     );
     expect(JSON.stringify(AgentCircuitResponseJsonSchema).length).toBeLessThan(
       180_000,
@@ -375,6 +378,50 @@ describe("current Agent Circuit API service", () => {
     // Document style: 535,143 characters, not a token count or a host
     // discovery payload.
     expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(536_500);
+  });
+
+  it("keeps terminal-current runtime control strict and partial authoring explicit", () => {
+    const edit = {
+      kind: "set_instance_netlist",
+      instanceId: "F1",
+      netlist: {
+        parameters: { gain: "2" },
+        control: {
+          kind: "terminal-current",
+          instanceId: "R1",
+          pinName: "1",
+          direction: "into",
+        },
+      },
+    };
+    expect(SchematicEditSchema.parse(edit)).toEqual(edit);
+    expect(
+      SchematicEditSchema.safeParse({
+        ...edit,
+        netlist: {
+          ...edit.netlist,
+          control: { ...edit.netlist.control, direction: "sideways" },
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      SchematicEditSchema.safeParse({
+        ...edit,
+        netlist: {
+          ...edit.netlist,
+          control: { ...edit.netlist.control, sensorInstanceId: "V1" },
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      SchematicEditSchema.safeParse({
+        ...edit,
+        netlist: {
+          ...edit.netlist,
+          control: { kind: "terminal-current", direction: "into" },
+        },
+      }).success,
+    ).toBe(true);
   });
 
   it("publishes the flat Snapshot workflow and returns complete facts", () => {
