@@ -340,7 +340,7 @@ export function InsertComponentDialog({
       initialRotation: 0,
       showReference: true,
       referenceText: null,
-      showValue: ["vcvs", "vccs", "cccs", "ccvs"].includes(symbolId),
+      showValue: false,
     });
   };
 

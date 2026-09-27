@@ -1,7 +1,13 @@
 import { resolveAnnotationName } from "@icm/derived";
 import { subcircuitDescriptor } from "@icm/devices";
 import type { SchematicEdit } from "@icm/edit-engine";
-import { semanticTextDocument, type SchematicDocument } from "@icm/model";
+import {
+  LINEAR_CONTROLLED_SOURCE_KINDS,
+  controlledSourceExpressionDocument,
+  controlledSourceExpressionSource,
+  semanticTextDocument,
+  type SchematicDocument,
+} from "@icm/model";
 
 import { snapCoordinate } from "../../snap/engine";
 import type { ComponentPropertyCodeValue } from "./component-property-code";
@@ -108,10 +114,14 @@ export function planComponentPropertyCodeEdits(
   const edits: SchematicEdit[] = [];
   if (value.displayName !== undefined) {
     const label = instanceLabelAnnotationFor(document, instance.id);
-    if (
-      label?.kind === "instance-label" &&
-      resolveAnnotationName(document, label).trim() !== value.displayName
-    ) {
+    const controlled = LINEAR_CONTROLLED_SOURCE_KINDS.has(instance.symbolId);
+    const currentName =
+      controlled && label?.content
+        ? controlledSourceExpressionSource(label.content)
+        : label
+          ? resolveAnnotationName(document, label).trim()
+          : null;
+    if (label?.kind === "instance-label" && currentName !== value.displayName) {
       if (label.binding?.kind === "instance-reference") {
         if (
           value.netlistName !== undefined &&
@@ -137,7 +147,9 @@ export function planComponentPropertyCodeEdits(
           kind: "upsert_schematic_annotation",
           annotation: {
             ...presentation,
-            content: semanticTextDocument(value.displayName, "instance-label"),
+            content: controlled
+              ? controlledSourceExpressionDocument(value.displayName)
+              : semanticTextDocument(value.displayName, "instance-label"),
           },
         });
       }

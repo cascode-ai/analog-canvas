@@ -1241,7 +1241,7 @@ export const componentDeviceDescriptors: readonly DeviceDescriptor[] = [
     capabilities: {
       supportsModel: false,
       supportsBulkBinding: false,
-      supportsValueAnnotation: true,
+      supportsValueAnnotation: false,
     },
   },
   {
@@ -1268,7 +1268,7 @@ export const componentDeviceDescriptors: readonly DeviceDescriptor[] = [
     capabilities: {
       supportsModel: false,
       supportsBulkBinding: false,
-      supportsValueAnnotation: true,
+      supportsValueAnnotation: false,
     },
   },
   {
@@ -1294,7 +1294,7 @@ export const componentDeviceDescriptors: readonly DeviceDescriptor[] = [
     capabilities: {
       supportsModel: false,
       supportsBulkBinding: false,
-      supportsValueAnnotation: true,
+      supportsValueAnnotation: false,
     },
   },
   {
@@ -1321,7 +1321,7 @@ export const componentDeviceDescriptors: readonly DeviceDescriptor[] = [
     capabilities: {
       supportsModel: false,
       supportsBulkBinding: false,
-      supportsValueAnnotation: true,
+      supportsValueAnnotation: false,
     },
   },
   {

@@ -6,7 +6,13 @@ import {
   type SchematicStyleProfile,
 } from "@icm/derived";
 import { referenceDeviceLetter } from "@icm/devices";
-import { plainNameDocument, roleLabelFormat } from "@icm/model";
+import {
+  LINEAR_CONTROLLED_SOURCE_KINDS,
+  controlledSourceExpressionDocument,
+  defaultControlledSourceExpression,
+  plainNameDocument,
+  roleLabelFormat,
+} from "@icm/model";
 import type { Annotation, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -96,21 +102,33 @@ export function defaultInstanceDisplayAnnotations(
   );
   const showsDesignator = options.showDesignator !== false && Boolean(label);
   if (showsDesignator && label) {
-    // A Reference such as M1 or RL1 is placed in its standard look (M₁,
-    // R_L1), stored on the label; the Reference keeps its exact spelling.
-    const deviceLetter = referenceDeviceLetter(instance.symbolId);
-    const format = instance.reference
-      ? roleLabelFormat(
-          "device-reference",
-          instance.reference,
-          deviceLetter ? { deviceLetter } : {},
-        )
-      : undefined;
-    annotations.push({
-      ...label,
-      binding: { kind: "instance-reference", instanceId: instance.id },
-      ...(format ? { formatOverride: format } : {}),
-    });
+    if (LINEAR_CONTROLLED_SOURCE_KINDS.has(instance.symbolId)) {
+      annotations.push({
+        ...label,
+        binding: undefined,
+        content: controlledSourceExpressionDocument(
+          defaultControlledSourceExpression(
+            instance.symbolId as "vcvs" | "vccs" | "cccs" | "ccvs",
+          ),
+        ),
+      });
+    } else {
+      // A Reference such as M1 or RL1 is placed in its standard look (M₁,
+      // R_L1), stored on the label; the Reference keeps its exact spelling.
+      const deviceLetter = referenceDeviceLetter(instance.symbolId);
+      const format = instance.reference
+        ? roleLabelFormat(
+            "device-reference",
+            instance.reference,
+            deviceLetter ? { deviceLetter } : {},
+          )
+        : undefined;
+      annotations.push({
+        ...label,
+        binding: { kind: "instance-reference", instanceId: instance.id },
+        ...(format ? { formatOverride: format } : {}),
+      });
+    }
   }
   if (options.masterName) {
     const master = defaultMasterNameAnnotation(

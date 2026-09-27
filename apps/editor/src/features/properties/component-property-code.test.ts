@@ -33,7 +33,7 @@ const context = {
 };
 
 describe("component property code", () => {
-  it("keeps a controlled source's visual formula separate from picked control and gain", () => {
+  it("uses the ordinary visual Annotation name while keeping electrical control and gain separate", () => {
     const controlled = {
       ...instance,
       id: "G1",
@@ -47,13 +47,14 @@ describe("component property code", () => {
     const controlledContext = {
       instance: controlled,
       referenceVisible: true,
-      valueVisible: true,
+      valueVisible: null,
+      displayName: "g_{m}v_{i}",
       details: { parameters: [] },
       controlNetOptions: [{ value: "net-a", label: "A" }],
     };
     const source = formatComponentPropertyCode(controlledContext);
     expect(JSON.parse(source)).toMatchObject({
-      displayExpression: "g_{m}v_{i}",
+      displayName: "g_{m}v_{i}",
       control: { positiveNetId: "net-a", negativeNetId: "" },
       parameters: { gm: "2m" },
     });
@@ -66,11 +67,20 @@ describe("component property code", () => {
     expect(parsed).toMatchObject({
       ok: true,
       value: {
-        displayExpression: "g_{x}v_{y}",
+        displayName: "g_{x}v_{y}",
         control: { positiveNetId: "net-a", negativeNetId: "net-b" },
         parameters: { gm: "2m" },
       },
     });
+    expect(
+      parseComponentPropertyCode(
+        source.replace(
+          '"displayName": "g_{m}v_{i}"',
+          '"displayName": "g_{m}v_{i}", "displayExpression": "stale"',
+        ),
+        controlledContext,
+      ),
+    ).toMatchObject({ ok: false });
     expect(parseComponentPropertyCode(source, context)).toMatchObject({
       ok: false,
     });

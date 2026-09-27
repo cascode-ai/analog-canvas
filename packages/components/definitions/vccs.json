@@ -146,7 +146,7 @@
     "capabilities": {
       "supportsModel": false,
       "supportsBulkBinding": false,
-      "supportsValueAnnotation": true
+      "supportsValueAnnotation": false
     }
   },
   "catalog": {

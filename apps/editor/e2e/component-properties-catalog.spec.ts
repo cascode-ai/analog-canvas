@@ -4,6 +4,7 @@ import { createEmptyProject } from "@icm/model";
 import {
   revealPropertiesShelf,
   chooseComponent,
+  editComponentPropertyCode,
   expectComponentCodeField,
 } from "./editor-fixtures.js";
 
@@ -80,7 +81,7 @@ for (const symbolId of componentSymbolIds) {
       await expectComponentCodeField(page, "connection", "cell-pin");
     }
     if (symbolId === "vccs") {
-      await expectComponentCodeField(page, "displayExpression", "g_{m}v_{i}");
+      await expectComponentCodeField(page, "name", "g_{m}v_{i}");
       await expectComponentCodeField(page, "control", {
         positiveNetId: "",
         negativeNetId: "",
@@ -92,5 +93,40 @@ for (const symbolId of componentSymbolIds) {
       "aria-label",
       "Canvas property code",
     );
+  });
+}
+
+for (const [symbolId, formula, parameter, netlistName] of [
+  ["vcvs", "A_{v}v_{i}", "gain", "E1"],
+  ["vccs", "g_{m}v_{i}", "gm", "G1"],
+  ["cccs", "βi_{x}", "gain", "F1"],
+  ["ccvs", "R_{m}i_{x}", "rm", "H1"],
+] as const) {
+  test(`${symbolId} Visual Annotation edits without crashing or changing electrical identity`, async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto("/editor");
+    await chooseComponent(page, symbolId);
+    await page
+      .getByTestId("schematic-canvas")
+      .click({ position: { x: 520, y: 350 } });
+    await page.keyboard.press("Escape");
+    await page.locator('[data-canvas-hit-kind="instance"]').click();
+    await revealPropertiesShelf(page);
+    const shelf = page.getByTestId("selection-shelf");
+    if ((await shelf.getAttribute("aria-expanded")) === "true")
+      await shelf.click();
+    await page.keyboard.press("q");
+    await expectComponentCodeField(page, "name", formula);
+    await editComponentPropertyCode(page, (code) => {
+      code.name = "k_{x}u_{y}";
+      code.parameters[parameter] = "2m";
+    });
+    await expectComponentCodeField(page, "name", "k_{x}u_{y}");
+    await expectComponentCodeField(page, `parameters.${parameter}`, "2m");
+    await expectComponentCodeField(page, "netlistName", netlistName);
+    expect(errors).toEqual([]);
   });
 }

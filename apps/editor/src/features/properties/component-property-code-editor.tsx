@@ -41,7 +41,6 @@ export interface ComponentPropertyCodeEditorProps {
   netName?: string | null;
   defaultForeground?: string;
   details?: ComponentPropertyCodeContext["details"];
-  displayExpression?: string;
   controlNetOptions?: ComponentPropertyCodeContext["controlNetOptions"];
   controlSensorOptions?: ComponentPropertyCodeContext["controlSensorOptions"];
   onApply: (
@@ -62,7 +61,6 @@ export function ComponentPropertyCodeEditor({
   netName,
   defaultForeground = "#000000",
   details,
-  displayExpression,
   controlNetOptions,
   controlSensorOptions,
   onApply,
@@ -77,7 +75,6 @@ export function ComponentPropertyCodeEditor({
       ...(connection !== undefined ? { connection } : {}),
       ...(netName !== undefined ? { netName } : {}),
       ...(details ? { details } : {}),
-      ...(displayExpression !== undefined ? { displayExpression } : {}),
       ...(controlNetOptions ? { controlNetOptions } : {}),
       ...(controlSensorOptions ? { controlSensorOptions } : {}),
     }),
@@ -90,7 +87,6 @@ export function ComponentPropertyCodeEditor({
       connection,
       netName,
       details,
-      displayExpression,
       controlNetOptions,
       controlSensorOptions,
     ],

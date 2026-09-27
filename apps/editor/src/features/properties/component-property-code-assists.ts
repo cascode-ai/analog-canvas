@@ -48,13 +48,6 @@ export function propertyCodeSpans(
       : []),
     ...(context && LINEAR_CONTROLLED_SOURCE_KINDS.has(context.instance.symbolId)
       ? [
-          {
-            path: "displayExpression",
-            label: "Displayed expression",
-            kind: "text" as const,
-            description: "",
-            help: "Visual formula only; it does not select the electrical control.",
-          },
           ...(context.instance.symbolId === "vcvs" ||
           context.instance.symbolId === "vccs"
             ? ["positiveNetId", "negativeNetId"].map((key) => ({
