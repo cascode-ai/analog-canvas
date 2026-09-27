@@ -24,7 +24,7 @@ function escapeXml(value: string): string {
 }
 
 /** Formula typography markers; a stored preview without them is redrawn. */
-export const LABEL_FORMULA_TYPOGRAPHY = "label-v2";
+export const LABEL_FORMULA_TYPOGRAPHY = "label-v3";
 export const MATHJAX_FORMULA_TYPOGRAPHY = "sans-v3";
 
 /**
@@ -37,9 +37,10 @@ export const MATHJAX_FORMULA_TYPOGRAPHY = "sans-v3";
  * installed). So each run of symbols is one text element whose glyphs follow
  * one another by the real font's advances, as a label's do, with the layout's
  * spacing and script offsets as relative shifts. A formula that is one run
- * stands at its anchor as a label would; with fractions or fences between
- * runs, each run and lone glyph centres in the space the layout gave it, so
- * a narrower face leaves even gaps rather than one wide one.
+ * stands at its anchor as a label would. Otherwise each run keeps against
+ * the box beside it (`LabelFormulaGlyph.anchor`) and fences and radical
+ * signs against what they enclose, so a narrower face leaves its spare
+ * width at the rows' outer edges rather than inside the formula.
  */
 function renderLabelFormula(
   layout: LabelFormulaLayout,
@@ -82,8 +83,6 @@ function renderLabelFormula(
       last.glyphs.push(item);
     else segments.push({ kind: "run", glyphs: [item] });
   }
-  const hugs = (segment: Segment | undefined, side: "left" | "right") =>
-    segment?.kind === "glyph" && segment.glyph.hug === side;
   const place = (
     anchor: "start" | "middle" | "end",
     start: number,
@@ -92,7 +91,7 @@ function renderLabelFormula(
     left +
     (anchor === "start" ? start : anchor === "end" ? end : (start + end) / 2);
 
-  const rendered = segments.map((segment, index) => {
+  const rendered = segments.map((segment) => {
     if (segment.kind === "rule") {
       const { x1, x2, y } = segment.rule;
       return `<line x1="${number(left + x1)}" y1="${number(options.baselineY + y)}" x2="${number(left + x2)}" y2="${number(options.baselineY + y)}" stroke="${color}" stroke-width="${profile.strokes.annotation}"/>`;
@@ -114,19 +113,12 @@ function renderLabelFormula(
         : `<text x="${number(x)}" y="${number(y)}" text-anchor="${anchor}" ${font(glyph)}>${escapeXml(glyph.text)}</text>`;
     }
     // One run is the whole formula: it stands at its anchor, as a label
-    // does. Otherwise a run keeps against a fence or radical sign beside
-    // it, or centres in its space.
+    // does. Otherwise it stands as the layout placed it in its row.
     const { glyphs } = segment;
-    const after = hugs(segments[index - 1], "right");
-    const before = hugs(segments[index + 1], "left");
     const anchor =
       segments.length === 1
         ? options.alignment
-        : after && !before
-          ? "start"
-          : before && !after
-            ? "end"
-            : "middle";
+        : (glyphs[0]!.anchor ?? "middle");
     const start = Math.min(...glyphs.map((glyph) => glyph.x));
     const end = Math.max(...glyphs.map((glyph) => glyph.x + glyph.advance));
     const first = glyphs[0]!;

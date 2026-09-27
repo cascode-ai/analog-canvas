@@ -1,6 +1,6 @@
 /** The formula typographies current previews carry: label type, or MathJax. */
 const CURRENT_FORMULA_TYPOGRAPHY =
-  /data-formula-typography="(?:label-v2|sans-v3)"/u;
+  /data-formula-typography="(?:label-v3|sans-v3)"/u;
 
 /**
  * Only old formula artifacts need recovery; ordinary stored artwork stays
