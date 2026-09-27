@@ -931,7 +931,7 @@ test("the site lands on the full-screen gallery feed", async ({ page }) => {
     page.getByTestId(`gallery-tile-${ENTRY.id}`).locator("img"),
   ).toHaveAttribute(
     "src",
-    `/api/gallery/${ENTRY.id}/preview.svg?v=revision-0&render=formula-sans-v2`,
+    `/api/gallery/${ENTRY.id}/preview.svg?v=revision-0&render=formula-label-v1`,
   );
   await expect(
     page.getByTestId(`gallery-tile-${ENTRY.id}`).locator("img"),
@@ -985,7 +985,7 @@ test("an open Gallery switches to a newly published preview revision", async ({
   const image = page.getByTestId(`gallery-tile-${ENTRY.id}`).locator("img");
   await expect(image).toHaveAttribute(
     "src",
-    `/api/gallery/${ENTRY.id}/preview.svg?v=revision-0&render=formula-sans-v2`,
+    `/api/gallery/${ENTRY.id}/preview.svg?v=revision-0&render=formula-label-v1`,
   );
 
   previewRevision = "revision-1";
@@ -1002,7 +1002,7 @@ test("an open Gallery switches to a newly published preview revision", async ({
 
   await expect(image).toHaveAttribute(
     "src",
-    `/api/gallery/${ENTRY.id}/preview.svg?v=revision-1&render=formula-sans-v2`,
+    `/api/gallery/${ENTRY.id}/preview.svg?v=revision-1&render=formula-label-v1`,
   );
   expect(listRequests).toBeGreaterThanOrEqual(2);
 });

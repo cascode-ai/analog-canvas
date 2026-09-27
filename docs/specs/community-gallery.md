@@ -79,7 +79,7 @@ asks the AuthDO once.
   contributors. Selecting an author retains the other active filters.
 - `GET /api/gallery/<id>` — one public entry with its canonical
   `projectText`.
-- `GET /api/gallery/<id>/preview.svg?v=<previewRevision>&render=formula-sans-v2` — the
+- `GET /api/gallery/<id>/preview.svg?v=<previewRevision>&render=formula-label-v1` — the
   server-rendered preview. A revision matching the stored SVG is immutable;
   unversioned, stale-revision, hidden, and missing responses are `no-store`.
   The renderer variant bypasses browser caches of obsolete formula artwork.

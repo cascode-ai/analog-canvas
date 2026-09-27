@@ -7,6 +7,57 @@ import {
 
 import type { SchematicStyleProfile } from "./style-profile.js";
 import { fractionTextAdvanceEm } from "./fraction-text-metrics.js";
+import {
+  layoutLabelFormula,
+  type LabelFormulaLayout,
+} from "./label-formula.js";
+
+/** A formula set in label type at these metrics, when its LaTeX allows. */
+export function labelFormulaLayout(
+  latex: string,
+  display: "inline" | "block",
+  metrics: RichTextMetrics,
+): LabelFormulaLayout | null {
+  return layoutLabelFormula(latex, {
+    fontSize: metrics.fontSize,
+    bold: metrics.bold ?? true,
+    display,
+    subscriptScale: metrics.subscriptScale,
+    subscriptBaselineShiftEm: metrics.subscriptBaselineShiftEm,
+    subscriptHorizontalGapEm: metrics.subscriptHorizontalGapEm,
+  });
+}
+
+/**
+ * The extent of a formula-only document about its baseline: set in label
+ * type when it can be, else as MathJax typeset it. Null for other content,
+ * or a formula not typeset yet.
+ */
+export function formulaExtents(
+  document: RichTextDocument,
+  metrics: RichTextMetrics,
+): { width: number; ascent: number; descent: number } | null {
+  const run = document.runs.length === 1 ? document.runs[0] : undefined;
+  if (run?.kind !== "math") return null;
+  const label = labelFormulaLayout(run.latex, run.display, metrics);
+  if (label)
+    return { width: label.width, ascent: label.ascent, descent: label.descent };
+  const result = cachedFormulaResult({
+    latex: run.latex,
+    display: run.display,
+    profileId: ANALOG_CANVAS_MATH_PROFILE_ID,
+    bold: metrics.bold ?? true,
+    italic: metrics.italic ?? false,
+  });
+  if (!result?.ok) return null;
+  const scale = metrics.fontSize / CANONICAL_FORMULA_FONT_SIZE;
+  const ascent = result.artifact.baseline * scale;
+  return {
+    width: result.artifact.width * scale,
+    ascent,
+    descent: result.artifact.height * scale - ascent,
+  };
+}
 
 export interface RichTextMetrics {
   fontSize: number;
@@ -506,6 +557,9 @@ function measureRun(run: RichTextRun, metrics: RichTextMetrics): Line[] {
     ];
   }
   if (run.kind === "math") {
+    const label = labelFormulaLayout(run.latex, run.display, metrics);
+    if (label)
+      return [{ width: label.width, height: label.ascent + label.descent }];
     const result = cachedFormulaResult({
       latex: run.latex,
       display: run.display,

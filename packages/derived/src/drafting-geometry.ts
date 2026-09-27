@@ -17,6 +17,7 @@ import {
   type ResolvedDocumentRoutingGeometry,
 } from "./resolved-route-geometry.js";
 import {
+  formulaExtents,
   fractionExtraAscentEm,
   fractionPartScale,
   measureRichTextDocument,
@@ -804,6 +805,22 @@ function baselineTextBounds(
   metrics: ReturnType<typeof richTextMetrics>,
   profile: SchematicStyleProfile,
 ): DerivedRect {
+  const alignedLeft = (width: number) =>
+    alignment === "start"
+      ? position.x
+      : alignment === "end"
+        ? position.x - width
+        : position.x - width / 2;
+  // A formula stands on the baseline by its own extent: a stacked fraction
+  // rises well above a line of text and hangs below it.
+  const formula = formulaExtents(content, metrics);
+  if (formula)
+    return {
+      x: alignedLeft(formula.width),
+      y: position.y - formula.ascent,
+      width: formula.width,
+      height: formula.ascent + formula.descent,
+    };
   const layout = measureRichTextDocument(content, metrics);
   const fontSize = metrics.fontSize;
   // A stacked fraction raises its numerator past the plain first-line ascent.

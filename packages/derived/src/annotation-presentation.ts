@@ -16,6 +16,7 @@ import {
   type ResolvedDocumentRoutingGeometry,
 } from "./resolved-route-geometry.js";
 import {
+  formulaExtents,
   fractionExtraAscentEm,
   fractionPartScale,
   measureRichTextDocument,
@@ -132,12 +133,30 @@ export function resolveAnnotationPresentation(
       : annotation.alignment === "end"
         ? anchor.position.x - width
         : anchor.position.x - width / 2;
-  const unrotatedBounds = {
-    x: left,
-    y: anchor.position.y - fontSize * 1.05 - fractionExtraAscent,
-    width,
-    height,
-  };
+  // A label that is a formula stands on its baseline by the formula's own
+  // extent, as drawing text does.
+  const formula = formulaExtents(text, {
+    ...richTextMetrics(styleProfile, "label", sizeScale),
+    fontSize,
+  });
+  const unrotatedBounds = formula
+    ? {
+        x:
+          annotation.alignment === "start"
+            ? anchor.position.x
+            : annotation.alignment === "end"
+              ? anchor.position.x - formula.width
+              : anchor.position.x - formula.width / 2,
+        y: anchor.position.y - formula.ascent,
+        width: formula.width,
+        height: formula.ascent + formula.descent,
+      }
+    : {
+        x: left,
+        y: anchor.position.y - fontSize * 1.05 - fractionExtraAscent,
+        width,
+        height,
+      };
   const bounds =
     annotation.rotation === 0
       ? unrotatedBounds

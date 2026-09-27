@@ -202,7 +202,8 @@ describe("drafting layer rendering", () => {
     expect(svg).not.toContain("a<b>&c");
   });
 
-  it("renders an atomic formula as aligned vector paths", async () => {
+  it("renders a formula label type cannot set as aligned vector paths", async () => {
+    // A large operator is outside label type, so MathJax typesets it.
     const document = createEmptyDocument("doc", "Formula");
     document.drafting = {
       objects: [
@@ -216,7 +217,7 @@ describe("drafting layer rendering", () => {
             runs: [
               {
                 kind: "math",
-                latex: String.raw`A_v=\frac{g_m}{1+s/\omega_p}`,
+                latex: String.raw`A_v=\sum_k\frac{g_m}{1+s/\omega_p}`,
                 display: "inline",
               },
             ],
@@ -228,7 +229,7 @@ describe("drafting layer rendering", () => {
     };
 
     await prepareFormula({
-      latex: String.raw`A_v=\frac{g_m}{1+s/\omega_p}`,
+      latex: String.raw`A_v=\sum_k\frac{g_m}{1+s/\omega_p}`,
       display: "inline",
       profileId: ANALOG_CANVAS_MATH_PROFILE_ID,
     });
@@ -260,7 +261,12 @@ describe("drafting layer rendering", () => {
         locked: false,
         zIndex: 0,
         anchor: { kind: "free", position: { x: 100, y: 100 } },
-        content: { runs: [{ kind: "math", latex: "L", display: "inline" }] },
+        // An accent is outside label type, so the MathJax glyphs are drawn.
+        content: {
+          runs: [
+            { kind: "math", latex: String.raw`\hat{L}`, display: "inline" },
+          ],
+        },
         alignment: "middle",
         rotation: 0,
         styleOverride: { weight, italic, color: "#123456" },
@@ -276,6 +282,53 @@ describe("drafting layer rendering", () => {
       }
     },
   );
+
+  it("sets a common formula in label type: label font, italic letters, upright subscripts", () => {
+    // Nothing is prepared: label type needs no typesetting pass.
+    const document = createEmptyDocument("doc", "Label formula");
+    document.drafting!.objects.push({
+      id: "label-formula",
+      kind: "text",
+      locked: false,
+      zIndex: 0,
+      anchor: { kind: "free", position: { x: 100, y: 100 } },
+      content: {
+        runs: [
+          {
+            kind: "math",
+            latex: String.raw`Z_{in}=\frac{1}{g_{m1}}`,
+            display: "block",
+          },
+        ],
+      },
+      alignment: "middle",
+      rotation: 0,
+    });
+    const svg = renderDocumentSvg(document, resolver);
+    const formula = svg.match(
+      /<g data-role="formula" data-formula-typography="label-v1"[^>]*>.*?<\/g>/u,
+    )?.[0];
+    expect(formula).toBeDefined();
+    expect(formula).toContain("ICM Round Period");
+    expect(formula).not.toContain("<path");
+    const glyphs = [
+      ...formula!.matchAll(/font-style="(\w+)"[^>]*>([^<]+)<\/text>/gu),
+    ].map(([, style, text]) => `${text}:${style}`);
+    // The letter Z and g in italic; the subscripts in and m1, and 1, upright.
+    expect(glyphs).toEqual(
+      expect.arrayContaining([
+        "Z:italic",
+        "g:italic",
+        "i:normal",
+        "n:normal",
+        "m:normal",
+        "1:normal",
+      ]),
+    );
+    expect(formula).toContain('font-weight="bold"');
+    // One fraction bar.
+    expect(formula!.match(/<line /gu)).toHaveLength(1);
+  });
 
   it("keeps ordinary glyphs and fractions upright at nonzero rotation", () => {
     const document = createEmptyDocument("doc", "Upright drafting text");
