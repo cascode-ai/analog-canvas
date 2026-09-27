@@ -46,15 +46,48 @@ describe("formulas set in label type", () => {
         size: options.fontSize * options.subscriptScale,
       });
     }
-    // The subscript drops by the label's own shift and follows its gap.
+    // The subscript drops by the label's own shift and follows its gap, both
+    // in the subscript's size, as the label renderer sets them.
+    const scriptSize = options.fontSize * options.subscriptScale;
     expect(glyph(result, "i").y).toBeCloseTo(
-      options.fontSize *
-        options.subscriptScale *
-        options.subscriptBaselineShiftEm,
+      scriptSize * options.subscriptBaselineShiftEm,
     );
     expect(glyph(result, "i").x).toBeCloseTo(
       schematicTextAdvanceEm("V", "bold") * options.fontSize +
-        options.subscriptHorizontalGapEm * options.fontSize,
+        options.subscriptHorizontalGapEm * scriptSize,
+    );
+  });
+
+  it("flows symbols and their scripts as runs of text between boxes", () => {
+    const result = layout(String.raw`-A_0^3+\frac{s}{\omega_0}\left(x\right)`);
+    const flowOf = (text: string) => glyph(result, text).flow;
+    // The minus, A and both its scripts are one run, as are the + and
+    // nothing after it: the fraction and the fence end runs.
+    for (const text of ["A", "0", "3", "+"])
+      expect(flowOf(text), text).toBe(flowOf("−"));
+    expect(flowOf("s")).not.toBe(flowOf("−"));
+    expect(flowOf("ω")).not.toBe(flowOf("s"));
+    expect(flowOf("x")).not.toBe(flowOf("ω"));
+    expect(glyph(result, "(").flow).toBeUndefined();
+    // Every glyph carries its table advance, which the next glyph in its
+    // run is placed after.
+    for (const item of glyphs(result))
+      expect(item.advance).toBeCloseTo(
+        schematicTextAdvanceEm(item.text, "bold") * item.size,
+      );
+    // Of stacked scripts, the one reaching further comes last, so the run
+    // flows on from the end of both.
+    const run = glyphs(result).filter((item) => item.flow === flowOf("−"));
+    expect(run.map((item) => item.text)).toEqual([
+      "−",
+      "A",
+      expect.stringMatching(/^[03]$/u),
+      expect.stringMatching(/^[03]$/u),
+      "+",
+    ]);
+    const [, , earlier, later] = run;
+    expect(later!.x + later!.advance).toBeGreaterThanOrEqual(
+      earlier!.x + earlier!.advance,
     );
   });
 
@@ -147,6 +180,9 @@ describe("formulas set in label type", () => {
     const fences = glyphs(fenced).filter((item) => /[()]/u.test(item.text));
     expect(fences).toHaveLength(2);
     expect(fences[0]!.scaleY).toBeGreaterThan(1);
+    // Fences and a radical sign keep against what they enclose.
+    expect(fences.map((fence) => fence.hug)).toEqual(["right", "left"]);
+    expect(glyph(root, "√").hug).toBe("right");
     expect(fenced.width).toBeGreaterThan(
       layout(String.raw`\frac{a}{b}`, { display: "block" }).width,
     );

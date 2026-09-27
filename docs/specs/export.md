@@ -40,6 +40,16 @@ legacy relative text constructs before conversion. This compatibility pass
 must not rewrite the downloaded canonical SVG or flatten PDF text into a page
 image.
 
+The PDF's built-in text faces encode Latin-1 only. Text outside it — Greek,
+the minus sign, and math symbols in labels and formulas — is set in DejaVu
+Sans, the schematic font stack's first face. That face is embedded as a subset
+of the glyphs used, and loaded only when a PDF needs it. Latin text keeps the
+built-in face, as a browser falls back glyph by glyph. For the conversion, the
+same face is added to the page, so svg2pdf's in-page text measurement places
+what follows such a run by the face the PDF draws; it is removed afterwards.
+When the face cannot be loaded, the export fails with that reason rather than
+writing other characters.
+
 Node/headless export retains a high-resolution raster-PDF fallback for release
 tooling because the browser vector converter requires a live DOM. It is not the
 interactive editor's user-facing PDF path.

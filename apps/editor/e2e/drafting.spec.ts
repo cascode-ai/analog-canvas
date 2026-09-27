@@ -924,7 +924,7 @@ test("edits an unrestricted device formula in the same visual annotation", async
   await page.getByTestId("annotation-hit-instance-label-R1").dblclick();
   await page.getByRole("checkbox", { name: "Use display alias" }).check();
   await page.getByRole("button", { name: "Insert formula" }).click();
-  const latex = String.raw`R_1=\frac{1}{g_m}`;
+  const latex = String.raw`R_1=\frac{-1}{g_m\omega}`;
   await page.getByRole("textbox", { name: "Formula LaTeX source" }).fill(latex);
   await page
     .getByRole("dialog", { name: "Formula" })
@@ -943,14 +943,27 @@ test("edits an unrestricted device formula in the same visual annotation", async
   // subscripts upright.
   await expect(labelFormula).toHaveAttribute(
     "data-formula-typography",
-    "label-v1",
+    "label-v2",
   );
   await expect(
-    labelFormula.locator("text", { hasText: /^R$/u }),
+    labelFormula.locator("tspan", { hasText: /^R$/u }),
   ).toHaveAttribute("font-style", "italic");
   await expect(
-    labelFormula.locator("text", { hasText: /^1$/u }).first(),
+    labelFormula.locator("tspan", { hasText: /^1$/u }).first(),
   ).toHaveAttribute("font-style", "normal");
+  // The PDF's built-in fonts encode Latin-1 only: the minus and ω come from
+  // an embedded subset of DejaVu Sans, not as other characters, and the
+  // export leaves no font behind in the page.
+  const pdf = (await downloadBytes(page, "File", "Export PDF")).toString(
+    "latin1",
+  );
+  expect(pdf).toContain("/FontName /ICM#20Unicode");
+  expect(pdf).toContain("/FontFile2");
+  expect(
+    await page.evaluate(() =>
+      [...document.fonts].some((face) => face.family === "ICM Unicode"),
+    ),
+  ).toBe(false);
   const project = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
       "utf8",

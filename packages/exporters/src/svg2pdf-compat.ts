@@ -112,6 +112,55 @@ function materializeTextDecorations(svg: SVGSVGElement): void {
   }
 }
 
+/** A jsPDF font style: the weight and slant a run of text is set in. */
+export type PdfFontStyle = "normal" | "bold" | "italic" | "bolditalic";
+
+const OUTSIDE_LATIN_1 = /[^\u0000-ÿ]+/gu;
+
+/**
+ * jsPDF's built-in fonts encode Latin-1 only; Greek, the minus sign and math
+ * symbols come out as other characters. Put every run of text outside
+ * Latin-1 in `family` — a font the caller embeds — and leave Latin text in
+ * the built-in face, as a browser falls back glyph by glyph. Returns the
+ * styles those runs are set in, which the caller registers `family` for.
+ */
+export function setTextOutsideLatin1InFamily(
+  svg: SVGSVGElement,
+  family: string,
+): Set<PdfFontStyle> {
+  const styles = new Set<PdfFontStyle>();
+  const walker = document.createTreeWalker(svg, NodeFilter.SHOW_TEXT);
+  const nodes: Text[] = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const text = node as Text;
+    if (text.parentElement?.closest("text") && /[^\u0000-ÿ]/u.test(text.data))
+      nodes.push(text);
+  }
+  for (const node of nodes) {
+    const computed = getComputedStyle(node.parentElement!);
+    const bold =
+      computed.fontWeight === "bold" ||
+      Number.parseInt(computed.fontWeight, 10) >= 600;
+    const italic = /^(?:italic|oblique)/u.test(computed.fontStyle);
+    styles.add(
+      bold ? (italic ? "bolditalic" : "bold") : italic ? "italic" : "normal",
+    );
+    const pieces = document.createDocumentFragment();
+    let end = 0;
+    for (const match of node.data.matchAll(OUTSIDE_LATIN_1)) {
+      if (match.index > end) pieces.append(node.data.slice(end, match.index));
+      const span = document.createElementNS(SVG_NAMESPACE, "tspan");
+      span.setAttribute("font-family", family);
+      span.textContent = match[0];
+      pieces.append(span);
+      end = match.index + match[0].length;
+    }
+    if (end < node.data.length) pieces.append(node.data.slice(end));
+    node.replaceWith(pieces);
+  }
+  return styles;
+}
+
 /**
  * Expand renderer constructs that svg2pdf does not implement. This mutates
  * only the temporary, live-DOM clone used for PDF conversion; canonical SVG

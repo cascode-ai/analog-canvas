@@ -1,5 +1,6 @@
 import {
   layoutLabelFormula,
+  type LabelFormulaGlyph,
   type LabelFormulaLayout,
   type SchematicStyleProfile,
 } from "@icm/derived";
@@ -23,13 +24,22 @@ function escapeXml(value: string): string {
 }
 
 /** Formula typography markers; a stored preview without them is redrawn. */
-export const LABEL_FORMULA_TYPOGRAPHY = "label-v1";
+export const LABEL_FORMULA_TYPOGRAPHY = "label-v2";
 export const MATHJAX_FORMULA_TYPOGRAPHY = "sans-v3";
 
 /**
  * A formula set in label type: text in the labels' own font, letters in
  * italic and subscripts upright, fraction bars and overlines as lines in the
  * labels' stroke — so a formula and a label beside it match exactly.
+ *
+ * The layout measures with the label advance tables, but a viewer may draw
+ * the label font stack in another face (Arial, where DejaVu Sans is not
+ * installed). So each run of symbols is one text element whose glyphs follow
+ * one another by the real font's advances, as a label's do, with the layout's
+ * spacing and script offsets as relative shifts. A formula that is one run
+ * stands at its anchor as a label would; with fractions or fences between
+ * runs, each run and lone glyph centres in the space the layout gave it, so
+ * a narrower face leaves even gaps rather than one wide one.
  */
 function renderLabelFormula(
   layout: LabelFormulaLayout,
@@ -49,22 +59,91 @@ function renderLabelFormula(
         ? options.x - layout.width
         : options.x - layout.width / 2;
   const color = options.color ?? profile.foreground;
-  const items = layout.items
-    .map((item) => {
-      if (item.kind === "rule")
-        return `<line x1="${number(left + item.x1)}" y1="${number(options.baselineY + item.y)}" x2="${number(left + item.x2)}" y2="${number(options.baselineY + item.y)}" stroke="${color}" stroke-width="${profile.strokes.annotation}"/>`;
-      const x = left + item.x;
-      const y = options.baselineY + item.y;
-      // A slant override on the text slants the whole formula, as it does a
-      // label; otherwise letters are italic and their subscripts upright.
-      const italic = item.italic || options.italic === true;
-      const font = `font-size="${number(item.size)}" font-style="${italic ? "italic" : "normal"}" font-weight="${item.bold ? "bold" : "normal"}"`;
-      return item.scaleY
-        ? `<text transform="translate(${number(x)} ${number(y)}) scale(1 ${number(item.scaleY)})" x="0" y="0" ${font}>${escapeXml(item.text)}</text>`
-        : `<text x="${number(x)}" y="${number(y)}" ${font}>${escapeXml(item.text)}</text>`;
-    })
-    .join("");
-  return `<g data-role="formula" data-formula-typography="${LABEL_FORMULA_TYPOGRAPHY}" font-family="${escapeXml(profile.typography.fontFamily).replaceAll('"', "&quot;")}" fill="${color}" color="${color}">${items}</g>`;
+  // A slant override on the text slants the whole formula, as it does a
+  // label; otherwise letters are italic and their subscripts upright.
+  const font = (glyph: LabelFormulaGlyph) =>
+    `font-size="${number(glyph.size)}" font-style="${glyph.italic || options.italic === true ? "italic" : "normal"}" font-weight="${glyph.bold ? "bold" : "normal"}"`;
+  // The items in drawing order as runs of flowing glyphs, lone glyphs (a
+  // fence or radical sign) and rules.
+  type Segment =
+    | { kind: "run"; glyphs: LabelFormulaGlyph[] }
+    | { kind: "glyph"; glyph: LabelFormulaGlyph }
+    | {
+        kind: "rule";
+        rule: Extract<LabelFormulaLayout["items"][number], { kind: "rule" }>;
+      };
+  const segments: Segment[] = [];
+  for (const item of layout.items) {
+    const last = segments.at(-1);
+    if (item.kind === "rule") segments.push({ kind: "rule", rule: item });
+    else if (item.flow === undefined)
+      segments.push({ kind: "glyph", glyph: item });
+    else if (last?.kind === "run" && last.glyphs[0]!.flow === item.flow)
+      last.glyphs.push(item);
+    else segments.push({ kind: "run", glyphs: [item] });
+  }
+  const hugs = (segment: Segment | undefined, side: "left" | "right") =>
+    segment?.kind === "glyph" && segment.glyph.hug === side;
+  const place = (
+    anchor: "start" | "middle" | "end",
+    start: number,
+    end: number,
+  ) =>
+    left +
+    (anchor === "start" ? start : anchor === "end" ? end : (start + end) / 2);
+
+  const rendered = segments.map((segment, index) => {
+    if (segment.kind === "rule") {
+      const { x1, x2, y } = segment.rule;
+      return `<line x1="${number(left + x1)}" y1="${number(options.baselineY + y)}" x2="${number(left + x2)}" y2="${number(options.baselineY + y)}" stroke="${color}" stroke-width="${profile.strokes.annotation}"/>`;
+    }
+    if (segment.kind === "glyph") {
+      // A fence or radical sign, stretched about its baseline, kept against
+      // what it encloses: a radical sign ends where its overbar begins.
+      const { glyph } = segment;
+      const anchor =
+        glyph.hug === "right"
+          ? "end"
+          : glyph.hug === "left"
+            ? "start"
+            : "middle";
+      const x = place(anchor, glyph.x, glyph.x + glyph.advance);
+      const y = options.baselineY + glyph.y;
+      return glyph.scaleY
+        ? `<text transform="translate(${number(x)} ${number(y)}) scale(1 ${number(glyph.scaleY)})" x="0" y="0" text-anchor="${anchor}" ${font(glyph)}>${escapeXml(glyph.text)}</text>`
+        : `<text x="${number(x)}" y="${number(y)}" text-anchor="${anchor}" ${font(glyph)}>${escapeXml(glyph.text)}</text>`;
+    }
+    // One run is the whole formula: it stands at its anchor, as a label
+    // does. Otherwise a run keeps against a fence or radical sign beside
+    // it, or centres in its space.
+    const { glyphs } = segment;
+    const after = hugs(segments[index - 1], "right");
+    const before = hugs(segments[index + 1], "left");
+    const anchor =
+      segments.length === 1
+        ? options.alignment
+        : after && !before
+          ? "start"
+          : before && !after
+            ? "end"
+            : "middle";
+    const start = Math.min(...glyphs.map((glyph) => glyph.x));
+    const end = Math.max(...glyphs.map((glyph) => glyph.x + glyph.advance));
+    const first = glyphs[0]!;
+    let penX = first.x;
+    let penY = first.y;
+    const spans = glyphs
+      .map((glyph) => {
+        const dx = glyph.x - penX;
+        const dy = glyph.y - penY;
+        penX = glyph.x + glyph.advance;
+        penY = glyph.y;
+        return `<tspan${Math.abs(dx) > 1e-6 ? ` dx="${number(dx)}"` : ""}${Math.abs(dy) > 1e-6 ? ` dy="${number(dy)}"` : ""} ${font(glyph)}>${escapeXml(glyph.text)}</tspan>`;
+      })
+      .join("");
+    return `<text x="${number(place(anchor, start, end))}" y="${number(options.baselineY + first.y)}" text-anchor="${anchor}">${spans}</text>`;
+  });
+  return `<g data-role="formula" data-formula-typography="${LABEL_FORMULA_TYPOGRAPHY}" font-family="${escapeXml(profile.typography.fontFamily).replaceAll('"', "&quot;")}" fill="${color}" color="${color}">${rendered.join("")}</g>`;
 }
 
 /**

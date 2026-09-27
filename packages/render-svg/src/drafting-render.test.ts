@@ -306,13 +306,15 @@ describe("drafting layer rendering", () => {
     });
     const svg = renderDocumentSvg(document, resolver);
     const formula = svg.match(
-      /<g data-role="formula" data-formula-typography="label-v1"[^>]*>.*?<\/g>/u,
+      /<g data-role="formula" data-formula-typography="label-v2"[^>]*>.*?<\/g>/u,
     )?.[0];
     expect(formula).toBeDefined();
     expect(formula).toContain("ICM Round Period");
     expect(formula).not.toContain("<path");
     const glyphs = [
-      ...formula!.matchAll(/font-style="(\w+)"[^>]*>([^<]+)<\/text>/gu),
+      ...formula!.matchAll(
+        /font-style="(\w+)"[^>]*>([^<]+)<\/t(?:ext|span)>/gu,
+      ),
     ].map(([, style, text]) => `${text}:${style}`);
     // The letter Z and g in italic; the subscripts in and m1, and 1, upright.
     expect(glyphs).toEqual(
@@ -328,6 +330,17 @@ describe("drafting layer rendering", () => {
     expect(formula).toContain('font-weight="bold"');
     // One fraction bar.
     expect(formula!.match(/<line /gu)).toHaveLength(1);
+    // Z, its subscript and = flow as one run of text, as a label does: each
+    // glyph follows the last by the font's own advance, the subscript
+    // shifted down and across relative to it.
+    const run = formula!.match(
+      /<text [^>]*>(?:<tspan [^>]*>[^<]*<\/tspan>)+<\/text>/u,
+    )?.[0];
+    expect(
+      [...run!.matchAll(/>([^<]+)<\/tspan>/gu)].map(([, text]) => text),
+    ).toEqual(["Z", "i", "n", "="]);
+    expect(run).toMatch(/<tspan dx="[\d.]+" dy="[\d.]+"[^>]*>i<\/tspan>/u);
+    expect(run).not.toMatch(/<tspan [^>]*\bx="/u);
   });
 
   it("keeps ordinary glyphs and fractions upright at nonzero rotation", () => {

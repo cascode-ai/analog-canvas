@@ -100,7 +100,14 @@ upright, italic, bold, and text font commands — is set in label type: the
 label font family, weight, and size, letters italic, and subscripts, digits,
 operators, capital Greek, and function names upright, with scripts at the
 profile's subscript scale and shift. A formula and the label beside it
-therefore match glyph for glyph. Anything else — large operators such as
+therefore match glyph for glyph. The layout measures with the label advance
+tables, but a viewer may draw the font stack in another face, such as Arial
+where DejaVu Sans is not installed. So each run of symbols with their scripts
+is one text element whose glyphs follow one another by the real face's
+advances, as a label's do; fractions, radicals, and fences are placed from the
+layout. A one-run formula stands at its anchor as a label does. Otherwise a run
+keeps against an adjacent fence or radical sign, or centres in its space, so a
+narrower face leaves even gaps. Anything else — large operators such as
 `\sum`, accents, arrays and cases, blackboard letters — falls back to the
 typesetter, which emits standalone path-only SVG with deterministic width,
 height, baseline, and source identity, letters and numerals in bold
