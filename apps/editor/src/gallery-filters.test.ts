@@ -12,7 +12,7 @@ import {
 describe("gallery filter preferences", () => {
   it("reads every narrowing choice out of a link", () => {
     const { filters, narrowed } = parseGalleryFilterQuery(
-      "?view=shelf&author=alice&owner=account-alice&tags=bias,opamp&q=mirror&netlist=1&liked=1",
+      "?view=shelf&author=alice&owner=account-alice&tags=bias,opamp&q=mirror&netlist=1&liked=1&parts=6-10,26-",
     );
     expect(filters).toEqual({
       view: "shelf",
@@ -24,6 +24,7 @@ describe("gallery filter preferences", () => {
       liked: true,
       attention: false,
       attentionKind: null,
+      parts: ["6-10", "26-"],
     });
     expect(narrowed).toBe(true);
   });
@@ -147,7 +148,24 @@ describe("gallery filter preferences", () => {
       search: "mirror",
       netlistable: true,
       liked: false,
+      parts: [],
     });
+  });
+
+  it("carries part-count sizes through a link and storage", () => {
+    const filters = {
+      ...createDefaultGalleryFilters(),
+      parts: ["0-5", "11-15"],
+    };
+    const search = galleryFilterSearch("", filters);
+    expect(new URLSearchParams(search).get("parts")).toBe("0-5,11-15");
+    expect(parseGalleryFilterQuery(search)).toMatchObject({
+      filters,
+      narrowed: true,
+    });
+    expect(
+      parseStoredGalleryFilters(JSON.stringify({ parts: ["26-", 7, "x"] })),
+    ).toEqual({ ...createDefaultGalleryFilters(), parts: ["26-"] });
   });
 
   it("lets a narrowing link replace the stored preference outright", () => {

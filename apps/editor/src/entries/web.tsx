@@ -52,6 +52,7 @@ export function mountWebEditor() {
       netlistable: filters.netlistable,
       liked: filters.liked,
       attention: filters.attention,
+      parts: filters.parts,
     };
     const tags = loadGalleryTagSummary(fetch, tagFilters);
     // "View in Gallery" links one circuit on the whole, unfiltered wall.

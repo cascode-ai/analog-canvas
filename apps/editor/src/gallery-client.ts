@@ -193,6 +193,8 @@ export interface GalleryFeedEntry {
    * and one without this is listed exactly like one with it.
    */
   netlistable?: boolean;
+  /** Parts the top Cell draws; absent until the Worker has counted it. */
+  componentCount?: number;
   likes?: number;
   likedByViewer?: boolean;
 }
@@ -203,6 +205,11 @@ export interface GalleryQuickFilterCounts {
   liked: number;
   /** Entries under Needs attention per reason; only with that filter on. */
   attentionKinds?: Record<string, number>;
+  /**
+   * Entries per size in parts, with every other filter applied, so each
+   * size says what choosing it would show.
+   */
+  componentRanges?: Record<string, number>;
 }
 
 export interface GalleryFeedPage {
@@ -351,6 +358,8 @@ export interface GalleryTagFilters {
   netlistable?: boolean;
   liked?: boolean;
   attention?: boolean;
+  /** Sizes by part count; any of them matches. */
+  parts?: readonly string[];
   /** The reason Needs attention narrows to; read only with attention. */
   attentionKind?: string | null;
 }
@@ -363,6 +372,9 @@ export function galleryTagScope(filters: GalleryTagFilters): string {
     ...(filters.attention ? [["attention", "1"]] : []),
     ...(filters.attention && filters.attentionKind
       ? [["reason", filters.attentionKind]]
+      : []),
+    ...(filters.parts && filters.parts.length > 0
+      ? [["parts", filters.parts.join(",")]]
       : []),
   ]).toString();
 }
@@ -442,6 +454,8 @@ export async function loadGalleryFeed(
     attention?: boolean;
     /** One reason Needs attention narrows to. */
     attentionKind?: string | null;
+    /** Sizes by part count; any of them matches. */
+    parts?: readonly string[];
   } = {},
 ): Promise<GalleryFeedResult> {
   const params = new URLSearchParams();
@@ -455,6 +469,8 @@ export async function loadGalleryFeed(
   }
   if (options.netlistable) params.set("netlistable", "1");
   if (options.liked) params.set("liked", "1");
+  if (options.parts && options.parts.length > 0)
+    params.set("parts", options.parts.join(","));
   if (options.cursor) params.set("cursor", options.cursor);
   if (options.limit !== undefined) params.set("limit", String(options.limit));
   const query = params.toString();
@@ -506,6 +522,13 @@ export async function loadGalleryFeed(
                 (count) => Number.isSafeInteger(count) && count >= 0,
               )
                 ? { attentionKinds: payload.filterCounts.attentionKinds }
+                : {}),
+              ...(payload.filterCounts.componentRanges &&
+              typeof payload.filterCounts.componentRanges === "object" &&
+              Object.values(payload.filterCounts.componentRanges).every(
+                (count) => Number.isSafeInteger(count) && count >= 0,
+              )
+                ? { componentRanges: payload.filterCounts.componentRanges }
                 : {}),
             },
           }

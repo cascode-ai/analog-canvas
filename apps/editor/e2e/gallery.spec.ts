@@ -5870,3 +5870,85 @@ test("durable duplicate check reconnects after reload and a closed browser page"
   expect(starts).toBe(1);
   await reopened.close();
 });
+
+test("sizes by part count narrow the wall, any of several at once", async ({
+  page,
+}) => {
+  const entries = [
+    { ...ENTRY, id: "small", name: "Small", componentCount: 3 },
+    { ...ENTRY, id: "medium", name: "Medium", componentCount: 8 },
+    { ...ENTRY, id: "large", name: "Large", componentCount: 30 },
+  ];
+  const sizeOf = (count: number) =>
+    count <= 5
+      ? "0-5"
+      : count <= 10
+        ? "6-10"
+        : count <= 15
+          ? "11-15"
+          : count <= 25
+            ? "16-25"
+            : "26-";
+  const requested: string[] = [];
+  await page.route("**/api/gallery**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/preview.svg"))
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 6"/>',
+      });
+    if (url.pathname !== "/api/gallery") return route.fallback();
+    const parts = (url.searchParams.get("parts") ?? "")
+      .split(",")
+      .filter(Boolean);
+    requested.push(parts.join(","));
+    const shown = entries.filter(
+      (entry) =>
+        parts.length === 0 || parts.includes(sizeOf(entry.componentCount)),
+    );
+    // Each size counts the wall without the size choice itself.
+    const componentRanges: Record<string, number> = {
+      "0-5": 0,
+      "6-10": 0,
+      "11-15": 0,
+      "16-25": 0,
+      "26-": 0,
+    };
+    for (const entry of entries)
+      componentRanges[sizeOf(entry.componentCount)]! += 1;
+    return route.fulfill({
+      json: {
+        entries: shown,
+        nextCursor: null,
+        total: shown.length,
+        filterCounts: {
+          attention: 0,
+          netlistable: 0,
+          liked: 0,
+          componentRanges,
+        },
+      },
+    });
+  });
+  await page.goto("/");
+  const size = (key: string) => page.getByTestId(`gallery-filter-parts-${key}`);
+  await expect(size("0-5")).toContainText("≤ 5");
+  await expect(size("0-5").locator(".gallery-sidebar-count")).toHaveText("1");
+  await expect(size("11-15").locator(".gallery-sidebar-count")).toHaveText("0");
+
+  await size("6-10").click();
+  await expect(page).toHaveURL(/parts=6-10/u);
+  await expect(page.getByTestId("gallery-tile-medium")).toBeVisible();
+  await expect(page.getByTestId("gallery-tile-small")).toHaveCount(0);
+  // A second size adds to the first.
+  await size("26-").click();
+  await expect(page.getByTestId("gallery-tile-large")).toBeVisible();
+  await expect(page.getByTestId("gallery-tile-medium")).toBeVisible();
+  expect(requested.at(-1)).toBe("6-10,26-");
+  await expect(size("6-10")).toHaveAttribute("aria-pressed", "true");
+  await expect(size("0-5")).toHaveAttribute("aria-pressed", "false");
+
+  await page.getByTestId("gallery-parts-clear").click();
+  await expect(page.getByTestId("gallery-tile-small")).toBeVisible();
+  await expect(page).not.toHaveURL(/parts=/u);
+});

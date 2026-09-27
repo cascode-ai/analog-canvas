@@ -39,6 +39,11 @@ export interface GalleryFilterState {
   netlistable: boolean;
   /** Only circuits this viewer has liked. */
   liked: boolean;
+  /**
+   * Sizes by part count, as the taxonomy's range keys (`0-5`, `26-`); any of
+   * them matches, and none means every size.
+   */
+  parts: string[];
 }
 
 export const GALLERY_FILTERS_KEY = "icm.gallery-filters.v1";
@@ -61,6 +66,7 @@ const NARROWING_PARAMS = [
   "liked",
   "attention",
   "reason",
+  "parts",
 ] as const;
 
 export function createDefaultGalleryFilters(): GalleryFilterState {
@@ -74,6 +80,7 @@ export function createDefaultGalleryFilters(): GalleryFilterState {
     search: "",
     netlistable: false,
     liked: false,
+    parts: [],
   };
 }
 
@@ -86,7 +93,8 @@ export function galleryFiltersNarrowWall(filters: GalleryFilterState): boolean {
     filters.search.trim().length > 0 ||
     filters.netlistable ||
     filters.liked ||
-    filters.attention
+    filters.attention ||
+    filters.parts.length > 0
   );
 }
 
@@ -103,8 +111,21 @@ export function galleryFiltersNarrowQuery(
     filters.tags.length > 0 ||
     filters.netlistable ||
     filters.liked ||
-    filters.attention
+    filters.attention ||
+    filters.parts.length > 0
   );
+}
+
+/** Size keys as a link or storage spells them; the Worker ignores unknown ones. */
+function boundedParts(values: readonly unknown[]): string[] {
+  const parts: string[] = [];
+  for (const value of values) {
+    if (typeof value !== "string" || !/^\d{1,4}-\d{0,4}$/u.test(value))
+      continue;
+    if (!parts.includes(value)) parts.push(value);
+    if (parts.length === 16) break;
+  }
+  return parts;
 }
 
 function boundedTags(values: readonly unknown[]): string[] {
@@ -144,6 +165,7 @@ export function parseGalleryFilterQuery(search: string): {
         params.get("attention") === "1"
           ? readReason(params.get("reason"))
           : null,
+      parts: boundedParts((params.get("parts") ?? "").split(",")),
     },
     narrowed: NARROWING_PARAMS.some((name) => (params.get(name) ?? "") !== ""),
     namesView: params.has("view"),
@@ -175,6 +197,7 @@ export function galleryFilterSearch(
   params.delete("category");
   set("attention", filters.attention ? "1" : null);
   set("reason", filters.attention ? filters.attentionKind : null);
+  set("parts", filters.parts.length > 0 ? filters.parts.join(",") : null);
   const query = params.toString();
   return query.length > 0 ? `?${query}` : "";
 }
@@ -212,6 +235,7 @@ export function parseStoredGalleryFilters(
     attention: record.attention === true,
     attentionKind:
       record.attention === true ? readReason(record.attentionKind) : null,
+    parts: boundedParts(Array.isArray(record.parts) ? record.parts : []),
   };
 }
 
