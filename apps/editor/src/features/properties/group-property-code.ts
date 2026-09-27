@@ -24,6 +24,8 @@ type ItemColor = "auto" | `#${string}`;
 
 export interface GroupPropertyCodeValue {
   symbol: string;
+  /** Each component's name by its key; an entry changed renames that one. */
+  names?: GroupPerItem<string>;
   parameters: Record<string, string | GroupPerItem<string>> | "";
   display: {
     visualAnnotation: GroupPropertyMixedValue | GroupPerItem<boolean>;
@@ -220,9 +222,19 @@ export function parseGroupPropertyCode(
       throw new Error("Property code must be a JSON object");
     assertKeys(
       decoded,
-      ["display", "appearance", "symbol", "parameters"],
+      ["display", "appearance", "symbol", "parameters", "names"],
       "selection",
     );
+    let names: GroupPerItem<string> | undefined;
+    if (decoded.names !== undefined && decoded.names !== "") {
+      if (!isRecord(decoded.names))
+        throw new Error("name lists one name per selected component");
+      names = parsePerItem(decoded.names, "name", context, (raw, path) => {
+        if (typeof raw !== "string" || raw.trim() === "")
+          throw new Error(`${path} must be a name`);
+        return raw.trim();
+      });
+    }
     if (decoded.symbol !== context.symbol)
       throw new Error(
         "symbol shows the common component type and is read-only in a batch",
@@ -294,6 +306,7 @@ export function parseGroupPropertyCode(
       ok: true,
       value: {
         symbol: context.symbol,
+        ...(names ? { names } : {}),
         parameters,
         display,
         appearance: { color },
@@ -311,8 +324,10 @@ export function groupPropertyCodeValue(
   context: GroupPropertyCodeContext,
 ): GroupPropertyCodeValue {
   const { items } = context;
+  const names = groupPropertyItemNames(context);
   return {
     symbol: context.symbol,
+    ...(names === "" ? {} : { names }),
     parameters:
       context.parameters === null
         ? ""
@@ -356,6 +371,7 @@ export function serializeGroupPropertyCode(
               ),
       },
       display: value.display,
+      ...(value.names ? { names: value.names } : {}),
       parameters: value.parameters,
       symbol: value.symbol,
     },

@@ -110,6 +110,8 @@ describe("batch component property code", () => {
     const source = formatGroupPropertyCode(listed);
     expect(JSON.parse(source)).toEqual({
       symbol: "resistor",
+      // Each name by its entry, which renames that component when changed.
+      names: { R1: "R1", R2: "R2" },
       parameters: { value: { R1: "1k", R2: "2k" } },
       // The same for both: one value, as before.
       display: { visualAnnotation: { R1: true, R2: false }, value: false },
