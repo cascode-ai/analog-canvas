@@ -1333,6 +1333,53 @@ test("the feed scrolls inside its shell despite the locked app root", async ({
   expect(scrolled.scrollTop).toBeGreaterThan(0);
 });
 
+test("a View in Gallery link pages to its circuit, centres it and rings it", async ({
+  page,
+}) => {
+  // Page two of a wall taller than the window: the tile must end up in view
+  // after masonry has settled, not only be scrolled to where it first stood.
+  await page.setViewportSize({ width: 520, height: 420 });
+  const pages = {
+    first: Array.from({ length: 10 }, (_, index) => `a-${index}`),
+    second: Array.from({ length: 10 }, (_, index) => `b-${index}`),
+  };
+  await page.route(galleryListUrl, (route) => {
+    const cursor = new URL(route.request().url()).searchParams.get("cursor");
+    const ids = cursor === "c1" ? pages.second : pages.first;
+    return route.fulfill({
+      json: {
+        entries: ids.map((id) => ({
+          id,
+          name: `Circuit ${id}`,
+          author: "tz",
+          description: "",
+          createdAt: "2026-08-22T10:00:00.000Z",
+          schemaVersion: 23,
+        })),
+        nextCursor: cursor === "c1" ? null : "c1",
+      },
+    });
+  });
+  await page.route("**/api/gallery/*/preview.svg", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 8"><rect width="10" height="8" fill="#fff"/></svg>',
+    }),
+  );
+
+  await page.goto("/?entry=b-7");
+  const tile = page.getByTestId("gallery-tile-b-7");
+  await expect(tile).toBeInViewport();
+  await expect(tile.locator("xpath=..")).toHaveClass(/is-linked/u);
+  // The link has done its work; a refresh does not seek again.
+  await expect(page).toHaveURL(/\/$/u);
+  await page.waitForTimeout(800);
+  await expect(tile).toBeInViewport();
+
+  await page.goto("/?entry=gone");
+  await expect(page.getByTestId("gallery-focus-missing")).toBeVisible();
+});
+
 test("clicking a byline filters the wall to that author, clearable", async ({
   page,
 }) => {
