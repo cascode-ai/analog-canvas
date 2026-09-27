@@ -118,7 +118,6 @@ const STATUS_LABELS: Record<string, string> = {
 
 export function MySubmissions() {
   const [state, setState] = useState<MineState>({ status: "loading" });
-  const [confirming, setConfirming] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [historyFor, setHistoryFor] = useState<MineEntry | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -147,7 +146,6 @@ export function MySubmissions() {
     setNotice(null);
     const ok = await setMyEntryRecycled(entry.id, action);
     setBusy(null);
-    setConfirming(null);
     if (!ok) {
       setNotice(
         `Could not ${action === "recycle" ? "withdraw" : "restore"} "${entry.name}".`,
@@ -257,31 +255,14 @@ export function MySubmissions() {
                       >
                         Restore
                       </button>
-                    ) : entry.status === "public" && confirming === entry.id ? (
-                      <>
-                        <button
-                          type="button"
-                          className="mine-withdraw mine-withdraw-confirm"
-                          data-testid={`mine-withdraw-confirm-${entry.id}`}
-                          disabled={busy === entry.id}
-                          onClick={() => void act(entry, "recycle")}
-                        >
-                          Really withdraw
-                        </button>
-                        <button
-                          type="button"
-                          className="account-link"
-                          onClick={() => setConfirming(null)}
-                        >
-                          Keep it
-                        </button>
-                      </>
                     ) : entry.status === "public" ? (
+                      // Withdrawing is undone by Restore, so it asks nothing.
                       <button
                         type="button"
                         className="mine-withdraw"
                         data-testid={`mine-withdraw-${entry.id}`}
-                        onClick={() => setConfirming(entry.id)}
+                        disabled={busy === entry.id}
+                        onClick={() => void act(entry, "recycle")}
                       >
                         Withdraw
                       </button>

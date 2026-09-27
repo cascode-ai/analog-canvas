@@ -1,6 +1,5 @@
 import { useState } from "react";
 import type { GalleryFeedEntry } from "../gallery-client";
-import { InlineConfirm } from "./inline-confirm";
 
 const OWNER_REJECT_REASONS = [
   "too ugly",
@@ -16,19 +15,33 @@ function joinedRejectReason(reasons: readonly string[], note: string): string {
   return selected || detail;
 }
 
-export function GalleryOwnerMenu({
+/**
+ * The one menu on a tile its viewer may manage, an administrator's or the
+ * submitter's own; the tile itself looks as it does to everyone. Review
+ * drawing opens the drawing's review. Withdraw takes the tile off the Gallery
+ * at once, and the recycle bin or My submissions brings it back.
+ */
+export function GalleryTileMenu({
   entry,
   busy,
+  administrator,
+  onReview,
   onWithdraw,
 }: {
   entry: GalleryFeedEntry;
   busy: boolean;
-  onWithdraw: () => void | Promise<void>;
+  /** An administrator may also edit and replace the drawing. */
+  administrator: boolean;
+  onReview: () => void;
+  onWithdraw: () => void;
 }) {
+  const scope = administrator ? "owner" : "author";
+  const close = (element: HTMLElement) =>
+    element.closest("details")?.removeAttribute("open");
   return (
     <details
       className="gallery-owner-menu"
-      data-testid={`gallery-owner-menu-${entry.id}`}
+      data-testid={`gallery-${scope}-menu-${entry.id}`}
     >
       <summary
         aria-label={`Manage ${entry.name}`}
@@ -36,60 +49,36 @@ export function GalleryOwnerMenu({
       >
         ⋯
       </summary>
-      <div className="gallery-owner-popover" data-inline-confirm-menu>
-        <a
-          href={`/g/${entry.id}`}
-          data-testid={`gallery-owner-edit-${entry.id}`}
+      <div className="gallery-owner-popover">
+        <button
+          type="button"
+          data-testid={`gallery-${scope}-review-${entry.id}`}
+          onClick={(event) => {
+            close(event.currentTarget);
+            onReview();
+          }}
         >
-          Edit and replace
-        </a>
-        <InlineConfirm
+          Review drawing
+        </button>
+        {administrator ? (
+          <a
+            href={`/g/${entry.id}`}
+            data-testid={`gallery-owner-edit-${entry.id}`}
+          >
+            Edit and replace
+          </a>
+        ) : null}
+        <button
+          type="button"
           disabled={busy}
-          data-testid={`gallery-owner-withdraw-${entry.id}`}
-          confirmLabel="Really withdraw"
-          onConfirm={onWithdraw}
+          data-testid={`gallery-${scope}-withdraw-${entry.id}`}
+          onClick={(event) => {
+            close(event.currentTarget);
+            onWithdraw();
+          }}
         >
           Withdraw
-        </InlineConfirm>
-      </div>
-    </details>
-  );
-}
-
-/** A submitter's own tile: × takes it off the Gallery after a second step,
- * and My submissions can bring it back. */
-export function GalleryWithdrawMenu({
-  entry,
-  busy,
-  onWithdraw,
-}: {
-  entry: GalleryFeedEntry;
-  busy: boolean;
-  onWithdraw: () => void | Promise<void>;
-}) {
-  return (
-    <details
-      className="gallery-owner-menu gallery-withdraw-menu"
-      data-testid={`gallery-withdraw-menu-${entry.id}`}
-    >
-      <summary
-        aria-label={`Withdraw ${entry.name}`}
-        title={`Withdraw ${entry.name}`}
-      >
-        ×
-      </summary>
-      <div className="gallery-owner-popover" data-inline-confirm-menu>
-        <p className="gallery-withdraw-note">
-          Takes it off the Gallery. Restore it any time from My submissions.
-        </p>
-        <InlineConfirm
-          disabled={busy}
-          data-testid={`gallery-withdraw-${entry.id}`}
-          confirmLabel="Really withdraw"
-          onConfirm={onWithdraw}
-        >
-          Withdraw
-        </InlineConfirm>
+        </button>
       </div>
     </details>
   );

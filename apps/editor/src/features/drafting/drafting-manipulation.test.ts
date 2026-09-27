@@ -216,6 +216,127 @@ describe("drafting manipulation", () => {
     );
   }
 
+  // The middle of a side moves that side alone: the opposite side and the
+  // other dimension stay exactly where they were.
+  for (const rotation of [0, 90, 180, 270]) {
+    it.each([1, 5, 10])(
+      `drags one side of a ${rotation}° rectangle on the %i-unit grid`,
+      (grid) => {
+        const object = {
+          ...rectangle(),
+          center: { x: 150, y: 150 },
+          anchor: { kind: "free" as const, position: { x: 150, y: 150 } },
+          width: 100,
+          height: 60,
+          rotation,
+        };
+        const geometry = resolveDraftingObjectGeometry(
+          document,
+          resolver,
+          object,
+        );
+        if (geometry.kind !== "rectangle") throw new Error("Missing rectangle");
+        const middle = (
+          corners: readonly { x: number; y: number }[],
+          side: number,
+        ) => {
+          const from = corners[side]!;
+          const to = corners[(side + 1) % 4]!;
+          return { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+        };
+        for (const side of [0, 1, 2, 3]) {
+          const dragged = middle(geometry.corners, side);
+          const outward = {
+            x: dragged.x - geometry.center.x,
+            y: dragged.y - geometry.center.y,
+          };
+          const length = Math.hypot(outward.x, outward.y);
+          // Pull the side 4 grid steps (and a little) further out.
+          const target = {
+            x: Math.round(dragged.x + (outward.x / length) * (8 * grid + 1)),
+            y: Math.round(dragged.y + (outward.y / length) * (8 * grid + 1)),
+          };
+          const resized = applyDraftingHandle(
+            object,
+            { kind: "rectangle-edge", index: side },
+            target,
+            geometry,
+            grid,
+          );
+          expect(DraftingObjectSchema.safeParse(resized).success).toBe(true);
+          if (resized.kind !== "rectangle") throw new Error("Not a rectangle");
+          const setsHeight = side % 2 === 0;
+          const pitch = grid % 2 === 0 ? grid : grid * 2;
+          expect(setsHeight ? resized.width : resized.height).toBe(
+            setsHeight ? 100 : 60,
+          );
+          expect(setsHeight ? resized.height : resized.width).toBe(
+            (setsHeight ? 60 : 100) +
+              Math.round((8 * grid + 1) / pitch) * pitch,
+          );
+          const changed = resolveDraftingObjectGeometry(
+            document,
+            resolver,
+            resized,
+          );
+          if (changed.kind !== "rectangle")
+            throw new Error("Missing rectangle");
+          const opposite = middle(geometry.corners, (side + 2) % 4);
+          const kept = middle(changed.corners, (side + 2) % 4);
+          expect(
+            Math.hypot(kept.x - opposite.x, kept.y - opposite.y),
+          ).toBeLessThan(1e-8);
+        }
+      },
+    );
+  }
+
+  it("turns a rectangle over when a side is dragged past its opposite side", () => {
+    const object = {
+      ...rectangle(),
+      center: { x: 150, y: 150 },
+      anchor: { kind: "free" as const, position: { x: 150, y: 150 } },
+      width: 100,
+      height: 60,
+      rotation: 0,
+    };
+    const geometry = resolveDraftingObjectGeometry(document, resolver, object);
+    // The top side (y = 120) dragged below the bottom side (y = 180).
+    expect(
+      applyDraftingHandle(
+        object,
+        { kind: "rectangle-edge", index: 0 },
+        { x: 150, y: 230 },
+        geometry,
+        10,
+      ),
+    ).toMatchObject({
+      center: { x: 150, y: 205 },
+      width: 100,
+      height: 50,
+    });
+    // Dropped right on the opposite side, it keeps one step of height on
+    // its own side; a unit past, it turns over.
+    expect(
+      applyDraftingHandle(
+        object,
+        { kind: "rectangle-edge", index: 0 },
+        { x: 150, y: 180 },
+        geometry,
+        10,
+      ),
+    ).toMatchObject({ center: { x: 150, y: 175 }, height: 10 });
+    expect(
+      applyDraftingHandle(
+        object,
+        { kind: "rectangle-edge", index: 0 },
+        { x: 150, y: 181 },
+        geometry,
+        10,
+      ),
+    ).toMatchObject({ center: { x: 150, y: 185 }, height: 10 });
+  });
+
   it("moves and resizes a circle while keeping it orientation-free", () => {
     const object = circle();
     const geometry = resolveDraftingObjectGeometry(document, resolver, object);

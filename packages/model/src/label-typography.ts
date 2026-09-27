@@ -25,6 +25,7 @@ import {
   currentNodeTextDocument,
   deviceLetterReferenceTextDocument,
   deviceReferenceTextDocument,
+  nameOverSubscriptTextDocument,
   voltageNodeTextDocument,
 } from "./semantic-text.js";
 
@@ -205,6 +206,8 @@ export interface RoleLabelFormatOptions {
  *   italic over an upright subscript of the rest (M₁, R₁₂, R_L1, C_L, R_FB)
  * - any other device reference: italic letters over an upright index, so a
  *   block named for what it is keeps its letters together (OA₁, XU₀)
+ * - any name led by a Greek letter, such as a clock phase: that letter in
+ *   italic over an upright subscript of the rest (Φ₁, Φ_1pp, ω₀)
  */
 export function roleLabelFormat(
   role: LabelRole,
@@ -220,14 +223,82 @@ export function roleLabelFormat(
       name.slice(0, 1).toUpperCase() === letter.toUpperCase()
     )
       return deviceLetterReferenceTextDocument(name);
-    return /^\p{L}+\p{N}+$/u.test(name)
-      ? deviceReferenceTextDocument(name)
+    if (/^\p{L}+\p{N}+$/u.test(name)) return deviceReferenceTextDocument(name);
+    return GREEK_LED_NAME.test(name)
+      ? deviceLetterReferenceTextDocument(name)
       : undefined;
   }
   if (/^[Vv][\p{L}\p{N}]+$/u.test(name)) return voltageNodeTextDocument(name);
+  if (GREEK_LED_NAME.test(name)) return deviceLetterReferenceTextDocument(name);
   return role === "voltage-node" && CURRENT_NAME.test(name)
     ? currentNodeTextDocument(name)
     : undefined;
+}
+
+/**
+ * A Greek letter, then Latin letters or digits: Φ1, Φ1pp, ω0, φS. Not a
+ * difference (ΔV) or a run of Greek (ΣΔ), which read as one symbol.
+ */
+const GREEK_LED_NAME = /^(?!Δ)\p{Script=Greek}[\p{Script=Latin}\p{N}]+$/u;
+
+/**
+ * The standard look of a name its author wrote as letters over a subscript —
+ * a switch's Φ₁, a free V_icm, a flip-flop's Q_A, V_in+ — split where they
+ * split it: the letters in bold italic over a bold upright subscript.
+ * Undefined for anything else: no subscript, text after the subscript, a
+ * space, a formula, or styling beyond italic, bold and subscript.
+ */
+export function writtenNameLook(
+  document: RichTextDocument,
+): RichTextDocument | undefined {
+  const characters: { value: string; subscript: boolean }[] = [];
+  if (!collectNameCharacters(document.runs, false, characters))
+    return undefined;
+  const split = characters.findIndex((character) => character.subscript);
+  if (
+    split <= 0 ||
+    characters.slice(split).some((character) => !character.subscript)
+  )
+    return undefined;
+  const text = (from: number, to?: number) =>
+    characters
+      .slice(from, to)
+      .map((character) => character.value)
+      .join("");
+  const base = text(0, split);
+  const subscript = text(split);
+  return /^\p{L}+$/u.test(base) && /^\S+$/u.test(subscript)
+    ? nameOverSubscriptTextDocument(base, subscript)
+    : undefined;
+}
+
+const NAME_STYLES: ReadonlySet<RichTextStyle> = new Set([
+  "italic",
+  "bold",
+  "subscript",
+]);
+
+function collectNameCharacters(
+  runs: readonly RichTextRun[],
+  subscript: boolean,
+  out: { value: string; subscript: boolean }[],
+): boolean {
+  for (const run of runs) {
+    if (run.kind === "text") {
+      for (const value of run.value) out.push({ value, subscript });
+      continue;
+    }
+    if (run.kind !== "span" || !NAME_STYLES.has(run.style)) return false;
+    if (
+      !collectNameCharacters(
+        run.children,
+        subscript || run.style === "subscript",
+        out,
+      )
+    )
+      return false;
+  }
+  return true;
 }
 
 /** Whether a stored format is still exactly the standard look for `name`. */

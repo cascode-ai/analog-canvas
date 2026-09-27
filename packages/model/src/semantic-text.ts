@@ -160,6 +160,18 @@ export function deviceLetterReferenceTextDocument(
   return { runs: [mathBase(match[1]!), uprightMathSubscript(match[2]!)] };
 }
 
+/**
+ * Letters over a subscript, split at a given place: the letters in bold
+ * italic over a smaller bold upright subscript, the look each standard name
+ * form above takes at its own split.
+ */
+export function nameOverSubscriptTextDocument(
+  base: string,
+  subscript: string,
+): RichTextDocument {
+  return { runs: [mathBase(base), uprightMathSubscript(subscript)] };
+}
+
 export type PortLabelSuffixCase = "preserve" | "uppercase" | "lowercase";
 export type PortLabelSuffixPlacement = "subscript" | "baseline";
 

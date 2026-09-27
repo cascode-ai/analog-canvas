@@ -25,6 +25,7 @@ import {
   roleLabelFormat,
   labelLookChanges,
   supplyLabelFormat,
+  writtenNameLook,
 } from "./label-typography.js";
 
 it("gives new drawings italic initials and upright preserved-case subscripts", () => {
@@ -355,6 +356,79 @@ it("gives a current's name an italic I over an upright subscript", () => {
     expect(roleLabelFormat("voltage-node", name)).toBeUndefined();
   // Supplies and devices keep their own rules.
   expect(roleLabelFormat("supply", "Iout")).toBeUndefined();
+});
+
+// A clock phase or another Greek-led name reads as its letter over an upright
+// subscript, whatever it labels: Φ₁, Φ_1pp, ω₀. A difference (ΔV) or a run of
+// Greek (ΣΔ) reads as one symbol and stays as written.
+it("gives a Greek-led name its letter in italic over an upright subscript", () => {
+  for (const role of ["voltage-node", "device-reference", "supply"] as const)
+    for (const [name, subscript] of [
+      ["Φ1", "1"],
+      ["Φ1pp", "1pp"],
+      ["φS", "S"],
+      ["ω0", "0"],
+    ] as const) {
+      const format = roleLabelFormat(role, name)!;
+      expect(flattenRichText({ runs: format.runs.slice(0, 1) })).toBe(
+        name.slice(0, 1),
+      );
+      expect(flattenRichText({ runs: format.runs.slice(1) })).toBe(subscript);
+      expect(JSON.stringify(format.runs[1])).toContain('"subscript"');
+    }
+  for (const name of ["ΔV", "ΣΔ", "Φ", "Φ_1", "Φ 1"])
+    expect(roleLabelFormat("voltage-node", name)).toBeUndefined();
+});
+
+it("sets a name written over a subscript in the standard look, split where it was written", () => {
+  const text = (value: string): RichTextRun => ({ kind: "text", value });
+  const span = (
+    style: RichTextStyle,
+    ...children: RichTextRun[]
+  ): RichTextRun => ({ kind: "span", style, children });
+  const split = (document: RichTextDocument | undefined) =>
+    document && [
+      flattenRichText({ runs: document.runs.slice(0, 1) }),
+      flattenRichText({ runs: document.runs.slice(1) }),
+    ];
+  // A switch's Φ₂ typed plain, and a V_icm whose subscript began twice.
+  expect(
+    writtenNameLook({ runs: [text("Φ"), span("subscript", text("2"))] }),
+  ).toEqual(roleLabelFormat("voltage-node", "Φ2"));
+  expect(
+    writtenNameLook({
+      runs: [
+        span("italic", span("bold", text("V"), span("subscript", text("i")))),
+        span("subscript", span("bold", text("cm"))),
+      ],
+    }),
+  ).toEqual(roleLabelFormat("voltage-node", "Vicm"));
+  // The subscript stays where its author put it, whatever it holds.
+  expect(
+    split(
+      writtenNameLook({ runs: [text("C"), span("subscript", text("c1"))] }),
+    ),
+  ).toEqual(["C", "c1"]);
+  expect(
+    split(
+      writtenNameLook({ runs: [text("V"), span("subscript", text("in+"))] }),
+    ),
+  ).toEqual(["V", "in+"]);
+  // Anything else is not one name over one subscript.
+  for (const runs of [
+    [text("VCO")],
+    [
+      text("g"),
+      span("subscript", text("m")),
+      text("v"),
+      span("subscript", text("gs")),
+    ],
+    [span("overbar", text("Φ")), span("subscript", text("1"))],
+    [text("2V"), span("subscript", text("BE"))],
+    [span("subscript", text("AP"))],
+    [text("V"), span("subscript", text("out n"))],
+  ])
+    expect(writtenNameLook({ runs })).toBeUndefined();
 });
 
 it("recognises a standard look however its spans are nested", () => {

@@ -14,6 +14,7 @@ import type { SchematicEdit } from "@icm/edit-engine";
 import {
   flattenRichText,
   normalizeRichText,
+  richTextWritesNotation,
   semanticTextDocument,
   soleRichTextMathRun,
 } from "@icm/model";
@@ -766,9 +767,11 @@ export function proposeTextEditingCommit(
       const presentation = formatPresentingName(styled, name);
       // An alias typed as a name, without a look of its own, is drawn the
       // way a name is (Φ2 as Φ over a subscript 2), so a drawing's labels
-      // keep one look.
+      // keep one look. Scripts or bars the author wrote are their own look.
       const aliasContent =
-        automaticAlias && !session.formatEdited
+        automaticAlias &&
+        !session.formatEdited &&
+        !richTextWritesNotation(session.content)
           ? (roleLabelFormat(
               "device-reference",
               flattenRichText(session.content).trim(),

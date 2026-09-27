@@ -1781,7 +1781,7 @@ test("selected arrow rotates via R and shows selection handles", async ({
   ).toHaveCount(1);
 });
 
-test("R creates a selectable, styleable rectangle with four resize handles", async ({
+test("R creates a selectable, styleable rectangle with corner and side resize handles", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -1863,6 +1863,30 @@ test("R creates a selectable, styleable rectangle with four resize handles", asy
   });
   await expect(page.getByTestId("revision")).toHaveText("4");
   expect(await rectangle.getAttribute("points")).not.toBe(pointsBeforeResize);
+
+  // The middle of a side moves that side alone.
+  await expect(page.locator('[data-testid^="draft-handle-side-"]')).toHaveCount(
+    4,
+  );
+  const corners = async () =>
+    ((await rectangle.getAttribute("points")) ?? "")
+      .trim()
+      .split(/\s+/)
+      .map((pair) => pair.split(",").map(Number));
+  const beforeSide = await corners();
+  await dragLocator(page.getByTestId(/^draft-handle-side-1-/), {
+    x: 60,
+    y: 25,
+  });
+  await expect(page.getByTestId("revision")).toHaveText("5");
+  const afterSide = await corners();
+  // Corners 0 and 3 are the left side; 1 and 2 the right, which moved right.
+  expect(afterSide[0]).toEqual(beforeSide[0]);
+  expect(afterSide[3]).toEqual(beforeSide[3]);
+  for (const index of [1, 2]) {
+    expect(afterSide[index]![1]).toBe(beforeSide[index]![1]);
+    expect(afterSide[index]![0]).toBeGreaterThan(beforeSide[index]![0]!);
+  }
 });
 
 test("O toggles Display settings and never activates Circle", async ({

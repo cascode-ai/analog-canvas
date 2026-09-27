@@ -344,6 +344,13 @@ then wire to, and a wire endpoint can only land on the electrical grid — an
 edge half a cell away from it cannot be met at all, leaving a visible stub of
 wire inside the outline.
 
+A selected rectangle has square handles at its four corners and at the middle
+of each side. A corner resizes it with the opposite corner fixed. The middle of
+a side moves that side alone: the opposite side and the other dimension stay
+where they are, and a side dragged past the opposite side turns the rectangle
+over onto it. Corner handles draw above side handles, so a corner stays
+reachable on a small rectangle.
+
 `M` and `Shift+M` enter SelectionMove, which previews at the pointer and
 commits on one click. Box selection, pointer-drag selection move, pan, and
 text-edit sessions remain bounded gesture owners, but every reset boundary

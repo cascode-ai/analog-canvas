@@ -1,16 +1,22 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { GalleryFeedEntry } from "../gallery-client";
 
-/** Private curation controls: only rendered for the author or an administrator. */
-export function GalleryAttentionReview({
+/**
+ * A drawing's review, opened from its tile menu: only for the author or an
+ * administrator. It shows what was flagged and records a new finding, a note
+ * or the resolution.
+ */
+export function GalleryReviewDialog({
   entry,
   reasons,
   onChange,
+  onClose,
 }: {
   entry: GalleryFeedEntry;
   /** Every reason with its name, in the Gallery's order. */
   reasons: readonly { kind: string; label: string }[];
   onChange: (entry: GalleryFeedEntry) => void;
+  onClose: () => void;
 }) {
   const labelOf = (kind: string) =>
     reasons.find((reason) => reason.kind === kind)?.label ?? kind;
@@ -18,6 +24,15 @@ export function GalleryAttentionReview({
   const [kind, setKind] = useState("other");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // Escape closes the review wherever focus is, even on the page behind it
+  // once a finished action's button is gone.
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busy) onClose();
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [busy, onClose]);
   const pending = entry.attention?.status === "needs-attention";
   const stale =
     entry.assessedPreviewRevision &&
@@ -60,82 +75,97 @@ export function GalleryAttentionReview({
     }
   }
   return (
-    <details
-      className="gallery-attention"
-      data-testid={`gallery-attention-${entry.id}`}
+    <div
+      className="gallery-owner-dialog-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !busy) onClose();
+      }}
     >
-      <summary>
-        {pending
-          ? "Needs attention"
-          : entry.attention
-            ? "Reviewed · resolved"
-            : "Review drawing"}
-      </summary>
-      {stale ? (
-        <p>
-          The drawing has changed since this visual review. Recheck the marked
-          areas.
-        </p>
-      ) : null}
-      {entry.attention?.issues.length ? (
-        <ul>
-          {entry.attention.issues.map((issue, index) => (
-            <li key={index}>
-              <strong>{labelOf(issue.kind)}</strong> · {issue.detail}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>
-          Flag a drawing or netlist problem for the author and administrators.
-        </p>
-      )}
-      <select
-        aria-label="Reason"
-        value={kind}
-        onChange={(event) => setKind(event.currentTarget.value)}
+      <section
+        className="gallery-owner-dialog gallery-review-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="gallery-review-title"
+        data-testid={`gallery-attention-${entry.id}`}
       >
-        {reasons.map((reason) => (
-          <option key={reason.kind} value={reason.kind}>
-            {reason.label}
-          </option>
-        ))}
-      </select>
-      <textarea
-        aria-label="Review note"
-        placeholder="Describe the problem and its location…"
-        maxLength={500}
-        rows={2}
-        value={note}
-        onChange={(event) => setNote(event.currentTarget.value)}
-      />
-      {error ? <p role="alert">{error}</p> : null}
-      <div className="gallery-attention-actions">
-        {pending ? (
+        <h2 id="gallery-review-title">Review “{entry.name}”</h2>
+        <p className="gallery-review-status">
+          {pending
+            ? "Needs attention"
+            : entry.attention
+              ? "Reviewed · resolved"
+              : "Not reviewed yet"}
+        </p>
+        {stale ? (
+          <p>
+            The drawing has changed since this visual review. Recheck the marked
+            areas.
+          </p>
+        ) : null}
+        {entry.attention?.issues.length ? (
+          <ul>
+            {entry.attention.issues.map((issue, index) => (
+              <li key={index}>
+                <strong>{labelOf(issue.kind)}</strong> · {issue.detail}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>
+            Flag a drawing or netlist problem for the author and administrators.
+          </p>
+        )}
+        <select
+          aria-label="Reason"
+          value={kind}
+          onChange={(event) => setKind(event.currentTarget.value)}
+        >
+          {reasons.map((reason) => (
+            <option key={reason.kind} value={reason.kind}>
+              {reason.label}
+            </option>
+          ))}
+        </select>
+        <textarea
+          aria-label="Review note"
+          placeholder="Describe the problem and its location…"
+          maxLength={500}
+          rows={3}
+          autoFocus
+          value={note}
+          onChange={(event) => setNote(event.currentTarget.value)}
+        />
+        {error ? <p role="alert">{error}</p> : null}
+        <div className="gallery-owner-dialog-actions">
+          <button type="button" disabled={busy} onClick={onClose}>
+            Close
+          </button>
+          {pending ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void save("resolved")}
+            >
+              Mark resolved
+            </button>
+          ) : null}
           <button
             type="button"
-            disabled={busy}
-            onClick={() => void save("resolved")}
+            disabled={
+              busy ||
+              (pending && !note.trim()) ||
+              (!note.trim() && !entry.attention?.issues.length)
+            }
+            onClick={() => void save("needs-attention")}
           >
-            Mark resolved
+            {pending
+              ? "Add note"
+              : entry.attention
+                ? "Reopen"
+                : "Mark for attention"}
           </button>
-        ) : null}
-        <button
-          type="button"
-          disabled={
-            busy ||
-            (pending && !note.trim()) ||
-            (!note.trim() && !entry.attention?.issues.length)
-          }
-          onClick={() => void save("needs-attention")}
-        >
-          {pending
-            ? "Add note"
-            : entry.attention
-              ? "Reopen"
-              : "Mark for attention"}
-        </button>
-      </div>
-    </details>
+        </div>
+      </section>
+    </div>
   );
 }

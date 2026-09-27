@@ -128,6 +128,23 @@ export function hasItalicScripts(document: RichTextDocument): boolean {
 }
 
 /**
+ * Whether text writes more than italic and bold: a subscript or superscript,
+ * a bar, a case change, a formula, a fraction or a line break. That is the
+ * author's notation, which a label's standard look would not keep.
+ */
+export function richTextWritesNotation(document: RichTextDocument): boolean {
+  const visit = (runs: readonly RichTextRun[]): boolean =>
+    runs.some((run) =>
+      run.kind === "text"
+        ? false
+        : run.kind !== "span" ||
+          (run.style !== "italic" && run.style !== "bold") ||
+          visit(run.children),
+    );
+  return visit(document.runs);
+}
+
+/**
  * The same text with every subscript and superscript upright: an italic span
  * inside a script is removed, and every other style is kept.
  */
