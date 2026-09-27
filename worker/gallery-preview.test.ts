@@ -19,12 +19,18 @@ describe("formula preview refresh", () => {
         '<svg><svg overflow="visible" data-role="formula"></svg></svg>',
       ),
     ).toBe(true);
+    // Label type before its runs flowed as text.
+    expect(
+      formulaPreviewNeedsRefresh(
+        '<svg><g data-role="formula" data-formula-typography="label-v1"><text>V</text></g></svg>',
+      ),
+    ).toBe(true);
   });
 
   it("keeps current formula artwork and previews without formulas", () => {
     expect(
       formulaPreviewNeedsRefresh(
-        '<svg><g data-role="formula" data-formula-typography="label-v1"><text>V</text></g></svg>',
+        '<svg><g data-role="formula" data-formula-typography="label-v2"><text>V</text></g></svg>',
       ),
     ).toBe(false);
     expect(

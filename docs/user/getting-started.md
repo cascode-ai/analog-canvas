@@ -451,8 +451,9 @@ PNG** or **Edit / Copy selection as SVG**, then paste into another application.
 Attached visible labels travel with their selected objects, but remote objects
 sharing a Net do not. Clipboard copies omit editor overlays, use a transparent
 page background, and do not change the circuit or Undo history. PNG is rendered
-at 3x with a bounded image size. SVG stays vector; formula glyphs remain paths,
-and the receiving application determines paste/editing support. Clipboard writes
+at 3x with a bounded image size. SVG stays vector: formulas are label text,
+or paths for the few a label's type cannot set, and the receiving application
+determines paste/editing support. Clipboard writes
 require HTTPS or localhost and browser permission. Failures are reported without
 silently downloading a file or substituting a different format. These commands
 remain separate from editable circuit copying with **C** (immediate placement)

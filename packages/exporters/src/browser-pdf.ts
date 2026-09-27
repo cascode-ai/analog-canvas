@@ -1,9 +1,85 @@
+import dejaVuSansUrl from "dejavu-fonts-ttf/ttf/DejaVuSans.ttf?url";
+import dejaVuSansBoldUrl from "dejavu-fonts-ttf/ttf/DejaVuSans-Bold.ttf?url";
+import dejaVuSansBoldObliqueUrl from "dejavu-fonts-ttf/ttf/DejaVuSans-BoldOblique.ttf?url";
+import dejaVuSansObliqueUrl from "dejavu-fonts-ttf/ttf/DejaVuSans-Oblique.ttf?url";
 import { jsPDF } from "jspdf";
 
 import type { FormalExportSource, RasterExport } from "./index.js";
 import { EXPORT_VERSION } from "./index.js";
 import { rasterizeFormalSvgInBrowser } from "./browser-raster.js";
-import { normalizeFormalSvgForSvg2Pdf } from "./svg2pdf-compat.js";
+import {
+  normalizeFormalSvgForSvg2Pdf,
+  setTextOutsideLatin1InFamily,
+  type PdfFontStyle,
+} from "./svg2pdf-compat.js";
+
+/**
+ * Text outside Latin-1 — Greek, the minus sign, math symbols in labels and
+ * formulas — is set in DejaVu Sans, the schematic font stack's first face,
+ * embedded as a subset of the glyphs used. The faces load only when a PDF
+ * needs them.
+ */
+const UNICODE_FAMILY = "ICM Unicode";
+const UNICODE_FACES: Record<PdfFontStyle, string> = {
+  normal: dejaVuSansUrl,
+  bold: dejaVuSansBoldUrl,
+  italic: dejaVuSansObliqueUrl,
+  bolditalic: dejaVuSansBoldObliqueUrl,
+};
+
+function base64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let start = 0; start < bytes.length; start += 0x8000)
+    binary += String.fromCharCode(...bytes.subarray(start, start + 0x8000));
+  return btoa(binary);
+}
+
+/**
+ * Embed each face in the PDF, and add it to the page for the conversion:
+ * svg2pdf measures text in the page to place what follows it, so the page
+ * must measure with the face the PDF draws. Returns the page's release.
+ */
+async function embedUnicodeFaces(
+  pdf: jsPDF,
+  styles: Iterable<PdfFontStyle>,
+): Promise<() => void> {
+  const faces: FontFace[] = [];
+  // svg2pdf measures in a text element of its own that names the family,
+  // but the scene's stylesheet, once in the page, sets every text element's
+  // family; give that element back the family it names.
+  const measuring = document.createElement("style");
+  measuring.textContent = `text[font-family="${UNICODE_FAMILY}"]{font-family:"${UNICODE_FAMILY}"}`;
+  const release = () => {
+    for (const face of faces) document.fonts.delete(face);
+    measuring.remove();
+  };
+  document.head.append(measuring);
+  try {
+    for (const style of styles) {
+      const response = await fetch(UNICODE_FACES[style]);
+      if (!response.ok) {
+        throw new Error(
+          `Vector PDF could not load the font for Greek and math symbols (HTTP ${response.status})`,
+        );
+      }
+      const bytes = await response.arrayBuffer();
+      const file = `icm-unicode-${style}.ttf`;
+      pdf.addFileToVFS(file, base64(new Uint8Array(bytes)));
+      pdf.addFont(file, UNICODE_FAMILY, style);
+      const face = new FontFace(UNICODE_FAMILY, bytes, {
+        weight: style.startsWith("bold") ? "700" : "400",
+        style: style.endsWith("italic") ? "italic" : "normal",
+      });
+      await face.load();
+      document.fonts.add(face);
+      faces.push(face);
+    }
+  } catch (error) {
+    release();
+    throw error;
+  }
+  return release;
+}
 
 function formalSvgElement(source: FormalExportSource): {
   host: HTMLDivElement;
@@ -52,7 +128,12 @@ export async function vectorizeFormalSvgInBrowser(
   pdf.setCreationDate(new Date("2000-01-01T00:00:00.000Z"));
 
   const { host, svg } = formalSvgElement(source);
+  let releaseFaces = () => {};
   try {
+    releaseFaces = await embedUnicodeFaces(
+      pdf,
+      setTextOutsideLatin1InFamily(svg, UNICODE_FAMILY),
+    );
     // svg2pdf's published UMD entry reads browser globals while it is loaded.
     // Loading it only for an actual browser PDF request keeps the exporter
     // module usable in Node-based editor tests and headless tooling.
@@ -67,6 +148,7 @@ export async function vectorizeFormalSvgInBrowser(
     });
     return new Uint8Array(pdf.output("arraybuffer"));
   } finally {
+    releaseFaces();
     host.remove();
   }
 }

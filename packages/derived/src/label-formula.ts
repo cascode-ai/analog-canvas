@@ -23,6 +23,20 @@ export interface LabelFormulaGlyph {
   size: number;
   italic: boolean;
   bold: boolean;
+  /** The glyph's width by the label advance tables. */
+  advance: number;
+  /**
+   * Glyphs sharing a flow are one run of text — symbols, operators and their
+   * scripts — drawn as label text is, each after the last by the real font's
+   * advance, so their spacing matches a label's in whatever font the viewer
+   * has. Fractions, radicals and fences are placed by the layout.
+   */
+  flow?: number;
+  /**
+   * The side a fence or radical sign keeps against what it encloses: an
+   * opening fence or a radical sign its right, a closing fence its left.
+   */
+  hug?: "left" | "right";
   /** Vertical stretch of a sized delimiter or radical, about its baseline. */
   scaleY?: number;
 }
@@ -551,6 +565,8 @@ function spaceBetween(left: AtomClass, right: AtomClass): number {
 }
 
 class Layout {
+  private nextFlow = 0;
+
   constructor(private readonly options: LabelFormulaOptions) {}
 
   size(style: Style): number {
@@ -580,7 +596,9 @@ class Layout {
       width,
       ascent,
       descent,
-      items: [{ kind: "glyph", x: 0, y: 0, text, size, italic, bold }],
+      items: [
+        { kind: "glyph", x: 0, y: 0, text, size, italic, bold, advance: width },
+      ],
     };
   }
 
@@ -594,6 +612,9 @@ class Layout {
       items: [],
     };
     let previous: AtomClass | null = null;
+    // The run the next flowing node joins; a fraction, radical or fence ends
+    // it.
+    let flow: number | null = null;
     for (const node of nodes) {
       let cls = classOf(node);
       // A sign that opens an expression, or follows another operator, is
@@ -611,6 +632,11 @@ class Layout {
       if (previous !== null && style <= 1)
         row.width += spaceBetween(previous, cls) * size;
       const box = this.node(node, style);
+      if (flowable(node)) {
+        flow ??= this.nextFlow++;
+        for (const item of box.items)
+          if (item.kind === "glyph") item.flow = flow;
+      } else flow = null;
       append(row, box, row.width, 0);
       row.width += box.width;
       if (node.kind !== "space") previous = cls;
@@ -666,7 +692,10 @@ class Layout {
         const scriptSize = this.size(scriptStyle);
         const italicBase =
           node.base?.kind === "atom" && node.base.font === "italic";
-        const gap = this.options.subscriptHorizontalGapEm * size;
+        // As a label sets it: a subscript follows by the profile gap in its
+        // own size; a superscript clears an italic letter's slant.
+        const gap = this.options.subscriptHorizontalGapEm * scriptSize;
+        const slant = italicBase ? 0.04 * size : 0;
         const box: LabelFormulaLayout = {
           width: base.width,
           ascent: base.ascent,
@@ -695,23 +724,17 @@ class Layout {
             supY -= push / 2;
           }
         }
-        if (sup) {
-          append(
-            box,
-            sup,
-            base.width + gap + (italicBase ? 0.04 * size : 0),
-            supY,
-          );
-          scriptWidth = Math.max(
-            scriptWidth,
-            sup.width + (italicBase ? 0.04 * size : 0),
-          );
+        // The script that reaches further goes last, so text flowing on from
+        // it starts after both.
+        const scripts = [
+          ...(sup ? [{ box: sup, x: slant, y: supY }] : []),
+          ...(sub ? [{ box: sub, x: gap, y: subY }] : []),
+        ].sort((a, b) => a.x + a.box.width - (b.x + b.box.width));
+        for (const script of scripts) {
+          append(box, script.box, base.width + script.x, script.y);
+          scriptWidth = Math.max(scriptWidth, script.x + script.box.width);
         }
-        if (sub) {
-          append(box, sub, base.width + gap, subY);
-          scriptWidth = Math.max(scriptWidth, sub.width);
-        }
-        box.width = base.width + gap + scriptWidth;
+        box.width = base.width + scriptWidth;
         return box;
       }
       case "radical": {
@@ -731,7 +754,12 @@ class Layout {
           ascent: top + rule,
           descent: bottom,
           items: [
-            { ...signItem, y: signY, ...(scale > 1 ? { scaleY: scale } : {}) },
+            {
+              ...signItem,
+              y: signY,
+              hug: "right",
+              ...(scale > 1 ? { scaleY: scale } : {}),
+            },
             {
               kind: "rule",
               x1: sign.width * 0.92,
@@ -778,7 +806,7 @@ class Layout {
           descent: Math.max(body.descent, 0.22 * size),
           items: [],
         };
-        const fence = (text: string) => {
+        const fence = (text: string, hug: "left" | "right") => {
           const glyph = this.glyph(text, size, false, bold);
           const item = glyph.items[0] as LabelFormulaGlyph;
           // A fence taller than a line stretches about its baseline and is
@@ -788,19 +816,42 @@ class Layout {
             ...item,
             x: box.width,
             y,
+            hug,
             ...(scale > 1 ? { scaleY: scale } : {}),
           });
           box.ascent = Math.max(box.ascent, 0.76 * size * scale - y);
           box.descent = Math.max(box.descent, 0.24 * size * scale + y);
           box.width += glyph.width;
         };
-        if (node.left) fence(node.left);
+        if (node.left) fence(node.left, "right");
         append(box, body, box.width, 0);
         box.width += body.width;
-        if (node.right) fence(node.right);
+        if (node.right) fence(node.right, "left");
         return box;
       }
     }
+  }
+}
+
+/**
+ * Symbols, spaces and scripted symbols flow as text; a fraction, radical,
+ * over- or underline, or fence is placed as a box.
+ */
+function flowable(node: Node): boolean {
+  switch (node.kind) {
+    case "atom":
+    case "space":
+      return true;
+    case "group":
+      return node.children.every(flowable);
+    case "scripts":
+      return (
+        (node.base === null || flowable(node.base)) &&
+        (node.sub ?? []).every(flowable) &&
+        (node.sup ?? []).every(flowable)
+      );
+    default:
+      return false;
   }
 }
 
