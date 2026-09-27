@@ -15,7 +15,7 @@ export const agentToolHelp = {
   simulation_batch:
     "Prepare explicit batches or sweeps, then start/read/cancel the same batch. Uses the existing serialized executor and original request/revision checks. Use simulation_results for registered results and simulation_data for local files.",
   circuit_place:
-    "Place built-in symbols, child Cells or existing instances and add power rails. actions is one atomic batch; obtain symbol IDs and resolved pins from catalog/inspect. Same planner and permissions as apply_actions.",
+    "Place built-in symbols, child Cells or existing instances and add power rails. place-component accepts electrical control for controlled sources, separate from Annotation. actions is one atomic batch; obtain symbol IDs and resolved pins from catalog/inspect. Same planner and permissions as apply_actions.",
   circuit_wire:
     "Connect/disconnect in an atomic batch; via gives interior points. Explicit instance IDs avoid a full-Snapshot name lookup; server routing/validation is unchanged. Artwork contact is not connectivity.",
   circuit_transform:
@@ -25,7 +25,7 @@ export const agentToolHelp = {
   circuit_text:
     "Edit native labels or independent drafting text. Device placement already creates bound Reference/Value displays: reuse them, do not imitate them with annotate. annotate uses GUI text defaults; edit-text strings preserve existing formatting, explicit RichText replaces it. Bound labels retain their semantic owner. Same atomic planner; unfamiliar fields are available from describe_tool.",
   circuit_properties:
-    "Set device references, parameters, models and display flags with the original action planner. Keep physical units such as 10u. Model bindings and bulk semantics are unchanged. Mixed action families remain available through apply_actions.",
+    "Set references, parameters, models, display flags or set-source-control with the original planner. control uses stable Net IDs or device instanceId/pinName/direction, null clears it; preserves parameters/binding and visual Annotation. Read control from Snapshot. Keep physical units such as 10u. Mixed families use apply_actions.",
   describe_tool:
     "Offline exact contracts from the same tool registry. Omit selectors for a lightweight directory. tool + operations selects one or several action/operation branches with their call envelope; field queries an argument JSON Pointer (* for array items). editKind reads a canonical low-level edit, not a high-level action. Reuse contracts within the same version; never a prerequisite or permission gate.",
   connect:

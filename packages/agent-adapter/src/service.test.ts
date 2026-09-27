@@ -112,6 +112,118 @@ function serviceFixture(
 }
 
 describe("current Agent Circuit API service", () => {
+  it.each(["vcvs", "vccs", "cccs", "ccvs"])(
+    "roundtrips %s controls through transactions and both Snapshot projections",
+    (symbolId) => {
+      const fixture = serviceFixture();
+      const document = fixture.getDocument();
+      const voltage = symbolId === "vcvs" || symbolId === "vccs";
+      const controls = voltage
+        ? [
+            {
+              kind: "voltage",
+              positiveNetId: document.nets[0]!.id,
+              negativeNetId: document.nets[1]!.id,
+            },
+            { kind: "voltage" },
+          ]
+        : [
+            {
+              kind: "terminal-current",
+              instanceId: "M1",
+              pinName: "D",
+              direction: "into",
+            },
+            {
+              kind: "terminal-current",
+              instanceId: "M1",
+              pinName: "S",
+              direction: "out",
+            },
+            { kind: "current", sensorInstanceId: "sensor" },
+          ];
+      const placed = fixture.service.handle({
+        apiVersion: "3.0",
+        operation: "transact",
+        requestId: "place-source",
+        transactionId: "place-source",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        edits: [
+          {
+            id: "source",
+            symbolId,
+            reference: { vcvs: "E1", vccs: "G1", cccs: "F1", ccvs: "H1" }[
+              symbolId
+            ],
+            placement: {
+              position: { x: 800, y: 600 },
+              rotation: 0,
+              mirror: "none",
+            },
+            netlist: { parameters: { gain: "2" }, control: controls[0] },
+          },
+          {
+            id: "sensor",
+            symbolId: "voltage-source",
+            reference: "V99",
+            placement: {
+              position: { x: 1000, y: 600 },
+              rotation: 0,
+              mirror: "none",
+            },
+            netlist: { parameters: { dc: "0" } },
+          },
+        ].map((instance) => ({ kind: "add_instance", instance })),
+      });
+      expect(placed, JSON.stringify(placed)).toMatchObject({ ok: true });
+      for (const [index, control] of [...controls, undefined].entries()) {
+        const reply = fixture.service.handle({
+          apiVersion: "3.0",
+          operation: "transact",
+          requestId: `control-${index}`,
+          transactionId: `control-${index}`,
+          documentId: document.id,
+          expectedRevision: fixture.getDocument().revision,
+          edits: [
+            {
+              kind: "set_instance_netlist",
+              instanceId: "source",
+              netlist: {
+                parameters: { gain: String(index + 3) },
+                ...(control ? { control } : {}),
+              },
+            },
+          ],
+        });
+        expect(reply).toMatchObject({ ok: true });
+        for (const projection of [undefined, "pins"] as const) {
+          const read = fixture.service.handle({
+            apiVersion: "3.0",
+            operation: "snapshot",
+            requestId: `read-${index}-${projection}`,
+            documentId: document.id,
+            ...(projection ? { projection, instanceIds: ["source"] } : {}),
+          });
+          expect(AgentCircuitResponseSchema.safeParse(read).success).toBe(true);
+          const instances =
+            read.ok && read.operation === "snapshot"
+              ? "projection" in read && read.projection === "pins"
+                ? read.instances
+                : "snapshot" in read
+                  ? read.snapshot.document.instances
+                  : []
+              : [];
+          expect(
+            instances.find((instance) => instance.id === "source")?.netlist,
+          ).toEqual({
+            parameters: { gain: String(index + 3) },
+            ...(control ? { control } : {}),
+          });
+        }
+      }
+    },
+  );
   it("compacts removed diagnostic bodies without changing the preview or current diagnostics", () => {
     const full = serviceFixture();
     const compact = serviceFixture();
@@ -377,7 +489,9 @@ describe("current Agent Circuit API service", () => {
     // Complete OpenAPI including staged Cell composition and schema 64's kept
     // Document style: 535,143 characters, not a token count or a host
     // discovery payload.
-    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(536_500);
+    // Snapshot control adds 868 bytes (536,035 -> 536,903), completing the
+    // existing write contract; no duplicate independent schema is introduced.
+    expect(JSON.stringify(agentCircuitOpenApi).length).toBeLessThan(537_000);
   });
 
   it("keeps terminal-current runtime control strict and partial authoring explicit", () => {

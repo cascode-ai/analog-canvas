@@ -32,13 +32,22 @@ if (
 }
 
 const symbols = [];
+// These reviewed product-semantic sources deliberately reuse independent-source
+// artwork. They are not claimed as direct textbook extractions. Keep unrelated
+// house assets outside this bounded authoring addition.
+const controlledSources = new Set(["vcvs", "vccs", "cccs", "ccvs"]);
 for (const entry of sourceCatalog.entries) {
   // This is the reviewed, palette-visible product boundary. Manual-only and
   // provisional assets remain unavailable without an explicit human fact.
   if (
     entry.reviewStatus !== "reviewed" ||
     entry.palette !== true ||
-    entry.visualAuthority?.kind !== "razavi-reference-v1"
+    (entry.visualAuthority?.kind !== "razavi-reference-v1" &&
+      !(
+        controlledSources.has(entry.symbolId) &&
+        entry.provenance === "house" &&
+        entry.houseReason
+      ))
   ) {
     continue;
   }

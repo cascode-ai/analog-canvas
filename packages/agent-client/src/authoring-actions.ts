@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RichTextDocumentSchema } from "@icm/model";
+import { RichTextDocumentSchema, InstanceNetlistDataSchema } from "@icm/model";
 import {
   AgentAuthoringCommandSchema,
   AgentSemanticIntentSchema,
@@ -118,6 +118,16 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
   }),
   z.strictObject({ kind: z.literal("undo") }),
   z.strictObject({ kind: z.literal("redo") }),
+  z.strictObject({
+    kind: z.literal("set-source-control"),
+    target: InstanceRefSchema,
+    control: InstanceNetlistDataSchema.shape.control
+      .unwrap()
+      .nullable()
+      .describe(
+        "Replace only electrical control; null clears it. Stable IDs come from Snapshot. Parameters, binding and visual Annotation are preserved.",
+      ),
+  }),
   z
     .strictObject({
       kind: z.literal("place-component"),
@@ -135,6 +145,9 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
       mirror: MirrorInputSchema.optional(),
       variant: z.string().min(1).optional(),
       parameters: z.record(z.string().min(1), z.string().min(1)).optional(),
+      control: InstanceNetlistDataSchema.shape.control.describe(
+        "Controlled-source electrical selection using stable Net or Instance/pin IDs from Snapshot; independent of visual Annotation.",
+      ),
       direction: z
         .enum(["input", "output", "inout", "passive"])
         .optional()

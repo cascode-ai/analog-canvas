@@ -1,5 +1,6 @@
 import {
   AnnotationSchema,
+  InstanceNetlistDataSchema,
   DerivedPointSchema,
   DerivedRectSchema,
   DraftingDiagnosticSchema,
@@ -437,6 +438,7 @@ export const AgentSnapshotPinSchema = z.strictObject({
 });
 
 const AgentNetlistFactsSchema = z.strictObject({
+  control: InstanceNetlistDataSchema.shape.control,
   binding: z
     .discriminatedUnion("kind", [
       z.strictObject({

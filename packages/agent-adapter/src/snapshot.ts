@@ -432,6 +432,9 @@ export function selectAgentInstances(
         ...(instance.netlist
           ? {
               netlist: {
+                ...(instance.netlist.control
+                  ? { control: structuredClone(instance.netlist.control) }
+                  : {}),
                 ...(instance.netlist.binding
                   ? { binding: instance.netlist.binding }
                   : {}),

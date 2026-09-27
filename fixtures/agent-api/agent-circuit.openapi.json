@@ -32408,6 +32408,74 @@
               "netlist": {
                 "type": "object",
                 "properties": {
+                  "control": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "voltage"
+                          },
+                          "positiveNetId": {
+                            "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema1"
+                          },
+                          "negativeNetId": {
+                            "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema1"
+                          }
+                        },
+                        "required": [
+                          "kind"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "current"
+                          },
+                          "sensorInstanceId": {
+                            "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema1"
+                          }
+                        },
+                        "required": [
+                          "kind"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "const": "terminal-current"
+                          },
+                          "instanceId": {
+                            "$ref": "#/components/schemas/agentCircuitResponse/$defs/__schema1"
+                          },
+                          "pinName": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 128
+                          },
+                          "direction": {
+                            "type": "string",
+                            "enum": [
+                              "into",
+                              "out"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "direction"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  },
                   "binding": {
                     "oneOf": [
                       {

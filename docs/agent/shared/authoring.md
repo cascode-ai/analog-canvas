@@ -83,6 +83,35 @@ targets to avoid full-Snapshot name resolution. Names remain supported when usef
 
 ## Edit locally and batch
 
+### Controlled sources
+
+The catalog IDs `vcvs`, `vccs`, `cccs`, `ccvs` reuse the ordinary source artwork.
+MCP `circuit_place` / `place-component` accepts `control` beside `parameters`.
+Change or clear it with `circuit_properties` action `set-source-control`, an
+Instance `target`, and `control` (null clears the selection). This preserves
+parameters and binding. The editable visual formula is an existing Annotation,
+not a control expression or a second `displayExpression` property.
+
+- VCVS/VCCS: `control:{kind:"voltage",positiveNetId:"<id>",negativeNetId:"<id>"}`.
+  Read stable Net IDs from the live Snapshot, not displayed names or numbers.
+- CCCS/CCVS: `control:{kind:"terminal-current",instanceId:"<id>",pinName:"<pin>",direction:"into"}`.
+  Inspect the target's pins first. `into` means current entering that device
+  terminal; `out` reverses it. Selecting two Nets does not define branch current.
+  Export reuses an eligible voltage-source sensor or inserts a shared series
+  zero-volt probe; it does not change the drawing.
+- Explicit existing voltage-source sensing is also supported with
+  `control:{kind:"current",sensorInstanceId:"<id>"}`.
+
+Full Snapshot and selected-pin projections return the authored
+`instance.netlist.control`, including incomplete selections. Missing targets or
+incomplete controls are not simulation-ready; review netlist diagnostics.
+Use catalog parameter names/units (`gain`, `gm` in S, `rm` in ohms),
+not the visual formula as a simulator expression. Raw HTTP uses native
+`place-components` with `instances[].netlist.control` or the typed
+`set_instance_netlist` edit. That edit replaces all netlist facts: preserve
+existing binding and parameters when changing only control. MCP and HTTP use
+the same model and exporter; no alternate electrical protocol is needed.
+
 Multiple placements, wires, labels, model assignments and annotation moves have
 existing atomic batch paths. Failure commits nothing; success has one undo.
 Display flags, Port directions, VDD mode and terminal removal can share the
