@@ -1665,24 +1665,28 @@ function WorkspaceEditor({
       return uniqueSuffixCounter.current;
     },
   });
-  const { openGalleryEntryById, openLibraryExample, insertGalleryEntryById } =
-    createGalleryExampleCommands({
-      defaultViewBox: DEFAULT_VIEWBOX,
-      prepareLibraryExample: (example) =>
-        prepareNetlistExample(
-          example,
-          netlistPreferences.preferences.profiles[netlistPreferences.selected],
-        ),
-      replaceActiveProject,
-      guardDirtyReplacement,
-      beginCopyPlacement: (clipboard, anchor) => {
-        prepareProjectCopy(project, document, clipboard);
-        beginCopyPlacementInteraction(clipboard, anchor);
-      },
-      cancelAllTransientInteraction,
-      setGalleryEntryContext,
-      setStatus,
-    });
+  const {
+    openGalleryEntryById,
+    refreshGalleryEntry,
+    openLibraryExample,
+    insertGalleryEntryById,
+  } = createGalleryExampleCommands({
+    defaultViewBox: DEFAULT_VIEWBOX,
+    prepareLibraryExample: (example) =>
+      prepareNetlistExample(
+        example,
+        netlistPreferences.preferences.profiles[netlistPreferences.selected],
+      ),
+    replaceActiveProject,
+    guardDirtyReplacement,
+    beginCopyPlacement: (clipboard, anchor) => {
+      prepareProjectCopy(project, document, clipboard);
+      beginCopyPlacementInteraction(clipboard, anchor);
+    },
+    cancelAllTransientInteraction,
+    setGalleryEntryContext,
+    setStatus,
+  });
   const [draftingInspectorSegment, setDraftingInspectorSegment] = useState<{
     objectId: string;
     index: number;
@@ -4084,6 +4088,29 @@ function WorkspaceEditor({
     if (!capabilities.community) return;
     toggleExamplesPanelFromShell();
   }
+
+  // A Gallery link opens what the Gallery holds now. When this browser tab
+  // returns to a link it had open, its saved tabs come back instead; once
+  // they have, an untouched copy of the linked entry is brought up to date.
+  // A copy the user has changed stays theirs.
+  const restoredGalleryLink = useRef(
+    capabilities.community && restoredWorkspace && !restoreAfterRefresh
+      ? initialGalleryEntryId
+      : null,
+  );
+  useEffect(() => {
+    const entryId = restoredGalleryLink.current;
+    if (restoringWorkspace || !entryId) return;
+    restoredGalleryLink.current = null;
+    if (
+      galleryEntryContext?.id !== entryId ||
+      isDirtyWork() ||
+      hasUnsafeWork() ||
+      codeDraftDirty
+    )
+      return;
+    void refreshGalleryEntry(galleryEntryContext);
+  }, [restoringWorkspace]);
 
   // boot Project only; ordinary sessions never re-run these.
   const bootTargetHandled = useRef(false);

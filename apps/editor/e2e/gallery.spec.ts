@@ -1390,6 +1390,72 @@ test("a View in Gallery link shows its circuit at once, centres it and rings it"
   await expect(page.getByTestId("gallery-focus-missing")).toBeVisible();
 });
 
+test("a tab returning to a Gallery link shows the current entry unless its copy was changed", async ({
+  page,
+}) => {
+  const id = "g-return";
+  const name = "Return Visit";
+  let stored = galleryResistorProject("1k", 1);
+  let reads = 0;
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        user: {
+          id: "u1",
+          displayName: "Reader",
+          email: "reader@example.com",
+          provider: "github",
+          role: "user",
+          isAdmin: false,
+        },
+      },
+    }),
+  );
+  await page.route(`**/api/gallery/${id}`, (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    reads += 1;
+    return route.fulfill({
+      json: {
+        entry: { id, name, author: "tz", description: "", tags: [] },
+        projectText: serializeProject(stored),
+      },
+    });
+  });
+  page.on("dialog", (dialog) => dialog.accept());
+  const count = page.getByTestId("active-instance-count");
+  const status = page.getByTestId("status");
+
+  await page.goto(`/g/${id}`);
+  await awaitEditorReady(page);
+  await expect(status).toContainText(`Opened gallery circuit: ${name}`);
+  await expect(count).toHaveText("1");
+  // The same browser tab restores its saved copy while the entry stands.
+  await page.goto(`/g/${id}`);
+  await awaitEditorReady(page);
+  await expect(status).toContainText("Switched to");
+  await expect(count).toHaveText("1");
+  // Once the entry changes, the untouched copy gives way to it.
+  stored = galleryResistorProject("1k", 2);
+  await page.goto(`/g/${id}`);
+  await awaitEditorReady(page);
+  await expect(status).toContainText(
+    `Opened the current Gallery version of ${name}`,
+  );
+  await expect(count).toHaveText("2");
+  // A copy the reader has changed stays theirs.
+  await page.getByTestId("hit-R1").click();
+  await page.keyboard.press("Delete");
+  await expect(count).toHaveText("1");
+  stored = galleryResistorProject("1k", 3);
+  const readsBefore = reads;
+  await page.goto(`/g/${id}`);
+  await awaitEditorReady(page);
+  await expect(status).toContainText("Switched to");
+  await page.waitForLoadState("networkidle");
+  expect(reads).toBe(readsBefore);
+  await expect(count).toHaveText("1");
+});
+
 test("clicking a byline filters the wall to that author, clearable", async ({
   page,
 }) => {

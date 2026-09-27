@@ -4,12 +4,15 @@ import {
   createRoutePath,
 } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 
 import { createGalleryExampleCommands } from "./gallery-example-commands";
 import { hierarchicalSymbolId } from "@icm/symbols";
 
 const defaultViewBox = { x: 0, y: 0, width: 960, height: 640 };
+const digest = (text: string) =>
+  createHash("sha256").update(text).digest("hex");
 
 function dependencies(fetchImpl: typeof fetch = vi.fn<typeof fetch>()) {
   return {
@@ -187,6 +190,7 @@ describe("Gallery and example commands", () => {
 
   it("opens a Gallery Project and records the live entry context", async () => {
     const project = createEmptyProject("gallery-project", "Project fallback");
+    const projectText = serializeProject(project);
     const fetchImpl = vi.fn<typeof fetch>(async () =>
       Response.json({
         entry: {
@@ -196,7 +200,7 @@ describe("Gallery and example commands", () => {
           tags: ["ota"],
         },
         ownerUserId: "user-1",
-        projectText: serializeProject(project),
+        projectText,
       }),
     );
     const input = dependencies(fetchImpl);
@@ -220,6 +224,81 @@ describe("Gallery and example commands", () => {
       author: "Ada",
       description: "A circuit",
       tags: ["ota"],
+      sourceDigest: digest(projectText),
+    });
+  });
+
+  describe("a browser tab returning to a Gallery link", () => {
+    const opened = createEmptyProject("gallery-project", "Opened");
+    const openedText = serializeProject(opened);
+    const changed = createEmptyProject("gallery-project", "Changed");
+    changed.documents[0]!.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 100, y: 80 }, rotation: 0, mirror: "none" },
+    });
+    const changedText = serializeProject(changed);
+    const context = {
+      id: "entry-1",
+      name: "Published name",
+      projectId: "gallery-project",
+      ownerUserId: null,
+      author: "Ada",
+      description: "",
+      tags: [],
+      sourceDigest: digest(openedText),
+    };
+    const serving = (projectText: string) =>
+      vi.fn<typeof fetch>(async () =>
+        Response.json({ entry: { name: "Published name" }, projectText }),
+      );
+
+    it("brings its untouched copy up to the entry's current version", async () => {
+      const input = dependencies(serving(changedText));
+      await createGalleryExampleCommands(input).refreshGalleryEntry(context);
+
+      expect(input.replaceActiveProject).toHaveBeenCalledWith(
+        expect.objectContaining({
+          documents: [
+            expect.objectContaining({
+              instances: [expect.objectContaining({ id: "R1" })],
+            }),
+          ],
+        }),
+        defaultViewBox,
+      );
+      expect(input.setGalleryEntryContext).toHaveBeenCalledWith(
+        expect.objectContaining({ sourceDigest: digest(changedText) }),
+      );
+      expect(input.setStatus).toHaveBeenCalledWith(
+        "Opened the current Gallery version of Published name",
+      );
+    });
+
+    it("keeps the copy when the entry has not changed", async () => {
+      const input = dependencies(serving(openedText));
+      await createGalleryExampleCommands(input).refreshGalleryEntry(context);
+
+      expect(input.replaceActiveProject).not.toHaveBeenCalled();
+      expect(input.setStatus).not.toHaveBeenCalled();
+    });
+
+    it("updates a copy opened before its text was recorded", async () => {
+      const input = dependencies(serving(openedText));
+      const { sourceDigest: _, ...unrecorded } = context;
+      await createGalleryExampleCommands(input).refreshGalleryEntry(unrecorded);
+
+      expect(input.replaceActiveProject).toHaveBeenCalledOnce();
+    });
+
+    it("keeps the copy when the entry cannot be read", async () => {
+      const input = dependencies(
+        vi.fn<typeof fetch>(async () => Response.json({}, { status: 404 })),
+      );
+      await createGalleryExampleCommands(input).refreshGalleryEntry(context);
+
+      expect(input.replaceActiveProject).not.toHaveBeenCalled();
+      expect(input.setStatus).not.toHaveBeenCalled();
     });
   });
 

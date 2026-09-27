@@ -1,5 +1,7 @@
 import {
+  createReferenceIndex,
   deviceDescriptor,
+  referenceIssuesForInstance,
   reviewedExternalBindingForMaster,
   resolveReviewedExternalBinding,
 } from "@icm/devices";
@@ -19,6 +21,7 @@ import {
   type NetlistDeviceFamily,
   type NetlistQuickTargetFamily,
 } from "./netlist-process-presets";
+import { initialInstanceNetlist } from "./netlist-authoring";
 
 export function instanceModelTarget(
   project: CircuitProject,
@@ -59,6 +62,20 @@ export function netlistFamilyTarget(
     : targets.size === 1
       ? ([...targets][0] ?? null)
       : null;
+}
+
+/** The symbol a device's current reviewed model is drawn as, else its own. */
+function drawnSymbolId(project: CircuitProject, instance: Instance): string {
+  const binding = instance.netlist?.binding;
+  if (binding?.kind !== "external-subcircuit") return instance.symbolId;
+  const definition = project.externalSubcircuitDefinitions.find(
+    (item) => item.id === binding.definitionId,
+  );
+  return (
+    (definition &&
+      reviewedExternalBindingForMaster(definition.name)?.symbolId) ??
+    instance.symbolId
+  );
 }
 
 /** Display what the Project actually contains, not an unrelated browser default. */
@@ -137,17 +154,27 @@ export function planNetlistProcess(
   }
   for (const originalDocument of project.documents) {
     const documentId = originalDocument.id;
+    // The Edit Engine refuses netlist edits to a device whose Reference is
+    // missing, taken or of another class. Such a device keeps its finding
+    // until the author renames it, and the rest of the circuit still fills.
+    const references = createReferenceIndex(originalDocument, project);
     for (const original of originalDocument.instances) {
       const family = netlistDeviceFamily(original.symbolId);
       const descriptor = deviceDescriptor(original.symbolId);
       if (
         !family ||
         !descriptor ||
-        !original.netlist ||
         !original.reference ||
+        referenceIssuesForInstance(references, original.id).length ||
         (options.family && family !== options.family)
       )
         continue;
+      // A device drawn with no netlist record at all (by an Agent, or before
+      // the editor bound devices) is owed the record a freshly placed one
+      // carries; the process then fills it like any other.
+      const originalNetlist =
+        original.netlist ?? initialInstanceNetlist(original.symbolId, {});
+      if (!originalNetlist) continue;
       const originalTarget = instanceModelTarget(project, original);
       // Custom external blocks and child Cells own their interfaces. Opening
       // a Project must never reinterpret an existing authored model or wrapper.
@@ -157,19 +184,32 @@ export function planNetlistProcess(
       )
         continue;
       if (
-        original.netlist.binding &&
-        "deviceClass" in original.netlist.binding &&
-        original.netlist.binding.deviceClass !== descriptor.deviceClass
+        originalNetlist.binding &&
+        "deviceClass" in originalNetlist.binding &&
+        originalNetlist.binding.deviceClass !== descriptor.deviceClass
       )
         continue;
       const rule = profile.devices[family];
       if (descriptor.targetPolicy === "none") continue;
       const target = rule.target;
+      const reviewed = reviewedExternalBindingForMaster(target);
+      // A reviewed model belongs to one drawn symbol. A device drawn as
+      // another (a DMOS against a plain MOS model) keeps its finding for the
+      // author to settle, and the rest of the circuit still fills.
+      if (reviewed && reviewed.symbolId !== drawnSymbolId(project, original))
+        continue;
+      if (!original.netlist)
+        transact(documentId, [
+          {
+            kind: "set_instance_netlist",
+            instanceId: original.id,
+            netlist: originalNetlist,
+          },
+        ]);
       let document = working.documents.find((item) => item.id === documentId)!;
       let instance = document.instances.find(
         (item) => item.id === original.id,
       )!;
-      const reviewed = reviewedExternalBindingForMaster(target);
       const external =
         instance.netlist!.binding?.kind === "external-subcircuit";
       if (target || external || descriptor.targetPolicy === "required-model") {
@@ -185,7 +225,7 @@ export function planNetlistProcess(
       if (family === "nmos" || family === "pmos") {
         const from = profile.id === "tsmc28" ? "m" : "multi";
         const to = profile.id === "tsmc28" ? "multi" : "m";
-        const old = Object.entries(original.netlist.parameters).find(
+        const old = Object.entries(originalNetlist.parameters).find(
           ([name]) => name.toLowerCase() === from,
         );
         if (old) {
@@ -194,7 +234,7 @@ export function planNetlistProcess(
           );
           if (
             !destination ||
-            original.netlist.parameters[destination] === undefined
+            originalNetlist.parameters[destination] === undefined
           )
             parameters[destination ?? to] = old[1];
           for (const name of Object.keys(parameters))
@@ -228,12 +268,12 @@ export function planNetlistProcess(
           Object.keys(parameters).find(
             (key) => key.toLowerCase() === name.toLowerCase(),
           ) ?? name;
-        const authored = Object.keys(original.netlist.parameters).some(
+        const authored = Object.keys(originalNetlist.parameters).some(
           (key) => key.toLowerCase() === name.toLowerCase(),
         );
         const mappedCount =
           (name === "m" || name === "multi") &&
-          Object.keys(original.netlist.parameters).some((key) =>
+          Object.keys(originalNetlist.parameters).some((key) =>
             ["m", "multi"].includes(key.toLowerCase()),
           );
         if (!parameters[key]?.trim() || (reviewed && !authored && !mappedCount))

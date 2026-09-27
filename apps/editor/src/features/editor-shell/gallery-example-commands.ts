@@ -19,6 +19,11 @@ export interface GalleryEntryContext {
   author: string;
   description: string;
   tags: readonly string[];
+  /**
+   * SHA-256 of the stored text this copy was opened from, so a later visit
+   * can tell whether the Gallery has changed the entry since.
+   */
+  sourceDigest?: string;
 }
 
 interface GalleryEntryPayload {
@@ -52,6 +57,17 @@ export interface GalleryExampleCommandDependencies {
   setGalleryEntryContext: (context: GalleryEntryContext) => void;
   setStatus: (status: string) => void;
   fetchImpl?: typeof fetch;
+}
+
+async function textDigest(text: string): Promise<string | undefined> {
+  if (!globalThis.crypto?.subtle) return undefined;
+  const digest = await globalThis.crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(text),
+  );
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
 }
 
 /**
@@ -103,6 +119,37 @@ export function createGalleryExampleCommands({
     return true;
   };
 
+  const installGalleryEntry = async (
+    entryId: string,
+    projectText: string,
+    payload: GalleryEntryPayload,
+    protectCurrentProject: boolean,
+    opened: (name: string) => string,
+  ): Promise<void> => {
+    const galleryProject = repairOnOpen(parseProject(projectText));
+    const name = payload.entry?.name ?? galleryProject.name;
+    const sourceDigest = await textDigest(projectText);
+    const install = () => {
+      replaceActiveProject(galleryProject, defaultViewBox);
+      setGalleryEntryContext({
+        id: entryId,
+        name,
+        projectId: galleryProject.id,
+        ownerUserId: payload.ownerUserId ?? null,
+        author: payload.entry?.author ?? "",
+        description: payload.entry?.description ?? "",
+        tags: payload.entry?.tags ?? [],
+        ...(sourceDigest ? { sourceDigest } : {}),
+      });
+      setStatus(opened(name));
+    };
+    if (protectCurrentProject) {
+      await guardDirtyReplacement(`Open gallery circuit ${name}`, install);
+    } else {
+      install();
+    }
+  };
+
   const openGalleryEntryById = async (
     entryId: string,
     protectCurrentProject = true,
@@ -124,28 +171,49 @@ export function createGalleryExampleCommands({
         setStatus("This gallery entry is unavailable");
         return;
       }
-      const galleryProject = repairOnOpen(parseProject(payload.projectText));
-      const name = payload.entry?.name ?? galleryProject.name;
-      const install = () => {
-        replaceActiveProject(galleryProject, defaultViewBox);
-        setGalleryEntryContext({
-          id: entryId,
-          name,
-          projectId: galleryProject.id,
-          ownerUserId: payload.ownerUserId ?? null,
-          author: payload.entry?.author ?? "",
-          description: payload.entry?.description ?? "",
-          tags: payload.entry?.tags ?? [],
-        });
-        setStatus(`Opened gallery circuit: ${name}`);
-      };
-      if (protectCurrentProject) {
-        await guardDirtyReplacement(`Open gallery circuit ${name}`, install);
-      } else {
-        install();
-      }
+      await installGalleryEntry(
+        entryId,
+        payload.projectText,
+        payload,
+        protectCurrentProject,
+        (name) => `Opened gallery circuit: ${name}`,
+      );
     } catch {
       setStatus("This gallery entry is unavailable");
+    }
+  };
+
+  /**
+   * A Gallery link opens what the Gallery holds now. When a browser tab comes
+   * back to a link it had open, its saved copy returns instead; the caller
+   * passes that copy's entry only while it is untouched, and it is replaced
+   * when the entry's stored text has changed since it was opened. Anything
+   * that fails keeps the copy.
+   */
+  const refreshGalleryEntry = async (
+    context: GalleryEntryContext,
+  ): Promise<void> => {
+    try {
+      const response = await fetchImpl(`/api/gallery/${context.id}`, {
+        credentials: "same-origin",
+      });
+      if (!response.ok) return;
+      const payload = (await response.json()) as GalleryEntryPayload;
+      if (!payload.projectText) return;
+      if (
+        context.sourceDigest !== undefined &&
+        context.sourceDigest === (await textDigest(payload.projectText))
+      )
+        return;
+      await installGalleryEntry(
+        context.id,
+        payload.projectText,
+        payload,
+        true,
+        (name) => `Opened the current Gallery version of ${name}`,
+      );
+    } catch {
+      // The copy in hand stays.
     }
   };
 
@@ -188,6 +256,7 @@ export function createGalleryExampleCommands({
   return {
     beginProjectImportPlacement,
     openGalleryEntryById,
+    refreshGalleryEntry,
     openLibraryExample,
     insertGalleryEntryById,
   };
