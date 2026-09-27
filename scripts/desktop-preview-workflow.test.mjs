@@ -6,15 +6,14 @@ const release = readFileSync(".github/workflows/desktop-release.yml", "utf8");
 const ci = readFileSync(".github/workflows/ci.yml", "utf8");
 
 describe("desktop distribution gates", () => {
-  it("requires packaged Windows acceptance in the existing required core check", () => {
-    expect(ci).toContain("uses: ./.github/workflows/desktop-preview.yml");
-    expect(ci).toContain("needs: [changes, core_suite, desktop]");
-    expect(ci).toContain(
-      "if: always() && github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'",
-    );
-    expect(ci).toContain(
-      'test "$CORE_RESULT" = "success" && test "$DESKTOP_RESULT" = "success"',
-    );
+  it("accepts the packaged Windows build when a preview is released, not on every merge", () => {
+    // No merge ships the desktop preview, so the queue's required core check
+    // no longer packages it; the release workflow still accepts every build it
+    // publishes.
+    expect(ci).not.toContain("desktop-preview.yml");
+    expect(ci).toContain("needs: [changes, core_suite]");
+    expect(ci).toContain('test "$CORE_RESULT" = "success"');
+    expect(release).toContain("uses: ./.github/workflows/desktop-preview.yml");
   });
 
   it("accepts the executable before archiving and uploading the complete folder", () => {

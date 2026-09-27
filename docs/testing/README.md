@@ -77,12 +77,18 @@ still selects every consumer. The full component catalog is checked by
 capabilities and the VDD exception rather than repeating the same UI for every
 symbol. Keep specialized history, rejection, hierarchy and terminal tests.
 
-PR browser contracts use two balanced Playwright shards, or four when the
-affected selection contains at least twelve spec files, with three workers
-per runner. A lightweight `Browser tests` aggregation job preserves the required
-check name and succeeds only after all selected shards pass. This keeps broad but
-legitimate focused selections within the PR wall-clock budget without raising
+Queued browser contracts are sharded by the tests they select: about 25
+tests to a shard, from two shards up to eight, with three workers per runner.
+The count is read from the selected specs' sources. Playwright splits the
+selected tests into equal runs, so a large selection on few shards once left
+one runner on a whole slow spec while the others idled. A lightweight
+`Browser tests` aggregation job preserves the required check name and
+succeeds only after all selected shards pass. This keeps broad but legitimate
+focused selections within the queue's wall-clock budget without raising
 per-runner Chromium contention.
+
+The packaged Windows desktop preview is accepted by its release workflow when
+a preview is released, not in the merge queue; no merge ships it.
 
 ## Local iteration and batch validation
 

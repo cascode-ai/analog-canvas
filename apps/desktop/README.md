@@ -54,7 +54,7 @@ The shell is adapted from **LXY-freshman / Schematic Draft** under AGPL-3.0-only
 
 Download `analog-canvas-desktop-windows-x64.zip` from a **Desktop Preview** entry in [GitHub Releases](https://github.com/cascode-ai/analog-canvas/releases). Extract the whole ZIP, then run `Analog Canvas Preview/Analog Canvas Preview.exe` inside the extracted preview directory. No Node.js, pnpm or developer tools are required. The executable needs its sibling resources; distributing the `.exe` alone will not work. GitHub's automatically generated source archives are source code, not the runnable application.
 
-The merge queue runs the [Windows packaging and acceptance workflow](../../.github/workflows/desktop-preview.yml) alongside the existing core suite. The required **Core contracts** check fails if either fails. This checks the real packaged executable without publishing it. Queue artifacts are temporary review downloads.
+The [Windows packaging and acceptance workflow](../../.github/workflows/desktop-preview.yml) runs when a preview is released, not on every merge: no merge ships the desktop preview, so the Web merge queue does not package it. It checks the real packaged executable before anything is uploaded.
 
 After merging, run [Desktop preview release](../../.github/workflows/desktop-release.yml) from Actions with the merged commit as `ref`. Keep `publish` off to inspect an unpublished Actions artifact, or enable it to publish the accepted ZIP as a GitHub prerelease. The workflow rejects commits outside `main`, rebuilds and validates the exact selected commit, and uses a `desktop-preview-…` tag that does not match the Web deployment's `v*` tags. It does not replace existing releases or mark the preview as Latest.
 

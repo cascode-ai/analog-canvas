@@ -67,8 +67,9 @@ possible secrets or replace a complete penetration test.
    source-only locations, and verify that the fixture exception is path-bound.
 4. A successful scan adds `SECURITY.json` with the source commit, scanner version
    and inventory. Archiving checks that this and `ACCEPTANCE.json` match the
-   package source. Both merge-queue artifacts and manual prereleases use the
-   same gate. Raw browser profiles are no longer uploaded as failure artifacts;
+   package source. Unpublished Actions artifacts and published prereleases
+   from the manual release workflow use the same gate; the Web merge queue
+   does not package the desktop preview. Raw browser profiles are no longer uploaded as failure artifacts;
    scanner diagnostics retain only rule, path and line.
 
 The corresponding source and original notices remain distributed. If an actual
