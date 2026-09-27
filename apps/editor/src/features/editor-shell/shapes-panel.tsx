@@ -83,6 +83,13 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   "annotation-ellipsis": "•••",
 };
 
+const CONTROLLED_SOURCE_LIBRARY_MARKS: Readonly<Record<string, string>> = {
+  vcvs: "E",
+  vccs: "G",
+  cccs: "F",
+  ccvs: "H",
+};
+
 function libraryLabel(symbolId: string, symbolName: string): string {
   return (
     COMPACT_LIBRARY_LABELS[symbolId] ?? libraryDisplayName(symbolId, symbolName)
@@ -260,6 +267,12 @@ export function ShapesPanel({
                           symbol={symbol}
                           className="shapes-chip-art"
                           paddingRatio={0.04}
+                          {...(CONTROLLED_SOURCE_LIBRARY_MARKS[symbol.id]
+                            ? {
+                                libraryMark:
+                                  CONTROLLED_SOURCE_LIBRARY_MARKS[symbol.id]!,
+                              }
+                            : {})}
                         />
                         <span>{libraryLabel(symbol.id, symbol.name)}</span>
                       </button>

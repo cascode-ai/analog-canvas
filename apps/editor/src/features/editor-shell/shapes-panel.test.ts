@@ -71,6 +71,20 @@ describe("shapes quick-place", () => {
     expect(markup).toContain('aria-label="Place Independent Voltage Source"');
     for (const id of ["vcvs", "vccs", "cccs", "ccvs"])
       expect(markup).toContain(`data-testid="shapes-chip-${id}"`);
+    expect(
+      groups
+        .find((group) => group.category === "Sources")
+        ?.symbols.map((symbol) => symbol.id),
+    ).toEqual([
+      "voltage-source",
+      "current-source",
+      "vcvs",
+      "vccs",
+      "cccs",
+      "ccvs",
+    ]);
+    for (const mark of ["E", "G", "F", "H"])
+      expect(markup).toContain(`data-library-source-mark="${mark}"`);
     for (const label of ["VCVS", "VCCS", "CCCS", "CCVS"])
       expect(markup).toContain(`>${label}</span>`);
     expect(markup).not.toContain('aria-label="Place Digital Clock"');
