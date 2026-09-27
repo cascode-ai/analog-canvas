@@ -8,6 +8,10 @@ import {
 } from "react";
 
 import type { SchematicDocument } from "@icm/model";
+import {
+  currentControlPair,
+  type CurrentControlOption,
+} from "./current-control-options";
 import { itemPropertyCode } from "./item-property-code";
 import {
   propertyCodeSpans,
@@ -46,6 +50,7 @@ export interface ComponentPropertyCodeEditorProps {
     step: "positive" | "negative" | "current-positive" | "current-negative";
   } | null;
   controlSummary?: string;
+  currentTerminalOptions?: readonly CurrentControlOption[];
   controlNetOptions?: ComponentPropertyCodeContext["controlNetOptions"];
   controlDeviceOptions?: ComponentPropertyCodeContext["controlDeviceOptions"];
   controlTerminalOptions?: ComponentPropertyCodeContext["controlTerminalOptions"];
@@ -71,6 +76,7 @@ export function ComponentPropertyCodeEditor({
   details,
   controlPick,
   controlSummary,
+  currentTerminalOptions,
   controlNetOptions,
   controlDeviceOptions,
   controlTerminalOptions,
@@ -288,6 +294,39 @@ export function ComponentPropertyCodeEditor({
                   compact:
                     instance.symbolId === "cccs" ||
                     instance.symbolId === "ccvs",
+                  ...(currentTerminalOptions &&
+                  parsed.ok &&
+                  parsed.value.control &&
+                  "instanceId" in parsed.value.control
+                    ? {
+                        terminals: {
+                          ...currentControlPair(
+                            currentTerminalOptions,
+                            parsed.value.control,
+                          ),
+                          options: currentTerminalOptions,
+                          onChange: (value: string) => {
+                            const option = currentTerminalOptions.find(
+                              (item) => item.value === value,
+                            );
+                            if (value && !option) return;
+                            onCancelControlPick?.();
+                            change(
+                              projection.format(
+                                serializeComponentPropertyCode({
+                                  ...parsed.value,
+                                  control: {
+                                    instanceId: option?.instanceId ?? "",
+                                    pinName: option?.pinName ?? "",
+                                    direction: "into",
+                                  },
+                                }),
+                              ),
+                            );
+                          },
+                        },
+                      }
+                    : {}),
                   ...(instance.netlist?.control?.kind === "terminal-current" ||
                   instance.netlist?.control?.kind === "current"
                     ? {
