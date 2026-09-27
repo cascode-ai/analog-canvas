@@ -312,7 +312,7 @@ describe("Razavi symbol catalog", () => {
     }
   });
 
-  it("keeps the PDF-scaled battery drawing-only with an authoring reference", () => {
+  it("keeps the PDF-scaled battery artwork with a B-series source reference", () => {
     const component = JSON.parse(
       readFileSync(resolve(assetRoot, "battery.json"), "utf8"),
     );
@@ -326,10 +326,10 @@ describe("Razavi symbol catalog", () => {
     );
     expect(component.electrical).toMatchObject({
       referencePrefix: "B",
-      targetPolicy: "none",
-      parameters: [],
+      targetPolicy: "builtin",
+      deviceClass: "voltage-source",
+      sourceWaveformDefault: "dc",
     });
-    expect(component.electrical).not.toHaveProperty("sourceWaveformDefault");
     expect(battery.pins.map((pin) => [pin.name, pin.at])).toEqual([
       ["+", { x: 0, y: -20 }],
       ["-", { x: 0, y: 20 }],
