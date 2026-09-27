@@ -184,9 +184,20 @@ describe("formulas set in label type", () => {
 
   it("draws radicals, overlines and fences around their bodies", () => {
     const root = layout(String.raw`\sqrt{L_1C_1}`);
-    const rule = root.items.find((item) => item.kind === "rule")!;
-    expect(rule.y).toBeLessThan(-glyph(root, "L").size * 0.7);
-    expect(glyph(root, "√")).toBeDefined();
+    // The sign is one drawn stroke that runs on into its overbar, so they
+    // meet exactly in any font; no typed √.
+    const sign = root.items.find((item) => item.kind === "path")!;
+    const overbar = sign.points.at(-1)!;
+    const vertex = sign.points[2]!;
+    expect(overbar.y).toBeLessThan(-glyph(root, "L").size * 0.7);
+    expect(sign.points.at(-2)!.y).toBe(overbar.y);
+    expect(vertex.y).toBeGreaterThan(0);
+    expect(overbar.x).toBeGreaterThan(
+      glyph(root, "1").x + glyph(root, "1").advance,
+    );
+    expect(glyphs(root).some((item) => item.text === "√")).toBe(false);
+    // Bars are drawn in the text's own weight.
+    expect(sign.thickness).toBeLessThan(options.fontSize * 0.1);
 
     const bar = layout(String.raw`\overline{Q}`);
     expect(bar.items.filter((item) => item.kind === "rule")).toHaveLength(1);
@@ -197,9 +208,8 @@ describe("formulas set in label type", () => {
     const fences = glyphs(fenced).filter((item) => /[()]/u.test(item.text));
     expect(fences).toHaveLength(2);
     expect(fences[0]!.scaleY).toBeGreaterThan(1);
-    // Fences and a radical sign keep against what they enclose.
+    // Fences keep against what they enclose.
     expect(fences.map((fence) => fence.hug)).toEqual(["right", "left"]);
-    expect(glyph(root, "√").hug).toBe("right");
     expect(fenced.width).toBeGreaterThan(
       layout(String.raw`\frac{a}{b}`, { display: "block" }).width,
     );
@@ -286,8 +296,10 @@ describe("formulas set in label type", () => {
     ).toBeGreaterThan(1);
     const root = layout(String.raw`\sqrt[3]{x}`);
     const three = glyph(root, "3");
+    const sign = root.items.find((item) => item.kind === "path")!;
     expect(three.size).toBeLessThan(options.fontSize * options.subscriptScale);
-    expect(three.x).toBeLessThan(glyph(root, "√").x + glyph(root, "√").advance);
+    // Above the hook, left of where the sign rises into its overbar.
+    expect(three.x + three.advance).toBeLessThan(sign.points[3]!.x);
     expect(three.y).toBeLessThan(0);
   });
 

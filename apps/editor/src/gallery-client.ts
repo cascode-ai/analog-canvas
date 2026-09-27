@@ -64,7 +64,7 @@ export function galleryPreviewUrl(
 ): string {
   const path = `/api/gallery/${entryId}/preview.svg`;
   return validPreviewRevision(previewRevision)
-    ? `${path}?v=${encodeURIComponent(previewRevision)}&render=formula-label-v4`
+    ? `${path}?v=${encodeURIComponent(previewRevision)}&render=formula-label-v5`
     : path;
 }
 

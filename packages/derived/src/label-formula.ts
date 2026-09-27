@@ -60,6 +60,18 @@ export interface LabelFormulaRule {
   x1: number;
   x2: number;
   y: number;
+  /** Line weight, in the text's own proportion, as TeX's rules are. */
+  thickness: number;
+}
+
+/**
+ * A stroke drawn rather than typed: a radical sign and its overbar as one
+ * line, so they meet exactly whatever font the viewer has.
+ */
+export interface LabelFormulaPath {
+  kind: "path";
+  points: { x: number; y: number }[];
+  thickness: number;
 }
 
 export interface LabelFormulaLayout {
@@ -68,7 +80,7 @@ export interface LabelFormulaLayout {
   ascent: number;
   /** Extent below the baseline. */
   descent: number;
-  items: (LabelFormulaGlyph | LabelFormulaRule)[];
+  items: (LabelFormulaGlyph | LabelFormulaRule | LabelFormulaPath)[];
 }
 
 export interface LabelFormulaOptions {
@@ -1621,7 +1633,15 @@ class Layout {
           items:
             node.bar === false
               ? []
-              : [{ kind: "rule", x1: pad / 2, x2: width - pad / 2, y: -axis }],
+              : [
+                  {
+                    kind: "rule",
+                    x1: pad / 2,
+                    x2: width - pad / 2,
+                    y: -axis,
+                    thickness: rule,
+                  },
+                ],
         };
         append(box, num, pad + (inner - num.width) / 2, numY);
         append(box, den, pad + (inner - den.width) / 2, denY);
@@ -1782,40 +1802,42 @@ class Layout {
       }
       case "radical": {
         const body = this.list(node.body, style, { start: true });
-        const clearance = 0.12 * size;
         const rule = RULE_EM * size;
-        const top = Math.max(body.ascent, 0.7 * size) + clearance;
-        const bottom = Math.max(body.descent, 0.1 * size);
-        const sign = this.glyph("√", size, false, bold);
-        const natural = 0.95 * size;
-        const scale = Math.max(1, (top + rule + bottom) / natural);
-        const signItem = sign.items[0] as LabelFormulaGlyph;
-        // The sign spans 0.8 em above its baseline and 0.15 em below.
-        const signY = bottom - 0.15 * size * scale;
+        // The overbar clears the body; the sign reaches just below it.
+        const top = Math.max(body.ascent, 0.7 * size) + 0.12 * size;
+        const bottom = Math.max(body.descent, 0.08 * size);
+        const height = top + bottom;
+        // The sign is drawn, not typed: a short hook, a stroke down to a
+        // vertex under the body, and a long stroke up into the overbar, as
+        // one line. A font's √ is a different height in every face, and
+        // never met its overbar exactly.
+        const signWidth = Math.min(0.9 * size, 0.42 * size + 0.12 * height);
+        const bodyX = signWidth + 0.06 * size;
+        const end = bodyX + body.width + 0.06 * size;
+        const up = (share: number) => bottom - share * height;
         const radical: LabelFormulaLayout = {
-          width: sign.width + body.width + 0.08 * size,
-          ascent: top + rule,
-          descent: bottom,
+          width: end,
+          ascent: top + rule / 2,
+          descent: bottom + rule / 2,
           items: [
             {
-              ...signItem,
-              y: signY,
-              hug: "right",
-              ...(scale > 1 ? { scaleY: scale } : {}),
-            },
-            {
-              kind: "rule",
-              x1: sign.width * 0.92,
-              x2: sign.width + body.width + 0.08 * size,
-              y: -top,
+              kind: "path",
+              points: [
+                { x: 0, y: up(0.42) },
+                { x: 0.16 * signWidth, y: up(0.5) },
+                { x: 0.45 * signWidth, y: up(0) },
+                { x: signWidth, y: -top },
+                { x: end, y: -top },
+              ],
+              thickness: rule,
             },
           ],
         };
-        append(radical, body, sign.width + 0.04 * size, 0);
+        append(radical, body, bodyX, 0);
         if (!node.index) return radical;
-        // The index stands small in the crook of the sign.
+        // The index stands small above the hook, in the crook of the sign.
         const index = this.list(node.index, 3, { end: true });
-        const crook = 0.55 * sign.width;
+        const crook = 0.4 * signWidth;
         const shift = Math.max(0, index.width - crook);
         const box: LabelFormulaLayout = {
           width: shift + radical.width,
@@ -1828,7 +1850,7 @@ class Layout {
           box,
           index,
           shift + crook - index.width,
-          -(0.45 * (top + rule)) - index.descent,
+          up(0.58) - index.descent,
         );
         return box;
       }
@@ -1848,6 +1870,7 @@ class Layout {
               x1: 0,
               x2: body.width,
               y: over ? -(body.ascent + clearance) : body.descent + clearance,
+              thickness: rule,
             },
           ],
         };
@@ -2057,7 +2080,15 @@ function append(
       const moved = { ...item, x: item.x + x, y: item.y + y };
       if (middleFences.has(item)) middleFences.add(moved);
       box.items.push(moved);
-    } else
+    } else if (item.kind === "path")
+      box.items.push({
+        ...item,
+        points: item.points.map((point) => ({
+          x: point.x + x,
+          y: point.y + y,
+        })),
+      });
+    else
       box.items.push({
         ...item,
         x1: item.x1 + x,
