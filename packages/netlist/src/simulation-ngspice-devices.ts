@@ -54,7 +54,10 @@ export function ngspiceSimulationDevices(
         ancestors: Set<string>,
       ) {
         if (++visits > 4096 || ancestors.has(cell.id)) return;
-        const document = project.documents.find((d) => d.id === cell.id)!;
+        // A generated ideal Analog Block master is a simulator definition,
+        // not an authored Canvas document with selectable native devices.
+        const document = project.documents.find((d) => d.id === cell.id);
+        if (!document) return;
         for (const card of cell.instances) {
           const reference = [...path, card.reference.toLowerCase()].join(".");
           const authored = document.instances.find((i) => i.id === card.id);

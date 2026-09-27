@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyProject, type CircuitProject } from "@icm/model";
+import {
+  createEmptyProject,
+  createSimulationFolder,
+  type CircuitProject,
+} from "@icm/model";
 import { subcircuitDescriptor } from "@icm/devices";
 
 import { createDesignNetlistExport } from "./export.js";
+import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
 
 const differentialNets = [
   ["IN+", "plus_node"],
@@ -73,6 +78,183 @@ function analogBlockProject(
 }
 
 describe("built-in Analog Block subcircuits", () => {
+  it.each([
+    {
+      symbolId: "opamp",
+      connections: [
+        ["IN+", "plus"],
+        ["IN-", "minus"],
+        ["OUT", "out"],
+      ],
+      name: "opamp",
+      parameter: "gain=1e6",
+      body: "ECORE VOUT 0 VIP VIN {gain}",
+    },
+    {
+      symbolId: "opamp-differential",
+      connections: [
+        ["IN+", "plus"],
+        ["IN-", "minus"],
+        ["OUT+", "out_plus"],
+        ["OUT-", "out_minus"],
+      ],
+      name: "opamp_differential",
+      parameter: "gain=1e6",
+      body: "EPLUS VOP 0 VIP VIN {gain/2}",
+    },
+    {
+      symbolId: "voltage-amplifier",
+      connections: [
+        ["IN", "input"],
+        ["OUT", "output"],
+      ],
+      name: "voltage_amplifier",
+      parameter: "gain=1",
+      body: "ECORE VOUT 0 VIN 0 {gain}",
+    },
+    {
+      symbolId: "transconductance",
+      connections: [
+        ["A", "input"],
+        ["Y", "output"],
+      ],
+      name: "transconductance",
+      parameter: "gm=1m",
+      body: "GCORE 0 VOUT VIN 0 {gm}",
+    },
+    {
+      symbolId: "differential-transconductance",
+      connections: [
+        ["IN+", "plus"],
+        ["IN-", "minus"],
+        ["OUT", "output"],
+      ],
+      name: "differential_transconductance",
+      parameter: "gm=1m",
+      body: "GCORE 0 VOUT VIP VIN {gm}",
+    },
+  ])("defines one native E/G-source master for $symbolId", (entry) => {
+    const result = createDesignNetlistExport(
+      analogBlockProject(
+        [entry.symbolId],
+        entry.connections as [string, string][],
+      ),
+    );
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.file.text).toContain(`.subckt ${entry.name} `);
+    expect(result.file.text).toContain(`params: ${entry.parameter}`);
+    expect(result.file.text).toContain(entry.body);
+    expect(result.externalMasterCount).toBe(0);
+  });
+
+  it.each(["user_amp", "toString"])(
+    "keeps a retargeted opamp on the user's external %s subcircuit",
+    (target) => {
+      const project = analogBlockProject(
+        ["opamp"],
+        [
+          ["IN+", "plus"],
+          ["IN-", "minus"],
+          ["OUT", "out"],
+        ],
+      );
+      project.documents[0]!.instances.find(
+        (item) => item.id === "block-1",
+      )!.netlist!.binding = {
+        kind: "unresolved-subcircuit",
+        name: target,
+      };
+      const result = createDesignNetlistExport(project);
+      expect(result.status).toBe("ready");
+      if (result.status !== "ready") return;
+      expect(result.file.text).toContain(` ${target}`);
+      expect(result.file.text).not.toContain(".subckt opamp ");
+      expect(result.externalMasterCount).toBe(1);
+    },
+  );
+
+  it("keeps an explicitly declared master ahead of the built-in ideal model", () => {
+    const project = analogBlockProject(
+      ["opamp"],
+      [
+        ["IN+", "plus"],
+        ["IN-", "minus"],
+        ["OUT", "out"],
+      ],
+    );
+    project.externalSubcircuitDefinitions.push({
+      id: "external-opamp",
+      name: "opamp",
+      interfaceStatus: "declared",
+      formalParameters: [],
+      terminals: ["VDD", "VSS", "VIP", "VIN", "VOUT"].map((name) => ({
+        id: `external-${name}`,
+        name,
+        direction: "passive" as const,
+      })),
+    });
+    const result = createDesignNetlistExport(project);
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.file.text).not.toContain(".subckt opamp ");
+    expect(result.externalMasterCount).toBe(1);
+  });
+
+  it("passes a raw gain override through the ideal model call", () => {
+    const project = analogBlockProject(
+      ["opamp"],
+      [
+        ["IN+", "plus"],
+        ["IN-", "minus"],
+        ["OUT", "out"],
+      ],
+    );
+    project.documents[0]!.instances.find(
+      (item) => item.id === "block-1",
+    )!.netlist!.parameters.gain = "2e3";
+    const result = createDesignNetlistExport(project);
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.file.text).toContain(
+      "X1 VDD VSS plus minus out opamp gain=2e3",
+    );
+  });
+
+  it("includes the built-in model in an ngspice simulation binding", () => {
+    const project = analogBlockProject(
+      ["opamp"],
+      [
+        ["IN+", "plus"],
+        ["IN-", "minus"],
+        ["OUT", "out"],
+      ],
+    );
+    const folder = createSimulationFolder({
+      id: "ideal-opamp-probe",
+      name: "Ideal opamp probe",
+      profileId: "local",
+      documentId: project.documents[0]!.id,
+    });
+    folder.input.files.find((file) => file.path === folder.input.entry)!.text =
+      "Ideal opamp probe\n.include circuit.spice\n.control\nop\n.endc\n.end\n";
+    const compiled = compileNgspiceSourceSimulation(project, folder);
+    expect(
+      compiled.ok,
+      JSON.stringify(compiled.ok ? [] : compiled.diagnostics),
+    ).toBe(true);
+    if (!compiled.ok) return;
+    const generated = compiled.files.find(
+      (file) => file.path === "circuit.spice",
+    )!.text;
+    expect(generated).toContain(
+      ".subckt opamp VDD VSS VIP VIN VOUT params: gain=1e6",
+    );
+    expect(generated).toContain("ECORE VOUT 0 VIP VIN {gain}");
+    expect(generated).toContain("X1 VDD VSS plus minus out opamp");
+    expect(generated.match(/\.subckt opamp\b/gu)).toHaveLength(1);
+  });
+
   it.each(["and", "nand", "or", "nor", "xor", "xnor"])(
     "exports every four-input %s terminal in its declared electrical order",
     (family) => {
@@ -359,8 +541,12 @@ describe("built-in Analog Block subcircuits", () => {
     expect(result.file.text).toContain(
       "X1 VDD VSS plus_node minus_node positive_out negative_out opamp_differential",
     );
-    expect(result.file.text).not.toContain(".subckt opamp_differential");
-    expect(result.externalMasterCount).toBe(1);
+    expect(result.file.text).toContain(
+      ".subckt opamp_differential VDD VSS VIP VIN VOP VON params: gain=1e6",
+    );
+    expect(result.file.text).toContain("EPLUS VOP 0 VIP VIN {gain/2}");
+    expect(result.file.text).toContain("EMINUS VON 0 VIN VIP {gain/2}");
+    expect(result.externalMasterCount).toBe(0);
   });
 
   it("exports legacy blocks without mutating missing reference or netlist data", () => {
@@ -382,10 +568,16 @@ describe("built-in Analog Block subcircuits", () => {
     expect(result.file.text).toContain(
       "X1 (VDD VSS plus_node minus_node positive_out negative_out) opamp_differential",
     );
+    expect(result.file.text).toContain(
+      "subckt opamp_differential (VDD VSS VIP VIN VOP VON)",
+    );
+    expect(result.file.text).toContain(
+      "EPLUS (VOP 0 VIP VIN) vcvs gain=gain/2",
+    );
     expect(project).toEqual(before);
   });
 
-  it("deduplicates one external master across visual variants", () => {
+  it("deduplicates one ideal model across visual variants", () => {
     const result = createDesignNetlistExport(
       analogBlockProject(
         ["opamp-differential", "opamp-differential-wide-crossed"],
@@ -399,7 +591,10 @@ describe("built-in Analog Block subcircuits", () => {
 
     expect(result.status).toBe("ready");
     if (result.status !== "ready") return;
-    expect(result.externalMasterCount).toBe(1);
+    expect(result.externalMasterCount).toBe(0);
+    expect(
+      result.file.text.match(/\.subckt opamp_differential\b/gu),
+    ).toHaveLength(1);
     expect(result.file.text).toContain(
       "X2 VDD VSS plus_node1 minus_node1 positive_out1 negative_out1 opamp_differential",
     );

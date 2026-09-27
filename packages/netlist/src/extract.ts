@@ -63,6 +63,7 @@ import {
 } from "./net-name-codec.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
 import { withImplicitMosSupplies } from "./implicit-mos-supplies.js";
+import { idealAnalogBlockCell } from "./ideal-analog-block-models.js";
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 const MAX_CELLS = 1024;
@@ -2522,10 +2523,39 @@ function analyzeDesign(
       formalParameters: [],
     });
   }
+  // A default Analog Block call gets one actual idealized E/G-source master.
+  // Authored Cells and explicit external master interfaces retain priority;
+  // an instance retargeted to another subcircuit never receives this model.
+  const occupiedNames = new Set([
+    ...cells.map((cell) => cell.name.toLowerCase()),
+    ...project.externalSubcircuitDefinitions.map((item) =>
+      item.name.toLowerCase(),
+    ),
+  ]);
+  const idealCells = [
+    ...new Set(
+      cells.flatMap((cell) =>
+        cell.instances
+          .filter(
+            (instance) =>
+              instance.invocationKind === "subcircuit" && instance.target,
+          )
+          .map((instance) => instance.target!),
+      ),
+    ),
+  ]
+    .sort(compareText)
+    .flatMap((target) => {
+      if (occupiedNames.has(target.toLowerCase())) return [];
+      const model = idealAnalogBlockCell(target, resolvedOptions.format);
+      return model ? [model] : [];
+    });
+  for (const model of idealCells)
+    externalMasters.delete(`builtin:${model.name.toLowerCase()}`);
   return {
     ir: {
       topCellId: resolvedOptions.rootDocumentId,
-      cells,
+      cells: [...idealCells, ...cells],
       globals,
       externalMasters: [...externalMasters.values()].sort((left, right) =>
         compareText(left.name, right.name),
