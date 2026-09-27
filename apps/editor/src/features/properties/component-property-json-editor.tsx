@@ -77,6 +77,7 @@ interface Props {
   defaultForeground: string;
   ariaLabel?: string;
   onChange(source: string): void;
+  controlAction?: { active: boolean; message: string; onClick(): void };
 }
 const externalUpdate = Annotation.define<boolean>();
 const refreshDecorations = StateEffect.define<null>();
@@ -224,7 +225,12 @@ export default function ComponentPropertyJsonEditor(props: Props) {
 
   useLayoutEffect(() => {
     viewRef.current?.dispatch({ effects: refreshDecorations.of(null) });
-  }, [props.context, props.adapter, props.defaultForeground]);
+  }, [
+    props.context,
+    props.adapter,
+    props.defaultForeground,
+    props.controlAction,
+  ]);
 
   return <div className="component-json-editor" ref={parent} />;
 }
@@ -282,6 +288,23 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
   };
   syntaxTree(state).iterate({
     enter(node) {
+      if (node.name === "Property" && read().controlAction) {
+        const name = node.node.getChild("PropertyName");
+        const value = node.node.lastChild;
+        if (
+          name &&
+          value?.name === "Object" &&
+          state.sliceDoc(name.from, name.to) === '"control"' &&
+          node.node.parent?.parent?.name === "JsonText"
+        ) {
+          ranges.push(
+            Decoration.widget({
+              widget: new ControlPickWidget(read().controlAction!, read),
+              side: 1,
+            }).range(value.from + 1),
+          );
+        }
+      }
       const token = classes[node.name];
       if (token && node.to > node.from)
         ranges.push(
@@ -457,6 +480,49 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
       );
   }
   return Decoration.set(ranges, true);
+}
+
+class ControlPickWidget extends WidgetType {
+  constructor(
+    private readonly action: NonNullable<Props["controlAction"]>,
+    private readonly read: () => Props,
+  ) {
+    super();
+  }
+  override eq(other: ControlPickWidget): boolean {
+    return (
+      this.action.active === other.action.active &&
+      this.action.message === other.action.message
+    );
+  }
+  toDOM(): HTMLElement {
+    const wrapper = document.createElement("span");
+    wrapper.className = "component-control-pick";
+    wrapper.dataset.testid = "component-control-pick";
+    wrapper.contentEditable = "false";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = this.action.active ? "Cancel pick" : "Pick";
+    button.setAttribute(
+      "aria-label",
+      this.action.active ? "Cancel pick" : "Pick control on canvas",
+    );
+    button.title = this.action.message;
+    button.addEventListener("click", () =>
+      this.read().controlAction?.onClick(),
+    );
+    wrapper.append(button);
+    if (this.action.active) {
+      const status = document.createElement("span");
+      status.setAttribute("aria-live", "polite");
+      status.textContent = this.action.message;
+      wrapper.append(status);
+    }
+    return wrapper;
+  }
+  override ignoreEvent(): boolean {
+    return true;
+  }
 }
 
 class PropertyUnit extends WidgetType {

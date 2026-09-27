@@ -82,7 +82,7 @@ for (const symbolId of componentSymbolIds) {
       await expectComponentCodeField(page, "connection", "cell-pin");
     }
     if (symbolId === "vccs") {
-      await expectComponentCodeField(page, "name", "g_{m}v_{i1}");
+      await expectComponentCodeField(page, "name", "g_{m}v_{1}");
       await expectComponentCodeField(page, "control", {
         positiveNetId: "",
         negativeNetId: "",
@@ -98,10 +98,10 @@ for (const symbolId of componentSymbolIds) {
 }
 
 for (const [symbolId, formula, parameter, netlistName] of [
-  ["vcvs", "A_{v}v_{i1}", "gain", "E1"],
-  ["vccs", "g_{m}v_{i1}", "gm", "G1"],
-  ["cccs", "βi_{x1}", "gain", "F1"],
-  ["ccvs", "R_{m}i_{x1}", "rm", "H1"],
+  ["vcvs", "A_{v}v_{1}", "gain", "E1"],
+  ["vccs", "g_{m}v_{1}", "gm", "G1"],
+  ["cccs", "βi_{1}", "gain", "F1"],
+  ["ccvs", "R_{m}i_{1}", "rm", "H1"],
 ] as const) {
   test(`${symbolId} Visual Annotation edits without crashing or changing electrical identity`, async ({
     page,
@@ -138,6 +138,30 @@ async function openFixture(
 ) {
   const project = createEmptyProject("control-pick", "Control pick");
   const document = project.documents[0]!;
+  for (const suffix of ["a", "b"]) {
+    document.instances.push({
+      id: `ground-${suffix}`,
+      symbolId: "ground",
+      placement: {
+        position: { x: suffix === "a" ? 330 : 430, y: 460 },
+        rotation: 0,
+        mirror: "none",
+      },
+    });
+    document.nets.push({
+      id: `ground-net-${suffix}`,
+      terminals: [{ instanceId: `ground-${suffix}`, pinName: "0" }],
+    });
+    document.connectivityEvidence.push({
+      id: `ground-claim-${suffix}`,
+      kind: "name-claim",
+      netId: `ground-net-${suffix}`,
+      owner: { kind: "power-marker", objectId: `ground-${suffix}` },
+      name: "0",
+      scope: "global",
+      powerDomain: "ground",
+    });
+  }
   document.instances.push(
     {
       id: "controlled",
@@ -207,6 +231,21 @@ for (const symbolId of ["vcvs", "vccs"]) {
   }) => {
     await openFixture(page, symbolId);
     const picker = page.getByTestId("component-control-pick");
+    await expect(
+      page.locator(".cm-content").getByTestId("component-control-pick"),
+    ).toBeVisible();
+    await expect(picker.locator("xpath=..")).toContainText('"control": {');
+    const positive = page.getByLabel("Control + Net options", { exact: true });
+    const negative = page.getByLabel("Control − Net options", { exact: true });
+    await expect(positive.locator("option", { hasText: /^0$/ })).toHaveCount(1);
+    await positive.selectOption("net-plus");
+    await negative.selectOption("net-minus");
+    await expectComponentCodeField(page, "control", {
+      positiveNetId: "net-plus",
+      negativeNetId: "net-minus",
+    });
+    await positive.selectOption("");
+    await negative.selectOption("");
     await picker
       .getByRole("button", { name: "Pick control on canvas" })
       .click();
@@ -238,6 +277,11 @@ for (const symbolId of ["cccs", "ccvs"]) {
   }) => {
     await openFixture(page, symbolId);
     const picker = page.getByTestId("component-control-pick");
+    const sensors = page.getByLabel("Current sensor options", { exact: true });
+    await expect(sensors.locator("option", { hasText: /^V1$/ })).toHaveCount(1);
+    await sensors.selectOption("sensor");
+    await expectComponentCodeField(page, "control.sensorInstanceId", "sensor");
+    await sensors.selectOption("");
     await picker
       .getByRole("button", { name: "Pick control on canvas" })
       .click();
@@ -256,8 +300,8 @@ for (const symbolId of ["cccs", "ccvs"]) {
 }
 
 for (const [symbolId, secondId, expression] of [
-  ["vcvs", "E2", "A_{v}v_{i2}"],
-  ["cccs", "F2", "βi_{x2}"],
+  ["vcvs", "E2", "A_{v}v_{2}"],
+  ["cccs", "F2", "βi_{2}"],
 ] as const) {
   test(`${symbolId} increments the default input/sensor subscript on placement`, async ({
     page,

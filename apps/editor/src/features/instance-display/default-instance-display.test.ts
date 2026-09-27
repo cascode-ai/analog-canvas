@@ -24,10 +24,10 @@ const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("default instance display annotations", () => {
   it.each([
-    ["vcvs", "voltage-source", "A_{v}v_{i1}"],
-    ["vccs", "current-source", "g_{m}v_{i1}"],
-    ["cccs", "current-source", "βi_{x1}"],
-    ["ccvs", "voltage-source", "R_{m}i_{x1}"],
+    ["vcvs", "voltage-source", "A_{v}v_{1}"],
+    ["vccs", "current-source", "g_{m}v_{1}"],
+    ["cccs", "current-source", "βi_{1}"],
+    ["ccvs", "voltage-source", "R_{m}i_{1}"],
   ])(
     "places %s's literal expression at the existing %s source label slot",
     (symbolId, sourceId, expression) => {
@@ -90,10 +90,10 @@ describe("default instance display annotations", () => {
     },
   );
   it.each([
-    ["vcvs", "A_{v}v_{i2}"],
-    ["vccs", "g_{m}v_{i2}"],
-    ["cccs", "βi_{x2}"],
-    ["ccvs", "R_{m}i_{x2}"],
+    ["vcvs", "A_{v}v_{2}"],
+    ["vccs", "g_{m}v_{2}"],
+    ["cccs", "βi_{2}"],
+    ["ccvs", "R_{m}i_{2}"],
   ])(
     "numbers the second %s label from its allocated Reference",
     (symbolId, expected) => {

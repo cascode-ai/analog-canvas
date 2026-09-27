@@ -38,6 +38,26 @@ function apply(
 }
 
 describe("Canvas property assistance", () => {
+  it("keeps each selected physical member within its single Logical Net choice", () => {
+    const controlled = {
+      ...context,
+      instance: { ...context.instance, symbolId: "vcvs" },
+      controlNetOptions: [
+        { value: "ground-a", label: "0", baseNetIds: ["ground-a", "ground-b"] },
+      ],
+    };
+    const source = JSON.parse(formatComponentPropertyCode(controlled));
+    source.control = { positiveNetId: "ground-a", negativeNetId: "ground-b" };
+    const spans = propertyCodeSpans(JSON.stringify(source), controlled);
+    expect(
+      spans.find(({ field }) => field.path === "control.positiveNetId")?.field
+        .options,
+    ).toEqual([{ value: "ground-a", label: "0" }]);
+    expect(
+      spans.find(({ field }) => field.path === "control.negativeNetId")?.field
+        .options,
+    ).toEqual([{ value: "ground-b", label: "0" }]);
+  });
   it("addresses each swap switch independently and refuses nonboolean edits", () => {
     const amplifier = {
       ...context,

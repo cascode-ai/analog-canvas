@@ -1167,10 +1167,10 @@ describe("schematic clipboard", () => {
   });
 
   it.each([
-    ["vcvs", "E", "A_{v}v_{i2}"],
-    ["vccs", "G", "g_{m}v_{i2}"],
-    ["cccs", "F", "βi_{x2}"],
-    ["ccvs", "H", "R_{m}i_{x2}"],
+    ["vcvs", "E", "A_{v}v_{2}"],
+    ["vccs", "G", "g_{m}v_{2}"],
+    ["cccs", "F", "βi_{2}"],
+    ["ccvs", "H", "R_{m}i_{2}"],
   ])(
     "renumbers an untouched %s expression when copying its Instance",
     (symbolId, prefix, expected) => {

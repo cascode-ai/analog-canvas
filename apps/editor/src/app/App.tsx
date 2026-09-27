@@ -7456,6 +7456,29 @@ function WorkspaceEditor({
                                     }
                                   : null,
                               ...(controlSummary ? { controlSummary } : {}),
+                              controlNetOptions: [
+                                { value: "", label: "Select Net" },
+                                ...netChoices.map((choice) => ({
+                                  value: choice.netId,
+                                  label: choice.label,
+                                  baseNetIds: choice.baseNetIds,
+                                })),
+                              ],
+                              controlSensorOptions: [
+                                { value: "", label: "Select voltage source" },
+                                ...document.instances
+                                  .filter(
+                                    (instance) =>
+                                      deviceDescriptor(
+                                        instance.symbolId,
+                                        project,
+                                      )?.deviceClass === "voltage-source",
+                                  )
+                                  .map((instance) => ({
+                                    value: instance.id,
+                                    label: instance.reference ?? instance.id,
+                                  })),
+                              ],
                               onStartControlPick: startControlPick,
                               onCancelControlPick: () => {
                                 setControlPickState(null);

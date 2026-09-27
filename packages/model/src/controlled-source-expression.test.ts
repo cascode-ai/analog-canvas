@@ -20,9 +20,9 @@ describe("controlled-source presentation", () => {
     },
   );
   it("numbers only the input/sensor subscript in an instance default", () => {
-    expect(defaultControlledSourceExpression("vcvs", "2")).toBe("A_{v}v_{i2}");
-    expect(defaultControlledSourceExpression("vccs", "3")).toBe("g_{m}v_{i3}");
-    expect(defaultControlledSourceExpression("cccs", "4")).toBe("βi_{x4}");
-    expect(defaultControlledSourceExpression("ccvs", "5")).toBe("R_{m}i_{x5}");
+    expect(defaultControlledSourceExpression("vcvs", "2")).toBe("A_{v}v_{2}");
+    expect(defaultControlledSourceExpression("vccs", "3")).toBe("g_{m}v_{3}");
+    expect(defaultControlledSourceExpression("cccs", "4")).toBe("βi_{4}");
+    expect(defaultControlledSourceExpression("ccvs", "5")).toBe("R_{m}i_{5}");
   });
 });
