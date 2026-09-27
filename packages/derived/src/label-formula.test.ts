@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { schematicTextAdvanceEm } from "./fraction-text-metrics.js";
 import {
+  labelFormulaProblem,
   layoutLabelFormula,
   type LabelFormulaGlyph,
   type LabelFormulaLayout,
@@ -204,13 +205,159 @@ describe("formulas set in label type", () => {
     );
   });
 
-  it("leaves LaTeX it does not set to the typesetter", () => {
+  it("sets every construct the formula palette offers", () => {
+    // Each keycap and More-symbols entry, with its slots filled.
     for (const latex of [
-      String.raw`\sum_k x_k`,
-      String.raw`\hat{x}`,
-      String.raw`\mathbb{R}`,
-      String.raw`\begin{cases}a\end{cases}`,
+      "x_{n}",
+      "x^{n}",
+      String.raw`\frac{a}{b}`,
+      String.raw`\sqrt{x}`,
       String.raw`\sqrt[3]{x}`,
+      String.raw`\overline{x}`,
+      String.raw`\hat{x}`,
+      String.raw`\vec{v}`,
+      String.raw`\left|x\right|`,
+      String.raw`\left\{x\right\}`,
+      String.raw`\frac{\mathrm{d}y}{\mathrm{d}x}`,
+      String.raw`\frac{\partial y}{\partial x}`,
+      String.raw`\sum_{k=1}^{n} x_k`,
+      String.raw`\prod_{k=1}^{n} x_k`,
+      String.raw`\int_{0}^{T} v\,dt`,
+      String.raw`\iint_{S} f`,
+      String.raw`\lim_{x \to 0} f(x)`,
+      String.raw`\begin{bmatrix}a&b\\c&d\end{bmatrix}`,
+      String.raw`\begin{cases}1&x>0\\0&x\le 0\end{cases}`,
+      String.raw`\infty`,
+      String.raw`\pm\mp\times\div\cdot\neq\approx\leq\geq\propto\angle\parallel\perp\rightarrow\leftrightarrow\Rightarrow`,
+      String.raw`\sin(x)\cos(x)\tan(x)\ln(x)\log_{2}(x)\exp(x)`,
+      String.raw`\operatorname{Re}(z)\operatorname{Im}(z)`,
+      String.raw`\dot{x}\ddot{x}\tilde{x}`,
+      String.raw`\left\langle x\right\rangle`,
+      String.raw`\int_0^1\frac{1}{\sqrt{1+\cos^2x}}\differentialD x`,
+    ])
+      expect(labelFormulaProblem(latex), latex).toBeNull();
+  });
+
+  it("stacks a sum's limits in display style and sets them aside inline", () => {
+    const display = layout(String.raw`\sum_{k=1}^{n} x_k`, {
+      display: "block",
+    });
+    const sigma = glyph(display, "∑");
+    // Bigger than the text, centred over its limits.
+    expect(sigma.size).toBeGreaterThan(options.fontSize);
+    const n = glyph(display, "n");
+    const k = glyph(display, "k");
+    expect(n.y).toBeLessThan(sigma.y - sigma.size * 0.5);
+    expect(k.y).toBeGreaterThan(sigma.y);
+    expect(
+      Math.abs(n.x + n.advance / 2 - (sigma.x + sigma.advance / 2)),
+    ).toBeLessThan(1);
+    // Inline, the limits are scripts beside it, and it stays smaller.
+    const inline = layout(String.raw`\sum_{k=1}^{n} x_k`);
+    const small = glyph(inline, "∑");
+    expect(small.size).toBeLessThan(sigma.size);
+    expect(glyph(inline, "n").x).toBeGreaterThan(small.x + small.advance / 2);
+    // An integral keeps its limits aside even in display style.
+    const integral = layout(String.raw`\int_0^T v`, { display: "block" });
+    const sign = glyph(integral, "∫");
+    expect(glyph(integral, "T").x).toBeGreaterThan(sign.x + sign.advance / 2);
+    // \lim stacks too; \limits and \nolimits override.
+    const limit = layout(String.raw`\lim_{x\to 0} f`, { display: "block" });
+    expect(glyph(limit, "x").y).toBeGreaterThan(glyph(limit, "lim").y);
+    const aside = layout(String.raw`\sum\nolimits_k a`, { display: "block" });
+    expect(glyph(aside, "k").x).toBeGreaterThan(glyph(aside, "∑").x);
+  });
+
+  it("sets accents over their bodies and a root's index in its crook", () => {
+    const hat = layout(String.raw`\hat{x}`);
+    const mark = glyph(hat, "ˆ");
+    const x = glyph(hat, "x");
+    expect(
+      Math.abs(mark.x + mark.advance / 2 - (x.x + x.advance / 2)),
+    ).toBeLessThan(options.fontSize * 0.2);
+    // Over a capital the mark rises with it.
+    expect(glyph(layout(String.raw`\hat{L}`), "ˆ").y).toBeLessThan(mark.y);
+    const vector = layout(String.raw`\vec{v}`);
+    expect(glyph(vector, "→").size).toBeLessThan(options.fontSize);
+    expect(glyph(vector, "→").y).toBeLessThan(0);
+    // A wide accent stretches across its body.
+    expect(
+      glyph(layout(String.raw`\overrightarrow{AB}`), "→").scaleX,
+    ).toBeGreaterThan(1);
+    const root = layout(String.raw`\sqrt[3]{x}`);
+    const three = glyph(root, "3");
+    expect(three.size).toBeLessThan(options.fontSize * options.subscriptScale);
+    expect(three.x).toBeLessThan(glyph(root, "√").x + glyph(root, "√").advance);
+    expect(three.y).toBeLessThan(0);
+  });
+
+  it("lays matrices and cases out in rows and columns within their fences", () => {
+    const matrix = layout(String.raw`\begin{bmatrix}a&b\\c&d\end{bmatrix}`);
+    const [a, b, c, d] = ["a", "b", "c", "d"].map((text) =>
+      glyph(matrix, text),
+    );
+    expect(a!.y).toBeCloseTo(b!.y);
+    expect(c!.y).toBeCloseTo(d!.y);
+    expect(c!.y).toBeGreaterThan(a!.y);
+    // A matrix column centres its entries.
+    expect(a!.x + a!.advance / 2).toBeCloseTo(c!.x + c!.advance / 2);
+    expect(b!.x).toBeGreaterThan(a!.x + a!.advance);
+    const brackets = glyphs(matrix).filter((item) => /[[\]]/u.test(item.text));
+    expect(brackets).toHaveLength(2);
+    expect(brackets[0]!.scaleY).toBeGreaterThan(1);
+    // Cases: one brace on the left, left-aligned columns.
+    const cases = layout(
+      String.raw`f(x)=\begin{cases}1&x>0\\-1&\text{otherwise}\end{cases}`,
+    );
+    const braces = glyphs(cases).filter((item) => item.text === "{");
+    expect(braces).toHaveLength(1);
+    expect(glyphs(cases).some((item) => item.text === "}")).toBe(false);
+    expect(glyph(cases, "1").x).toBeLessThan(glyph(cases, "−").x + 1);
+    // Aligned rows join at their relation.
+    const aligned = layout(String.raw`\begin{aligned}a&=b+c\\&=d\end{aligned}`);
+    const equals = glyphs(aligned).filter((item) => item.text === "=");
+    expect(equals).toHaveLength(2);
+    expect(equals[0]!.x).toBeCloseTo(equals[1]!.x, 0);
+  });
+
+  it("sets binomials, stacks, arrows, alphabets and negations", () => {
+    const binom = layout(String.raw`\binom{n}{k}`);
+    expect(binom.items.some((item) => item.kind === "rule")).toBe(false);
+    expect(
+      glyphs(binom).filter((item) => /[()]/u.test(item.text)),
+    ).toHaveLength(2);
+    const stacked = layout(String.raw`\overset{!}{=}`);
+    expect(glyph(stacked, "!").y).toBeLessThan(glyph(stacked, "=").y);
+    const arrow = layout(String.raw`a\xrightarrow{k}b`);
+    expect(glyph(arrow, "k").y).toBeLessThan(0);
+    expect(glyph(layout(String.raw`\mathbb{R}`), "ℝ").italic).toBe(false);
+    expect(glyph(layout(String.raw`\mathcal{L}`), "ℒ")).toBeDefined();
+    expect(glyph(layout(String.raw`a\not= b`), "≠")).toBeDefined();
+    const big = layout(String.raw`\Big(x\Big)`);
+    expect(
+      glyphs(big).find((item) => item.text === "(")!.scaleY,
+    ).toBeGreaterThan(1);
+    const middle = layout(String.raw`\left\{x\middle|\frac{x}{2}>0\right\}`, {
+      display: "block",
+    });
+    expect(glyph(middle, "|").scaleY).toBeGreaterThan(1);
+  });
+
+  it("names what label type cannot set", () => {
+    expect(labelFormulaProblem(String.raw`\boxed{x}`)).toBe(
+      String.raw`\boxed is not supported in formulas`,
+    );
+    expect(labelFormulaProblem("a & b")).toMatch(/^& separates columns/u);
+    expect(labelFormulaProblem(String.raw`\frac{1}{2`)).toMatch(
+      /^The formula is incomplete/u,
+    );
+    for (const latex of [
+      String.raw`\boxed{x}`,
+      String.raw`\color{red}{x}`,
+      String.raw`\overbrace{x}^{n}`,
+      String.raw`\begin{tabular}{c}x\end{tabular}`,
+      "a & b",
+      String.raw`x \\ y`,
       String.raw`\frac{1}{2`,
       String.raw`a}`,
       "",
