@@ -36,7 +36,9 @@ document.connectivityEvidence.push(
     powerDomain: "ground",
   },
 );
-const isVoltageSource = (symbolId: string) => symbolId === "voltage-source";
+const isVoltageSource = (instanceId: string, pinName: string) =>
+  (instanceId === "V1" && ["+", "-"].includes(pinName)) ||
+  (instanceId === "R1" && ["1", "2"].includes(pinName));
 
 describe("controlled-source canvas pick", () => {
   it("canonicalizes repeated ground markers and commits each voltage endpoint immediately", () => {
@@ -85,7 +87,7 @@ describe("controlled-source canvas pick", () => {
     });
   });
 
-  it("accepts only a voltage-source branch as a current sensor", () => {
+  it("accepts a specific device terminal, never guesses from the body", () => {
     const start: ControlPickState = {
       documentId: document.id,
       instanceId: "G1",
@@ -103,12 +105,51 @@ describe("controlled-source canvas pick", () => {
       advanceControlPick(
         start,
         document,
-        { kind: "sensor", instanceId: "V1" },
+        { kind: "terminal", instanceId: "R1", pinName: "1" },
         isVoltageSource,
       ),
     ).toMatchObject({
       kind: "complete",
-      control: { kind: "current", sensorInstanceId: "V1" },
+      control: {
+        kind: "terminal-current",
+        instanceId: "R1",
+        pinName: "1",
+        direction: "into",
+      },
+    });
+    expect(
+      advanceControlPick(
+        start,
+        document,
+        { kind: "terminal", instanceId: "R1", pinName: "missing" },
+        isVoltageSource,
+      ).kind,
+    ).toBe("reject");
+    const existing = structuredClone(document);
+    existing.instances[0]!.netlist = {
+      parameters: {},
+      control: {
+        kind: "terminal-current",
+        instanceId: "V1",
+        pinName: "+",
+        direction: "out",
+      },
+    };
+    expect(
+      advanceControlPick(
+        start,
+        existing,
+        { kind: "terminal", instanceId: "R1", pinName: "2" },
+        isVoltageSource,
+      ),
+    ).toMatchObject({
+      kind: "complete",
+      control: {
+        kind: "terminal-current",
+        instanceId: "R1",
+        pinName: "2",
+        direction: "out",
+      },
     });
   });
 

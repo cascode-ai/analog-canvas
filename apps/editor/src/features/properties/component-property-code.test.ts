@@ -33,6 +33,41 @@ const context = {
 };
 
 describe("component property code", () => {
+  it("projects a legacy sensor into device/terminal controls and validates direction", () => {
+    const sourceContext = {
+      ...context,
+      instance: {
+        ...instance,
+        symbolId: "cccs",
+        netlist: {
+          parameters: { gain: "2" },
+          control: { kind: "current" as const, sensorInstanceId: "V1" },
+        },
+      },
+      details: { parameters: [] },
+    };
+    const code = formatComponentPropertyCode(sourceContext);
+    expect(JSON.parse(code).control).toEqual({
+      instanceId: "V1",
+      pinName: "+",
+      direction: "into",
+    });
+    expect(
+      parseComponentPropertyCode(
+        code.replace('"into"', '"out"'),
+        sourceContext,
+      ),
+    ).toMatchObject({
+      ok: true,
+      value: { control: { instanceId: "V1", pinName: "+", direction: "out" } },
+    });
+    expect(
+      parseComponentPropertyCode(
+        code.replace('"into"', '"sideways"'),
+        sourceContext,
+      ),
+    ).toMatchObject({ ok: false });
+  });
   it("uses the ordinary visual Annotation name while keeping electrical control and gain separate", () => {
     const controlled = {
       ...instance,

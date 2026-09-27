@@ -40,7 +40,14 @@ function exactSpiceCard(
     (candidate) => candidate.id === instanceId,
   );
   if (!cell || !instance) return null;
-  const lines = printSpiceCellInstances({ ...cell, instances: [instance] });
+  const probe = cell.instances.find(
+    (item) =>
+      item.id === instance.controlSourceInstanceId && item.terminalCurrentSense,
+  );
+  const lines = printSpiceCellInstances({
+    ...cell,
+    instances: probe ? [probe, instance] : [instance],
+  });
   return lines.length > 0 ? lines.join("\n") : null;
 }
 
@@ -210,11 +217,21 @@ function fallbackSpiceCard(
     ...(currentControlled
       ? {
           controlSourceReference:
-            controlSensor &&
-            deviceDescriptor(controlSensor.symbolId)?.deviceClass ===
-              "voltage-source"
-              ? (controlSensor.reference ?? "<select-voltage-source>")
-              : "<select-voltage-source>",
+            control?.kind === "terminal-current"
+              ? control.instanceId && control.pinName
+                ? `<probe:${document.instances.find((item) => item.id === control.instanceId)?.reference ?? "missing"}.${control.pinName}>`
+                : "<select-device-terminal>"
+              : controlSensor &&
+                  deviceDescriptor(controlSensor.symbolId)?.deviceClass ===
+                    "voltage-source"
+                ? (controlSensor.reference ?? "<select-voltage-source>")
+                : "<select-voltage-source>",
+        }
+      : {}),
+    ...(control?.kind === "terminal-current"
+      ? {
+          controlCurrentSign:
+            control.direction === "out" ? (-1 as const) : (1 as const),
         }
       : {}),
   };

@@ -41,7 +41,7 @@ export interface ComponentPropertyDisplayCode {
 export interface ComponentPropertyCodeValue extends ComponentPropertyDetailsValue {
   control?:
     | { positiveNetId: string; negativeNetId: string }
-    | { sensorInstanceId: string };
+    | { instanceId: string; pinName: string; direction: "into" | "out" };
   /** Electrical role of VDD Power; absent for every other component. */
   connection?: "cell-pin" | "global";
   /** Global Net name owned by a supply marker. */
@@ -76,7 +76,8 @@ export interface ComponentPropertyCodeContext {
     label: string;
     baseNetIds?: readonly string[];
   }[];
-  controlSensorOptions?: readonly { value: string; label: string }[];
+  controlDeviceOptions?: readonly { value: string; label: string }[];
+  controlTerminalOptions?: readonly { value: string; label: string }[];
 }
 
 export type ComponentPropertyCodeParseResult =
@@ -311,10 +312,23 @@ export function componentPropertyCodeValue(
                     : "",
               }
             : {
-                sensorInstanceId:
-                  instance.netlist?.control?.kind === "current"
-                    ? (instance.netlist.control.sensorInstanceId ?? "")
-                    : "",
+                instanceId:
+                  instance.netlist?.control?.kind === "terminal-current"
+                    ? (instance.netlist.control.instanceId ?? "")
+                    : instance.netlist?.control?.kind === "current"
+                      ? (instance.netlist.control.sensorInstanceId ?? "")
+                      : "",
+                pinName:
+                  instance.netlist?.control?.kind === "terminal-current"
+                    ? (instance.netlist.control.pinName ?? "")
+                    : instance.netlist?.control?.kind === "current" &&
+                        instance.netlist.control.sensorInstanceId
+                      ? "+"
+                      : "",
+                direction:
+                  instance.netlist?.control?.kind === "terminal-current"
+                    ? instance.netlist.control.direction
+                    : "into",
               },
         }
       : {}),
@@ -500,7 +514,7 @@ export function parseComponentPropertyCode(
         context.instance.symbolId === "vccs";
       const keys = voltage
         ? ["positiveNetId", "negativeNetId"]
-        : ["sensorInstanceId"];
+        : ["instanceId", "pinName", "direction"];
       const unknownControl = unexpectedKey(
         decoded.control,
         new Set(keys),
@@ -510,12 +524,22 @@ export function parseComponentPropertyCode(
       for (const key of keys)
         if (typeof decoded.control[key] !== "string")
           throw new Error(`control.${key} must be a string`);
+      if (
+        !voltage &&
+        decoded.control.direction !== "into" &&
+        decoded.control.direction !== "out"
+      )
+        throw new Error("control.direction must be into or out");
       control = voltage
         ? {
             positiveNetId: decoded.control.positiveNetId as string,
             negativeNetId: decoded.control.negativeNetId as string,
           }
-        : { sensorInstanceId: decoded.control.sensorInstanceId as string };
+        : {
+            instanceId: decoded.control.instanceId as string,
+            pinName: decoded.control.pinName as string,
+            direction: decoded.control.direction as "into" | "out",
+          };
     }
     return {
       ok: true,

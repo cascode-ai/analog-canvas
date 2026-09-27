@@ -185,11 +185,15 @@ export function planComponentPropertyCodeEdits(
   }
   if (value.control) {
     const control =
-      "sensorInstanceId" in value.control
+      "instanceId" in value.control
         ? {
-            kind: "current" as const,
-            ...(value.control.sensorInstanceId
-              ? { sensorInstanceId: value.control.sensorInstanceId }
+            kind: "terminal-current" as const,
+            direction: value.control.direction,
+            ...(value.control.instanceId
+              ? { instanceId: value.control.instanceId }
+              : {}),
+            ...(value.control.pinName
+              ? { pinName: value.control.pinName }
               : {}),
           }
         : {

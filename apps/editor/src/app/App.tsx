@@ -2334,33 +2334,46 @@ function WorkspaceEditor({
     setStatus(
       kind === "voltage"
         ? "Pick control + Net, then control − Net · Each pick applies immediately; Esc stops picking"
-        : "Pick a voltage source or its pin for branch current · Esc cancels",
+        : "Pick a device terminal for control current · Esc cancels",
+    );
+  };
+  const currentControlDevices = document.instances.filter((instance) => {
+    const descriptor = deviceDescriptor(instance.symbolId, project);
+    return descriptor
+      ? descriptor.deviceClass !== "net-marker"
+      : Boolean(instance.netlist?.binding);
+  });
+  const isCurrentControlTerminal = (
+    instanceId: string,
+    pinName: string,
+  ): boolean => {
+    const instance = currentControlDevices.find(
+      (item) => item.id === instanceId,
+    );
+    return Boolean(
+      instance &&
+      resolver
+        .resolve(instance.symbolId, instance.symbolVariantId)
+        ?.definition.pins.some((pin) => pin.name === pinName),
     );
   };
   const controlSensorCandidate =
     controlPickMode === "sensor"
-      ? (instanceId: string): boolean => {
-          const instance = document.instances.find(
-            (item) => item.id === instanceId,
-          );
-          return Boolean(
-            instance &&
-            deviceDescriptor(instance.symbolId, project)?.deviceClass ===
-              "voltage-source",
-          );
-        }
+      ? (instanceId: string, pinName?: string) =>
+          Boolean(pinName && isCurrentControlTerminal(instanceId, pinName))
       : undefined;
   const pickControlledSourceTarget = (
     target:
-      { kind: "net"; netId: string } | { kind: "sensor"; instanceId: string },
+      | { kind: "net"; netId: string }
+      | { kind: "sensor"; instanceId: string }
+      | { kind: "terminal"; instanceId: string; pinName: string },
   ): void => {
     if (!controlPickState) return;
     const result = advanceControlPick(
       controlPickState,
       document,
       target,
-      (symbolId) =>
-        deviceDescriptor(symbolId, project)?.deviceClass === "voltage-source",
+      isCurrentControlTerminal,
     );
     if (result.kind === "continue" || result.kind === "complete") {
       const instance = document.instances.find(
@@ -2371,7 +2384,7 @@ function WorkspaceEditor({
         setStatus("The controlled source is no longer in this Cell");
         return;
       }
-      if (target.kind === "sensor") {
+      if (target.kind === "terminal") {
         suppressInstanceClick.current = true;
         window.setTimeout(() => {
           suppressInstanceClick.current = false;
@@ -2383,8 +2396,10 @@ function WorkspaceEditor({
           ? previous?.kind === "voltage" &&
             previous.positiveNetId === result.control.positiveNetId &&
             previous.negativeNetId === result.control.negativeNetId
-          : previous?.kind === "current" &&
-            previous.sensorInstanceId === result.control.sensorInstanceId;
+          : previous?.kind === "terminal-current" &&
+            previous.instanceId === result.control.instanceId &&
+            previous.pinName === result.control.pinName &&
+            previous.direction === result.control.direction;
       const applied = unchanged
         ? { ok: true }
         : transact([
@@ -2706,8 +2721,10 @@ function WorkspaceEditor({
     selectedControl?.kind === "voltage"
       ? `+ ${logicalNetChoiceForNet(netChoices, selectedControl.positiveNetId)?.label ?? "unset"} · − ${logicalNetChoiceForNet(netChoices, selectedControl.negativeNetId)?.label ?? "unset"}`
       : selectedControl?.kind === "current"
-        ? `Sensor: ${document.instances.find((candidate) => candidate.id === selectedControl.sensorInstanceId)?.reference ?? "unset"}`
-        : undefined;
+        ? `Terminal: ${document.instances.find((candidate) => candidate.id === selectedControl.sensorInstanceId)?.reference ?? "missing"}.+ · into device`
+        : selectedControl?.kind === "terminal-current"
+          ? `Terminal: ${document.instances.find((candidate) => candidate.id === selectedControl.instanceId)?.reference ?? "missing"}.${selectedControl.pinName ?? "unset"} · ${selectedControl.direction} device`
+          : undefined;
   const selectedGroupInstances = selectedIds.flatMap((id) => {
     const instance = document.instances.find((item) => item.id === id);
     return instance ? [instance] : [];
@@ -7488,20 +7505,39 @@ function WorkspaceEditor({
                                   baseNetIds: choice.baseNetIds,
                                 })),
                               ],
-                              controlSensorOptions: [
-                                { value: "", label: "Select voltage source" },
-                                ...document.instances
-                                  .filter(
-                                    (instance) =>
-                                      deviceDescriptor(
-                                        instance.symbolId,
-                                        project,
-                                      )?.deviceClass === "voltage-source",
-                                  )
-                                  .map((instance) => ({
-                                    value: instance.id,
-                                    label: instance.reference ?? instance.id,
-                                  })),
+                              controlDeviceOptions: [
+                                { value: "", label: "Select device" },
+                                ...currentControlDevices.map((instance) => ({
+                                  value: instance.id,
+                                  label: instance.reference ?? instance.id,
+                                })),
+                              ],
+                              controlTerminalOptions: [
+                                { value: "", label: "Select terminal" },
+                                ...(() => {
+                                  const control =
+                                    selectedInstance.netlist?.control;
+                                  const id =
+                                    control?.kind === "terminal-current"
+                                      ? control.instanceId
+                                      : control?.kind === "current"
+                                        ? control.sensorInstanceId
+                                        : undefined;
+                                  const target = currentControlDevices.find(
+                                    (item) => item.id === id,
+                                  );
+                                  return target
+                                    ? (
+                                        resolver.resolve(
+                                          target.symbolId,
+                                          target.symbolVariantId,
+                                        )?.definition.pins ?? []
+                                      ).map((pin) => ({
+                                        value: pin.name,
+                                        label: `${target.reference ?? target.id}.${pin.name}`,
+                                      }))
+                                    : [];
+                                })(),
                               ],
                               onStartControlPick: startControlPick,
                               onCancelControlPick: () => {
@@ -8361,6 +8397,16 @@ function WorkspaceEditor({
             },
             endpoints: {
               ...(controlSensorCandidate ? { controlSensorCandidate } : {}),
+              controlCurrentPreview:
+                selectedControl?.kind === "terminal-current"
+                  ? selectedControl
+                  : selectedControl?.kind === "current"
+                    ? {
+                        instanceId: selectedControl.sensorInstanceId,
+                        pinName: "+",
+                        direction: "into",
+                      }
+                    : null,
               document,
               endpoints: simulationPickTerminalsActive
                 ? wiringEndpoints.filter(
@@ -8474,8 +8520,9 @@ function WorkspaceEditor({
                     candidate.endpoint.kind === "terminal"
                   )
                     pickControlledSourceTarget({
-                      kind: "sensor",
+                      kind: "terminal",
                       instanceId: candidate.endpoint.instanceId,
+                      pinName: candidate.endpoint.pinName,
                     });
                   return;
                 }

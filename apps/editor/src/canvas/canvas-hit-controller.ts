@@ -161,6 +161,15 @@ export function createCanvasHitController({
   };
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>): void => {
+    // A terminal has a more precise electrical identity than the enclosing
+    // Instance hit box. Let its own handler pick it before body hit resolution.
+    if (
+      controlPickMode !== null &&
+      (event.target as Element).closest(
+        '.endpoint-hit[data-endpoint-kind="terminal"]',
+      )
+    )
+      return;
     // Handles outrank the scene even when another hit surface is above their
     // SVG element, such as a power-rail endpoint under its Junction circle.
     // The buried-wire warning span joins them: it exists precisely because

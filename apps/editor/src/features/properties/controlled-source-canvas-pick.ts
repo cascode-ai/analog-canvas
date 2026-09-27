@@ -14,7 +14,9 @@ export type ControlPickState =
   | { documentId: string; instanceId: string; kind: "current" };
 
 export type ControlPickTarget =
-  { kind: "net"; netId: string } | { kind: "sensor"; instanceId: string };
+  | { kind: "net"; netId: string }
+  | { kind: "sensor"; instanceId: string }
+  | { kind: "terminal"; instanceId: string; pinName: string };
 
 export type ControlPickResult =
   | {
@@ -31,7 +33,12 @@ export type ControlPickResult =
       kind: "complete";
       control:
         | { kind: "voltage"; positiveNetId: string; negativeNetId: string }
-        | { kind: "current"; sensorInstanceId: string };
+        | {
+            kind: "terminal-current";
+            instanceId: string;
+            pinName: string;
+            direction: "into" | "out";
+          };
       message: string;
     }
   | { kind: "reject"; message: string };
@@ -41,7 +48,7 @@ export function advanceControlPick(
   state: ControlPickState,
   document: SchematicDocument,
   target: ControlPickTarget,
-  isVoltageSource: (symbolId: string) => boolean,
+  isCurrentTerminal: (instanceId: string, pinName: string) => boolean,
 ): ControlPickResult {
   if (
     state.documentId !== document.id ||
@@ -93,22 +100,32 @@ export function advanceControlPick(
       message: `Control Nets selected: + ${logicalNetChoiceForNet(logicalNetChoices(document), state.positiveNetId)?.label ?? "Net"}, − ${choice.label}`,
     };
   }
-  if (target.kind !== "sensor")
+  if (target.kind !== "terminal")
     return {
       kind: "reject",
-      message: "Click a voltage source or one of its pins",
+      message: "Click a specific device terminal, not its body",
     };
   const sensor = document.instances.find(
     (instance) => instance.id === target.instanceId,
   );
-  if (!sensor || !isVoltageSource(sensor.symbolId))
+  if (!sensor || !isCurrentTerminal(sensor.id, target.pinName))
     return {
       kind: "reject",
-      message: "Branch-current control needs a voltage source as its sensor",
+      message: "This is not an electrical device terminal",
     };
+  const previous = document.instances.find(
+    (item) => item.id === state.instanceId,
+  )?.netlist?.control;
+  const direction =
+    previous?.kind === "terminal-current" ? previous.direction : "into";
   return {
     kind: "complete",
-    control: { kind: "current", sensorInstanceId: sensor.id },
-    message: `Current sensor selected: ${sensor.reference ?? "voltage source"}`,
+    control: {
+      kind: "terminal-current",
+      instanceId: sensor.id,
+      pinName: target.pinName,
+      direction,
+    },
+    message: `Control current: ${sensor.reference ?? sensor.id}.${target.pinName}, ${direction} device`,
   };
 }

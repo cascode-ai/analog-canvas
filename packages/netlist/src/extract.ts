@@ -5,6 +5,7 @@ import {
   routeEndpoints,
   spellGreekLetters,
 } from "@icm/model";
+import { lowerTerminalCurrentControls } from "./controlled-current.js";
 import {
   deriveProjectNetNameProjection,
   portableCellIdentifier,
@@ -1076,6 +1077,9 @@ function extractExternalSubcircuitInstance(
     );
     return {
       pinName: terminal.targetName,
+      ...(terminal.targetName !== terminal.pinName
+        ? { canvasPinName: terminal.pinName }
+        : {}),
       netName: netName ?? `<unconnected:${terminal.targetName}>`,
     };
   });
@@ -1697,6 +1701,7 @@ function extractDeviceInstance(
   });
   const controlled = definition.deviceClass;
   let controlSourceInstanceId: StableId | undefined;
+  let controlTerminal: DesignNetlistInstance["controlTerminal"];
   if (controlled === "vcvs" || controlled === "vccs") {
     const control = netlist.control;
     if (
@@ -1730,7 +1735,23 @@ function extractDeviceInstance(
     }
   } else if (controlled === "cccs" || controlled === "ccvs") {
     const control = netlist.control;
-    if (control?.kind !== "current" || !control.sensorInstanceId) {
+    if (control?.kind === "terminal-current") {
+      if (!control.instanceId || !control.pinName) {
+        diagnostic(
+          diagnostics,
+          document.id,
+          "MISSING_CONTROL_TERMINAL",
+          `Instance ${instance.reference!} requires a selected device terminal`,
+          [instance.id],
+        );
+      } else {
+        controlTerminal = {
+          instanceId: control.instanceId,
+          pinName: control.pinName,
+          direction: control.direction,
+        };
+      }
+    } else if (control?.kind !== "current" || !control.sensorInstanceId) {
       diagnostic(
         diagnostics,
         document.id,
@@ -1799,6 +1820,7 @@ function extractDeviceInstance(
       ? [...projectedParameters.parameters]
       : authoredParameters,
     ...(controlSourceInstanceId ? { controlSourceInstanceId } : {}),
+    ...(controlTerminal ? { controlTerminal } : {}),
   };
 }
 
@@ -2312,7 +2334,7 @@ function analyzeDesign(
     );
   }
   for (const document of documents) {
-    const cell = extractCell(
+    let cell = extractCell(
       project,
       document,
       documentsById,
@@ -2322,6 +2344,16 @@ function analyzeDesign(
       diagnostics,
     );
     if (cell) {
+      const lowered = lowerTerminalCurrentControls(cell);
+      cell = lowered.cell;
+      for (const issue of lowered.issues)
+        diagnostic(
+          diagnostics,
+          document.id,
+          "INVALID_CONTROL_TERMINAL",
+          issue.message,
+          [issue.instanceId, issue.targetId],
+        );
       if (resolvedOptions.format === "spice") projectSpiceReferences(cell);
       for (const instance of cell.instances) {
         if (!instance.controlSourceInstanceId) continue;

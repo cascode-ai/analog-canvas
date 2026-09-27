@@ -43,10 +43,27 @@ export function propertyCodeSpans(
           }))
         : [
             {
-              path: "control.sensorInstanceId",
-              label: "Current sensor",
+              path: "control.instanceId",
+              label: "Control device",
               kind: "choice" as const,
-              options: context.controlSensorOptions ?? [],
+              options: context.controlDeviceOptions ?? [],
+              description: "",
+            },
+            {
+              path: "control.pinName",
+              label: "Control terminal",
+              kind: "choice" as const,
+              options: context.controlTerminalOptions ?? [],
+              description: "",
+            },
+            {
+              path: "control.direction",
+              label: "Current direction",
+              kind: "choice" as const,
+              options: [
+                { value: "into", label: "Into device" },
+                { value: "out", label: "Out of device" },
+              ],
               description: "",
             },
           ]
@@ -112,11 +129,20 @@ export function propertyCodeSpans(
 }
 
 /** Controls edit the same draft, preserving whitespace and all unrelated authored bytes. */
+export function dependentControlPropertyValues(
+  values: Readonly<Record<string, unknown>>,
+) {
+  return "control.instanceId" in values && !("control.pinName" in values)
+    ? { ...values, "control.pinName": "" }
+    : values;
+}
+
 export function propertyCodeChanges(
   source: string,
   context: ComponentPropertyCodeContext,
   values: Readonly<Record<string, unknown>>,
 ) {
+  values = dependentControlPropertyValues(values);
   // Do not guess boundaries in malformed JSON. Independent semantic errors,
   // however, must not lock unrelated controls or be silently repaired.
   try {

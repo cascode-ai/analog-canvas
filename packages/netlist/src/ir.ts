@@ -6,6 +6,8 @@ export type DesignNetlistDeviceClass = NetlistDeviceClass | "hierarchical";
 
 export interface DesignNetlistNode {
   pinName: string;
+  /** Authored terminal identity when an external binding renames the port. */
+  canvasPinName?: string;
   netName: string;
 }
 
@@ -33,6 +35,14 @@ export interface DesignNetlistInstance {
   /** F/H resolve their controlling voltage-source reference after dialect projection. */
   controlSourceInstanceId?: StableId;
   controlSourceReference?: string;
+  controlCurrentSign?: 1 | -1;
+  controlTerminal?: {
+    instanceId: StableId;
+    pinName: string;
+    direction: "into" | "out";
+  };
+  /** Compiler-owned probe; never a canvas Instance. */
+  terminalCurrentSense?: { instanceId: StableId; pinName: string };
 }
 
 /** A model card a Cell carries itself, printed inside its own body. */
