@@ -121,9 +121,15 @@ export function symbolCategory(symbolId: string): string {
     return "Signal Flow";
   }
   if (
-    ["voltage-source", "pulse-voltage-source", "current-source"].includes(
-      symbolId,
-    )
+    [
+      "voltage-source",
+      "pulse-voltage-source",
+      "current-source",
+      "vcvs",
+      "vccs",
+      "cccs",
+      "ccvs",
+    ].includes(symbolId)
   ) {
     return "Sources";
   }

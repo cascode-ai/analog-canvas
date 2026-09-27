@@ -125,13 +125,14 @@ describe("mcp resources single-source projection", () => {
     // additions have a stricter per-tool host-compaction
     // budget in focused-tools.test.ts.
     // Total directory bytes are no longer the host's per-tool context boundary.
-    // Schema 64's kept Document style on authored objects, and the edit that
-    // releases it, bring it to 117,275 bytes.
+    // Schema 64's kept Document style reached 117,275 bytes. The four linear
+    // controlled-source classes and typed control selector bring this to
+    // 118,131 bytes; keep less than 369 bytes of headroom for compatibility.
     const compatibility = tools.filter(
       (t) => !FOCUSED_TOOLS.some((f) => f.name === t.name),
     );
     expect(Buffer.byteLength(JSON.stringify(compatibility))).toBeLessThan(
-      117_500,
+      118_500,
     );
     for (const tool of tools) {
       const complete = JSON.parse(
