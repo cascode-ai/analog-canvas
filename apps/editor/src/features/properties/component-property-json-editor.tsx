@@ -303,8 +303,12 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
           state.sliceDoc(name.from, name.to) === '"control"' &&
           node.node.parent?.parent?.name === "JsonText"
         ) {
+          const compact =
+            read().controlAction?.compact &&
+            value.to - value.from > 2 &&
+            state.sliceDoc(value.to - 1, value.to) === "}";
           ranges.push(
-            read().controlAction?.compact
+            compact
               ? Decoration.replace({
                   widget: new ControlPickWidget(read().controlAction!, read),
                 }).range(value.from + 1, value.to - 1)
@@ -313,7 +317,7 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
                   side: 1,
                 }).range(value.from + 1),
           );
-          if (read().controlAction?.compact) return false;
+          if (compact) return false;
         }
       }
       const token = classes[node.name];

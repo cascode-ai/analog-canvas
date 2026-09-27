@@ -364,6 +364,23 @@ for (const symbolId of ["cccs", "ccvs"]) {
   });
 }
 
+test("current control accepts an incomplete JSON draft without crashing", async ({
+  page,
+}) => {
+  await openFixture(page, "cccs");
+  const editor = page.getByLabel("Editable Canvas property code", {
+    exact: true,
+  });
+  await editor.click();
+  await page.keyboard.press("ControlOrMeta+A");
+  await page.keyboard.insertText('{"control":{');
+  await expect(editor).toBeVisible();
+  await expect(editor).toContainText('"control"');
+  await expect(
+    page.getByText("The editor hit an unexpected problem"),
+  ).toHaveCount(0);
+});
+
 for (const [symbolId, secondId, expression] of [
   ["vcvs", "E2", "A_{v}v_{2}"],
   ["cccs", "F2", "βi_{2}"],
