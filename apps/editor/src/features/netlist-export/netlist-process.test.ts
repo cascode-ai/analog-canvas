@@ -17,6 +17,7 @@ import {
 import {
   planNetlistProcess,
   inferNetlistProcess,
+  instanceModelTarget,
   netlistProcessPendingInstances,
 } from "./netlist-process";
 
@@ -81,6 +82,71 @@ describe("what the process still owes a circuit", () => {
     expect(
       planNetlistProcess(filled, sky130, { onlyMissing: true }),
     ).toHaveLength(0);
+  });
+
+  it("fills devices drawn with no netlist record at all", () => {
+    // As an Agent or an early editor drew them: a symbol and a Reference only.
+    const project = createEmptyProject("unrecorded", "Unrecorded");
+    project.documents[0]!.instances.push(
+      { id: "Q1", reference: "M1", symbolId: "nmos", placement: null },
+      { id: "CF1", reference: "CF1", symbolId: "capacitor", placement: null },
+      { id: "RL", reference: "RL", symbolId: "resistor", placement: null },
+    );
+    const sky130 = createNetlistExportProfile("sky130");
+    expect(netlistProcessPendingInstances(project, sky130)).toBe(3);
+
+    const filled = apply(project, sky130, { onlyMissing: true });
+    const [mos, capacitor, resistor] = filled.documents[0]!.instances;
+    expect(instanceModelTarget(filled, mos!)).toBe("sky130_fd_pr__nfet_01v8");
+    expect(mos!.netlist?.parameters).toMatchObject({ w: "1u", l: "150n" });
+    expect(capacitor!.netlist?.parameters.value).toBe("1p");
+    expect(resistor!.netlist?.parameters.value).toBe("1k");
+    expect(netlistProcessPendingInstances(filled, sky130)).toBe(0);
+  });
+
+  it("fills the rest when a device is drawn as a symbol the model does not fit", () => {
+    // SKY130's reviewed MOS models are drawn as plain MOS; a DMOS keeps its
+    // missing model for the author instead of blocking every other device.
+    const project = createEmptyProject("dmos", "DMOS");
+    project.documents[0]!.instances.push(
+      {
+        id: "M1",
+        reference: "M1",
+        symbolId: "ndmos",
+        placement: null,
+        netlist: { parameters: {} },
+      },
+      {
+        id: "M2",
+        reference: "M2",
+        symbolId: "nmos",
+        placement: null,
+        netlist: { parameters: {} },
+      },
+    );
+    const sky130 = createNetlistExportProfile("sky130");
+    expect(netlistProcessPendingInstances(project, sky130)).toBe(1);
+
+    const filled = apply(project, sky130, { onlyMissing: true });
+    const [dmos, mos] = filled.documents[0]!.instances;
+    expect(instanceModelTarget(filled, dmos!)).toBe("");
+    expect(instanceModelTarget(filled, mos!)).toBe("sky130_fd_pr__nfet_01v8");
+  });
+
+  it("fills the rest when a device's Reference refuses netlist edits", () => {
+    // A MOS drawn as Q1 cannot take a netlist edit until it is renamed.
+    const project = createEmptyProject("misnamed", "Misnamed");
+    project.documents[0]!.instances.push(
+      { id: "Q1", reference: "Q1", symbolId: "nmos", placement: null },
+      { id: "M2", reference: "M2", symbolId: "nmos", placement: null },
+    );
+    const sky130 = createNetlistExportProfile("sky130");
+    expect(netlistProcessPendingInstances(project, sky130)).toBe(1);
+
+    const filled = apply(project, sky130, { onlyMissing: true });
+    const [misnamed, mos] = filled.documents[0]!.instances;
+    expect(misnamed!.netlist).toBeUndefined();
+    expect(instanceModelTarget(filled, mos!)).toBe("sky130_fd_pr__nfet_01v8");
   });
 
   it("leaves what the author already said alone", () => {
