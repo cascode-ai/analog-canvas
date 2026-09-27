@@ -112,7 +112,11 @@ sets everything the Formula editor offers and its common neighbours:
   and class commands.
 
 The Formula editor refuses LaTeX label type cannot set, naming the command
-(for example `\boxed` or `\color`), rather than drawing it another way. The layout measures with the label advance
+(for example `\boxed` or `\color`), rather than drawing it another way.
+Fraction bars, overlines, and radical signs are drawn in the text's own
+weight, as TeX's rules are, not the heavier stroke of schematic lines. A
+radical sign is a drawn stroke that runs on into its overbar, so the two meet
+exactly whatever face the viewer has. The layout measures with the label advance
 tables, but a viewer may draw the font stack in another face, such as Arial
 where DejaVu Sans is not installed. So each run of symbols with their scripts
 is one text element whose glyphs follow one another by the real face's

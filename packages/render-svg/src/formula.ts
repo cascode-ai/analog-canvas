@@ -24,7 +24,7 @@ function escapeXml(value: string): string {
 }
 
 /** Formula typography markers; a stored preview without them is redrawn. */
-export const LABEL_FORMULA_TYPOGRAPHY = "label-v4";
+export const LABEL_FORMULA_TYPOGRAPHY = "label-v5";
 export const MATHJAX_FORMULA_TYPOGRAPHY = "sans-v4";
 
 /**
@@ -65,18 +65,16 @@ function renderLabelFormula(
   const font = (glyph: LabelFormulaGlyph) =>
     `font-size="${number(glyph.size)}" font-style="${glyph.italic || options.italic === true ? "italic" : "normal"}" font-weight="${glyph.bold ? "bold" : "normal"}"`;
   // The items in drawing order as runs of flowing glyphs, lone glyphs (a
-  // fence or radical sign) and rules.
+  // fence, accent or operator), rules and drawn strokes.
+  type Line = Exclude<LabelFormulaLayout["items"][number], LabelFormulaGlyph>;
   type Segment =
     | { kind: "run"; glyphs: LabelFormulaGlyph[] }
     | { kind: "glyph"; glyph: LabelFormulaGlyph }
-    | {
-        kind: "rule";
-        rule: Extract<LabelFormulaLayout["items"][number], { kind: "rule" }>;
-      };
+    | { kind: "line"; line: Line };
   const segments: Segment[] = [];
   for (const item of layout.items) {
     const last = segments.at(-1);
-    if (item.kind === "rule") segments.push({ kind: "rule", rule: item });
+    if (item.kind !== "glyph") segments.push({ kind: "line", line: item });
     else if (item.flow === undefined)
       segments.push({ kind: "glyph", glyph: item });
     else if (last?.kind === "run" && last.glyphs[0]!.flow === item.flow)
@@ -92,9 +90,13 @@ function renderLabelFormula(
     (anchor === "start" ? start : anchor === "end" ? end : (start + end) / 2);
 
   const rendered = segments.map((segment) => {
-    if (segment.kind === "rule") {
-      const { x1, x2, y } = segment.rule;
-      return `<line x1="${number(left + x1)}" y1="${number(options.baselineY + y)}" x2="${number(left + x2)}" y2="${number(options.baselineY + y)}" stroke="${color}" stroke-width="${profile.strokes.annotation}"/>`;
+    if (segment.kind === "line") {
+      // Bars and radical signs in the text's own weight, as TeX draws them,
+      // not the heavier stroke of the schematic's lines.
+      const { line } = segment;
+      if (line.kind === "path")
+        return `<polyline points="${line.points.map((point) => `${number(left + point.x)},${number(options.baselineY + point.y)}`).join(" ")}" fill="none" stroke="${color}" stroke-width="${number(line.thickness)}" stroke-linejoin="round" stroke-linecap="round"/>`;
+      return `<line x1="${number(left + line.x1)}" y1="${number(options.baselineY + line.y)}" x2="${number(left + line.x2)}" y2="${number(options.baselineY + line.y)}" stroke="${color}" stroke-width="${number(line.thickness)}"/>`;
     }
     if (segment.kind === "glyph") {
       // A fence, radical sign, accent or operator set on its own. A fence or

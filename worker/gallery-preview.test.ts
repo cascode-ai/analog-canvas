@@ -19,10 +19,10 @@ describe("formula preview refresh", () => {
         '<svg><svg overflow="visible" data-role="formula"></svg></svg>',
       ),
     ).toBe(true);
-    // Label type drawn before its current coverage and run placement.
+    // Label type drawn before its bars and radical signs took the text weight.
     expect(
       formulaPreviewNeedsRefresh(
-        '<svg><g data-role="formula" data-formula-typography="label-v3"><text>V</text></g></svg>',
+        '<svg><g data-role="formula" data-formula-typography="label-v4"><text>V</text></g></svg>',
       ),
     ).toBe(true);
     // Typeset before label type set sums, accents and matrices too.
@@ -36,7 +36,7 @@ describe("formula preview refresh", () => {
   it("keeps current formula artwork and previews without formulas", () => {
     expect(
       formulaPreviewNeedsRefresh(
-        '<svg><g data-role="formula" data-formula-typography="label-v4"><text>V</text></g></svg>',
+        '<svg><g data-role="formula" data-formula-typography="label-v5"><text>V</text></g></svg>',
       ),
     ).toBe(false);
     expect(

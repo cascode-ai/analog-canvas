@@ -775,7 +775,7 @@ test("authors one validated formula through the canonical text editor", async ({
   );
   await expect(formula).toBeVisible();
   // An integral, a root and MathLive's upright d are all set in label type.
-  await expect(formula).toHaveAttribute("data-formula-typography", "label-v4");
+  await expect(formula).toHaveAttribute("data-formula-typography", "label-v5");
   await expect(formula.locator("text", { hasText: "∫" })).toHaveCount(1);
   await expect(page.locator("foreignObject", { has: formula })).toHaveCount(0);
 
@@ -801,7 +801,7 @@ test("authors one validated formula through the canonical text editor", async ({
     "utf8",
   );
   expect(svg).toContain('data-role="formula"');
-  expect(svg).toContain('data-formula-typography="label-v4"');
+  expect(svg).toContain('data-formula-typography="label-v5"');
   expect(svg).not.toContain("<foreignObject");
 
   const pdf = await downloadBytes(page, "File", "Export PDF");
@@ -943,7 +943,7 @@ test("edits an unrestricted device formula in the same visual annotation", async
   // subscripts upright.
   await expect(labelFormula).toHaveAttribute(
     "data-formula-typography",
-    "label-v4",
+    "label-v5",
   );
   await expect(
     labelFormula.locator("tspan", { hasText: /^R$/u }),

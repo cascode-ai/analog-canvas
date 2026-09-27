@@ -310,7 +310,7 @@ describe("drafting layer rendering", () => {
     });
     const svg = renderDocumentSvg(document, resolver);
     const formula = svg.match(
-      /<g data-role="formula" data-formula-typography="label-v4"[^>]*>.*?<\/g>/u,
+      /<g data-role="formula" data-formula-typography="label-v5"[^>]*>.*?<\/g>/u,
     )?.[0];
     expect(formula).toBeDefined();
     expect(formula).toContain("ICM Round Period");
