@@ -12,6 +12,7 @@ import { itemPropertyCode } from "./item-property-code";
 import {
   propertyCodeSpans,
   propertyCodeChanges,
+  dependentControlPropertyValues,
   reflectedPropertyCode,
 } from "./component-property-code-assists";
 
@@ -44,7 +45,8 @@ export interface ComponentPropertyCodeEditorProps {
   controlPick?: { step: "positive" | "negative" | "sensor" } | null;
   controlSummary?: string;
   controlNetOptions?: ComponentPropertyCodeContext["controlNetOptions"];
-  controlSensorOptions?: ComponentPropertyCodeContext["controlSensorOptions"];
+  controlDeviceOptions?: ComponentPropertyCodeContext["controlDeviceOptions"];
+  controlTerminalOptions?: ComponentPropertyCodeContext["controlTerminalOptions"];
   onStartControlPick?: () => void;
   onCancelControlPick?: () => void;
   onApply: (
@@ -68,7 +70,8 @@ export function ComponentPropertyCodeEditor({
   controlPick,
   controlSummary,
   controlNetOptions,
-  controlSensorOptions,
+  controlDeviceOptions,
+  controlTerminalOptions,
   onStartControlPick,
   onCancelControlPick,
   onApply,
@@ -84,7 +87,8 @@ export function ComponentPropertyCodeEditor({
       ...(netName !== undefined ? { netName } : {}),
       ...(details ? { details } : {}),
       ...(controlNetOptions ? { controlNetOptions } : {}),
-      ...(controlSensorOptions ? { controlSensorOptions } : {}),
+      ...(controlDeviceOptions ? { controlDeviceOptions } : {}),
+      ...(controlTerminalOptions ? { controlTerminalOptions } : {}),
     }),
     [
       instance,
@@ -96,7 +100,8 @@ export function ComponentPropertyCodeEditor({
       netName,
       details,
       controlNetOptions,
-      controlSensorOptions,
+      controlDeviceOptions,
+      controlTerminalOptions,
     ],
   );
   const nativeBaseline = useMemo(
@@ -126,18 +131,20 @@ export function ComponentPropertyCodeEditor({
     itemName,
   ]);
   const baseline = projection.format(nativeBaseline);
-  const adapter = useMemo(
-    () =>
-      projection.adapter({
-        parse: (source) => parseComponentPropertyCode(source, context),
-        spans: (source) => propertyCodeSpans(source, context),
-        changes: (source, values) =>
-          propertyCodeChanges(source, context, values),
-        reflected: (source, direction) =>
-          reflectedPropertyCode(source, context, direction),
-      }),
-    [projection, context],
-  );
+  const adapter = useMemo(() => {
+    const projected = projection.adapter({
+      parse: (source) => parseComponentPropertyCode(source, context),
+      spans: (source) => propertyCodeSpans(source, context),
+      changes: (source, values) => propertyCodeChanges(source, context, values),
+      reflected: (source, direction) =>
+        reflectedPropertyCode(source, context, direction),
+    });
+    return {
+      ...projected,
+      changes: (source: string, values: Readonly<Record<string, unknown>>) =>
+        projected.changes(source, dependentControlPropertyValues(values)),
+    };
+  }, [projection, context]);
   const previousBaseline = useRef(baseline);
   const appliedCode = useRef<string | null>(null);
   const [historyKey, setHistoryKey] = useState(0);
@@ -282,7 +289,7 @@ export function ComponentPropertyCodeEditor({
                       : controlPick?.step === "negative"
                         ? "Click control − Net; the pick then finishes"
                         : controlPick?.step === "sensor"
-                          ? "Click a voltage source or its pin"
+                          ? "Click a device terminal; arrow shows positive current"
                           : (controlSummary ?? "Control not selected"),
                   onClick: () =>
                     controlPick

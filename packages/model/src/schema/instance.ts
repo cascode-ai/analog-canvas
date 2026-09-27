@@ -125,6 +125,12 @@ export const InstanceNetlistDataSchema = z.strictObject({
         kind: z.literal("current"),
         sensorInstanceId: StableIdSchema.optional(),
       }),
+      z.strictObject({
+        kind: z.literal("terminal-current"),
+        instanceId: StableIdSchema.optional(),
+        pinName: z.string().min(1).max(128).optional(),
+        direction: z.enum(["into", "out"]),
+      }),
     ])
     .optional(),
   parameters: z

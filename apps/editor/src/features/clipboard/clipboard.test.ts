@@ -7,6 +7,7 @@ import {
 import type { Annotation, DraftingObject, Instance } from "@icm/model";
 import {
   createEmptyDocument,
+  createEmptyProject,
   controlledSourceExpressionDocument,
   controlledSourceExpressionSource,
   defaultControlledSourceExpression,
@@ -17,6 +18,7 @@ import { buildSvgScene } from "@icm/render-svg";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 import { createLibraryExampleProject } from "../../examples/library-examples";
+import { captureProjectCopy } from "./project-copy";
 
 import {
   clipboardPlacementAnchor,
@@ -31,6 +33,97 @@ import {
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("schematic clipboard", () => {
+  it("does not retain an unselected control across Projects sharing document-main", () => {
+    const source = createEmptyProject("source", "Source");
+    const target = createEmptyProject("target", "Target");
+    source.documents[0]!.instances.push(resistorInstance("R1", "R1"), {
+      ...resistorInstance("F1", "F1"),
+      symbolId: "cccs",
+      netlist: {
+        parameters: { gain: "2" },
+        control: {
+          kind: "terminal-current",
+          instanceId: "R1",
+          pinName: "1",
+          direction: "into",
+        },
+      },
+    });
+    target.documents[0]!.instances.push(resistorInstance("R1", "R9"));
+    const clipboard = captureProjectCopy(source, source.documents[0]!, {
+      instanceIds: ["F1"],
+      draftingIds: [],
+      routeIds: [],
+      junctionIds: [],
+      annotationIds: [],
+    })!;
+    const proposal = proposePaste(
+      target.documents[0]!,
+      clipboard,
+      { x: 80, y: 0 },
+      1,
+      target,
+    );
+    const copied = proposal.edits.find((e) => e.kind === "add_instance");
+    expect(
+      copied?.kind === "add_instance" && copied.instance.netlist?.control,
+    ).toEqual({
+      kind: "terminal-current",
+      pinName: "1",
+      direction: "into",
+      instanceId: undefined,
+    });
+  });
+  it.each(["together", "same-cell", "other-cell"])(
+    "keeps terminal-current references safe when copying %s",
+    (mode) => {
+      const document = createEmptyDocument("current-copy", "Current copy");
+      document.instances.push(resistorInstance("R1", "R1"), {
+        ...resistorInstance("F1", "F1"),
+        symbolId: "cccs",
+        netlist: {
+          parameters: { gain: "2" },
+          control: {
+            kind: "terminal-current",
+            instanceId: "R1",
+            pinName: "1",
+            direction: "out",
+          },
+        },
+      });
+      const target =
+        mode === "other-cell"
+          ? createEmptyDocument("other", "Other")
+          : document;
+      // An unrelated target with the same ID must never receive the copied control.
+      if (mode === "other-cell")
+        target.instances.push(resistorInstance("R1", "R9"));
+      const proposal = proposePaste(
+        target,
+        copySelection(document, mode === "together" ? ["F1", "R1"] : ["F1"])!,
+        { x: 80, y: 0 },
+        1,
+      );
+      const additions = proposal.edits
+        .filter((e) => e.kind === "add_instance")
+        .map((e) => e.instance);
+      const copied = additions.find((i) => i.symbolId === "cccs")!;
+      expect(copied.netlist!.control).toEqual({
+        kind: "terminal-current",
+        pinName: "1",
+        direction: "out",
+        instanceId:
+          mode === "together"
+            ? additions.find((i) => i.symbolId === "resistor")!.id
+            : mode === "same-cell"
+              ? "R1"
+              : undefined,
+      });
+      expect(document.instances[1]!.netlist!.control).toMatchObject({
+        instanceId: "R1",
+      });
+    },
+  );
   it("copies a local Power Rail with its formal Cell Pin ownership", () => {
     const source = createEmptyDocument("source", "Source");
     const created = executeTransaction(

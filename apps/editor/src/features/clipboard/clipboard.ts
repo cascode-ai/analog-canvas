@@ -1249,9 +1249,15 @@ export function proposePaste(
   clipboard: SchematicClipboard,
   offset: Point,
   sequence: number,
-  project?: Pick<CircuitProject, "componentDefinitions">,
+  project?: Pick<CircuitProject, "componentDefinitions"> &
+    Partial<Pick<CircuitProject, "id">>,
   resolver?: SymbolResolver,
 ): PasteProposal {
+  // New Projects can both contain `document-main`; Cell ID alone is not
+  // authority to retain an unselected electrical control across Projects.
+  const sameControlScope =
+    clipboard.sourceDocumentId === document.id &&
+    (clipboard.context ? clipboard.context.id === project?.id : !project);
   const occupied = new Set<string>(
     [
       ...document.instances,
@@ -1525,6 +1531,42 @@ export function proposePaste(
       instance: {
         ...structuredClone(freshInstances.get(instance.id) ?? instance),
         id: instanceIds.get(instance.id)!,
+        ...(instance.netlist?.control
+          ? {
+              netlist: {
+                ...structuredClone(instance.netlist),
+                control: (() => {
+                  const control = instance.netlist!.control!;
+                  const mappedInstance = (id: string | undefined) =>
+                    id
+                      ? (instanceIds.get(id) ??
+                        (sameControlScope ? id : undefined))
+                      : undefined;
+                  const mappedNet = (id: string | undefined) =>
+                    id
+                      ? (netIds.get(id) ?? (sameControlScope ? id : undefined))
+                      : undefined;
+                  if (control.kind === "terminal-current")
+                    return {
+                      ...control,
+                      instanceId: mappedInstance(control.instanceId),
+                    };
+                  if (control.kind === "current")
+                    return {
+                      ...control,
+                      sensorInstanceId: mappedInstance(
+                        control.sensorInstanceId,
+                      ),
+                    };
+                  return {
+                    ...control,
+                    positiveNetId: mappedNet(control.positiveNetId),
+                    negativeNetId: mappedNet(control.negativeNetId),
+                  };
+                })(),
+              },
+            }
+          : {}),
         ...(instanceReferences.has(instance.id)
           ? {
               reference: instanceReferences.get(instance.id)!,

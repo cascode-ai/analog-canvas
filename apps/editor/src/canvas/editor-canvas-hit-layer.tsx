@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type {
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
@@ -198,7 +198,7 @@ function AnalogBlockHitGeometry({
 }
 
 interface SelectionHitTargetProps {
-  controlSensorCandidate?: (instanceId: string) => boolean;
+  controlSensorCandidate?: (instanceId: string, pinName?: string) => boolean;
   document: SchematicDocument;
   resolver: SymbolResolver;
   routeGeometryRecords: readonly RouteGeometryRecord[];
@@ -245,7 +245,12 @@ interface SelectionHitTargetProps {
 }
 
 interface EndpointHitTargetProps {
-  controlSensorCandidate?: (instanceId: string) => boolean;
+  controlCurrentPreview?: {
+    instanceId?: string | undefined;
+    pinName?: string | undefined;
+    direction: "into" | "out";
+  } | null;
+  controlSensorCandidate?: (instanceId: string, pinName?: string) => boolean;
   document: SchematicDocument;
   endpoints: readonly WireSource[];
   tool: EditorTool;
@@ -628,7 +633,34 @@ function EndpointHitTargets({
   onNetPointerLeave,
   terminalPickState,
   controlSensorCandidate,
+  controlCurrentPreview,
 }: EndpointHitTargetProps) {
+  const [controlHover, setControlHover] = useState<WireSource | null>(null);
+  const previewEndpoint =
+    controlSensorCandidate && controlHover
+      ? controlHover
+      : endpoints.find(
+          (item) =>
+            item.endpoint.kind === "terminal" &&
+            item.endpoint.instanceId === controlCurrentPreview?.instanceId &&
+            item.endpoint.pinName === controlCurrentPreview?.pinName,
+        );
+  const outward = previewEndpoint?.connection.outward;
+  const contact = previewEndpoint?.connection.contactPoint;
+  const arrowOuter =
+    contact && outward
+      ? {
+          x: contact.x + outward.x * endpointHitRadius * 6,
+          y: contact.y + outward.y * endpointHitRadius * 6,
+        }
+      : null;
+  const arrowInner =
+    contact && outward
+      ? {
+          x: contact.x - outward.x * endpointHitRadius * 2,
+          y: contact.y - outward.y * endpointHitRadius * 2,
+        }
+      : null;
   const selectedRouteEnd = selectedRoute ? routeEnd(selectedRoute) : null;
   // Which end of the selected wire an endpoint IS, by identity rather than by
   // Junction id: a pin-anchored end is one of its ends too, and matching only
@@ -681,6 +713,13 @@ function EndpointHitTargets({
           ? "end"
           : null;
     const label = endpointLabel(candidate.endpoint);
+    const terminal =
+      candidate.endpoint.kind === "terminal" ? candidate.endpoint : null;
+    const controlTitle =
+      terminal &&
+      controlSensorCandidate?.(terminal.instanceId, terminal.pinName)
+        ? `${document.instances.find((item) => item.id === terminal.instanceId)?.reference ?? terminal.instanceId}.${terminal.pinName} · ${controlCurrentPreview?.direction ?? "into"} device`
+        : null;
     return (
       <circle
         key={`${candidate.netId}:${label}`}
@@ -688,7 +727,10 @@ function EndpointHitTargets({
         data-endpoint-kind={candidate.endpoint.kind}
         data-control-sensor={
           candidate.endpoint.kind === "terminal"
-            ? controlSensorCandidate?.(candidate.endpoint.instanceId)
+            ? controlSensorCandidate?.(
+                candidate.endpoint.instanceId,
+                candidate.endpoint.pinName,
+              )
             : undefined
         }
         data-canvas-hit-kind={
@@ -731,6 +773,13 @@ function EndpointHitTargets({
           onEndpointActions(candidate, event.clientX, event.clientY);
         }}
         onPointerDown={(event) => {
+          if (
+            controlSensorCandidate &&
+            candidate.endpoint.kind === "terminal"
+          ) {
+            onWireEndpoint(event, candidate);
+            return;
+          }
           if (
             tool === "pointer" &&
             selectedRoute &&
@@ -780,15 +829,48 @@ function EndpointHitTargets({
           }
           onWireEndpoint(event, candidate);
         }}
-        onPointerEnter={() =>
-          candidate.netId && onNetPointerEnter?.(candidate.netId)
-        }
-        onPointerLeave={() => onNetPointerLeave?.()}
-      />
+        onPointerEnter={() => {
+          if (candidate.netId) onNetPointerEnter?.(candidate.netId);
+          if (
+            candidate.endpoint.kind === "terminal" &&
+            controlSensorCandidate?.(
+              candidate.endpoint.instanceId,
+              candidate.endpoint.pinName,
+            )
+          )
+            setControlHover(candidate);
+        }}
+        onPointerLeave={() => {
+          onNetPointerLeave?.();
+          setControlHover(null);
+        }}
+      >
+        {controlTitle ? <title>{controlTitle}</title> : null}
+      </circle>
     );
   });
   return (
     <>
+      {arrowOuter && arrowInner ? (
+        <g
+          data-testid="control-current-direction-preview"
+          data-direction={controlCurrentPreview?.direction ?? "into"}
+        >
+          <TerminalCurrentDirectionPreview
+            from={
+              controlCurrentPreview?.direction === "out"
+                ? arrowInner
+                : arrowOuter
+            }
+            to={
+              controlCurrentPreview?.direction === "out"
+                ? arrowOuter
+                : arrowInner
+            }
+            arrowSize={endpointHitRadius * 1.6}
+          />
+        </g>
+      ) : null}
       {pickOrigin
         ? pickPartners.map(({ candidate }) => (
             <TerminalCurrentDirectionPreview

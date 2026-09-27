@@ -1687,6 +1687,35 @@
                       "kind"
                     ],
                     "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "terminal-current"
+                      },
+                      "instanceId": {
+                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
+                      },
+                      "pinName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      "direction": {
+                        "type": "string",
+                        "enum": [
+                          "into",
+                          "out"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "direction"
+                    ],
+                    "additionalProperties": false
                   }
                 ]
               },

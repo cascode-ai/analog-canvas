@@ -29,12 +29,19 @@ export function nativeCurrentSenses(
   occupied: ReadonlySet<string>,
 ): NativeCurrentSense[] {
   return instance.nodes.map(({ pinName }) => {
+    const existing = cell.instances.find(
+      (probe) =>
+        probe.terminalCurrentSense?.instanceId === instance.id &&
+        probe.terminalCurrentSense.pinName === pinName,
+    );
     const id = sha256Hex(JSON.stringify([cell.id, instance.id, pinName])).slice(
       0,
       20,
     );
-    const senseReference = `__icm_sense_${id}`;
-    const senseNode = `__icm_sense_node_${id}`;
+    const senseReference = existing?.reference ?? `__icm_sense_${id}`;
+    const senseNode =
+      existing?.nodes.find((node) => node.pinName === "-")?.netName ??
+      `__icm_sense_node_${id}`;
     const reference = [...path, senseReference].join(":");
     return {
       cellId: cell.id,
@@ -45,7 +52,8 @@ export function nativeCurrentSenses(
       reference,
       vector: `${reference}:flow(br)`,
       save: `i(${vacaskIdentifier(reference)})`,
-      collision: occupied.has(senseReference) || occupied.has(senseNode),
+      collision:
+        !existing && (occupied.has(senseReference) || occupied.has(senseNode)),
     };
   });
 }
@@ -92,7 +100,7 @@ export function nativeCurrentInstrumentation(
         head!.value === "i"
           ? name!.value
           : name!.value.slice(0, -":flow(br)".length);
-      if (!ref.split(":").at(-1)!.startsWith("__icm_sense_")) continue;
+      if (!/^(?:V)?__icm_sense_/.test(ref.split(":").at(-1)!)) continue;
       const sense = known.get(ref);
       if (!sense || sense.collision) {
         diagnostics.push({

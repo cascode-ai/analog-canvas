@@ -1,5 +1,5 @@
 import type { StableId } from "@icm/model";
-import type { DesignNetlistIR } from "./ir.js";
+import type { DesignNetlistIR, DesignNetlistCell } from "./ir.js";
 
 export interface TerminalCurrentInstrumentation {
   readonly cellId: StableId;
@@ -27,46 +27,67 @@ export function instrumentTerminalCurrents(
   if (instrumentations.size === 0) return ir;
   return {
     ...ir,
-    cells: ir.cells.map((cell) => ({
-      ...cell,
-      instances: cell.instances.flatMap((instance) => {
-        const selected = instance.nodes.flatMap((node) => {
-          const instrumentation = instrumentations.get(
-            instrumentationKey({
-              cellId: cell.id,
-              instanceId: instance.id,
-              pinName: node.pinName,
-            }),
+    cells: ir.cells.map((cell) =>
+      instrumentCellTerminalCurrents(cell, instrumentations),
+    ),
+  };
+}
+
+export function instrumentCellTerminalCurrents(
+  cell: DesignNetlistCell,
+  instrumentations: ReadonlyMap<string, TerminalCurrentInstrumentation>,
+): DesignNetlistCell {
+  if (instrumentations.size === 0) return cell;
+  return {
+    ...cell,
+    instances: cell.instances.flatMap((instance) => {
+      const selected = instance.nodes.flatMap((node) => {
+        const instrumentation = instrumentations.get(
+          instrumentationKey({
+            cellId: cell.id,
+            instanceId: instance.id,
+            pinName: node.pinName,
+          }),
+        );
+        const existing =
+          instrumentation &&
+          cell.instances.some(
+            (probe) =>
+              probe.terminalCurrentSense?.instanceId === instance.id &&
+              probe.terminalCurrentSense.pinName === node.pinName,
           );
-          return instrumentation ? [{ node, instrumentation }] : [];
-        });
-        if (selected.length === 0) return [instance];
-        return [
-          {
-            ...instance,
-            nodes: instance.nodes.map((node) => {
-              const selectedNode = selected.find(
-                (item) => item.node.pinName === node.pinName,
-              );
-              return selectedNode
-                ? { ...node, netName: selectedNode.instrumentation.senseNode }
-                : node;
-            }),
+        return instrumentation && !existing ? [{ node, instrumentation }] : [];
+      });
+      if (selected.length === 0) return [instance];
+      return [
+        {
+          ...instance,
+          nodes: instance.nodes.map((node) => {
+            const selectedNode = selected.find(
+              (item) => item.node.pinName === node.pinName,
+            );
+            return selectedNode
+              ? { ...node, netName: selectedNode.instrumentation.senseNode }
+              : node;
+          }),
+        },
+        ...selected.map(({ node, instrumentation }) => ({
+          id: `${instance.id}:simulation-current-sense:${instrumentation.senseReference}`,
+          reference: instrumentation.senseReference,
+          invocationKind: "primitive" as const,
+          deviceClass: "voltage-source" as const,
+          target: null,
+          terminalCurrentSense: {
+            instanceId: instance.id,
+            pinName: node.pinName,
           },
-          ...selected.map(({ node, instrumentation }) => ({
-            id: `${instance.id}:simulation-current-sense:${instrumentation.senseReference}`,
-            reference: instrumentation.senseReference,
-            invocationKind: "primitive" as const,
-            deviceClass: "voltage-source" as const,
-            target: null,
-            nodes: [
-              { pinName: "+", netName: node.netName },
-              { pinName: "-", netName: instrumentation.senseNode },
-            ],
-            parameters: [{ name: "dc", rawValue: "0" }],
-          })),
-        ];
-      }),
-    })),
+          nodes: [
+            { pinName: "+", netName: node.netName },
+            { pinName: "-", netName: instrumentation.senseNode },
+          ],
+          parameters: [{ name: "dc", rawValue: "0" }],
+        })),
+      ];
+    }),
   };
 }

@@ -286,46 +286,60 @@ for (const symbolId of ["vcvs", "vccs"]) {
 }
 
 for (const symbolId of ["cccs", "ccvs"]) {
-  test(`${symbolId} picks a voltage-source current sensor, not an arbitrary part`, async ({
+  test(`${symbolId} picks a device terminal with immediate direction feedback`, async ({
     page,
   }) => {
     await openFixture(page, symbolId);
     const picker = page.getByTestId("component-control-pick");
-    const sensors = page.getByLabel("Current sensor options", { exact: true });
-    await expect(sensors.locator("option", { hasText: /^V1$/ })).toHaveCount(1);
-    await sensors.selectOption("sensor");
-    await expectComponentCodeField(page, "control.sensorInstanceId", "sensor");
-    await sensors.selectOption("");
+    const devices = page.getByLabel("Control device options", { exact: true });
+    await devices.selectOption("sensor");
+    await page
+      .getByLabel("Control terminal options", { exact: true })
+      .selectOption("+");
+    await page
+      .getByLabel("Current direction options", { exact: true })
+      .selectOption("out");
+    await expectComponentCodeField(page, "control", {
+      instanceId: "sensor",
+      pinName: "+",
+      direction: "out",
+    });
+    await devices.selectOption("invalid");
+    await expectComponentCodeField(page, "control.pinName", "");
     await picker
       .getByRole("button", { name: "Pick control on canvas" })
       .click();
     await page.getByTestId("hit-sensor").hover({ force: true });
     await expect(page.getByTestId("hit-sensor")).toHaveAttribute(
       "data-control-sensor",
-      "true",
-    );
-    await expect(page.getByTestId("hit-sensor")).toHaveCSS(
-      "stroke-width",
-      "2px",
+      "false",
     );
     await page.getByTestId("hit-invalid").hover({ force: true });
     await expect(page.getByTestId("hit-invalid")).toHaveCSS(
       "cursor",
       "not-allowed",
     );
-    await page.getByTestId("terminal-sensor-+").hover({ force: true });
-    await expect(page.getByTestId("terminal-sensor-+")).toHaveCSS(
+    await page.getByTestId("terminal-invalid-1").hover({ force: true });
+    await expect(page.getByTestId("terminal-invalid-1")).toHaveCSS(
       "stroke-width",
       "2px",
     );
     await page.getByTestId("hit-invalid").click({ force: true });
-    await expect(picker).toContainText("Click a voltage source");
-    await page
-      .getByTestId(symbolId === "cccs" ? "terminal-sensor-+" : "hit-sensor")
-      .click({ force: true });
+    await expect(picker).toContainText("Click a device terminal");
+    await page.getByTestId("terminal-invalid-1").hover({ force: true });
+    await expect(
+      page.getByTestId("control-current-direction-preview"),
+    ).toHaveAttribute("data-direction", "out");
+    await page.getByTestId("terminal-invalid-1").click({ force: true });
     await expectComponentCodeField(page, "control", {
-      sensorInstanceId: "sensor",
+      instanceId: "invalid",
+      pinName: "1",
+      direction: "out",
     });
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expectComponentCodeField(page, "control.pinName", "");
+    await page.getByRole("button", { name: "Redo", exact: true }).click();
+    await expectComponentCodeField(page, "control.pinName", "1");
     await expect(
       picker.getByRole("button", { name: "Pick control on canvas" }),
     ).toBeVisible();

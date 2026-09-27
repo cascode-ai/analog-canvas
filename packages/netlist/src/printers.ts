@@ -7,6 +7,7 @@ import type {
 } from "./ir.js";
 import type { NetlistFormat } from "./net-name-codec.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
+import { signedControlGain } from "./controlled-current.js";
 import type {
   DesignNetlistLocations,
   PrintedNetlistInstance,
@@ -184,10 +185,14 @@ function spiceInstance(instance: DesignNetlistInstance): string[] {
         reference,
         ...nodes,
         instance.controlSourceReference!,
-        parameter(
-          instance.parameters,
-          instance.deviceClass === "ccvs" ? "rm" : "gain",
-        )!,
+        signedControlGain(
+          parameter(
+            instance.parameters,
+            instance.deviceClass === "ccvs" ? "rm" : "gain",
+          )!,
+          instance.controlCurrentSign,
+          "spice",
+        ),
       ];
       break;
     case "mos":
@@ -475,7 +480,7 @@ function spectreInstance(instance: DesignNetlistInstance): string {
     case "ccvs":
       master = instance.deviceClass;
       values = [
-        `gain=${parameter(instance.parameters, instance.deviceClass === "ccvs" ? "rm" : "gain")!}`,
+        `gain=${signedControlGain(parameter(instance.parameters, instance.deviceClass === "ccvs" ? "rm" : "gain")!, instance.controlCurrentSign, "spectre")}`,
         `probe=${instance.controlSourceReference!}`,
       ];
       break;
