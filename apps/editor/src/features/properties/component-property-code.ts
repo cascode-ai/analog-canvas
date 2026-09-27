@@ -1,6 +1,10 @@
 import { magneticDisplayParameters } from "@icm/derived";
 import type { Rotation, SchematicDocument } from "@icm/model";
 import {
+  LINEAR_CONTROLLED_SOURCE_KINDS,
+  defaultControlledSourceExpression,
+} from "@icm/model";
+import {
   componentPropertyDetailsValue,
   parseComponentPropertyDetails,
   type ComponentPropertyDetailsContext,
@@ -38,6 +42,11 @@ export interface ComponentPropertyDisplayCode {
 }
 
 export interface ComponentPropertyCodeValue extends ComponentPropertyDetailsValue {
+  /** Drawing-only formula; never parsed as the electrical control. */
+  displayExpression?: string;
+  control?:
+    | { positiveNetId: string; negativeNetId: string }
+    | { sensorInstanceId: string };
   /** Electrical role of VDD Power; absent for every other component. */
   connection?: "cell-pin" | "global";
   /** Global Net name owned by a supply marker. */
@@ -67,6 +76,9 @@ export interface ComponentPropertyCodeContext {
   /** Null when this component does not own an editable electrical marker name. */
   netName?: string | null;
   details?: ComponentPropertyDetailsContext;
+  displayExpression?: string;
+  controlNetOptions?: readonly { value: string; label: string }[];
+  controlSensorOptions?: readonly { value: string; label: string }[];
 }
 
 export type ComponentPropertyCodeParseResult =
@@ -86,6 +98,8 @@ const ROOT_KEYS = new Set([
   "netlistTarget",
   "symbol",
   "signalFlow",
+  "displayExpression",
+  "control",
 ]);
 const fieldKeys = (group: string) =>
   new Set(
@@ -268,6 +282,9 @@ export function componentPropertyCodeValue(
   }
   if (context.valueVisible !== null) display.value = context.valueVisible;
   const parameters = magneticDisplayParameters(instance.symbolId);
+  const controlled = LINEAR_CONTROLLED_SOURCE_KINDS.has(instance.symbolId);
+  const voltageControl =
+    instance.symbolId === "vcvs" || instance.symbolId === "vccs";
   if (parameters.length)
     display.parameters = Object.fromEntries(
       parameters.map((parameter) => [
@@ -283,6 +300,32 @@ export function componentPropertyCodeValue(
       ? { netName: context.netName }
       : {}),
     ...componentPropertyDetailsValue(instance, context.details),
+    ...(controlled
+      ? {
+          displayExpression:
+            context.displayExpression ??
+            defaultControlledSourceExpression(
+              instance.symbolId as "vcvs" | "vccs" | "cccs" | "ccvs",
+            ),
+          control: voltageControl
+            ? {
+                positiveNetId:
+                  instance.netlist?.control?.kind === "voltage"
+                    ? (instance.netlist.control.positiveNetId ?? "")
+                    : "",
+                negativeNetId:
+                  instance.netlist?.control?.kind === "voltage"
+                    ? (instance.netlist.control.negativeNetId ?? "")
+                    : "",
+              }
+            : {
+                sensorInstanceId:
+                  instance.netlist?.control?.kind === "current"
+                    ? (instance.netlist.control.sensorInstanceId ?? "")
+                    : "",
+              },
+        }
+      : {}),
     ...(context.displayName !== undefined && context.displayName !== null
       ? { displayName: context.displayName }
       : {}),
@@ -319,6 +362,8 @@ export function serializeComponentPropertyCode(
     netName,
     netlistName,
     netlistTarget,
+    displayExpression,
+    control,
     ...details
   } = value;
   const source = JSON.stringify(
@@ -344,6 +389,8 @@ export function serializeComponentPropertyCode(
       },
       ...(display ? { display } : {}),
       ...(displayName !== undefined ? { displayName } : {}),
+      ...(displayExpression !== undefined ? { displayExpression } : {}),
+      ...(control !== undefined ? { control } : {}),
       ...details,
       netlistName,
       netlistTarget,
@@ -447,9 +494,56 @@ export function parseComponentPropertyCode(
         );
       }
     }
+    const controlled = LINEAR_CONTROLLED_SOURCE_KINDS.has(
+      context.instance.symbolId,
+    );
+    if (!controlled && ("displayExpression" in decoded || "control" in decoded))
+      throw new Error(
+        "Controlled-source properties are not available for this component",
+      );
+    let control: ComponentPropertyCodeValue["control"];
+    if (controlled) {
+      if (
+        typeof decoded.displayExpression !== "string" ||
+        !decoded.displayExpression.trim() ||
+        decoded.displayExpression.length > 256
+      )
+        throw new Error(
+          "displayExpression must be nonempty text of at most 256 characters",
+        );
+      if (!isRecord(decoded.control))
+        throw new Error("control must be an object");
+      const voltage =
+        context.instance.symbolId === "vcvs" ||
+        context.instance.symbolId === "vccs";
+      const keys = voltage
+        ? ["positiveNetId", "negativeNetId"]
+        : ["sensorInstanceId"];
+      const unknownControl = unexpectedKey(
+        decoded.control,
+        new Set(keys),
+        "control",
+      );
+      if (unknownControl) throw new Error(unknownControl);
+      for (const key of keys)
+        if (typeof decoded.control[key] !== "string")
+          throw new Error(`control.${key} must be a string`);
+      control = voltage
+        ? {
+            positiveNetId: decoded.control.positiveNetId as string,
+            negativeNetId: decoded.control.negativeNetId as string,
+          }
+        : { sensorInstanceId: decoded.control.sensorInstanceId as string };
+    }
     return {
       ok: true,
       value: {
+        ...(controlled && control
+          ? {
+              displayExpression: (decoded.displayExpression as string).trim(),
+              control,
+            }
+          : {}),
         ...(connectionAvailable
           ? {
               connection: decoded.connection as "cell-pin" | "global",

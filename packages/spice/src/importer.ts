@@ -222,6 +222,10 @@ function symbolFor(
     pmos: { symbolId: "pmos" },
     "voltage-source": { symbolId: "voltage-source" },
     "current-source": { symbolId: "current-source" },
+    vcvs: { symbolId: "vcvs", pinNames: ["+", "-", "CTRL+", "CTRL-"] },
+    vccs: { symbolId: "vccs", pinNames: ["+", "-", "CTRL+", "CTRL-"] },
+    cccs: { symbolId: "cccs", pinNames: ["+", "-"] },
+    ccvs: { symbolId: "ccvs", pinNames: ["+", "-"] },
   };
   const mapping = symbols[instance.target.family];
   return mapping && isRazaviProductSymbolId(mapping.symbolId) ? mapping : null;
@@ -331,28 +335,39 @@ function importInstance(
         )
       : undefined;
   const parameters = Object.fromEntries(
-    Object.entries(instance.parameters).map(([name, parameter]) => {
-      const reviewedParameter = reviewed?.parameters.find(
-        (candidate) => candidate.name.toLowerCase() === name.toLowerCase(),
-      );
-      if (reviewedParameter?.targetUnit !== "micrometre") {
-        return [name, parameter.rawText];
-      }
-      try {
-        return [name, sky130MicrometresToProjectLength(parameter.rawText)];
-      } catch (error) {
-        diagnostics.push(
-          diagnostic(
-            "SPICE_IMPORT_INVALID_REVIEWED_GEOMETRY",
-            "error",
-            "import",
-            error instanceof Error ? error.message : String(error),
-            instance.sourceRef,
-          ),
+    Object.entries(instance.parameters)
+      .filter(([name]) => name !== "control-source")
+      .map(([name, parameter]) => {
+        const parameterName =
+          name === "gain" && mapping.symbolId === "vccs"
+            ? "gm"
+            : name === "gain" && mapping.symbolId === "ccvs"
+              ? "rm"
+              : name;
+        const reviewedParameter = reviewed?.parameters.find(
+          (candidate) => candidate.name.toLowerCase() === name.toLowerCase(),
         );
-        return [name, parameter.rawText];
-      }
-    }),
+        if (reviewedParameter?.targetUnit !== "micrometre") {
+          return [parameterName, parameter.rawText];
+        }
+        try {
+          return [
+            parameterName,
+            sky130MicrometresToProjectLength(parameter.rawText),
+          ];
+        } catch (error) {
+          diagnostics.push(
+            diagnostic(
+              "SPICE_IMPORT_INVALID_REVIEWED_GEOMETRY",
+              "error",
+              "import",
+              error instanceof Error ? error.message : String(error),
+              instance.sourceRef,
+            ),
+          );
+          return [parameterName, parameter.rawText];
+        }
+      }),
   );
   return {
     id: instance.id,
@@ -363,13 +378,19 @@ function importInstance(
       ...(mapping.registryId
         ? { symbolMappingRegistryId: mapping.registryId }
         : {}),
-      terminalMapping: instance.terminals.map((terminal) => ({
-        sourcePosition: terminal.position,
-        pinName:
-          mapping.pinNames?.[terminal.position] ??
-          terminal.name ??
-          `P${terminal.position + 1}`,
-      })),
+      terminalMapping: instance.terminals
+        .filter(
+          (terminal) =>
+            !["vcvs", "vccs", "cccs", "ccvs"].includes(mapping.symbolId) ||
+            terminal.position < 2,
+        )
+        .map((terminal) => ({
+          sourcePosition: terminal.position,
+          pinName:
+            mapping.pinNames?.[terminal.position] ??
+            terminal.name ??
+            `P${terminal.position + 1}`,
+        })),
     },
     placement: null,
     reference: instance.name,
@@ -494,13 +515,48 @@ function importDocument(
   const importedInstanceById = new Map(
     instances.map((instance) => [instance.id, instance]),
   );
+  // The two output pins are drawn terminals; E/G's control nodes and F/H's
+  // probe are typed relations, not extra visible pins on the source glyph.
+  for (const source of visibleInstances) {
+    const imported = importedInstanceById.get(source.id);
+    if (!imported?.netlist) continue;
+    if (source.target.kind !== "primitive") continue;
+    if (source.target.family === "vcvs" || source.target.family === "vccs") {
+      const positiveNetId = source.terminals[2]?.netId;
+      const negativeNetId = source.terminals[3]?.netId;
+      imported.netlist.control = {
+        kind: "voltage",
+        ...(positiveNetId ? { positiveNetId } : {}),
+        ...(negativeNetId ? { negativeNetId } : {}),
+      };
+    } else if (
+      source.target.family === "cccs" ||
+      source.target.family === "ccvs"
+    ) {
+      const probe = source.parameters["control-source"]?.rawText;
+      const sensorInstanceId = visibleInstances.find(
+        (candidate) => candidate.name.toLowerCase() === probe?.toLowerCase(),
+      )?.id;
+      imported.netlist.control = {
+        kind: "current",
+        ...(sensorInstanceId ? { sensorInstanceId } : {}),
+      };
+    }
+  }
   const nets: Net[] = cell.nets.map((net) => ({
     id: net.id,
     terminals: visibleInstances
       .filter((instance) => importedInstanceById.has(instance.id))
       .flatMap((instance) =>
         instance.terminals
-          .filter((terminal) => terminal.netId === net.id)
+          .filter(
+            (terminal) =>
+              terminal.netId === net.id &&
+              (!["vcvs", "vccs", "cccs", "ccvs"].includes(
+                importedInstanceById.get(instance.id)?.symbolId ?? "",
+              ) ||
+                terminal.position < 2),
+          )
           .map((terminal) => ({
             instanceId: instance.id,
             pinName: String(

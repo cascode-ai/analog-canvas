@@ -33,6 +33,48 @@ const context = {
 };
 
 describe("component property code", () => {
+  it("keeps a controlled source's visual formula separate from picked control and gain", () => {
+    const controlled = {
+      ...instance,
+      id: "G1",
+      symbolId: "vccs",
+      reference: "G1",
+      netlist: {
+        parameters: { gm: "2m" },
+        control: { kind: "voltage" as const, positiveNetId: "net-a" },
+      },
+    };
+    const controlledContext = {
+      instance: controlled,
+      referenceVisible: true,
+      valueVisible: true,
+      details: { parameters: [] },
+      controlNetOptions: [{ value: "net-a", label: "A" }],
+    };
+    const source = formatComponentPropertyCode(controlledContext);
+    expect(JSON.parse(source)).toMatchObject({
+      displayExpression: "g_{m}v_{i}",
+      control: { positiveNetId: "net-a", negativeNetId: "" },
+      parameters: { gm: "2m" },
+    });
+    const parsed = parseComponentPropertyCode(
+      source
+        .replace('"negativeNetId": ""', '"negativeNetId": "net-b"')
+        .replace('"g_{m}v_{i}"', '"g_{x}v_{y}"'),
+      controlledContext,
+    );
+    expect(parsed).toMatchObject({
+      ok: true,
+      value: {
+        displayExpression: "g_{x}v_{y}",
+        control: { positiveNetId: "net-a", negativeNetId: "net-b" },
+        parameters: { gm: "2m" },
+      },
+    });
+    expect(parseComponentPropertyCode(source, context)).toMatchObject({
+      ok: false,
+    });
+  });
   it("formats placement as one coordinate and makes display/style explicit", () => {
     expect(formatComponentPropertyCode(context)).toBe(`{
   "placement": {

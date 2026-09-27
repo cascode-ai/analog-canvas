@@ -121,9 +121,15 @@ export function symbolCategory(symbolId: string): string {
     return "Signal Flow";
   }
   if (
-    ["voltage-source", "pulse-voltage-source", "current-source"].includes(
-      symbolId,
-    )
+    [
+      "voltage-source",
+      "pulse-voltage-source",
+      "current-source",
+      "vcvs",
+      "vccs",
+      "cccs",
+      "ccvs",
+    ].includes(symbolId)
   ) {
     return "Sources";
   }
@@ -157,6 +163,10 @@ const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   "depletion-nmos": "D-NMOS",
   "depletion-pmos": "D-PMOS",
   "externally-controlled-switch": "Ctrl SW",
+  vcvs: "VCVS",
+  vccs: "VCCS",
+  cccs: "CCCS",
+  ccvs: "CCVS",
   port: "Cell Pin",
   "zener-diode": "Zener",
 };
@@ -173,6 +183,10 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "Four-terminal switch: P/N carry the switched path; CP/CN sense the control voltage",
   "externally-controlled-switch":
     "Three-terminal switch: P/N carry the path; CTRL is one external logic-control pin",
+  vcvs: "Voltage-controlled voltage source",
+  vccs: "Voltage-controlled current source",
+  cccs: "Current-controlled current source",
+  ccvs: "Current-controlled voltage source",
   port: "A terminal on this Cell interface — the parent circuit connects to it",
   "port-filled":
     "A solid bias-voltage port, typically used for VB-style bias nodes",

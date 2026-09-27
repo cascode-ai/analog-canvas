@@ -810,10 +810,18 @@ export function defaultInstanceValue(
   );
   if (!placement) return null;
   const position = placement.position;
+  const display = displayableInstanceValue(instance);
+  const controlled = ["vcvs", "vccs", "cccs", "ccvs"].includes(
+    instance.symbolId,
+  );
   return {
     id: `instance-value-${instance.id}`,
     kind: "instance-value",
-    binding: { kind: "instance-value", instanceId: instance.id },
+    ...(controlled && display.kind === "displayable"
+      ? { content: display.content }
+      : {
+          binding: { kind: "instance-value" as const, instanceId: instance.id },
+        }),
     anchor: {
       kind: "object",
       objectId: instance.id,

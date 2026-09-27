@@ -163,12 +163,53 @@ export function planComponentPropertyCodeEdits(
     const unset = Object.keys(instance.netlist.parameters).filter(
       (key) => !(value.parameters![key] ?? "").trim(),
     );
-    if (Object.keys(set).length || unset.length)
+    if ((Object.keys(set).length || unset.length) && !value.control)
       edits.push({
         kind: "patch_instance_netlist_parameters",
         instanceId: instance.id,
         ...(Object.keys(set).length ? { set } : {}),
         ...(unset.length ? { unset } : {}),
+      });
+  }
+  if (value.control) {
+    const control =
+      "sensorInstanceId" in value.control
+        ? {
+            kind: "current" as const,
+            ...(value.control.sensorInstanceId
+              ? { sensorInstanceId: value.control.sensorInstanceId }
+              : {}),
+          }
+        : {
+            kind: "voltage" as const,
+            ...(value.control.positiveNetId
+              ? { positiveNetId: value.control.positiveNetId }
+              : {}),
+            ...(value.control.negativeNetId
+              ? { negativeNetId: value.control.negativeNetId }
+              : {}),
+          };
+    const parameters = value.parameters
+      ? Object.fromEntries(
+          Object.entries(value.parameters).filter(
+            ([, raw]) => raw.trim() !== "",
+          ),
+        )
+      : (instance.netlist?.parameters ?? {});
+    if (
+      JSON.stringify(control) !== JSON.stringify(instance.netlist?.control) ||
+      !sameParameters(parameters, instance.netlist?.parameters ?? {})
+    )
+      edits.push({
+        kind: "set_instance_netlist",
+        instanceId: instance.id,
+        netlist: {
+          ...(instance.netlist?.binding
+            ? { binding: instance.netlist.binding }
+            : {}),
+          parameters,
+          control,
+        },
       });
   }
   let nextSymbolId = value.symbol ?? instance.symbolId;

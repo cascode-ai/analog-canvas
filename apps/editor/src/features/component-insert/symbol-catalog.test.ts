@@ -279,7 +279,8 @@ describe("component insertion catalog", () => {
       expect.arrayContaining(["diode", "npn", "pnp"]),
     );
     expect(symbols.map((symbol) => symbol.id)).not.toContain("transformer");
-    expect(symbols.map((symbol) => symbol.id)).not.toContain("vccs");
+    for (const id of ["vcvs", "vccs", "cccs", "ccvs"])
+      expect(symbols.map((symbol) => symbol.id)).toContain(id);
   });
 
   it("returns no selectable entries for an unmatched query", () => {

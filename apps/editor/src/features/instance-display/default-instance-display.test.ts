@@ -22,6 +22,65 @@ import {
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("default instance display annotations", () => {
+  it.each([
+    ["vcvs", "voltage-source", "A_{v}v_{i}"],
+    ["vccs", "current-source", "g_{m}v_{i}"],
+    ["cccs", "current-source", "βi_{x}"],
+    ["ccvs", "voltage-source", "R_{m}i_{x}"],
+  ])(
+    "places %s's literal expression at the existing %s source label slot",
+    (symbolId, sourceId, _expression) => {
+      const document = createEmptyDocument(
+        "controlled-label",
+        "Controlled label",
+      );
+      const profile = resolveSchematicStyleProfile(
+        document.presentation.styleProfileId,
+      );
+      const at = {
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      };
+      const controlled = createNewInstance(document, {
+        symbolId,
+        placement: at,
+        netlist: initialInstanceNetlist(symbolId, {}),
+      });
+      const ordinary = createNewInstance(document, {
+        symbolId: sourceId,
+        placement: at,
+        netlist: initialInstanceNetlist(sourceId, { dc: "1" }),
+      });
+      const controlledSymbol = resolver.resolve(symbolId)!.definition;
+      const ordinarySymbol = resolver.resolve(sourceId)!.definition;
+      expect(controlledSymbol.primitives).toEqual(ordinarySymbol.primitives);
+      expect(controlledSymbol.pins).toEqual(ordinarySymbol.pins);
+      const controlledValue = defaultInstanceDisplayAnnotations(
+        document,
+        controlled,
+        resolver,
+        profile,
+        { showValue: true },
+      ).find((annotation) => annotation.kind === "instance-value")!;
+      const ordinaryValue = defaultInstanceDisplayAnnotations(
+        document,
+        ordinary,
+        resolver,
+        profile,
+        { showValue: true },
+      ).find((annotation) => annotation.kind === "instance-value")!;
+      expect(controlledValue.alignment).toBe(ordinaryValue.alignment);
+      expect(controlledValue.anchor).toMatchObject({
+        kind: "object",
+        ...(ordinaryValue.anchor.kind === "object"
+          ? { localOffset: ordinaryValue.anchor.localOffset }
+          : {}),
+      });
+      expect(controlledValue.binding).toBeUndefined();
+      expect(flattenRichText(controlledValue.content!)).toBeTruthy();
+    },
+  );
   it.each([0, 90, 180, 270] as const)(
     "uses the first label slot for a new value-only resistor at %s degrees",
     (rotation) => {

@@ -169,6 +169,8 @@ describe("Razavi symbol catalog", () => {
       ["comparator-unmarked", "reviewed", "razavi-reference-v1"],
       ["comparator-unmarked-inputs-swapped", "reviewed", "razavi-reference-v1"],
       ["current-source", "reviewed", "razavi-reference-v1"],
+      ["vccs", "reviewed", "house"],
+      ["cccs", "reviewed", "house"],
       ["d-flip-flop", "reviewed", "razavi-reference-v1"],
       ["d-flip-flop-reset", "reviewed", "razavi-reference-v1"],
       ["d-flip-flop-q", "reviewed", "razavi-reference-v1"],
@@ -279,6 +281,8 @@ describe("Razavi symbol catalog", () => {
       ["pulse-voltage-source", "reviewed", "razavi-reference-v1"],
       ["voltage-controlled-switch", "reviewed", "house"],
       ["voltage-source", "reviewed", "razavi-reference-v1"],
+      ["vcvs", "reviewed", "house"],
+      ["ccvs", "reviewed", "house"],
       ["xnor-gate", "reviewed", "razavi-reference-v1"],
       ["xnor-gate-3", "reviewed", "house"],
       ["xnor-gate-4", "reviewed", "house"],
@@ -829,7 +833,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("uses reviewed catalog objects as the sole built-in product library", () => {
-    expect(razaviCatalogSymbols).toHaveLength(95);
+    expect(razaviCatalogSymbols).toHaveLength(99);
     for (const catalogSymbol of razaviProductSymbols) {
       expect(
         builtInSymbols.find((symbol) => symbol.id === catalogSymbol.id),
@@ -848,6 +852,8 @@ describe("Razavi symbol catalog", () => {
       "closed-switch",
       "comparator",
       "current-source",
+      "vccs",
+      "cccs",
       "d-flip-flop",
       "d-flip-flop-reset",
       "d-flip-flop-q",
@@ -893,6 +899,8 @@ describe("Razavi symbol catalog", () => {
       "pulse-voltage-source",
       "voltage-controlled-switch",
       "voltage-source",
+      "vcvs",
+      "ccvs",
       "xnor-gate",
       "xor-gate",
       "zener-diode",
@@ -1951,7 +1959,11 @@ describe("Razavi symbol catalog", () => {
       ]),
     );
     expect(getRazaviCatalogEntry("transformer")).toBeUndefined();
-    expect(getRazaviCatalogEntry("vccs")).toBeUndefined();
+    for (const id of ["vcvs", "vccs", "cccs", "ccvs"])
+      expect(getRazaviCatalogEntry(id)).toMatchObject({
+        provenance: "house",
+        reviewStatus: "reviewed",
+      });
   });
 
   it("uses calibrated MOS and source arrowheads with external voltage polarity marks", () => {

@@ -167,6 +167,29 @@ function spiceInstance(instance: DesignNetlistInstance): string[] {
     case "current-source":
       tokens = [reference, ...nodes, ...spiceSourceTokens(instance)];
       break;
+    case "vcvs":
+    case "vccs":
+      tokens = [
+        reference,
+        ...nodes,
+        parameter(
+          instance.parameters,
+          instance.deviceClass === "vccs" ? "gm" : "gain",
+        )!,
+      ];
+      break;
+    case "cccs":
+    case "ccvs":
+      tokens = [
+        reference,
+        ...nodes,
+        instance.controlSourceReference!,
+        parameter(
+          instance.parameters,
+          instance.deviceClass === "ccvs" ? "rm" : "gain",
+        )!,
+      ];
+      break;
     case "mos":
     case "diode":
     case "bjt":
@@ -440,6 +463,21 @@ function spectreInstance(instance: DesignNetlistInstance): string {
     case "current-source":
       master = "isource";
       values = spectreSourceValues(instance);
+      break;
+    case "vcvs":
+    case "vccs":
+      master = instance.deviceClass;
+      values = [
+        `${instance.deviceClass === "vccs" ? "gm" : "gain"}=${parameter(instance.parameters, instance.deviceClass === "vccs" ? "gm" : "gain")!}`,
+      ];
+      break;
+    case "cccs":
+    case "ccvs":
+      master = instance.deviceClass;
+      values = [
+        `gain=${parameter(instance.parameters, instance.deviceClass === "ccvs" ? "rm" : "gain")!}`,
+        `probe=${instance.controlSourceReference!}`,
+      ];
       break;
     case "mos":
     case "diode":

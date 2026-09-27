@@ -92,15 +92,23 @@ import {
   symbolCarriesReference,
   symbolSupportsValueAnnotation,
   resolveMosBulkConnection,
+  resolveDocumentLogicalNets,
   supplyDefaultMosBulkNet,
   resolveDocumentStyleProfile,
   summarizeProjectCells,
 } from "@icm/derived";
 import type { HierarchyFrame } from "@icm/derived";
-import { createEmptyProject, createId } from "@icm/model";
+import {
+  createEmptyProject,
+  createId,
+  LINEAR_CONTROLLED_SOURCE_KINDS,
+  controlledSourceExpressionDocument,
+  controlledSourceExpressionSource,
+} from "@icm/model";
 import {
   resolveReviewedExternalBinding,
   reviewedExternalModelSuggestions,
+  deviceDescriptor,
 } from "@icm/devices";
 import type {
   CircuitProject,
@@ -2568,6 +2576,11 @@ function WorkspaceEditor({
   const selectedInstanceValue = selectedInstance
     ? instanceValueAnnotation(document, selectedInstance.id)
     : null;
+  const controlNetNames =
+    selectedInstance &&
+    LINEAR_CONTROLLED_SOURCE_KINDS.has(selectedInstance.symbolId)
+      ? resolveDocumentLogicalNets(document).byBaseNetId
+      : null;
   const selectedGroupInstances = selectedIds.flatMap((id) => {
     const instance = document.instances.find((item) => item.id === id);
     return instance ? [instance] : [];
@@ -7286,6 +7299,47 @@ function WorkspaceEditor({
                           selectedSupplyMarker && !selectedFormalTerminal
                             ? (selectedPortLogicalName ?? "")
                             : null,
+                        ...(selectedInstanceValue?.content &&
+                        LINEAR_CONTROLLED_SOURCE_KINDS.has(
+                          selectedInstance.symbolId,
+                        )
+                          ? {
+                              displayExpression:
+                                controlledSourceExpressionSource(
+                                  selectedInstanceValue.content,
+                                ),
+                            }
+                          : {}),
+                        ...(LINEAR_CONTROLLED_SOURCE_KINDS.has(
+                          selectedInstance.symbolId,
+                        )
+                          ? {
+                              controlNetOptions: [
+                                { value: "", label: "Select Net" },
+                                ...document.nets.map((net) => ({
+                                  value: net.id,
+                                  label:
+                                    controlNetNames?.get(net.id)?.name ??
+                                    net.id,
+                                })),
+                              ],
+                              controlSensorOptions: [
+                                { value: "", label: "Select voltage source" },
+                                ...document.instances
+                                  .filter(
+                                    (candidate) =>
+                                      deviceDescriptor(
+                                        candidate.symbolId,
+                                        project,
+                                      )?.deviceClass === "voltage-source",
+                                  )
+                                  .map((candidate) => ({
+                                    value: candidate.id,
+                                    label: candidate.reference ?? candidate.id,
+                                  })),
+                              ],
+                            }
+                          : {}),
                         onApply: (value: ComponentPropertyCodeValue) => {
                           try {
                             // Formal Pin names own a Cell interface, never a display alias.
@@ -7308,6 +7362,37 @@ function WorkspaceEditor({
                                 selectedInstance,
                                 selectedFormalTerminal ? nonNameValues : value,
                               );
+                            if (
+                              value.displayExpression !== undefined &&
+                              LINEAR_CONTROLLED_SOURCE_KINDS.has(
+                                selectedInstance.symbolId,
+                              )
+                            ) {
+                              const prior = selectedInstanceValue?.content
+                                ? controlledSourceExpressionSource(
+                                    selectedInstanceValue.content,
+                                  )
+                                : null;
+                              if (
+                                prior !== value.displayExpression &&
+                                selectedInstanceValue
+                              ) {
+                                const {
+                                  binding: _binding,
+                                  content: _content,
+                                  ...visual
+                                } = selectedInstanceValue;
+                                edits.push({
+                                  kind: "upsert_schematic_annotation",
+                                  annotation: {
+                                    ...visual,
+                                    content: controlledSourceExpressionDocument(
+                                      value.displayExpression,
+                                    ),
+                                  },
+                                });
+                              }
+                            }
                             if (
                               !selectedInstance.placement &&
                               value.placement

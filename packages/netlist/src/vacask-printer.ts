@@ -266,6 +266,11 @@ export function printVacaskWithLocations(
 
   const emitCard = (cellId: string, card: DesignNetlistInstance) => {
     if (card.deviceClass === "net-marker") return;
+    if (["vcvs", "vccs", "cccs", "ccvs"].includes(card.deviceClass))
+      throw new ProjectionError(
+        "VACASK_UNSUPPORTED_CONTROLLED_SOURCE",
+        `${card.reference} is a linear controlled source; use the SPICE or Spectre netlist exporter until the native simulator supports this primitive.`,
+      );
     if (
       card.invocationKind === "subcircuit" &&
       card.target &&

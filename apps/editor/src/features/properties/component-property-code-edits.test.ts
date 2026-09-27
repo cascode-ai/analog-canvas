@@ -9,6 +9,45 @@ import { componentPropertyCodeValue } from "./component-property-code";
 import { configurableLogicGateIds } from "./logic-gate-input-count";
 
 describe("planComponentPropertyCodeEdits", () => {
+  it("updates the control relation and gain atomically without modifying presentation", () => {
+    const document = createEmptyDocument("main", "Main");
+    const instance = {
+      id: "G1",
+      symbolId: "vccs",
+      reference: "G1",
+      placement: null,
+      netlist: {
+        parameters: { gm: "1m" },
+        control: { kind: "voltage" as const, positiveNetId: "old" },
+      },
+    };
+    document.instances.push(instance);
+    const value = {
+      ...componentPropertyCodeValue({
+        instance,
+        referenceVisible: null,
+        valueVisible: null,
+        details: { parameters: [] },
+      }),
+      control: { positiveNetId: "plus", negativeNetId: "minus" },
+      parameters: { gm: "2m" },
+      displayExpression: "g_{custom}v_{x}",
+    };
+    expect(
+      planComponentPropertyCodeEdits(document, instance, value),
+    ).toContainEqual({
+      kind: "set_instance_netlist",
+      instanceId: "G1",
+      netlist: {
+        parameters: { gm: "2m" },
+        control: {
+          kind: "voltage",
+          positiveNetId: "plus",
+          negativeNetId: "minus",
+        },
+      },
+    });
+  });
   it.each(configurableLogicGateIds)(
     "retires only a cut wire's anonymous singleton input before shrinking %s",
     (family) => {

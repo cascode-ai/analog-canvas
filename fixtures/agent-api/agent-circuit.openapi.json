@@ -1651,6 +1651,45 @@
               "binding": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema32"
               },
+              "control": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "voltage"
+                      },
+                      "positiveNetId": {
+                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
+                      },
+                      "negativeNetId": {
+                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "const": "current"
+                      },
+                      "sensorInstanceId": {
+                        "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
               "parameters": {
                 "type": "object",
                 "propertyNames": {
@@ -1770,6 +1809,10 @@
               "bjt",
               "voltage-source",
               "current-source",
+              "vcvs",
+              "vccs",
+              "cccs",
+              "ccvs",
               "switch",
               "net-marker"
             ]
