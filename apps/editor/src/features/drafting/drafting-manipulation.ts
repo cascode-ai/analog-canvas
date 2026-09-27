@@ -39,6 +39,7 @@ export type DraftingHandle =
         | "vertex"
         | "curve"
         | "rectangle-corner"
+        | "rectangle-edge"
         | "circle-radius"
         | "path-corner";
       index: number;
@@ -261,6 +262,7 @@ export function applyDraftingHandle(
     if (
       handle.kind === "vertex" ||
       handle.kind === "rectangle-corner" ||
+      handle.kind === "rectangle-edge" ||
       handle.kind === "circle-radius"
     ) {
       return object;
@@ -345,6 +347,19 @@ export function applyDraftingHandle(
     };
   }
   if (
+    object.kind === "rectangle" &&
+    handle.kind === "rectangle-edge" &&
+    originalGeometry.kind === "rectangle"
+  ) {
+    return resizeRectangleSide(
+      object,
+      originalGeometry,
+      handle.index,
+      point,
+      grid,
+    );
+  }
+  if (
     object.kind === "circle" &&
     handle.kind === "circle-radius" &&
     originalGeometry.kind === "circle"
@@ -358,6 +373,59 @@ export function applyDraftingHandle(
     return { ...object, radius };
   }
   return object;
+}
+
+/**
+ * Drag one side of a rectangle out or in. The opposite side stays where it
+ * is, and so does the other dimension; dragged past the opposite side, the
+ * rectangle turns over onto it. Side i runs from corner i to corner i + 1, so
+ * sides 0 and 2 set the height and sides 1 and 3 the width, whatever the
+ * rectangle's turn.
+ */
+function resizeRectangleSide(
+  object: Extract<DraftingObject, { kind: "rectangle" }>,
+  geometry: Extract<ResolvedDraftingGeometry, { kind: "rectangle" }>,
+  side: number,
+  point: GridPoint,
+  grid: number,
+): DraftingObject {
+  const first = geometry.corners[(side + 2) % 4];
+  const second = geometry.corners[(side + 3) % 4];
+  if (!first || !second) return object;
+  const fixed = { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
+  const setsHeight = side % 2 === 0;
+  const radians = (object.rotation * Math.PI) / 180;
+  const axis = setsHeight
+    ? { x: -Math.sin(radians), y: Math.cos(radians) }
+    : { x: Math.cos(radians), y: Math.sin(radians) };
+  const along = (target: DerivedPoint) =>
+    (target.x - fixed.x) * axis.x + (target.y - fixed.y) * axis.y;
+  const reach = along(point);
+  const start = geometry.corners[side];
+  const end = geometry.corners[(side + 1) % 4];
+  if (!start || !end) return object;
+  // Dropped right on the opposite side, it stays on its own side of it.
+  const direction =
+    Math.abs(reach) > 1e-9
+      ? Math.sign(reach)
+      : Math.sign(
+          along({ x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 }),
+        );
+  // An integer center needs an even span on an odd pitch, as a newly drawn
+  // rectangle's does.
+  const pitch = grid % 2 === 0 ? grid : grid * 2;
+  const span = Math.max(pitch, Math.round(Math.abs(reach) / pitch) * pitch);
+  const half = (direction * span) / 2;
+  const center = snapGridPoint(
+    { x: fixed.x + axis.x * half, y: fixed.y + axis.y * half },
+    1,
+  );
+  return {
+    ...object,
+    center,
+    anchor: { kind: "free", position: center },
+    ...(setsHeight ? { height: span } : { width: span }),
+  };
 }
 
 export function insertConstructionVertex(

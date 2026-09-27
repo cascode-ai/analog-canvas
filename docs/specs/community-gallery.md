@@ -163,9 +163,11 @@ counts follow. The list's `filterCounts.attentionKinds` counts the pending
 entries per reason over the wall with every other filter applied, so the
 Gallery's reason menu shows each reason with how many entries carry it. An
 unknown reason narrows nothing. Attention details on both the feed
-and individual entries are omitted for everyone else. The author/admin card
-lists each finding under its reason and allows adding a note with a reason,
-marking the findings resolved and reopening them. None of
+and individual entries are omitted for everyone else. A tile looks the same to
+every reader: the review is not a row under it but opens from the tile's `⋯`
+menu, for its author or an administrator. The review lists each finding under
+its reason and allows adding a note with a reason, marking the findings
+resolved and reopening them. None of
 these actions unpublishes the circuit or changes its Project, name, owner,
 likes, preview, or visitor statistics.
 
@@ -300,10 +302,11 @@ Every community tile carries a Like toggle backed by
 `POST /api/gallery/<id>/like` (same-origin): a signed-in account holds at most
 one like per public entry, pressing again removes it, and the feed reports each
 entry's `likes` count and the viewer's `likedByViewer`. The Gallery feed gives
-the super-admin a direct Reject (`×`) control on every community tile, plus an
-Owner menu for Edit and replace and Withdraw. A signed-in member's own tiles
-carry a `×` that withdraws the entry after a second step, the same owner
-withdrawal as `/mine`; My submissions restores it.
+the super-admin a direct Reject (`×`) control on every community tile, plus a
+`⋯` menu for Review drawing, Edit and replace and Withdraw. A signed-in
+member's own tiles carry a `⋯` menu for Review drawing and Withdraw, the same
+owner withdrawal as `/mine`. Withdraw acts at once, without a second step: the
+recycle bin or My submissions restores the entry.
 Reject opens a multi-select form with common reasons (`too ugly`,
 `circuit incorrect`, `too simple`, `duplicate`) and an independent optional
 note/other-reason field. The editor surfaces the full administration lifecycle
@@ -345,8 +348,8 @@ exempt.
 Owner deletion: `DELETE /api/gallery/<id>` (same-origin) also accepts the
 owning session, which removes the entry with its saved versions and likes
 permanently in one step, without withdrawing it first. `/mine` surfaces the
-available actions: a two-step Withdraw, a Restore on voluntarily withdrawn
-entries, and a confirmed Delete.
+available actions: Withdraw, a Restore on voluntarily withdrawn entries, and
+a confirmed Delete.
 
 ## Version history
 

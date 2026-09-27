@@ -513,8 +513,32 @@ export function EditorDraftingHandles({
     );
   }
   if (object.kind === "rectangle" && geometry.kind === "rectangle") {
+    // A corner resizes both ways; the middle of a side moves that side only.
+    // Corners draw last, so on a small rectangle they stay on top.
+    const sides = geometry.corners.map((corner, index) => {
+      const next = geometry.corners[(index + 1) % 4]!;
+      return { x: (corner.x + next.x) / 2, y: (corner.y + next.y) / 2 };
+    });
     return (
       <g data-testid={`drafting-handles-${object.id}`}>
+        {sides.map((middle, index) => (
+          <rect
+            key={`side-${index}`}
+            className="draft-handle"
+            data-testid={`draft-handle-side-${index}-${object.id}`}
+            aria-label={`Resize side ${index + 1}`}
+            x={middle.x - 4}
+            y={middle.y - 4}
+            width="8"
+            height="8"
+            onPointerDown={(event) =>
+              onHandlePointerDown(event, object, {
+                kind: "rectangle-edge",
+                index,
+              })
+            }
+          />
+        ))}
         {geometry.corners.map((corner, index) => (
           <rect
             key={`corner-${index}`}

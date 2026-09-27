@@ -5,12 +5,14 @@ import { useVisitStats } from "../../analytics/client";
 import { EditorErrorBoundary } from "../components/editor-error-boundary";
 import { guardedRouteChunk } from "../components/route-chunk-loader";
 import {
+  loadGalleryEntry,
   loadGalleryFeed,
   galleryTagScope,
   loadGalleryTagSummary,
   type GalleryLandingPreload,
 } from "../gallery-client";
 import { GALLERY_FILTERS_KEY, resolveGalleryFilters } from "../gallery-filters";
+import { galleryFocusEntryId, withoutGalleryFocus } from "../gallery-focus";
 import "../../analytics/analytics.css";
 import "../styles.css";
 import { hasAgentSessionRecovery } from "../agent/session-recovery-presence";
@@ -52,18 +54,26 @@ export function mountWebEditor() {
       attention: filters.attention,
     };
     const tags = loadGalleryTagSummary(fetch, tagFilters);
+    // "View in Gallery" links one circuit on the whole, unfiltered wall.
+    const focusId = galleryFocusEntryId(window.location.search);
+    const linkOnly =
+      focusId !== null && withoutGalleryFocus(window.location.search) === "";
     return {
       tags,
       tagsScope: galleryTagScope(tagFilters),
-      ...(!window.location.search && !storedFilters
+      ...((!window.location.search && !storedFilters) || linkOnly
         ? { feed: loadGalleryFeed() }
+        : {}),
+      ...(focusId
+        ? { focus: { id: focusId, entry: loadGalleryEntry(fetch, focusId) } }
         : {}),
     };
   }
 
   // Start public Gallery data beside the route chunk, before React mounts. A
   // remembered or linked filter still waits for GalleryFeed to request its exact
-  // query; only the default wall reuses the unfiltered request.
+  // query; the default wall, and a link to one circuit on it, reuse the
+  // unfiltered request. That linked circuit is looked up at the same time.
   const initialGalleryPreload = galleryLandingPreload();
 
   const EditorApp = lazy(

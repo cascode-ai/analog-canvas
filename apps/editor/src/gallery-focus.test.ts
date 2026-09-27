@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   galleryFocusEntryId,
-  galleryFocusStep,
+  galleryFocusPlacement,
   withoutGalleryFocus,
 } from "./gallery-focus";
 import { resolveGalleryFilters } from "./gallery-filters";
@@ -31,11 +31,15 @@ describe("a link to one circuit on the Gallery wall", () => {
     expect(resolveGalleryFilters("", stored).attention).toBe(true);
   });
 
-  it("pages until the circuit is loaded, and stops at the wall's end", () => {
-    expect(galleryFocusStep(["a", "b"], "b", "c1", 0)).toBe("found");
-    expect(galleryFocusStep(["a"], "b", "c1", 0)).toBe("load-more");
-    expect(galleryFocusStep(["a"], "b", null, 3)).toBe("missing");
-    expect(galleryFocusStep(["a"], "b", "c9", 5, 5)).toBe("missing");
+  it("shows the circuit in its place, else first, without paging to it", () => {
+    // The first page holds it: ring it where it is, lookup or not.
+    expect(galleryFocusPlacement(["a", "b"], "b", undefined)).toBe("in-place");
+    expect(galleryFocusPlacement(["a", "b"], "b", false)).toBe("in-place");
+    // Further down the wall: wait for its lookup, then show it first.
+    expect(galleryFocusPlacement(["a"], "b", undefined)).toBeUndefined();
+    expect(galleryFocusPlacement(["a"], "b", true)).toBe("first");
+    // Not on the public wall.
+    expect(galleryFocusPlacement(["a"], "b", false)).toBe("missing");
   });
 
   it("drops only its own parameter from the address", () => {

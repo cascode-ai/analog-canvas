@@ -1117,8 +1117,6 @@ test("the Owner withdraws a Gallery entry into the recycle bin", async ({
     .getByTestId(`gallery-owner-menu-${ENTRY.id}`)
     .locator("summary")
     .click();
-  await page.getByTestId(`gallery-owner-withdraw-${ENTRY.id}`).click();
-  expect(withdrawn).toBe(0);
   await expect
     .poll(async () =>
       page.locator(".gallery-owner-popover").evaluate((menu) => {
@@ -1132,10 +1130,8 @@ test("the Owner withdraws a Gallery entry into the recycle bin", async ({
       }),
     )
     .toBe(true);
-  await page.screenshot({ path: "plan/inline-gallery-withdraw-narrow.png" });
-  await page
-    .getByRole("button", { name: "Really withdraw", exact: true })
-    .click();
+  // Withdrawing is undone from the recycle bin, so it asks nothing more.
+  await page.getByTestId(`gallery-owner-withdraw-${ENTRY.id}`).click();
 
   await expect(page.getByTestId(`gallery-tile-${ENTRY.id}`)).toHaveCount(0);
   await expect(page.getByTestId("gallery-owner-notice")).toContainText(
@@ -1178,20 +1174,16 @@ test("a member withdraws their own entry from its tile, and only their own", asy
   await page.goto("/");
   await expect(page.getByTestId(`gallery-tile-${theirs.id}`)).toBeVisible();
   await expect(
-    page.getByTestId(`gallery-withdraw-menu-${theirs.id}`),
+    page.getByTestId(`gallery-author-menu-${theirs.id}`),
   ).toHaveCount(0);
   await expect(page.getByTestId(`gallery-owner-reject-${mine.id}`)).toHaveCount(
     0,
   );
   await page
-    .getByTestId(`gallery-withdraw-menu-${mine.id}`)
-    .getByLabel(`Withdraw ${mine.name}`)
+    .getByTestId(`gallery-author-menu-${mine.id}`)
+    .getByLabel(`Manage ${mine.name}`)
     .click();
-  await page.getByTestId(`gallery-withdraw-${mine.id}`).click();
-  expect(withdrawn).toBe(0);
-  await page
-    .getByRole("button", { name: "Really withdraw", exact: true })
-    .click();
+  await page.getByTestId(`gallery-author-withdraw-${mine.id}`).click();
 
   await expect(page.getByTestId(`gallery-tile-${mine.id}`)).toHaveCount(0);
   await expect(page.getByTestId(`gallery-tile-${theirs.id}`)).toBeVisible();
@@ -1333,31 +1325,28 @@ test("the feed scrolls inside its shell despite the locked app root", async ({
   expect(scrolled.scrollTop).toBeGreaterThan(0);
 });
 
-test("a View in Gallery link pages to its circuit, centres it and rings it", async ({
+test("a View in Gallery link shows its circuit at once, centres it and rings it", async ({
   page,
 }) => {
-  // Page two of a wall taller than the window: the tile must end up in view
-  // after masonry has settled, not only be scrolled to where it first stood.
+  // An updated circuit sits deep in a wall taller than the window, here on
+  // page two. The wall looks it up by its id and shows it first, without
+  // paging down to it: page two never answers. The tile must stay in view
+  // after masonry has settled.
   await page.setViewportSize({ width: 520, height: 420 });
-  const pages = {
-    first: Array.from({ length: 10 }, (_, index) => `a-${index}`),
-    second: Array.from({ length: 10 }, (_, index) => `b-${index}`),
-  };
+  const entry = (id: string) => ({
+    id,
+    name: `Circuit ${id}`,
+    author: "tz",
+    description: "",
+    createdAt: "2026-08-22T10:00:00.000Z",
+    schemaVersion: 23,
+  });
+  const first = Array.from({ length: 10 }, (_, index) => `a-${index}`);
   await page.route(galleryListUrl, (route) => {
-    const cursor = new URL(route.request().url()).searchParams.get("cursor");
-    const ids = cursor === "c1" ? pages.second : pages.first;
+    // Page two is never delivered: finding the circuit must not need it.
+    if (new URL(route.request().url()).searchParams.get("cursor")) return;
     return route.fulfill({
-      json: {
-        entries: ids.map((id) => ({
-          id,
-          name: `Circuit ${id}`,
-          author: "tz",
-          description: "",
-          createdAt: "2026-08-22T10:00:00.000Z",
-          schemaVersion: 23,
-        })),
-        nextCursor: cursor === "c1" ? null : "c1",
-      },
+      json: { entries: first.map(entry), nextCursor: "c1" },
     });
   });
   await page.route("**/api/gallery/*/preview.svg", (route) =>
@@ -1366,15 +1355,36 @@ test("a View in Gallery link pages to its circuit, centres it and rings it", asy
       body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 8"><rect width="10" height="8" fill="#fff"/></svg>',
     }),
   );
+  for (const id of ["b-7", "a-3"])
+    await page.route(`**/api/gallery/${id}`, (route) =>
+      route.fulfill({
+        json: { entry: entry(id), status: "public", projectText: "" },
+      }),
+    );
+  await page.route("**/api/gallery/gone", (route) =>
+    route.fulfill({ status: 404, json: { error: "not-found" } }),
+  );
 
   await page.goto("/?entry=b-7");
   const tile = page.getByTestId("gallery-tile-b-7");
   await expect(tile).toBeInViewport();
   await expect(tile.locator("xpath=..")).toHaveClass(/is-linked/u);
+  await expect(
+    page.locator('[data-testid^="gallery-tile-"]').first(),
+  ).toHaveAttribute("data-testid", "gallery-tile-b-7");
   // The link has done its work; a refresh does not seek again.
   await expect(page).toHaveURL(/\/$/u);
   await page.waitForTimeout(800);
   await expect(tile).toBeInViewport();
+
+  // A circuit the first page holds is ringed where it stands.
+  await page.goto("/?entry=a-3");
+  await expect(
+    page.getByTestId("gallery-tile-a-3").locator("xpath=.."),
+  ).toHaveClass(/is-linked/u);
+  await expect(
+    page.locator('[data-testid^="gallery-tile-"]').first(),
+  ).toHaveAttribute("data-testid", "gallery-tile-a-0");
 
   await page.goto("/?entry=gone");
   await expect(page.getByTestId("gallery-focus-missing")).toBeVisible();
@@ -4233,9 +4243,8 @@ test("/mine offers owner withdrawal, restore, and version history", async ({
   );
 
   await page.goto("/mine");
-  // Withdrawal asks for a second, explicit click.
+  // Withdrawal is one click: Restore undoes it.
   await page.getByTestId("mine-withdraw-mine-2").click();
-  await page.getByTestId("mine-withdraw-confirm-mine-2").click();
   await expect(page.getByTestId("mine-status-mine-2")).toHaveText("Withdrawn");
   await expect(page.getByTestId("mine-notice")).toContainText("Withdrew");
   // Restore republishes a voluntary withdrawal.
@@ -4651,17 +4660,29 @@ test("authors can filter pending visual reviews and resolve their own drawing", 
   await expect(
     page.getByTestId("gallery-tile-tag-review-me-amplifier"),
   ).toBeVisible();
+  // The tile looks as it does to everyone; its review opens from its menu.
+  await expect(page.getByTestId("gallery-attention-review-me")).toHaveCount(0);
   await page.getByTestId("gallery-filter-attention").click();
   await expect(page).toHaveURL(/attention=1/);
+  const openReview = async () => {
+    await page
+      .getByTestId("gallery-author-menu-review-me")
+      .locator("summary")
+      .click();
+    await page.getByTestId("gallery-author-review-review-me").click();
+  };
+  await openReview();
   const review = page.getByTestId("gallery-attention-review-me");
-  await review.locator("summary").click();
+  await expect(review).toContainText("Needs attention");
   await expect(review).toContainText("Output wire has a visible gap");
   await review.getByRole("button", { name: "Mark resolved" }).click();
   await expect(page.getByTestId("gallery-tile-review-me")).toHaveCount(0);
+  await expect(review).toContainText("Reviewed · resolved");
+  await page.keyboard.press("Escape");
+  await expect(review).toHaveCount(0);
   await page.getByTestId("gallery-filter-attention").click();
-  await expect(page.getByTestId("gallery-attention-review-me")).toContainText(
-    "Reviewed · resolved",
-  );
+  await openReview();
+  await expect(review).toContainText("Reviewed · resolved");
 });
 
 test("a search keeps what it found when the window comes back into focus", async ({
@@ -4836,11 +4857,18 @@ test("administrators narrow Needs attention to one reason", async ({
   await expect(page.getByTestId("gallery-tile-broken-wire")).toBeVisible();
   await expect(page.getByTestId("gallery-tile-supply-only")).toHaveCount(0);
   expect(reasons.at(-1)).toBe("suspected-disconnection");
-  // The review lists every finding under its reason.
+  // The review, opened from the tile's menu, lists every finding under its
+  // reason.
+  await page
+    .getByTestId("gallery-owner-menu-broken-wire")
+    .locator("summary")
+    .click();
+  await page.getByTestId("gallery-owner-review-broken-wire").click();
   const review = page.getByTestId("gallery-attention-broken-wire");
-  await review.locator("summary").click();
   await expect(review).toContainText("Wiring break · Gap between OUT");
   await expect(review).toContainText("Global VDD · .global VDD");
+  await review.getByRole("button", { name: "Close" }).click();
+  await expect(review).toHaveCount(0);
   // Leaving Needs attention forgets the reason.
   await page.getByTestId("gallery-filter-attention").click();
   await expect(reason).toHaveCount(0);

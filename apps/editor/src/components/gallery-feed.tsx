@@ -10,6 +10,7 @@ import {
   galleryEntryMatchesQuery,
   galleryPreviewUrl,
   loadGalleryAuthors,
+  loadGalleryEntry,
   loadGalleryFeed,
   galleryTagScope,
   GALLERY_SIGN_IN_REQUIRED,
@@ -35,7 +36,7 @@ import {
 } from "../gallery-filters";
 import {
   galleryFocusEntryId,
-  galleryFocusStep,
+  galleryFocusPlacement,
   withoutGalleryFocus,
 } from "../gallery-focus";
 import type { BundledGalleryTile } from "./gallery-bundled-fallback";
@@ -68,9 +69,9 @@ import type { GalleryDuplicateReport } from "../gallery-duplicates";
 const ShelfWall = lazy(() =>
   import("./shelf-wall").then((module) => ({ default: module.ShelfWall })),
 );
-const GalleryAttentionReview = lazy(() =>
+const GalleryReviewDialog = lazy(() =>
   import("./gallery-attention-review").then((module) => ({
-    default: module.GalleryAttentionReview,
+    default: module.GalleryReviewDialog,
   })),
 );
 const GalleryDuplicateCheck = lazy(() =>
@@ -79,14 +80,9 @@ const GalleryDuplicateCheck = lazy(() =>
   })),
 );
 
-const GalleryOwnerMenu = lazy(() =>
+const GalleryTileMenu = lazy(() =>
   import("./gallery-owner-controls").then((module) => ({
-    default: module.GalleryOwnerMenu,
-  })),
-);
-const GalleryWithdrawMenu = lazy(() =>
-  import("./gallery-owner-controls").then((module) => ({
-    default: module.GalleryWithdrawMenu,
+    default: module.GalleryTileMenu,
   })),
 );
 const GalleryOwnerRejectButton = lazy(() =>
@@ -347,7 +343,7 @@ export function canReuseGalleryLandingFeed(
   );
 }
 
-/** Every attention reason with its name, for the lazy review card. */
+/** Every attention reason with its name, for the lazy review dialog. */
 const GALLERY_ATTENTION_REASONS = GALLERY_ISSUE_KINDS.map((kind) => ({
   kind,
   label: galleryIssueKindLabel(kind),
@@ -433,6 +429,7 @@ export function GalleryFeed({
   const [ownerBusy, setOwnerBusy] = useState<string | null>(null);
   const [ownerNotice, setOwnerNotice] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<GalleryFeedEntry | null>(null);
+  const [reviewing, setReviewing] = useState<GalleryFeedEntry | null>(null);
   const [tagOptions, setTagOptions] = useState<
     { tag: string; count: number }[]
   >([]);
@@ -800,7 +797,15 @@ export function GalleryFeed({
         previous.status === "ready" && previous.nextCursor === cursor
           ? {
               ...previous,
-              entries: [...previous.entries, ...page.entries],
+              // A linked circuit shown first stays only there when its own
+              // page arrives.
+              entries: [
+                ...previous.entries,
+                ...page.entries.filter(
+                  (entry) =>
+                    !previous.entries.some((shown) => shown.id === entry.id),
+                ),
+              ],
               nextCursor: page.nextCursor,
               total: page.total ?? previous.total,
               ...(page.authors ? { authors: page.authors } : {}),
@@ -922,8 +927,7 @@ export function GalleryFeed({
           : `“${entry.name}” was withdrawn. Restore it from My submissions.`,
       );
     } catch {
-      setOwnerNotice(`Could not withdraw “${entry.name}”.`);
-      throw new Error("Could not withdraw this entry. Try again.");
+      setOwnerNotice(`Could not withdraw “${entry.name}”. Try again.`);
     } finally {
       setOwnerBusy(null);
     }
@@ -985,38 +989,59 @@ export function GalleryFeed({
       )
     : entries;
 
-  // A "View in Gallery" link names one circuit: the wall pages until that
-  // circuit has loaded, brings its tile into view and rings it for a moment.
+  // A "View in Gallery" link names one circuit. The wall shows it at once: in
+  // its place when the first page holds it, otherwise first on the wall,
+  // looked up by its id (an updated circuit can sit hundreds of tiles down).
+  // Its tile is brought into view and ringed for a moment.
   const [focusId, setFocusId] = useState<string | null>(() =>
     typeof window === "undefined"
       ? null
       : galleryFocusEntryId(window.location.search),
   );
+  const [focusEntry, setFocusEntry] = useState<
+    GalleryFeedEntry | null | undefined
+  >(undefined);
   const [linkedId, setLinkedId] = useState<string | null>(null);
   const [focusMissing, setFocusMissing] = useState(false);
-  const focusPagesRef = useRef(0);
+  useEffect(() => {
+    if (focusId === null) return;
+    let cancelled = false;
+    const request =
+      preload?.focus?.id === focusId
+        ? preload.focus.entry
+        : loadGalleryEntry(fetch, focusId);
+    void request.then((entry) => {
+      if (!cancelled) setFocusEntry(entry);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [focusId, preload]);
   useEffect(() => {
     if (focusId === null || state.status !== "ready") return;
-    const step = galleryFocusStep(
+    const placement = galleryFocusPlacement(
       visibleEntries.map((entry) => entry.id),
       focusId,
-      state.nextCursor,
-      focusPagesRef.current,
+      focusEntry === undefined ? undefined : focusEntry !== null,
     );
-    if (step === "load-more") {
-      if (state.nextCursor && loadPageAfterRef.current(state.nextCursor))
-        focusPagesRef.current += 1;
-      return;
-    }
+    if (placement === undefined) return;
     setFocusId(null);
     window.history.replaceState(
       null,
       "",
       window.location.pathname + withoutGalleryFocus(window.location.search),
     );
-    if (step === "missing") setFocusMissing(true);
-    else setLinkedId(focusId);
-  }, [focusId, state, visibleEntries]);
+    if (placement === "missing") {
+      setFocusMissing(true);
+      return;
+    }
+    if (placement === "first" && focusEntry)
+      setState((previous) => ({
+        ...previous,
+        entries: [focusEntry, ...previous.entries],
+      }));
+    setLinkedId(focusId);
+  }, [focusId, focusEntry, state, visibleEntries]);
   useEffect(() => {
     if (linkedId === null) return;
     // Masonry measures tiles and moves them as previews arrive, so a single
@@ -1488,41 +1513,19 @@ export function GalleryFeed({
                           {isOwner ||
                           (!!viewerId && viewerId === entry.ownerUserId) ? (
                             <Suspense fallback={null}>
-                              <GalleryAttentionReview
-                                entry={entry}
-                                reasons={GALLERY_ATTENTION_REASONS}
-                                onChange={(updated) => {
-                                  setState((previous) => ({
-                                    ...previous,
-                                    entries: previous.entries.map((item) =>
-                                      item.id === updated.id ? updated : item,
-                                    ),
-                                  }));
-                                  setRefreshSignal((signal) => signal + 1);
-                                  announceGalleryChange({ entryId: entry.id });
-                                }}
-                              />
-                            </Suspense>
-                          ) : null}
-                          {isOwner ? (
-                            <Suspense fallback={null}>
-                              <GalleryOwnerRejectButton
+                              {isOwner ? (
+                                <GalleryOwnerRejectButton
+                                  entry={entry}
+                                  busy={ownerBusy === entry.id}
+                                  onReject={() => setRejecting(entry)}
+                                />
+                              ) : null}
+                              <GalleryTileMenu
                                 entry={entry}
                                 busy={ownerBusy === entry.id}
-                                onReject={() => setRejecting(entry)}
-                              />
-                              <GalleryOwnerMenu
-                                entry={entry}
-                                busy={ownerBusy === entry.id}
-                                onWithdraw={() => withdrawEntry(entry)}
-                              />
-                            </Suspense>
-                          ) : !!viewerId && viewerId === entry.ownerUserId ? (
-                            <Suspense fallback={null}>
-                              <GalleryWithdrawMenu
-                                entry={entry}
-                                busy={ownerBusy === entry.id}
-                                onWithdraw={() => withdrawEntry(entry)}
+                                administrator={isOwner}
+                                onReview={() => setReviewing(entry)}
+                                onWithdraw={() => void withdrawEntry(entry)}
                               />
                             </Suspense>
                           ) : null}
@@ -1661,6 +1664,26 @@ export function GalleryFeed({
             busy={ownerBusy === rejecting.id}
             onSubmit={(reason) => void rejectEntry(reason)}
             onClose={() => setRejecting(null)}
+          />
+        </Suspense>
+      ) : null}
+      {reviewing ? (
+        <Suspense fallback={null}>
+          <GalleryReviewDialog
+            entry={reviewing}
+            reasons={GALLERY_ATTENTION_REASONS}
+            onChange={(updated) => {
+              setReviewing(updated);
+              setState((previous) => ({
+                ...previous,
+                entries: previous.entries.map((item) =>
+                  item.id === updated.id ? updated : item,
+                ),
+              }));
+              setRefreshSignal((signal) => signal + 1);
+              announceGalleryChange({ entryId: updated.id });
+            }}
+            onClose={() => setReviewing(null)}
           />
         </Suspense>
       ) : null}

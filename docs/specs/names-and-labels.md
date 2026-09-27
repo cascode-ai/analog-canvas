@@ -42,6 +42,10 @@ spelling, are created with a stored standard look:
 | Any other device Reference                       | letters followed by digits                                | Italic letters, upright subscript index: XU₀, OA₁                       |
 | Voltage node (Cell Pin, Bias Voltage, Net label) | `V` followed by letters/digits                            | Italic `V`, upright subscript rest: V_in, V_BP, V_casP                  |
 | Current (Cell Pin, Net label)                    | `I` followed by letters/digits, except `IN…` and `IO`     | Italic `I`, upright subscript rest: I_out, I_REF, I₁                    |
+| Greek-led name (any role above)                  | a Greek letter, then Latin letters/digits                 | Italic Greek letter, upright subscript rest: Φ₁, Φ_1pp, φ_S, ω₀         |
+
+A clock phase is the usual Greek-led name. A difference such as `ΔV` and a run
+of Greek such as `ΣΔ` read as one symbol, so they get no Greek-led look.
 
 The look applies whether the name was typed, connected or generated. A device
 letter is the one-letter Reference prefix a device declares (R, C, L, M, Q,
@@ -71,6 +75,26 @@ is false), and when the editor applies Subscript or Superscript to italic
 text, which never carries the italic into the script. An author may still
 slant a script on purpose, by setting Italic inside it or choosing italic
 subscripts for the whole drawing, and that choice is kept.
+
+### Reset labels
+
+The toolbar's Reset labels puts every unlocked label of a drawing back to its
+standard look in one undoable edit, keeping where each label sits, its color
+and whether it shows.
+
+- Every label returns to the default size.
+- A bound name takes its standard look. A name with no standard form keeps a
+  display that writes more than italic and bold — a subscript, a bar, a case
+  change — and sets letters over one subscript in the standard italic and
+  bold; a display of italic and bold alone is dropped. Reset never turns a
+  subscript back into plain text.
+- A value loses any display of its own.
+- A label written by hand keeps its characters and which of them are
+  subscripts, and letters over one subscript take the standard italic and
+  bold: a part's own words (a switch's Φ₁), a route marker's text, and a free
+  label-type text that spells letters over one subscript (a V_icm beside a
+  Pin). Such a free text also sheds its own size, weight and slant. Any other
+  free text is not a label and is left as it is.
 
 ### Existing drawings
 

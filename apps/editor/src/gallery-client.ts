@@ -342,6 +342,8 @@ export interface GalleryLandingPreload {
   tags: Promise<GalleryTagSummary>;
   /** The filters the preloaded tag counts answer; see galleryTagScope. */
   tagsScope?: string;
+  /** The circuit a "View in Gallery" link names, looked up by its id. */
+  focus?: { id: string; entry: Promise<GalleryFeedEntry | null> };
 }
 
 /** The wall filters that also narrow the tag counts beside it. */
@@ -509,6 +511,33 @@ export async function loadGalleryFeed(
           }
         : {}),
     };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * One circuit on the public wall, found by its id: what a "View in Gallery"
+ * link shows at once, however far down the wall it would sit. Null when the
+ * circuit is not on the public wall (withdrawn, rejected, unknown) or cannot
+ * be read.
+ */
+export async function loadGalleryEntry(
+  fetchLike: typeof fetch,
+  id: string,
+): Promise<GalleryFeedEntry | null> {
+  try {
+    const response = await fetchLike(`/api/gallery/${encodeURIComponent(id)}`, {
+      credentials: "same-origin",
+    });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as {
+      entry?: GalleryFeedEntry;
+      status?: string;
+    };
+    return payload.status === "public" && payload.entry?.id === id
+      ? payload.entry
+      : null;
   } catch {
     return null;
   }

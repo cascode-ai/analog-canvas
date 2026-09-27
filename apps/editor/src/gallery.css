@@ -340,16 +340,6 @@
   background: color-mix(in srgb, #c0392b 8%, var(--icm-surface));
 }
 
-.mine-withdraw-confirm {
-  color: #fff;
-  background: #c0392b;
-  border-color: #c0392b;
-}
-
-.mine-withdraw-confirm:hover {
-  background: #a93226;
-}
-
 .gallery-filter {
   display: flex;
   align-items: center;
@@ -711,24 +701,6 @@
   line-height: 1;
   list-style: none;
   cursor: pointer;
-}
-
-.gallery-withdraw-menu > summary {
-  color: var(--icm-danger, #b42318);
-  font-size: 18px;
-}
-
-.gallery-withdraw-menu > summary:hover {
-  color: #fff;
-  background: var(--icm-danger, #b42318);
-}
-
-.gallery-withdraw-note {
-  max-width: 14rem;
-  margin: 2px 10px 6px;
-  color: var(--icm-text-muted);
-  font-size: 12px;
-  line-height: 1.4;
 }
 
 .gallery-owner-menu > summary::-webkit-details-marker {
@@ -1666,44 +1638,35 @@ div.gallery-contributor-status {
   }
 }
 
-.gallery-attention {
-  margin: 0 8px 12px;
-  padding: 10px 12px;
-  font-size: 12px;
-  border: 1px solid var(--icm-border);
-  border-radius: 8px;
-  background: var(--icm-surface);
+/* A drawing's review, opened from its tile menu. */
+.gallery-review-dialog {
+  display: grid;
+  gap: 10px;
 }
-.gallery-attention summary {
-  cursor: pointer;
+.gallery-review-dialog p,
+.gallery-review-dialog ul {
+  margin: 0;
+}
+.gallery-review-dialog .gallery-review-status {
+  color: var(--icm-text);
   font-weight: 600;
 }
-.gallery-attention p,
-.gallery-attention li {
+.gallery-review-dialog ul {
+  padding-left: 18px;
+  font-size: 13px;
   line-height: 1.5;
 }
-.gallery-attention ul {
-  padding-left: 18px;
-}
-.gallery-attention textarea {
-  width: 100%;
-  box-sizing: border-box;
-  font: inherit;
-  padding: 8px;
+.gallery-review-dialog select {
+  padding: 7px 10px;
   border: 1px solid var(--icm-border);
-  border-radius: 4px;
-  background: var(--icm-surface);
+  border-radius: 8px;
   color: var(--icm-text);
-}
-.gallery-attention-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-}
-.gallery-attention-actions button {
-  padding: 5px 8px;
+  background: var(--icm-surface);
   font: inherit;
-  cursor: pointer;
+  font-size: 13px;
+}
+.gallery-review-dialog textarea {
+  min-height: 5rem;
 }
 
 .shelf-tile-actions {

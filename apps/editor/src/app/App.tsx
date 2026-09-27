@@ -368,7 +368,10 @@ import {
   instanceParameterVisibility,
   instanceParameterVisibilityEdits,
 } from "../features/instance-display/instance-parameter-display";
-import { resetLabelLookEdits } from "../features/instance-display/reset-label-look";
+import {
+  hasResettableLabels,
+  resetLabelLookEdits,
+} from "../features/instance-display/reset-label-look";
 import { createSelectionPropertyCommands } from "../features/properties/selection-property-commands";
 import { planComponentPropertyCodeEdits } from "../features/properties/component-property-code-edits";
 import {
@@ -6402,9 +6405,7 @@ function WorkspaceEditor({
             setSelectionOpen(true);
           },
           resetLabels: {
-            enabled: document.annotations.some(
-              (annotation) => annotation.binding && !annotation.locked,
-            ),
+            enabled: hasResettableLabels(document),
             execute: () => {
               const edits = resetLabelLookEdits(document, project);
               if (edits.length === 0) {
