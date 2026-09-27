@@ -375,6 +375,7 @@ import {
   groupVisibilityTargets,
   planGroupPropertyCodeEdits,
 } from "../features/properties/group-property-code-edits";
+import { planPropertyContactMove } from "../features/properties/property-contact-move";
 import {
   batchAnnotationEdits,
   batchDraftingEdits,
@@ -7980,7 +7981,31 @@ function WorkspaceEditor({
                                 "apply-component-property-code",
                                 structureEdits,
                               );
-                            } else applied = transact(edits).ok;
+                            } else {
+                              // A typed coordinate lands the part as a drag
+                              // would, joining a pin it now lies on.
+                              const contactMove = planPropertyContactMove(
+                                document,
+                                resolver,
+                                selectedInstance,
+                                edits,
+                              );
+                              if (contactMove && !contactMove.ok)
+                                return {
+                                  ok: false as const,
+                                  message: contactMove.message,
+                                };
+                              applied = contactMove
+                                ? (transactConnectivity(
+                                    contactMove.intent,
+                                    contactMove.edits,
+                                    {
+                                      expectedElectricalEffect:
+                                        contactMove.expectedElectricalEffect,
+                                    },
+                                  )?.ok ?? false)
+                                : transact(edits).ok;
+                            }
                             if (!applied) {
                               return {
                                 ok: false as const,

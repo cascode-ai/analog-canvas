@@ -794,6 +794,77 @@ test("resizes Properties and applies component presentation as editable code", a
   });
 });
 
+test("a coordinate typed in Properties joins the pin the part lands on", async ({
+  page,
+}) => {
+  // Reported as p3wysk799e: a gate typed onto a Pin's pin lay on it without
+  // connecting, as a drag there would have.
+  const project = createEmptyProject("typed-move", "Typed move");
+  const cell = project.documents[0]!;
+  cell.instances.push(
+    {
+      id: "M1",
+      reference: "M1",
+      symbolId: "nmos",
+      placement: { position: { x: 440, y: 200 }, rotation: 0, mirror: "none" },
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "mos" },
+        parameters: {},
+      },
+    } as never,
+    {
+      id: "P1",
+      symbolId: "port",
+      placement: { position: { x: 400, y: 200 }, rotation: 0, mirror: "none" },
+    },
+  );
+  cell.nets.push({
+    id: "net-p1",
+    terminals: [{ instanceId: "P1", pinName: "P" }],
+  });
+  cell.netlist!.terminals.push({
+    id: "terminal-p1",
+    name: "Vinp",
+    netId: "net-p1",
+    direction: "passive",
+    interfaceInstanceIds: ["P1"],
+  });
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "typed-move.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(serializeProject(project)),
+  });
+  await expect(page.getByTestId("status")).toContainText(
+    "Opened typed-move.icproj.json",
+  );
+  await page.getByTestId("hit-M1").click();
+  await openSelectionShelf(page);
+  await editComponentPropertyCode(page, (value) => {
+    value.coordinate = [420, 200];
+  });
+  await expect
+    .poll(async () => {
+      const saved = parseSavedProject(
+        (await downloadBytes(page, "File", "Export Project File…")).toString(
+          "utf8",
+        ),
+      ).documents[0];
+      const netOf = (instanceId: string, pinName: string) =>
+        saved.nets.find(
+          (net: { terminals: { instanceId: string; pinName: string }[] }) =>
+            net.terminals.some(
+              (terminal) =>
+                terminal.instanceId === instanceId &&
+                terminal.pinName === pinName,
+            ),
+        )?.id ?? null;
+      return [netOf("M1", "G"), netOf("P1", "P")];
+    })
+    .toEqual(["net-p1", "net-p1"]);
+});
+
 test("Properties toggles reference label visibility for one or many components", async ({
   page,
 }) => {
