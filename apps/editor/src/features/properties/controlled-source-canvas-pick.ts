@@ -17,7 +17,16 @@ export type ControlPickTarget =
   { kind: "net"; netId: string } | { kind: "sensor"; instanceId: string };
 
 export type ControlPickResult =
-  | { kind: "continue"; state: ControlPickState; message: string }
+  | {
+      kind: "continue";
+      state: ControlPickState;
+      control: {
+        kind: "voltage";
+        positiveNetId: string;
+        negativeNetId?: string;
+      };
+      message: string;
+    }
   | {
       kind: "complete";
       control:
@@ -27,7 +36,7 @@ export type ControlPickResult =
     }
   | { kind: "reject"; message: string };
 
-/** Keep the first voltage pick provisional; cancelling never leaves half a control. */
+/** Each accepted endpoint is an immediate edit; Escape stops remaining picks. */
 export function advanceControlPick(
   state: ControlPickState,
   document: SchematicDocument,
@@ -56,9 +65,19 @@ export function advanceControlPick(
     if (!choice)
       return { kind: "reject", message: "This point has no resolvable Net" };
     if (!state.positiveNetId) {
+      const previous = document.instances.find(
+        (instance) => instance.id === state.instanceId,
+      )?.netlist?.control;
       return {
         kind: "continue",
         state: { ...state, positiveNetId: choice.netId },
+        control: {
+          kind: "voltage",
+          positiveNetId: choice.netId,
+          ...(previous?.kind === "voltage" && previous.negativeNetId
+            ? { negativeNetId: previous.negativeNetId }
+            : {}),
+        },
         message: `Control +: ${choice.label}; now pick control −`,
       };
     }

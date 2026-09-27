@@ -2333,10 +2333,23 @@ function WorkspaceEditor({
     });
     setStatus(
       kind === "voltage"
-        ? "Pick control + Net, then control − Net · Esc cancels"
+        ? "Pick control + Net, then control − Net · Each pick applies immediately; Esc stops picking"
         : "Pick a voltage source or its pin for branch current · Esc cancels",
     );
   };
+  const controlSensorCandidate =
+    controlPickMode === "sensor"
+      ? (instanceId: string): boolean => {
+          const instance = document.instances.find(
+            (item) => item.id === instanceId,
+          );
+          return Boolean(
+            instance &&
+            deviceDescriptor(instance.symbolId, project)?.deviceClass ===
+              "voltage-source",
+          );
+        }
+      : undefined;
   const pickControlledSourceTarget = (
     target:
       { kind: "net"; netId: string } | { kind: "sensor"; instanceId: string },
@@ -2349,8 +2362,7 @@ function WorkspaceEditor({
       (symbolId) =>
         deviceDescriptor(symbolId, project)?.deviceClass === "voltage-source",
     );
-    if (result.kind === "continue") setControlPickState(result.state);
-    if (result.kind === "complete") {
+    if (result.kind === "continue" || result.kind === "complete") {
       const instance = document.instances.find(
         (candidate) => candidate.id === controlPickState.instanceId,
       );
@@ -2365,21 +2377,33 @@ function WorkspaceEditor({
           suppressInstanceClick.current = false;
         }, 0);
       }
-      const applied = transact([
-        {
-          kind: "set_instance_netlist",
-          instanceId: instance.id,
-          netlist: {
-            ...(instance.netlist?.binding
-              ? { binding: instance.netlist.binding }
-              : {}),
-            parameters: instance.netlist?.parameters ?? {},
-            control: result.control,
-          },
-        },
-      ]);
-      if (applied.ok) setControlPickState(null);
-      else {
+      const previous = instance.netlist?.control;
+      const unchanged =
+        result.control.kind === "voltage"
+          ? previous?.kind === "voltage" &&
+            previous.positiveNetId === result.control.positiveNetId &&
+            previous.negativeNetId === result.control.negativeNetId
+          : previous?.kind === "current" &&
+            previous.sensorInstanceId === result.control.sensorInstanceId;
+      const applied = unchanged
+        ? { ok: true }
+        : transact([
+            {
+              kind: "set_instance_netlist",
+              instanceId: instance.id,
+              netlist: {
+                ...(instance.netlist?.binding
+                  ? { binding: instance.netlist.binding }
+                  : {}),
+                parameters: instance.netlist?.parameters ?? {},
+                control: result.control,
+              },
+            },
+          ]);
+      if (applied.ok) {
+        setControlPickState(result.kind === "continue" ? result.state : null);
+        setSimulationHoverNetId(null);
+      } else {
         setStatus("Could not apply controlled-source selection");
         return;
       }
@@ -8135,9 +8159,10 @@ function WorkspaceEditor({
               : null
           }
           netHighlight={{
-            highlight: simulationPickNetsActive
-              ? simulationPickHighlight
-              : (codeNetHighlight ?? highlightedNet),
+            highlight:
+              simulationPickNetsActive || controlPickMode === "net"
+                ? simulationPickHighlight
+                : (codeNetHighlight ?? highlightedNet),
             document,
             resolver,
             routeGeometryRecords,
@@ -8231,6 +8256,7 @@ function WorkspaceEditor({
           }}
           selectionHitLayer={{
             selection: {
+              ...(controlSensorCandidate ? { controlSensorCandidate } : {}),
               document,
               resolver,
               routeGeometryRecords,
@@ -8334,6 +8360,7 @@ function WorkspaceEditor({
               },
             },
             endpoints: {
+              ...(controlSensorCandidate ? { controlSensorCandidate } : {}),
               document,
               endpoints: simulationPickTerminalsActive
                 ? wiringEndpoints.filter(

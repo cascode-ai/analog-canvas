@@ -39,7 +39,7 @@ document.connectivityEvidence.push(
 const isVoltageSource = (symbolId: string) => symbolId === "voltage-source";
 
 describe("controlled-source canvas pick", () => {
-  it("canonicalizes repeated ground markers and commits a voltage pair only after two picks", () => {
+  it("canonicalizes repeated ground markers and commits each voltage endpoint immediately", () => {
     const start: ControlPickState = {
       documentId: document.id,
       instanceId: "G1",
@@ -54,6 +54,7 @@ describe("controlled-source canvas pick", () => {
     expect(first).toMatchObject({
       kind: "continue",
       state: { positiveNetId: "ground-a" },
+      control: { kind: "voltage", positiveNetId: "ground-a" },
     });
     if (first.kind !== "continue") throw new Error("Expected first pick");
     expect(
@@ -108,6 +109,33 @@ describe("controlled-source canvas pick", () => {
     ).toMatchObject({
       kind: "complete",
       control: { kind: "current", sensorInstanceId: "V1" },
+    });
+  });
+
+  it("preserves the existing negative endpoint when replacing the positive endpoint", () => {
+    const existing = structuredClone(document);
+    existing.instances[0]!.netlist = {
+      parameters: {},
+      control: {
+        kind: "voltage",
+        positiveNetId: "signal",
+        negativeNetId: "ground-b",
+      },
+    };
+    expect(
+      advanceControlPick(
+        { documentId: document.id, instanceId: "G1", kind: "voltage" },
+        existing,
+        { kind: "net", netId: "signal" },
+        isVoltageSource,
+      ),
+    ).toMatchObject({
+      kind: "continue",
+      control: {
+        kind: "voltage",
+        positiveNetId: "signal",
+        negativeNetId: "ground-b",
+      },
     });
   });
 
