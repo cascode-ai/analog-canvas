@@ -1345,7 +1345,20 @@ export function buildSvgScene(
         ? ""
         : ' data-node-kind="contact"';
       const dotProfile = contactProfile(contact);
-      return `<circle data-object-id="${escapeXml(objectId)}"${derivedAttribute} cx="${contact.point.x}" cy="${contact.point.y}" r="${dotProfile.nodes.junctionRadius}" fill="${dotProfile.foreground}"/>`;
+      const routeColors = new Set(
+        contact.incidents.flatMap((incident) => {
+          const route =
+            incident.kind === "route"
+              ? routesById.get(incident.objectId)
+              : null;
+          return route ? [routeStrokeColor(route)] : [];
+        }),
+      );
+      // A single wire color belongs to the whole contact. Mixed colors have
+      // no unambiguous owner, so the dot keeps the Document's foreground.
+      const dotColor =
+        routeColors.size === 1 ? [...routeColors][0]! : dotProfile.foreground;
+      return `<circle data-object-id="${escapeXml(objectId)}"${derivedAttribute} cx="${contact.point.x}" cy="${contact.point.y}" r="${dotProfile.nodes.junctionRadius}" fill="${escapeXml(dotColor)}"/>`;
     })
     .join("");
   const noConnectMarkers = renderNoConnectMarkers(
