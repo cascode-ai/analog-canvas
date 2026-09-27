@@ -187,13 +187,22 @@ export function ToolIcon({ name }: { name: ToolIconName }) {
         </>
       ) : null}
       {name === "reset-labels" ? (
-        <>
-          {/* An italic letter over its subscript, with a turning-back arrow. */}
-          <path d="M5 13l2-8M4 5h5" {...common} />
-          <path d="M9 15h3" {...common} />
-          <path d="M14 4.5a4 4 0 1 1-1.2 6.6" {...common} />
-          <path d="M14 2v2.8h2.8" {...common} />
-        </>
+        // A label in its standard look, the look the button restores: an
+        // italic V over an upright subscript.
+        <text
+          x="1"
+          y="14"
+          fill="currentColor"
+          stroke="none"
+          fontSize="14"
+          fontStyle="italic"
+          fontWeight="700"
+        >
+          V
+          <tspan dy="3.5" fontSize="8.5" fontStyle="normal">
+            in
+          </tspan>
+        </text>
       ) : null}
     </svg>
   );
