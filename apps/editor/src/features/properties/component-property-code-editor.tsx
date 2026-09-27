@@ -42,7 +42,9 @@ export interface ComponentPropertyCodeEditorProps {
   netName?: string | null;
   defaultForeground?: string;
   details?: ComponentPropertyCodeContext["details"];
-  controlPick?: { step: "positive" | "negative" | "sensor" } | null;
+  controlPick?: {
+    step: "positive" | "negative" | "current-positive" | "current-negative";
+  } | null;
   controlSummary?: string;
   controlNetOptions?: ComponentPropertyCodeContext["controlNetOptions"];
   controlDeviceOptions?: ComponentPropertyCodeContext["controlDeviceOptions"];
@@ -283,14 +285,45 @@ export function ComponentPropertyCodeEditor({
             ? {
                 controlAction: {
                   active: Boolean(controlPick),
+                  compact:
+                    instance.symbolId === "cccs" ||
+                    instance.symbolId === "ccvs",
+                  ...(instance.netlist?.control?.kind === "terminal-current" ||
+                  instance.netlist?.control?.kind === "current"
+                    ? {
+                        onReverse: () => {
+                          if (
+                            parsed.ok &&
+                            parsed.value.control &&
+                            "direction" in parsed.value.control
+                          )
+                            change(
+                              projection.format(
+                                serializeComponentPropertyCode({
+                                  ...parsed.value,
+                                  control: {
+                                    ...parsed.value.control,
+                                    direction:
+                                      parsed.value.control.direction === "into"
+                                        ? "out"
+                                        : "into",
+                                  },
+                                }),
+                              ),
+                            );
+                        },
+                      }
+                    : {}),
                   message:
                     controlPick?.step === "positive"
                       ? "Click control + Net"
                       : controlPick?.step === "negative"
                         ? "Click control − Net; the pick then finishes"
-                        : controlPick?.step === "sensor"
-                          ? "Click a device terminal; arrow shows positive current"
-                          : (controlSummary ?? "Control not selected"),
+                        : controlPick?.step === "current-positive"
+                          ? "Pick control + terminal"
+                          : controlPick?.step === "current-negative"
+                            ? "Pick highlighted − terminal"
+                            : (controlSummary ?? "Control not selected"),
                   onClick: () =>
                     controlPick
                       ? onCancelControlPick?.()

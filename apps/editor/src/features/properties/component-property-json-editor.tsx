@@ -77,7 +77,13 @@ interface Props {
   defaultForeground: string;
   ariaLabel?: string;
   onChange(source: string): void;
-  controlAction?: { active: boolean; message: string; onClick(): void };
+  controlAction?: {
+    active: boolean;
+    message: string;
+    compact?: boolean;
+    onReverse?: () => void;
+    onClick(): void;
+  };
 }
 const externalUpdate = Annotation.define<boolean>();
 const refreshDecorations = StateEffect.define<null>();
@@ -298,11 +304,16 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
           node.node.parent?.parent?.name === "JsonText"
         ) {
           ranges.push(
-            Decoration.widget({
-              widget: new ControlPickWidget(read().controlAction!, read),
-              side: 1,
-            }).range(value.from + 1),
+            read().controlAction?.compact
+              ? Decoration.replace({
+                  widget: new ControlPickWidget(read().controlAction!, read),
+                }).range(value.from + 1, value.to - 1)
+              : Decoration.widget({
+                  widget: new ControlPickWidget(read().controlAction!, read),
+                  side: 1,
+                }).range(value.from + 1),
           );
+          if (read().controlAction?.compact) return false;
         }
       }
       const token = classes[node.name];
@@ -316,7 +327,12 @@ function jsonDecorations(state: EditorState, read: () => Props): DecorationSet {
     },
   });
   const source = state.doc.toString();
-  const spans = editorSpans(source, read());
+  const spans = editorSpans(source, read()).filter(
+    (span) =>
+      !(
+        read().controlAction?.compact && span.field.path.startsWith("control.")
+      ),
+  );
   const documentValid = editorParse(source, read()).ok;
   for (const field of [
     { path: "display.visualAnnotation", label: "visual annotation" },
@@ -492,7 +508,9 @@ class ControlPickWidget extends WidgetType {
   override eq(other: ControlPickWidget): boolean {
     return (
       this.action.active === other.action.active &&
-      this.action.message === other.action.message
+      this.action.message === other.action.message &&
+      this.action.compact === other.action.compact &&
+      Boolean(this.action.onReverse) === Boolean(other.action.onReverse)
     );
   }
   toDOM(): HTMLElement {
@@ -512,11 +530,21 @@ class ControlPickWidget extends WidgetType {
       this.read().controlAction?.onClick(),
     );
     wrapper.append(button);
-    if (this.action.active) {
+    if (this.action.active || this.action.compact) {
       const status = document.createElement("span");
       status.setAttribute("aria-live", "polite");
       status.textContent = this.action.message;
       wrapper.append(status);
+    }
+    if (this.action.onReverse && !this.action.active) {
+      const reverse = document.createElement("button");
+      reverse.type = "button";
+      reverse.textContent = "Reverse";
+      reverse.setAttribute("aria-label", "Reverse control current");
+      reverse.addEventListener("click", () =>
+        this.read().controlAction?.onReverse?.(),
+      );
+      wrapper.append(reverse);
     }
     return wrapper;
   }

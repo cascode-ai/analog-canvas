@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { nearestTerminal } from "./terminal-pick-snap";
 import type {
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
@@ -636,8 +637,39 @@ function EndpointHitTargets({
   controlCurrentPreview,
 }: EndpointHitTargetProps) {
   const [controlHover, setControlHover] = useState<WireSource | null>(null);
+  const visibleRadius = controlSensorCandidate
+    ? endpointHitRadius * 0.4
+    : endpointHitRadius;
+  const snappedControlTarget = (event: ReactPointerEvent<SVGCircleElement>) => {
+    const matrix = event.currentTarget.getScreenCTM();
+    if (!matrix) return null;
+    return nearestTerminal(
+      endpoints.filter(
+        (candidate) =>
+          candidate.endpoint.kind === "terminal" &&
+          controlSensorCandidate?.(
+            candidate.endpoint.instanceId,
+            candidate.endpoint.pinName,
+          ),
+      ),
+      { x: event.clientX, y: event.clientY },
+      (candidate) => {
+        const point = candidate.connection.contactPoint;
+        return {
+          x: matrix.a * point.x + matrix.c * point.y + matrix.e,
+          y: matrix.b * point.x + matrix.d * point.y + matrix.f,
+        };
+      },
+      endpointHitRadius * Math.hypot(matrix.a, matrix.b),
+    );
+  };
   const previewEndpoint =
-    controlSensorCandidate && controlHover
+    controlSensorCandidate &&
+    controlHover?.endpoint.kind === "terminal" &&
+    controlSensorCandidate(
+      controlHover.endpoint.instanceId,
+      controlHover.endpoint.pinName,
+    )
       ? controlHover
       : endpoints.find(
           (item) =>
@@ -650,15 +682,15 @@ function EndpointHitTargets({
   const arrowOuter =
     contact && outward
       ? {
-          x: contact.x + outward.x * endpointHitRadius * 6,
-          y: contact.y + outward.y * endpointHitRadius * 6,
+          x: contact.x + outward.x * visibleRadius * 6,
+          y: contact.y + outward.y * visibleRadius * 6,
         }
       : null;
   const arrowInner =
     contact && outward
       ? {
-          x: contact.x - outward.x * endpointHitRadius * 2,
-          y: contact.y - outward.y * endpointHitRadius * 2,
+          x: contact.x - outward.x * visibleRadius * 2,
+          y: contact.y - outward.y * visibleRadius * 2,
         }
       : null;
   const selectedRouteEnd = selectedRoute ? routeEnd(selectedRoute) : null;
@@ -718,13 +750,21 @@ function EndpointHitTargets({
     const controlTitle =
       terminal &&
       controlSensorCandidate?.(terminal.instanceId, terminal.pinName)
-        ? `${document.instances.find((item) => item.id === terminal.instanceId)?.reference ?? terminal.instanceId}.${terminal.pinName} · ${controlCurrentPreview?.direction ?? "into"} device`
+        ? `${document.instances.find((item) => item.id === terminal.instanceId)?.reference ?? "Device"}.${terminal.pinName}`
         : null;
     return (
       <circle
         key={`${candidate.netId}:${label}`}
         data-testid={label}
         data-endpoint-kind={candidate.endpoint.kind}
+        data-control-hover={
+          controlSensorCandidate
+            ? Boolean(
+                controlHover &&
+                endpointKey(controlHover.endpoint) === candidateKey,
+              )
+            : undefined
+        }
         data-control-sensor={
           candidate.endpoint.kind === "terminal"
             ? controlSensorCandidate?.(
@@ -777,7 +817,11 @@ function EndpointHitTargets({
             controlSensorCandidate &&
             candidate.endpoint.kind === "terminal"
           ) {
-            onWireEndpoint(event, candidate);
+            event.preventDefault();
+            event.stopPropagation();
+            if (event.button !== 0) return;
+            const snapped = snappedControlTarget(event);
+            if (snapped) onWireEndpoint(event, snapped);
             return;
           }
           if (
@@ -829,16 +873,16 @@ function EndpointHitTargets({
           }
           onWireEndpoint(event, candidate);
         }}
-        onPointerEnter={() => {
+        onPointerMove={(event) => {
+          if (controlSensorCandidate)
+            setControlHover(snappedControlTarget(event));
+        }}
+        onPointerEnter={(event) => {
+          if (controlSensorCandidate) {
+            setControlHover(snappedControlTarget(event));
+            return;
+          }
           if (candidate.netId) onNetPointerEnter?.(candidate.netId);
-          if (
-            candidate.endpoint.kind === "terminal" &&
-            controlSensorCandidate?.(
-              candidate.endpoint.instanceId,
-              candidate.endpoint.pinName,
-            )
-          )
-            setControlHover(candidate);
         }}
         onPointerLeave={() => {
           onNetPointerLeave?.();
@@ -867,7 +911,7 @@ function EndpointHitTargets({
                 ? arrowOuter
                 : arrowInner
             }
-            arrowSize={endpointHitRadius * 1.6}
+            arrowSize={visibleRadius * 1.6}
           />
         </g>
       ) : null}
@@ -877,7 +921,7 @@ function EndpointHitTargets({
               key={`current-direction-${endpointKey(candidate.endpoint)}`}
               from={pickOrigin.candidate.connection.contactPoint}
               to={candidate.connection.contactPoint}
-              arrowSize={endpointHitRadius * 1.6}
+              arrowSize={visibleRadius * 1.6}
             />
           ))
         : null}
@@ -890,10 +934,28 @@ function EndpointHitTargets({
             className={`simulation-terminal-pick-marker ${state}`}
             cx={candidate.connection.contactPoint.x}
             cy={candidate.connection.contactPoint.y}
-            r={endpointHitRadius}
+            r={visibleRadius}
           />
         );
       })}
+      {controlSensorCandidate &&
+      previewEndpoint?.endpoint.kind === "terminal" ? (
+        <text
+          data-testid="control-terminal-hover-label"
+          x={previewEndpoint.connection.contactPoint.x + visibleRadius * 2}
+          y={previewEndpoint.connection.contactPoint.y - visibleRadius * 2}
+          fontSize={visibleRadius * 2.8}
+          fill="#2563eb"
+          pointerEvents="none"
+        >
+          {document.instances.find(
+            (i) =>
+              previewEndpoint.endpoint.kind === "terminal" &&
+              i.id === previewEndpoint.endpoint.instanceId,
+          )?.reference ?? "Device"}
+          .{previewEndpoint.endpoint.pinName}
+        </text>
+      ) : null}
       {hitTargets}
     </>
   );

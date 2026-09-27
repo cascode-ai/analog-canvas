@@ -2334,7 +2334,7 @@ function WorkspaceEditor({
     setStatus(
       kind === "voltage"
         ? "Pick control + Net, then control − Net · Each pick applies immediately; Esc stops picking"
-        : "Pick a device terminal for control current · Esc cancels",
+        : "Pick control + terminal, then − terminal on the same device · Esc cancels",
     );
   };
   const currentControlDevices = document.instances.filter((instance) => {
@@ -2360,7 +2360,29 @@ function WorkspaceEditor({
   const controlSensorCandidate =
     controlPickMode === "sensor"
       ? (instanceId: string, pinName?: string) =>
-          Boolean(pinName && isCurrentControlTerminal(instanceId, pinName))
+          Boolean(
+            pinName &&
+            isCurrentControlTerminal(instanceId, pinName) &&
+            (controlPickState?.kind === "current" && controlPickState.positive
+              ? controlPickState.positive.instanceId === instanceId &&
+                (controlPickState.positive.pinName === pinName ||
+                  controlPickState.positive.partners.includes(pinName))
+              : (() => {
+                  const instance = document.instances.find(
+                    (i) => i.id === instanceId,
+                  );
+                  return (
+                    instance &&
+                    terminalCurrentDirectionPartners(
+                      instance,
+                      pinName,
+                      resolver
+                        .resolve(instance.symbolId, instance.symbolVariantId)
+                        ?.definition.pins.map((p) => p.name) ?? [],
+                    ).length > 0
+                  );
+                })()),
+          )
       : undefined;
   const pickControlledSourceTarget = (
     target:
@@ -2374,7 +2396,20 @@ function WorkspaceEditor({
       document,
       target,
       isCurrentControlTerminal,
+      (instanceId) => {
+        const instance = document.instances.find((i) => i.id === instanceId);
+        return instance
+          ? (resolver
+              .resolve(instance.symbolId, instance.symbolVariantId)
+              ?.definition.pins.map((p) => p.name) ?? [])
+          : [];
+      },
     );
+    if (result.kind === "await-negative") {
+      setControlPickState(result.state);
+      setStatus(result.message);
+      return;
+    }
     if (result.kind === "continue" || result.kind === "complete") {
       const instance = document.instances.find(
         (candidate) => candidate.id === controlPickState.instanceId,
@@ -2717,14 +2752,39 @@ function WorkspaceEditor({
     ? instanceValueAnnotation(document, selectedInstance.id)
     : null;
   const selectedControl = selectedInstance?.netlist?.control;
+  const currentControlSummary = (() => {
+    if (!selectedControl || selectedControl.kind === "voltage")
+      return undefined;
+    const target = document.instances.find(
+      (i) =>
+        i.id ===
+        (selectedControl.kind === "current"
+          ? selectedControl.sensorInstanceId
+          : selectedControl.instanceId),
+    );
+    if (!target) return "Control not selected";
+    const pin =
+      selectedControl.kind === "current" ? "+" : selectedControl.pinName;
+    const names =
+      resolver
+        .resolve(target.symbolId, target.symbolVariantId)
+        ?.definition.pins.map((p) => p.name) ?? [];
+    const partner = pin
+      ? terminalCurrentDirectionPartners(target, pin, names)[0]
+      : undefined;
+    const from = `${target.reference ?? "Device"}.${pin ?? "?"}`;
+    const to = partner
+      ? `${target.reference ?? "Device"}.${partner}`
+      : (target.reference ?? "Device");
+    return selectedControl.kind === "terminal-current" &&
+      selectedControl.direction === "out"
+      ? `${to} → ${from}`
+      : `${from} → ${to}`;
+  })();
   const controlSummary =
     selectedControl?.kind === "voltage"
       ? `+ ${logicalNetChoiceForNet(netChoices, selectedControl.positiveNetId)?.label ?? "unset"} · − ${logicalNetChoiceForNet(netChoices, selectedControl.negativeNetId)?.label ?? "unset"}`
-      : selectedControl?.kind === "current"
-        ? `Terminal: ${document.instances.find((candidate) => candidate.id === selectedControl.sensorInstanceId)?.reference ?? "missing"}.+ · into device`
-        : selectedControl?.kind === "terminal-current"
-          ? `Terminal: ${document.instances.find((candidate) => candidate.id === selectedControl.instanceId)?.reference ?? "missing"}.${selectedControl.pinName ?? "unset"} · ${selectedControl.direction} device`
-          : undefined;
+      : currentControlSummary;
   const selectedGroupInstances = selectedIds.flatMap((id) => {
     const instance = document.instances.find((item) => item.id === id);
     return instance ? [instance] : [];
@@ -7490,7 +7550,9 @@ function WorkspaceEditor({
                                   ? {
                                       step:
                                         controlPickState.kind === "current"
-                                          ? ("sensor" as const)
+                                          ? controlPickState.positive
+                                            ? ("current-negative" as const)
+                                            : ("current-positive" as const)
                                           : controlPickState.positiveNetId
                                             ? ("negative" as const)
                                             : ("positive" as const),
@@ -8398,25 +8460,37 @@ function WorkspaceEditor({
             endpoints: {
               ...(controlSensorCandidate ? { controlSensorCandidate } : {}),
               controlCurrentPreview:
-                selectedControl?.kind === "terminal-current"
-                  ? selectedControl
-                  : selectedControl?.kind === "current"
-                    ? {
-                        instanceId: selectedControl.sensorInstanceId,
-                        pinName: "+",
-                        direction: "into",
-                      }
-                    : null,
+                controlPickState?.kind === "current"
+                  ? { ...controlPickState.positive, direction: "into" }
+                  : selectedControl?.kind === "terminal-current"
+                    ? selectedControl
+                    : selectedControl?.kind === "current"
+                      ? {
+                          instanceId: selectedControl.sensorInstanceId,
+                          pinName: "+",
+                          direction: "into",
+                        }
+                      : null,
               document,
-              endpoints: simulationPickTerminalsActive
-                ? wiringEndpoints.filter(
-                    (candidate) =>
-                      candidate.endpoint.kind === "terminal" &&
-                      simulationCurrentEndpointKeys.has(
-                        `${candidate.endpoint.instanceId}\u0000${candidate.endpoint.pinName}`,
-                      ),
-                  )
-                : wiringEndpoints,
+              endpoints:
+                controlPickMode === "sensor"
+                  ? wiringEndpoints.filter(
+                      (candidate) =>
+                        candidate.endpoint.kind === "terminal" &&
+                        controlSensorCandidate?.(
+                          candidate.endpoint.instanceId,
+                          candidate.endpoint.pinName,
+                        ),
+                    )
+                  : simulationPickTerminalsActive
+                    ? wiringEndpoints.filter(
+                        (candidate) =>
+                          candidate.endpoint.kind === "terminal" &&
+                          simulationCurrentEndpointKeys.has(
+                            `${candidate.endpoint.instanceId}\u0000${candidate.endpoint.pinName}`,
+                          ),
+                      )
+                    : wiringEndpoints,
               tool,
               selectedRoute:
                 simulationPickActive || controlPickState
@@ -8430,26 +8504,41 @@ function WorkspaceEditor({
                   ? unfilteredSelectionPolicy
                   : selectionPolicy,
               endpointLabel: endpointTestId,
-              ...(simulationPickTerminalsActive
+              ...(controlPickMode === "sensor"
                 ? {
                     terminalPickState: (terminal: {
-                      kind: "terminal";
                       instanceId: string;
                       pinName: string;
                     }) =>
-                      simulationTerminalPickStart?.instanceId ===
-                        terminal.instanceId &&
-                      simulationTerminalPickStart.pinName === terminal.pinName
-                        ? ("origin" as const)
-                        : simulationTerminalPickStart?.instanceId ===
-                              terminal.instanceId &&
-                            simulationTerminalPickStart.partnerPinNames.includes(
-                              terminal.pinName,
-                            )
-                          ? ("partner" as const)
-                          : ("candidate" as const),
+                      controlPickState?.kind === "current" &&
+                      controlPickState.positive
+                        ? controlPickState.positive.instanceId ===
+                            terminal.instanceId &&
+                          controlPickState.positive.pinName === terminal.pinName
+                          ? ("origin" as const)
+                          : ("partner" as const)
+                        : ("candidate" as const),
                   }
-                : {}),
+                : simulationPickTerminalsActive
+                  ? {
+                      terminalPickState: (terminal: {
+                        kind: "terminal";
+                        instanceId: string;
+                        pinName: string;
+                      }) =>
+                        simulationTerminalPickStart?.instanceId ===
+                          terminal.instanceId &&
+                        simulationTerminalPickStart.pinName === terminal.pinName
+                          ? ("origin" as const)
+                          : simulationTerminalPickStart?.instanceId ===
+                                terminal.instanceId &&
+                              simulationTerminalPickStart.partnerPinNames.includes(
+                                terminal.pinName,
+                              )
+                            ? ("partner" as const)
+                            : ("candidate" as const),
+                    }
+                  : {}),
               onEndpointActions: (candidate, clientX, clientY) => {
                 if (
                   candidate.endpoint.kind === "junction" &&
@@ -8469,15 +8558,13 @@ function WorkspaceEditor({
                   `Endpoint actions: ${endpointTestId(candidate.endpoint)}`,
                 );
               },
-              // The same four units at one hundred percent, but held at that
-              // size on screen as the view zooms out, where the dot used to
-              // shrink until it could not be hit. Growing it at the default
-              // view would change which target wins a shared point, and this
-              // is a reach fix, not a priority change.
+              // Normal editing keeps its four-unit reach. Current Pick alone
+              // gets a wider screen-stable target; its nearest-terminal rule
+              // resolves overlaps independently of SVG paint order.
               endpointHitRadius: screenScaleHitRadius(
                 viewBox.width,
                 DEFAULT_VIEWBOX.width,
-                4,
+                controlPickMode === "sensor" ? 10 : 4,
               ),
               onRouteStretch: beginRouteStretch,
               onJunctionSelect: (candidate) => {

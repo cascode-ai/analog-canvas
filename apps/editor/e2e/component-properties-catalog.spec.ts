@@ -286,26 +286,17 @@ for (const symbolId of ["vcvs", "vccs"]) {
 }
 
 for (const symbolId of ["cccs", "ccvs"]) {
-  test(`${symbolId} picks a device terminal with immediate direction feedback`, async ({
+  test(`${symbolId} picks ordered current terminals with snap and direction feedback`, async ({
     page,
   }) => {
     await openFixture(page, symbolId);
     const picker = page.getByTestId("component-control-pick");
-    const devices = page.getByLabel("Control device options", { exact: true });
-    await devices.selectOption("sensor");
-    await page
-      .getByLabel("Control terminal options", { exact: true })
-      .selectOption("+");
-    await page
-      .getByLabel("Current direction options", { exact: true })
-      .selectOption("out");
-    await expectComponentCodeField(page, "control", {
-      instanceId: "sensor",
-      pinName: "+",
-      direction: "out",
-    });
-    await devices.selectOption("invalid");
-    await expectComponentCodeField(page, "control.pinName", "");
+    await expect(
+      page.getByLabel("Control device options", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByLabel("Current direction options", { exact: true }),
+    ).toHaveCount(0);
     await picker
       .getByRole("button", { name: "Pick control on canvas" })
       .click();
@@ -325,17 +316,44 @@ for (const symbolId of ["cccs", "ccvs"]) {
       "2px",
     );
     await page.getByTestId("hit-invalid").click({ force: true });
-    await expect(picker).toContainText("Click a device terminal");
+    await expect(picker).toContainText("Pick control + terminal");
     await page.getByTestId("terminal-invalid-1").hover({ force: true });
     await expect(
       page.getByTestId("control-current-direction-preview"),
-    ).toHaveAttribute("data-direction", "out");
+    ).toHaveAttribute("data-direction", "into");
+    // Deliberately click off the actual pin center, inside the snap radius.
+    const pin = await page.getByTestId("terminal-invalid-1").boundingBox();
+    if (!pin) throw new Error("Missing terminal");
+    await page.mouse.click(
+      pin.x + pin.width / 2 + pin.width * 0.3,
+      pin.y + pin.height / 2,
+    );
+    await expect(picker).toContainText("Pick highlighted − terminal");
+    await expect(
+      page.getByTestId("terminal-invalid-1-current-pick-marker"),
+    ).toHaveClass(/origin/);
+    await expect(
+      page.getByTestId("terminal-invalid-2-current-pick-marker"),
+    ).toHaveClass(/partner/);
+    await expect(page.getByTestId("terminal-sensor-+")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expectComponentCodeField(page, "control.instanceId", "");
+    await picker
+      .getByRole("button", { name: "Pick control on canvas" })
+      .click();
     await page.getByTestId("terminal-invalid-1").click({ force: true });
+    await page.getByTestId("terminal-invalid-2").click({ force: true });
     await expectComponentCodeField(page, "control", {
       instanceId: "invalid",
       pinName: "1",
-      direction: "out",
+      direction: "into",
     });
+    await picker
+      .getByRole("button", { name: "Reverse control current" })
+      .click();
+    await expectComponentCodeField(page, "control.direction", "out");
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expectComponentCodeField(page, "control.direction", "into");
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await expectComponentCodeField(page, "control.pinName", "");
     await page.getByRole("button", { name: "Redo", exact: true }).click();
