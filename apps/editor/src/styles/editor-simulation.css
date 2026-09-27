@@ -1217,6 +1217,22 @@
   stroke-width: 26;
 }
 
+.schematic-canvas.control-sensor-pick-active
+  [data-control-sensor="true"]:hover {
+  stroke: var(--icm-accent);
+  stroke-width: 2;
+  stroke-dasharray: none;
+  fill: rgb(var(--icm-accent-rgb) / 14%);
+  vector-effect: non-scaling-stroke;
+  cursor: crosshair;
+}
+
+.schematic-canvas.control-sensor-pick-active
+  [data-control-sensor="false"]:hover {
+  cursor: not-allowed;
+  stroke: transparent;
+}
+
 .schematic-canvas.simulation-net-pick-active .endpoint-hit,
 .schematic-canvas.simulation-terminal-pick-active
   .endpoint-hit[data-endpoint-kind="terminal"] {

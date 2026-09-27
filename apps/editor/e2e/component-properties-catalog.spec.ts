@@ -226,7 +226,7 @@ async function openFixture(
 }
 
 for (const symbolId of ["vcvs", "vccs"]) {
-  test(`${symbolId} picks two control Nets atomically on canvas`, async ({
+  test(`${symbolId} highlights control Nets and commits each pick immediately`, async ({
     page,
   }) => {
     await openFixture(page, symbolId);
@@ -249,17 +249,31 @@ for (const symbolId of ["vcvs", "vccs"]) {
     await picker
       .getByRole("button", { name: "Pick control on canvas" })
       .click();
+    await page.getByTestId("route-hit-route-plus").hover({ force: true });
+    await expect(page.getByTestId("net-highlight-overlay")).toBeVisible();
+    await expect(page.getByTestId("net-highlight-overlay")).toHaveAttribute(
+      "data-net-id",
+      "net-plus",
+    );
     await page.getByTestId("route-hit-route-plus").click({ force: true });
     await expect(picker).toContainText("Click control − Net");
+    await expectComponentCodeField(page, "control.positiveNetId", "net-plus");
     await page.keyboard.press("Escape");
+    await expect(page.getByTestId("net-highlight-overlay")).toHaveCount(0);
     await expectComponentCodeField(page, "control", {
-      positiveNetId: "",
+      positiveNetId: "net-plus",
       negativeNetId: "",
     });
     await picker
       .getByRole("button", { name: "Pick control on canvas" })
       .click();
     await page.getByTestId("terminal-sensor-+").click({ force: true });
+    await page.getByTestId("route-hit-route-minus").hover({ force: true });
+    await expect(page.getByTestId("net-highlight-overlay")).toBeVisible();
+    await expect(page.getByTestId("net-highlight-overlay")).toHaveAttribute(
+      "data-net-id",
+      "net-minus",
+    );
     await page.getByTestId("route-hit-route-minus").click({ force: true });
     await expectComponentCodeField(page, "control", {
       positiveNetId: "net-plus",
@@ -285,6 +299,25 @@ for (const symbolId of ["cccs", "ccvs"]) {
     await picker
       .getByRole("button", { name: "Pick control on canvas" })
       .click();
+    await page.getByTestId("hit-sensor").hover({ force: true });
+    await expect(page.getByTestId("hit-sensor")).toHaveAttribute(
+      "data-control-sensor",
+      "true",
+    );
+    await expect(page.getByTestId("hit-sensor")).toHaveCSS(
+      "stroke-width",
+      "2px",
+    );
+    await page.getByTestId("hit-invalid").hover({ force: true });
+    await expect(page.getByTestId("hit-invalid")).toHaveCSS(
+      "cursor",
+      "not-allowed",
+    );
+    await page.getByTestId("terminal-sensor-+").hover({ force: true });
+    await expect(page.getByTestId("terminal-sensor-+")).toHaveCSS(
+      "stroke-width",
+      "2px",
+    );
     await page.getByTestId("hit-invalid").click({ force: true });
     await expect(picker).toContainText("Click a voltage source");
     await page

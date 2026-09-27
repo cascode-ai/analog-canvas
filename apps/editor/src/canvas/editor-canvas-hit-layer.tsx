@@ -198,6 +198,7 @@ function AnalogBlockHitGeometry({
 }
 
 interface SelectionHitTargetProps {
+  controlSensorCandidate?: (instanceId: string) => boolean;
   document: SchematicDocument;
   resolver: SymbolResolver;
   routeGeometryRecords: readonly RouteGeometryRecord[];
@@ -244,6 +245,7 @@ interface SelectionHitTargetProps {
 }
 
 interface EndpointHitTargetProps {
+  controlSensorCandidate?: (instanceId: string) => boolean;
   document: SchematicDocument;
   endpoints: readonly WireSource[];
   tool: EditorTool;
@@ -319,6 +321,7 @@ function SelectionHitTargets({
   onNetPointerEnter,
   onNetPointerLeave,
   children,
+  controlSensorCandidate,
 }: SelectionHitTargetProps & { children: ReactNode }) {
   // Every Annotation hit box needs the Document's routing geometry. Deriving
   // it once per render replaces one full re-derivation per Annotation, which
@@ -433,6 +436,7 @@ function SelectionHitTargets({
               <g
                 key={instance.id}
                 data-testid={`hit-${instance.id}`}
+                data-control-sensor={controlSensorCandidate?.(instance.id)}
                 data-canvas-hit-kind="instance"
                 data-canvas-hit-id={instance.id}
                 data-drag-object-id={instance.id}
@@ -461,6 +465,7 @@ function SelectionHitTargets({
             <rect
               key={instance.id}
               data-testid={`hit-${instance.id}`}
+              data-control-sensor={controlSensorCandidate?.(instance.id)}
               data-canvas-hit-kind="instance"
               data-canvas-hit-id={instance.id}
               data-drag-object-id={instance.id}
@@ -622,6 +627,7 @@ function EndpointHitTargets({
   onNetPointerEnter,
   onNetPointerLeave,
   terminalPickState,
+  controlSensorCandidate,
 }: EndpointHitTargetProps) {
   const selectedRouteEnd = selectedRoute ? routeEnd(selectedRoute) : null;
   // Which end of the selected wire an endpoint IS, by identity rather than by
@@ -680,6 +686,11 @@ function EndpointHitTargets({
         key={`${candidate.netId}:${label}`}
         data-testid={label}
         data-endpoint-kind={candidate.endpoint.kind}
+        data-control-sensor={
+          candidate.endpoint.kind === "terminal"
+            ? controlSensorCandidate?.(candidate.endpoint.instanceId)
+            : undefined
+        }
         data-canvas-hit-kind={
           candidate.endpoint.kind === "junction" ? "junction" : undefined
         }
