@@ -7,6 +7,9 @@ import {
 import type { Annotation, DraftingObject, Instance } from "@icm/model";
 import {
   createEmptyDocument,
+  controlledSourceExpressionDocument,
+  controlledSourceExpressionSource,
+  defaultControlledSourceExpression,
   flattenRichText,
   semanticTextDocument,
 } from "@icm/model";
@@ -1161,6 +1164,79 @@ describe("schematic clipboard", () => {
           flattenRichText(resolveAnnotationText(result.document, annotation)),
         ),
     ).toEqual(["R1", "R2"]);
+  });
+
+  it.each([
+    ["vcvs", "E", "A_{v}v_{i2}"],
+    ["vccs", "G", "g_{m}v_{i2}"],
+    ["cccs", "F", "βi_{x2}"],
+    ["ccvs", "H", "R_{m}i_{x2}"],
+  ])(
+    "renumbers an untouched %s expression when copying its Instance",
+    (symbolId, prefix, expected) => {
+      const document = createEmptyDocument("copy-control", "Copy control");
+      const ownerId = `${prefix}1`;
+      document.instances.push({
+        ...resistorInstance(ownerId, ownerId),
+        symbolId,
+      });
+      document.annotations.push({
+        ...instanceLabel(ownerId, "", false),
+        content: controlledSourceExpressionDocument(
+          defaultControlledSourceExpression(
+            symbolId as "vcvs" | "vccs" | "cccs" | "ccvs",
+            "1",
+          ),
+        ),
+      });
+      const proposal = proposePaste(
+        document,
+        copySelection(document, [ownerId])!,
+        { x: 20, y: 0 },
+        1,
+      );
+      const copiedLabel = proposal.edits.find(
+        (edit) =>
+          edit.kind === "upsert_schematic_annotation" &&
+          edit.annotation.kind === "instance-label",
+      );
+      expect(copiedLabel?.kind).toBe("upsert_schematic_annotation");
+      if (copiedLabel?.kind !== "upsert_schematic_annotation") return;
+      expect(
+        controlledSourceExpressionSource(copiedLabel.annotation.content!),
+      ).toBe(expected);
+    },
+  );
+
+  it("preserves a user-authored controlled-source formula when copying", () => {
+    const document = createEmptyDocument(
+      "copy-custom-control",
+      "Copy custom control",
+    );
+    document.instances.push({
+      ...resistorInstance("G1", "G1"),
+      symbolId: "vccs",
+    });
+    document.annotations.push({
+      ...instanceLabel("G1", "", false),
+      content: controlledSourceExpressionDocument("g_{x}v_{y}"),
+    });
+    const proposal = proposePaste(
+      document,
+      copySelection(document, ["G1"])!,
+      { x: 20, y: 0 },
+      1,
+    );
+    const copiedLabel = proposal.edits.find(
+      (edit) =>
+        edit.kind === "upsert_schematic_annotation" &&
+        edit.annotation.kind === "instance-label",
+    );
+    if (copiedLabel?.kind !== "upsert_schematic_annotation")
+      throw new Error("Missing copied label");
+    expect(
+      controlledSourceExpressionSource(copiedLabel.annotation.content!),
+    ).toBe("g_{x}v_{y}");
   });
 
   it("never grows a copied identity, and restarts one an earlier copy chained", () => {

@@ -45,6 +45,8 @@ export interface PointerDownFacts {
   readonly armedVerbConsumesHit: boolean;
   /** The Simulation panel owns the canvas for one probe-picking domain. */
   readonly simulationPickMode: "net" | "terminal" | null;
+  /** A controlled source owns canvas presses while its control is chosen. */
+  readonly controlPickMode: "net" | "sensor" | null;
 }
 
 export type PointerDownAction =
@@ -58,6 +60,11 @@ export type PointerDownAction =
     }
   | {
       readonly kind: "simulation-pick";
+      readonly hitKind: CanvasHitKind;
+      readonly id: string;
+    }
+  | {
+      readonly kind: "control-pick";
       readonly hitKind: CanvasHitKind;
       readonly id: string;
     }
@@ -115,6 +122,27 @@ export function resolvePointerDownAction(
   const hit = facts.hit;
   if (!hit) return { kind: "ignore", reason: "no hit under the pointer" };
   if (hit.kind === "handle") return { kind: "handle-passthrough" };
+
+  if (facts.controlPickMode === "net") {
+    if (
+      hit.kind === "route" ||
+      hit.kind === "annotation" ||
+      hit.kind === "junction"
+    ) {
+      return { kind: "control-pick", hitKind: hit.kind, id: hit.id };
+    }
+    return { kind: "ignore", reason: "picking a control Net" };
+  }
+  if (facts.controlPickMode === "sensor") {
+    if (
+      hit.kind === "instance" ||
+      hit.kind === "instance-label" ||
+      hit.kind === "annotation"
+    ) {
+      return { kind: "control-pick", hitKind: hit.kind, id: hit.id };
+    }
+    return { kind: "ignore", reason: "picking a current sensor" };
+  }
 
   // Picking a Net for simulation reads the press for the Net it names: a
   // conductor, a Junction, or a Net label. A part names nothing and is left

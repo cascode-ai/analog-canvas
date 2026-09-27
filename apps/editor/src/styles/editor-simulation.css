@@ -1205,6 +1205,9 @@
 .schematic-canvas.simulation-net-pick-active .route-hit,
 .schematic-canvas.simulation-net-pick-active .endpoint-hit,
 .schematic-canvas.simulation-net-pick-active .annotation-text-hit,
+.schematic-canvas.control-sensor-pick-active [data-canvas-hit-kind="instance"],
+.schematic-canvas.control-sensor-pick-active
+  [data-canvas-hit-kind="instance-label"],
 .schematic-canvas.simulation-terminal-pick-active
   .endpoint-hit[data-endpoint-kind="terminal"] {
   cursor: crosshair;

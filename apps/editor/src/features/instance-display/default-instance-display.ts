@@ -109,6 +109,7 @@ export function defaultInstanceDisplayAnnotations(
         content: controlledSourceExpressionDocument(
           defaultControlledSourceExpression(
             instance.symbolId as "vcvs" | "vccs" | "cccs" | "ccvs",
+            instance.reference?.match(/\d+$/u)?.[0] ?? "1",
           ),
         ),
       });

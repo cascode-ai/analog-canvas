@@ -3,7 +3,6 @@
 import { parser } from "@lezer/json";
 import { magneticDisplayParameters } from "@icm/derived";
 import { reflectOrientation } from "@icm/model";
-import { LINEAR_CONTROLLED_SOURCE_KINDS } from "@icm/model";
 import { componentDetailFields } from "./component-property-details";
 import {
   parseComponentPropertyCode,
@@ -45,31 +44,6 @@ export function propertyCodeSpans(
       : []),
     ...(context
       ? componentDetailFields(context.instance, context.details)
-      : []),
-    ...(context && LINEAR_CONTROLLED_SOURCE_KINDS.has(context.instance.symbolId)
-      ? [
-          ...(context.instance.symbolId === "vcvs" ||
-          context.instance.symbolId === "vccs"
-            ? ["positiveNetId", "negativeNetId"].map((key) => ({
-                path: `control.${key}`,
-                label:
-                  key === "positiveNetId" ? "Control + Net" : "Control − Net",
-                kind: "choice" as const,
-                options: context.controlNetOptions ?? [],
-                description: "",
-                help: "Select an existing Net in this Cell.",
-              }))
-            : [
-                {
-                  path: "control.sensorInstanceId",
-                  label: "Current sensor",
-                  kind: "choice" as const,
-                  options: context.controlSensorOptions ?? [],
-                  description: "",
-                  help: "Select a voltage source whose branch current controls this source.",
-                },
-              ]),
-        ]
       : []),
   ];
   function visit(object: JsonNode, prefix: string) {

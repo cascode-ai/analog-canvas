@@ -42,7 +42,11 @@ import type { SymbolResolver } from "@icm/symbols";
 import {
   createdRouteChildIds,
   createRoutePath,
+  controlledSourceExpressionDocument,
+  controlledSourceExpressionSource,
+  defaultControlledSourceExpression,
   flattenRichText,
+  LINEAR_CONTROLLED_SOURCE_KINDS,
   rewriteRichTextPlainText,
   routeBends,
   routeEnd,
@@ -1817,6 +1821,29 @@ export function proposePaste(
         owner &&
         instanceReferences.has(owner.id)
       ) {
+        // The unbound controlled-source expression is still authored text.
+        // Renumber only an untouched default when the copy receives a fresh
+        // Reference; preserve any formula the user actually edited.
+        if (
+          !clone.binding &&
+          clone.content &&
+          LINEAR_CONTROLLED_SOURCE_KINDS.has(owner.symbolId)
+        ) {
+          const kind = owner.symbolId as "vcvs" | "vccs" | "cccs" | "ccvs";
+          const current = controlledSourceExpressionSource(clone.content);
+          const sourceOrdinal = owner.reference?.match(/\d+$/u)?.[0] ?? "1";
+          if (
+            current ===
+              defaultControlledSourceExpression(kind, sourceOrdinal) ||
+            current === defaultControlledSourceExpression(kind)
+          ) {
+            const nextOrdinal =
+              instanceReferences.get(owner.id)?.match(/\d+$/u)?.[0] ?? "1";
+            clone.content = controlledSourceExpressionDocument(
+              defaultControlledSourceExpression(kind, nextOrdinal),
+            );
+          }
+        }
         // A copy reads like its source. Text spelling the part's Reference
         // follows the copy's new Reference in the same look; any other text
         // is the author's own and stays as drawn. A part that had no

@@ -367,6 +367,19 @@
   font-size: var(--icm-font-sm);
 }
 
+.component-control-pick {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.78rem;
+}
+
+.component-control-pick button {
+  cursor: pointer;
+}
+
 .component-property-copy {
   display: inline-flex;
   flex: 0 0 auto;

@@ -24,10 +24,10 @@ const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("default instance display annotations", () => {
   it.each([
-    ["vcvs", "voltage-source", "A_{v}v_{i}"],
-    ["vccs", "current-source", "g_{m}v_{i}"],
-    ["cccs", "current-source", "βi_{x}"],
-    ["ccvs", "voltage-source", "R_{m}i_{x}"],
+    ["vcvs", "voltage-source", "A_{v}v_{i1}"],
+    ["vccs", "current-source", "g_{m}v_{i1}"],
+    ["cccs", "current-source", "βi_{x1}"],
+    ["ccvs", "voltage-source", "R_{m}i_{x1}"],
   ])(
     "places %s's literal expression at the existing %s source label slot",
     (symbolId, sourceId, expression) => {
@@ -87,6 +87,44 @@ describe("default instance display annotations", () => {
       expect(controlledSourceExpressionSource(controlledLabel.content!)).toBe(
         expression,
       );
+    },
+  );
+  it.each([
+    ["vcvs", "A_{v}v_{i2}"],
+    ["vccs", "g_{m}v_{i2}"],
+    ["cccs", "βi_{x2}"],
+    ["ccvs", "R_{m}i_{x2}"],
+  ])(
+    "numbers the second %s label from its allocated Reference",
+    (symbolId, expected) => {
+      const document = createEmptyDocument("numbered-label", "Numbered label");
+      const placement = {
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      };
+      const first = createNewInstance(document, {
+        symbolId,
+        placement,
+        netlist: initialInstanceNetlist(symbolId, {}),
+      });
+      document.instances.push(first);
+      const second = createNewInstance(document, {
+        symbolId,
+        placement,
+        netlist: initialInstanceNetlist(symbolId, {}),
+      });
+      const profile = resolveSchematicStyleProfile(
+        document.presentation.styleProfileId,
+      );
+      const label = defaultInstanceDisplayAnnotations(
+        document,
+        second,
+        resolver,
+        profile,
+      ).find((annotation) => annotation.kind === "instance-label");
+      expect(second.reference).toMatch(/2$/u);
+      expect(controlledSourceExpressionSource(label!.content!)).toBe(expected);
     },
   );
   it.each([0, 90, 180, 270] as const)(

@@ -31,6 +31,7 @@ const facts = (
   primaryInstanceId: null,
   armedVerbConsumesHit: false,
   simulationPickMode: null,
+  controlPickMode: null,
   ...overrides,
 });
 
@@ -107,6 +108,48 @@ describe("who owns one press on the canvas", () => {
         reason: "picking terminals for simulation",
       });
     }
+  });
+
+  it("claims conductors for a voltage control without moving selected objects", () => {
+    expect(
+      resolvePointerDownAction(
+        facts({
+          controlPickMode: "net",
+          armedVerbConsumesHit: true,
+          hit: hitOf("route", "r1"),
+          compositeSelectionOwnsHit: true,
+        }),
+      ),
+    ).toEqual({ kind: "control-pick", hitKind: "route", id: "r1" });
+    expect(
+      resolvePointerDownAction(
+        facts({
+          controlPickMode: "net",
+          hit: hitOf("instance", "M1"),
+        }),
+      ),
+    ).toEqual({ kind: "ignore", reason: "picking a control Net" });
+  });
+
+  it("claims source bodies and labels for a current control", () => {
+    for (const hitKind of ["instance", "instance-label"] as const) {
+      expect(
+        resolvePointerDownAction(
+          facts({
+            controlPickMode: "sensor",
+            hit: hitOf(hitKind, "V1"),
+          }),
+        ),
+      ).toEqual({ kind: "control-pick", hitKind, id: "V1" });
+    }
+    expect(
+      resolvePointerDownAction(
+        facts({
+          controlPickMode: "sensor",
+          hit: hitOf("route", "r1"),
+        }),
+      ),
+    ).toEqual({ kind: "ignore", reason: "picking a current sensor" });
   });
 
   it("gives an Instance label no press of its own", () => {
