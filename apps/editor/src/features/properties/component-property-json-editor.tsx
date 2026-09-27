@@ -51,6 +51,7 @@ import {
 } from "./component-property-fields";
 import { COMMON_COLOR_PRESETS } from "./color-presets";
 import { NO_INTERNAL_MARK } from "./component-visual-variants";
+import type { CurrentControlOption } from "./current-control-options";
 
 type PropertyCodeParseResult = { ok: true } | { ok: false; message: string };
 
@@ -82,6 +83,12 @@ interface Props {
     message: string;
     compact?: boolean;
     onReverse?: () => void;
+    terminals?: {
+      positive: string;
+      negative: string;
+      options: readonly CurrentControlOption[];
+      onChange(positive: string): void;
+    };
     onClick(): void;
   };
 }
@@ -516,6 +523,8 @@ class ControlPickWidget extends WidgetType {
       this.action.active === other.action.active &&
       this.action.message === other.action.message &&
       this.action.compact === other.action.compact &&
+      JSON.stringify(this.action.terminals) ===
+        JSON.stringify(other.action.terminals) &&
       Boolean(this.action.onReverse) === Boolean(other.action.onReverse)
     );
   }
@@ -551,6 +560,57 @@ class ControlPickWidget extends WidgetType {
         this.read().controlAction?.onReverse?.(),
       );
       wrapper.append(reverse);
+    }
+    const terminals = this.action.terminals;
+    if (terminals) {
+      const positive = terminals.options.find(
+        (item) => item.value === terminals.positive,
+      );
+      for (const side of ["positive", "negative"] as const) {
+        const row = document.createElement("label");
+        row.className = "component-control-terminal";
+        row.textContent =
+          side === "positive" ? "Positive terminal " : "Negative terminal ";
+        const select = document.createElement("select");
+        select.setAttribute(
+          "aria-label",
+          `${side === "positive" ? "Positive" : "Negative"} terminal options`,
+        );
+        select.disabled =
+          this.action.active || (side === "negative" && !positive);
+        const choices =
+          side === "positive"
+            ? terminals.options
+            : terminals.options.filter((item) =>
+                positive?.partners.includes(item.value),
+              );
+        const empty = document.createElement("option");
+        empty.value = "";
+        empty.textContent = "Select terminal";
+        select.append(empty);
+        for (const item of choices) {
+          const option = document.createElement("option");
+          option.value = item.value;
+          option.textContent = item.label;
+          select.append(option);
+        }
+        select.value = terminals[side];
+        select.addEventListener("change", () => {
+          // A legal partner is determined by the selected positive terminal.
+          // Clearing either list clears the control; no half-pair is persisted.
+          const latest = this.read().controlAction?.terminals;
+          if (latest && select.value !== latest[side])
+            latest.onChange(
+              select.value
+                ? side === "positive"
+                  ? select.value
+                  : latest.positive
+                : "",
+            );
+        });
+        row.append(select);
+        wrapper.append(row);
+      }
     }
     return wrapper;
   }

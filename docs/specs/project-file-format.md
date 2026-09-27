@@ -2,16 +2,16 @@
 
 Status: `accepted`
 
-Portable file schema: `64`; normalized editor model schema: `58`.
+Portable file schema: `65`; normalized editor model schema: `58`.
 
 Primary owner: `packages/project-protocol` (portable source and codec).
 `packages/model` validates the normalized editor indexes used by rendering,
 connectivity and transactions. The normalized indexes are decoded working data;
-serialization always writes the one schema-64 authoring representation.
+serialization always writes the one schema-65 authoring representation.
 
 An `.icproj.json` file contains a complete Project. The public `parseProject`
-boundary reads file schemas 24 through 64. Historical schemas pass through the
-existing explicit upgrades; schemas 59 through 64 decode through the
+boundary reads file schemas 24 through 65. Historical schemas pass through the
+existing explicit upgrades; schemas 59 through 65 decode through the
 owned-object codec. Schema 60 introduced derived network membership from
 connection facts. Schema 62 lets a Symbol's body text keep an authored look. Both return the same validated editor model. File/envelope
 metadata must use `CURRENT_PROJECT_FILE_VERSION`, not the internal model
@@ -37,6 +37,14 @@ source and target style defaults differ, so the copy draws like its source
 Document. Files of schema 63 and earlier cannot carry it.
 
 ## Instance-owned source
+
+Schema 65 preserves an instance's optional `control`, independently of its
+visual annotation: voltage controls retain positive/negative Base-Net IDs,
+legacy current controls retain the sensor instance ID, and terminal-current
+controls retain instance ID, pin name and direction. It decodes to
+`netlist.control`; incomplete authored selections remain incomplete. Controls
+are per-instance, never shared type defaults. Earlier portable writers omitted
+this field: absent controls cannot be reconstructed from visual formulas.
 
 A Document's `instances` array contains complete device objects. `type` names
 an included component class, `name` is the authored netlist reference, and `id`
