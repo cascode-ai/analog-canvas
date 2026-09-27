@@ -1,4 +1,5 @@
 import type { SchematicDocument } from "@icm/model";
+import { terminalCurrentDirectionPartners } from "../simulation/terminal-current-pick";
 import {
   logicalNetChoiceForNet,
   logicalNetChoices,
@@ -11,7 +12,16 @@ export type ControlPickState =
       kind: "voltage";
       positiveNetId?: string;
     }
-  | { documentId: string; instanceId: string; kind: "current" };
+  | {
+      documentId: string;
+      instanceId: string;
+      kind: "current";
+      positive?: {
+        instanceId: string;
+        pinName: string;
+        partners: readonly string[];
+      };
+    };
 
 export type ControlPickTarget =
   | { kind: "net"; netId: string }
@@ -19,6 +29,7 @@ export type ControlPickTarget =
   | { kind: "terminal"; instanceId: string; pinName: string };
 
 export type ControlPickResult =
+  | { kind: "await-negative"; state: ControlPickState; message: string }
   | {
       kind: "continue";
       state: ControlPickState;
@@ -43,12 +54,14 @@ export type ControlPickResult =
     }
   | { kind: "reject"; message: string };
 
-/** Each accepted endpoint is an immediate edit; Escape stops remaining picks. */
+/** Voltage endpoints apply immediately. Current direction is one atomic edit
+ * after the two clicks, so cancellation leaves the authored control untouched. */
 export function advanceControlPick(
   state: ControlPickState,
   document: SchematicDocument,
   target: ControlPickTarget,
   isCurrentTerminal: (instanceId: string, pinName: string) => boolean,
+  terminalNames: (instanceId: string) => readonly string[] = () => [],
 ): ControlPickResult {
   if (
     state.documentId !== document.id ||
@@ -113,19 +126,47 @@ export function advanceControlPick(
       kind: "reject",
       message: "This is not an electrical device terminal",
     };
-  const previous = document.instances.find(
-    (item) => item.id === state.instanceId,
-  )?.netlist?.control;
-  const direction =
-    previous?.kind === "terminal-current" ? previous.direction : "into";
+  if (!state.positive) {
+    const partners = terminalCurrentDirectionPartners(
+      sensor,
+      target.pinName,
+      terminalNames(sensor.id),
+    );
+    if (!partners.length)
+      return {
+        kind: "reject",
+        message: "Choose a two-terminal branch or a MOS drain/source pair",
+      };
+    return {
+      kind: "await-negative",
+      state: {
+        ...state,
+        positive: { instanceId: sensor.id, pinName: target.pinName, partners },
+      },
+      message: `Control +: ${sensor.reference ?? sensor.id}.${target.pinName}; pick control − on the same device`,
+    };
+  }
+  if (
+    state.positive.instanceId !== sensor.id ||
+    !isCurrentTerminal(sensor.id, state.positive.pinName) ||
+    !terminalCurrentDirectionPartners(
+      sensor,
+      state.positive.pinName,
+      terminalNames(sensor.id),
+    ).includes(target.pinName)
+  )
+    return {
+      kind: "reject",
+      message: "Choose the highlighted − terminal of the same device",
+    };
   return {
     kind: "complete",
     control: {
       kind: "terminal-current",
       instanceId: sensor.id,
-      pinName: target.pinName,
-      direction,
+      pinName: state.positive.pinName,
+      direction: "into",
     },
-    message: `Control current: ${sensor.reference ?? sensor.id}.${target.pinName}, ${direction} device`,
+    message: `Control current: ${sensor.reference ?? sensor.id}.${state.positive.pinName} → ${sensor.reference ?? sensor.id}.${target.pinName}`,
   };
 }

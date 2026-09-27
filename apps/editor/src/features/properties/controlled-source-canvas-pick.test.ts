@@ -41,6 +41,64 @@ const isVoltageSource = (instanceId: string, pinName: string) =>
   (instanceId === "R1" && ["1", "2"].includes(pinName));
 
 describe("controlled-source canvas pick", () => {
+  it("pairs MOS D/S without treating gate/body as a branch and revalidates the first pin", () => {
+    const doc = structuredClone(document);
+    doc.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      reference: "M1",
+      placement: null,
+    });
+    const names = () => ["D", "G", "S", "B"];
+    const state: ControlPickState = {
+      documentId: doc.id,
+      instanceId: "G1",
+      kind: "current",
+    };
+    const first = advanceControlPick(
+      state,
+      doc,
+      { kind: "terminal", instanceId: "M1", pinName: "D" },
+      () => true,
+      names,
+    );
+    expect(first).toMatchObject({
+      kind: "await-negative",
+      state: { positive: { partners: ["S"] } },
+    });
+    expect(
+      advanceControlPick(
+        state,
+        doc,
+        { kind: "terminal", instanceId: "M1", pinName: "G" },
+        () => true,
+        names,
+      ).kind,
+    ).toBe("reject");
+    if (first.kind !== "await-negative")
+      throw new Error("Expected direction pick");
+    expect(
+      advanceControlPick(
+        first.state,
+        doc,
+        { kind: "terminal", instanceId: "M1", pinName: "S" },
+        () => true,
+        names,
+      ),
+    ).toMatchObject({
+      kind: "complete",
+      control: { instanceId: "M1", pinName: "D", direction: "into" },
+    });
+    expect(
+      advanceControlPick(
+        first.state,
+        doc,
+        { kind: "terminal", instanceId: "M1", pinName: "S" },
+        (_id, pin) => pin !== "D",
+        names,
+      ).kind,
+    ).toBe("reject");
+  });
   it("canonicalizes repeated ground markers and commits each voltage endpoint immediately", () => {
     const start: ControlPickState = {
       documentId: document.id,
@@ -101,12 +159,40 @@ describe("controlled-source canvas pick", () => {
         isVoltageSource,
       ).kind,
     ).toBe("reject");
+    const first = advanceControlPick(
+      start,
+      document,
+      { kind: "terminal", instanceId: "R1", pinName: "1" },
+      isVoltageSource,
+      () => ["1", "2"],
+    );
+    expect(first).toMatchObject({
+      kind: "await-negative",
+      state: { positive: { instanceId: "R1", pinName: "1", partners: ["2"] } },
+    });
+    expect(first).not.toHaveProperty("control");
+    if (first.kind !== "await-negative")
+      throw new Error("Expected direction pick");
+    for (const target of [
+      { kind: "terminal", instanceId: "V1", pinName: "+" },
+      { kind: "terminal", instanceId: "R1", pinName: "1" },
+    ] as const)
+      expect(
+        advanceControlPick(
+          first.state,
+          document,
+          target,
+          isVoltageSource,
+          () => ["1", "2"],
+        ).kind,
+      ).toBe("reject");
     expect(
       advanceControlPick(
-        start,
+        first.state,
         document,
-        { kind: "terminal", instanceId: "R1", pinName: "1" },
+        { kind: "terminal", instanceId: "R1", pinName: "2" },
         isVoltageSource,
+        () => ["1", "2"],
       ),
     ).toMatchObject({
       kind: "complete",
@@ -135,12 +221,22 @@ describe("controlled-source canvas pick", () => {
         direction: "out",
       },
     };
+    const reversed = advanceControlPick(
+      start,
+      existing,
+      { kind: "terminal", instanceId: "R1", pinName: "2" },
+      isVoltageSource,
+      () => ["1", "2"],
+    );
+    if (reversed.kind !== "await-negative")
+      throw new Error("Expected direction pick");
     expect(
       advanceControlPick(
-        start,
+        reversed.state,
         existing,
-        { kind: "terminal", instanceId: "R1", pinName: "2" },
+        { kind: "terminal", instanceId: "R1", pinName: "1" },
         isVoltageSource,
+        () => ["1", "2"],
       ),
     ).toMatchObject({
       kind: "complete",
@@ -148,7 +244,7 @@ describe("controlled-source canvas pick", () => {
         kind: "terminal-current",
         instanceId: "R1",
         pinName: "2",
-        direction: "out",
+        direction: "into",
       },
     });
   });

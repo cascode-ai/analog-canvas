@@ -1218,7 +1218,7 @@
 }
 
 .schematic-canvas.control-sensor-pick-active
-  [data-control-sensor="true"]:hover {
+  [data-control-sensor="true"][data-control-hover="true"] {
   stroke: var(--icm-accent);
   stroke-width: 2;
   stroke-dasharray: none;
