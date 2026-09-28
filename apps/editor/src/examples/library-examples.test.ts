@@ -221,11 +221,20 @@ describe("bundled Library Project examples", () => {
     );
     for (const format of ["spice", "spectre"] as const) {
       const exported = createDesignNetlistExport(project, { format });
-      expect(exported.status, JSON.stringify(exported.diagnostics)).toBe(
-        "ready",
-      );
-      if (exported.status !== "ready") continue;
-      expect(exported.file.text).toMatch(/X1\s+\(?VDD VSS Vin Vout /u);
+      // This visual example never drew a positive supply. The old exporter
+      // silently invented a global VDD; the authored drawing must now be
+      // given a VDD Net (or an explicit per-Block binding) before export.
+      expect(exported.status).toBe("blocked");
+      expect(
+        exported.diagnostics
+          .filter((item) => item.code === "MISSING_BLOCK_SUPPLY")
+          .map((item) => item.objectIds[0]),
+      ).toEqual(["X7", "X8"]);
+      expect(
+        exported.diagnostics.some(
+          (item) => item.code === "DECLARED_BLOCK_SUPPLY",
+        ),
+      ).toBe(false);
     }
   });
 

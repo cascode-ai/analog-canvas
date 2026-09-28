@@ -381,24 +381,18 @@ them for every simulation surface). The analyzer's own default keeps node `0`,
 which is what an imported deck round-trips to and what an Agent Snapshot
 reads.
 
-Built-in Analog Blocks retain their library-declared fixed supply names. Such
-a name resolves first to an authored named Net in the Cell, and failing that
-to the supply the author drew — the Cell's single Net in that power domain, a
-`VSS` port therefore sitting on the ground and a `VDD` port on the positive
-supply, the same reading a MOS body uses for its fourth node
-([connectivity](connectivity-and-routing.md)). The declared name states the
-port's role, not a Net spelling the author has to reproduce: nobody names a
-Net `VSS` when they have drawn a ground symbol. A Cell with no Net in that
-domain, or with more than one, falls back to the Block's own declaration: the
-netlist declares a global node of the declared name and reports
-`DECLARED_BLOCK_SUPPLY` (warning) naming the Block and the node. That is the
-Block's library interface stating what it needs, so it adds no Cell port,
-claims no Net in the Document, and changes no membership — the drawing is
-untouched and the report says what the netlist declared. When that token is
-already some other node in the Cell, declaring it would put two nodes under
-one name, so the supply stays missing and `MISSING_BLOCK_SUPPLY` says which
-Net holds the spelling. For different supply domains, use an explicit external
-definition with the intended terminal mapping.
+Built-in Analog Blocks keep `VDD`/`VSS` as hidden, property-only electrical
+terminals; the Symbol has no extra canvas pins. Each terminal may bind to any
+existing logical Net through Properties. An explicit binding wins over supply
+names and power-domain inference, so a Block can use an alternate rail without
+changing its library subcircuit interface. The default `Auto` setting uses the
+Cell's one unambiguous drawn Net in that domain (including a formal `VDD`/`VSS`
+Port or a wired supply marker), the same classification used for MOS bodies
+([connectivity](connectivity-and-routing.md)). A same-named ordinary signal
+is not sufficient evidence. If no candidate exists or several compete,
+`MISSING_BLOCK_SUPPLY` blocks export until the author selects a Net or draws
+one unique supply. Export never silently declares `.global VDD VSS` or adds
+Cell Pins for the Block.
 
 Persisted reviewed physical R/C bindings emit their declared terminals and raw
 geometry; an ideal value is never reinterpreted as physical geometry during

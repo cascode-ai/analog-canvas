@@ -176,7 +176,8 @@ export function EditorPropertiesDock({
                 {component.cellSymbolLayout ? (
                   <CellSymbolLayoutProperties {...component.cellSymbolLayout} />
                 ) : null}
-                {component.identity.propertyTerminal ? (
+                {component.identity.propertyTerminal ||
+                component.identity.supplyTerminals?.length ? (
                   <ComponentIdentityProperties
                     {...component.identity}
                     fieldsMovedToCode

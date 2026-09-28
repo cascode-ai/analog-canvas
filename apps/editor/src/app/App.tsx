@@ -107,6 +107,7 @@ import {
   resolveReviewedExternalBinding,
   reviewedExternalModelSuggestions,
   deviceDescriptor,
+  subcircuitDescriptor,
 } from "@icm/devices";
 import type {
   CircuitProject,
@@ -336,6 +337,7 @@ import { planMosBulkDefaultUpdate } from "../features/component-insert/mos-bulk-
 import {
   logicalNetChoiceForNet,
   logicalNetChoices,
+  logicalSupplyNetChoice,
 } from "../features/logical-net-choices";
 import {
   advanceControlPick,
@@ -4278,6 +4280,11 @@ function WorkspaceEditor({
           ),
         )
       : undefined;
+  const selectedBuiltInSupplies = selectedInstance
+    ? subcircuitDescriptor(selectedInstance.symbolId, project)?.ports.flatMap(
+        (port) => (port.supply ? [port.supply] : []),
+      )
+    : undefined;
 
   function openSelectedComponentDefinition(): void {
     if (!capabilities.community) {
@@ -8196,6 +8203,67 @@ function WorkspaceEditor({
                                   }
                                 },
                               }
+                            : null,
+                        supplyTerminals:
+                          selectedInstance && selectedBuiltInSupplies?.length
+                            ? selectedBuiltInSupplies.map((supply) => {
+                                const explicitNet = document.nets.find((net) =>
+                                  net.terminals.some(
+                                    (terminal) =>
+                                      terminal.instanceId ===
+                                        selectedInstance.id &&
+                                      terminal.pinName === supply,
+                                  ),
+                                );
+                                const auto = logicalSupplyNetChoice(
+                                  document,
+                                  supply === "VDD" ? "vdd" : "ground",
+                                );
+                                return {
+                                  label: `${supply} Net`,
+                                  pinName: supply,
+                                  netId:
+                                    logicalNetChoiceForNet(
+                                      netChoices,
+                                      explicitNet?.id,
+                                    )?.netId ?? null,
+                                  options: netChoices.map((choice) => ({
+                                    netId: choice.netId,
+                                    label: choice.label,
+                                  })),
+                                  autoLabel: auto
+                                    ? `Auto · ${auto.label}`
+                                    : "Auto · unresolved",
+                                  autoNetId: auto?.netId ?? null,
+                                  onPreviewNet: (netId: string | null) =>
+                                    setControlOptionPreview(
+                                      netId
+                                        ? {
+                                            documentId: document.id,
+                                            instanceId: selectedInstance.id,
+                                            netId,
+                                          }
+                                        : null,
+                                    ),
+                                  onChange: (netId: string | null) => {
+                                    const result = transact([
+                                      {
+                                        kind: "set_property_terminal_net",
+                                        instanceId: selectedInstance.id,
+                                        pinName: supply,
+                                        netId,
+                                      },
+                                    ]);
+                                    if (result.ok) {
+                                      setStatus(
+                                        netId
+                                          ? `Set ${supply} to ${logicalNetChoiceForNet(netChoices, netId)?.label ?? netId}`
+                                          : `Set ${supply} to Auto`,
+                                      );
+                                    }
+                                  },
+                                };
+                              })
                             : null,
                         modelTarget:
                           selectedInstance.netlist &&
