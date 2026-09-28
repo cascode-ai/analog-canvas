@@ -1,4 +1,5 @@
 import { parseProject, serializeProject } from "@icm/project-protocol";
+import { flushSync } from "react-dom";
 import type {
   RecentProjectFile,
   NativeSaveOutcome,
@@ -524,6 +525,11 @@ export function App(props: AppProps) {
         browserWorkspaceStore().read(
           workspaceWindowId(),
           window.location.pathname + window.location.search,
+          {
+            allowRouteChange:
+              Boolean(props.initialGalleryEntryId) ||
+              new URLSearchParams(window.location.search).has("project"),
+          },
         ),
       )
       .then((workspace) => {
@@ -1260,6 +1266,13 @@ function WorkspaceEditor({
       background?: boolean,
     ) => Promise<boolean>
   >(async () => false);
+  const openGalleryProjectInTabRef = useRef<
+    (
+      project: CircuitProject,
+      view: GridRect,
+      context: GalleryEntryContext,
+    ) => Promise<boolean>
+  >(async () => false);
   const captureAuthoredProject = async () => {
     if (
       simulationSourceBuffer.current &&
@@ -1680,6 +1693,8 @@ function WorkspaceEditor({
         netlistPreferences.preferences.profiles[netlistPreferences.selected],
       ),
     replaceActiveProject,
+    openProjectInTab: (next, view, context) =>
+      openGalleryProjectInTabRef.current(next, view, context),
     guardDirtyReplacement,
     beginCopyPlacement: (clipboard, anchor) => {
       prepareProjectCopy(project, document, clipboard);
@@ -4091,28 +4106,18 @@ function WorkspaceEditor({
     toggleExamplesPanelFromShell();
   }
 
-  // A Gallery link opens what the Gallery holds now. When this browser tab
-  // returns to a link it had open, its saved tabs come back instead; once
-  // they have, an untouched copy of the linked entry is brought up to date.
-  // A copy the user has changed stays theirs.
+  // A Gallery URL is an explicit open intent, even when another project tab
+  // was active when this browser window last saved its workspace.
   const restoredGalleryLink = useRef(
     capabilities.community && restoredWorkspace && !restoreAfterRefresh
       ? initialGalleryEntryId
       : null,
   );
-  useEffect(() => {
-    const entryId = restoredGalleryLink.current;
-    if (restoringWorkspace || !entryId) return;
-    restoredGalleryLink.current = null;
-    if (
-      galleryEntryContext?.id !== entryId ||
-      isDirtyWork() ||
-      hasUnsafeWork() ||
-      codeDraftDirty
-    )
-      return;
-    void refreshGalleryEntry(galleryEntryContext);
-  }, [restoringWorkspace]);
+  const restoredCloudLink = useRef(
+    restoredWorkspace && !restoreAfterRefresh && !initialGalleryEntryId
+      ? new URLSearchParams(window.location.search).get("project")
+      : null,
+  );
 
   // boot Project only; ordinary sessions never re-run these.
   const bootTargetHandled = useRef(false);
@@ -4134,7 +4139,7 @@ function WorkspaceEditor({
     const requestsNewProject =
       new URLSearchParams(window.location.search).get("new") === "1";
     if (initialGalleryEntryId) {
-      void openGalleryEntryById(initialGalleryEntryId, false);
+      void openGalleryEntryById(initialGalleryEntryId, false, true);
       return;
     }
     const historySearch = new URLSearchParams(window.location.search);
@@ -4167,7 +4172,7 @@ function WorkspaceEditor({
     }
     if (shelfProjectId) {
       setStatus("Opening your Cloud Project…");
-      void openCloudProjectById(shelfProjectId);
+      void openCloudProjectById(shelfProjectId, true);
       return;
     }
     if (exampleId) {
@@ -5527,6 +5532,7 @@ function WorkspaceEditor({
         session.unsafe,
       unsafe: session.unsafe,
       cloudId: session.file.cloudBinding?.id ?? null,
+      galleryId: session.publication?.id ?? null,
     }),
     prepare: async () => {
       if (
@@ -5593,6 +5599,64 @@ function WorkspaceEditor({
           () => createTabSession(next, view, options),
           options.cloudBinding?.id,
         );
+  openGalleryProjectInTabRef.current = (next, view, context) => {
+    // A fresh deep link has only a boot placeholder, not a user Project to
+    // preserve. Fill it so opening a Gallery circuit does not leave an empty
+    // extra tab; restored workspaces always take the additive path below.
+    if (
+      !restoredWorkspace &&
+      initialGalleryEntryId === context.id &&
+      projectTabs.tabs.length === 1 &&
+      project.id === preparedInitialProject.id &&
+      !isDirtyWork() &&
+      !hasUnsafeWork() &&
+      !codeDraftDirty
+    ) {
+      replaceActiveProject(next, view);
+      setGalleryEntryContext(context);
+      return Promise.resolve(true);
+    }
+    return projectTabs.open(
+      () => ({
+        ...createTabSession(next, view, {
+          source: "opened-file",
+          persistenceState: "unbound",
+        }),
+        publication: context,
+      }),
+      null,
+      context.id,
+    );
+  };
+  useEffect(() => {
+    const entryId = restoredGalleryLink.current;
+    if (restoringWorkspace || !entryId) return;
+    const matching = projectTabs
+      .entries()
+      .find(({ session }) => session.publication?.id === entryId);
+    if (matching && matching.id !== projectTabs.activeId) {
+      void projectTabs.select(matching.id).then((selected) => {
+        if (!selected) restoredGalleryLink.current = null;
+      });
+      return;
+    }
+    restoredGalleryLink.current = null;
+    if (!matching) {
+      void openGalleryEntryById(entryId, false, true);
+    } else if (
+      !matching.session.dirty &&
+      !matching.session.unsafe &&
+      !codeDraftDirty
+    ) {
+      void refreshGalleryEntry(matching.session.publication!);
+    }
+  }, [restoringWorkspace, projectTabs.activeId]);
+  useEffect(() => {
+    const cloudId = restoredCloudLink.current;
+    if (restoringWorkspace || !cloudId) return;
+    restoredCloudLink.current = null;
+    void openCloudProjectById(cloudId, true);
+  }, [restoringWorkspace]);
   const [recentNativeFiles, setRecentNativeFiles] = useState<
     RecentProjectFile[]
   >([]);
@@ -6265,7 +6329,7 @@ function WorkspaceEditor({
                 : exportProjectFile()),
           onRefreshCloudProjects: () => void reloadCloudProjects(),
           onOpenCloudProject: (summary) =>
-            void openCloudProjectById(summary.id),
+            void openCloudProjectById(summary.id, true),
           onDeleteCloudProject: (summary) => {
             if (!projectStore) return;
             return projectStore.delete(summary.id).then((outcome) => {
@@ -6856,11 +6920,9 @@ function WorkspaceEditor({
                 entryId: galleryEntryContext.id,
                 entryName: galleryEntryContext.name,
                 onBranch: async (snapshot) => {
-                  setVersionHistoryOpen(false);
-                  // Let the dialog close before the normal tab-switch guard runs.
-                  await new Promise<void>((resolve) =>
-                    requestAnimationFrame(() => resolve()),
-                  );
+                  // The tab guard reads the committed dialog state. Waiting a
+                  // frame can still race a concurrent React render here.
+                  flushSync(() => setVersionHistoryOpen(false));
                   return openProjectInTabRef.current(
                     snapshot,
                     DEFAULT_VIEWBOX,

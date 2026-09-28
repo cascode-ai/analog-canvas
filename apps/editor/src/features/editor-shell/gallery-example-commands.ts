@@ -45,6 +45,11 @@ export interface GalleryExampleCommandDependencies {
     viewBox?: GridRect,
     options?: ReplaceProjectOptions,
   ) => unknown;
+  openProjectInTab?: (
+    project: CircuitProject,
+    viewBox: GridRect,
+    context: GalleryEntryContext,
+  ) => Promise<boolean>;
   guardDirtyReplacement: (
     intent: string,
     perform: () => void | Promise<void>,
@@ -79,6 +84,7 @@ export function createGalleryExampleCommands({
   defaultViewBox,
   prepareLibraryExample = (project) => project,
   replaceActiveProject,
+  openProjectInTab,
   guardDirtyReplacement,
   beginCopyPlacement,
   cancelAllTransientInteraction,
@@ -125,22 +131,34 @@ export function createGalleryExampleCommands({
     payload: GalleryEntryPayload,
     protectCurrentProject: boolean,
     opened: (name: string) => string,
+    inTab = false,
   ): Promise<void> => {
     const galleryProject = repairOnOpen(parseProject(projectText));
     const name = payload.entry?.name ?? galleryProject.name;
     const sourceDigest = await textDigest(projectText);
+    const context: GalleryEntryContext = {
+      id: entryId,
+      name,
+      projectId: galleryProject.id,
+      ownerUserId: payload.ownerUserId ?? null,
+      author: payload.entry?.author ?? "",
+      description: payload.entry?.description ?? "",
+      tags: payload.entry?.tags ?? [],
+      ...(sourceDigest ? { sourceDigest } : {}),
+    };
+    if (inTab) {
+      if (!openProjectInTab) {
+        setStatus("Project tabs are unavailable; the current circuit was kept");
+        return;
+      }
+      if (await openProjectInTab(galleryProject, defaultViewBox, context)) {
+        setStatus(opened(name));
+      }
+      return;
+    }
     const install = () => {
       replaceActiveProject(galleryProject, defaultViewBox);
-      setGalleryEntryContext({
-        id: entryId,
-        name,
-        projectId: galleryProject.id,
-        ownerUserId: payload.ownerUserId ?? null,
-        author: payload.entry?.author ?? "",
-        description: payload.entry?.description ?? "",
-        tags: payload.entry?.tags ?? [],
-        ...(sourceDigest ? { sourceDigest } : {}),
-      });
+      setGalleryEntryContext(context);
       setStatus(opened(name));
     };
     if (protectCurrentProject) {
@@ -153,6 +171,7 @@ export function createGalleryExampleCommands({
   const openGalleryEntryById = async (
     entryId: string,
     protectCurrentProject = true,
+    inTab = false,
   ): Promise<void> => {
     try {
       const response = await fetchImpl(`/api/gallery/${entryId}`, {
@@ -177,6 +196,7 @@ export function createGalleryExampleCommands({
         payload,
         protectCurrentProject,
         (name) => `Opened gallery circuit: ${name}`,
+        inTab,
       );
     } catch {
       setStatus("This gallery entry is unavailable");

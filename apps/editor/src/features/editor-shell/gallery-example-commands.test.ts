@@ -228,6 +228,60 @@ describe("Gallery and example commands", () => {
     });
   });
 
+  it("opens a Gallery deep link in a tab without replacing the active Project", async () => {
+    const projectText = serializeProject(
+      createEmptyProject("gallery-project", "Published name"),
+    );
+    const input = {
+      ...dependencies(
+        vi.fn<typeof fetch>(async () =>
+          Response.json({
+            entry: { name: "Published name" },
+            projectText,
+          }),
+        ),
+      ),
+      openProjectInTab: vi.fn(async () => true),
+    };
+
+    await createGalleryExampleCommands(input).openGalleryEntryById(
+      "entry-1",
+      false,
+      true,
+    );
+
+    expect(input.openProjectInTab).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "gallery-project" }),
+      defaultViewBox,
+      expect.objectContaining({ id: "entry-1", projectId: "gallery-project" }),
+    );
+    expect(input.replaceActiveProject).not.toHaveBeenCalled();
+    expect(input.setGalleryEntryContext).not.toHaveBeenCalled();
+  });
+
+  it("keeps the active Project if a Gallery tab cannot be opened", async () => {
+    const input = dependencies(
+      vi.fn<typeof fetch>(async () =>
+        Response.json({
+          projectText: serializeProject(
+            createEmptyProject("gallery-project", "Published name"),
+          ),
+        }),
+      ),
+    );
+
+    await createGalleryExampleCommands(input).openGalleryEntryById(
+      "entry-1",
+      false,
+      true,
+    );
+
+    expect(input.replaceActiveProject).not.toHaveBeenCalled();
+    expect(input.setStatus).toHaveBeenCalledWith(
+      "Project tabs are unavailable; the current circuit was kept",
+    );
+  });
+
   describe("a browser tab returning to a Gallery link", () => {
     const opened = createEmptyProject("gallery-project", "Opened");
     const openedText = serializeProject(opened);

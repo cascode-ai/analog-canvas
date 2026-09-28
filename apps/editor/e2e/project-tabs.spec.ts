@@ -3,6 +3,7 @@ import {
   awaitEditorReady,
   chooseComponent,
   downloadBytes,
+  openMenu,
   parseSavedProject,
 } from "./editor-fixtures";
 import { createEmptyProject, type CircuitProject } from "@icm/model";
@@ -324,7 +325,7 @@ test("tab file opening is additive and closing unsaved projects can be cancelled
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
 });
 
-test("Shelf tabs deduplicate an open draft and save back to their own Cloud identities", async ({
+test("Cloud File menu appends a tab, and Shelf deduplicates and saves Cloud identities", async ({
   page,
 }) => {
   const { createEmptyProject } = await import("@icm/model");
@@ -370,6 +371,14 @@ test("Shelf tabs deduplicate an open draft and save back to their own Cloud iden
     return route.fulfill({ json: { project: item } });
   });
   await page.goto("/editor?new=1");
+  const blankProjectId = (await saved(page)).id;
+  const fileMenu = await openMenu(page, "File");
+  await fileMenu.getByTestId("cloud-project-cloud-0").click();
+  await expect(page.getByRole("tab")).toHaveCount(2);
+  await expect(page.getByRole("tab", { name: /Alpha$/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
   async function shelf(name: string) {
     await page.getByLabel("Open Shelf project in tab", { exact: true }).click();
     await page
@@ -380,7 +389,6 @@ test("Shelf tabs deduplicate an open draft and save back to their own Cloud iden
       page.getByRole("tab", { name: new RegExp(`${name}$`) }),
     ).toHaveAttribute("aria-selected", "true");
   }
-  await shelf("Alpha");
   await insert(page, "nmos", 300, 240);
   await shelf("Beta");
   await insert(page, "resistor", 450, 240);
@@ -388,6 +396,9 @@ test("Shelf tabs deduplicate an open draft and save back to their own Cloud iden
   await expect.poll(() => writes).toEqual(["cloud-1"]);
   await shelf("Alpha");
   await expect(page.getByRole("tab")).toHaveCount(3);
+  await page.getByRole("tab").first().click();
+  expect((await saved(page)).id).toBe(blankProjectId);
+  await shelf("Alpha");
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
   await page.keyboard.press("ControlOrMeta+s");
   await expect.poll(() => writes).toEqual(["cloud-1", "cloud-0"]);
@@ -399,6 +410,15 @@ test("Shelf tabs deduplicate an open draft and save back to their own Cloud iden
     parseSavedProject(records[1]!.projectText).documents[0]!.instances[0]!
       .symbolId,
   ).toBe("resistor");
+  await page.goto("/");
+  await page.goto("/editor?project=cloud-1");
+  await awaitEditorReady(page);
+  await expect(page.getByRole("tab")).toHaveCount(3);
+  await expect(page.getByRole("tab", { name: /Beta$/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
 });
 
 test("plain C/V works between internal tabs when system clipboard permission is denied", async ({
