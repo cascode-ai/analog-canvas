@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "format": {
+      "type": "string",
+      "const": "virtuoso-canvas.mapping-package"
+    },
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "master": {
+            "type": "object",
+            "properties": {
+              "library": {
+                "type": "string",
+                "minLength": 1
+              },
+              "cell": {
+                "type": "string",
+                "minLength": 1
+              },
+              "view": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": ["library", "cell", "view"],
+            "additionalProperties": false
+          },
+          "signature": {
+            "type": "string"
+          },
+          "mapping": {
+            "type": "object",
+            "properties": {
+              "symbol": {
+                "type": "string",
+                "minLength": 1
+              },
+              "pins": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "parameters": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "required": ["symbol", "pins", "parameters"],
+            "additionalProperties": false
+          },
+          "evidence": {
+            "type": "object",
+            "properties": {
+              "pinNames": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "parameterNames": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "componentNames": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "modelNames": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "termOrders": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "simulator": {
+                      "type": "string"
+                    },
+                    "pins": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": ["simulator", "pins"],
+                  "additionalProperties": false
+                }
+              },
+              "evidenceStatus": {
+                "type": "string",
+                "enum": ["available", "unavailable"]
+              }
+            },
+            "required": [
+              "pinNames",
+              "parameterNames",
+              "componentNames",
+              "modelNames",
+              "termOrders",
+              "evidenceStatus"
+            ],
+            "additionalProperties": false
+          },
+          "reviewedBy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reviewedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          }
+        },
+        "required": [
+          "master",
+          "signature",
+          "mapping",
+          "evidence",
+          "reviewedBy",
+          "reviewedAt"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["format", "version", "name", "entries"],
+  "additionalProperties": false
+}

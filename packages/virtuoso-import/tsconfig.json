@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "tsBuildInfoFile": "dist/virtuoso-import.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["index.ts", "core/**/*.ts", "adapter/**/*.ts"],
+  "exclude": ["**/*.test.ts"]
+}

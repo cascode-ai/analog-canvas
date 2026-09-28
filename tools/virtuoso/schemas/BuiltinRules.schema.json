@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "master": {
+            "type": "object",
+            "properties": {
+              "library": {
+                "type": "string",
+                "minLength": 1
+              },
+              "cell": {
+                "type": "string",
+                "minLength": 1
+              },
+              "view": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": ["library", "cell", "view"],
+            "additionalProperties": false
+          },
+          "mapping": {
+            "type": "object",
+            "properties": {
+              "symbol": {
+                "type": "string",
+                "minLength": 1
+              },
+              "pins": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "parameters": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "required": ["symbol", "pins", "parameters"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "master", "mapping"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["version", "rules"],
+  "additionalProperties": false
+}

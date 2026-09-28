@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "conversion": {
+      "type": "object",
+      "properties": {
+        "scale": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "busMode": {
+          "type": "string",
+          "enum": ["reject", "bundled"]
+        },
+        "disabledInstances": {
+          "type": "string",
+          "enum": ["keep", "omit"]
+        },
+        "isolatedPorts": {
+          "type": "string",
+          "enum": ["keep", "omit"]
+        },
+        "unmappedDevices": {
+          "type": "string",
+          "enum": ["generic-box", "error"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "presentation": {
+      "type": "object",
+      "properties": {
+        "caseSensitive": {
+          "type": "boolean"
+        },
+        "powerNets": {
+          "maxItems": 128,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "groundNets": {
+          "maxItems": 128,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "bulkVisibility": {
+          "type": "string",
+          "enum": ["all", "hide-power-ground"]
+        },
+        "plainLabels": {
+          "type": "boolean"
+        },
+        "showInstanceNames": {
+          "type": "boolean"
+        },
+        "decorateOpenEnds": {
+          "type": "boolean"
+        },
+        "boxStubLength": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["version"],
+  "additionalProperties": false
+}

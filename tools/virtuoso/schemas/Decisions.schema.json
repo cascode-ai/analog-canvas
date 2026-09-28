@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "format": {
+      "type": "string",
+      "const": "virtuoso-canvas.mapping-decisions"
+    },
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "proposalId": {
+      "type": "string"
+    },
+    "reviewedBy": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": ["approve", "reject", "pending"]
+          },
+          "candidateId": {
+            "type": "string"
+          },
+          "mapping": {
+            "type": "object",
+            "properties": {
+              "symbol": {
+                "type": "string",
+                "minLength": 1
+              },
+              "pins": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "parameters": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "required": ["symbol", "pins", "parameters"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["itemId", "action"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["format", "version", "proposalId", "reviewedBy", "decisions"],
+  "additionalProperties": false
+}

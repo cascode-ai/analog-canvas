@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "analoglib-res",
+      "master": { "library": "analogLib", "cell": "res", "view": "symbol" },
+      "mapping": {
+        "symbol": "resistor",
+        "pins": { "PLUS": "1", "MINUS": "2" },
+        "parameters": {}
+      }
+    },
+    {
+      "id": "analoglib-cap",
+      "master": { "library": "analogLib", "cell": "cap", "view": "symbol" },
+      "mapping": {
+        "symbol": "capacitor",
+        "pins": { "PLUS": "1", "MINUS": "2" },
+        "parameters": {}
+      }
+    },
+    {
+      "id": "analoglib-idc",
+      "master": { "library": "analogLib", "cell": "idc", "view": "symbol" },
+      "mapping": {
+        "symbol": "current-source",
+        "pins": { "PLUS": "+", "MINUS": "-" },
+        "parameters": {}
+      }
+    },
+    {
+      "id": "basic-iopin",
+      "master": { "library": "basic", "cell": "iopin", "view": "symbol" },
+      "mapping": {
+        "symbol": "port",
+        "pins": { "iopin": "P" },
+        "parameters": {}
+      }
+    },
+    {
+      "id": "basic-iopin-rotated",
+      "master": { "library": "basic", "cell": "iopin", "view": "symbolr" },
+      "mapping": {
+        "symbol": "port",
+        "pins": { "iopin": "P" },
+        "parameters": {}
+      }
+    }
+  ]
+}

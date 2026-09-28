@@ -1,0 +1,50 @@
+name: Virtuoso import
+
+on:
+  pull_request:
+    paths:
+      - "packages/**"
+      - "tools/virtuoso/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "tsconfig*.json"
+      - ".prettier*"
+      - ".github/workflows/virtuoso.yml"
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: virtuoso-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  conversion:
+    name: Build and conversion regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check tool formatting
+        run: pnpm exec prettier --ignore-path .gitignore --check "packages/virtuoso-import/**/*.{ts,mjs,json}" "tools/virtuoso/**/*.{ts,mjs,json}" .github/workflows/virtuoso.yml
+      - name: Build tool and workspace dependencies
+        run: pnpm --filter @icm/virtuoso-tool... build
+      - name: Check upstream type compatibility
+        run: pnpm typecheck
+      - name: Test CLI, mappings and geometry
+        run: pnpm --filter @icm/virtuoso-tool test
