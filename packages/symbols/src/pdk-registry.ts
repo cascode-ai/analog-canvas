@@ -4,7 +4,20 @@ import {
   reviewedExternalModelSuggestions,
 } from "@icm/devices";
 
+import { expandedDeviceCatalogEntry } from "./expanded-device-catalog.js";
 import { isRazaviProductSymbolId } from "./razavi-catalog.js";
+
+/**
+ * A symbol an imported or PDK device may be drawn with: the Razavi product
+ * catalog, or the Extended Devices library beside it (high-voltage DMOS and
+ * depletion MOS), which SKY130's drain-extended devices are reviewed for.
+ */
+export function isPdkMappableSymbolId(symbolId: string): boolean {
+  return (
+    isRazaviProductSymbolId(symbolId) ||
+    expandedDeviceCatalogEntry(symbolId) !== undefined
+  );
+}
 
 export interface PdkSymbolMapping {
   symbolId: string;
@@ -40,7 +53,7 @@ export function resolvePdkSymbolMapping(
       candidate.terminalCount === terminalCount &&
       candidate.pinNames.length === terminalCount,
   );
-  if (exact && isRazaviProductSymbolId(exact.symbolId)) {
+  if (exact && isPdkMappableSymbolId(exact.symbolId)) {
     return {
       symbolId: exact.symbolId,
       pinNames: [...exact.pinNames],
@@ -51,7 +64,7 @@ export function resolvePdkSymbolMapping(
   const reviewed = reviewedExternalBindingForMaster(modelName);
   return reviewed &&
     reviewed.terminals.length === terminalCount &&
-    isRazaviProductSymbolId(reviewed.symbolId)
+    isPdkMappableSymbolId(reviewed.symbolId)
     ? {
         symbolId: reviewed.symbolId,
         pinNames: reviewed.terminals.map((terminal) => terminal.pinName),
