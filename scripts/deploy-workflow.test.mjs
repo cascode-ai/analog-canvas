@@ -237,7 +237,7 @@ describe("Cloudflare deploy workflow", () => {
     expect(verifySection).toContain('if [ "$status" != "404" ]');
   });
 
-  it("verifies that the Gallery refuses an anonymous read", () => {
+  it("verifies a bounded anonymous Gallery wall and denies broader discovery", () => {
     const verifySection = workflow.slice(
       workflow.indexOf("Verify production deployment"),
       workflow.indexOf("Roll back a failed deployment"),
@@ -245,7 +245,14 @@ describe("Cloudflare deploy workflow", () => {
     expect(verifySection).toContain(
       "https://analog-canvas.tokenzhang.com/api/gallery)",
     );
-    expect(verifySection).toContain('if [ "$gallery_status" != "401" ]');
+    expect(verifySection).toContain(".signInForMore == true");
+    expect(verifySection).toContain(".nextCursor == null");
+    expect(verifySection).toContain("length <= 10");
+    expect(verifySection).toContain('all(.entries[]; .id | type == "string")');
+    expect(verifySection).toContain(
+      "for path in api/gallery/tags api/gallery/authors; do",
+    );
+    expect(verifySection).toContain('if [ "$status" != "401" ]');
   });
 
   it("verifies package integrity before deploy and the serving declaration afterwards", () => {
