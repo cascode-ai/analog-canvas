@@ -990,6 +990,88 @@ describe("routing Edit Engine", () => {
     }
   });
 
+  it("moves a pin-to-pin 45-degree segment every way and keeps its angle", () => {
+    // R1's lower pin drops straight into the diagonal; a horizontal leg
+    // carries it on to R2's upper pin.
+    const document = createEmptyDocument("pins", "Pin diagonal");
+    const place = (id: string, position: Point) => ({
+      id,
+      reference: id,
+      symbolId: "resistor",
+      placement: { position, rotation: 0 as const, mirror: "none" as const },
+    });
+    document.instances.push(place("R1", { x: 0, y: 0 }));
+    const pinAt = (instanceId: string, pinName: string) =>
+      resolveEndpointConnection(document, resolver, {
+        kind: "terminal",
+        instanceId,
+        pinName,
+      })!.contactPoint;
+    const a = pinAt("R1", "2");
+    const r2Offset = pinAt("R1", "1");
+    document.instances.push(
+      place("R2", { x: a.x + 400 - r2Offset.x, y: a.y + 250 - r2Offset.y }),
+    );
+    const b = pinAt("R2", "1");
+    expect(b).toEqual({ x: a.x + 400, y: a.y + 250 });
+    const pin = (instanceId: string, pinName: string) => ({
+      kind: "terminal" as const,
+      instanceId,
+      pinName,
+    });
+    document.nets.push({
+      id: "n",
+      terminals: [
+        { instanceId: "R1", pinName: "2" },
+        { instanceId: "R2", pinName: "1" },
+      ],
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "wire",
+        netId: "n",
+        start: pin("R1", "2"),
+        end: pin("R2", "1"),
+        bends: [{ x: a.x + 250, y: a.y + 250 }],
+        modes: ["manual", "manual"],
+      }),
+    );
+    const drag = (delta: Point) => {
+      const origin = { x: a.x + 120, y: a.y + 120 };
+      const plan = proposeWireSegmentMove(
+        document,
+        resolver,
+        "wire",
+        0,
+        { x: origin.x + delta.x, y: origin.y + delta.y },
+        origin,
+      );
+      const moved = executeTransaction(
+        document,
+        transaction(document.id, 0, plan.edits),
+        context,
+      );
+      if (!moved.ok) throw new Error(JSON.stringify(moved));
+      return resolveRouteGeometry(
+        moved.document,
+        resolver,
+        moved.document.routes[0]!,
+      )?.centerline;
+    };
+    const offset = (x: number, y: number) => ({ x: a.x + x, y: a.y + y });
+
+    // Down: a jog along the lead, and the diagonal slides along the leg to R2
+    // instead of being bent to reach a jog under R2's pin.
+    const lowered = [a, offset(0, 20), offset(230, 250), b];
+    expect(drag({ x: 0, y: 20 })).toEqual(lowered);
+    // Left lands on the same line; a sideways jog at R1 would fold back.
+    expect(drag({ x: -20, y: 0 })).toEqual(lowered);
+    // Right, and up onto the same line, where a jog up into R1 would fold.
+    const raised = [a, offset(20, 0), offset(270, 250), b];
+    expect(drag({ x: 20, y: 0 })).toEqual(raised);
+    expect(drag({ x: 0, y: -20 })).toEqual(raised);
+  });
+
   it("moves a 45-degree run along the drag axis and carries its Junctions", () => {
     // Leg, diagonal, leg between two three-way tap Junctions.
     const document = createEmptyDocument("zig", "Zig");

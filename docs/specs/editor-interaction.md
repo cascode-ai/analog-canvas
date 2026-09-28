@@ -587,6 +587,12 @@ translates horizontally or vertically, whichever way the pointer mainly
 travels. A leg along that axis lengthens or shortens (it may shrink away but
 never folds back), and a leg across it travels with the segment. A Junction at
 the end of that run travels too; a pin is reached by a jog along the axis.
+Moving a 45-degree segment along x or along y can land it on the same line;
+when the pointer's axis would fold the wire back, the segment takes that line
+along the other axis instead. A jog that would enter a pin against its lead
+is folded onto the pin's perpendicular; beside a 45-degree segment the
+segment's end slides along its own line to that perpendicular, so the drag
+never changes its angle.
 Slanted segments are never bent by a drag: a slanted neighbor of a dragged
 segment, orthogonal or 45-degree, travels with it in the same run. A move that
 would double the wire back on itself is refused. A drag that ends with nothing
