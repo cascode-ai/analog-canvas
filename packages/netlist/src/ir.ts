@@ -108,6 +108,8 @@ export interface DesignNetlistMagneticSubcircuit {
 export interface DesignNetlistIR {
   topCellId: StableId;
   cells: DesignNetlistCell[];
+  /** A signal-only, supply-independent ideal comparator body is printed once. */
+  idealComparator?: true;
   externalMasters?: DesignNetlistExternalMaster[];
   /** Coupled-winding subcircuits the file defines for drawn magnetic devices. */
   magneticSubcircuits?: DesignNetlistMagneticSubcircuit[];

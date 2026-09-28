@@ -25,6 +25,26 @@ describe("component identity properties", () => {
     expect(componentTargetDescription(instance)).toBeNull();
   });
 
+  it("identifies the internal comparator model instead of calling it unresolved", () => {
+    const document = createEmptyDocument("cell", "Cell");
+    const instance: (typeof document.instances)[number] = {
+      id: "X1",
+      symbolId: "comparator",
+      placement: null,
+      reference: "X1",
+      netlist: {
+        binding: {
+          kind: "unresolved-subcircuit",
+          name: "icm_ideal_comparator",
+        },
+        parameters: {},
+      },
+    };
+    expect(componentTargetDescription(instance)).toBe(
+      "Built-in ideal comparator · ngspice",
+    );
+  });
+
   it("renders editable controls without an Identity card and ends with raw component code", () => {
     const document = createEmptyDocument("cell", "Cell");
     const instance: (typeof document.instances)[number] = {

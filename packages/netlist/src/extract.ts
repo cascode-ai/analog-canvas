@@ -33,6 +33,7 @@ import type {
   StableId,
 } from "@icm/model";
 import {
+  IDEAL_COMPARATOR_TARGET,
   createReferenceIndex,
   deviceDescriptor,
   nextReference,
@@ -69,6 +70,19 @@ const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 const MAX_CELLS = 1024;
 const MAX_INSTANCES_PER_CELL = 100_000;
 const MAX_NETS_PER_CELL = 100_000;
+
+function builtInZenerModelName(reference: string): string {
+  return `icm_zener_${reference}`;
+}
+
+function zenerParameter(
+  instance: Instance,
+  name: "bv" | "ibv",
+): string | undefined {
+  return Object.entries(instance.netlist?.parameters ?? {}).find(
+    ([candidate]) => candidate.toLowerCase() === name,
+  )?.[1];
+}
 
 function isIdentifier(value: string, allowGround = false): boolean {
   return (allowGround && value === "0") || IDENTIFIER.test(value);
@@ -1182,6 +1196,87 @@ function extractBuiltInSubcircuitInstance(
       [instance.id],
     );
   }
+  if (
+    definition.target === "comparator" &&
+    target === IDEAL_COMPARATOR_TARGET
+  ) {
+    if (options.format !== "spice") {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "IDEAL_COMPARATOR_SPICE_ONLY",
+        `Ideal comparator ${reference} currently has an ngspice model only; select SPICE or bind the historical external comparator target`,
+        [instance.id],
+      );
+      return null;
+    }
+    const seenParameters = new Set<string>();
+    for (const [name, rawValue] of parameters) {
+      const folded = name.toLowerCase();
+      if (seenParameters.has(folded)) {
+        diagnostic(
+          diagnostics,
+          document.id,
+          "DUPLICATE_PARAMETER_NAME",
+          `Ideal comparator ${reference} repeats parameter ${name} under case folding`,
+          [instance.id],
+          "error",
+          name,
+        );
+      }
+      seenParameters.add(folded);
+      if (!["vhigh", "vlow", "vtransition"].includes(folded)) {
+        diagnostic(
+          diagnostics,
+          document.id,
+          "UNKNOWN_IDEAL_COMPARATOR_PARAMETER",
+          `Ideal comparator ${reference} accepts only vhigh, vlow, and vtransition`,
+          [instance.id],
+          "error",
+          name,
+        );
+        continue;
+      }
+      const parsed = parseSpiceNumber(rawValue.trim());
+      if (
+        parsed &&
+        Number.isFinite(parsed.value) &&
+        (folded !== "vtransition" || parsed.value > 0)
+      )
+        continue;
+      diagnostic(
+        diagnostics,
+        document.id,
+        "INVALID_IDEAL_COMPARATOR_PARAMETER",
+        `Ideal comparator ${reference} requires numeric ${name}${folded === "vtransition" ? " > 0" : ""}`,
+        [instance.id],
+        "error",
+        name,
+      );
+    }
+    const nodes = definition.ports
+      .filter((port) => !port.supply)
+      .map((port) => ({
+        pinName: port.name,
+        netName:
+          terminalNetName(
+            document,
+            instance,
+            port.pinName,
+            context,
+            diagnostics,
+          ) ?? `<unconnected:${port.name}>`,
+      }));
+    return {
+      id: instance.id,
+      reference,
+      invocationKind: "subcircuit",
+      deviceClass: "hierarchical",
+      target,
+      nodes,
+      parameters: parameters.map(([name, rawValue]) => ({ name, rawValue })),
+    };
+  }
   const nodes = definition.ports.flatMap((port) => {
     if (port.supply) {
       // The library declares a fixed named supply, not permission to invent
@@ -1616,15 +1711,24 @@ function extractDeviceInstance(
     );
   }
   if (definition.targetPolicy === "required-model") {
-    if (netlist.binding?.kind !== "model") {
+    const hasBuiltInZener =
+      definition.symbolId === "zener-diode" &&
+      netlist.binding === undefined &&
+      Boolean(zenerParameter(instance, "bv")?.trim());
+    if (netlist.binding?.kind !== "model" && !hasBuiltInZener) {
       diagnostic(
         diagnostics,
         document.id,
         "MISSING_MODEL_TARGET",
-        `Instance ${instance.reference!} requires an explicit model target`,
+        definition.symbolId === "zener-diode"
+          ? `Instance ${instance.reference!} requires an external model or a positive BV for a built-in Zener model`
+          : `Instance ${instance.reference!} requires an explicit model target`,
         [instance.id],
       );
-    } else if (netlist.binding.deviceClass !== definition.deviceClass) {
+    } else if (
+      netlist.binding?.kind === "model" &&
+      netlist.binding.deviceClass !== definition.deviceClass
+    ) {
       diagnostic(
         diagnostics,
         document.id,
@@ -1780,7 +1884,13 @@ function extractDeviceInstance(
     }
   }
   const target =
-    netlist.binding?.kind === "model" ? netlist.binding.name : null;
+    netlist.binding?.kind === "model"
+      ? netlist.binding.name
+      : definition.symbolId === "zener-diode" &&
+          netlist.binding === undefined &&
+          zenerParameter(instance, "bv")?.trim()
+        ? builtInZenerModelName(instance.reference!)
+        : null;
   if (target && !isIdentifier(target)) {
     diagnostic(
       diagnostics,
@@ -1793,6 +1903,49 @@ function extractDeviceInstance(
   const authoredParameters = Object.entries(netlist.parameters)
     .sort(([a], [b]) => compareText(a, b))
     .map(([name, rawValue]) => ({ name, rawValue }));
+  if (definition.symbolId === "zener-diode") {
+    const modelParameters = authoredParameters.filter((parameter) =>
+      ["bv", "ibv"].includes(parameter.name.toLowerCase()),
+    );
+    if (netlist.binding?.kind === "model" && modelParameters.length) {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "ZENER_MODEL_PARAMETER_CONFLICT",
+        `Instance ${instance.reference!} cannot set BV or IBV alongside an external model; put those values in that model instead`,
+        [instance.id],
+      );
+    }
+    if (netlist.binding?.kind !== "model") {
+      if (target && options.format !== "spice") {
+        diagnostic(
+          diagnostics,
+          document.id,
+          "ZENER_BUILTIN_SPICE_ONLY",
+          `Instance ${instance.reference!} uses a generated ngspice Zener model; select SPICE or bind a Spectre model explicitly`,
+          [instance.id],
+        );
+      }
+      for (const parameter of modelParameters) {
+        const parsed = parseSpiceNumber(parameter.rawValue.trim());
+        if (
+          parsed !== null &&
+          Number.isFinite(parsed.value) &&
+          parsed.value > 0
+        )
+          continue;
+        diagnostic(
+          diagnostics,
+          document.id,
+          "INVALID_ZENER_MODEL_PARAMETER",
+          `Instance ${instance.reference!} requires positive numeric ${parameter.name.toUpperCase()}`,
+          [instance.id],
+          "error",
+          parameter.name,
+        );
+      }
+    }
+  }
   const projectedParameters =
     definition.deviceClass === "voltage-source" ||
     definition.deviceClass === "current-source"
@@ -1819,7 +1972,12 @@ function extractDeviceInstance(
     nodes,
     parameters: projectedParameters
       ? [...projectedParameters.parameters]
-      : authoredParameters,
+      : definition.symbolId === "zener-diode"
+        ? authoredParameters.filter(
+            (parameter) =>
+              !["bv", "ibv"].includes(parameter.name.toLowerCase()),
+          )
+        : authoredParameters,
     ...(controlSourceInstanceId ? { controlSourceInstanceId } : {}),
     ...(controlTerminal ? { controlTerminal } : {}),
   };
@@ -2224,6 +2382,37 @@ function extractCell(
             );
     if (extracted) instances.push(extracted);
   }
+  const models: DesignNetlistModel[] = [];
+  if (
+    instances.some(
+      (instance) =>
+        instance.deviceClass === "switch" &&
+        instance.target === IDEAL_SWITCH_MODEL.name,
+    )
+  )
+    models.push(structuredClone(IDEAL_SWITCH_MODEL));
+  for (const extracted of instances) {
+    const source = document.instances.find(
+      (candidate) => candidate.id === extracted.id,
+    );
+    if (
+      source?.symbolId !== "zener-diode" ||
+      source.netlist?.binding !== undefined ||
+      extracted.target !== builtInZenerModelName(extracted.reference)
+    )
+      continue;
+    const bv = zenerParameter(source, "bv");
+    if (!bv?.trim()) continue;
+    const ibv = zenerParameter(source, "ibv");
+    models.push({
+      name: extracted.target,
+      type: "D",
+      parameters: [
+        { name: "BV", rawValue: bv.trim() },
+        ...(ibv?.trim() ? [{ name: "IBV", rawValue: ibv.trim() }] : []),
+      ],
+    });
+  }
   return {
     id: document.id,
     name:
@@ -2232,13 +2421,7 @@ function extractCell(
     ports,
     nets: context.nets,
     instances,
-    ...(instances.some(
-      (instance) =>
-        instance.deviceClass === "switch" &&
-        instance.target === IDEAL_SWITCH_MODEL.name,
-    )
-      ? { models: [structuredClone(IDEAL_SWITCH_MODEL)] }
-      : {}),
+    ...(models.length ? { models } : {}),
     formalParameters: document.netlist.formalParameters.map((parameter) => ({
       name: parameter.name,
       ...(parameter.defaultValue === undefined
@@ -2401,6 +2584,28 @@ function analyzeDesign(
         magneticSubcircuits.set(name, magneticSubcircuit(network, definition));
     }
   }
+  const comparatorCell = cellNames.get(IDEAL_COMPARATOR_TARGET);
+  const comparatorExternal = externalNames.get(IDEAL_COMPARATOR_TARGET);
+  if (comparatorCell || comparatorExternal) {
+    for (const document of documents) {
+      for (const instance of document.instances) {
+        const descriptor = subcircuitDescriptor(instance.symbolId, project);
+        if (
+          descriptor?.target !== "comparator" ||
+          instance.netlist?.binding?.kind !== "unresolved-subcircuit" ||
+          instance.netlist.binding.name !== IDEAL_COMPARATOR_TARGET
+        )
+          continue;
+        diagnostic(
+          diagnostics,
+          document.id,
+          "IDEAL_COMPARATOR_NAME_COLLISION",
+          `Ideal comparator ${instance.reference ?? instance.id} conflicts with ${comparatorCell ? `Cell ${comparatorCell.authoredName}` : `external subcircuit ${comparatorExternal}`} named ${IDEAL_COMPARATOR_TARGET}`,
+          [instance.id],
+        );
+      }
+    }
+  }
   if (resolvedOptions.groundPin === "pin") {
     // Supply markers share identity inside the drawing. Once that supply is
     // exposed by a module pin, its exported node belongs to that module:
@@ -2508,6 +2713,11 @@ function analyzeDesign(
       binding?.kind === "unresolved-subcircuit"
         ? binding.name
         : descriptor.target;
+    if (
+      descriptor.target === "comparator" &&
+      target === IDEAL_COMPARATOR_TARGET
+    )
+      continue;
     externalMasters.set(`builtin:${target.toLowerCase()}`, {
       id: descriptor.id,
       name: target,
@@ -2556,6 +2766,13 @@ function analyzeDesign(
     ir: {
       topCellId: resolvedOptions.rootDocumentId,
       cells: [...idealCells, ...cells],
+      ...(cells.some((cell) =>
+        cell.instances.some(
+          (instance) => instance.target === IDEAL_COMPARATOR_TARGET,
+        ),
+      )
+        ? { idealComparator: true as const }
+        : {}),
       globals,
       externalMasters: [...externalMasters.values()].sort((left, right) =>
         compareText(left.name, right.name),

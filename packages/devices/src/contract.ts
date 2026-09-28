@@ -1,5 +1,9 @@
 import type { NetlistDeviceClass, StableId } from "@icm/model";
 
+/** New ngspice comparator instances use an isolated signal-only model target.
+ * The historical `comparator` target remains the five-port external interface. */
+export const IDEAL_COMPARATOR_TARGET = "icm_ideal_comparator";
+
 export type DeviceNetlistTargetPolicy =
   "builtin" | "required-model" | "child-cell" | "none";
 

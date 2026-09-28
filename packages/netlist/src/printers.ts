@@ -5,6 +5,7 @@ import type {
   DesignNetlistMagneticSubcircuit,
   DesignNetlistParameter,
 } from "./ir.js";
+import { IDEAL_COMPARATOR_TARGET } from "@icm/devices";
 import type { NetlistFormat } from "./net-name-codec.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
 import { signedControlGain } from "./controlled-current.js";
@@ -232,6 +233,15 @@ function spiceModels(cell: DesignNetlistCell): string[] {
   );
 }
 
+/** Finite-transition comparator: continuous in OP/DC/AC/TRAN, with no hidden supply nets. */
+function spiceIdealComparatorSubcircuit(): string[] {
+  return [
+    `.subckt ${IDEAL_COMPARATOR_TARGET} VIP VIN VOUT params: vhigh=1 vlow=0 vtransition=1m`,
+    "Bcmp VOUT 0 V={vlow+(vhigh-vlow)*0.5*(1+tanh((V(VIP)-V(VIN))/vtransition))}",
+    `.ends ${IDEAL_COMPARATOR_TARGET}`,
+  ];
+}
+
 /**
  * A drawn T-coil's or transformer's coupled windings, as the subcircuit its
  * `X` calls name. Each inductor is written from its dotted node, which is how
@@ -386,6 +396,10 @@ function renderSpice(
   };
   const globals = ir.globals.filter((name) => name !== "0");
   if (globals.length) append(...wrapSpice([".global", ...globals]));
+  if (ir.idealComparator) {
+    append("");
+    append(...spiceIdealComparatorSubcircuit());
+  }
   for (const subcircuit of ir.magneticSubcircuits ?? []) {
     append("");
     append(...spiceMagneticSubcircuit(subcircuit));
@@ -638,6 +652,7 @@ export function locateDesignNetlist(
     const ownModels = new Set([
       ...(cell.models ?? []).map((model) => model.name),
       ...(ir.magneticSubcircuits ?? []).map((subcircuit) => subcircuit.name),
+      ...(ir.idealComparator ? [IDEAL_COMPARATOR_TARGET] : []),
     ]);
     for (const instance of cell.instances) {
       const original = card(instance);

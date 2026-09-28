@@ -152,6 +152,16 @@ describe("netlist authoring", () => {
       },
       parameters: {},
     });
+    expect(initialInstanceNetlist("comparator", {})).toEqual({
+      binding: {
+        kind: "unresolved-subcircuit",
+        name: "icm_ideal_comparator",
+      },
+      parameters: { vhigh: "1", vlow: "0", vtransition: "1m" },
+    });
+    expect(initialInstanceNetlist("comparator-inputs-swapped", {})).toEqual(
+      initialInstanceNetlist("comparator", {}),
+    );
     expect(
       nextInstanceReference(createEmptyDocument("main", "Main"), "opamp"),
     ).toBe("X1");

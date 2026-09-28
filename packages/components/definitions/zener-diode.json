@@ -131,7 +131,28 @@
     "referencePrefix": "D",
     "pinOrder": ["A", "K"],
     "targetPolicy": "required-model",
-    "parameters": [],
+    "parameters": [
+      {
+        "name": "bv",
+        "label": "Breakdown voltage",
+        "required": false,
+        "editor": "text",
+        "unitHint": "V",
+        "placeholder": "5.1",
+        "help": "Positive reverse-breakdown voltage; creates a built-in ngspice diode model when no external model is selected",
+        "displayRole": "none"
+      },
+      {
+        "name": "ibv",
+        "label": "Current at breakdown",
+        "required": false,
+        "editor": "text",
+        "unitHint": "A",
+        "placeholder": "1m",
+        "help": "Optional reverse current at BV for the built-in diode model",
+        "displayRole": "none"
+      }
+    ],
     "dialects": ["spice", "spectre"],
     "capabilities": {
       "supportsModel": true,
