@@ -99,6 +99,11 @@ describe("shared rich-text layout", () => {
     expect(wide.width).toBeGreaterThan(narrow.width);
   });
 
+  it("advances every relation sign like the equals sign", () => {
+    for (const sign of ["≠", "≈", "≤", "≥", "<", ">"])
+      expect(richTextAdvanceEm(sign)).toBe(richTextAdvanceEm("="));
+  });
+
   it("uses the profile baseline shift when reserving subscript bounds", () => {
     const metrics = {
       ...richTextMetrics(razaviTextbookProfile),
