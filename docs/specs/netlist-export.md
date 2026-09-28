@@ -111,10 +111,14 @@ An external-subcircuit binding is a project-local external master declaration,
 not a simulator model lookup. Its `definitionId` selects one project-level
 external definition, whose ordered terminals select the emitted `X` nodes and
 whose `name` is the emitted master token. The instance owns raw overrides. An
-`unresolved-subcircuit` binding retains only a master name; export emits it
-only as a built-in Analog Block's black-box master call. A PDK may provide
-artwork later, but artwork cannot change external invocation into a primitive
-or model binding.
+`unresolved-subcircuit` binding retains only a master name. For the default
+opamp, differential opamp, voltage amplifier, transconductance amplifier, and
+differential transconductance amplifier targets, export supplies one idealized
+E- or G-source subcircuit definition per used target. An explicitly authored
+Cell or project external definition of the same name takes precedence, and
+retargeting an instance to another master keeps it external. Other built-in
+Analog Blocks remain black-box calls. Artwork cannot change external
+invocation into a primitive or model binding.
 
 Reviewed native-device mappings may source those ordered target terminals from
 stable local pins with different names. The released SKY130 resistor maps
@@ -144,9 +148,14 @@ library model or PDK.
 ## Device definition
 
 Each exportable electrical device Symbol has one reviewed `DeviceDescriptor`
-in `packages/devices`. Built-in Analog Blocks instead have a black-box
-subcircuit descriptor: a master name and ordered ports, including fixed supply
-ports. The logic Symbols — gates, buffer, inverter, adder, multiplier and the
+in `packages/devices`. Built-in Analog Blocks have a subcircuit descriptor: a
+master name and ordered ports, including fixed supply ports. Five amplifier
+targets now have built-in, frequency-independent ideal E/G-source masters;
+their VDD/VSS ports remain in the interface but do not power or clamp the
+model. The default opamp gain is 1e6, voltage-amplifier gain is 1, and
+transconductance is 1m siemens; these are raw instance overrides named `gain`
+or `gm`, not a foundry model. Outputs may exceed supply rails. The logic
+Symbols — gates, buffer, inverter, adder, multiplier and the
 D flip-flops — are Blocks on that same contract: the drawing says what the
 block is and which nodes it meets, and the model behind the master name is
 the reader's to supply. Their ports follow the Symbol's own pins, a clock or
