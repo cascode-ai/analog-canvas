@@ -9,6 +9,7 @@ import {
   IDEAL_COMPARATOR_TARGET,
   createReferenceIndex,
   deviceDescriptor,
+  idealAnalogBlockParameter,
   nextReference,
   referencePolicyForSymbol,
   referencePolicyForInstance,
@@ -196,18 +197,20 @@ export function initialInstanceNetlist(
   const binding = modelTarget
     ? bindingForEditedModel(symbolId, modelTarget)
     : defaultBinding(symbolId);
+  const ideal =
+    binding?.kind === "unresolved-subcircuit"
+      ? idealAnalogBlockParameter(binding.name)
+      : undefined;
   return {
     ...(binding ? { binding } : {}),
-    parameters:
-      binding?.kind === "unresolved-subcircuit" &&
+    parameters: {
+      ...(ideal ? { [ideal.name]: ideal.defaultValue } : {}),
+      ...(binding?.kind === "unresolved-subcircuit" &&
       binding.name === IDEAL_COMPARATOR_TARGET
-        ? {
-            vhigh: "1",
-            vlow: "0",
-            vtransition: "1m",
-            ...rawParameters(parameterValues),
-          }
-        : rawParameters(parameterValues),
+        ? { vhigh: "1", vlow: "0", vtransition: "1m" }
+        : {}),
+      ...rawParameters(parameterValues),
+    },
   };
 }
 

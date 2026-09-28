@@ -165,7 +165,10 @@ export function generateCircuitSource(
     };
   const parameters = printed.parameters.flatMap(
     (span): EditableCircuitParameter[] => {
-      const document = project.documents.find((d) => d.id === span.documentId)!;
+      // Built-in ideal models are generated Cells in the printed netlist, not
+      // editable Canvas Documents. Their parameter spans have no owner here.
+      const document = project.documents.find((d) => d.id === span.documentId);
+      if (!document) return [];
       const instance = document.instances.find((i) => i.id === span.instanceId);
       const generated = ir.cells
         .find((c) => c.id === span.documentId)
@@ -213,6 +216,10 @@ export function generateCircuitSource(
       text: printed.text,
       parameters,
       sourceBodies: printed.instances.flatMap((span): EditableSourceBody[] => {
+        const document = project.documents.find(
+          (d) => d.id === span.documentId,
+        );
+        if (!document) return [];
         const cell = ir.cells.find((cell) => cell.id === span.documentId)!;
         const card = cell.instances.find((card) => card.id === span.instanceId);
         // Derived current sensors have no editable Canvas source body.
@@ -234,9 +241,6 @@ export function generateCircuitSource(
               ? undefined
               : tokens?.[close + 1];
         if (!master) return [];
-        const document = project.documents.find(
-          (d) => d.id === span.documentId,
-        )!;
         const instance = document.instances.find(
           (i) => i.id === span.instanceId,
         )!;
@@ -251,10 +255,10 @@ export function generateCircuitSource(
         ];
       }),
       instances: printed.instances,
-      reachedDocuments: ir.cells.map((cell) => ({
-        id: cell.id,
-        revision: project.documents.find((d) => d.id === cell.id)!.revision,
-      })),
+      reachedDocuments: ir.cells.flatMap((cell) => {
+        const document = project.documents.find((d) => d.id === cell.id);
+        return document ? [{ id: cell.id, revision: document.revision }] : [];
+      }),
     },
     warnings: analysis.diagnostics,
   };

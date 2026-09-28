@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { SchematicDocument } from "@icm/model";
+import { componentParameters } from "../component-insert/component-parameters";
+import { initialInstanceNetlist } from "../netlist-export/netlist-authoring";
 
 import {
   defaultComponentPropertyCode,
@@ -33,6 +35,35 @@ const context = {
 };
 
 describe("component property code", () => {
+  it.each([
+    ["opamp", "gain", "1e6"],
+    ["voltage-amplifier", "gain", "1"],
+    ["transconductance", "gm", "1m"],
+  ])(
+    "shows and edits the netlist parameter in %s JSON",
+    (symbolId, key, value) => {
+      const block: Instance = {
+        ...instance,
+        symbolId,
+        reference: "X1",
+        netlist: initialInstanceNetlist(symbolId, {})!,
+      };
+      const blockContext = {
+        ...context,
+        instance: block,
+        details: { parameters: componentParameters(symbolId) },
+      };
+      const decoded = JSON.parse(formatComponentPropertyCode(blockContext));
+      expect(decoded.parameters[key]).toBe(value);
+      decoded.parameters[key] = "2";
+      expect(
+        parseComponentPropertyCode(JSON.stringify(decoded), blockContext),
+      ).toMatchObject({
+        ok: true,
+        value: { parameters: { [key]: "2" } },
+      });
+    },
+  );
   it("projects a legacy sensor into device/terminal controls and validates direction", () => {
     const sourceContext = {
       ...context,

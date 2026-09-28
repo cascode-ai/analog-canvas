@@ -14,6 +14,23 @@ import {
 } from "@icm/devices";
 
 describe("component parameter catalogue", () => {
+  it.each([
+    ["opamp", "gain", "1e6"],
+    ["opamp-differential", "gain", "1e6"],
+    ["voltage-amplifier", "gain", "1"],
+    ["transconductance", "gm", "1m"],
+    ["differential-transconductance", "gm", "1m"],
+  ])(
+    "exposes editable ideal-model parameters for %s",
+    (symbolId, key, value) => {
+      expect(
+        componentParameters(symbolId).map((parameter) => parameter.key),
+      ).toContain(key);
+      expect(initialComponentParameterValues(symbolId)).toMatchObject({
+        [key]: value,
+      });
+    },
+  );
   it("exposes a parallel multiplier for both bipolar transistor polarities", () => {
     for (const symbolId of ["npn", "pnp"]) {
       expect(componentParameters(symbolId)).toMatchObject([

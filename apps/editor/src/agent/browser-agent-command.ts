@@ -87,6 +87,7 @@ import {
 import { planPlacedCellPin } from "../features/component-insert/cell-pin-placement";
 import { planVddRailEdits } from "../features/component-insert/vdd-rail";
 import { planInitialMosBulkDefault } from "../features/component-insert/mos-bulk-defaults";
+import { initialInstanceNetlist } from "../features/netlist-export/netlist-authoring";
 
 /** No second geometry/model/clipboard implementation: plan exactly as the GUI does. */
 export function planBrowserAgentCommand(
@@ -357,6 +358,22 @@ export function planBrowserAgentCommand(
         }
         if (!instance.placement)
           throw new Error("New component requires placement");
+        const initialNetlist = initialInstanceNetlist(
+          instance.symbolId,
+          instance.netlist?.parameters ?? {},
+        );
+        if (initialNetlist)
+          instance = {
+            ...instance,
+            netlist: {
+              ...initialNetlist,
+              ...instance.netlist,
+              parameters: {
+                ...initialNetlist.parameters,
+                ...instance.netlist?.parameters,
+              },
+            },
+          };
         if (
           instance.symbolId === "port" ||
           instance.symbolId === "port-filled" ||

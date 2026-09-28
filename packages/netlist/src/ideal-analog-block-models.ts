@@ -1,5 +1,5 @@
 import { deriveStableId } from "@icm/model";
-import { subcircuitDescriptor } from "@icm/devices";
+import { idealAnalogBlockParameter, subcircuitDescriptor } from "@icm/devices";
 
 import type { DesignNetlistCell, DesignNetlistInstance } from "./ir.js";
 import type { NetlistFormat } from "./net-name-codec.js";
@@ -16,39 +16,27 @@ const MODELS: Record<
   {
     symbolId: string;
     ports: readonly string[];
-    parameter: "gain" | "gm";
-    defaultValue: string;
   }
 > = {
   opamp: {
     symbolId: "opamp",
     ports: ["VDD", "VSS", "VIP", "VIN", "VOUT"],
-    parameter: "gain",
-    defaultValue: "1e6",
   },
   opamp_differential: {
     symbolId: "opamp-differential",
     ports: ["VDD", "VSS", "VIP", "VIN", "VOP", "VON"],
-    parameter: "gain",
-    defaultValue: "1e6",
   },
   voltage_amplifier: {
     symbolId: "voltage-amplifier",
     ports: ["VDD", "VSS", "VIN", "VOUT"],
-    parameter: "gain",
-    defaultValue: "1",
   },
   transconductance: {
     symbolId: "transconductance",
     ports: ["VDD", "VSS", "VIN", "VOUT"],
-    parameter: "gm",
-    defaultValue: "1m",
   },
   differential_transconductance: {
     symbolId: "differential-transconductance",
     ports: ["VDD", "VSS", "VIP", "VIN", "VOUT"],
-    parameter: "gm",
-    defaultValue: "1m",
   },
 };
 
@@ -93,6 +81,9 @@ export function idealAnalogBlockCell(
   if (!Object.hasOwn(MODELS, target)) return null;
   const name = target as IdealBlockTarget;
   const model = MODELS[name];
+  const parameter = idealAnalogBlockParameter(name);
+  if (!parameter)
+    throw new Error(`Ideal analog model has no parameter: ${name}`);
   const descriptor = subcircuitDescriptor(model.symbolId);
   if (
     !descriptor ||
@@ -146,7 +137,7 @@ export function idealAnalogBlockCell(
       scope: "local",
     })),
     formalParameters: [
-      { name: model.parameter, defaultValue: model.defaultValue },
+      { name: parameter.name, defaultValue: parameter.defaultValue },
     ],
     instances,
   };

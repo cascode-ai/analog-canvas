@@ -12,6 +12,34 @@ import { EditorDocumentController } from "../document/document-controller";
 import { BrowserAgentHost } from "./browser-agent-host";
 import { planBrowserAgentCommand } from "./browser-agent-command";
 
+it("gives Agent-placed comparators the same isolated model as GUI placement", async () => {
+  const { client, controller } = await folder();
+  const placed = await client.applyActions([
+    {
+      kind: "place-component",
+      symbol: "comparator",
+      reference: "X1",
+      position: { x: 100, y: 100 },
+      parameters: { vhigh: "3.3" },
+    },
+    {
+      kind: "place-component",
+      symbol: "opamp",
+      reference: "X2",
+      position: { x: 220, y: 100 },
+    },
+  ]);
+  expect(placed.ok, placed.message).toBe(true);
+  expect(controller.document.instances[0]?.netlist).toEqual({
+    binding: { kind: "unresolved-subcircuit", name: "icm_ideal_comparator" },
+    parameters: { vhigh: "3.3", vlow: "0", vtransition: "1m" },
+  });
+  expect(controller.document.instances[1]?.netlist).toEqual({
+    binding: { kind: "unresolved-subcircuit", name: "opamp" },
+    parameters: { gain: "1e6" },
+  });
+});
+
 it("keeps the native power-label look through a plain-text rename", async () => {
   const { client, controller } = await folder();
   const placed = await client.applyActions([

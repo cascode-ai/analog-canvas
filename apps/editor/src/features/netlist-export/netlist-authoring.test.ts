@@ -150,7 +150,15 @@ describe("netlist authoring", () => {
         kind: "unresolved-subcircuit",
         name: "opamp_differential",
       },
-      parameters: {},
+      parameters: { gain: "1e6" },
+    });
+    expect(initialInstanceNetlist("voltage-amplifier", {})).toMatchObject({
+      parameters: { gain: "1" },
+    });
+    expect(
+      initialInstanceNetlist("transconductance", { gm: "2m" }),
+    ).toMatchObject({
+      parameters: { gm: "2m" },
     });
     expect(initialInstanceNetlist("comparator", {})).toEqual({
       binding: {
