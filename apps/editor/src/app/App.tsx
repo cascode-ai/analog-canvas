@@ -306,6 +306,7 @@ import {
 } from "../features/drafting/drafting-drag-controller";
 import {
   resolveEditorShortcut,
+  shouldConsumeEditorEscape,
   stepBoundedScale,
 } from "../interaction/editor-shortcuts";
 import { createEditorCommandRouter } from "../commands/editor-command";
@@ -4995,7 +4996,23 @@ function WorkspaceEditor({
       const escapeIntent =
         shortcut.kind === "run-command" &&
         shortcut.command.id === "editor.cancel";
-      if (!escapeIntent) event.preventDefault();
+      if (escapeIntent && shouldConsumeEditorEscape(currentInteraction.kind)) {
+        // Placement, copy and drawing modes own Escape. Safari otherwise lets
+        // the key continue to its browser/full-screen shortcut after the
+        // editor cancels the gesture, which can close the surrounding browser
+        // UI. Consume the event only while an editor interaction is active;
+        // an idle Escape remains available to the browser.
+        event.preventDefault();
+        event.stopPropagation();
+        if (
+          globalThis.document.fullscreenElement &&
+          typeof globalThis.document.exitFullscreen === "function"
+        ) {
+          void globalThis.document.exitFullscreen().catch(() => {
+            // Fullscreen may already have been closed by the browser.
+          });
+        }
+      } else if (!escapeIntent) event.preventDefault();
 
       switch (shortcut.kind) {
         case "run-command":

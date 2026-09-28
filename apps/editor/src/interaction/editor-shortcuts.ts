@@ -56,6 +56,13 @@ export type EditorShortcutIntent =
   | { kind: "remove-wire-waypoint" }
   | { kind: "blocked-interaction-command"; command: string };
 
+/** Only an active canvas interaction should consume the browser's Escape. */
+export function shouldConsumeEditorEscape(
+  interactionMode: InteractionMode,
+): boolean {
+  return interactionMode !== "idle";
+}
+
 export function stepBoundedScale<T extends number>(
   current: T,
   steps: readonly T[],
