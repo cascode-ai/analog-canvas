@@ -1949,7 +1949,7 @@ test("a signed-out visitor sees the newest circuits and is asked to sign in for 
   page,
 }) => {
   // Signed out, the Worker answers the wall with its newest few circuits.
-  const newest = Array.from({ length: 10 }, (_, index) => ({
+  const newest = Array.from({ length: 24 }, (_, index) => ({
     ...ENTRY,
     id: `g-new-${index}`,
     name: `Newest ${index}`,
@@ -1975,9 +1975,20 @@ test("a signed-out visitor sees the newest circuits and is asked to sign in for 
     route.fulfill({ status: 401, json: { error: "sign-in-required" } }),
   );
   await page.goto("/");
-  await expect(page.locator("a.gallery-tile")).toHaveCount(10);
+  const tiles = page.locator("a.gallery-tile");
+  await expect(tiles).toHaveCount(24);
   const more = page.getByTestId("gallery-sign-in-more");
-  await expect(more).toContainText("10 newest of 42 circuits");
+  await expect(more).toContainText("24 newest of 42 circuits");
+  // Without the sidebar the wall still spans the page: several columns, not
+  // one tile-wide strip.
+  await expect
+    .poll(async () => {
+      const lefts = await tiles.evaluateAll((links) =>
+        links.map((link) => Math.round(link.getBoundingClientRect().left)),
+      );
+      return new Set(lefts).size;
+    })
+    .toBeGreaterThanOrEqual(3);
   await expect(more).toContainText("Sign in (top right)");
   // Nothing to narrow: no tags, search or filters beside the wall.
   await expect(page.getByTestId("gallery-tag-sidebar")).toHaveCount(0);

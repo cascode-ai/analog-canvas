@@ -1442,6 +1442,12 @@ div.gallery-contributor-status {
   flex: 1;
 }
 
+/* Signed out there is no sidebar. The wall must take the whole row: left in
+   the sidebar's content-sized column, it measured one tile wide. */
+.gallery-browser-wall-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .gallery-main {
   min-width: 0;
 }
