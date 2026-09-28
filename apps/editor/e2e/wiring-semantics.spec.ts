@@ -452,6 +452,33 @@ test("middle click cycles the wire corner and never commits the wire", async ({
   await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(1);
 });
 
+test("Wire options and / choose the corner without a middle button", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await page.getByTestId("draw-tool-wire").click();
+  const chip = page.getByTestId("wire-options-toggle");
+  await expect(chip).toHaveText("Orthogonal · F3");
+
+  // An idle Wire tool used to restore its remembered shape on the next
+  // render, so a status-bar choice snapped straight back.
+  await chip.click();
+  const options = page.getByTestId("wire-options");
+  await options.getByLabel("Route").selectOption("octilinear");
+  await expect(chip).toHaveText("45° · F3");
+  await expect(options.getByLabel("Route")).toHaveValue("octilinear");
+
+  // The keyboard twin of a middle click continues the same cycle.
+  await options.getByLabel("Route").blur();
+  await page.keyboard.press("/");
+  await expect(page.getByTestId("status")).toContainText(
+    "Wire corner: any angle",
+  );
+  await expect(chip).toHaveText("Any angle · F3");
+  await page.keyboard.press("/");
+  await expect(chip).toHaveText("Orthogonal · F3");
+});
+
 test("dragging a wire's end onto another wire joins them into one net", async ({
   page,
 }) => {

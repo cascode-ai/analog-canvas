@@ -315,6 +315,19 @@ describe("editor shortcut contract", () => {
     ).toBeNull();
   });
 
+  it("cycles the wire corner with / only while Wire owns the canvas", () => {
+    expect(resolve("/")).toBeNull();
+    expect(resolve("/", { interactionMode: "wire" })).toEqual({
+      kind: "cycle-wire-corner",
+    });
+    expect(
+      resolve("/", { interactionMode: "wire", isTyping: true }),
+    ).toBeNull();
+    expect(
+      resolve("/", { interactionMode: "wire" }, { ctrlKey: true }),
+    ).toBeNull();
+  });
+
   it("enters a selected Cell with E and returns to its parent with Shift+E", () => {
     expect(resolve("e")).toEqual({ kind: "hierarchy-selection-required" });
     expect(resolve("e", { hasHierarchyEnterSelection: true })).toEqual({

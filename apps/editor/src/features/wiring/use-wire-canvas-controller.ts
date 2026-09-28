@@ -224,6 +224,21 @@ export function useWireCanvasController({
     setStatus(`Wire corner: ${next.label}`);
   };
 
+  // The Wire options menu picks a shape directly. It must update the
+  // remembered shape too, or the idle-tool effect above restores the old one
+  // on the next render and the choice appears to do nothing.
+  const chooseWireShape = (shape: {
+    routingMode?: WireRoutingMode;
+    cornerOrder?: WireCornerOrder;
+  }): void => {
+    const wire = readCurrentWireSession();
+    const routingMode = shape.routingMode ?? wire.routingMode;
+    const cornerOrder = shape.cornerOrder ?? wire.cornerOrder;
+    lastWireShapeRef.current = { routingMode, cornerOrder };
+    if (routingMode !== wire.routingMode) setWireRoutingMode(routingMode);
+    if (cornerOrder !== wire.cornerOrder) setWireCornerOrder(cornerOrder);
+  };
+
   const applyWireCanvasPoint = (
     rawPoint: Point,
     svg: SVGSVGElement,
@@ -377,6 +392,7 @@ export function useWireCanvasController({
   return {
     resolveWireCanvasSnap,
     cycleWireCornerShape,
+    chooseWireShape,
     applyWireCanvasPoint,
     handleRoutePointerDown,
   };

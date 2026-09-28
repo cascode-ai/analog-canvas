@@ -21,6 +21,7 @@ export const EDITOR_SHORTCUT_REFERENCE = [
   { keys: ["P"], action: "Place Cell Pin" },
   { keys: ["W"], action: "Draw wire" },
   { keys: ["F3"], action: "Wire options" },
+  { keys: ["/"], action: "Cycle wire corner shape" },
   { keys: ["T"], action: "Add text" },
   { keys: ["O"], action: "Display settings" },
   { keys: ["C"], action: "Copy circuit selection" },

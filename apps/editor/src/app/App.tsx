@@ -3597,6 +3597,7 @@ function WorkspaceEditor({
   const {
     resolveWireCanvasSnap,
     cycleWireCornerShape,
+    chooseWireShape,
     applyWireCanvasPoint,
     handleRoutePointerDown,
   } = useWireCanvasController({
@@ -5094,6 +5095,9 @@ function WorkspaceEditor({
           return;
         case "toggle-wire-options":
           setWireOptionsOpen((open) => !open);
+          return;
+        case "cycle-wire-corner":
+          cycleWireCornerShape();
           return;
         case "finish-drafting":
           finishDraftingCreate();
@@ -9341,8 +9345,12 @@ function WorkspaceEditor({
           onOpen: openIssuesPanel,
         }}
         onToggleWireOptions={() => setWireOptionsOpen((open) => !open)}
-        onWireRoutingModeChange={setWireRoutingMode}
-        onWireCornerOrderChange={setWireCornerOrder}
+        onWireRoutingModeChange={(routingMode) =>
+          chooseWireShape({ routingMode })
+        }
+        onWireCornerOrderChange={(cornerOrder) =>
+          chooseWireShape({ cornerOrder })
+        }
         onOpenAnalytics={() => {
           void guardDirtyReplacement("Open Analytics", () => {
             allowNextBrowserUnload();

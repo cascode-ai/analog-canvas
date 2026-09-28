@@ -52,6 +52,7 @@ export type EditorShortcutIntent =
     }
   | { kind: "finish-wire" | "finish-drafting" }
   | { kind: "toggle-wire-options" }
+  | { kind: "cycle-wire-corner" }
   | { kind: "remove-wire-waypoint" }
   | { kind: "blocked-interaction-command"; command: string };
 
@@ -78,6 +79,17 @@ export function resolveEditorShortcut(
     context.interactionMode === "wire"
   ) {
     return { kind: "toggle-wire-options" };
+  }
+  // The keyboard twin of a middle-button click, for trackpads and one-button
+  // mice: cycle the active wire's corner shape (the KiCad posture key).
+  if (
+    event.key === "/" &&
+    !commandModifier &&
+    !event.altKey &&
+    !context.isTyping &&
+    context.interactionMode === "wire"
+  ) {
+    return { kind: "cycle-wire-corner" };
   }
   if (event.key === "F5") {
     return context.hasUnsavedWork ? { kind: "block-browser-refresh" } : null;
