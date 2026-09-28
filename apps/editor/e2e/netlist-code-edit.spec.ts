@@ -506,6 +506,45 @@ test("rejects duplicate names atomically and retains a draft when the canvas cha
   await expect(code).toContainText("R_canvas");
 });
 
+test("Refresh regenerates the netlist from the circuit, dropping cards added or deleted in the code", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "editable.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(fixture())),
+  });
+  const code = page.getByLabel("Netlist code", { exact: true });
+  const alert = page
+    .getByRole("region", { name: "Live netlist" })
+    .getByRole("alert");
+  const refresh = page.getByRole("button", { name: "Refresh netlist" });
+  await expect(code).toContainText("R2 ");
+  const generated = await code.innerText();
+  // Deleting a card never reaches the circuit ...
+  await code.fill(
+    generated
+      .split("\n")
+      .filter((line) => !/^R2\s/u.test(line))
+      .join("\n"),
+  );
+  await expect(alert).toContainText("Refresh regenerates the netlist");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("2");
+  // ... and Refresh brings back the circuit's own netlist.
+  await refresh.click();
+  await expect(alert).toHaveCount(0);
+  await expect(code).toContainText("R2 ");
+  // Adding a card is no different: only the drawing adds parts.
+  await code.fill(`${generated.trimEnd()}\nR9 a b 1k\n`);
+  await expect(alert).toContainText("Refresh regenerates the netlist");
+  await refresh.click();
+  await expect(alert).toHaveCount(0);
+  await expect(code).not.toContainText("R9");
+  await expect(page.getByTestId("active-instance-count")).toHaveText("2");
+});
+
 test("opening and reopening Netlist preserves incomplete imported device data", async ({
   page,
 }) => {

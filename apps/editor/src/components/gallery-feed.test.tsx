@@ -14,6 +14,7 @@ import {
 import {
   GALLERY_SIGN_IN_REQUIRED,
   galleryAuthorsOf,
+  galleryFeedQueryKey,
   removeGalleryAuthorEntry,
   type GalleryFeedEntry,
 } from "../gallery-client";
@@ -29,12 +30,21 @@ describe("Gallery landing preload", () => {
     parts: [] as string[],
   };
 
-  it("is consumed only for the first unfiltered wall request", () => {
-    expect(canReuseGalleryLandingFeed(0, null, defaultFilters)).toBe(true);
-    expect(canReuseGalleryLandingFeed(0, "default", defaultFilters)).toBe(
-      false,
+  it("is consumed only for the wall's first request, and only for its own query", () => {
+    const unfiltered = galleryFeedQueryKey(defaultFilters);
+    expect(
+      canReuseGalleryLandingFeed(0, null, unfiltered, defaultFilters),
+    ).toBe(true);
+    // A preload from before queries were recorded asked the unfiltered wall.
+    expect(canReuseGalleryLandingFeed(0, null, undefined, defaultFilters)).toBe(
+      true,
     );
-    expect(canReuseGalleryLandingFeed(1, null, defaultFilters)).toBe(false);
+    expect(
+      canReuseGalleryLandingFeed(0, "default", unfiltered, defaultFilters),
+    ).toBe(false);
+    expect(
+      canReuseGalleryLandingFeed(1, null, unfiltered, defaultFilters),
+    ).toBe(false);
     for (const filters of [
       { ...defaultFilters, author: "alice" },
       { ...defaultFilters, ownerUserId: "account-alice" },
@@ -44,7 +54,19 @@ describe("Gallery landing preload", () => {
       { ...defaultFilters, attention: true },
       { ...defaultFilters, parts: ["6-10"] },
     ]) {
-      expect(canReuseGalleryLandingFeed(0, null, filters)).toBe(false);
+      // A remembered or linked narrowing preloads its own query ...
+      expect(
+        canReuseGalleryLandingFeed(
+          0,
+          null,
+          galleryFeedQueryKey(filters),
+          filters,
+        ),
+      ).toBe(true);
+      // ... and never answers another one.
+      expect(canReuseGalleryLandingFeed(0, null, unfiltered, filters)).toBe(
+        false,
+      );
     }
   });
 });

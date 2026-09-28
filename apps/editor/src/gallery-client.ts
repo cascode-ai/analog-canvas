@@ -221,6 +221,11 @@ export interface GalleryFeedPage {
   filterCounts?: GalleryQuickFilterCounts;
   /** Contributors to the filtered wall, before pagination. */
   authors?: GalleryAuthorOption[];
+  /**
+   * Signed out, the wall is only its newest few circuits, unfiltered and
+   * unpaged; `total` still counts every one a signed-in reader would see.
+   */
+  signInForMore?: boolean;
 }
 
 /** A Gallery read's answer when only signed-in readers may see the Gallery. */
@@ -237,6 +242,8 @@ export interface GalleryFeedState {
   filterCounts?: GalleryQuickFilterCounts;
   /** Contributors to the filtered wall, before pagination. */
   authors?: GalleryAuthorOption[];
+  /** The signed-out wall: its newest few circuits only. */
+  signInForMore?: boolean;
 }
 
 function normalizeGallerySearchText(value: string): string {
@@ -346,6 +353,8 @@ export interface GalleryTagSummary {
 
 export interface GalleryLandingPreload {
   feed?: Promise<GalleryFeedResult>;
+  /** The query the preloaded feed answers; see galleryFeedQueryKey. */
+  feedQuery?: string;
   tags: Promise<GalleryTagSummary>;
   /** The filters the preloaded tag counts answer; see galleryTagScope. */
   tagsScope?: string;
@@ -439,38 +448,55 @@ export function removeGalleryAuthorEntry(
   );
 }
 
+/** The server filters one wall asks for. */
+export interface GalleryFeedQuery {
+  author?: string | null;
+  ownerUserId?: string | null;
+  tags?: readonly string[];
+  /** Only circuits whose drawing extracts to a netlist. */
+  netlistable?: boolean;
+  /** Only circuits the signed-in viewer has liked. */
+  liked?: boolean;
+  attention?: boolean;
+  /** One reason Needs attention narrows to. */
+  attentionKind?: string | null;
+  /** Sizes by part count; any of them matches. */
+  parts?: readonly string[];
+}
+
+function galleryFeedParams(query: GalleryFeedQuery): URLSearchParams {
+  const params = new URLSearchParams();
+  if (query.attention) params.set("attention", "1");
+  if (query.attention && query.attentionKind)
+    params.set("reason", query.attentionKind);
+  if (query.author) params.set("author", query.author);
+  if (query.ownerUserId) params.set("owner", query.ownerUserId);
+  if (query.tags && query.tags.length > 0) {
+    params.set("tags", query.tags.join(","));
+  }
+  if (query.netlistable) params.set("netlistable", "1");
+  if (query.liked) params.set("liked", "1");
+  if (query.parts && query.parts.length > 0)
+    params.set("parts", query.parts.join(","));
+  return params;
+}
+
+/**
+ * One key per first-page request: the landing preload and the wall compare
+ * keys, so a preloaded page is reused only for the exact query it answers.
+ */
+export function galleryFeedQueryKey(query: GalleryFeedQuery): string {
+  return galleryFeedParams(query).toString();
+}
+
 export async function loadGalleryFeed(
   fetchLike: typeof fetch = fetch,
-  options: {
+  options: GalleryFeedQuery & {
     cursor?: string | null;
-    author?: string | null;
-    ownerUserId?: string | null;
-    tags?: readonly string[];
-    /** Only circuits whose drawing extracts to a netlist. */
-    netlistable?: boolean;
-    /** Only circuits the signed-in viewer has liked. */
-    liked?: boolean;
     limit?: number;
-    attention?: boolean;
-    /** One reason Needs attention narrows to. */
-    attentionKind?: string | null;
-    /** Sizes by part count; any of them matches. */
-    parts?: readonly string[];
   } = {},
 ): Promise<GalleryFeedResult> {
-  const params = new URLSearchParams();
-  if (options.attention) params.set("attention", "1");
-  if (options.attention && options.attentionKind)
-    params.set("reason", options.attentionKind);
-  if (options.author) params.set("author", options.author);
-  if (options.ownerUserId) params.set("owner", options.ownerUserId);
-  if (options.tags && options.tags.length > 0) {
-    params.set("tags", options.tags.join(","));
-  }
-  if (options.netlistable) params.set("netlistable", "1");
-  if (options.liked) params.set("liked", "1");
-  if (options.parts && options.parts.length > 0)
-    params.set("parts", options.parts.join(","));
+  const params = galleryFeedParams(options);
   if (options.cursor) params.set("cursor", options.cursor);
   if (options.limit !== undefined) params.set("limit", String(options.limit));
   const query = params.toString();
@@ -488,12 +514,14 @@ export async function loadGalleryFeed(
       total?: unknown;
       filterCounts?: GalleryQuickFilterCounts;
       authors?: GalleryAuthorOption[];
+      signInForMore?: unknown;
     };
     return {
       entries: payload.entries ?? [],
       nextCursor:
         typeof payload.nextCursor === "string" ? payload.nextCursor : null,
       total: typeof payload.total === "number" ? payload.total : null,
+      ...(payload.signInForMore === true ? { signInForMore: true } : {}),
       ...(Array.isArray(payload.authors) &&
       payload.authors.every(
         (author) =>

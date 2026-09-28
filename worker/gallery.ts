@@ -222,6 +222,62 @@ async function galleryReaderOf(
   return user;
 }
 
+/**
+ * Signed out, a visitor sees the wall's newest circuits (these only, each with
+ * its preview and Project) and is asked to sign in for the rest. The set is
+ * remembered for a minute per isolate, so the wall's previews do not each ask
+ * the Gallery for it again; a circuit that leaves the wall in that minute is
+ * still refused by its own public-status check.
+ */
+export const ANONYMOUS_GALLERY_SIZE = 10;
+let anonymousWall: {
+  expires: number;
+  entries: unknown[];
+  total: number;
+  ids: ReadonlySet<string>;
+} | null = null;
+async function anonymousGalleryWall(
+  env: GalleryEnv,
+): Promise<typeof anonymousWall> {
+  const now = Date.now();
+  if (anonymousWall && anonymousWall.expires > now) return anonymousWall;
+  const { status, payload } = await callGallery<{
+    entries?: { id?: unknown }[];
+    total?: unknown;
+  }>(env, "list", {
+    isAdmin: false,
+    attention: false,
+    attentionKind: null,
+    viewerId: "",
+    limit: String(ANONYMOUS_GALLERY_SIZE),
+    cursor: null,
+    author: null,
+    ownerUserId: null,
+    tags: [],
+    netlistable: false,
+    liked: false,
+    parts: [],
+  });
+  if (status !== 200 || !Array.isArray(payload.entries)) return null;
+  const entries = payload.entries.slice(0, ANONYMOUS_GALLERY_SIZE);
+  anonymousWall = {
+    expires: now + 60_000,
+    entries,
+    total: typeof payload.total === "number" ? payload.total : entries.length,
+    ids: new Set(
+      entries.flatMap((entry) =>
+        typeof entry.id === "string" ? [entry.id] : [],
+      ),
+    ),
+  };
+  return anonymousWall;
+}
+
+/** Test seam: forget the remembered anonymous wall. */
+export function resetAnonymousGalleryWall(): void {
+  anonymousWall = null;
+}
+
 /** A reader's copy of a cacheable response: a browser may keep it, a shared cache may not. */
 function readerCopy(response: Response): Response {
   const headers = new Headers(response.headers);
@@ -1620,17 +1676,36 @@ export async function routeGalleryRequest(
   if (!url.pathname.startsWith("/api/gallery")) return null;
   const segments = url.pathname.split("/").filter(Boolean).slice(2);
   // The Community Gallery is for signed-in readers. Without a session or the
-  // read-only Gallery credential a visitor reads nothing from it: no list,
-  // count, preview or Project. Writes keep their own, stricter checks.
+  // read-only Gallery credential a visitor reads only the newest few circuits
+  // (the wall, and each one's preview and Project); every other read asks to
+  // sign in. Writes keep their own, stricter checks.
   if (
     (request.method === "GET" || request.method === "HEAD") &&
     !hasGalleryReadToken(request, env) &&
     !(await galleryReaderOf(request, env))
-  )
-    return Response.json(
-      { error: "sign-in-required" },
-      { status: 401, headers: { "cache-control": "no-store" } },
-    );
+  ) {
+    const wall = await anonymousGalleryWall(env);
+    if (wall && segments.length === 0)
+      return Response.json(
+        {
+          entries: wall.entries,
+          nextCursor: null,
+          total: wall.total,
+          signInForMore: true,
+        },
+        { headers: { "cache-control": "no-store" } },
+      );
+    const readsWallCircuit =
+      wall !== null &&
+      wall.ids.has(segments[0] ?? "") &&
+      (segments.length === 1 ||
+        (segments.length === 2 && segments[1] === "preview.svg"));
+    if (!readsWallCircuit)
+      return Response.json(
+        { error: "sign-in-required" },
+        { status: 401, headers: { "cache-control": "no-store" } },
+      );
+  }
 
   if (
     segments.length === 2 &&

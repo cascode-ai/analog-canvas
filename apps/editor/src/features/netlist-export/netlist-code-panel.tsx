@@ -246,12 +246,31 @@ export function NetlistCodePanel({
     }
     ownApply.current = false;
   }, [source]);
-  function apply(options: { fillMissingDefaults?: boolean } = {}) {
-    if (!dirty && !options.fillMissingDefaults) return true;
-    if (conflict) return false;
+  function apply(
+    options: { fillMissingDefaults?: boolean; dropUnwritable?: boolean } = {},
+  ) {
+    let writesDraft = dirty;
+    // The netlist is generated from the circuit, never the other way round.
+    // Refresh drops a draft it cannot write back (added or deleted lines,
+    // changed wiring, text written against a circuit that has since changed):
+    // it never reached the circuit, and the circuit's netlist replaces it.
+    if (
+      writesDraft &&
+      options.dropUnwritable &&
+      (conflict ||
+        result?.status !== "ready" ||
+        !planNetlistCodeEdit(project, result, draftRef.current).ok)
+    ) {
+      writesDraft = false;
+      setDraft(source);
+      setEditBaseline(source);
+      setApplyError(null);
+    }
+    if (!writesDraft && !options.fillMissingDefaults) return true;
+    if (writesDraft && conflict) return false;
     let edits: ProjectStructureEdit[] = [];
     let working = project;
-    if (dirty) {
+    if (writesDraft) {
       if (result?.status !== "ready") return false;
       const plan = planNetlistCodeEdit(project, result, draftRef.current);
       if (!plan.ok) {
@@ -305,7 +324,7 @@ export function NetlistCodePanel({
     return true;
   }
   function refresh() {
-    if (!apply({ fillMissingDefaults: true })) return;
+    if (!apply({ fillMissingDefaults: true, dropUnwritable: true })) return;
     setCompileRevision((revision) => revision + 1);
     setApplyError(null);
     focusInstance(null);
@@ -441,7 +460,7 @@ export function NetlistCodePanel({
             className="netlist-code-refresh"
             data-testid="refresh-netlist-panel"
             aria-label="Refresh netlist"
-            title="Refresh netlist and fill missing models and values"
+            title="Regenerate the netlist from the circuit and fill missing models and values"
             onClick={refresh}
           >
             <svg viewBox="0 0 20 20" aria-hidden="true">

@@ -54,7 +54,7 @@ export function planNetlistCodeEdit(
     return {
       ok: false,
       message:
-        "Edit device names, models and parameter values here. Change connections, ports or device structure on the canvas or in Project Code.",
+        "Edit device names, models and parameter values here. Change connections, ports or device structure on the canvas or in Project Code; Refresh regenerates the netlist from the circuit.",
     };
   const documents = new Map<string, Map<string, Assignment>>();
   const seen = new Map<string, string>();

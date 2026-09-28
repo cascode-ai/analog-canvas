@@ -1945,6 +1945,85 @@ test("a signed-out visitor sees a sign-in prompt instead of the Gallery", async 
   expect(reads).toContain("/api/gallery");
 });
 
+test("a signed-out visitor sees the newest circuits and is asked to sign in for the rest", async ({
+  page,
+}) => {
+  // Signed out, the Worker answers the wall with its newest few circuits.
+  const newest = Array.from({ length: 10 }, (_, index) => ({
+    ...ENTRY,
+    id: `g-new-${index}`,
+    name: `Newest ${index}`,
+    createdAt: `2026-09-${String(28 - index).padStart(2, "0")}T10:00:00.000Z`,
+  }));
+  await page.route(galleryListUrl, (route) =>
+    route.fulfill({
+      json: {
+        entries: newest,
+        nextCursor: null,
+        total: 42,
+        signInForMore: true,
+      },
+    }),
+  );
+  await page.route("**/api/gallery/*/preview.svg*", (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"/>',
+    }),
+  );
+  await page.route("**/api/gallery/tags*", (route) =>
+    route.fulfill({ status: 401, json: { error: "sign-in-required" } }),
+  );
+  await page.goto("/");
+  await expect(page.locator("a.gallery-tile")).toHaveCount(10);
+  const more = page.getByTestId("gallery-sign-in-more");
+  await expect(more).toContainText("10 newest of 42 circuits");
+  await expect(more).toContainText("Sign in (top right)");
+  // Nothing to narrow: no tags, search or filters beside the wall.
+  await expect(page.getByTestId("gallery-tag-sidebar")).toHaveCount(0);
+  await expect(page.getByTestId("gallery-sign-in")).toHaveCount(0);
+});
+
+test("a remembered narrowing loads the wall with its one early request", async ({
+  page,
+}) => {
+  const lists: string[] = [];
+  let firstListAsked = Number.POSITIVE_INFINITY;
+  let wallCodeArrived = Number.POSITIVE_INFINITY;
+  // The wall's own code arrives late, as on a slow first visit.
+  await page.route("**/src/components/gallery-feed.tsx*", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    wallCodeArrived = Date.now();
+    await route.continue();
+  });
+  await page.route(galleryListUrl, (route) => {
+    firstListAsked = Math.min(firstListAsked, Date.now());
+    lists.push(new URL(route.request().url()).search);
+    return route.fulfill({
+      json: { entries: [ENTRY], nextCursor: null, total: 1 },
+    });
+  });
+  await page.route(`**/api/gallery/${ENTRY.id}/preview.svg*`, (route) =>
+    route.fulfill({
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"/>',
+    }),
+  );
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "icm.gallery-filters.v1",
+      JSON.stringify({ parts: ["6-10"] }),
+    ),
+  );
+  await page.goto("/");
+  await expect(page.locator("a.gallery-tile")).toHaveCount(1);
+  // The landing preload asked the remembered query before the wall's code
+  // arrived, and the wall took that answer instead of asking again.
+  await page.waitForLoadState("networkidle");
+  expect(lists).toEqual(["?parts=6-10"]);
+  expect(firstListAsked).toBeLessThan(wallCodeArrived);
+});
+
 test("needs attention and liked narrow the category and tag counts", async ({
   page,
 }) => {

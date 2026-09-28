@@ -8,6 +8,7 @@ import {
   galleryAuthorsOf,
   removeGalleryAuthorEntry,
   galleryEntryMatchesQuery,
+  galleryFeedQueryKey,
   galleryPreviewUrl,
   loadGalleryAuthors,
   loadGalleryEntry,
@@ -21,6 +22,7 @@ import {
   type GalleryAuthorOption,
   type GalleryFeedEntry,
   type GalleryFeedPage,
+  type GalleryFeedQuery,
   type GalleryFeedState,
   type GalleryTagOption,
   type GalleryLandingPreload,
@@ -323,34 +325,22 @@ function savedAtLabel(createdAt: string): string {
       });
 }
 
-type ServerGalleryFilters = Pick<
-  GalleryFilterState,
-  | "author"
-  | "ownerUserId"
-  | "tags"
-  | "netlistable"
-  | "liked"
-  | "attention"
-  | "parts"
->;
-
-/** The eager landing request is one-use and unfiltered; never replay it after
- * the reader changes the wall query. */
+/**
+ * The eager landing request is one-use: the wall takes it only for its first
+ * load, and only when it asks exactly the query the preload asked (an older
+ * preload with no recorded query asked the unfiltered wall). Never replay it
+ * after the reader changes the wall query or the wall refreshes.
+ */
 export function canReuseGalleryLandingFeed(
   refreshSignal: number,
   loadedQuery: string | null,
-  filters: ServerGalleryFilters,
+  preloadedQuery: string | undefined,
+  query: GalleryFeedQuery,
 ): boolean {
   return (
     refreshSignal === 0 &&
     loadedQuery === null &&
-    filters.author === null &&
-    filters.ownerUserId === null &&
-    filters.tags.length === 0 &&
-    !filters.netlistable &&
-    !filters.liked &&
-    !filters.attention &&
-    filters.parts.length === 0
+    (preloadedQuery ?? "") === galleryFeedQueryKey(query)
   );
 }
 
@@ -719,15 +709,21 @@ export function GalleryFeed({
     }
     const request =
       preload?.feed &&
-      canReuseGalleryLandingFeed(refreshSignal, loadedQueryRef.current, {
-        author,
-        ownerUserId,
-        tags: selectedTags,
-        netlistable: netlistableOnly,
-        liked: likedOnly,
-        attention: attentionOnly,
-        parts: selectedParts,
-      })
+      canReuseGalleryLandingFeed(
+        refreshSignal,
+        loadedQueryRef.current,
+        preload.feedQuery,
+        {
+          author,
+          ownerUserId,
+          tags: selectedTags,
+          netlistable: netlistableOnly,
+          liked: likedOnly,
+          attention: attentionOnly,
+          attentionKind,
+          parts: selectedParts,
+        },
+      )
         ? preload.feed
         : loadGalleryFeed(fetch, {
             author,
@@ -994,6 +990,8 @@ export function GalleryFeed({
   }
 
   const entries = state.entries;
+  const anonymousWall =
+    state.status === "ready" && state.signInForMore === true;
   const needsBundledFallback =
     localhostExamplesEnabled() &&
     state.status !== "loading" &&
@@ -1293,125 +1291,137 @@ export function GalleryFeed({
       ) : null}
       {view === "gallery" && state.status !== "signed-out" ? (
         <div className="gallery-browser">
-          <GalleryTagSidebar
-            tags={tagOptions}
-            groupCounts={tagGroupCounts}
-            countsLoading={tagCountsScope !== tagScope}
-            selected={selectedTags}
-            onChange={(tags) => updateFilters({ tags })}
-            search={searchQuery}
-            onSearchChange={(search) => updateFilters({ search })}
-            sizeFilters={sizeFilters}
-            sizeSelected={selectedParts.length}
-            onClearSizes={() => updateFilters({ parts: [] })}
-            quickFilters={
-              <>
-                {signedIn || attentionOnly ? (
-                  <button
-                    type="button"
-                    className="gallery-sidebar-option"
-                    aria-pressed={attentionOnly}
-                    onClick={() =>
-                      updateFilters({
-                        attention: !attentionOnly,
-                        attentionKind: null,
-                      })
-                    }
-                    data-testid="gallery-filter-attention"
-                  >
-                    <span>
-                      Needs attention{signedIn && !isOwner ? " · Mine" : ""}
-                    </span>
-                    {quickCount("attention")}
-                  </button>
-                ) : null}
-                {attentionOnly ? (
-                  <label className="gallery-attention-reason">
-                    <span>Reason</span>
-                    <select
-                      value={attentionKind ?? ""}
-                      onChange={(event) =>
+          {/* Signed out, the wall is its newest few circuits: nothing to
+              narrow, so no tags, search or filters beside it. */}
+          {anonymousWall ? null : (
+            <GalleryTagSidebar
+              tags={tagOptions}
+              groupCounts={tagGroupCounts}
+              countsLoading={tagCountsScope !== tagScope}
+              selected={selectedTags}
+              onChange={(tags) => updateFilters({ tags })}
+              search={searchQuery}
+              onSearchChange={(search) => updateFilters({ search })}
+              sizeFilters={sizeFilters}
+              sizeSelected={selectedParts.length}
+              onClearSizes={() => updateFilters({ parts: [] })}
+              quickFilters={
+                <>
+                  {signedIn || attentionOnly ? (
+                    <button
+                      type="button"
+                      className="gallery-sidebar-option"
+                      aria-pressed={attentionOnly}
+                      onClick={() =>
                         updateFilters({
-                          attentionKind: event.currentTarget.value || null,
+                          attention: !attentionOnly,
+                          attentionKind: null,
                         })
                       }
-                      data-testid="gallery-filter-attention-reason"
+                      data-testid="gallery-filter-attention"
                     >
-                      <option value="">Every reason</option>
-                      {GALLERY_ISSUE_KINDS.filter(
-                        (kind) =>
-                          kind === attentionKind ||
-                          (attentionKindCounts[kind] ?? 0) > 0,
-                      ).map((kind) => (
-                        <option key={kind} value={kind}>
-                          {galleryIssueKindLabel(kind)} (
-                          {(attentionKindCounts[kind] ?? 0).toLocaleString()})
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
-                <button
-                  type="button"
-                  className={
-                    netlistableOnly
-                      ? "gallery-tag-option gallery-tag-mark gallery-tag-selected"
-                      : "gallery-tag-option gallery-tag-mark"
-                  }
-                  data-testid="gallery-filter-netlistable"
-                  aria-pressed={netlistableOnly}
-                  title={
-                    netlistableOnly
-                      ? "Stop filtering by netlist"
-                      : "Show only circuits that extract to a netlist"
-                  }
-                  onClick={() =>
-                    updateFilters({ netlistable: !netlistableOnly })
-                  }
-                >
-                  <NetlistIcon /> <span>With netlist</span>
-                  {quickCount("netlistable")}
-                </button>
-                {signedIn || likedOnly ? (
+                      <span>
+                        Needs attention{signedIn && !isOwner ? " · Mine" : ""}
+                      </span>
+                      {quickCount("attention")}
+                    </button>
+                  ) : null}
+                  {attentionOnly ? (
+                    <label className="gallery-attention-reason">
+                      <span>Reason</span>
+                      <select
+                        value={attentionKind ?? ""}
+                        onChange={(event) =>
+                          updateFilters({
+                            attentionKind: event.currentTarget.value || null,
+                          })
+                        }
+                        data-testid="gallery-filter-attention-reason"
+                      >
+                        <option value="">Every reason</option>
+                        {GALLERY_ISSUE_KINDS.filter(
+                          (kind) =>
+                            kind === attentionKind ||
+                            (attentionKindCounts[kind] ?? 0) > 0,
+                        ).map((kind) => (
+                          <option key={kind} value={kind}>
+                            {galleryIssueKindLabel(kind)} (
+                            {(attentionKindCounts[kind] ?? 0).toLocaleString()})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
                   <button
                     type="button"
                     className={
-                      likedOnly
+                      netlistableOnly
                         ? "gallery-tag-option gallery-tag-mark gallery-tag-selected"
                         : "gallery-tag-option gallery-tag-mark"
                     }
-                    data-testid="gallery-filter-liked"
-                    aria-pressed={likedOnly}
+                    data-testid="gallery-filter-netlistable"
+                    aria-pressed={netlistableOnly}
                     title={
-                      likedOnly
-                        ? "Stop filtering by your likes"
-                        : "Show only circuits you have liked"
+                      netlistableOnly
+                        ? "Stop filtering by netlist"
+                        : "Show only circuits that extract to a netlist"
                     }
-                    onClick={() => updateFilters({ liked: !likedOnly })}
+                    onClick={() =>
+                      updateFilters({ netlistable: !netlistableOnly })
+                    }
                   >
-                    <HeartIcon filled={true} /> <span>Liked</span>
-                    {quickCount("liked")}
+                    <NetlistIcon /> <span>With netlist</span>
+                    {quickCount("netlistable")}
                   </button>
-                ) : null}
-              </>
-            }
-            adminTools={
-              isOwner ? (
-                <Suspense fallback={null}>
-                  <GalleryDuplicateCheck
-                    onReport={setDuplicateReport}
-                    onRecycled={(ids) => {
-                      // The scan covers the whole library, while this feed may
-                      // be filtered. Let the server recalculate its counts.
-                      setRefreshSignal((signal) => signal + 1);
-                      if (ids[0]) announceGalleryChange({ entryId: ids[0] });
-                    }}
-                  />
-                </Suspense>
-              ) : null
-            }
-          />
+                  {signedIn || likedOnly ? (
+                    <button
+                      type="button"
+                      className={
+                        likedOnly
+                          ? "gallery-tag-option gallery-tag-mark gallery-tag-selected"
+                          : "gallery-tag-option gallery-tag-mark"
+                      }
+                      data-testid="gallery-filter-liked"
+                      aria-pressed={likedOnly}
+                      title={
+                        likedOnly
+                          ? "Stop filtering by your likes"
+                          : "Show only circuits you have liked"
+                      }
+                      onClick={() => updateFilters({ liked: !likedOnly })}
+                    >
+                      <HeartIcon filled={true} /> <span>Liked</span>
+                      {quickCount("liked")}
+                    </button>
+                  ) : null}
+                </>
+              }
+              adminTools={
+                isOwner ? (
+                  <Suspense fallback={null}>
+                    <GalleryDuplicateCheck
+                      onReport={setDuplicateReport}
+                      onRecycled={(ids) => {
+                        // The scan covers the whole library, while this feed may
+                        // be filtered. Let the server recalculate its counts.
+                        setRefreshSignal((signal) => signal + 1);
+                        if (ids[0]) announceGalleryChange({ entryId: ids[0] });
+                      }}
+                    />
+                  </Suspense>
+                ) : null
+              }
+            />
+          )}
           <div className="gallery-main">
+            {anonymousWall ? (
+              <p
+                className="gallery-status gallery-sign-in-more"
+                data-testid="gallery-sign-in-more"
+              >
+                {`These are the ${entries.length} newest of ${state.total ?? entries.length} circuits. Sign in (top right) to browse them all.`}
+              </p>
+            ) : null}
             {author ? (
               <div className="gallery-filter" data-testid="gallery-filter">
                 <span>Circuits by {author}</span>
