@@ -104,33 +104,98 @@ describe("what the process still owes a circuit", () => {
     expect(netlistProcessPendingInstances(filled, sky130)).toBe(0);
   });
 
-  it("fills the rest when a device is drawn as a symbol the model does not fit", () => {
-    // SKY130's reviewed MOS models are drawn as plain MOS; a DMOS keeps its
-    // missing model for the author instead of blocking every other device.
-    const project = createEmptyProject("dmos", "DMOS");
-    project.documents[0]!.instances.push(
-      {
-        id: "M1",
-        reference: "M1",
-        symbolId: "ndmos",
-        placement: null,
-        netlist: { parameters: {} },
-      },
-      {
-        id: "M2",
-        reference: "M2",
-        symbolId: "nmos",
-        placement: null,
-        netlist: { parameters: {} },
-      },
-    );
-    const sky130 = createNetlistExportProfile("sky130");
-    expect(netlistProcessPendingInstances(project, sky130)).toBe(1);
+  describe("drain-extended devices", () => {
+    function mixedDevices(): CircuitProject {
+      const project = createEmptyProject("dmos", "DMOS");
+      project.documents[0]!.instances.push(
+        ...(
+          [
+            ["M1", "ndmos"],
+            ["M2", "pdmos"],
+            ["M3", "nmos"],
+          ] as const
+        ).map(([id, symbolId]) => ({
+          id,
+          reference: id,
+          symbolId,
+          placement: null,
+          netlist: { parameters: {} },
+        })),
+      );
+      return project;
+    }
 
-    const filled = apply(project, sky130, { onlyMissing: true });
-    const [dmos, mos] = filled.documents[0]!.instances;
-    expect(instanceModelTarget(filled, dmos!)).toBe("");
-    expect(instanceModelTarget(filled, mos!)).toBe("sky130_fd_pr__nfet_01v8");
+    it("take the process's 16 V device with its own geometry", () => {
+      const sky130 = createNetlistExportProfile("sky130");
+      const project = mixedDevices();
+      expect(netlistProcessPendingInstances(project, sky130)).toBe(3);
+
+      const filled = apply(project, sky130, { onlyMissing: true });
+      const [ndmos, pdmos, mos] = filled.documents[0]!.instances;
+      expect(instanceModelTarget(filled, ndmos!)).toBe(
+        "sky130_fd_pr__nfet_g5v0d16v0",
+      );
+      expect(ndmos!.netlist?.parameters).toMatchObject({
+        w: "5u",
+        l: "700n",
+      });
+      expect(instanceModelTarget(filled, pdmos!)).toBe(
+        "sky130_fd_pr__pfet_g5v0d16v0",
+      );
+      expect(pdmos!.netlist?.parameters).toMatchObject({
+        w: "5u",
+        l: "660n",
+      });
+      expect(instanceModelTarget(filled, mos!)).toBe("sky130_fd_pr__nfet_01v8");
+      expect(mos!.netlist?.parameters).toMatchObject({ w: "1u", l: "150n" });
+      expect(inferNetlistProcess(filled, "abstract")).toBe("sky130");
+    });
+
+    it("follow a family choice only when the model fits them", () => {
+      const sky130 = createNetlistExportProfile("sky130");
+      const filled = apply(mixedDevices(), sky130, { onlyMissing: true });
+      // A core model for the NMOS family leaves the DMOS on 16 V ...
+      const lvt = apply(
+        filled,
+        setNetlistDefaultTarget(sky130, "nmos", "sky130_fd_pr__nfet_01v8_lvt"),
+        { family: "nmos" },
+      );
+      const [ndmos, , mos] = lvt.documents[0]!.instances;
+      expect(instanceModelTarget(lvt, ndmos!)).toBe(
+        "sky130_fd_pr__nfet_g5v0d16v0",
+      );
+      expect(instanceModelTarget(lvt, mos!)).toBe(
+        "sky130_fd_pr__nfet_01v8_lvt",
+      );
+      // ... and the 20 V device moves only the DMOS, with only its count.
+      const hv20 = apply(
+        lvt,
+        setNetlistDefaultTarget(sky130, "nmos", "sky130_fd_pr__nfet_20v0"),
+        { family: "nmos" },
+      );
+      const [ndmos20, , mos20] = hv20.documents[0]!.instances;
+      expect(instanceModelTarget(hv20, ndmos20!)).toBe(
+        "sky130_fd_pr__nfet_20v0",
+      );
+      expect(ndmos20!.netlist?.parameters).toEqual({ m: "1" });
+      expect(instanceModelTarget(hv20, mos20!)).toBe(
+        "sky130_fd_pr__nfet_01v8_lvt",
+      );
+    });
+
+    it("keep their finding where the process has no high-voltage device", () => {
+      // A custom process naming SKY130's core model offers no DMOS device.
+      const custom = setNetlistDefaultTarget(
+        createNetlistExportProfile("custom"),
+        "nmos",
+        "sky130_fd_pr__nfet_01v8",
+      );
+      const project = mixedDevices();
+      const filled = apply(project, custom, { onlyMissing: true });
+      const [ndmos, , mos] = filled.documents[0]!.instances;
+      expect(instanceModelTarget(filled, ndmos!)).toBe("");
+      expect(instanceModelTarget(filled, mos!)).toBe("sky130_fd_pr__nfet_01v8");
+    });
   });
 
   it("fills the rest when a device's Reference refuses netlist edits", () => {
