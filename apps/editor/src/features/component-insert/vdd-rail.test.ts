@@ -30,6 +30,10 @@ import {
 import type { SchematicDocument } from "@icm/model";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
+import {
+  captureDocumentComposition,
+  proposePaste,
+} from "../clipboard/clipboard";
 
 import {
   constrainedPowerRailEndpoint,
@@ -464,6 +468,125 @@ describe("drawn VDD rail construction", () => {
 });
 
 describe("a drawn rail meeting an existing wire", () => {
+  it("redraws a rail after a composed drawing's old rail is deleted", () => {
+    const source = createEmptyDocument("gallery-source", "Gallery source");
+    source.instances.push({
+      id: "M1",
+      symbolId: "pmos",
+      symbolVariantId: "textbook-3terminal",
+      placement: { position: { x: 100, y: 120 }, rotation: 0, mirror: "none" },
+    });
+    const supplied = executeTransaction(
+      source,
+      {
+        transactionId: "seed-gallery-supply",
+        documentId: source.id,
+        expectedRevision: source.revision,
+        actor: { kind: "human", id: "test" },
+        edits: [
+          ...constructVddRailEdits({
+            instanceId: "VDD1",
+            start: { x: 60, y: 20 },
+            end: { x: 180, y: 20 },
+          }),
+          { kind: "set_mos_bulk_defaults", pmosNetId: "net-power-vdd1" },
+          { kind: "reconcile_mos_bulk" },
+        ],
+      },
+      { symbolResolver: resolver },
+    );
+    expect(supplied.ok).toBe(true);
+    if (!supplied.ok) return;
+    const target = createEmptyDocument(
+      "gallery-copy-target",
+      "Gallery copy target",
+    );
+    const copied = proposePaste(
+      target,
+      captureDocumentComposition(supplied.document)!,
+      { x: 0, y: 0 },
+      1,
+    );
+    expect(copied.errors).toEqual([]);
+    const pasted = executeTransaction(
+      target,
+      {
+        transactionId: "paste-gallery-drawing",
+        documentId: target.id,
+        expectedRevision: target.revision,
+        actor: { kind: "human", id: "test" },
+        edits: copied.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    expect(pasted.ok).toBe(true);
+    if (!pasted.ok) return;
+    const oldRail = pasted.document.routes.find(
+      (route) => route.presentation === "power-rail",
+    )!;
+    const component = derivePowerRailComponent(pasted.document, oldRail.id)!;
+    const ends = component.endpointJunctionIds.map(
+      (id) => pasted.document.junctions.find((j) => j.id === id)!.position,
+    );
+    expect(ends).toHaveLength(2);
+    const deletion = proposeVisualRouteDeletion(
+      pasted.document,
+      [oldRail.id],
+      [],
+    );
+    const deleted = executeTransaction(
+      pasted.document,
+      {
+        transactionId: "delete-copied-rail",
+        documentId: target.id,
+        expectedRevision: pasted.document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: deletion.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    expect(deleted.ok).toBe(true);
+    if (!deleted.ok) return;
+    expect(deleted.document.mosBulkDefaults?.pmosNetId).toBeUndefined();
+    const redraw = planVddRailEdits(
+      deleted.document,
+      {
+        instanceId: "VDD-redrawn",
+        start: { x: ends[0]!.x, y: ends[0]!.y - 40 },
+        end: { x: ends[1]!.x, y: ends[1]!.y - 40 },
+      },
+      resolver,
+    );
+    expect(redraw.ok).toBe(true);
+    if (!redraw.ok) return;
+    const gate = gateRoutingOperationPlan(
+      deleted.document,
+      createRoutingOperationPlan(deleted.document, {
+        intent: "connect",
+        diagnostics: [],
+        edits: redraw.edits,
+        ...(redraw.expectedElectricalEffect
+          ? { expectedElectricalEffect: redraw.expectedElectricalEffect }
+          : {}),
+      }),
+      { symbolResolver: resolver },
+    );
+    expect(
+      gate.ok,
+      gate.ok ? "" : `${gate.message}: ${JSON.stringify(gate.diagnostics)}`,
+    ).toBe(true);
+    if (!gate.ok) return;
+    const railNetId = gate.evaluated.finalDocument.routes.find(
+      (route) => route.presentation === "power-rail",
+    )!.netId;
+    expect(
+      gate.evaluated.finalDocument.nets.find((net) => net.id === railNetId)
+        ?.terminals,
+    ).toContainEqual({
+      instanceId: copied.instanceIds[0],
+      pinName: "B",
+    });
+  });
   /**
    * The routing fixture's ports, repositioned so route-h spans exactly
    * (0,300) → (110,300): an ordinary conductor with real pin endpoints.
@@ -1085,12 +1208,20 @@ describe("Power Rail pin contacts", () => {
     );
   });
 
-  it("leaves hidden bulk artwork and symbol bodies out of rail contact planning", () => {
+  it("leaves hidden bulk artwork out of geometric pin contacts", () => {
     const before = pmosPair();
     // B is hidden by the default MOS display. This span passes over its
     // artwork anchor, while none of the visible pin tips touch it.
     const plan = railPlan(before, { x: 110, y: 120 }, { x: 130, y: 120 });
-    expect(plan.expectedElectricalEffect).toBeUndefined();
+    // The only declared joins are the Cell's implicit PMOS B default, not
+    // geometric contacts at the hidden artwork or either symbol body.
+    expect(plan.expectedElectricalEffect).toEqual({
+      kind: "merge",
+      endpointGroups: [
+        ["terminal:M1:B", "junction:junction-vdd1-start"],
+        ["terminal:M2:B", "junction:junction-vdd1-start"],
+      ],
+    });
     expect(
       plan.edits.filter((edit) => edit.kind === "add_junction"),
     ).toHaveLength(0);
