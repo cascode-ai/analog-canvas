@@ -207,14 +207,30 @@ jobs:
               exit 1
             fi
           done
-          # The Gallery answers only signed-in readers or its read credential.
-          gallery_status="$(curl --silent --show-error --max-time 20 \
-            --output /dev/null --write-out '%{http_code}' \
+          # Signed-out visitors may see only the newest ten Gallery circuits.
+          # The response must not offer pagination; other discovery endpoints require sign-in.
+          gallery_wall="$(curl --fail --silent --show-error \
+            --retry 5 --retry-delay 2 --retry-all-errors --max-time 20 \
             https://analog-canvas.tokenzhang.com/api/gallery)"
-          if [ "$gallery_status" != "401" ]; then
-            echo "An anonymous Gallery read answered HTTP $gallery_status, not 401."
+          if ! jq -e '
+            .signInForMore == true and
+            .nextCursor == null and
+            (.total | type == "number") and
+            (.entries | type == "array" and length <= 10) and
+            all(.entries[]; .id | type == "string")
+          ' <<<"$gallery_wall" >/dev/null; then
+            echo "The anonymous Gallery wall exceeded its bounded preview contract."
             exit 1
           fi
+          for path in api/gallery/tags api/gallery/authors; do
+            status="$(curl --silent --show-error --max-time 20 \
+              --output /dev/null --write-out '%{http_code}' \
+              "https://analog-canvas.tokenzhang.com/$path")"
+            if [ "$status" != "401" ]; then
+              echo "Anonymous Gallery discovery $path returned HTTP $status, not 401."
+              exit 1
+            fi
+          done
           curl --fail --silent --show-error \
             --retry 5 --retry-delay 2 --retry-all-errors \
             --max-time 20 \
