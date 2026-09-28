@@ -1,4 +1,4 @@
-import { createEmptyProject, createRoutePath } from "@icm/model";
+import { createEmptyProject, createRoutePath, type Point } from "@icm/model";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import {
@@ -864,6 +864,71 @@ test("a dragged diagonal moves along the pointer axis only", async ({
     { x: 250, y: 270 },
   ]);
 });
+
+for (const [direction, dy] of [
+  ["down", 20],
+  ["up", -20],
+] as const) {
+  test(`a diagonal drawn from a pin drags ${direction} and stays at 45 degrees`, async ({
+    page,
+  }) => {
+    await page.goto("/editor");
+    await placeComponent(page, "resistor", { x: 260, y: 200 });
+    await placeComponent(page, "resistor", { x: 560, y: 420 });
+    const ids = await instanceIds(page);
+    await page.keyboard.press("w");
+    await page.getByTestId(`terminal-${ids[0]}-2`).click();
+    // Two middle clicks: the opposite right angle, then 45 degrees.
+    const canvas = page.getByTestId("schematic-canvas");
+    const box = (await canvas.boundingBox())!;
+    await page.mouse.move(box.x + 420, box.y + 320);
+    for (let click = 0; click < 2; click += 1) {
+      await page.mouse.down({ button: "middle" });
+      await page.mouse.up({ button: "middle" });
+    }
+    await expect(page.getByTestId("status")).toContainText("45° diagonal");
+    await page.getByTestId(`terminal-${ids[1]}-1`).click();
+    await page.keyboard.press("Escape");
+    await awaitCanvasSettled(canvas);
+
+    const wire = page.locator('[data-testid^="route-hit-"]');
+    const centerline = () =>
+      wire.evaluate((element) =>
+        Array.from((element as SVGPolylineElement).points).map(({ x, y }) => ({
+          x,
+          y,
+        })),
+      );
+    // R1's pin, straight into the diagonal, then a leg across to R2's pin.
+    const [pin, corner, end] = (await centerline()) as [Point, Point, Point];
+    expect(corner.x - pin.x).toBe(corner.y - pin.y);
+    expect(corner.y).toBe(end.y);
+
+    const grab = { x: pin.x + 130, y: pin.y + 130 };
+    await dragCanvas(page, canvas, [grab, { x: grab.x, y: grab.y + dy }]);
+    await expect(page.getByTestId("status")).toContainText(
+      "Moved route segment",
+    );
+    // Down jogs along R1's lead; up would fold into R1, so the diagonal
+    // takes the same line by stepping right. Either way the diagonal slides
+    // along the leg to R2 and keeps its angle.
+    expect(await centerline()).toEqual(
+      dy > 0
+        ? [
+            pin,
+            { x: pin.x, y: pin.y + 20 },
+            { ...corner, x: corner.x - 20 },
+            end,
+          ]
+        : [
+            pin,
+            { x: pin.x + 20, y: pin.y },
+            { ...corner, x: corner.x + 20 },
+            end,
+          ],
+    );
+  });
+}
 
 test("a leg dragged beside a diagonal carries it, and a no-op drag records nothing", async ({
   page,

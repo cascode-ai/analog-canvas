@@ -10,6 +10,29 @@ import type { SymbolResolver } from "@icm/symbols";
 import { normalizeRouteGeometry, strongerMode } from "./route-geometry-edit.js";
 
 /**
+ * Replace the backward elbow `a → b → c` at a pin with one corner on the
+ * pin's perpendicular through `a`. A 45-degree leg `c → d` keeps its angle:
+ * `c` slides along it to that perpendicular, and when the perpendicular misses
+ * the leg the elbow stays (null). Any other leg meets the new corner, as a
+ * leg along the lead always could.
+ */
+function foldBackwardElbow(
+  points: readonly Point[],
+  horizontal: boolean,
+): Point[] | null {
+  const [a, , c, d] = points as [Point, Point, Point, Point | undefined];
+  const corner = horizontal ? { x: a.x, y: c.y } : { x: c.x, y: a.y };
+  if (!d) return [a, corner, c];
+  const run = { x: d.x - c.x, y: d.y - c.y };
+  if (run.x === 0 || Math.abs(run.x) !== Math.abs(run.y)) {
+    return [a, corner, ...points.slice(3)];
+  }
+  const t = horizontal ? (a.x - c.x) / run.x : (a.y - c.y) / run.y;
+  if (!(t > 0 && t <= 1)) return null;
+  return [a, { x: c.x + t * run.x, y: c.y + t * run.y }, ...points.slice(3)];
+}
+
+/**
  * A shortened boundary must not retrace the terminal's artwork lead. Fold
  * that local elbow onto the contact's perpendicular instead. No fixed escape
  * length, symbol-specific rule, moved terminal, or global reroute is needed.
@@ -88,13 +111,15 @@ export function tidyRouteTerminalApproaches(
       c &&
       ((horizontal && a.y === b.y && b.x === c.x && b.y !== c.y) ||
         (vertical && a.x === b.x && b.y === c.y && b.x !== c.x));
-    if (gridContact && backwards && elbow && a && c) {
-      points[1] = horizontal ? { x: a.x, y: c.y } : { x: c.x, y: a.y };
+    const folded =
+      gridContact && backwards && elbow && a && c
+        ? foldBackwardElbow(points, horizontal)
+        : null;
+    if (folded) {
       if (points.length > 3) {
-        points.splice(2, 1);
         modes.splice(0, 2, strongerMode(modes[0]!, modes[1]!));
       }
-      const normalized = normalizeRouteGeometry(points, modes);
+      const normalized = normalizeRouteGeometry(folded, modes);
       points = normalized.points;
       modes = normalized.segmentModes;
     }

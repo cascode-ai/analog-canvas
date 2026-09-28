@@ -873,18 +873,72 @@ export function proposeWireSegmentDrag(
   target: Point,
   origin?: Point,
 ): WireSegmentDragProposal {
-  return tidyDragProposal(
-    document,
-    resolver,
-    proposeWireSegmentDragGeometry(
+  const plan = (at: Point) =>
+    tidyDragProposal(
+      document,
+      resolver,
+      proposeWireSegmentDragGeometry(
+        document,
+        resolver,
+        routeId,
+        segmentIndex,
+        at,
+        origin,
+      ),
+    );
+  try {
+    return plan(target);
+  } catch (error) {
+    // A 45-degree segment lands on the same line whether it moves along x or
+    // along y. When the pointer's axis would fold the wire back (a pin jog
+    // doubling against the slant), take the other axis before refusing.
+    const alternate = equivalentDiagonalTarget(
       document,
       resolver,
       routeId,
       segmentIndex,
       target,
       origin,
-    ),
+    );
+    if (!alternate) throw error;
+    try {
+      return plan(alternate);
+    } catch {
+      throw error;
+    }
+  }
+}
+
+/**
+ * The target that moves a 45-degree segment onto the same line as the
+ * pointer's drag does, but along the other axis: for a slope `s`, a vertical
+ * move `d` equals a horizontal move `-s·d`. Null for any other segment.
+ */
+function equivalentDiagonalTarget(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  routeId: string,
+  segmentIndex: number,
+  target: Point,
+  origin: Point | undefined,
+): Point | null {
+  if (!origin) return null;
+  const polyline = routeEditPathFromGeometry(
+    resolveDocumentRoutingGeometry(document, resolver),
+    routeId,
   );
+  const from = polyline?.points[segmentIndex];
+  const to = polyline?.points[segmentIndex + 1];
+  if (!from || !to) return null;
+  const run = { x: to.x - from.x, y: to.y - from.y };
+  if (run.x === 0 || Math.abs(run.x) !== Math.abs(run.y)) return null;
+  const slope = Math.sign(run.y / run.x);
+  const dx = target.x - origin.x;
+  const dy = target.y - origin.y;
+  if (dx === 0 && dy === 0) return null;
+  return Math.abs(dx) >= Math.abs(dy)
+    ? { x: origin.x, y: origin.y - slope * dx }
+    : { x: origin.x - slope * dy, y: origin.y };
 }
 
 /** Stretch every other Route at the Junctions a segment drag carries. */
