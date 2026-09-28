@@ -3,6 +3,7 @@ import { planPowerRailPinContacts } from "@icm/edit-engine";
 import {
   endpointKey,
   findRouteSegmentsAtPoint,
+  resolveMosBulkConnection,
   resolveDocumentLogicalNets,
   resolveDocumentRoutingGeometry,
 } from "@icm/derived";
@@ -220,9 +221,47 @@ export function planVddRailEdits(
         },
       ])
     : { edits: [], endpointGroups: [] };
+  const bulkDefaultEdits = planInitialMosBulkDefault(document, "vdd", netId);
+  // The first rail also assigns the Cell's PMOS body default. That authored
+  // connection is part of this same gesture even when the rail is drawn away
+  // from existing conductors. Without a merge declaration the routing gate
+  // mistakes the newly materialized B terminals for an accidental rewire.
+  const bulkContactGroups = bulkDefaultEdits.length
+    ? (() => {
+        const projected: SchematicDocument = {
+          ...document,
+          nets: document.nets.some((net) => net.id === netId)
+            ? document.nets
+            : [...document.nets, { id: netId, terminals: [] }],
+          mosBulkDefaults: { ...document.mosBulkDefaults, pmosNetId: netId },
+        };
+        const railKey = endpointKey({
+          kind: "junction",
+          junctionId: `junction-${key}-start`,
+        });
+        return document.instances.flatMap((instance) => {
+          const resolution = resolveMosBulkConnection(projected, instance);
+          return resolution?.status === "cell-default" &&
+            !resolution.materialized &&
+            resolution.net.id === netId
+            ? [
+                [
+                  endpointKey({
+                    kind: "terminal",
+                    instanceId: instance.id,
+                    pinName: "B",
+                  }),
+                  railKey,
+                ],
+              ]
+            : [];
+        });
+      })()
+    : [];
   const endpointGroups = [
     ...(mergeEffect?.kind === "merge" ? mergeEffect.endpointGroups : []),
     ...pinContacts.endpointGroups,
+    ...bulkContactGroups,
   ];
   return {
     ok: true,
@@ -238,7 +277,7 @@ export function planVddRailEdits(
         scope: requestedLogical?.scope ?? construction.scope ?? "local",
       }),
       ...pinContacts.edits,
-      ...planInitialMosBulkDefault(document, "vdd", netId),
+      ...bulkDefaultEdits,
     ],
   };
 }
