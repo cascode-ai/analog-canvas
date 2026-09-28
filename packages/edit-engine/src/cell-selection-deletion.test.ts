@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { planCellSelectionDeletion } from "./cell-selection-deletion.js";
 import { planRemoveCellTerminals } from "./hierarchy-planner.js";
 import { executeProjectTransaction } from "./project-transaction.js";
+import { gateRoutingOperationPlan } from "./routing-operation-plan.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
@@ -104,4 +105,60 @@ describe("Cell selection deletion", () => {
       expect(after.connectivityEvidence).toEqual([]);
     },
   );
+
+  it("deleting a part takes the memberships its Symbol draws no pin for", () => {
+    // SKY130's NPN wrapper keeps its substrate S, and an Analog Block its
+    // hidden supplies, as Net members with no Symbol pin; they used to make
+    // the whole deletion fail as "Symbol pin does not exist".
+    const project = createEmptyProject("npn", "NPN");
+    const document = project.documents[0]!;
+    for (const [id, symbolId, x] of [
+      ["Q1", "npn", 100],
+      ["R1", "resistor", 300],
+    ] as const)
+      document.instances.push({
+        id,
+        reference: id,
+        symbolId,
+        placement: { position: { x, y: 100 }, rotation: 0, mirror: "none" },
+      });
+    document.nets.push({
+      id: "net-gnd",
+      terminals: [
+        { instanceId: "Q1", pinName: "S" },
+        { instanceId: "R1", pinName: "2" },
+      ],
+    });
+    const { routing, terminalIds } = planCellSelectionDeletion(
+      document,
+      resolver,
+      { instanceIds: ["Q1"], routeIds: [], junctionIds: [] },
+      1,
+    );
+    expect(terminalIds).toEqual([]);
+    const gate = gateRoutingOperationPlan(document, routing, {
+      symbolResolver: resolver,
+    });
+    if (!gate.ok) throw new Error(gate.message);
+    const result = executeProjectTransaction(project, {
+      transactionId: "delete-npn",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "transact_document",
+          documentId: document.id,
+          expectedRevision: document.revision,
+          edits: [...gate.edits],
+        },
+      ],
+    });
+    if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
+    const after = result.project.documents[0]!;
+    expect(after.instances.map((instance) => instance.id)).toEqual(["R1"]);
+    expect(
+      after.nets.flatMap((net) => net.terminals).map((t) => t.instanceId),
+    ).not.toContain("Q1");
+  });
 });

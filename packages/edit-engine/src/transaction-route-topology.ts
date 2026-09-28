@@ -602,19 +602,18 @@ export function applyRouteTopologyEdit(
       break;
     }
     case "disconnect_endpoint": {
-      const error = validateConnectableEndpoint(
-        draft,
-        edit.endpoint,
-        context.symbolResolver,
-      );
-      if (error) {
-        return rejectAt("EDIT_PRECONDITION", error);
-      }
+      // Removing a membership needs only the membership. A property terminal
+      // (a reviewed wrapper's substrate, an Analog Block's hidden supply) is
+      // a Net member with no Symbol pin, and a deleted part takes it along.
       const ownerId = endpointOwnerNetId(draft, edit.endpoint);
       if (!ownerId) {
         return rejectAt(
           "EDIT_PRECONDITION",
-          "Endpoint is not connected to a Net",
+          validateConnectableEndpoint(
+            draft,
+            edit.endpoint,
+            context.symbolResolver,
+          ) ?? "Endpoint is not connected to a Net",
         );
       }
       if (
