@@ -14,6 +14,53 @@ import {
   recoveryProjectTexts,
 } from "./editor-fixtures.js";
 import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
+
+test("selecting simulation with an ideal analog block keeps its generated model out of editable Canvas instances", async ({
+  page,
+}) => {
+  const project = parseProject(JSON.stringify(ota));
+  const testbench = project.documents.find(
+    (document) => document.id === "document-ota-5t-testbench",
+  )!;
+  testbench.instances.push({
+    id: "XIDEAL",
+    symbolId: "opamp",
+    reference: "XIDEAL",
+    placement: { position: { x: 600, y: 200 }, rotation: 0, mirror: "none" },
+    netlist: {
+      binding: { kind: "unresolved-subcircuit", name: "opamp" },
+      parameters: { gain: "1e6" },
+    },
+  });
+  for (const [pinName, netId] of [
+    ["IN+", "tb-vinp-net"],
+    ["IN-", "tb-vinn-net"],
+    ["OUT", "tb-vout-net"],
+  ] as const) {
+    testbench.nets
+      .find((net) => net.id === netId)!
+      .terminals.push({ instanceId: "XIDEAL", pinName });
+  }
+  await page.route("**/api/simulate", (route) =>
+    route.fulfill({ json: { configured: false } }),
+  );
+  await page.goto("/editor");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "ideal-analog-block.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await clickNetlistWorkflowCommand(page, "open-analog-simulation");
+  const panel = page.getByRole("region", { name: "Analog simulation" });
+  await expect(panel).toBeVisible();
+  await expect(
+    panel.getByRole("textbox", { name: "Simulation source editor" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("The editor hit an unexpected problem"),
+  ).toHaveCount(0);
+});
+
 test("the qualified OTA folder opens unchanged and preserves all root and hierarchical outputs", async ({
   page,
 }) => {

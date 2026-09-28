@@ -9,6 +9,7 @@ import { subcircuitDescriptor } from "@icm/devices";
 
 import { createDesignNetlistExport } from "./export.js";
 import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
+import { generateCircuitSource } from "./simulation-circuit-source.js";
 
 const differentialNets = [
   ["IN+", "plus_node"],
@@ -254,6 +255,40 @@ describe("built-in Analog Block subcircuits", () => {
     expect(generated).toContain("X1 VDD VSS plus minus out opamp");
     expect(generated.match(/\.subckt opamp\b/gu)).toHaveLength(1);
   });
+
+  it.each(["ngspice", "vacask"] as const)(
+    "opens an editable %s circuit with a generated ideal-model Cell",
+    (engine) => {
+      const project = analogBlockProject(
+        ["opamp"],
+        [
+          ["IN+", "plus"],
+          ["IN-", "minus"],
+          ["OUT", "out"],
+        ],
+      );
+      const result = generateCircuitSource(
+        project,
+        {
+          id: "circuit",
+          path: "circuit.spice",
+          documentId: "dut",
+          emission: "top-level",
+        },
+        undefined,
+        engine,
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(
+          result.source.instances.some((item) => item.instanceId === "block-1"),
+        ).toBe(true);
+        expect(
+          result.source.parameters.every((item) => item.documentId === "dut"),
+        ).toBe(true);
+      }
+    },
+  );
 
   it.each(["and", "nand", "or", "nor", "xor", "xnor"])(
     "exports every four-input %s terminal in its declared electrical order",
