@@ -91,7 +91,7 @@ function richTextGlyphAdvanceEm(glyph: string): number {
   if (/[A-Z]/u.test(glyph)) return 0.67;
   if (/[a-zα-ω]/u.test(glyph)) return 0.56;
   if (/[0-9x]/u.test(glyph)) return 0.5;
-  if (/[+≈≤≥=<>]/u.test(glyph)) return 0.57;
+  if (/[+≈≠≤≥=<>]/u.test(glyph)) return 0.57;
   if (/[-−]/u.test(glyph)) return 0.33;
   return 0.6;
 }

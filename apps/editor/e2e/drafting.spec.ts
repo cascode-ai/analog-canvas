@@ -1364,13 +1364,14 @@ test("types Greek letters by LaTeX name and from the symbol menu", async ({
   // Σ and σ differ only in case, which role names otherwise ignore.
   await menu.getByRole("menuitem", { name: "Insert Σ", exact: true }).click();
   await menu.getByRole("menuitem", { name: "Insert ψ", exact: true }).click();
+  await menu.getByRole("menuitem", { name: "Insert ≠", exact: true }).click();
   await expect(page.getByTestId("canvas-text-editor")).toBeVisible();
-  await expect.poll(typed).toBe("φ1 Ω\\foo Σψ");
+  await expect.poll(typed).toBe("φ1 Ω\\foo Σψ≠");
 
   await page.getByRole("button", { name: "Apply text changes" }).click();
   await expect(menu).toHaveCount(0);
   await expect(page.locator('[data-kind="draft-text"]').first()).toHaveText(
-    /^φ1\sΩ\\foo\sΣψ$/u,
+    /^φ1\sΩ\\foo\sΣψ≠$/u,
   );
 });
 

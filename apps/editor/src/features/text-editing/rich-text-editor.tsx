@@ -372,7 +372,7 @@ function greekLetterTitle(name: string, glyph: string): string {
 }
 
 /** Circuit symbols offered beside the Greek letters. */
-const CIRCUIT_SYMBOLS = ["±", "≈", "≤", "≥", "∞", "°", "·", "→"] as const;
+const CIRCUIT_SYMBOLS = ["±", "≠", "≈", "≤", "≥", "∞", "°", "·", "→"] as const;
 
 const FORMULA_MORE_GROUPS: readonly {
   title: string;
