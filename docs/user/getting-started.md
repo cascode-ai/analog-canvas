@@ -194,6 +194,9 @@ recognize such a network, so both are placed by hand.
   pan. While wiring, a middle click cycles **opposite right-angle corner →
   45° → any angle → automatic right-angle corner**. Auto follows the incoming
   leg; it is one of the two right-angle shapes, not a third extra stop.
+  Without a middle button (for example a Mac trackpad), press `/` for the same
+  cycle, or click the Wire chip in the status bar (`F3`) to pick the route
+  and corner directly.
   View changes do not increment the Document revision.
 
 ## Editing multiple components

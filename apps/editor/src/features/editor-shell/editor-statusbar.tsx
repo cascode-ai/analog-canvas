@@ -16,6 +16,12 @@ function toolLabel(
   return tool.charAt(0).toUpperCase() + tool.slice(1);
 }
 
+function wireRoutingModeLabel(mode: WireRoutingMode): string {
+  if (mode === "orthogonal") return "Orthogonal";
+  if (mode === "octilinear") return "45°";
+  return "Any angle";
+}
+
 function issuesBadge(issues: {
   errorCount: number;
   warningCount: number;
@@ -147,10 +153,12 @@ export function EditorStatusbar({
           <button
             type="button"
             className="statusbar-tool"
+            data-testid="wire-options-toggle"
             onClick={onToggleWireOptions}
             aria-expanded={wireOptionsOpen}
+            title="Wire options (F3) · / or middle-click cycles the corner"
           >
-            {wireRoutingMode === "orthogonal" ? "Orthogonal" : "45°"} · F3
+            {wireRoutingModeLabel(wireRoutingMode)} · F3
           </button>
         ) : null}
         {tool === "wire" && wireOptionsOpen ? (

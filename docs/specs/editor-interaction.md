@@ -364,8 +364,10 @@ observe the first transition even when React batches the next render.
 Wire defaults to orthogonal. While Wire is active, a middle-button click
 switches only the unresolved leg between orthogonal, 45-degree octilinear, and
 any angle ([Routing rationale](../adr/routing.md));
-a middle-button drag pans as usual. F3 opens Wire options including corner
-order. Existing authored legs are immutable under mode switches; Backspace
+`/` performs the same cycle from the keyboard for trackpads and mice without a
+middle button, and a middle-button drag pans as usual. F3 or the status-bar
+Wire chip opens Wire options including corner order; a shape chosen there
+persists for the next wire just like a cycled one. Existing authored legs are immutable under mode switches; Backspace
 removes the latest authored step rather than an automatically compiled elbow.
 A wire is the gesture that drew it: the compiled legs run between the points
 the pointer fixed. A pin never pushes the wire out along its own direction —
