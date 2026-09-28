@@ -20,11 +20,19 @@ restrictive content-security-policy.
 The Gallery is for signed-in readers. Every Gallery read (the list, tags,
 authors, an entry and its Project, its preview and its history) needs a
 signed-in session or the read-only Gallery credential (`GALLERY_BACKUP_TOKEN`
-as a Bearer token). Without either, each read answers
-`401 {"error":"sign-in-required"}` with `cache-control: no-store`, and the
-landing page shows a sign-in prompt instead of the wall. "Public" below means
-published on the wall for those readers, not readable anonymously. Admin and
-owner-only routes keep their own, stricter checks, and writes keep theirs.
+as a Bearer token), with one exception: a signed-out visitor sees the wall's
+10 newest public circuits. `GET /api/gallery` then answers
+`{entries, nextCursor: null, total, signInForMore: true}` whatever it is
+asked (unfiltered and unpaged; `total` still counts the whole wall), and each
+of those circuits' entry, Project and preview reads as it does for a reader.
+The Worker remembers that set for a minute per isolate; a circuit leaving the
+wall in that minute is still refused by its own public-status check. Every
+other read answers `401 {"error":"sign-in-required"}` with
+`cache-control: no-store`. The landing page shows those circuits with a
+sign-in invitation for the rest and no tags, search or filters beside them,
+and shows the sign-in prompt instead when even the list is refused. "Public"
+below means published on the wall for signed-in readers. Admin and owner-only
+routes keep their own, stricter checks, and writes keep theirs.
 A reader's preview is served `private`, so a shared cache never keeps it; the
 Worker's edge cache keeps the immutable bytes behind the reader check. A valid
 session is remembered for a minute per Worker isolate, so a wall of previews

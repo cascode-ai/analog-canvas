@@ -5,6 +5,7 @@ import { useVisitStats } from "../../analytics/client";
 import { EditorErrorBoundary } from "../components/editor-error-boundary";
 import { guardedRouteChunk } from "../components/route-chunk-loader";
 import {
+  galleryFeedQueryKey,
   loadGalleryEntry,
   loadGalleryFeed,
   galleryTagScope,
@@ -12,7 +13,7 @@ import {
   type GalleryLandingPreload,
 } from "../gallery-client";
 import { GALLERY_FILTERS_KEY, resolveGalleryFilters } from "../gallery-filters";
-import { galleryFocusEntryId, withoutGalleryFocus } from "../gallery-focus";
+import { galleryFocusEntryId } from "../gallery-focus";
 import "../../analytics/analytics.css";
 import "../styles.css";
 import { hasAgentSessionRecovery } from "../agent/session-recovery-presence";
@@ -57,14 +58,24 @@ export function mountWebEditor() {
     const tags = loadGalleryTagSummary(fetch, tagFilters);
     // "View in Gallery" links one circuit on the whole, unfiltered wall.
     const focusId = galleryFocusEntryId(window.location.search);
-    const linkOnly =
-      focusId !== null && withoutGalleryFocus(window.location.search) === "";
+    // The wall's first page starts here for the filters it will open with,
+    // whether a link or a remembered choice sets them; a reader who once
+    // narrowed the wall no longer waits for the wall's own code to ask.
+    const query = {
+      author: filters.author,
+      ownerUserId: filters.ownerUserId,
+      tags: filters.tags,
+      netlistable: filters.netlistable,
+      liked: filters.liked,
+      attention: filters.attention,
+      attentionKind: filters.attentionKind,
+      parts: filters.parts,
+    };
     return {
       tags,
       tagsScope: galleryTagScope(tagFilters),
-      ...((!window.location.search && !storedFilters) || linkOnly
-        ? { feed: loadGalleryFeed() }
-        : {}),
+      feed: loadGalleryFeed(fetch, query),
+      feedQuery: galleryFeedQueryKey(query),
       ...(focusId
         ? { focus: { id: focusId, entry: loadGalleryEntry(fetch, focusId) } }
         : {}),
