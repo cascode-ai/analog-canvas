@@ -639,11 +639,10 @@ test("shows and copies a live MOS netlist with explicitly connected bulk termina
   await expect(code).toContainText("M91");
   await expect(formatSelect).toHaveValue("spectre");
   const valid = await code.innerText();
+  // A line the circuit cannot take never reaches it; Refresh regenerates the
+  // netlist from the circuit rather than keeping that draft.
   await code.fill(valid + "\nINVALID");
-  await refresh.click();
-  await expect(code).toContainText("INVALID");
   await expect(panel.getByRole("alert")).toBeVisible();
-  await panel.getByRole("button", { name: "Reload", exact: true }).click();
   await refresh.click();
   await expect.poll(() => code.innerText()).toBe(valid);
   await expect(panel.getByRole("alert")).toHaveCount(0);
