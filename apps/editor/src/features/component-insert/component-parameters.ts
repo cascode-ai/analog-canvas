@@ -1,6 +1,8 @@
 import type { Instance } from "@icm/model";
 import {
   deviceDescriptor,
+  idealAnalogBlockParameter,
+  subcircuitDescriptor,
   type ReviewedExternalDeviceBinding,
 } from "@icm/devices";
 
@@ -80,6 +82,21 @@ function synchronizeDigitalClockCompatibility(
 export function componentParameters(
   symbolId: string,
 ): readonly ComponentParameter[] {
+  const ideal = idealAnalogBlockParameter(
+    subcircuitDescriptor(symbolId)?.target ?? "",
+  );
+  if (ideal)
+    return [
+      {
+        key: ideal.name,
+        label: ideal.label,
+        unit: ideal.unitHint,
+        placeholder: ideal.defaultValue,
+        defaultValue: ideal.defaultValue,
+        help: ideal.help,
+        inputMode: "text",
+      },
+    ];
   return (deviceDescriptor(symbolId)?.parameters ?? []).map((parameter) => ({
     key: parameter.name,
     label: parameter.label,
@@ -153,6 +170,10 @@ export function effectiveComponentParameterValue(
 ): string {
   const netlist = instance.netlist?.parameters[parameter.key];
   if (netlist !== undefined) return netlist;
+  const ideal = idealAnalogBlockParameter(
+    subcircuitDescriptor(instance.symbolId)?.target ?? "",
+  );
+  if (ideal?.name === parameter.key) return ideal.defaultValue;
   if (parameter.key === "waveform")
     return deviceDescriptor(instance.symbolId)?.sourceWaveformDefault ?? "";
   if (instance.symbolId === "pulse-voltage-source") {

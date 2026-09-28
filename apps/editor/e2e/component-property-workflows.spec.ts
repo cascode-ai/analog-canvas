@@ -604,6 +604,42 @@ test("a black-box part exposes its generated Reference", async ({ page }) => {
   await expect(code).toContainText(/"netlistName": "X1"/u);
 });
 
+for (const [symbolId, key, defaultValue] of [
+  ["opamp", "gain", "1e6"],
+  ["voltage-amplifier", "gain", "1"],
+  ["transconductance", "gm", "1m"],
+] as const)
+  test(`${symbolId} exposes its ideal model parameter in Properties JSON`, async ({
+    page,
+  }) => {
+    await page.goto("/editor");
+    await placeComponent(page, symbolId, { x: 300, y: 200 });
+    await openSelectionShelf(page);
+    expect(
+      JSON.parse(await readComponentPropertyCode(page)).parameters[key],
+    ).toBe(defaultValue);
+    await editComponentPropertyCode(page, (code) => {
+      code.parameters[key] = "2";
+    });
+    await expect
+      .poll(
+        async () =>
+          JSON.parse(await readComponentPropertyCode(page)).parameters[key],
+      )
+      .toBe("2");
+    const saved = parseSavedProject(
+      (await downloadBytes(page, "File", "Export Project File…")).toString(
+        "utf8",
+      ),
+    );
+    expect(
+      saved.documents[0]!.instances.find(
+        (instance: SchematicDocument["instances"][number]) =>
+          instance.symbolId === symbolId,
+      )?.netlist?.parameters[key],
+    ).toBe("2");
+  });
+
 test("Q opens a text-first Properties editor with one-click exact draft copy", async ({
   page,
 }) => {
