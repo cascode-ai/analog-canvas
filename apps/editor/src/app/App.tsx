@@ -1,4 +1,5 @@
 import { parseProject, serializeProject } from "@icm/project-protocol";
+import { flushSync } from "react-dom";
 import type {
   RecentProjectFile,
   NativeSaveOutcome,
@@ -5591,8 +5592,24 @@ function WorkspaceEditor({
           () => createTabSession(next, view, options),
           options.cloudBinding?.id,
         );
-  openGalleryProjectInTabRef.current = (next, view, context) =>
-    projectTabs.open(
+  openGalleryProjectInTabRef.current = (next, view, context) => {
+    // A fresh deep link has only a boot placeholder, not a user Project to
+    // preserve. Fill it so opening a Gallery circuit does not leave an empty
+    // extra tab; restored workspaces always take the additive path below.
+    if (
+      !restoredWorkspace &&
+      initialGalleryEntryId === context.id &&
+      projectTabs.tabs.length === 1 &&
+      project.id === preparedInitialProject.id &&
+      !isDirtyWork() &&
+      !hasUnsafeWork() &&
+      !codeDraftDirty
+    ) {
+      replaceActiveProject(next, view);
+      setGalleryEntryContext(context);
+      return Promise.resolve(true);
+    }
+    return projectTabs.open(
       () => ({
         ...createTabSession(next, view, {
           source: "opened-file",
@@ -5603,6 +5620,7 @@ function WorkspaceEditor({
       null,
       context.id,
     );
+  };
   useEffect(() => {
     const entryId = restoredGalleryLink.current;
     if (restoringWorkspace || !entryId) return;
@@ -6895,11 +6913,9 @@ function WorkspaceEditor({
                 entryId: galleryEntryContext.id,
                 entryName: galleryEntryContext.name,
                 onBranch: async (snapshot) => {
-                  setVersionHistoryOpen(false);
-                  // Let the dialog close before the normal tab-switch guard runs.
-                  await new Promise<void>((resolve) =>
-                    requestAnimationFrame(() => resolve()),
-                  );
+                  // The tab guard reads the committed dialog state. Waiting a
+                  // frame can still race a concurrent React render here.
+                  flushSync(() => setVersionHistoryOpen(false));
                   return openProjectInTabRef.current(
                     snapshot,
                     DEFAULT_VIEWBOX,

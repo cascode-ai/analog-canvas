@@ -1473,12 +1473,12 @@ test("a tab returning to a Gallery link shows the current entry unless its copy 
   await page
     .getByRole("button", { name: "New project tab", exact: true })
     .click();
-  await expect(page.getByRole("tab")).toHaveCount(3);
+  await expect(page.getByRole("tab")).toHaveCount(2);
   await expect(count).toHaveText("0");
   await page.goto("/");
   await page.goto(`/g/${id}`);
   await awaitEditorReady(page);
-  await expect(page.getByRole("tab")).toHaveCount(3);
+  await expect(page.getByRole("tab")).toHaveCount(2);
   await expect(page.getByRole("tab", { name: /Resistors$/ })).toHaveAttribute(
     "aria-selected",
     "true",
@@ -1488,7 +1488,7 @@ test("a tab returning to a Gallery link shows the current entry unless its copy 
   await page.goto("/");
   await page.goto("/g/g-next");
   await awaitEditorReady(page);
-  await expect(page.getByRole("tab")).toHaveCount(4);
+  await expect(page.getByRole("tab")).toHaveCount(3);
   await expect(count).toHaveText("2");
   await expect(page.getByTestId("status")).toContainText(
     "Opened gallery circuit: Next Visit",
