@@ -33,6 +33,7 @@ import type {
   StableId,
 } from "@icm/model";
 import {
+  IDEAL_COMPARATOR_TARGET,
   createReferenceIndex,
   deviceDescriptor,
   nextReference,
@@ -1194,6 +1195,87 @@ function extractBuiltInSubcircuitInstance(
       `Parameter name is outside the portable identifier subset: ${name}`,
       [instance.id],
     );
+  }
+  if (
+    definition.target === "comparator" &&
+    target === IDEAL_COMPARATOR_TARGET
+  ) {
+    if (options.format !== "spice") {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "IDEAL_COMPARATOR_SPICE_ONLY",
+        `Ideal comparator ${reference} currently has an ngspice model only; select SPICE or bind the historical external comparator target`,
+        [instance.id],
+      );
+      return null;
+    }
+    const seenParameters = new Set<string>();
+    for (const [name, rawValue] of parameters) {
+      const folded = name.toLowerCase();
+      if (seenParameters.has(folded)) {
+        diagnostic(
+          diagnostics,
+          document.id,
+          "DUPLICATE_PARAMETER_NAME",
+          `Ideal comparator ${reference} repeats parameter ${name} under case folding`,
+          [instance.id],
+          "error",
+          name,
+        );
+      }
+      seenParameters.add(folded);
+      if (!["vhigh", "vlow", "vtransition"].includes(folded)) {
+        diagnostic(
+          diagnostics,
+          document.id,
+          "UNKNOWN_IDEAL_COMPARATOR_PARAMETER",
+          `Ideal comparator ${reference} accepts only vhigh, vlow, and vtransition`,
+          [instance.id],
+          "error",
+          name,
+        );
+        continue;
+      }
+      const parsed = parseSpiceNumber(rawValue.trim());
+      if (
+        parsed &&
+        Number.isFinite(parsed.value) &&
+        (folded !== "vtransition" || parsed.value > 0)
+      )
+        continue;
+      diagnostic(
+        diagnostics,
+        document.id,
+        "INVALID_IDEAL_COMPARATOR_PARAMETER",
+        `Ideal comparator ${reference} requires numeric ${name}${folded === "vtransition" ? " > 0" : ""}`,
+        [instance.id],
+        "error",
+        name,
+      );
+    }
+    const nodes = definition.ports
+      .filter((port) => !port.supply)
+      .map((port) => ({
+        pinName: port.name,
+        netName:
+          terminalNetName(
+            document,
+            instance,
+            port.pinName,
+            context,
+            diagnostics,
+          ) ?? `<unconnected:${port.name}>`,
+      }));
+    return {
+      id: instance.id,
+      reference,
+      invocationKind: "subcircuit",
+      deviceClass: "hierarchical",
+      target,
+      nodes,
+      parameters: parameters.map(([name, rawValue]) => ({ name, rawValue })),
+    };
   }
   const nodes = definition.ports.flatMap((port) => {
     if (port.supply) {
@@ -2502,6 +2584,28 @@ function analyzeDesign(
         magneticSubcircuits.set(name, magneticSubcircuit(network, definition));
     }
   }
+  const comparatorCell = cellNames.get(IDEAL_COMPARATOR_TARGET);
+  const comparatorExternal = externalNames.get(IDEAL_COMPARATOR_TARGET);
+  if (comparatorCell || comparatorExternal) {
+    for (const document of documents) {
+      for (const instance of document.instances) {
+        const descriptor = subcircuitDescriptor(instance.symbolId, project);
+        if (
+          descriptor?.target !== "comparator" ||
+          instance.netlist?.binding?.kind !== "unresolved-subcircuit" ||
+          instance.netlist.binding.name !== IDEAL_COMPARATOR_TARGET
+        )
+          continue;
+        diagnostic(
+          diagnostics,
+          document.id,
+          "IDEAL_COMPARATOR_NAME_COLLISION",
+          `Ideal comparator ${instance.reference ?? instance.id} conflicts with ${comparatorCell ? `Cell ${comparatorCell.authoredName}` : `external subcircuit ${comparatorExternal}`} named ${IDEAL_COMPARATOR_TARGET}`,
+          [instance.id],
+        );
+      }
+    }
+  }
   if (resolvedOptions.groundPin === "pin") {
     // Supply markers share identity inside the drawing. Once that supply is
     // exposed by a module pin, its exported node belongs to that module:
@@ -2609,6 +2713,11 @@ function analyzeDesign(
       binding?.kind === "unresolved-subcircuit"
         ? binding.name
         : descriptor.target;
+    if (
+      descriptor.target === "comparator" &&
+      target === IDEAL_COMPARATOR_TARGET
+    )
+      continue;
     externalMasters.set(`builtin:${target.toLowerCase()}`, {
       id: descriptor.id,
       name: target,
@@ -2657,6 +2766,13 @@ function analyzeDesign(
     ir: {
       topCellId: resolvedOptions.rootDocumentId,
       cells: [...idealCells, ...cells],
+      ...(cells.some((cell) =>
+        cell.instances.some(
+          (instance) => instance.target === IDEAL_COMPARATOR_TARGET,
+        ),
+      )
+        ? { idealComparator: true as const }
+        : {}),
       globals,
       externalMasters: [...externalMasters.values()].sort((left, right) =>
         compareText(left.name, right.name),

@@ -159,8 +159,10 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
  * so a switched-capacitor circuit whose switches carry phases now extracts.
  * 8 writes drawn T-coils and transformers as calls on built-in coupled-winding
  * subcircuits, so a circuit drawn with them now extracts.
+ * 9 recognizes an explicit Zener BV as a local diode model and a new ideal
+ * comparator target as a signal-only ngspice subcircuit.
  */
-export const NETLIST_MARK_RULE_VERSION = 8;
+export const NETLIST_MARK_RULE_VERSION = 9;
 
 export function designExtractsNetlist(
   project: CircuitProject,

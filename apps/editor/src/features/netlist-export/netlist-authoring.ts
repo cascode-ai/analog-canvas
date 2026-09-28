@@ -6,6 +6,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import {
+  IDEAL_COMPARATOR_TARGET,
   createReferenceIndex,
   deviceDescriptor,
   nextReference,
@@ -155,7 +156,13 @@ function rawParameters(
 function defaultBinding(symbolId: string): InstanceNetlistBinding | undefined {
   const subcircuit = subcircuitDescriptor(symbolId);
   if (subcircuit) {
-    return { kind: "unresolved-subcircuit", name: subcircuit.target };
+    return {
+      kind: "unresolved-subcircuit",
+      name:
+        subcircuit.target === "comparator"
+          ? IDEAL_COMPARATOR_TARGET
+          : subcircuit.target,
+    };
   }
   const definition = deviceDescriptor(symbolId);
   if (!definition || definition.targetPolicy === "required-model") {
@@ -191,7 +198,16 @@ export function initialInstanceNetlist(
     : defaultBinding(symbolId);
   return {
     ...(binding ? { binding } : {}),
-    parameters: rawParameters(parameterValues),
+    parameters:
+      binding?.kind === "unresolved-subcircuit" &&
+      binding.name === IDEAL_COMPARATOR_TARGET
+        ? {
+            vhigh: "1",
+            vlow: "0",
+            vtransition: "1m",
+            ...rawParameters(parameterValues),
+          }
+        : rawParameters(parameterValues),
   };
 }
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FocusEvent, KeyboardEvent } from "react";
 
 import type { SchematicDocument } from "@icm/model";
-import { deviceDescriptor } from "@icm/devices";
+import { IDEAL_COMPARATOR_TARGET, deviceDescriptor } from "@icm/devices";
 
 import type { CapacitorPlatePropertyRow } from "./capacitor-plate-properties";
 import type { ComponentSourceCode } from "./component-source-code";
@@ -167,7 +167,9 @@ export function componentTargetDescription(
     case "external-subcircuit":
       return `External subcircuit: ${externalSubcircuitName ?? "unresolved"}`;
     case "unresolved-subcircuit":
-      return `Unresolved subcircuit: ${binding.name}`;
+      return binding.name === IDEAL_COMPARATOR_TARGET
+        ? "Built-in ideal comparator · ngspice"
+        : `Unresolved subcircuit: ${binding.name}`;
     default:
       return "No target is bound yet.";
   }
