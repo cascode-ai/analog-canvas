@@ -70,6 +70,19 @@ const MAX_CELLS = 1024;
 const MAX_INSTANCES_PER_CELL = 100_000;
 const MAX_NETS_PER_CELL = 100_000;
 
+function builtInZenerModelName(reference: string): string {
+  return `icm_zener_${reference}`;
+}
+
+function zenerParameter(
+  instance: Instance,
+  name: "bv" | "ibv",
+): string | undefined {
+  return Object.entries(instance.netlist?.parameters ?? {}).find(
+    ([candidate]) => candidate.toLowerCase() === name,
+  )?.[1];
+}
+
 function isIdentifier(value: string, allowGround = false): boolean {
   return (allowGround && value === "0") || IDENTIFIER.test(value);
 }
@@ -1616,15 +1629,24 @@ function extractDeviceInstance(
     );
   }
   if (definition.targetPolicy === "required-model") {
-    if (netlist.binding?.kind !== "model") {
+    const hasBuiltInZener =
+      definition.symbolId === "zener-diode" &&
+      netlist.binding === undefined &&
+      Boolean(zenerParameter(instance, "bv")?.trim());
+    if (netlist.binding?.kind !== "model" && !hasBuiltInZener) {
       diagnostic(
         diagnostics,
         document.id,
         "MISSING_MODEL_TARGET",
-        `Instance ${instance.reference!} requires an explicit model target`,
+        definition.symbolId === "zener-diode"
+          ? `Instance ${instance.reference!} requires an external model or a positive BV for a built-in Zener model`
+          : `Instance ${instance.reference!} requires an explicit model target`,
         [instance.id],
       );
-    } else if (netlist.binding.deviceClass !== definition.deviceClass) {
+    } else if (
+      netlist.binding?.kind === "model" &&
+      netlist.binding.deviceClass !== definition.deviceClass
+    ) {
       diagnostic(
         diagnostics,
         document.id,
@@ -1780,7 +1802,13 @@ function extractDeviceInstance(
     }
   }
   const target =
-    netlist.binding?.kind === "model" ? netlist.binding.name : null;
+    netlist.binding?.kind === "model"
+      ? netlist.binding.name
+      : definition.symbolId === "zener-diode" &&
+          netlist.binding === undefined &&
+          zenerParameter(instance, "bv")?.trim()
+        ? builtInZenerModelName(instance.reference!)
+        : null;
   if (target && !isIdentifier(target)) {
     diagnostic(
       diagnostics,
@@ -1793,6 +1821,49 @@ function extractDeviceInstance(
   const authoredParameters = Object.entries(netlist.parameters)
     .sort(([a], [b]) => compareText(a, b))
     .map(([name, rawValue]) => ({ name, rawValue }));
+  if (definition.symbolId === "zener-diode") {
+    const modelParameters = authoredParameters.filter((parameter) =>
+      ["bv", "ibv"].includes(parameter.name.toLowerCase()),
+    );
+    if (netlist.binding?.kind === "model" && modelParameters.length) {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "ZENER_MODEL_PARAMETER_CONFLICT",
+        `Instance ${instance.reference!} cannot set BV or IBV alongside an external model; put those values in that model instead`,
+        [instance.id],
+      );
+    }
+    if (netlist.binding?.kind !== "model") {
+      if (target && options.format !== "spice") {
+        diagnostic(
+          diagnostics,
+          document.id,
+          "ZENER_BUILTIN_SPICE_ONLY",
+          `Instance ${instance.reference!} uses a generated ngspice Zener model; select SPICE or bind a Spectre model explicitly`,
+          [instance.id],
+        );
+      }
+      for (const parameter of modelParameters) {
+        const parsed = parseSpiceNumber(parameter.rawValue.trim());
+        if (
+          parsed !== null &&
+          Number.isFinite(parsed.value) &&
+          parsed.value > 0
+        )
+          continue;
+        diagnostic(
+          diagnostics,
+          document.id,
+          "INVALID_ZENER_MODEL_PARAMETER",
+          `Instance ${instance.reference!} requires positive numeric ${parameter.name.toUpperCase()}`,
+          [instance.id],
+          "error",
+          parameter.name,
+        );
+      }
+    }
+  }
   const projectedParameters =
     definition.deviceClass === "voltage-source" ||
     definition.deviceClass === "current-source"
@@ -1819,7 +1890,12 @@ function extractDeviceInstance(
     nodes,
     parameters: projectedParameters
       ? [...projectedParameters.parameters]
-      : authoredParameters,
+      : definition.symbolId === "zener-diode"
+        ? authoredParameters.filter(
+            (parameter) =>
+              !["bv", "ibv"].includes(parameter.name.toLowerCase()),
+          )
+        : authoredParameters,
     ...(controlSourceInstanceId ? { controlSourceInstanceId } : {}),
     ...(controlTerminal ? { controlTerminal } : {}),
   };
@@ -2224,6 +2300,37 @@ function extractCell(
             );
     if (extracted) instances.push(extracted);
   }
+  const models: DesignNetlistModel[] = [];
+  if (
+    instances.some(
+      (instance) =>
+        instance.deviceClass === "switch" &&
+        instance.target === IDEAL_SWITCH_MODEL.name,
+    )
+  )
+    models.push(structuredClone(IDEAL_SWITCH_MODEL));
+  for (const extracted of instances) {
+    const source = document.instances.find(
+      (candidate) => candidate.id === extracted.id,
+    );
+    if (
+      source?.symbolId !== "zener-diode" ||
+      source.netlist?.binding !== undefined ||
+      extracted.target !== builtInZenerModelName(extracted.reference)
+    )
+      continue;
+    const bv = zenerParameter(source, "bv");
+    if (!bv?.trim()) continue;
+    const ibv = zenerParameter(source, "ibv");
+    models.push({
+      name: extracted.target,
+      type: "D",
+      parameters: [
+        { name: "BV", rawValue: bv.trim() },
+        ...(ibv?.trim() ? [{ name: "IBV", rawValue: ibv.trim() }] : []),
+      ],
+    });
+  }
   return {
     id: document.id,
     name:
@@ -2232,13 +2339,7 @@ function extractCell(
     ports,
     nets: context.nets,
     instances,
-    ...(instances.some(
-      (instance) =>
-        instance.deviceClass === "switch" &&
-        instance.target === IDEAL_SWITCH_MODEL.name,
-    )
-      ? { models: [structuredClone(IDEAL_SWITCH_MODEL)] }
-      : {}),
+    ...(models.length ? { models } : {}),
     formalParameters: document.netlist.formalParameters.map((parameter) => ({
       name: parameter.name,
       ...(parameter.defaultValue === undefined
