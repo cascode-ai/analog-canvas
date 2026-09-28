@@ -33,6 +33,9 @@ describe("browser project workspace", () => {
       workspace("second", 2),
     );
     expect(await reopened.read("first", "/g/other")).toBeNull();
+    expect(
+      await reopened.read("first", "/g/other", { allowRouteChange: true }),
+    ).toEqual(workspace());
     expect(await reopened.read("new-window", "/editor")).toBeNull();
     reopened.close();
   });

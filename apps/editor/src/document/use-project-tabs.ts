@@ -19,6 +19,7 @@ export function useProjectTabs<Session>(options: {
     dirty: boolean;
     unsafe: boolean;
     cloudId: string | null;
+    galleryId: string | null;
   };
   prepare(): Promise<boolean>;
   onError(message: string): void;
@@ -147,10 +148,16 @@ export function useProjectTabs<Session>(options: {
       setIds((previous) => [...previous]);
       persistenceRef.current(false);
     },
-    open: (create: () => Session, cloudId?: string | null) => {
-      const existing = cloudId
-        ? ids.find((id) => describe(id).cloudId === cloudId)
-        : undefined;
+    open: (
+      create: () => Session,
+      cloudId?: string | null,
+      galleryId?: string | null,
+    ) => {
+      const existing = ids.find(
+        (id) =>
+          (cloudId && describe(id).cloudId === cloudId) ||
+          (galleryId && describe(id).galleryId === galleryId),
+      );
       if (existing) return select(existing);
       return transition(() => {
         const id = createId("tab");

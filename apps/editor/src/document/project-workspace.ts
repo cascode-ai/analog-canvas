@@ -30,10 +30,15 @@ function decode(
   value: unknown,
   id: string,
   url: string,
+  allowRouteChange = false,
 ): ProjectWorkspace | null {
   if (!value) return null;
   const record = value as ProjectWorkspace;
-  if (record.version !== 1 || record.windowId !== id || record.url !== url)
+  if (
+    record.version !== 1 ||
+    record.windowId !== id ||
+    (!allowRouteChange && record.url !== url)
+  )
     return null;
   if (
     !Number.isFinite(record.savedAt) ||
@@ -66,7 +71,11 @@ export function createProjectWorkspaceStore(factory: IDBFactory = indexedDB) {
         );
     }));
   return {
-    async read(id: string, url: string): Promise<ProjectWorkspace | null> {
+    async read(
+      id: string,
+      url: string,
+      options: { allowRouteChange?: boolean } = {},
+    ): Promise<ProjectWorkspace | null> {
       const db = await open();
       const stored = await new Promise<unknown>((resolve, reject) => {
         const request = db.transaction(STORE).objectStore(STORE).get(id);
@@ -79,11 +88,12 @@ export function createProjectWorkspaceStore(factory: IDBFactory = indexedDB) {
           JSON.parse(sessionStorage.getItem(JOURNAL_KEY) || "null"),
           id,
           url,
+          options.allowRouteChange,
         );
       } catch {
         /* IndexedDB remains the primary snapshot. */
       }
-      const record = decode(stored, id, url);
+      const record = decode(stored, id, url, options.allowRouteChange);
       return journal && (!record || journal.savedAt > record.savedAt)
         ? journal
         : record;

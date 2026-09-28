@@ -1421,6 +1421,20 @@ test("a tab returning to a Gallery link shows the current entry unless its copy 
       },
     });
   });
+  await page.route("**/api/gallery/g-next", (route) =>
+    route.fulfill({
+      json: {
+        entry: {
+          id: "g-next",
+          name: "Next Visit",
+          author: "tz",
+          description: "",
+          tags: [],
+        },
+        projectText: serializeProject(galleryResistorProject("2k", 2)),
+      },
+    }),
+  );
   page.on("dialog", (dialog) => dialog.accept());
   const count = page.getByTestId("active-instance-count");
   const status = page.getByTestId("status");
@@ -1454,6 +1468,31 @@ test("a tab returning to a Gallery link shows the current entry unless its copy 
   await page.waitForLoadState("networkidle");
   expect(reads).toBe(readsBefore);
   await expect(count).toHaveText("1");
+  // The linked Gallery tab may be inactive when the reader visits the wall.
+  // The URL must select that tab, not leave the unrelated active draft on top.
+  await page
+    .getByRole("button", { name: "New project tab", exact: true })
+    .click();
+  await expect(page.getByRole("tab")).toHaveCount(3);
+  await expect(count).toHaveText("0");
+  await page.goto("/");
+  await page.goto(`/g/${id}`);
+  await awaitEditorReady(page);
+  await expect(page.getByRole("tab")).toHaveCount(3);
+  await expect(page.getByRole("tab", { name: /Resistors$/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(count).toHaveText("1");
+  expect(reads).toBe(readsBefore);
+  await page.goto("/");
+  await page.goto("/g/g-next");
+  await awaitEditorReady(page);
+  await expect(page.getByRole("tab")).toHaveCount(4);
+  await expect(count).toHaveText("2");
+  await expect(page.getByTestId("status")).toContainText(
+    "Opened gallery circuit: Next Visit",
+  );
 });
 
 test("clicking a byline filters the wall to that author, clearable", async ({
