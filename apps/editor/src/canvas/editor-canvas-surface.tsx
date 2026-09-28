@@ -34,6 +34,37 @@ import {
 import type { CameraRuntime } from "./camera-runtime";
 import { EDITOR_SHORTCUT_REFERENCE } from "../interaction/editor-shortcut-reference";
 
+interface DomRoutedEvent {
+  currentTarget: Element;
+  target: EventTarget;
+}
+
+/**
+ * React routes a portal's events through its component ancestors. The text
+ * editor inside this SVG opens its symbol menu into the page body, so a press
+ * on that menu used to arrive here as a canvas press: the canvas took focus
+ * from the text and, finding a selected object under the menu, began moving
+ * it. The canvas answers only events whose DOM target it contains.
+ */
+function ownEvent(event: DomRoutedEvent): boolean {
+  return event.currentTarget.contains(event.target as Node);
+}
+
+function ownEventHandlers(
+  handlers: SVGProps<SVGSVGElement>,
+): SVGProps<SVGSVGElement> {
+  return Object.fromEntries(
+    Object.entries(handlers).map(([name, handler]) => [
+      name,
+      /^on[A-Z]/u.test(name) && typeof handler === "function"
+        ? (event: DomRoutedEvent) => {
+            if (ownEvent(event)) (handler as (event: unknown) => void)(event);
+          }
+        : handler,
+    ]),
+  ) as SVGProps<SVGSVGElement>;
+}
+
 export interface EditorCanvasSurfaceProps {
   shortcutHintsVisible: boolean;
   className: string;
@@ -266,8 +297,9 @@ export function EditorCanvasSurface({
         aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown"
         tabIndex={-1}
         viewBox={viewBox}
-        {...eventHandlers}
+        {...ownEventHandlers(eventHandlers)}
         onPointerMove={(event) => {
+          if (!ownEvent(event)) return;
           if (
             event.buttons === 0 &&
             (inputPlanes.tool === "wire" || isDrawingTool(inputPlanes.tool))
@@ -283,10 +315,12 @@ export function EditorCanvasSurface({
           }
         }}
         onPointerDownCapture={(event) => {
+          if (!ownEvent(event)) return;
           pointerFrame.cancel();
           eventHandlers.onPointerDownCapture?.(event);
         }}
         onPointerLeave={(event) => {
+          // Leaving only clears hover previews, wherever the pointer left from.
           pointerFrame.cancel();
           eventHandlers.onPointerLeave?.(event);
         }}

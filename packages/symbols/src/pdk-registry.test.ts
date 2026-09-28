@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { reviewedExternalDeviceBindings } from "@icm/devices";
 
 import {
+  isPdkMappableSymbolId,
   resolvePdkSymbolMapping,
   resolvePdkSymbolMappingForTerminalOrder,
   reviewedSky130MosModelSuggestions,
@@ -99,5 +101,31 @@ describe("PDK symbol mapping registry", () => {
       source: "exact",
       registryId: "sky130-nfet-01v8",
     });
+  });
+
+  it("maps SKY130's drain-extended devices to the Extended Devices DMOS", () => {
+    expect(resolvePdkSymbolMapping("sky130_fd_pr__nfet_g5v0d16v0", 4)).toEqual({
+      symbolId: "ndmos",
+      pinNames: ["D", "G", "S", "B"],
+      source: "exact",
+      registryId: "sky130-nfet-g5v0d16v0",
+    });
+    expect(resolvePdkSymbolMapping("sky130_fd_pr__pfet_20v0", 4)).toMatchObject(
+      { symbolId: "pdmos", registryId: "sky130-pfet-20v0" },
+    );
+    expect(isPdkMappableSymbolId("ndmos")).toBe(true);
+    expect(isPdkMappableSymbolId("depletion-nmos")).toBe(true);
+    expect(isPdkMappableSymbolId("generic-block-4")).toBe(false);
+  });
+
+  it("draws every reviewed binding with its own symbol", () => {
+    // Import builds a reviewed definition and the instance's pins from two
+    // lookups; they agree only when each binding's symbol can be drawn.
+    for (const binding of reviewedExternalDeviceBindings)
+      expect(
+        resolvePdkSymbolMapping(binding.masterName, binding.terminals.length)
+          ?.registryId,
+        binding.masterName,
+      ).toBe(binding.id);
   });
 });

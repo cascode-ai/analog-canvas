@@ -1364,7 +1364,25 @@ test("types Greek letters by LaTeX name and from the symbol menu", async ({
   // Σ and σ differ only in case, which role names otherwise ignore.
   await menu.getByRole("menuitem", { name: "Insert Σ", exact: true }).click();
   await menu.getByRole("menuitem", { name: "Insert ψ", exact: true }).click();
-  await menu.getByRole("menuitem", { name: "Insert ≠", exact: true }).click();
+  // The menu is a portal on the page body, yet React routes its events
+  // through the canvas: a press on it must not hand the canvas the focus
+  // (and with it the typing) or a press on whatever lies under the menu.
+  const notEqual = menu.getByRole("menuitem", {
+    name: "Insert ≠",
+    exact: true,
+  });
+  const notEqualBox = (await notEqual.boundingBox())!;
+  await page.mouse.move(
+    notEqualBox.x + notEqualBox.width / 2,
+    notEqualBox.y + notEqualBox.height / 2,
+  );
+  await page.mouse.down();
+  expect(
+    await page.evaluate(() =>
+      document.activeElement?.getAttribute("aria-label"),
+    ),
+  ).toBe("Canvas text editor");
+  await page.mouse.up();
   await expect(page.getByTestId("canvas-text-editor")).toBeVisible();
   await expect.poll(typed).toBe("φ1 Ω\\foo Σψ≠");
 
