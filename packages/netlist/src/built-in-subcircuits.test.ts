@@ -362,12 +362,7 @@ describe("built-in Analog Block subcircuits", () => {
         },
       );
 
-  it("declares an undrawn block supply as a global without synthesizing interfaces", () => {
-    // A Block used at the abstract level with nothing above it yet: its
-    // library interface states that it needs these nodes, so the netlist
-    // declares them as globals of the declared name and says so. It still
-    // adds no Cell port, claims no Net in the Document, and leaves the
-    // drawing exactly as it was.
+  it("blocks an undrawn block supply rather than declaring a global", () => {
     const project = analogBlockProject(
       ["opamp-differential"],
       differentialNets,
@@ -382,20 +377,40 @@ describe("built-in Analog Block subcircuits", () => {
     );
     const before = structuredClone(project);
     const result = createDesignNetlistExport(project);
-    expect(result.status).toBe("ready");
-    if (result.status !== "ready") return;
+    expect(result.status).toBe("blocked");
     expect(
       result.diagnostics
-        .filter((diagnostic) => diagnostic.code === "DECLARED_BLOCK_SUPPLY")
-        .map((diagnostic) => diagnostic.severity),
-    ).toEqual(["warning", "warning"]);
-    expect(result.file.text).toContain(".global VDD VSS");
-    expect(result.file.text).toContain(
-      "X1 VDD VSS plus_node minus_node positive_out negative_out opamp_differential",
-    );
-    // No Cell interface was invented for it.
-    expect(result.file.text).toContain(".subckt dut\n");
+        .filter((diagnostic) => diagnostic.code === "MISSING_BLOCK_SUPPLY")
+        .map((diagnostic) => diagnostic.message),
+    ).toEqual([
+      expect.stringContaining("select one in Properties"),
+      expect.stringContaining("select one in Properties"),
+    ]);
     expect(project).toEqual(before);
+  });
+
+  it("uses explicit property-only supply bindings ahead of Auto", () => {
+    const project = analogBlockProject(
+      ["opamp-differential"],
+      differentialNets,
+    );
+    const document = project.documents[0]!;
+    const positive = document.nets.find((net) => net.id === "block-1-IN+")!;
+    const negative = document.nets.find((net) => net.id === "block-1-IN-")!;
+    positive.terminals.push({ instanceId: "block-1", pinName: "VDD" });
+    negative.terminals.push({ instanceId: "block-1", pinName: "VSS" });
+
+    for (const format of ["spice", "spectre"] as const) {
+      const result = createDesignNetlistExport(project, { format });
+      expect(result.status).toBe("ready");
+      if (result.status !== "ready") continue;
+      expect(result.file.text).toContain(
+        format === "spice"
+          ? "X1 plus_node minus_node plus_node minus_node positive_out negative_out opamp_differential"
+          : "X1 (plus_node minus_node plus_node minus_node positive_out negative_out) opamp_differential",
+      );
+      expect(result.file.text).not.toContain(".global VDD VSS");
+    }
   });
   it("follows the supplies the author drew rather than their spelling", () => {
     // Nobody names a Net "VSS" when they have drawn a ground symbol, and a
@@ -443,9 +458,7 @@ describe("built-in Analog Block subcircuits", () => {
     expect(project).toEqual(before);
   });
 
-  it("takes the drawn ground and declares only what is missing", () => {
-    // Ground is on the page, so VSS follows it; the positive supply is not,
-    // so only that one is declared as a global.
+  it("does not turn one missing supply into a global when the other is drawn", () => {
     const project = analogBlockProject(
       ["opamp-differential"],
       differentialNets,
@@ -469,24 +482,17 @@ describe("built-in Analog Block subcircuits", () => {
     });
 
     const result = createDesignNetlistExport(project);
-    expect(result.status).toBe("ready");
-    if (result.status !== "ready") return;
+    expect(result.status).toBe("blocked");
     expect(
       result.diagnostics
-        .filter((diagnostic) => diagnostic.code === "DECLARED_BLOCK_SUPPLY")
+        .filter((diagnostic) => diagnostic.code === "MISSING_BLOCK_SUPPLY")
         .map((diagnostic) => diagnostic.message),
     ).toEqual([
-      "Analog Block X1 has no VDD Net in this Cell; its declared supply exports as global node VDD",
+      "Analog Block X1 has no unambiguous VDD Net; select one in Properties or draw a unique positive supply",
     ]);
-    expect(result.file.text).toContain(
-      "X1 VDD VSS plus_node minus_node positive_out negative_out opamp_differential",
-    );
   });
 
-  it("refuses when that supply token is already some other node", () => {
-    // An imported Net can carry the spelling VDD without being an authored
-    // supply. Declaring a global of the same name would put two different
-    // nodes under one token, so the Block's supply stays missing instead.
+  it("does not mistake a same-named signal for an automatic supply", () => {
     const project = analogBlockProject(
       ["opamp-differential"],
       differentialNets,
@@ -511,8 +517,54 @@ describe("built-in Analog Block subcircuits", () => {
     const missing = result.diagnostics.filter(
       (diagnostic) => diagnostic.code === "MISSING_BLOCK_SUPPLY",
     );
-    expect(missing).toHaveLength(1);
-    expect(missing[0]!.message).toContain("already spells VDD for a local Net");
+    expect(missing).toHaveLength(2);
+    expect(missing[0]!.message).toContain("select one in Properties");
+  });
+
+  it("requires explicit selection when two positive supplies are drawn", () => {
+    const project = analogBlockProject(
+      ["opamp-differential"],
+      differentialNets,
+    );
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "VDDA",
+      symbolId: "vdd-port",
+      placement: null,
+    });
+    document.nets.push({
+      id: "net-vdda",
+      terminals: [{ instanceId: "VDDA", pinName: "P" }],
+    });
+    document.connectivityEvidence.push({
+      id: "vdda-claim",
+      kind: "name-claim",
+      netId: "net-vdda",
+      name: "VDDA",
+      scope: "global",
+      powerDomain: "vdd",
+      owner: { kind: "power-marker", objectId: "VDDA" },
+    });
+
+    const result = createDesignNetlistExport(project);
+    expect(result.status).toBe("blocked");
+    expect(
+      result.diagnostics.filter(
+        (diagnostic) => diagnostic.code === "MISSING_BLOCK_SUPPLY",
+      ),
+    ).toHaveLength(1);
+    document.nets
+      .find((net) => net.id === "net-vdda")!
+      .terminals.push({
+        instanceId: "block-1",
+        pinName: "VDD",
+      });
+    const explicit = createDesignNetlistExport(project);
+    expect(explicit.status).toBe("ready");
+    if (explicit.status !== "ready") return;
+    expect(explicit.file.text).toContain(
+      "X1 VDDA VSS plus_node minus_node positive_out negative_out opamp_differential",
+    );
   });
 
   it.each([

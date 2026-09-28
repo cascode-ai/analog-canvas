@@ -539,9 +539,10 @@ Invalid JSON pauses copying until corrected. The circuit itself is unchanged.
 
 Every preset requires an actual MOS Bulk connection or an explicit NoConnect.
 Missing connections block export rather than creating an invisible VDD Net.
-Built-in Analog Blocks require their library-declared supply Nets to exist;
-export reports missing supplies instead of adding Cell Pins. Use an explicit
-external definition when the block needs a different supply interface.
+Built-in Analog Blocks have hidden `VDD` and `VSS` Net selectors in Properties.
+`Auto` uses a uniquely drawn positive supply or ground; select an existing Net
+explicitly for another rail. Missing or ambiguous supplies block export rather
+than adding Cell Pins or silently declaring global supply nodes.
 
 Fields still missing after these defaults block netlist output; the sidebar and
 Check Report identify the exact device and field. Refresh applies configured

@@ -746,52 +746,6 @@ function buildNetContext(
   };
 }
 
-/**
- * The node a built-in Block's declared supply exports to when the Cell drew
- * no supply of that domain at all — a Block used at the abstract level with
- * nothing above it yet.
- *
- * The Block's library interface states that it needs this node; declaring it
- * as a global of the same name says exactly that and nothing more. It adds no
- * Cell port, claims no Net in the Document, and changes no membership: the
- * drawing is unchanged and a warning records what the netlist declared. When
- * the Cell already spells that name for a local Net, the declaration would be
- * two different nodes under one token, so the supply stays missing instead.
- */
-function declaredBlockSupplyName(
-  document: SchematicDocument,
-  instance: Instance,
-  supply: "VDD" | "VSS",
-  context: CellNetContext,
-  options: ResolvedDesignNetlistAnalysisOptions,
-  diagnostics: NetlistDiagnostic[],
-): string | undefined {
-  const encoded = encodeCandidate(supply, "global", options);
-  if (!encoded.ok) return undefined;
-  const taken = context.nets.find(
-    (net) =>
-      encodedNetNameCollisionKey(net.name, options.format) ===
-      encoded.collisionKey,
-  );
-  if (taken && taken.scope !== "global") return undefined;
-  if (!taken) {
-    context.nets.push({
-      id: deriveStableId("netlist", "block-supply", document.id, supply),
-      name: encoded.token,
-      scope: "global",
-    });
-  }
-  diagnostic(
-    diagnostics,
-    document.id,
-    "DECLARED_BLOCK_SUPPLY",
-    `Analog Block ${instance.reference ?? instance.id} has no ${supply} Net in this Cell; its declared supply exports as global node ${encoded.token}`,
-    [instance.id],
-    "warning",
-  );
-  return encoded.token;
-}
-
 function terminalNetName(
   document: SchematicDocument,
   instance: Instance,
@@ -1279,37 +1233,39 @@ function extractBuiltInSubcircuitInstance(
   }
   const nodes = definition.ports.flatMap((port) => {
     if (port.supply) {
-      // The library declares a fixed named supply, not permission to invent
-      // a Net or a Cell interface. Resolve authored identity before encoding.
-      const netName = context.nameByAuthoredName.get(foldNetName(port.supply));
-      if (netName) return [{ pinName: port.name, netName }];
-      // Failing that, the supply the author drew: a Block's VSS sits on the
-      // Cell's ground and its VDD on the Cell's positive supply, the same
-      // reading a MOS body uses for its fourth node. Nobody names a Net
-      // "VSS" when they have drawn a ground symbol, and the Block asking for
-      // one by spelling was never an electrical requirement.
+      // A property-only terminal is an explicit electrical binding even
+      // though the Symbol exposes no canvas pin. Its identity wins over any
+      // spelling or inferred power domain, including alternate supply rails.
+      const explicit = context.netByTerminal.get(
+        `${instance.id}\u0000${port.supply}`,
+      );
+      const explicitName = explicit
+        ? context.nameByNetId.get(explicit.id)
+        : undefined;
+      if (explicitName) return [{ pinName: port.name, netName: explicitName }];
+      if (explicit) {
+        diagnostic(
+          diagnostics,
+          document.id,
+          "MISSING_BLOCK_SUPPLY",
+          `Analog Block ${reference} binds ${port.supply} to a Net that cannot be exported; select another Net in Properties`,
+          [instance.id],
+        );
+        return [{ pinName: port.name, netName: `<unconnected:${port.name}>` }];
+      }
+      // Auto is safe only when the Cell has one unambiguous drawn supply of
+      // this domain. A similarly named signal is not a supply declaration.
       const drawn = drawnSupplyNet(
         document,
         port.supply === "VDD" ? "vdd" : "ground",
       );
       const drawnName = drawn ? context.nameByNetId.get(drawn.id) : undefined;
       if (drawnName) return [{ pinName: port.name, netName: drawnName }];
-      // Nothing of that domain is drawn: declare the node the Block's own
-      // interface asks for, as a global, and say so.
-      const declared = declaredBlockSupplyName(
-        document,
-        instance,
-        port.supply,
-        context,
-        options,
-        diagnostics,
-      );
-      if (declared) return [{ pinName: port.name, netName: declared }];
       diagnostic(
         diagnostics,
         document.id,
         "MISSING_BLOCK_SUPPLY",
-        `Analog Block ${reference} requires a ${port.supply} Net; the Cell already spells ${port.supply} for a local Net, so draw the ${port.supply === "VDD" ? "positive supply" : "ground"} or rename that Net`,
+        `Analog Block ${reference} has no unambiguous ${port.supply} Net; select one in Properties or draw a unique ${port.supply === "VDD" ? "positive supply" : "ground"}`,
         [instance.id],
       );
       return [{ pinName: port.name, netName: `<unconnected:${port.name}>` }];

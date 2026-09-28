@@ -5,9 +5,12 @@ import {
   awaitEditorReady,
   revealPropertiesShelf,
   chooseComponent,
+  downloadBytes,
   editComponentPropertyCode,
   expectComponentCodeField,
+  parseSavedProject,
 } from "./editor-fixtures.js";
+import { openSelectionShelf } from "./manual-editor-fixtures.js";
 
 // Full catalog projection/parse coverage lives in component-property-catalog.test.ts.
 // These exercise distinct UI capabilities through placement, selection and Q:
@@ -89,11 +92,25 @@ for (const symbolId of componentSymbolIds) {
       });
       await expectComponentCodeField(page, "parameters.gm", "1m");
     }
-    await expect(properties.locator(":scope > *")).toHaveCount(1);
-    await expect(properties.locator(":scope > :only-child")).toHaveAttribute(
-      "aria-label",
-      "Canvas property code",
-    );
+    if (symbolId === "voltage-amplifier") {
+      await expect(
+        properties.getByRole("group", {
+          name: "Property-only electrical terminals",
+        }),
+      ).toBeVisible();
+      await expect(
+        properties.getByRole("button", { name: "VDD Net options" }),
+      ).toBeVisible();
+      await expect(
+        properties.getByRole("button", { name: "VSS Net options" }),
+      ).toBeVisible();
+    } else {
+      await expect(properties.locator(":scope > *")).toHaveCount(1);
+      await expect(properties.locator(":scope > :only-child")).toHaveAttribute(
+        "aria-label",
+        "Canvas property code",
+      );
+    }
   });
 }
 
@@ -224,6 +241,94 @@ async function openFixture(
   await page.keyboard.press("q");
   await expect(page.getByTestId("component-control-pick")).toBeVisible();
 }
+
+test("hidden block supplies preview Nets and persist an explicit binding", async ({
+  page,
+}) => {
+  const project = createEmptyProject("block-supply", "Block supply");
+  const document = project.documents[0]!;
+  document.instances.push({
+    id: "block",
+    symbolId: "opamp",
+    reference: "X1",
+    placement: { position: { x: 480, y: 300 }, rotation: 0, mirror: "none" },
+  });
+  for (const [name, x] of [
+    ["AVDD", 230],
+    ["DVDD", 330],
+  ] as const) {
+    const markerId = `marker-${name}`;
+    const netId = `net-${name}`;
+    document.instances.push({
+      id: markerId,
+      symbolId: "vdd-port",
+      placement: { position: { x, y: 180 }, rotation: 0, mirror: "none" },
+    });
+    document.nets.push({
+      id: netId,
+      terminals: [{ instanceId: markerId, pinName: "P" }],
+    });
+    document.connectivityEvidence.push({
+      id: `claim-${name}`,
+      kind: "name-claim",
+      netId,
+      owner: { kind: "power-marker", objectId: markerId },
+      name,
+      scope: "global",
+      powerDomain: "vdd",
+    });
+  }
+  document.instances.push({
+    id: "ground",
+    symbolId: "ground",
+    placement: { position: { x: 230, y: 420 }, rotation: 0, mirror: "none" },
+  });
+  document.nets.push({
+    id: "net-ground",
+    terminals: [{ instanceId: "ground", pinName: "0" }],
+  });
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("project-file").setInputFiles({
+    name: "block-supply.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await revealPropertiesShelf(page);
+  await page.getByTestId("hit-block").click({ force: true });
+  await openSelectionShelf(page);
+  const properties = page.getByRole("complementary", { name: "Properties" });
+  const vdd = properties.getByRole("button", { name: "VDD Net options" });
+  const vss = properties.getByRole("button", { name: "VSS Net options" });
+  await expect(vdd).toContainText("Auto · unresolved");
+  await expect(vss).toContainText("Auto · net-ground");
+  await vdd.click();
+  const option = page
+    .getByRole("listbox", { name: "VDD Net previews" })
+    .getByRole("option", { name: "AVDD" });
+  await option.hover();
+  await expect(page.getByTestId("net-highlight-overlay")).toHaveAttribute(
+    "data-net-id",
+    "net-AVDD",
+  );
+  await option.click();
+  await expect(vdd).toContainText("AVDD");
+  await expect(page.getByTestId("net-highlight-overlay")).toHaveCount(0);
+  const saved = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  ) as ReturnType<typeof createEmptyProject>;
+  expect(
+    saved.documents[0]!.nets.find((net) => net.id === "net-AVDD")!.terminals,
+  ).toContainEqual({ instanceId: "block", pinName: "VDD" });
+  await vdd.click();
+  await page
+    .getByRole("listbox", { name: "VDD Net previews" })
+    .getByRole("option", { name: /Auto/ })
+    .click();
+  await expect(vdd).toContainText("Auto · unresolved");
+});
 
 for (const symbolId of ["vcvs", "vccs"]) {
   test(`${symbolId} highlights control Nets and commits each pick immediately`, async ({
