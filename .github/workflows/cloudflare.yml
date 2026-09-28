@@ -216,7 +216,7 @@ jobs:
             .signInForMore == true and
             .nextCursor == null and
             (.total | type == "number") and
-            (.entries | type == "array" and length <= 10) and
+            (.entries | type == "array" and length <= 24) and
             all(.entries[]; .id | type == "string")
           ' <<<"$gallery_wall" >/dev/null; then
             echo "The anonymous Gallery wall exceeded its bounded preview contract."

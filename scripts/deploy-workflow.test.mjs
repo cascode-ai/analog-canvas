@@ -247,7 +247,13 @@ describe("Cloudflare deploy workflow", () => {
     );
     expect(verifySection).toContain(".signInForMore == true");
     expect(verifySection).toContain(".nextCursor == null");
-    expect(verifySection).toContain("length <= 10");
+    // The bound is the Worker's anonymous wall size; a change to one that
+    // misses the other fails Production verification and rolls back.
+    const wallSize = /export const ANONYMOUS_GALLERY_SIZE = (\d+);/u.exec(
+      readFileSync("worker/gallery.ts", "utf8"),
+    )?.[1];
+    expect(wallSize).toBeDefined();
+    expect(verifySection).toContain(`length <= ${wallSize})`);
     expect(verifySection).toContain('all(.entries[]; .id | type == "string")');
     expect(verifySection).toContain(
       "for path in api/gallery/tags api/gallery/authors; do",
