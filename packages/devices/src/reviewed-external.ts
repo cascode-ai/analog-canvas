@@ -9,8 +9,14 @@ export type ReviewedExternalBindingId =
   | "sky130-nfet-03v3-nvt"
   | "sky130-nfet-05v0-nvt"
   | "sky130-nfet-g5v0d10v5"
+  | "sky130-nfet-g5v0d16v0"
+  | "sky130-nfet-20v0"
+  | "sky130-nfet-20v0-nvt"
+  | "sky130-nfet-20v0-zvt"
   | "sky130-pfet-01v8-hvt"
   | "sky130-pfet-g5v0d10v5"
+  | "sky130-pfet-g5v0d16v0"
+  | "sky130-pfet-20v0"
   | "sky130-res-high-po"
   | "sky130-res-xhigh-po"
   | "sky130-cap-mim-m3-1"
@@ -44,10 +50,24 @@ export interface ReviewedExternalDeviceBinding {
   readonly masterName: string;
   readonly invocationKind: "external-subcircuit";
   readonly symbolId:
-    "nmos" | "pmos" | "resistor" | "capacitor" | "inductor" | "npn" | "pnp";
+    | "nmos"
+    | "pmos"
+    | "ndmos"
+    | "pdmos"
+    | "resistor"
+    | "capacitor"
+    | "inductor"
+    | "npn"
+    | "pnp";
   readonly deviceClass: "mos" | "resistor" | "capacitor" | "inductor" | "bjt";
   readonly terminals: readonly ReviewedExternalTerminalBinding[];
   readonly parameters: readonly ReviewedExternalParameterBinding[];
+  /**
+   * The MOS primitive's path inside the wrapper, for operating-point
+   * vectors. A plain SKY130 MOS wrapper holds one `m<masterName>`; the
+   * high-voltage ones nest it or name it otherwise.
+   */
+  readonly nativeElement?: string;
 }
 
 const geometry = (
@@ -142,9 +162,10 @@ const mosTerminals = (): readonly ReviewedExternalTerminalBinding[] =>
 const sky130MosBinding = (
   id: ReviewedExternalBindingId,
   masterName: string,
-  symbolId: "nmos" | "pmos",
+  symbolId: "nmos" | "pmos" | "ndmos" | "pdmos",
   width: string,
   length: string,
+  nativeElement?: string,
 ): ReviewedExternalDeviceBinding => ({
   id,
   libraryId: "sky130_fd_pr",
@@ -159,6 +180,28 @@ const sky130MosBinding = (
     count("nf", "NF", "Finger count", 2),
     count("m", "M", "ngspice X-line parallel multiplier", 3),
   ],
+  ...(nativeElement ? { nativeElement } : {}),
+});
+
+/**
+ * The 20 V drain-extended wrappers fix their channel inside (the N devices
+ * about 29.4 um by 2.95 um, the P device 30 um by 0.5 um) and ignore the W and
+ * L they are called with, so only the parallel count is offered.
+ */
+const sky130FixedMosBinding = (
+  id: ReviewedExternalBindingId,
+  masterName: string,
+  symbolId: "ndmos" | "pdmos",
+): ReviewedExternalDeviceBinding => ({
+  id,
+  libraryId: "sky130_fd_pr",
+  masterName,
+  invocationKind: "external-subcircuit",
+  symbolId,
+  deviceClass: "mos",
+  terminals: mosTerminals(),
+  parameters: [count("m", "M", "ngspice X-line parallel multiplier", 0)],
+  nativeElement: "m1",
 });
 
 const sky130ResistorBinding = (
@@ -330,6 +373,44 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "nmos",
       "10u",
       "500n",
+    ),
+    // Drain-extended devices are drawn with the DMOS symbols. The 16 V pair
+    // keeps binned geometry: N at L 0.7 or 2.2 um, P at L 0.66 or 2.16 um.
+    sky130MosBinding(
+      "sky130-nfet-g5v0d16v0",
+      "sky130_fd_pr__nfet_g5v0d16v0",
+      "ndmos",
+      "5u",
+      "700n",
+      "xmain1.msky130_fd_pr__nfet_g5v0d16v0__base",
+    ),
+    sky130MosBinding(
+      "sky130-pfet-g5v0d16v0",
+      "sky130_fd_pr__pfet_g5v0d16v0",
+      "pdmos",
+      "5u",
+      "660n",
+      "xmain1.msky130_fd_pr__pfet_g5v0d16v0__base",
+    ),
+    sky130FixedMosBinding(
+      "sky130-nfet-20v0",
+      "sky130_fd_pr__nfet_20v0",
+      "ndmos",
+    ),
+    sky130FixedMosBinding(
+      "sky130-nfet-20v0-nvt",
+      "sky130_fd_pr__nfet_20v0_nvt",
+      "ndmos",
+    ),
+    sky130FixedMosBinding(
+      "sky130-nfet-20v0-zvt",
+      "sky130_fd_pr__nfet_20v0_zvt",
+      "ndmos",
+    ),
+    sky130FixedMosBinding(
+      "sky130-pfet-20v0",
+      "sky130_fd_pr__pfet_20v0",
+      "pdmos",
     ),
     sky130MosBinding(
       "sky130-pfet-01v8-hvt",

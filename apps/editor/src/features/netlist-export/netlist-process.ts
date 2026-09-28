@@ -15,6 +15,7 @@ import {
 import { deriveStableId, type CircuitProject, type Instance } from "@icm/model";
 import {
   NETLIST_DEVICE_TARGET_OPTIONS,
+  NETLIST_HIGH_VOLTAGE_TARGETS,
   netlistDeviceFamily,
   type NetlistExportProfile,
   type NetlistProfileId,
@@ -191,13 +192,28 @@ export function planNetlistProcess(
         continue;
       const rule = profile.devices[family];
       if (descriptor.targetPolicy === "none") continue;
-      const target = rule.target;
+      // A reviewed model belongs to one drawn symbol. A drain-extended device
+      // the family's model does not fit takes the process's high-voltage
+      // device, unless a model is being chosen for the whole family. Without
+      // one it keeps its finding for the author, and the rest still fills.
+      const drawn = drawnSymbolId(project, original);
+      const fits = (master: string) => {
+        const binding = reviewedExternalBindingForMaster(master);
+        return !binding || binding.symbolId === drawn;
+      };
+      const highVoltage =
+        !fits(rule.target) &&
+        !options.family &&
+        (drawn === "ndmos" || drawn === "pdmos")
+          ? NETLIST_HIGH_VOLTAGE_TARGETS[profile.id]?.[drawn]
+          : undefined;
+      const target = highVoltage ?? rule.target;
+      if (!fits(target)) continue;
       const reviewed = reviewedExternalBindingForMaster(target);
-      // A reviewed model belongs to one drawn symbol. A device drawn as
-      // another (a DMOS against a plain MOS model) keeps its finding for the
-      // author to settle, and the rest of the circuit still fills.
-      if (reviewed && reviewed.symbolId !== drawnSymbolId(project, original))
-        continue;
+      // A high-voltage device brings its own geometry, not the family's.
+      const familyDefaults: Readonly<Record<string, string>> = highVoltage
+        ? {}
+        : rule.parameters;
       if (!original.netlist)
         transact(documentId, [
           {
@@ -245,10 +261,10 @@ export function planNetlistProcess(
         ? Object.fromEntries(
             reviewed.parameters.map((parameter) => [
               parameter.name,
-              rule.parameters[parameter.name] ?? parameter.defaultValue ?? "",
+              familyDefaults[parameter.name] ?? parameter.defaultValue ?? "",
             ]),
           )
-        : rule.parameters;
+        : familyDefaults;
       for (const [name, value] of Object.entries(defaults)) {
         if (!value) continue;
         if (

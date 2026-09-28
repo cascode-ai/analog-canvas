@@ -28,6 +28,24 @@ import type { SpiceCompileResult } from "./compiler.js";
 import type { SpiceCompileOptions } from "./dialect.js";
 import { diagnostic } from "./diagnostics.js";
 import type { SpiceDiagnostic } from "./diagnostics.js";
+
+/**
+ * A reviewed binding shapes an import only where its own symbol can be drawn
+ * from the approved catalog. A master drawn with another symbol (SKY130's
+ * drain-extended devices use DMOS) imports as an ordinary external block,
+ * positional pins and raw values, exactly as before it was reviewed.
+ */
+function importableReviewedBinding(masterName: string, terminalCount: number) {
+  const reviewed = reviewedExternalBindingForTerminalCount(
+    masterName,
+    terminalCount,
+  );
+  return reviewed &&
+    resolvePdkSymbolMapping(masterName, terminalCount)?.registryId ===
+      reviewed.id
+    ? reviewed
+    : undefined;
+}
 import type { CircuitCellIR, CircuitIR, CircuitInstanceIR } from "./ir.js";
 import type { SourceBundle, SpiceSourceInput } from "./source-types.js";
 import { compileSpiceSources } from "./compiler.js";
@@ -329,7 +347,7 @@ function importInstance(
   const netlistBinding = importedNetlistBinding(instance, mapping);
   const reviewed =
     instance.target.kind === "external-subcircuit"
-      ? reviewedExternalBindingForTerminalCount(
+      ? importableReviewedBinding(
           instance.target.masterName,
           instance.terminals.length,
         )
@@ -779,7 +797,7 @@ function bindImportedChildDocuments(documents: readonly SchematicDocument[]): {
                 ).toSorted(
                   (left, right) => left.sourcePosition - right.sourcePosition,
                 );
-                const reviewed = reviewedExternalBindingForTerminalCount(
+                const reviewed = importableReviewedBinding(
                   instance.importProvenance!.sourceMasterName,
                   sourceTerminals.length,
                 );
@@ -797,7 +815,7 @@ function bindImportedChildDocuments(documents: readonly SchematicDocument[]): {
                 }));
               })(),
               formalParameters:
-                reviewedExternalBindingForTerminalCount(
+                importableReviewedBinding(
                   instance.importProvenance!.sourceMasterName,
                   instance.importProvenance!.terminalMapping?.length ?? 0,
                 )?.parameters.map((parameter) => ({
@@ -806,7 +824,7 @@ function bindImportedChildDocuments(documents: readonly SchematicDocument[]): {
                     ? {}
                     : { defaultValue: parameter.targetDefaultValue }),
                 })) ?? [],
-              interfaceStatus: reviewedExternalBindingForTerminalCount(
+              interfaceStatus: importableReviewedBinding(
                 instance.importProvenance!.sourceMasterName,
                 instance.importProvenance!.terminalMapping?.length ?? 0,
               )

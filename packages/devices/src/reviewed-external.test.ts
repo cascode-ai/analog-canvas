@@ -4,6 +4,7 @@ import {
   projectLengthToSky130Micrometres,
   resolveReviewedExternalBinding,
   reviewedExternalBindingForMaster,
+  reviewedExternalModelSuggestions,
   sky130MicrometresToProjectLength,
 } from "./reviewed-external.js";
 
@@ -101,6 +102,50 @@ describe("reviewed external device bindings", () => {
         "S",
       ]),
     ).toBeUndefined();
+  });
+
+  it("draws SKY130's drain-extended devices as DMOS", () => {
+    expect(reviewedExternalModelSuggestions("ndmos")).toEqual([
+      "sky130_fd_pr__nfet_g5v0d16v0",
+      "sky130_fd_pr__nfet_20v0",
+      "sky130_fd_pr__nfet_20v0_nvt",
+      "sky130_fd_pr__nfet_20v0_zvt",
+    ]);
+    expect(reviewedExternalModelSuggestions("pdmos")).toEqual([
+      "sky130_fd_pr__pfet_g5v0d16v0",
+      "sky130_fd_pr__pfet_20v0",
+    ]);
+    // 16 V keeps binned geometry and nests its MOSFET one level down.
+    expect(
+      resolveReviewedExternalBinding("sky130_fd_pr__nfet_g5v0d16v0", [
+        "D",
+        "G",
+        "S",
+        "B",
+      ]),
+    ).toMatchObject({
+      id: "sky130-nfet-g5v0d16v0",
+      deviceClass: "mos",
+      nativeElement: "xmain1.msky130_fd_pr__nfet_g5v0d16v0__base",
+      parameters: [
+        { name: "w", defaultValue: "5u", targetDefaultValue: "5" },
+        { name: "l", defaultValue: "700n", targetDefaultValue: "0.7" },
+        { name: "nf" },
+        { name: "m" },
+      ],
+    });
+    // 20 V fixes its channel inside the wrapper: only the count is offered.
+    expect(
+      reviewedExternalBindingForMaster("sky130_fd_pr__pfet_20v0"),
+    ).toMatchObject({
+      symbolId: "pdmos",
+      nativeElement: "m1",
+      parameters: [{ name: "m", defaultValue: "1" }],
+    });
+    // The plain MOS symbols keep only the core and 10.5 V models.
+    expect(reviewedExternalModelSuggestions("nmos")).not.toContain(
+      "sky130_fd_pr__nfet_g5v0d16v0",
+    );
   });
 
   it("converts reviewed geometry in both directions without aliasing counts", () => {

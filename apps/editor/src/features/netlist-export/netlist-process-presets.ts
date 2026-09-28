@@ -35,12 +35,18 @@ const SKY130_QUICK_TARGETS = {
       "sky130_fd_pr__nfet_03v3_nvt",
       "sky130_fd_pr__nfet_05v0_nvt",
       "sky130_fd_pr__nfet_g5v0d10v5",
+      "sky130_fd_pr__nfet_g5v0d16v0",
+      "sky130_fd_pr__nfet_20v0",
+      "sky130_fd_pr__nfet_20v0_nvt",
+      "sky130_fd_pr__nfet_20v0_zvt",
     ],
     pmos: [
       "sky130_fd_pr__pfet_01v8",
       "sky130_fd_pr__pfet_01v8_lvt",
       "sky130_fd_pr__pfet_01v8_hvt",
       "sky130_fd_pr__pfet_g5v0d10v5",
+      "sky130_fd_pr__pfet_g5v0d16v0",
+      "sky130_fd_pr__pfet_20v0",
     ],
     resistor: ["", "sky130_fd_pr__res_high_po", "sky130_fd_pr__res_xhigh_po"],
     capacitor: [
@@ -107,6 +113,10 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
       "sky130_fd_pr__nfet_03v3_nvt",
       "sky130_fd_pr__nfet_05v0_nvt",
       "sky130_fd_pr__nfet_g5v0d10v5",
+      "sky130_fd_pr__nfet_g5v0d16v0",
+      "sky130_fd_pr__nfet_20v0",
+      "sky130_fd_pr__nfet_20v0_nvt",
+      "sky130_fd_pr__nfet_20v0_zvt",
       "nch_ulvt_mac",
       "nch_lvt_mac",
       "nch_mac",
@@ -121,6 +131,8 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
       "sky130_fd_pr__pfet_01v8_lvt",
       "sky130_fd_pr__pfet_01v8_hvt",
       "sky130_fd_pr__pfet_g5v0d10v5",
+      "sky130_fd_pr__pfet_g5v0d16v0",
+      "sky130_fd_pr__pfet_20v0",
       "pch_ulvt_mac",
       "pch_lvt_mac",
       "pch_mac",
@@ -181,6 +193,20 @@ const TSMC180_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
   nmos: "nch",
   pmos: "pch",
   pnp: "pnp10_5_rpo",
+};
+
+/**
+ * A drain-extended (DMOS) symbol cannot take a process's core MOS model when
+ * that model is drawn as a plain MOS; it takes the process's own
+ * high-voltage device instead, with that device's geometry.
+ */
+export const NETLIST_HIGH_VOLTAGE_TARGETS: Partial<
+  Record<NetlistProfileId, Readonly<Record<"ndmos" | "pdmos", string>>>
+> = {
+  sky130: {
+    ndmos: "sky130_fd_pr__nfet_g5v0d16v0",
+    pdmos: "sky130_fd_pr__pfet_g5v0d16v0",
+  },
 };
 
 export function netlistDeviceFamily(

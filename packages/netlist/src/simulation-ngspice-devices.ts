@@ -65,15 +65,16 @@ export function ngspiceSimulationDevices(
           const reviewed = reviewedExternalDeviceBindings.find(
             (item) => item.id === card.reviewedExternalBindingId,
           );
-          // The reviewed SKY130 MOS wrappers have one m<masterName> primitive.
-          // This mapping is deliberately not applied to arbitrary external subcircuits.
+          // A reviewed SKY130 MOS wrapper holds one m<masterName> primitive,
+          // or names the one it nests. This mapping is deliberately not applied
+          // to arbitrary external subcircuits.
           const nativeDevice =
             card.invocationKind === "primitive"
               ? path.length
                 ? `${card.reference[0]!.toLowerCase()}.${reference}`
                 : reference
               : reviewed?.deviceClass === "mos"
-                ? `m.${reference}.m${reviewed.masterName}`
+                ? `m.${reference}.${reviewed.nativeElement ?? `m${reviewed.masterName}`}`
                 : undefined;
           result.push({
             documentId: cell.id,
