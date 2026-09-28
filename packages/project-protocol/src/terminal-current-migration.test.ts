@@ -1,4 +1,4 @@
-import { CURRENT_PROJECT_SCHEMA_VERSION, createEmptyProject } from "@icm/model";
+import { CURRENT_MODEL_SCHEMA_VERSION, createEmptyProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import { parseProjectWithMetadata } from "./load.js";
@@ -83,6 +83,6 @@ describe("schema 43 to 44 terminal-current migration", () => {
 
     expect(result.sourceSchemaVersion).toBe(43);
     expect(result.migrated).toBe(true);
-    expect(result.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(result.project.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
   });
 });

@@ -87,7 +87,7 @@ through the bounded compatibility path in the
   explicit cut partitions physical connectivity.
 - Cell Pins are ordered hierarchy interfaces. Visual variants never delete
   electrical terminal semantics or invent MOS bulk connections.
-- The normalized editor model is schema-58; portable Project Code is schema-60, governed by the
+- The normalized runtime/editor model is schema-58; portable Project Code is schema-65, governed by the
   [file-format contract](specs/project-file-format.md).
   Cloud Save, portable file export, browser recovery, and public Gallery
   publication are distinct operations.

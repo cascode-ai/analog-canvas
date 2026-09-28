@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
+import { CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
 import {
   parseProject,
   canonicalConnectionIndexes,
@@ -51,7 +51,7 @@ function trackedProjectPaths(): string[] {
 
 function assertCurrentForm(serialized: string): void {
   const project = parseProject(serialized);
-  expect(project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+  expect(project.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
   expect(serializeProject(project)).toBe(serialized);
   expect(serialized).not.toContain('"spice.');
   expect(serialized).not.toContain('"routeAttachment"');

@@ -1,7 +1,7 @@
 import { CURRENT_PROJECT_FILE_VERSION } from "@icm/project-protocol";
 import { describe, expect, it } from "vitest";
 
-import { createEmptyProject, CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
+import { createEmptyProject, CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 
 import {
@@ -215,7 +215,7 @@ describe("reviewBrowserRecoveryProject", () => {
 
   it("accepts a previous-schema recovery envelope after upgrading its Project", () => {
     const previous = JSON.parse(JSON.stringify(project));
-    previous.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION - 1;
+    previous.schemaVersion = CURRENT_MODEL_SCHEMA_VERSION - 1;
     if (previous.schemaVersion < 50) {
       previous.simulationSetups = previous.simulationFolders;
       delete previous.simulationFolders;
@@ -225,14 +225,14 @@ describe("reviewBrowserRecoveryProject", () => {
       finalizeBrowserRecoveryRecord(
         draft({
           projectText: previousText,
-          projectSchemaVersion: CURRENT_PROJECT_SCHEMA_VERSION - 1,
+          projectSchemaVersion: CURRENT_MODEL_SCHEMA_VERSION - 1,
         }),
       ),
     );
 
     expect(review.status).toBe("valid");
     if (review.status === "valid") {
-      expect(review.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+      expect(review.project.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
     }
   });
 

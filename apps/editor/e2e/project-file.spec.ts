@@ -6,7 +6,7 @@ import { AgentHttpClient } from "../../../packages/agent-client/src/http-client.
 import {
   createEmptyProject,
   createRoutePath,
-  CURRENT_PROJECT_SCHEMA_VERSION,
+  CURRENT_MODEL_SCHEMA_VERSION,
   type CircuitProject,
 } from "@icm/model";
 
@@ -105,7 +105,7 @@ async function mockFullCloudProjectList(page: Page) {
           name: `Circuit ${String(index + 1).padStart(2, "0")}`,
           updatedAt: "2026-09-24T08:00:00.000Z",
           revision: 1,
-          schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+          schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
         })),
       },
     }),
@@ -544,7 +544,7 @@ test("File deletion stays inline, bounded and retryable without native dialogs",
     id: "delete-target",
     name,
     revision: 1,
-    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+    schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
     updatedAt: "2026-09-22T00:00:00Z",
   };
   let deleted = false;
@@ -638,7 +638,7 @@ test("imports and upgrades a portable Project before explicit export", async ({
       "utf8",
     ),
   ) as Record<string, unknown>;
-  const previousVersion = CURRENT_PROJECT_SCHEMA_VERSION - 1;
+  const previousVersion = CURRENT_MODEL_SCHEMA_VERSION - 1;
   source.schemaVersion = previousVersion;
   // Schema 49 stored the same source folders under the former collection name.
   if (previousVersion < 50) {
@@ -659,7 +659,7 @@ test("imports and upgrades a portable Project before explicit export", async ({
       "utf8",
     ),
   ) as { schemaVersion: number };
-  expect(exported.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+  expect(exported.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
 });
 
 test("normalizes legacy overlapping Wire topology on Project import", async ({

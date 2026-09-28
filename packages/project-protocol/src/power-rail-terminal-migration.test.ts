@@ -1,7 +1,7 @@
 import {
   createEmptyProject,
   createRoutePath,
-  CURRENT_PROJECT_SCHEMA_VERSION,
+  CURRENT_MODEL_SCHEMA_VERSION,
 } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
@@ -62,7 +62,7 @@ describe("schema 57 Power Rail formal terminals", () => {
     expect(result).toMatchObject({
       sourceSchemaVersion: 56,
       migrated: true,
-      project: { schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION },
+      project: { schemaVersion: CURRENT_MODEL_SCHEMA_VERSION },
     });
     const document = result.project.documents[0]!;
     expect(document.netlist?.terminals).toEqual([

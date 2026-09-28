@@ -1,7 +1,7 @@
 import { withProjectComponentDefinitions } from "@icm/symbols";
 import {
   createEmptyProject,
-  CURRENT_PROJECT_SCHEMA_VERSION,
+  CURRENT_MODEL_SCHEMA_VERSION,
   transformPoint,
 } from "@icm/model";
 import { describe, expect, it } from "vitest";
@@ -72,7 +72,7 @@ describe("independent mirror direction migration", () => {
     previous.documents[0]!.drafting.objects[0]!.transform.mirror = "x";
 
     const migrated = parseProject(JSON.stringify(previous));
-    expect(migrated.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(migrated.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
     for (const instance of migrated.documents[0]!.instances) {
       const placement = instance.placement!;
       expect(placement.rotation).toBe(Number(instance.id.slice(2)));

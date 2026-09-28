@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ComponentDefinitionSchema } from "./component-definition.js";
 
-import { CURRENT_PROJECT_SCHEMA_VERSION, StableIdSchema } from "./common.js";
+import { CURRENT_MODEL_SCHEMA_VERSION, StableIdSchema } from "./common.js";
 import { SourceManifestSchema, SymbolLibraryLockSchema } from "./source.js";
 import { SchematicDocumentSchema } from "./document.js";
 import { CellSymbolPresentationSchema } from "./presentation.js";
@@ -31,7 +31,9 @@ export const ExternalSubcircuitDefinitionSchema = z.strictObject({
 
 export const CircuitProjectSchema = z
   .strictObject({
-    schemaVersion: z.literal(CURRENT_PROJECT_SCHEMA_VERSION),
+    // This is the in-memory/runtime model version. Portable Project Code is
+    // decoded and encoded by @icm/project-protocol with its own version.
+    schemaVersion: z.literal(CURRENT_MODEL_SCHEMA_VERSION),
     id: StableIdSchema,
     name: z.string().min(1),
     source: SourceManifestSchema,

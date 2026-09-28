@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveEditorShortcut, stepBoundedScale } from "./editor-shortcuts";
+import {
+  resolveEditorShortcut,
+  shouldConsumeEditorEscape,
+  stepBoundedScale,
+} from "./editor-shortcuts";
 import type {
   EditorShortcutContext,
   EditorShortcutKey,
@@ -383,6 +387,12 @@ describe("editor shortcut contract", () => {
       command({ id: "editor.cancel" }),
     );
     expect(resolve("Escape")).toEqual(command({ id: "editor.cancel" }));
+  });
+
+  it("consumes Escape only for an active editor interaction", () => {
+    expect(shouldConsumeEditorEscape("idle")).toBe(false);
+    expect(shouldConsumeEditorEscape("placing-component")).toBe(true);
+    expect(shouldConsumeEditorEscape("copy-placement")).toBe(true);
   });
 
   it("removes a pending wire bend before deleting selection", () => {

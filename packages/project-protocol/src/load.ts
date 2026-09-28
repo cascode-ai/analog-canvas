@@ -1,7 +1,4 @@
-import {
-  CircuitProjectSchema,
-  CURRENT_PROJECT_SCHEMA_VERSION,
-} from "@icm/model";
+import { CircuitProjectSchema, CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
 import type { CircuitProject } from "@icm/model";
 
 import {
@@ -120,7 +117,7 @@ export function tryValidateProject(input: unknown): ProjectLoadResult {
   return {
     ok: true,
     project: result.data,
-    sourceSchemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+    sourceSchemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
     migrated: false,
   };
 }
@@ -189,7 +186,7 @@ export function tryParseProjectWithMetadata(
     current = sourceSchemaVersion >= 59 ? decodeProjectFile(parsed) : parsed;
     for (
       let version = current.schemaVersion as number;
-      version < CURRENT_PROJECT_SCHEMA_VERSION;
+      version < CURRENT_MODEL_SCHEMA_VERSION;
       version += 1
     ) {
       current =

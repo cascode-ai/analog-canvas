@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyProject, CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
+import { createEmptyProject, CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
 
 import { tryParseProjectWithMetadata } from "./load.js";
 import {
@@ -46,7 +46,7 @@ describe("schema 44 to 45 migration (simulation measurements)", () => {
       ok: true,
       sourceSchemaVersion: 44,
       migrated: true,
-      project: { schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION },
+      project: { schemaVersion: CURRENT_MODEL_SCHEMA_VERSION },
     });
     if (!loaded.ok) throw new Error("Expected migration to succeed");
     expect(loaded.project.simulationFolders[0]?.input).not.toHaveProperty(

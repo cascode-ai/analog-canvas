@@ -45,7 +45,6 @@ import {
   controlledSourceExpressionDocument,
   controlledSourceExpressionSource,
   defaultControlledSourceExpression,
-  flattenRichText,
   LINEAR_CONTROLLED_SOURCE_KINDS,
   rewriteRichTextPlainText,
   routeBends,
@@ -1886,24 +1885,12 @@ export function proposePaste(
             );
           }
         }
-        // A copy reads like its source. Text spelling the part's Reference
-        // follows the copy's new Reference in the same look; any other text
-        // is the author's own and stays as drawn. A part that had no
-        // Reference showed nothing, so its new one stays hidden.
-        if (!clone.binding) {
-          if (
-            clone.content &&
-            owner.reference &&
-            flattenRichText(clone.content) === owner.reference
-          ) {
-            clone.binding = {
-              kind: "instance-reference",
-              instanceId: owner.id,
-            };
-            clone.formatOverride = clone.content;
-            delete clone.content;
-          }
-        } else if (clone.binding.kind === "instance-reference") {
+        // A copy reads like its source. A bound label follows the copy's new
+        // Reference in the same look; an unbound label is an authored display
+        // alias and must stay exactly as drawn, even when its spelling happens
+        // to equal the source Reference. Never infer a binding from text: the
+        // user chose alias semantics by leaving this annotation unbound.
+        if (clone.binding?.kind === "instance-reference") {
           clone.binding = { kind: "instance-reference", instanceId: owner.id };
           if (!owner.reference) clone.visible = false;
         }

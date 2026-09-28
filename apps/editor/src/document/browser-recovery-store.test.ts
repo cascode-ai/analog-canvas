@@ -2,7 +2,7 @@ import { CURRENT_PROJECT_FILE_VERSION } from "@icm/project-protocol";
 import { describe, expect, it } from "vitest";
 import { IDBFactory } from "fake-indexeddb";
 
-import { createEmptyProject, CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
+import { createEmptyProject, CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 
 import {
@@ -537,7 +537,7 @@ describe("migrateLegacyProjectRecovery", () => {
   it("stores a previous-schema legacy slot as internally consistent current schema", async () => {
     const { store } = freshStore();
     const previous = JSON.parse(JSON.stringify(project));
-    previous.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION - 1;
+    previous.schemaVersion = CURRENT_MODEL_SCHEMA_VERSION - 1;
     if (previous.schemaVersion < 50) {
       previous.simulationSetups = previous.simulationFolders;
       delete previous.simulationFolders;

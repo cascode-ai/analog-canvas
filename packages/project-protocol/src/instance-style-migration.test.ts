@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyProject, CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
+import { createEmptyProject, CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
 import { serializeProject } from "./save.js";
 
 import { parseProject, tryParseProjectWithMetadata } from "./index.js";
@@ -123,7 +123,7 @@ describe("schema migrations through hidden Net-name retirement", () => {
     if (!result.ok) return;
     expect(result.sourceSchemaVersion).toBe(31);
     expect(result.migrated).toBe(true);
-    expect(result.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(result.project.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
   });
 
   it("keeps schema 30 loadable through the upgrade chain", () => {

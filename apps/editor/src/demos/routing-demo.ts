@@ -1,7 +1,4 @@
-import {
-  CURRENT_PROJECT_SCHEMA_VERSION,
-  CircuitProjectSchema,
-} from "@icm/model";
+import { CURRENT_MODEL_SCHEMA_VERSION, CircuitProjectSchema } from "@icm/model";
 import type { CircuitProject, Instance, Rotation } from "@icm/model";
 
 function instance(
@@ -20,7 +17,7 @@ function instance(
 
 export function createRoutingDemoProject(): CircuitProject {
   return CircuitProjectSchema.parse({
-    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+    schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
     id: "project-routing",
     name: "Phase 3 Routing Demo",
     source: { entry: null, dialect: "none", sourcePolicy: "copy", files: [] },

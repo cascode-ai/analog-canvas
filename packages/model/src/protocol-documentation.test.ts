@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { CURRENT_PROJECT_SCHEMA_VERSION } from "./schema.js";
+import { CURRENT_MODEL_SCHEMA_VERSION } from "./schema.js";
 
 const repositoryRoot = fileURLToPath(new URL("../../../", import.meta.url));
 
@@ -15,7 +15,7 @@ function readRepositoryText(relativePath: string): string {
 
 describe("Project protocol documentation", () => {
   it("tracks the executable current Project schema and rolling read policy", () => {
-    const version = CURRENT_PROJECT_SCHEMA_VERSION;
+    const version = CURRENT_MODEL_SCHEMA_VERSION;
     const expectations = [
       ["docs/overall-product-plan.md", `schema-${version}`],
       ["docs/specs/schematic-model.md", `strict schema ${version}`],

@@ -1,5 +1,5 @@
 import { clearFormulaArtifactCacheForTests } from "../packages/math-typesetting/src/cache";
-import { CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
+import { CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
 import { CURRENT_PROJECT_FILE_VERSION } from "@icm/project-protocol";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
@@ -632,7 +632,7 @@ function formulaProjectText(
 
 function previousVersionText(): string {
   const raw = JSON.parse(JSON.stringify(parseProject(projectText())));
-  raw.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION;
+  raw.schemaVersion = CURRENT_MODEL_SCHEMA_VERSION;
   if (raw.schemaVersion < 50) {
     raw.simulationSetups = raw.simulationFolders;
     delete raw.simulationFolders;
@@ -680,7 +680,7 @@ function previousRouteVersionText(): string {
     locked: false,
   });
   const raw = JSON.parse(JSON.stringify(project)) as any;
-  raw.schemaVersion = CURRENT_PROJECT_SCHEMA_VERSION;
+  raw.schemaVersion = CURRENT_MODEL_SCHEMA_VERSION;
   if (raw.schemaVersion < 50) {
     raw.simulationSetups = raw.simulationFolders;
     delete raw.simulationFolders;
@@ -4447,7 +4447,7 @@ describe("gallery administration", () => {
         body: JSON.stringify({
           id,
           projectText: previousVersionText(),
-          schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+          schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
           svgText: "<svg/>",
         }),
       },
@@ -4548,7 +4548,7 @@ describe("gallery administration", () => {
     const detail = await route(env, new Request(`${ORIGIN}/api/gallery/${id}`));
     const payload = (await detail.json()) as { projectText: string };
     const stored = parseProject(payload.projectText) as any;
-    expect(stored.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(stored.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
     expect(stored.documents[0].routes[0].legs).toHaveLength(2);
   });
 
@@ -4589,7 +4589,7 @@ describe("gallery administration", () => {
     const detail = await route(env, new Request(`${ORIGIN}/api/gallery/${id}`));
     const payload = (await detail.json()) as { projectText: string };
     const stored = parseProject(payload.projectText) as any;
-    expect(stored.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(stored.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
     expect(stored.documents[0].routes[0].legs).toHaveLength(2);
   });
 
@@ -4605,7 +4605,7 @@ describe("gallery administration", () => {
         body: JSON.stringify({
           id,
           projectText: previousRouteVersionText(),
-          schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+          schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
           svgText: "<svg/>",
         }),
       },
@@ -4672,13 +4672,13 @@ describe("gallery administration", () => {
       .one().id;
     env.gallerySql.exec(
       "UPDATE gallery_entries SET schema_version = ?, project_text = ? WHERE id = ?",
-      CURRENT_PROJECT_SCHEMA_VERSION,
+      CURRENT_MODEL_SCHEMA_VERSION,
       previousVersionText(),
       id,
     );
     env.gallerySql.exec(
       "UPDATE gallery_entry_versions SET schema_version = ?, project_text = ? WHERE id = ?",
-      CURRENT_PROJECT_SCHEMA_VERSION,
+      CURRENT_MODEL_SCHEMA_VERSION,
       previousRouteVersionText(),
       versionId,
     );
@@ -4693,7 +4693,7 @@ describe("gallery administration", () => {
       "2026-08-24T00:00:00.000Z",
       "2026-08-24T00:00:00.000Z",
       1,
-      CURRENT_PROJECT_SCHEMA_VERSION,
+      CURRENT_MODEL_SCHEMA_VERSION,
       previousRouteVersionText(),
     );
 
@@ -4727,13 +4727,13 @@ describe("gallery administration", () => {
       failures: [],
       inventory: {
         gallery_entries: {
-          [String(CURRENT_PROJECT_SCHEMA_VERSION)]: 1,
+          [String(CURRENT_MODEL_SCHEMA_VERSION)]: 1,
         },
         gallery_entry_versions: {
-          [String(CURRENT_PROJECT_SCHEMA_VERSION)]: 1,
+          [String(CURRENT_MODEL_SCHEMA_VERSION)]: 1,
         },
         cloud_projects: {
-          [String(CURRENT_PROJECT_SCHEMA_VERSION)]: 1,
+          [String(CURRENT_MODEL_SCHEMA_VERSION)]: 1,
         },
       },
       migrationReports: [],
@@ -4745,7 +4745,7 @@ describe("gallery administration", () => {
           id,
         )
         .one().schema_version,
-    ).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    ).toBe(CURRENT_MODEL_SCHEMA_VERSION);
 
     const applied = await route(
       env,
@@ -4777,7 +4777,7 @@ describe("gallery administration", () => {
         .one();
       expect(row.schema_version).toBe(CURRENT_PROJECT_FILE_VERSION);
       expect(parseProject(row.project_text).schemaVersion).toBe(
-        CURRENT_PROJECT_SCHEMA_VERSION,
+        CURRENT_MODEL_SCHEMA_VERSION,
       );
       const stored = JSON.parse(row.project_text) as any;
       for (const document of stored.documents) {
@@ -4818,7 +4818,7 @@ describe("gallery administration", () => {
             `SELECT schema_version FROM ${table}`,
           )
           .one().schema_version,
-      ).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+      ).toBe(CURRENT_MODEL_SCHEMA_VERSION);
     }
   });
 
@@ -4869,7 +4869,7 @@ describe("gallery administration", () => {
       env.gallerySql.exec(
         `UPDATE ${sqlTable} SET project_text = ?, schema_version = ? WHERE id = ?`,
         originalProjectText,
-        CURRENT_PROJECT_SCHEMA_VERSION,
+        CURRENT_MODEL_SCHEMA_VERSION,
         row.id,
       );
       const before = env.gallerySql

@@ -1,6 +1,6 @@
 import {
   CircuitProjectSchema,
-  CURRENT_PROJECT_SCHEMA_VERSION,
+  CURRENT_MODEL_SCHEMA_VERSION,
   LegacyProjectSimulationSetupSchema,
 } from "@icm/model";
 import { migrateSimulationSetupToSource } from "@icm/netlist";
@@ -16,7 +16,7 @@ export function upgradeSchema48To49WithReport(raw: Record<string, unknown>) {
   const { simulationSetups: oldSetups, ...circuit } = raw;
   const candidate = CircuitProjectSchema.safeParse({
     ...circuit,
-    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+    schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
     simulationFolders: [],
   });
   if (!candidate.success) {

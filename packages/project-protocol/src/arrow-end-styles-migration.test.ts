@@ -1,5 +1,5 @@
 import {
-  CURRENT_PROJECT_SCHEMA_VERSION,
+  CURRENT_MODEL_SCHEMA_VERSION,
   DraftingObjectSchema,
   createEmptyProject,
 } from "@icm/model";
@@ -41,7 +41,7 @@ describe("schema 55 independent arrow endpoint styles", () => {
     const previous = { ...project, schemaVersion: 54 };
     expect(parseProject(JSON.stringify(previous))).toEqual({
       ...previous,
-      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+      schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
     });
   });
   it("round-trips every independent endpoint style without byte drift", () => {

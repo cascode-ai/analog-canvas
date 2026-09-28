@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   CircuitProjectSchema,
-  CURRENT_PROJECT_SCHEMA_VERSION,
+  CURRENT_MODEL_SCHEMA_VERSION,
   HexColorSchema,
   InstanceSchema,
   InstanceStyleOverrideSchema,
@@ -151,7 +151,7 @@ describe("SignalFlowParametersSchema", () => {
 
 describe("CircuitProject schema version", () => {
   it("current schema version is 58", () => {
-    expect(CURRENT_PROJECT_SCHEMA_VERSION).toBe(58);
+    expect(CURRENT_MODEL_SCHEMA_VERSION).toBe(58);
   });
 
   it("createEmptyProject produces the current schema version", () => {

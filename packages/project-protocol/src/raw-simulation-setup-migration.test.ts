@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyProject, CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
+import { createEmptyProject, CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
 import { migrateSimulationSetupToSource } from "@icm/netlist";
 
 import { tryParseProjectWithMetadata } from "./load.js";
@@ -46,7 +46,7 @@ describe("schema 38 to 39 migration (raw SimulationSetup)", () => {
       sourceSchemaVersion: 38,
       migrated: true,
       project: {
-        schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+        schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
         simulationFolders: [
           {
             id: "simulation-setup-1",
