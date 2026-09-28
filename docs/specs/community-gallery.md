@@ -21,7 +21,7 @@ The Gallery is for signed-in readers. Every Gallery read (the list, tags,
 authors, an entry and its Project, its preview and its history) needs a
 signed-in session or the read-only Gallery credential (`GALLERY_BACKUP_TOKEN`
 as a Bearer token), with one exception: a signed-out visitor sees the wall's
-10 newest public circuits. `GET /api/gallery` then answers
+24 newest public circuits. `GET /api/gallery` then answers
 `{entries, nextCursor: null, total, signInForMore: true}` whatever it is
 asked (unfiltered and unpaged; `total` still counts the whole wall), and each
 of those circuits' entry, Project and preview reads as it does for a reader.

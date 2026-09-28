@@ -1290,7 +1290,13 @@ export function GalleryFeed({
         </section>
       ) : null}
       {view === "gallery" && state.status !== "signed-out" ? (
-        <div className="gallery-browser">
+        <div
+          className={
+            anonymousWall
+              ? "gallery-browser gallery-browser-wall-only"
+              : "gallery-browser"
+          }
+        >
           {/* Signed out, the wall is its newest few circuits: nothing to
               narrow, so no tags, search or filters beside it. */}
           {anonymousWall ? null : (

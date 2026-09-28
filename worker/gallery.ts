@@ -223,13 +223,14 @@ async function galleryReaderOf(
 }
 
 /**
- * Signed out, a visitor sees the wall's newest circuits (these only, each with
- * its preview and Project) and is asked to sign in for the rest. The set is
+ * Signed out, a visitor sees the wall's newest circuits, enough to fill about
+ * three rows of a wide wall (these only, each with its preview and Project),
+ * and is asked to sign in for the rest. The set is
  * remembered for a minute per isolate, so the wall's previews do not each ask
  * the Gallery for it again; a circuit that leaves the wall in that minute is
  * still refused by its own public-status check.
  */
-export const ANONYMOUS_GALLERY_SIZE = 10;
+export const ANONYMOUS_GALLERY_SIZE = 24;
 let anonymousWall: {
   expires: number;
   entries: unknown[];
