@@ -1485,20 +1485,73 @@ describe("schematic clipboard", () => {
     expect(label.content).toEqual(document.annotations[0]!.content);
   });
 
-  it("moves a label that spells the Reference to the new one in its look", () => {
+  it("keeps an authored label that spells the Reference as an alias", () => {
     const document = createEmptyDocument("document-main", "Styled name");
     document.instances.push(resistorInstance("R1", "R1"));
     document.annotations.push(instanceLabel("R1", "R_1", false));
 
     const { label } = pastedLabelOf(document);
-    expect(label.content).toBeUndefined();
-    expect(label.binding).toEqual({
-      kind: "instance-reference",
-      instanceId: "R1_2",
+    expect(label.binding).toBeUndefined();
+    expect(label.content).toEqual(document.annotations[0]!.content);
+  });
+
+  it("keeps a capacitor alias through repeated copy placement", () => {
+    const document = createEmptyDocument("document-main", "Capacitor alias");
+    document.instances.push({
+      id: "C1",
+      reference: "C1",
+      symbolId: "capacitor",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+      netlist: { parameters: { value: "1p" } },
     });
-    expect(label.formatOverride).toEqual(
-      semanticTextDocument("R_2", "instance-label"),
-    );
+    document.annotations.push(instanceLabel("C1", "CF", false));
+
+    let current = document;
+    let sourceId = "C1";
+    for (let sequence = 1; sequence <= 3; sequence += 1) {
+      const clipboard = copySelection(current, [sourceId]);
+      const proposal = proposePaste(
+        current,
+        clipboard!,
+        { x: 200 * sequence, y: 0 },
+        sequence,
+      );
+      const result = executeTransaction(
+        current,
+        {
+          transactionId: `paste-capacitor-alias-${sequence}`,
+          documentId: current.id,
+          expectedRevision: current.revision,
+          actor: { kind: "human", id: "test" },
+          edits: proposal.edits,
+        },
+        { symbolResolver: resolver },
+      );
+      if (!result.ok) throw new Error(JSON.stringify(result.diagnostics));
+      current = result.document;
+      sourceId = proposal.instanceIds[0]!;
+    }
+
+    const copies = current.instances.filter((instance) => instance.id !== "C1");
+    expect(copies.map((instance) => instance.reference)).toEqual([
+      "C2",
+      "C3",
+      "C4",
+    ]);
+    for (const copy of copies) {
+      const alias = current.annotations.find(
+        (annotation) =>
+          annotation.kind === "instance-label" &&
+          annotation.anchor.kind === "object" &&
+          annotation.anchor.objectId === copy.id,
+      );
+      expect(alias?.binding).toBeUndefined();
+      expect(alias?.content).toEqual(document.annotations[0]!.content);
+    }
   });
 
   it("keeps the label of a part that had no Reference hidden", () => {
