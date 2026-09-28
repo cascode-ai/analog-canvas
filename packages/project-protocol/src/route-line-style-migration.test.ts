@@ -1,7 +1,7 @@
 import {
   createEmptyProject,
   createRoutePath,
-  CURRENT_PROJECT_SCHEMA_VERSION,
+  CURRENT_MODEL_SCHEMA_VERSION,
 } from "@icm/model";
 import { describe, expect, it } from "vitest";
 import { parseProject, serializeProject } from "./index.js";
@@ -33,7 +33,7 @@ describe("schema 56 electrical Route line styles", () => {
     const previous = { ...projectWithRoute(), schemaVersion: 55 };
     expect(parseProject(JSON.stringify(previous))).toEqual({
       ...previous,
-      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+      schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
     });
   });
 

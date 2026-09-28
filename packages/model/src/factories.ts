@@ -1,5 +1,5 @@
 import {
-  CURRENT_PROJECT_SCHEMA_VERSION,
+  CURRENT_MODEL_SCHEMA_VERSION,
   CircuitProjectSchema,
 } from "./schema.js";
 import type { CircuitProject, SchematicDocument } from "./schema.js";
@@ -62,7 +62,7 @@ export function createEmptyProject(
   documentId = "document-main",
 ): CircuitProject {
   return CircuitProjectSchema.parse({
-    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+    schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
     id,
     name,
     source: {

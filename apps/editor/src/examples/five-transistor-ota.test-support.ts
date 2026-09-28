@@ -1,4 +1,4 @@
-import { CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
+import { CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
 
 import legacyFiveTransistorOta from "../../../../netlists/native-ota-library/legacy-source.icproj.json";
 
@@ -39,7 +39,7 @@ export function currentFiveTransistorOtaCircuitSource(): Record<
   const { simulationSetups: _legacySetups, ...circuit } = project;
   return {
     ...circuit,
-    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+    schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
     simulationFolders: [],
   };
 }

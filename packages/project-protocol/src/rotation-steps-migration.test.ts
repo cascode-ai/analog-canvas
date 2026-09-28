@@ -1,5 +1,5 @@
 import { withProjectComponentDefinitions } from "@icm/symbols";
-import { CURRENT_PROJECT_SCHEMA_VERSION, createEmptyProject } from "@icm/model";
+import { CURRENT_MODEL_SCHEMA_VERSION, createEmptyProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import { parseProject, serializeProject } from "./index.js";
@@ -19,7 +19,7 @@ describe("schema 52 to 53 rotation-step migration", () => {
     });
 
     const migrated = parseProject(JSON.stringify(previous));
-    expect(migrated.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(migrated.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
     expect(migrated.documents[0]!.instances[0]!.placement?.rotation).toBe(90);
   });
 

@@ -1,6 +1,6 @@
 import {
   createEmptyProject,
-  CURRENT_PROJECT_SCHEMA_VERSION,
+  CURRENT_MODEL_SCHEMA_VERSION,
   flattenRichText,
   defaultDraftTextDocument,
 } from "@icm/model";
@@ -102,7 +102,7 @@ describe("schema 35 to 36 Instance Reference Annotation migration", () => {
 
     expect(parsed.sourceSchemaVersion).toBe(35);
     expect(parsed.migrated).toBe(true);
-    expect(parsed.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(parsed.project.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
     expect(parsed.project.documents[0]!.annotations[0]!.binding).toEqual({
       kind: "instance-reference",
       instanceId: "copied-mos",

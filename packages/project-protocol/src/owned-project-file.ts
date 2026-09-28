@@ -1,4 +1,7 @@
-/** Schema 65: preserve authored controlled-source sensing references. */
+/**
+ * Current portable Project File schema. This number is independent of the
+ * normalized runtime model schema exported by @icm/model.
+ */
 import { createProjectSymbolResolver } from "@icm/symbols";
 import type { CircuitProject } from "@icm/model";
 import { ProjectFormatError } from "./diagnostics.js";

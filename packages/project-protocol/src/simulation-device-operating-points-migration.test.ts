@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyProject, CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
+import { createEmptyProject, CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
 
 import { parseProjectWithMetadata, upgradeSchema46To47 } from "./index.js";
 
@@ -28,6 +28,6 @@ describe("schema 46 to 47 MOS operating-point migration", () => {
 
     expect(result.sourceSchemaVersion).toBe(46);
     expect(result.migrated).toBe(true);
-    expect(result.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(result.project.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
   });
 });

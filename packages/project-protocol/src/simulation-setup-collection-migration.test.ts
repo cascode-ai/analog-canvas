@@ -1,4 +1,4 @@
-import { CURRENT_PROJECT_SCHEMA_VERSION, createEmptyProject } from "@icm/model";
+import { CURRENT_MODEL_SCHEMA_VERSION, createEmptyProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import { tryParseProjectWithMetadata } from "./load.js";
@@ -52,7 +52,7 @@ describe("schema 41 to 42 named simulation setup migration", () => {
       sourceSchemaVersion: 41,
       migrated: true,
       project: {
-        schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+        schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
         simulationFolders: [],
       },
     });

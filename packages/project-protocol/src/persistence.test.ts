@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createEmptyProject,
-  CURRENT_PROJECT_SCHEMA_VERSION,
+  CURRENT_MODEL_SCHEMA_VERSION,
   deriveStableId,
 } from "@icm/model";
 import {
@@ -224,7 +224,7 @@ describe("Project persistence", () => {
     expect(migrated).toMatchObject({
       sourceSchemaVersion: PREVIOUS_PROJECT_SCHEMA_VERSION,
       migrated: true,
-      project: { schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION },
+      project: { schemaVersion: CURRENT_MODEL_SCHEMA_VERSION },
     });
     const migratedDocument = migrated.project.documents[0]!;
     expect(migratedDocument.netlist?.terminals).toMatchObject([
@@ -381,7 +381,7 @@ describe("Project persistence", () => {
     expect(parsed).toMatchObject({
       sourceSchemaVersion: PREVIOUS_PROJECT_SCHEMA_VERSION,
       migrated: true,
-      project: { schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION },
+      project: { schemaVersion: CURRENT_MODEL_SCHEMA_VERSION },
     });
     const route = parsed.project.documents[0]!.routes[0]!;
     const annotation = parsed.project.documents[0]!.annotations[0]!;

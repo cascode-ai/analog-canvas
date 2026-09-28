@@ -1,7 +1,7 @@
 import { withProjectComponentDefinitions } from "@icm/symbols";
 import {
   AnnotationSchema,
-  CURRENT_PROJECT_SCHEMA_VERSION,
+  CURRENT_MODEL_SCHEMA_VERSION,
   createEmptyProject,
 } from "@icm/model";
 import { describe, expect, it } from "vitest";
@@ -49,7 +49,7 @@ describe("schema 54 named parameter annotations", () => {
     previous.schemaVersion = 53 as typeof previous.schemaVersion;
     expect(parseProject(JSON.stringify(previous))).toEqual({
       ...previous,
-      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+      schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
     });
   });
   it("round-trips live selectors, hidden state and custom placement", () => {

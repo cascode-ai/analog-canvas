@@ -1,5 +1,5 @@
 import {
-  CURRENT_PROJECT_SCHEMA_VERSION,
+  CURRENT_MODEL_SCHEMA_VERSION,
   CircuitProjectSchema,
   deriveStableId,
 } from "@icm/model";
@@ -892,7 +892,7 @@ export function importCircuitIR(
     (file) => file.id === bundle.entryFileId,
   )?.hash;
   const project = CircuitProjectSchema.parse({
-    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+    schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
     id: deriveStableId("project", bundle.entryPath, entryHash ?? "missing"),
     name: `${name} (SPICE Import)`,
     source: {

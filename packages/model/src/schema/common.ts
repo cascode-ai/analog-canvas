@@ -1,5 +1,21 @@
 import { z } from "zod";
-export const CURRENT_PROJECT_SCHEMA_VERSION = 58;
+
+/**
+ * Version of the normalized runtime/editor model.
+ *
+ * This is deliberately distinct from the portable Project File schema owned
+ * by `@icm/project-protocol`. It is the version used by the validated model
+ * that rendering, connectivity and transactions operate on; it is not the
+ * value written to an `.icproj.json` file's `schemaVersion` field.
+ */
+export const CURRENT_MODEL_SCHEMA_VERSION = 58;
+
+/**
+ * @deprecated Use `CURRENT_MODEL_SCHEMA_VERSION` inside the runtime model.
+ * Kept as a source-compatibility bridge for downstream integrations while
+ * they move away from the old ambiguous name.
+ */
+export const CURRENT_PROJECT_SCHEMA_VERSION = CURRENT_MODEL_SCHEMA_VERSION;
 
 export const StableIdSchema = z.string().min(1).max(256);
 /** Strict persisted/presentation hex color token. Format: `#RRGGBB`. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyProject, CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
+import { createEmptyProject, CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
 
 import { parseProjectWithMetadata } from "./load.js";
 import { serializeProject } from "./save.js";
@@ -85,7 +85,7 @@ describe("schema 31 to 32 migration (Annotation text color)", () => {
 
     expect(result.sourceSchemaVersion).toBe(31);
     expect(result.migrated).toBe(true);
-    expect(result.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(result.project.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
     expect(result.project.documents[0]!.instances[0]).toMatchObject({
       styleOverride: {
         foreground: "#DC2626",

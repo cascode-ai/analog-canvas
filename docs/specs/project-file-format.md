@@ -237,9 +237,9 @@ file codec preserves these contracts rather than redefining them.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project file schema 24 through 61
--> migrate old files or decode 59/60/61 -> strict model validation -> install unbound
-export -> validate -> encode file schema 61 -> readable canonical JSON -> download
+import text -> parse JSON -> require Project file schema 24 through 65
+-> migrate old files or decode 59–65 -> strict runtime model validation -> install unbound
+export -> validate -> encode file schema 65 -> readable canonical JSON -> download
 ```
 
 An invalid candidate never replaces the current browser Project. File Resource
@@ -262,7 +262,7 @@ open, and recovery remain exact.
 Canonical serialization ends with one newline and is byte-stable across
 serialize/parse/serialize. The current corpus is listed in
 `fixtures/projects/compatibility-corpus.json`; its `current` entries must all be
-already canonical Project file schema 61. Explicit `migrated` witnesses retain
+already canonical Project file schema 65. Explicit `migrated` witnesses retain
 their source bytes and declared source version; loading and saving must produce
 a byte-stable current Project. The rejected corpus names expected validation
 failures. These are test inventory categories, not new Project fields.

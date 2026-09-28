@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyProject, CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
+import { createEmptyProject, CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
 
 import { parseProjectWithMetadata, upgradeSchema45To46 } from "./index.js";
 
@@ -26,6 +26,6 @@ describe("schema 45 to 46 simulation Noise migration", () => {
 
     expect(result.sourceSchemaVersion).toBe(45);
     expect(result.migrated).toBe(true);
-    expect(result.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(result.project.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
   });
 });

@@ -1,7 +1,7 @@
 import { readSimulationExperimentConfig } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
-import { CURRENT_PROJECT_SCHEMA_VERSION, createEmptyProject } from "@icm/model";
+import { CURRENT_MODEL_SCHEMA_VERSION, createEmptyProject } from "@icm/model";
 
 import { parseProjectWithMetadata } from "./load.js";
 import {
@@ -89,7 +89,7 @@ describe("schema 39 to 40 simulation probe anchors", () => {
     expect(parsed).toMatchObject({
       sourceSchemaVersion: 39,
       migrated: true,
-      project: { schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION },
+      project: { schemaVersion: CURRENT_MODEL_SCHEMA_VERSION },
     });
     expect(
       readSimulationExperimentConfig(parsed.project.simulationFolders[0]!),

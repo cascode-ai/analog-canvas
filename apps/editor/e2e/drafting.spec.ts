@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 
 import {
-  CURRENT_PROJECT_SCHEMA_VERSION,
+  CURRENT_MODEL_SCHEMA_VERSION,
   createEmptyProject,
   flattenRichText,
 } from "@icm/model";
@@ -2509,7 +2509,7 @@ test("annotation grid pitch frees drawings from the device grid", async ({
       };
     }>;
   };
-  expect(saved.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+  expect(saved.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
   const document = saved.documents[0]!;
   const circle = document.drafting?.objects.find(
     (object) => object.kind === "circle",

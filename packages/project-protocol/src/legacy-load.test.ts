@@ -13,7 +13,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { CURRENT_PROJECT_SCHEMA_VERSION } from "@icm/model";
+import { CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import { serializeProject } from "./save.js";
@@ -61,7 +61,7 @@ describe("legacy Project loading (#446)", () => {
     if (!result.ok) return;
     expect(result.sourceSchemaVersion).toBe(25);
     expect(result.migrated).toBe(true);
-    expect(result.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(result.project.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
     const document = result.project.documents[0]!;
     // The circuit the reporter drew survives the migration intact.
     expect(result.project.name).toBe("BIAS_INI");
@@ -71,7 +71,7 @@ describe("legacy Project loading (#446)", () => {
   });
 
   const versions = Array.from(
-    { length: CURRENT_PROJECT_SCHEMA_VERSION - OLDEST_CHAINED_VERSION },
+    { length: CURRENT_MODEL_SCHEMA_VERSION - OLDEST_CHAINED_VERSION },
     (_, index) => OLDEST_CHAINED_VERSION + index,
   );
   it.each(versions)(
@@ -87,7 +87,7 @@ describe("legacy Project loading (#446)", () => {
       if (!result.ok) return;
       expect(result.sourceSchemaVersion).toBe(version);
       expect(result.migrated).toBe(true);
-      expect(result.project.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+      expect(result.project.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
     },
   );
 
