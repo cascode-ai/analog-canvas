@@ -1613,8 +1613,13 @@ test("edits the transconductance trapezoid from gm to -gmL", async ({
     0,
   );
   await expect(
-    componentProperties.locator(":scope > :last-child"),
-  ).toHaveAttribute("aria-label", "Canvas property code");
+    componentProperties.getByLabel("Editable Canvas property code"),
+  ).toBeVisible();
+  await expect(
+    componentProperties.getByRole("group", {
+      name: "Property-only electrical terminals",
+    }),
+  ).toBeVisible();
   await expectComponentCodeField(page, "signalFlow", {});
   await expect(frame).toHaveCount(1);
   await expect(frame).toHaveAttribute(
