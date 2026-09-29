@@ -2761,6 +2761,64 @@ function WorkspaceEditor({
       );
     },
     commitCellPinAnnotation: editCellTerminalAnnotation,
+    commitRailConnectionMode: (routeId, mode, edits) => {
+      try {
+        const structureEdits = planSetVddConnectionMode(
+          project,
+          document.id,
+          routeId,
+          mode,
+        );
+        const documentEdit = structureEdits.find(
+          (edit) =>
+            edit.kind === "transact_document" &&
+            edit.documentId === document.id,
+        );
+        if (documentEdit?.kind === "transact_document") {
+          // A simultaneous visibility edit must retain the role planner's
+          // new binding, rather than restore the previous interface owner.
+          documentEdit.edits.push(
+            ...edits.map((edit) => {
+              if (edit.kind !== "upsert_schematic_annotation") return edit;
+              const roleEdit = documentEdit.edits.findLast(
+                (candidate) =>
+                  candidate.kind === "upsert_schematic_annotation" &&
+                  candidate.annotation.id === edit.annotation.id,
+              );
+              return roleEdit?.kind === "upsert_schematic_annotation"
+                ? {
+                    ...edit,
+                    annotation: {
+                      ...edit.annotation,
+                      binding: roleEdit.annotation.binding,
+                    },
+                  }
+                : edit;
+            }),
+          );
+        } else if (edits.length)
+          structureEdits.push({
+            kind: "transact_document",
+            documentId: document.id,
+            expectedRevision: document.revision,
+            edits,
+          });
+        return (
+          structureEdits.length === 0 ||
+          commitStructure(
+            `Set power rail connection to ${mode}`,
+            structureEdits,
+          )
+        );
+      } catch (error) {
+        setStatus(
+          error instanceof Error
+            ? error.message
+            : "Power rail connection could not be changed",
+        );
+        return false;
+      }
+    },
     nextId: (prefix) => {
       uniqueSuffixCounter.current += 1;
       return `${prefix}-${uniqueSuffixCounter.current}`;

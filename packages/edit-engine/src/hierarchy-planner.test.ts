@@ -1,5 +1,6 @@
 import { canonicalPortTextDocument, createRoutePath } from "@icm/model";
 import { describe, expect, it } from "vitest";
+import { createDesignNetlistExport } from "@icm/netlist";
 
 import { createEmptyDocument, createEmptyProject } from "@icm/model";
 
@@ -21,6 +22,247 @@ import {
 import { executeProjectTransaction } from "./project-transaction.js";
 
 describe("hierarchy domain planners", () => {
+  function railProject(scope: "local" | "global" = "global") {
+    const project = createEmptyProject("rail-mode", "Rail mode");
+    const document = project.documents[0]!;
+    const result = executeProjectTransaction(project, {
+      transactionId: "rail",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "transact_document",
+          documentId: document.id,
+          expectedRevision: document.revision,
+          edits: [
+            {
+              kind: "add_power_rail",
+              netId: "supply",
+              routeId: "rail",
+              startJunctionId: "left",
+              endJunctionId: "right",
+              labelId: "supply-label",
+              netName: "VCC",
+              scope,
+              powerDomain: "vdd",
+              start: { x: 0, y: 0 },
+              end: { x: 100, y: 0 },
+            },
+          ],
+        },
+      ],
+    });
+    if (!result.ok) throw new Error(JSON.stringify(result));
+    return result.project;
+  }
+
+  function switchSupply(
+    project: ReturnType<typeof createEmptyProject>,
+    mode: "cell-pin" | "global",
+    id = "rail",
+  ) {
+    const result = executeProjectTransaction(project, {
+      transactionId: `switch-${mode}`,
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: planSetVddConnectionMode(project, project.topDocumentId, id, mode),
+    });
+    if (!result.ok) throw new Error(JSON.stringify(result));
+    return result.project;
+  }
+
+  it.each(["global", "local"] as const)(
+    "roundtrips a %s Rail role without changing drawing or Net membership",
+    (scope) => {
+      let project = railProject(scope);
+      const original = structuredClone(project.documents[0]!);
+      const modes =
+        scope === "global"
+          ? (["cell-pin", "global"] as const)
+          : (["global", "cell-pin"] as const);
+      for (const mode of modes) {
+        project = switchSupply(project, mode);
+        const document = project.documents[0]!;
+        expect(document.routes).toEqual(original.routes);
+        expect(document.junctions).toEqual(original.junctions);
+        expect(document.nets).toEqual(original.nets);
+        expect(document.instances).toEqual(original.instances);
+        const { binding: _before, ...before } = original.annotations[0]!;
+        const { binding: _after, ...after } = document.annotations[0]!;
+        expect(after).toEqual(before);
+        if (mode === "cell-pin") {
+          expect(document.netlist!.terminals).toEqual([
+            expect.objectContaining({
+              name: "VCC",
+              netId: "supply",
+              interfaceInstanceIds: [],
+              interfaceAnnotationId: "supply-label",
+            }),
+          ]);
+          expect(document.annotations[0]!.binding?.kind).toBe(
+            "cell-terminal-name",
+          );
+        } else {
+          expect(document.netlist!.terminals).toEqual([]);
+          expect(document.connectivityEvidence).toEqual([
+            expect.objectContaining({
+              name: "VCC",
+              scope: "global",
+              owner: { kind: "power-marker", objectId: "supply-label" },
+            }),
+          ]);
+        }
+        expect(
+          planSetVddConnectionMode(project, document.id, "rail", mode),
+        ).toEqual([]);
+        for (const format of ["spice", "spectre"] as const) {
+          const exported = createDesignNetlistExport(project, { format });
+          expect(exported.status).toBe("ready");
+          if (exported.status !== "ready") continue;
+          expect(/(?:\.global|global) VCC/.test(exported.file.text)).toBe(
+            mode === "global",
+          );
+          expect(
+            (format === "spice"
+              ? /\.subckt dut VCC/
+              : /subckt dut \(VCC\)/
+            ).test(exported.file.text),
+          ).toBe(mode === "cell-pin");
+        }
+      }
+    },
+  );
+
+  it("recovers an unlabeled legacy Rail's route/junction claims without adding visible artwork", () => {
+    let project = railProject();
+    const original = project.documents[0]!;
+    original.annotations = [];
+    original.connectivityEvidence = ["rail", "right"].map((id) => ({
+      id: `claim-${id}`,
+      kind: "name-claim",
+      netId: "supply",
+      name: "VCC",
+      scope: "global",
+      powerDomain: "vdd",
+      owner: { kind: "power-marker", objectId: id },
+    }));
+    project = switchSupply(project, "cell-pin");
+    const document = project.documents[0]!;
+    expect(document.routes).toEqual(original.routes);
+    expect(document.nets).toEqual(original.nets);
+    expect(document.annotations).toHaveLength(1);
+    expect(document.annotations[0]!.visible).toBe(false);
+    expect(document.netlist!.terminals[0]!.interfaceAnnotationId).toBe(
+      document.annotations[0]!.id,
+    );
+    expect(document.connectivityEvidence).toEqual([
+      expect.objectContaining({
+        scope: "local",
+        owner: { kind: "power-marker", objectId: document.annotations[0]!.id },
+      }),
+    ]);
+    const global = switchSupply(project, "global").documents[0]!;
+    expect(global.connectivityEvidence).toHaveLength(1);
+    expect(global.annotations[0]!.visible).toBe(false);
+  });
+
+  it.each(["rail", "VDD1"])(
+    "switches mixed Rail and Port ownership together from %s",
+    (id) => {
+      const project = railProject();
+      const document = project.documents[0]!;
+      document.instances.push({
+        id: "VDD1",
+        symbolId: "vdd-port",
+        placement: null,
+      });
+      document.nets[0]!.terminals.push({ instanceId: "VDD1", pinName: "P" });
+      document.connectivityEvidence.push({
+        id: "port-claim",
+        kind: "name-claim",
+        name: "VCC",
+        scope: "global",
+        netId: "supply",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: "VDD1" },
+      });
+      const local = switchSupply(project, "cell-pin", id);
+      expect(local.documents[0]!.netlist!.terminals).toHaveLength(2);
+      const global = switchSupply(local, "global", id);
+      expect(global.documents[0]!.netlist!.terminals).toEqual([]);
+      expect(global.documents[0]!.nets).toEqual(document.nets);
+      expect(global.documents[0]!.connectivityEvidence).toHaveLength(2);
+    },
+  );
+
+  it("does not consume another owner's Global declaration", () => {
+    const project = railProject();
+    project.documents[0]!.connectivityEvidence.push({
+      id: "other",
+      kind: "name-claim",
+      netId: "supply",
+      name: "VCC",
+      scope: "global",
+      owner: { kind: "net-label", annotationId: "other-label" },
+    });
+    expect(() =>
+      planSetVddConnectionMode(
+        project,
+        project.topDocumentId,
+        "rail",
+        "cell-pin",
+      ),
+    ).toThrow("another Global declaration");
+  });
+
+  it("preserves attached PMOS bulk policy and controlled-source references", () => {
+    let project = railProject();
+    const original = project.documents[0]!;
+    original.mosBulkDefaults = { pmosNetId: "supply" };
+    original.instances.push(
+      {
+        id: "M1",
+        symbolId: "pmos",
+        symbolVariantId: "textbook-3terminal",
+        placement: null,
+        mosBulkBinding: { netId: "supply", origin: "cell-default" },
+      },
+      {
+        id: "G1",
+        reference: "G1",
+        symbolId: "vccs",
+        placement: null,
+        netlist: {
+          parameters: { gm: "1m" },
+          control: {
+            kind: "voltage",
+            positiveNetId: "supply",
+            negativeNetId: "return",
+          },
+        },
+      },
+    );
+    original.nets[0]!.terminals.push(
+      { instanceId: "M1", pinName: "S" },
+      { instanceId: "M1", pinName: "B" },
+      { instanceId: "G1", pinName: "+" },
+    );
+    original.nets.push({
+      id: "return",
+      terminals: [{ instanceId: "G1", pinName: "-" }],
+    });
+    for (const mode of ["cell-pin", "global"] as const) {
+      project = switchSupply(project, mode);
+      expect(project.documents[0]!.mosBulkDefaults).toEqual(
+        original.mosBulkDefaults,
+      );
+      expect(project.documents[0]!.instances).toEqual(original.instances);
+      expect(project.documents[0]!.nets).toEqual(original.nets);
+    }
+  });
+
   it("formats every ordinary and power Cell Port label in one transaction", () => {
     const project = createEmptyProject("project", "Project");
     const document = project.documents[0]!;

@@ -28,6 +28,7 @@ import {
   hierarchicalSymbolId,
 } from "@icm/symbols";
 import {
+  derivePowerRailComponent,
   resolveDocumentLogicalNets,
   resolveEndpointConnection,
 } from "@icm/derived";
@@ -812,7 +813,8 @@ export type VddConnectionMode = "cell-pin" | "global";
  * Switch the electrical role of the VDD artwork without touching its Base-Net
  * membership or geometry. Cell-Pin mode is represented by the existing formal
  * interface object; Global mode is represented by the existing marker-owned
- * name claim. Markers sharing one physical Base Net move together so the same
+ * name claim. The target is a Port instance ID or Rail route ID. Markers
+ * sharing one physical Base Net move together so the same
  * conductor can never be both interface styles at once.
  */
 export function planSetVddConnectionMode(
@@ -828,14 +830,19 @@ export function planSetVddConnectionMode(
   const selected = document.instances.find(
     (instance) => instance.id === instanceId,
   );
-  if (selected?.symbolId !== "vdd-port") {
+  const selectedRail = document.routes.find(
+    (route) => route.id === instanceId && route.presentation === "power-rail",
+  );
+  if (selected?.symbolId !== "vdd-port" && !selectedRail) {
     throw new Error(`Instance is not VDD Power: ${instanceId}`);
   }
   const net = document.nets.find((candidate) =>
-    candidate.terminals.some(
-      (terminal) =>
-        terminal.instanceId === instanceId && terminal.pinName === "P",
-    ),
+    selectedRail
+      ? candidate.id === selectedRail.netId
+      : candidate.terminals.some(
+          (terminal) =>
+            terminal.instanceId === instanceId && terminal.pinName === "P",
+        ),
   );
   if (!net) throw new Error(`VDD Power has no Net: ${instanceId}`);
 
@@ -849,15 +856,95 @@ export function planSetVddConnectionMode(
         : [];
     }),
   );
+  // A Rail is owned by its power label, whereas a Port is owned by its
+  // instance. Resolve both into the same supply-role transaction. Do not
+  // infer ownership from unrelated labels on the same electrical Net.
+  const railLabels = new Map<string, Annotation>();
+  const legacyRailOwners = new Set<string>();
+  const preparation: DocumentEdits = [];
+  const visitedRoutes = new Set<string>();
+  let selectedMarkerId = instanceId;
+  for (const route of document.routes) {
+    if (
+      route.netId !== net.id ||
+      route.presentation !== "power-rail" ||
+      visitedRoutes.has(route.id)
+    )
+      continue;
+    const rail = derivePowerRailComponent(document, route.id);
+    if (!rail) continue;
+    for (const id of rail.routeIds) {
+      visitedRoutes.add(id);
+      legacyRailOwners.add(id);
+    }
+    for (const id of rail.junctionIds) legacyRailOwners.add(id);
+    const labels = document.annotations.filter(
+      (annotation) =>
+        annotation.kind === "power-label" &&
+        annotation.anchor.kind === "object" &&
+        rail.junctionIds.includes(annotation.anchor.objectId),
+    );
+    if (labels.length === 0) {
+      const junction = document.junctions.find(
+        (item) => item.id === rail.endpointJunctionIds[0],
+      );
+      if (!junction) throw new Error("Power rail has no endpoint");
+      const label: Annotation = {
+        id: deriveStableId("power-label", document.id, route.id),
+        kind: "power-label",
+        netId: net.id,
+        binding: { kind: "net-name", netId: net.id },
+        anchor: {
+          kind: "object",
+          objectId: junction.id,
+          localOffset: { x: 10, y: 10 },
+          fallbackPosition: {
+            x: junction.position.x + 10,
+            y: junction.position.y + 10,
+          },
+        },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+        visible: false,
+      };
+      labels.push(label);
+      preparation.push({
+        kind: "upsert_schematic_annotation",
+        annotation: label,
+      });
+    }
+    for (const label of labels) {
+      markerIds.add(label.id);
+      railLabels.set(label.id, label);
+    }
+    if (selectedRail && rail.routeIds.includes(selectedRail.id))
+      selectedMarkerId = labels[0]!.id;
+  }
+  const markerForTerminal = (
+    terminal: NonNullable<SchematicDocument["netlist"]>["terminals"][number],
+  ) =>
+    terminal.interfaceAnnotationId &&
+    railLabels.has(terminal.interfaceAnnotationId)
+      ? terminal.interfaceAnnotationId
+      : terminal.interfaceInstanceIds[0]!;
+  const annotationsForMarker = (markerId: string) =>
+    railLabels.has(markerId)
+      ? [railLabels.get(markerId)!]
+      : document.annotations.filter(
+          (annotation) =>
+            annotation.kind === "power-label" &&
+            annotation.anchor.kind === "object" &&
+            annotation.anchor.objectId === markerId,
+        );
   const terminalByMarkerId = new Map(
     document.netlist.terminals.flatMap((terminal) =>
-      terminal.netId === net.id &&
-      markerIds.has(terminal.interfaceInstanceIds[0]!)
-        ? [[terminal.interfaceInstanceIds[0]!, terminal] as const]
+      terminal.netId === net.id && markerIds.has(markerForTerminal(terminal))
+        ? [[markerForTerminal(terminal), terminal] as const]
         : [],
     ),
   );
-  const selectedTerminal = terminalByMarkerId.get(instanceId);
+  const selectedTerminal = terminalByMarkerId.get(selectedMarkerId);
   const ownedClaims = document.connectivityEvidence.filter(
     (
       evidence,
@@ -867,7 +954,8 @@ export function planSetVddConnectionMode(
     > =>
       evidence.kind === "name-claim" &&
       evidence.owner.kind === "power-marker" &&
-      markerIds.has(evidence.owner.objectId) &&
+      (markerIds.has(evidence.owner.objectId) ||
+        legacyRailOwners.has(evidence.owner.objectId)) &&
       evidence.netId === net.id,
   );
   const logicalName = resolveDocumentLogicalNets(document).byBaseNetId.get(
@@ -890,7 +978,7 @@ export function planSetVddConnectionMode(
     const retainedFormalOnNet = document.netlist.terminals.find(
       (terminal) =>
         terminal.netId === net.id &&
-        !terminalByMarkerId.has(terminal.interfaceInstanceIds[0]!),
+        !terminalByMarkerId.has(markerForTerminal(terminal)),
     );
     if (retainedFormalOnNet) {
       throw new Error(
@@ -898,7 +986,19 @@ export function planSetVddConnectionMode(
       );
     }
     const name = [...names.values()][0] ?? logicalName ?? "VDD";
-    const annotationEdits: DocumentEdits = [];
+    const annotationEdits: DocumentEdits = [
+      ...preparation,
+      ...ownedClaims
+        .filter(
+          (claim) =>
+            claim.owner.kind === "power-marker" &&
+            legacyRailOwners.has(claim.owner.objectId),
+        )
+        .map((claim) => ({
+          kind: "remove_connectivity_evidence" as const,
+          evidenceId: claim.id,
+        })),
+    ];
     for (const markerId of markerIds) {
       const priorClaim = ownedClaims.find(
         (claim) =>
@@ -925,13 +1025,7 @@ export function planSetVddConnectionMode(
           owner: { kind: "power-marker", objectId: markerId },
         },
       });
-      for (const annotation of document.annotations) {
-        if (
-          annotation.kind !== "power-label" ||
-          annotation.anchor.kind !== "object" ||
-          annotation.anchor.objectId !== markerId
-        )
-          continue;
+      for (const annotation of annotationsForMarker(markerId)) {
         annotationEdits.push({
           kind: "upsert_schematic_annotation",
           annotation: {
@@ -963,7 +1057,8 @@ export function planSetVddConnectionMode(
       evidence.scope === "global" &&
       !(
         evidence.owner.kind === "power-marker" &&
-        markerIds.has(evidence.owner.objectId)
+        (markerIds.has(evidence.owner.objectId) ||
+          legacyRailOwners.has(evidence.owner.objectId))
       ),
   );
   if (blockingClaim) {
@@ -992,12 +1087,35 @@ export function planSetVddConnectionMode(
     ...document.noConnects.map((item) => item.id),
     ...document.netlist.terminals.map((item) => item.id),
   ]);
-  const edits: DocumentEdits = ownedClaims.map((claim) => ({
-    kind: "remove_connectivity_evidence" as const,
-    evidenceId: claim.id,
-  }));
+  const edits: DocumentEdits = [
+    ...preparation,
+    ...ownedClaims.map((claim) => ({
+      kind: "remove_connectivity_evidence" as const,
+      evidenceId: claim.id,
+    })),
+  ];
   for (const markerId of markerIds) {
     const existingTerminal = terminalByMarkerId.get(markerId);
+    if (railLabels.has(markerId)) {
+      edits.push({
+        kind: "upsert_connectivity_evidence",
+        evidence: {
+          id: deriveStableId(
+            "connectivity-evidence",
+            document.id,
+            "power-marker",
+            markerId,
+            net.id,
+          ),
+          kind: "name-claim",
+          netId: net.id,
+          name,
+          scope: "local",
+          powerDomain: "vdd",
+          owner: { kind: "power-marker", objectId: markerId },
+        },
+      });
+    }
     let terminalId =
       existingTerminal?.id ?? `terminal-${markerId.toLowerCase()}`;
     if (!existingTerminal) {
@@ -1014,17 +1132,14 @@ export function planSetVddConnectionMode(
           name,
           netId: net.id,
           direction: "inout",
-          interfaceInstanceIds: [markerId],
+          interfaceInstanceIds: railLabels.has(markerId) ? [] : [markerId],
+          ...(railLabels.has(markerId)
+            ? { interfaceAnnotationId: markerId }
+            : {}),
         },
       });
     }
-    for (const annotation of document.annotations) {
-      if (
-        annotation.kind !== "power-label" ||
-        annotation.anchor.kind !== "object" ||
-        annotation.anchor.objectId !== markerId
-      )
-        continue;
+    for (const annotation of annotationsForMarker(markerId)) {
       edits.push({
         kind: "upsert_schematic_annotation",
         annotation: {

@@ -165,6 +165,11 @@ export interface UsePropertiesEditorOptions {
   ) => SchematicEdit[];
   isCellPinAnnotation?: (annotation: Annotation) => boolean;
   commitCellPinAnnotation?: (annotation: Annotation, name: string) => boolean;
+  commitRailConnectionMode?: (
+    routeId: string,
+    mode: "cell-pin" | "global",
+    edits: SchematicEdit[],
+  ) => boolean;
   nextId: (prefix: string) => string;
 }
 
@@ -515,7 +520,12 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       existingLabel,
     );
     const railLabel = railPowerLabel(options.document, route);
-    if (railLabel) return applyRailProperties(route, railLabel, current, value);
+    if (
+      railLabel ||
+      (route.presentation === "power-rail" &&
+        value.net.scope !== current.net.scope)
+    )
+      return applyRailProperties(route, railLabel, current, value);
     const name = value.net.name.trim();
     const scope = name ? value.net.scope : "local";
 
@@ -602,22 +612,22 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
    */
   const applyRailProperties = (
     route: Route,
-    label: Annotation,
+    label: Annotation | null,
     current: RoutePropertyCodeValue,
     value: RoutePropertyCodeValue,
   ): { ok: boolean; message?: string } => {
     const name = value.net.name.trim();
     if (!name)
       return { ok: false, message: "A power rail's name cannot be empty" };
-    if (value.net.scope !== current.net.scope)
+    const modeChanged = value.net.scope !== current.net.scope;
+    if (modeChanged && name !== current.net.name)
       return {
         ok: false,
-        message:
-          "A power rail's scope follows its label; set it from the rail's supply",
+        message: "Apply the supply name and connection mode separately",
       };
     const edits: SchematicEdit[] = [];
     const visible = value.display?.visualAnnotation ?? true;
-    if (visible !== (current.display?.visualAnnotation ?? true)) {
+    if (label && visible !== (current.display?.visualAnnotation ?? true)) {
       const { visible: _visible, ...shown } = label;
       edits.push({
         kind: "upsert_schematic_annotation",
@@ -641,9 +651,21 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
         routeId: route.id,
         styleOverride: nextStyle,
       });
+    if (modeChanged) {
+      return options.commitRailConnectionMode?.(
+        route.id,
+        value.net.scope === "global" ? "global" : "cell-pin",
+        edits,
+      )
+        ? { ok: true }
+        : {
+            ok: false,
+            message: "The rail connection mode could not be applied",
+          };
+    }
     if (edits.length > 0 && !options.transact(edits).ok)
       return { ok: false, message: "The rail properties could not be applied" };
-    if (name !== current.net.name) {
+    if (label && name !== current.net.name) {
       const renamed =
         label.binding?.kind === "cell-terminal-name"
           ? (options.commitCellPinAnnotation?.(label, name) ?? false)

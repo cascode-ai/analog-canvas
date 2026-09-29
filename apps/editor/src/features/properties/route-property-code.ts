@@ -1,4 +1,8 @@
-import { derivePowerRailComponent, resolveAnnotationName } from "@icm/derived";
+import {
+  derivePowerRailComponent,
+  resolveAnnotationName,
+  resolveDocumentLogicalNets,
+} from "@icm/derived";
 import { z } from "zod";
 
 import { type Annotation, type SchematicDocument } from "@icm/model";
@@ -145,12 +149,18 @@ export function routePropertyCodeValue(
 ): RoutePropertyCodeValue {
   const railLabel = railPowerLabel(document, route);
   const label = railLabel ?? netLabel;
+  const railNet =
+    route.presentation === "power-rail"
+      ? resolveDocumentLogicalNets(document).byBaseNetId.get(route.netId)
+      : undefined;
   return {
     net: {
-      name: label ? resolveAnnotationName(document, label).trim() : "",
+      name: label
+        ? resolveAnnotationName(document, label).trim()
+        : (railNet?.name ?? ""),
       scope: railLabel
         ? powerLabelScope(document, railLabel)
-        : netLabelScope(document, netLabel),
+        : (railNet?.scope ?? netLabelScope(document, netLabel)),
     },
     ...(railLabel
       ? { display: { visualAnnotation: railLabel.visible !== false } }
@@ -197,9 +207,25 @@ export function parseRoutePropertyCode(
   }
 }
 
-export function routePropertyCodeAdapter(): PropertyJsonEditorAdapter {
+export function routePropertyCodeAdapter(
+  powerRail = false,
+): PropertyJsonEditorAdapter {
+  const routeFields = powerRail
+    ? fields.map((field) =>
+        field.path === "net.scope"
+          ? {
+              ...field,
+              label: "Connection",
+              options: [
+                { value: "local", label: "Cell Pin" },
+                { value: "global", label: "Global" },
+              ],
+            }
+          : field,
+      )
+    : fields;
   const spans = (source: string) =>
-    propertyCodeSpans(source, undefined, fields);
+    propertyCodeSpans(source, undefined, routeFields);
   return {
     parse: parseRoutePropertyCode,
     spans,
