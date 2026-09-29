@@ -46,11 +46,11 @@ import {
   missingDefaultInstanceDisplayAnnotations,
 } from "../instance-display/default-instance-display";
 import {
-  initialInstanceNetlist,
   createNewInstance,
   nextCellPinName,
   nextInstanceId,
 } from "../netlist-export/netlist-authoring";
+import { placedInstanceNetlist } from "./placed-instance-netlist";
 import { defaultRazaviSymbolVariantId } from "../../presentation/razavi-presentation";
 import { sharedComponentNetlist } from "../user-components/component-definition-edit";
 import type { ScreenFlip } from "../../interaction/shortcut-orientation";
@@ -165,7 +165,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
         },
         netlist: customDefinition
           ? sharedComponentNetlist(customDefinition)
-          : initialInstanceNetlist(
+          : placedInstanceNetlist(
               symbolId,
               placementRequest.parameters,
               options.processModelTarget(symbolId),

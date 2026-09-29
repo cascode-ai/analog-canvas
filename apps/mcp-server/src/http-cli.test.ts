@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { assembleServer } from "./server.js";
-import { httpCommandReadsStdin, runHttpCommand } from "./http-cli.js";
+import {
+  httpCommandFailureMessage,
+  httpCommandReadsStdin,
+  runHttpCommand,
+} from "./http-cli.js";
 import { executeOperation, operationDefinitions } from "./operations.js";
 
 describe("HTTP executable adapter", () => {
@@ -78,6 +82,47 @@ describe("HTTP executable adapter", () => {
       server.handler.readResource("analog-canvas://reference/quickstart"),
     );
   });
+  it("prints what went wrong, masking anything shaped like a credential", async () => {
+    const server = assembleServer({
+      apiBaseUrl: "https://relay.test",
+      connectorPath: "unused.json",
+    });
+    const failure = async (command: string, input: string) => {
+      try {
+        await runHttpCommand(server, command, input);
+      } catch (error) {
+        return httpCommandFailureMessage(error);
+      }
+      throw new Error("The command did not fail");
+    };
+    // `vdd` is no symbol; the ID is `vdd-port`.
+    expect(
+      await failure(
+        "resource",
+        "analog-canvas://catalog/builtins?symbols=nmos,vdd",
+      ),
+    ).toBe(
+      'HTTP client command failed: Unknown symbol ID "vdd"; inspect the full catalog to discover symbols (-32602)',
+    );
+    expect(await failure("circuit_place", "{ not json")).toMatch(
+      /^HTTP client command failed: .*JSON/u,
+    );
+    const secret = "3f2a9c1e-7b4d-4e8f-9a0b-1c2d3e4f5a6b";
+    expect(
+      httpCommandFailureMessage(
+        Object.assign(
+          new Error(`Rejected Bearer ${secret} for session ${secret}`),
+          { code: "UNAUTHORIZED" },
+        ),
+      ),
+    ).toBe(
+      "HTTP client command failed: Rejected Bearer [redacted] for session [redacted] (UNAUTHORIZED)",
+    );
+    expect(httpCommandFailureMessage("thrown text")).toBe(
+      "HTTP client command failed. Check the command, published schema, and connection status.",
+    );
+  });
+
   it("passes canonical requests unchanged to the shared client", async () => {
     const server = assembleServer({
       apiBaseUrl: "https://relay.test",

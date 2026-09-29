@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_AGENT_SESSION_LIMITS } from "./session-state.js";
+import { DEFAULT_AGENT_LIMITS } from "./service.js";
 import { AgentProductionCircuitRequestSchema } from "./schema.js";
 import { agentCircuitOpenApi } from "./openapi.js";
 import { agentApiHelp } from "./agent-api-help.generated.js";
@@ -47,6 +48,12 @@ describe("Agent session protocol documentation", () => {
     expect(commit.dryRun).toBe(false);
     expect(preview.requestId).not.toBe(commit.requestId);
     expect(preview.transactionId).not.toBe(commit.transactionId);
+  });
+  it("states the per-call edit budget the service enforces", () => {
+    const limit = DEFAULT_AGENT_LIMITS.maxTransactionEdits;
+    expect(readRepositoryText("docs/agent/shared/authoring.md")).toContain(
+      `One transaction takes at most ${limit} expanded edits.`,
+    );
   });
   it("tracks the deployed credential and idempotency lifetimes", () => {
     const claimMinutes = DEFAULT_AGENT_SESSION_LIMITS.claimTtlMs / 60_000;

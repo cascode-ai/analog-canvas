@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 import { McpStdioServer } from "./protocol.js";
 import { assembleServer } from "./server.js";
-import { httpCommandReadsStdin, runHttpCommand } from "./http-cli.js";
+import {
+  httpCommandFailureMessage,
+  httpCommandReadsStdin,
+  runHttpCommand,
+} from "./http-cli.js";
 import { installMcp } from "./install.js";
 import { createOperationSession } from "./operation-session.js";
 
@@ -44,10 +48,8 @@ if (process.argv[2] === "--install") {
           ("ok" in result && result.ok === false))
       )
         process.exitCode = 1;
-    } catch {
-      process.stderr.write(
-        "HTTP client command failed. Check the command, published schema, and connection status.\n",
-      );
+    } catch (error) {
+      process.stderr.write(`${httpCommandFailureMessage(error)}\n`);
       process.exitCode = 1;
     }
   } else {

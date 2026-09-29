@@ -30,6 +30,11 @@ export class AgentCommandPlanningError extends Error {
   constructor(
     readonly actionIndex: number,
     message: string,
+    /** A more specific code than EDIT_PRECONDITION, and its facts. */
+    readonly detail?: {
+      code: "LIMIT_EXCEEDED";
+      parameters: Readonly<Record<string, number>>;
+    },
   ) {
     super(`actions[${actionIndex}]: ${message}`);
   }

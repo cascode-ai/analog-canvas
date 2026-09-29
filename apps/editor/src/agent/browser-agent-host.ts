@@ -17,7 +17,10 @@ import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { EditorDocumentController } from "../document/document-controller";
-import { planBrowserAgentCommand } from "./browser-agent-command";
+import {
+  planBrowserAgentCommand,
+  type BrowserAgentPlanningContext,
+} from "./browser-agent-command";
 
 /**
  * Adapts a live {@link EditorDocumentController} to the
@@ -46,6 +49,7 @@ export class BrowserAgentHost implements AgentOperationHost {
       this.controller.resolver,
       command,
       maxTransactionEdits,
+      this.planning,
     );
   }
   private readonly boundProjectSessionId: string;
@@ -57,6 +61,8 @@ export class BrowserAgentHost implements AgentOperationHost {
       request: AgentHostSemanticIntentRequest,
     ) => AgentHostSemanticIntentResult,
     private readonly isAvailable: () => boolean = () => true,
+    /** What the editor knows beyond the Project, such as its Process. */
+    private readonly planning: BrowserAgentPlanningContext = {},
   ) {
     this.boundProjectSessionId = controller.projectSessionId;
   }

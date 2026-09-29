@@ -48,6 +48,7 @@ import {
   type CircuitProject,
 } from "@icm/model";
 import {
+  displayableInstanceValue,
   resolveDocumentStyleProfile,
   resolveRouteGeometry,
   resolveDocumentLogicalNets,
@@ -87,7 +88,23 @@ import {
 import { planPlacedCellPin } from "../features/component-insert/cell-pin-placement";
 import { planVddRailEdits } from "../features/component-insert/vdd-rail";
 import { planInitialMosBulkDefault } from "../features/component-insert/mos-bulk-defaults";
+import { placedInstanceNetlist } from "../features/component-insert/placed-instance-netlist";
 import { initialInstanceNetlist } from "../features/netlist-export/netlist-authoring";
+
+/** What the live editor knows beyond the Project. */
+export interface BrowserAgentPlanningContext {
+  /** The model a transistor placed now takes, as a GUI placement gets it. */
+  processModelTarget?(
+    project: CircuitProject,
+    symbolId: string,
+  ): string | undefined;
+  /** The full target a short device name of the Process in hand stands for. */
+  processTargetForShortName?(
+    project: CircuitProject,
+    symbolId: string,
+    name: string,
+  ): string | undefined;
+}
 
 /** No second geometry/model/clipboard implementation: plan exactly as the GUI does. */
 export function planBrowserAgentCommand(
@@ -96,6 +113,7 @@ export function planBrowserAgentCommand(
   resolver: SymbolResolver,
   command: AgentAuthoringCommand,
   maxTransactionEdits = Number.POSITIVE_INFINITY,
+  context: BrowserAgentPlanningContext = {},
 ): AgentCommandPlan {
   const document = project.documents.find((item) => item.id === documentId);
   if (!document) throw new Error("Document not found");
@@ -241,6 +259,7 @@ export function planBrowserAgentCommand(
             createProjectSymbolResolver(draft, builtInSymbols),
             item,
             maxTransactionEdits,
+            context,
           );
           onlyDocument &&= !("structureEdits" in plan);
           const next: ProjectStructureEdit[] =
@@ -335,7 +354,15 @@ export function planBrowserAgentCommand(
             `Terminal direction requires a Cell interface marker: ${id}`,
           );
       }
+      // Where each placement's edits start, and which placements are Cell
+      // Pins, which carry the interface into a Project transaction.
+      const starts: number[] = [];
+      const pins: boolean[] = [];
       for (const [index, source] of command.instances.entries()) {
+        starts.push(edits.length);
+        pins.push(
+          ["port", "port-filled", "vdd-port"].includes(source.symbolId),
+        );
         const pinAnchor = command.pinAnchors?.[source.id];
         let instance = source;
         if (pinAnchor) {
@@ -358,9 +385,32 @@ export function planBrowserAgentCommand(
         }
         if (!instance.placement)
           throw new Error("New component requires placement");
-        const initialNetlist = initialInstanceNetlist(
+        // A value is shown where the Agent gave one; a catalog default filled
+        // in below is not a request to show it, as a GUI insert shows none.
+        const asked = initialInstanceNetlist(
           instance.symbolId,
           instance.netlist?.parameters ?? {},
+        );
+        const showValue =
+          asked !== undefined &&
+          displayableInstanceValue({
+            ...instance,
+            netlist: {
+              ...asked,
+              ...instance.netlist,
+              parameters: {
+                ...asked.parameters,
+                ...instance.netlist?.parameters,
+              },
+            },
+          }).kind === "displayable";
+        // The catalog defaults and the Process's model, exactly as a GUI
+        // placement of the same part in this Project gets them; parameters
+        // the Agent gives still win.
+        const initialNetlist = placedInstanceNetlist(
+          instance.symbolId,
+          instance.netlist?.parameters ?? {},
+          context.processModelTarget?.(project, instance.symbolId),
         );
         if (initialNetlist)
           instance = {
@@ -439,11 +489,38 @@ export function planBrowserAgentCommand(
             instance,
             resolver,
             resolveDocumentStyleProfile(document.presentation),
-            { showValue: true },
+            { showValue },
           ).map((annotation): SchematicEdit => ({
             kind: "upsert_schematic_annotation",
             annotation,
           })),
+        );
+      }
+      // One transaction takes a bounded number of edits, and each placement
+      // expands to several (the part, its labels, a Pin's terminal and Net).
+      // A batch over the bound commits nothing; it says what it expanded to
+      // and how many leading placements fit, so it splits without guessing.
+      const expanded = edits.length + (changesInterface ? 1 : 0);
+      if (expanded > maxTransactionEdits) {
+        let fitting = 0;
+        while (
+          fitting < command.instances.length &&
+          (starts[fitting + 1] ?? edits.length) +
+            (pins.slice(0, fitting + 1).some(Boolean) ? 1 : 0) <=
+            maxTransactionEdits
+        )
+          fitting += 1;
+        throw new AgentCommandPlanningError(
+          fitting,
+          `${command.instances.length} placements expand to ${expanded} edits, and one transaction takes at most ${maxTransactionEdits}. The first ${fitting} fit: place them in one call and the rest in another. Nothing was placed.`,
+          {
+            code: "LIMIT_EXCEEDED",
+            parameters: {
+              expandedEdits: expanded,
+              maxTransactionEdits,
+              fittingPlacements: fitting,
+            },
+          },
         );
       }
       // Keep mixed device/Port batches atomic, including the interface facts.
@@ -758,15 +835,30 @@ export function planBrowserAgentCommand(
         ],
       };
     }
-    case "set-model":
+    case "set-model": {
+      // The Netlist panel lists a Process's devices by their short names
+      // (nfet_01v8 for SKY130's sky130_fd_pr__nfet_01v8); an Agent that
+      // copies one means that device, not a new model of the same name.
+      const symbolId = document.instances.find(
+        (instance) => instance.id === command.instanceId,
+      )?.symbolId;
+      const model =
+        (symbolId &&
+          context.processTargetForShortName?.(
+            project,
+            symbolId,
+            command.model,
+          )) ||
+        command.model;
       return {
         structureEdits: planSetDeviceModelTarget(
           project,
           documentId,
           command.instanceId,
-          command.model,
+          model,
         ),
       };
+    }
     case "create-cell": {
       const child = createCellDocument(
         command.id,
