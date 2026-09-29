@@ -39,26 +39,6 @@ function uprightMathSuffix(
 }
 
 /**
- * Supply designators keep an italic subscript; every other subscript is
- * upright. The renderer draws scripts upright by default and treats a nested
- * italic span as a deliberate override, so this is expressed in the document
- * rather than in the renderer.
- */
-const POWER_RAIL_SUBSCRIPTS = new Set(["dd", "ss", "cc", "ee", "bb"]);
-
-function isPowerRailSubscript(value: string): boolean {
-  return POWER_RAIL_SUBSCRIPTS.has(value.trim().toLowerCase());
-}
-
-function mathSubscript(value: string): RichTextRun {
-  const bold = span([{ kind: "text", value }], "bold");
-  return span(
-    [isPowerRailSubscript(value) ? span([bold], "italic") : bold],
-    "subscript",
-  );
-}
-
-/**
  * House style for an authored identifier: the leading character is the symbol
  * and everything after it defaults to its subscript. Both halves stay editable
  * afterwards. Styling must never rewrite the semantic identifier: punctuation
@@ -73,7 +53,7 @@ function symbolRuns(value: string): RichTextRun[] {
   const head = value.slice(0, 1);
   const tail = value.slice(1);
   return tail.length > 0
-    ? [mathBase(head), mathSubscript(tail)]
+    ? [mathBase(head), uprightMathSubscript(tail)]
     : [mathBase(head)];
 }
 
