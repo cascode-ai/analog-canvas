@@ -101,6 +101,8 @@ import type { HierarchyFrame } from "@icm/derived";
 import {
   createEmptyProject,
   createId,
+  defaultDraftTextDocument,
+  flattenRichText,
   LINEAR_CONTROLLED_SOURCE_KINDS,
   controlledSourceExpressionSource,
 } from "@icm/model";
@@ -119,6 +121,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import { buildSvgScene } from "@icm/render-svg";
+import type { TextDraft } from "../features/text-editing/text-draft-overlay";
 import { renderCrashRequested, sceneCrashRequested } from "./crash-test-hooks";
 import { buildSceneSafely } from "./scene-safety";
 import { externalSubcircuitSymbolId, hierarchicalSymbolId } from "@icm/symbols";
@@ -1835,6 +1838,12 @@ function WorkspaceEditor({
    * so it seeds its preview from here instead of waiting for the next move.
    */
   const lastCanvasPointRef = useRef<Point | null>(null);
+  const [textDraft, setTextDraft] = useState<TextDraft | null>(null);
+  // Choosing a drawing tool leaves the text being written, as any other
+  // interaction does.
+  useEffect(() => {
+    if (tool !== "pointer") setTextDraft(null);
+  }, [tool]);
   const carriedCopyRef = useRef<{
     clipboard: SchematicClipboard;
     orientation: readonly PlacementOrientationOperation[];
@@ -3563,18 +3572,21 @@ function WorkspaceEditor({
     inspectorSegment: draftingInspectorSegment,
     transact,
     setStatus,
-    beginTextPlacement: () =>
-      startInsertFromHook({
-        kind: "quick",
-        request: {
-          kind: "drafting-text",
-          symbolId: "text",
-          symbolName: "Text",
-          text: "Design note",
-          initialRotation: 0,
-          editAfterPlacement: true,
+    // Text is written first, where the pointer is, and placed afterwards.
+    beginTextPlacement: () => {
+      cancelAllTransientInteraction();
+      setTool("pointer");
+      setTextDraft({
+        content: defaultDraftTextDocument(""),
+        sizeScale: 1,
+        alignment: "middle",
+        position: lastCanvasPointRef.current ?? {
+          x: viewBox.x + viewBox.width / 2,
+          y: viewBox.y + viewBox.height / 2,
         },
-      }),
+      });
+      setStatus("Type the text, then Enter to place it · Esc cancels");
+    },
   });
   const {
     snapPoint: snapDraftingPoint,
@@ -4324,6 +4336,33 @@ function WorkspaceEditor({
     setBulkDrawInstanceId(null);
     setBoxPreview(null);
     setArmedVerb(null);
+    setTextDraft(null);
+  }
+
+  /** Enter in the Text tool's editor: carry what was written to the pointer. */
+  function submitTextDraft(): void {
+    const draft = textDraft;
+    if (!draft) return;
+    setTextDraft(null);
+    const text = flattenRichText(draft.content).trim();
+    if (!text) {
+      setStatus("Nothing written; text cancelled");
+      return;
+    }
+    startInsertFromHook({
+      kind: "quick",
+      request: {
+        kind: "drafting-text",
+        symbolId: "text",
+        symbolName: "Text",
+        text,
+        content: draft.content,
+        alignment: draft.alignment,
+        sizeScale: draft.sizeScale,
+        initialRotation: 0,
+        editAfterPlacement: true,
+      },
+    });
   }
 
   function selectEndpoint(candidate: WireSource): void {
@@ -8833,6 +8872,15 @@ function WorkspaceEditor({
                   ...(pendingComponentPlacement.text !== undefined
                     ? { draftingText: pendingComponentPlacement.text }
                     : {}),
+                  ...(pendingComponentPlacement.content
+                    ? {
+                        draftingContent: pendingComponentPlacement.content,
+                        draftingAlignment:
+                          pendingComponentPlacement.alignment ?? "middle",
+                        draftingSizeScale:
+                          pendingComponentPlacement.sizeScale ?? 1,
+                      }
+                    : {}),
                   ...(pendingComponentPlacement.polarity
                     ? { draftingPolarity: pendingComponentPlacement.polarity }
                     : {}),
@@ -9261,6 +9309,19 @@ function WorkspaceEditor({
             },
             onTextDelete: deleteTextEditing,
             onDisplayAliasChange: setTextDisplayAlias,
+          }}
+          textDraft={{
+            draft: textDraft,
+            viewBox,
+            onChange: (change) =>
+              setTextDraft((current) =>
+                current ? { ...current, ...change } : current,
+              ),
+            onSubmit: submitTextDraft,
+            onCancel: () => {
+              setTextDraft(null);
+              setStatus("Text cancelled");
+            },
           }}
         />
         {canvasContextMenu ? (

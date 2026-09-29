@@ -139,13 +139,28 @@ export async function clickDrawTool(page: Page, tool: DrawTool): Promise<void> {
   await chip.click();
 }
 
-/** Place a free text note, leaving its editor open for the calling scenario. */
+/**
+ * Place a free text note, leaving its editor open for the calling scenario.
+ * Text is written first: the note is written, placed, then reopened.
+ */
 export async function placeText(
   page: Page,
   position = { x: 450, y: 340 },
 ): Promise<void> {
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.hover({ position });
   await clickDrawTool(page, "text");
-  await page.getByTestId("schematic-canvas").click({ position });
+  const draft = page
+    .getByTestId("text-draft-editor")
+    .getByRole("textbox", { name: "Canvas text editor" });
+  await expect(draft).toBeVisible();
+  await draft.pressSequentially("Design note");
+  await draft.press("Enter");
+  await canvas.click({ position });
+  await page
+    .getByTestId(/^drafting-hit-note-/)
+    .last()
+    .dblclick();
   await expect(
     page.getByRole("textbox", { name: "Canvas text editor" }),
   ).toBeVisible();

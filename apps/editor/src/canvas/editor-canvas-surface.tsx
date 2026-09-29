@@ -33,6 +33,7 @@ import {
 } from "./editor-wiring-overlay";
 import type { CameraRuntime } from "./camera-runtime";
 import { EDITOR_SHORTCUT_REFERENCE } from "../interaction/editor-shortcut-reference";
+import { TextDraftEditorOverlay } from "../features/text-editing/text-draft-overlay";
 
 interface DomRoutedEvent {
   currentTarget: Element;
@@ -106,6 +107,8 @@ export interface EditorCanvasSurfaceProps {
   draftingHitTargets: ComponentProps<typeof EditorDraftingHitTargets>;
   draftingHandles: ComponentProps<typeof EditorDraftingHandles>;
   interactionPreviews: ComponentProps<typeof EditorInteractionPreviews>;
+  /** Text the Text tool is writing before it is placed. */
+  textDraft?: ComponentProps<typeof TextDraftEditorOverlay>;
 }
 
 function CanvasShortcutChord({ keys }: { keys: readonly string[] }) {
@@ -145,6 +148,7 @@ export function EditorCanvasSurface({
   draftingHitTargets,
   draftingHandles,
   interactionPreviews,
+  textDraft,
 }: EditorCanvasSurfaceProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const onPointerMoveRef = useRef(eventHandlers.onPointerMove);
@@ -362,6 +366,7 @@ export function EditorCanvasSurface({
             onNetLabelEscape={wiring.onNetLabelEscape}
             viewBox={wiring.viewBox}
           />
+          {textDraft ? <TextDraftEditorOverlay {...textDraft} /> : null}
         </g>
       </svg>
     </section>
