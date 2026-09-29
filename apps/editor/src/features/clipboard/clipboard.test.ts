@@ -1,8 +1,10 @@
 import { createRoutePath, routeBends, routeEnd } from "@icm/model";
 import { executeTransaction, powerConnectionForSymbol } from "@icm/edit-engine";
 import {
+  defaultInstanceLabelPlacement,
   resolveAnnotationText,
   resolveDocumentLogicalNets,
+  resolveDocumentStyleProfile,
 } from "@icm/derived";
 import type { Annotation, DraftingObject, Instance } from "@icm/model";
 import {
@@ -1095,6 +1097,76 @@ describe("schematic clipboard", () => {
       },
       { kind: "rotate_instance", instanceId: "R1_2", rotation: 270 },
     ]);
+  });
+
+  it("sets a turned copy's untouched label where a turn on the canvas sets it", () => {
+    // Reported: C then R on a transistor left the copy's M₂ on top of the
+    // turned body, because the label's offset turned rigidly with it.
+    const document = createEmptyDocument("document-main", "Turned copy");
+    const instance: Instance = {
+      id: "M1",
+      symbolId: "nmos",
+      reference: "M1",
+      netlist: { parameters: {} },
+      placement: { position: { x: 200, y: 200 }, rotation: 0, mirror: "none" },
+    };
+    document.instances.push(instance);
+    const placement = defaultInstanceLabelPlacement(
+      instance,
+      resolver.resolve("nmos")!,
+      resolveDocumentStyleProfile(document.presentation),
+      document.presentation.grid,
+      "reference",
+    )!;
+    document.annotations.push({
+      id: "label-m1",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "M1" },
+      anchor: {
+        kind: "object",
+        objectId: "M1",
+        localOffset: {
+          x: placement.position.x - 200,
+          y: placement.position.y - 200,
+        },
+        fallbackPosition: placement.position,
+      },
+      alignment: placement.alignment,
+      rotation: 0,
+      locked: false,
+    });
+    const turned = executeTransaction(
+      document,
+      {
+        transactionId: "turn",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: [{ kind: "rotate_instance", instanceId: "M1", rotation: 90 }],
+      },
+      { symbolResolver: resolver },
+    );
+    if (!turned.ok) throw new Error(JSON.stringify(turned.error));
+    const onCanvas = turned.document.annotations[0]!;
+
+    const copied = orientClipboard(
+      copySelection(document, ["M1"])!,
+      [{ kind: "rotate", deltaDegrees: 90 }],
+      undefined,
+      { resolver, presentation: document.presentation },
+    );
+    const label = copied.annotations.find(
+      (annotation) => annotation.id === "label-m1",
+    )!;
+    if (label.anchor.kind !== "object" || onCanvas.anchor.kind !== "object")
+      throw new Error("anchor");
+    expect(label.anchor.localOffset).toEqual(onCanvas.anchor.localOffset);
+    expect(label.alignment).toBe(onCanvas.alignment);
+    const turnedPart = copied.instances[0]!.placement!.position;
+    expect(label.anchor.fallbackPosition).toEqual({
+      x: turnedPart.x + label.anchor.localOffset.x,
+      y: turnedPart.y + label.anchor.localOffset.y,
+    });
   });
 
   it("uses the Edit Engine transform for an already oriented copied label", () => {

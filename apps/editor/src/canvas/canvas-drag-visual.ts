@@ -29,6 +29,112 @@ function pointList(points: readonly Point[]): string {
   return points.map((point) => `${point.x},${point.y}`).join(" ");
 }
 
+/** The paint a Route's own polyline borrows from its ink while it is dragged. */
+const INK_PAINT = [
+  "stroke",
+  "stroke-width",
+  "stroke-linecap",
+  "stroke-linejoin",
+  "stroke-dasharray",
+  "stroke-miterlimit",
+] as const;
+
+/** A polyline's points as the ink spells the same run: `M x y L x y …`. */
+function inkRun(points: string): string {
+  return `M ${points
+    .trim()
+    .split(/\s+/)
+    .map((point) => point.replace(",", " "))
+    .join(" L ")}`;
+}
+
+/** The vertices of one `M … L …` subpath, as `x y` pairs. */
+function inkVertices(subpath: string): string[] {
+  const numbers = subpath.replace(/[ML]/g, " ").trim().split(/\s+/);
+  const vertices: string[] = [];
+  for (let index = 0; index + 1 < numbers.length; index += 2)
+    vertices.push(`${numbers[index]} ${numbers[index + 1]}`);
+  return vertices;
+}
+
+/**
+ * Conductors of one paint are stroked as a single shape, and each Route keeps
+ * an unpainted polyline carrying its id and points (#926). A drag moves only
+ * that polyline, which left the visible wire behind until the drop. For the
+ * length of the drag, each dragged Route's run leaves the shared ink, with
+ * the small miters that join its two ends, and its own polyline is painted
+ * with the ink's paint instead. `restore` puts both back.
+ */
+function takeOverRouteInk(root: ParentNode, saved: readonly SavedElement[]) {
+  const routes = saved.filter(
+    (item) =>
+      item.points !== null &&
+      item.element.getAttribute("data-net-id") !== null &&
+      item.element.getAttribute("stroke") === "none",
+  );
+  const inks = routes.length
+    ? Array.from(root.querySelectorAll('[data-role="conductor-ink"]')).filter(
+        (element) => element.getAttribute("data-role") === "conductor-ink",
+      )
+    : [];
+  const originalInk = new Map<Element, string>();
+  const painted = new Map<Element, Map<string, string | null>>();
+  if (inks.length > 0) {
+    const runs = new Set(
+      Array.from(root.querySelectorAll("[data-net-id][points]")).flatMap(
+        (element) => {
+          const points = element.getAttribute("points");
+          return points ? [inkRun(points)] : [];
+        },
+      ),
+    );
+    for (const item of routes) {
+      const run = inkRun(item.points!);
+      const ends = [inkVertices(run)[0], inkVertices(run).at(-1)];
+      const ink = inks.find((candidate) =>
+        (candidate.getAttribute("d") ?? "").split(/ (?=M )/).includes(run),
+      );
+      if (!ink) continue;
+      const d = ink.getAttribute("d") ?? "";
+      if (!originalInk.has(ink)) originalInk.set(ink, d);
+      ink.setAttribute(
+        "d",
+        d
+          .split(/ (?=M )/)
+          .filter(
+            (subpath) =>
+              subpath !== run &&
+              // A miter joining this Route's end: any ink there that is not
+              // itself another Route's run.
+              !(
+                !runs.has(subpath) &&
+                inkVertices(subpath).some((vertex) => ends.includes(vertex))
+              ),
+          )
+          .join(" "),
+      );
+      const before = new Map<string, string | null>();
+      for (const name of INK_PAINT) {
+        before.set(name, item.element.getAttribute(name));
+        const value = ink.getAttribute(name);
+        if (value === null) item.element.removeAttribute(name);
+        else item.element.setAttribute(name, value);
+      }
+      painted.set(item.element, before);
+    }
+  }
+  return {
+    restore() {
+      for (const [ink, d] of originalInk) ink.setAttribute("d", d);
+      for (const [element, saved] of painted)
+        for (const [name, value] of saved) {
+          if (value === null) element.removeAttribute(name);
+          else element.setAttribute(name, value);
+        }
+    },
+  };
+}
+
 /**
  * Lightweight live feedback for a drag. Formal and overlay objects expose the
  * same drag id, so one imperative update moves the paint without rebuilding
@@ -55,6 +161,7 @@ export function startCanvasDragVisual(
     transform: element.getAttribute("transform"),
     points: element.getAttribute("points"),
   }));
+  const routeInk = takeOverRouteInk(root, saved);
   // A tether joins a label to its owner. A drag moves one or both of them,
   // so its line stretches end by end instead of moving whole. Pressing a
   // label selects it, and its tether renders only after the drag begins, so
@@ -169,6 +276,7 @@ export function startCanvasDragVisual(
       }
     },
     restore() {
+      routeInk.restore();
       stretch(() => null, [...tethers.values()]);
       for (const item of saved) {
         if (item.transform === null) item.element.removeAttribute("transform");

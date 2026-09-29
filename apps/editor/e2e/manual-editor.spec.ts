@@ -1101,6 +1101,53 @@ test("command move restores its exact preview when cancelled after a turn", asyn
   expect(after).toEqual(before);
 });
 
+test("dragging a part draws its wire stretching with it before the drop", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 320, y: 220 });
+  await placeComponent(page, "resistor", { x: 520, y: 220 });
+  await clickDrawTool(page, "wire");
+  await page.getByTestId("terminal-R1-2").click();
+  await page.getByTestId("terminal-R2-1").click();
+  await page.keyboard.press("Escape");
+  const revision = await page.getByTestId("revision").textContent();
+  const before = await readRoutePoints(page, "route-ui-1");
+  const wire = page.locator(
+    '[data-layer="routes"] [data-object-id="route-ui-1"]',
+  );
+  const inkRuns = () =>
+    page
+      .locator('[data-layer="routes"] [data-role="conductor-ink"]')
+      .evaluateAll((paths) => paths.map((path) => path.getAttribute("d")));
+  const oldRun = `M ${before.map((point) => `${point.x} ${point.y}`).join(" L ")}`;
+  expect((await inkRuns()).some((d) => d?.includes(oldRun))).toBe(true);
+
+  const hit = await page.getByTestId("hit-R1").boundingBox();
+  if (!hit) throw new Error("Connected resistor is not measurable");
+  await page.mouse.move(hit.x + hit.width / 2, hit.y + hit.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    hit.x + hit.width / 2 + 40,
+    hit.y + hit.height / 2 + 60,
+    { steps: 6 },
+  );
+  // Mid-drag: the wire is drawn where it now runs, in its own paint, and its
+  // old run has left the shared conductor ink rather than staying behind.
+  await expect
+    .poll(() => readRoutePoints(page, "route-ui-1"))
+    .not.toEqual(before);
+  await expect(wire).not.toHaveAttribute("stroke", "none");
+  expect((await inkRuns()).some((d) => d?.includes(oldRun))).toBe(false);
+
+  await page.mouse.up();
+  await expect(page.getByTestId("revision")).not.toHaveText(revision!);
+  await expect(wire).toHaveAttribute("stroke", "none");
+  await expect
+    .poll(() => routeInk(page, "route-ui-1", "stroke"))
+    .not.toBeNull();
+});
+
 test("command move turns a component while locally stretching its boundary wire", async ({
   page,
 }) => {

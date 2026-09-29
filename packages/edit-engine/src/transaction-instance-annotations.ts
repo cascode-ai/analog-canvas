@@ -483,10 +483,13 @@ export function reflowCanonicalInstanceLabelsAfterPresentationChange(
 
 /**
  * The vertical offset a part's label takes when the part flips top to
- * bottom. The text box reflects about the part's origin, not the anchor: the
- * anchor sits on the baseline, so reflecting it alone brings a label that sat
- * above the part most of a line closer below it, into a capacitor's plates.
- * Only an object anchor is read, so no wire geometry is needed.
+ * bottom. The text's ink reflects about the part's origin, not the anchor:
+ * the anchor sits on the baseline, so reflecting it alone brings a label that
+ * sat above the part most of a line closer below it, into a capacitor's
+ * plates. The ink is the extent label placement keeps clear of a part
+ * (capitals over the baseline, a subscript under it), so the gap is kept and
+ * a label where the rule put it lands where the rule puts it on the other
+ * side. Only an object anchor is read, so no wire geometry is needed.
  */
 function reflectedTextOffsetY(
   draft: SchematicDocument,
@@ -495,7 +498,7 @@ function reflectedTextOffsetY(
   origin: Point,
 ): number {
   if (annotation.anchor.kind !== "object") return 0;
-  const { bounds } = resolveAnnotationPresentation(
+  const { inkBounds: bounds } = resolveAnnotationPresentation(
     draft,
     resolver,
     annotation,

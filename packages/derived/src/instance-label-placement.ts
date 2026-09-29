@@ -335,7 +335,7 @@ export function instanceLabelInkBounds(
 /** Clearance between a label's ink and its Symbol's drawn ink, in drawing units. */
 export const INSTANCE_LABEL_GAP = 4;
 /** Height of the label font's capitals and figures, in em. */
-const LABEL_CAP_HEIGHT_EM = 0.72;
+export const LABEL_CAP_HEIGHT_EM = 0.72;
 
 /**
  * The distances the placement rule works with, in drawing units: the gap,

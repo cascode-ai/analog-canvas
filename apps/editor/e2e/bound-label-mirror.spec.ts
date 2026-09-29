@@ -98,12 +98,12 @@ async function savedDocument(page: Page) {
   );
   return project.documents[0];
 }
-/** How far below its anchor, on the baseline, a label's text box is centred. */
+/** How far below its anchor, on the baseline, a label's ink is centred. */
 function boxCenterBelowAnchor(
   document: SchematicDocument,
   annotation: Annotation,
 ): number {
-  const { bounds, position } = resolveAnnotationPresentation(
+  const { inkBounds: bounds, position } = resolveAnnotationPresentation(
     document,
     new InMemorySymbolResolver(builtInSymbols),
     annotation,
@@ -120,7 +120,7 @@ function boxCenterBelowAnchor(
 
 /**
  * Left to right, each label's anchor mirrors and its alignment swaps.
- * Top to bottom, its text box mirrors: the anchor sits on the baseline, so
+ * Top to bottom, its ink mirrors: the anchor sits on the baseline, so
  * mirroring the anchor alone would move a label above the part most of a
  * line closer to it once below.
  */

@@ -16,6 +16,7 @@ import {
   defaultInstanceParameterLabelPlacement,
   defaultVddPowerLabelPlacement,
   instanceLabelInkBounds,
+  instanceLabelMetrics,
   resolveAnnotationPresentation,
   resolveDocumentStyleProfile,
 } from "@icm/derived";
@@ -29,7 +30,10 @@ import {
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
-/** The text box a label draws, read from its object anchor alone. */
+/**
+ * The ink a label keeps clear of its part (capitals over the baseline, a
+ * subscript under it), read from its object anchor alone.
+ */
 function labelBox(document: SchematicDocument, annotation: Annotation): Rect {
   return resolveAnnotationPresentation(
     document,
@@ -42,10 +46,10 @@ function labelBox(document: SchematicDocument, annotation: Annotation): Rect {
       routes: new Map(),
       endpointJoins: [],
     },
-  ).bounds;
+  ).inkBounds;
 }
 
-/** How far a label box's centre sits below its part's origin. */
+/** How far a label's ink centre sits below its part's origin. */
 function boxCenterBelow(
   document: SchematicDocument,
   annotation: Annotation,
@@ -500,5 +504,97 @@ describe("attached text reflection", () => {
     const gapBelow = below.y - (flippedPlates.y + flippedPlates.height);
     expect(gapAbove).toBeGreaterThan(0);
     expect(Math.abs(gapBelow - gapAbove)).toBeLessThanOrEqual(1);
+  });
+
+  it("puts a label the rule placed below a capacitor where the rule places it above, and back", () => {
+    // The other direction of the same report: mirroring a text box that
+    // reserves the font's whole ascent brought a default label below the
+    // plates up into them.
+    const document = createEmptyDocument("flip", "Flipped capacitor");
+    const position = { x: 200, y: 100 };
+    const orientation = { rotation: 90, mirror: "none" } as const;
+    const instance = {
+      id: "C1",
+      symbolId: "capacitor",
+      reference: "C1",
+      placement: { position, ...orientation },
+      netlist: { parameters: {} },
+    };
+    document.instances.push(instance);
+    const resolved = resolver.resolve("capacitor")!;
+    const profile = resolveDocumentStyleProfile(document.presentation);
+    const placed = defaultInstanceLabelPlacement(
+      instance,
+      resolved,
+      profile,
+      document.presentation.grid,
+      "reference",
+    )!;
+    const plates = placedBounds(
+      instanceLabelInkBounds(resolved),
+      position,
+      orientation,
+    );
+    // The rule sets this label under the plates.
+    expect(placed.position.y).toBeGreaterThan(plates.y + plates.height);
+    const annotation: Annotation = {
+      id: "label-c1",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "C1" },
+      anchor: {
+        kind: "object",
+        objectId: "C1",
+        localOffset: {
+          x: placed.position.x - position.x,
+          y: placed.position.y - position.y,
+        },
+        fallbackPosition: placed.position,
+      },
+      alignment: placed.alignment,
+      rotation: 0,
+      locked: false,
+    };
+    document.annotations.push(annotation);
+    const before = structuredClone(annotation);
+
+    const flipped = reflectOrientation(orientation, "top-bottom");
+    document.instances[0]!.placement = { position, ...flipped };
+    followAttachedAnnotations(
+      document,
+      "C1",
+      position,
+      orientation,
+      position,
+      flipped,
+      new Set(),
+      resolver,
+    );
+    if (annotation.anchor.kind !== "object") throw new Error("anchor");
+    // Above, the rule leaves the gap under the subscript's figures.
+    const { gap, subscriptDrop } = instanceLabelMetrics(profile);
+    const flippedPlates = placedBounds(
+      instanceLabelInkBounds(resolved),
+      position,
+      flipped,
+    );
+    expect(
+      Math.abs(
+        annotation.anchor.fallbackPosition.y -
+          (flippedPlates.y - gap - subscriptDrop),
+      ),
+    ).toBeLessThanOrEqual(0.5);
+
+    document.instances[0]!.placement = { position, ...orientation };
+    followAttachedAnnotations(
+      document,
+      "C1",
+      position,
+      flipped,
+      position,
+      orientation,
+      new Set(),
+      resolver,
+    );
+    expect(annotation).toEqual(before);
   });
 });

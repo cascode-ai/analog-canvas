@@ -1570,16 +1570,25 @@ export function useSelectionInteraction(
     const interaction = options.getInteractionState();
     if (interaction.kind !== "copy-placement") return;
     const copyPlacement = interaction.copy;
-    // The whole copied subgraph turns/flips as one rigid body about its
-    // grab anchor — the same geometry the ghost previews.
-    const oriented = orientClipboard(
-      copyPlacement.clipboard,
-      copyPlacement.orientationOperations,
-      copyPlacement.anchor,
-    );
     let proposal: ReturnType<typeof planProjectCopyPlacement>;
     let result: TransactionResult;
     try {
+      // The whole copied subgraph turns/flips as one rigid body about its
+      // grab anchor, and each part's labels follow its turn — the same
+      // geometry the ghost previews, from the same resolved Symbols.
+      const oriented = orientClipboard(
+        copyPlacement.clipboard,
+        copyPlacement.orientationOperations,
+        copyPlacement.anchor,
+        {
+          resolver: prepareProjectCopy(
+            options.project,
+            options.document,
+            copyPlacement.clipboard,
+          ).resolver,
+          presentation: options.document.presentation,
+        },
+      );
       proposal = planProjectCopyPlacement(
         options.project,
         options.document,
