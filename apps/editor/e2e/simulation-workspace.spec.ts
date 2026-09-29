@@ -25,6 +25,8 @@ import {
   clickNetlistWorkflowCommand,
   downloadBytes,
   readRecoveryRecords,
+  openCellManager,
+  openMenu,
 } from "./editor-fixtures.js";
 import { ota, profile, editSimulationFile } from "./simulation-e2e-fixtures.js";
 
@@ -628,7 +630,7 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
   expect((await editor.innerText()).trim()).toBe(generated.source.text.trim());
 
   // The next default follows Canvas, not the existing experiment's root.
-  await page.getByTestId("hierarchy-entry").click();
+  await openCellManager(page);
   let manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
     .locator(".cell-manager-list-item")
@@ -640,7 +642,7 @@ test("new experiments explicitly bind the selected Cell without requiring a Test
   await expect(cell).toHaveValue(dut.id);
   await cell.press("Escape");
   await expect(name).toHaveCount(0);
-  await page.getByTestId("hierarchy-entry").click();
+  await openCellManager(page);
   manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager
     .locator(".cell-manager-list-item")
@@ -812,10 +814,7 @@ test("source save applies locally while signed out and leaves File Save cloud-ow
       (file) => file.path === folder.input.entry,
     )!.text,
   ).toContain("* local keyboard save");
-  await page
-    .locator("summary")
-    .filter({ hasText: /^File$/ })
-    .click();
+  await openMenu(page, "File");
   await page.getByTestId("save-cloud-project").click();
   await expect(page.getByTestId("status")).toContainText("Sign in to save");
   expect(cloudWrites).toBe(1);
@@ -1743,17 +1742,15 @@ test("Simulation defaults a new experiment to an ordinary authored Cell", async 
   page,
 }) => {
   await page.goto("/editor");
-  await page.getByTestId("hierarchy-entry").click();
+  await openCellManager(page);
   const manager = page.getByRole("dialog", { name: "Cell Manager" });
   await manager.getByRole("button", { name: "New Cell" }).click();
   const newCell = page.getByRole("dialog", { name: "New Cell" });
   await newCell.getByLabel("Cell name").fill("Testbench");
   await newCell.getByRole("button", { name: "Create" }).click();
-  await page
-    .locator(".command-menu > summary")
-    .filter({ hasText: "Edit" })
-    .click();
-  await page
+  await (
+    await openMenu(page, "Edit")
+  )
     .getByRole("button", { name: "Place Cell from this Project…" })
     .click();
   await page

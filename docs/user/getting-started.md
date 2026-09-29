@@ -75,10 +75,15 @@ recognize such a network, so both are placed by hand.
   uses a different font size or line thickness in its style settings. To make a
   selected copy follow the destination's style, choose **Use this drawing's
   style** under **Copied style** in Properties.
-- Open **Project** beside the site logo to edit the full circuit name, inspect
-  the current Cell and Gallery contributor/notes, or choose an open project.
-  The current project is checked. Enter commits a name; Escape cancels it.
-  Long names stay inside the dropdown instead of widening the menubar.
+- The header keeps one menu, named for the project, beside the site logo, and
+  three actions on the right: **Simulate**, **Agent** and **Publish**. Open the
+  project's name to edit the full circuit name, inspect the current Cell and
+  Gallery contributor/notes, or choose an open project; the current project is
+  checked. Enter commits a name; Escape cancels it. Below them are the editor's
+  commands by group: **File**, **Edit**, **Hierarchy** (the Cell Manager) and
+  **Netlist**. A long name is cut short in the header and shown whole in the
+  menu. **Report bug**, the GitHub repository and the credit are under **⋯**
+  beside your account.
 - The compact project tab bar opens several independent circuits in one editor.
   Use **+** for a new project, **Open file in new tab** for a local file, or
   **Open Shelf project in tab** for a saved draft. Tabs keep separate cameras,

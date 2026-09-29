@@ -18,6 +18,8 @@ import {
   editDocumentStyleCode,
   setComponentParameter,
   expectComponentCodeField,
+  openCellManager,
+  openMenu,
 } from "./editor-fixtures.js";
 import { placeComponent } from "./manual-editor-fixtures.js";
 
@@ -26,7 +28,7 @@ async function runCellCommand(
   name: "Hierarchy" | "Place Cell",
 ): Promise<void> {
   if (name === "Hierarchy") {
-    await page.getByTestId("hierarchy-entry").click();
+    await openCellManager(page);
     return;
   }
   await clickCommand(page, "Edit", "Place Cell from this Project…");
@@ -1038,12 +1040,19 @@ test("keeps Hierarchy discoverable and restores the operation row on demand", as
   await page.setViewportSize({ width: 420, height: 700 });
   await page.goto("/editor");
 
-  const entry = page.getByTestId("hierarchy-entry");
+  // Even this narrow, the header's one menu is in view and holds the Cell
+  // Manager under Hierarchy.
+  const toggle = page.getByTestId("project-menu-toggle");
   const toolbar = page.locator('.toolbar-row[aria-label="Document hierarchy"]');
-  await expect(entry).toBeVisible({ timeout: 15_000 });
-  await expect(entry).toHaveText("Hierarchy");
-  await expect(toolbar).toHaveCount(0);
+  await expect(toggle).toBeVisible({ timeout: 15_000 });
+  const entry = (await openMenu(page, "Hierarchy")).getByTestId(
+    "hierarchy-entry",
+  );
+  await expect(entry).toBeVisible();
+  await expect(entry).toHaveText("Cell Manager…");
   await expect(entry).toHaveAttribute("aria-expanded", "false");
+  await page.keyboard.press("Escape");
+  await expect(toolbar).toHaveCount(0);
 
   await createCell(page, "FirstStage");
   await expect(toolbar).toBeVisible();
@@ -1053,7 +1062,7 @@ test("keeps Hierarchy discoverable and restores the operation row on demand", as
   await expect(
     toolbar.getByRole("button", { name: "Place Cell" }),
   ).toBeEnabled();
-  await expect(entry).toBeVisible();
+  await expect(toggle).toBeVisible();
   await toolbar.getByRole("button", { name: "Place Cell" }).click();
   await expect(
     page.getByRole("dialog", { name: "Place Hierarchical Cell" }),
