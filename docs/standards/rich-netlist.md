@@ -1,5 +1,9 @@
 # Rich Netlist（RNL）格式标准初稿：原则与边界
 
+> **已迁出，此副本冻结。** 本文已迁到 RNL 独立仓库，现行版本见 [`rich-netlist/rnl` 中的 `spec/rich-netlist.md`](https://github.com/rich-netlist/rnl/blob/main/spec/rich-netlist.md)。此分支上的副本与迁出时的内容相同，不再修订。
+>
+> **Moved; this copy is frozen.** The current version is [`spec/rich-netlist.md` in `rich-netlist/rnl`](https://github.com/rich-netlist/rnl/blob/main/spec/rich-netlist.md). This copy matches the text at the time of the move and is no longer revised.
+
 状态：原则草案，供讨论；尚未定义可实现的正式语法或发布格式版本。
 
 ## 1. 定位与总纲

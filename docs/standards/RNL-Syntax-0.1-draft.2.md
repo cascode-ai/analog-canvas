@@ -2,6 +2,10 @@
 
 ## 0.1-draft.2 · 注释封装、描述语句、角色与参数
 
+> **已迁出，此副本冻结。** 本文已迁到 RNL 独立仓库，现行版本见 [`rich-netlist/rnl` 中的 `spec/RNL-Syntax-0.1-draft.2.md`](https://github.com/rich-netlist/rnl/blob/main/spec/RNL-Syntax-0.1-draft.2.md)。此分支上的副本与迁出时的内容相同，不再修订。
+>
+> **Moved; this copy is frozen.** The current version is [`spec/RNL-Syntax-0.1-draft.2.md` in `rich-netlist/rnl`](https://github.com/rich-netlist/rnl/blob/main/spec/RNL-Syntax-0.1-draft.2.md). This copy matches the text at the time of the move and is no longer revised.
+
 **文档状态：** 暂存讨论版本，供继续探索与评审，不是已发布或已冻结的 RNL 标准。附录 E 记录未定案方向，不属于正文语法契约。
 
 **编制日期：** 2026-09-19。
