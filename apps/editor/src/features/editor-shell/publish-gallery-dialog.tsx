@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { SubmissionGateReport } from "@icm/derived";
 import type { CircuitProject } from "@icm/model";
 import { galleryTagLabel } from "../../gallery-tag-label";
+import { GitHubMark, GoogleMark } from "../../components/provider-marks";
 
 import {
   describePublishOutcome,
@@ -252,21 +253,25 @@ export function PublishGalleryDialog({
             </p>
             <div className="publish-gallery-signin-actions">
               <a
+                className="account-provider"
                 href="/api/auth/github/start"
                 data-testid="publish-signin-github"
               >
+                <GitHubMark />
                 Continue with GitHub
               </a>
               <a
+                className="account-provider"
                 href="/api/auth/google/start"
                 data-testid="publish-signin-google"
               >
+                <GoogleMark />
                 Continue with Google
               </a>
             </div>
             <p className="publish-gallery-signin-note">
-              Prefer email? Sign in from the account menu on the gallery page —
-              a one-time link is all it takes.
+              Prefer email? Use Sign in at the top right: we email you a code to
+              type there.
             </p>
           </div>
         ) : (

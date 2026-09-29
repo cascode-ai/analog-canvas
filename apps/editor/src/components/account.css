@@ -1,0 +1,124 @@
+/* The sign-in choices, alike in the Gallery and the editor: each route
+   places the panel itself; what is inside it looks the same everywhere. */
+.account-provider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.account-provider:hover {
+  background: var(--icm-surface-hover);
+}
+
+.account-provider-logo {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+.account-signin-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+}
+
+.account-signin-divider::before,
+.account-signin-divider::after {
+  flex: 1;
+  height: 1px;
+  background: var(--icm-border);
+  content: "";
+}
+
+/* The address takes a whole row and its button the row below; after
+   sending, the code takes the same two rows. */
+.account-signin-email {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.account-signin-email input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text);
+  background: var(--icm-surface);
+  font: inherit;
+  font-size: 14px;
+}
+
+.account-signin-email input.account-signin-code {
+  font-family: var(--icm-font-mono, ui-monospace, monospace);
+  font-size: 18px;
+  letter-spacing: 0.3em;
+  text-align: center;
+}
+
+.account-signin-email button[type="submit"] {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--icm-accent);
+  border-radius: var(--icm-radius-sm);
+  color: #fff;
+  background: var(--icm-accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.account-signin-email button[type="submit"]:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.account-signin-hint {
+  margin: 0;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.account-signin-hint strong {
+  color: var(--icm-text);
+  font-weight: 600;
+}
+
+.account-signin-links {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.account-signin-links button {
+  padding: 0;
+  border: 0;
+  color: var(--icm-accent);
+  background: none;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.account-signin-links button:hover {
+  text-decoration: underline;
+}
+
+.account-notice {
+  margin: 0;
+  color: var(--icm-text-muted);
+  font-size: 12px;
+}

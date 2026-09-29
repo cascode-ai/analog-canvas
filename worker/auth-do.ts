@@ -1,11 +1,11 @@
 // Gallery accounts and sign-in (roadmap phase G2), dark-shipped.
 //
 // One AuthDO singleton owns users and sessions behind `/api/auth/*`:
-// GitHub OAuth, Google OAuth, and email magic links — any one credential
+// GitHub OAuth, Google OAuth, and emailed sign-in codes — any one credential
 // signs a user in, no passwords ever exist. Each provider stays invisible
 // until its secrets are configured. The browser holds a random session
 // token in an HttpOnly cookie; the database stores only SHA-256 hashes of
-// session and login tokens, so a copied database cannot impersonate
+// session tokens and sign-in codes, so a copied database cannot impersonate
 // anyone. Super-admin is computed per request from the union of the
 // `ADMIN_EMAILS` and additive `ADMIN_EMAILS_EXTRA` secrets
 // (comma-separated, case-insensitive) — rotating either needs no re-login.
@@ -15,7 +15,10 @@
 export const AUTH_SESSION_COOKIE = "icm_session";
 export const AUTH_STATE_COOKIE = "icm_oauth_state";
 export const AUTH_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
-export const AUTH_LOGIN_TOKEN_TTL_MS = 15 * 60 * 1000;
+/** How long an emailed sign-in code works. */
+export const AUTH_LOGIN_CODE_TTL_MS = 10 * 60 * 1000;
+/** Wrong guesses one code takes before it stops working. */
+export const AUTH_LOGIN_CODE_ATTEMPTS = 5;
 export const AUTH_EMAIL_DAILY_LIMIT = 5;
 export const AUTH_DISPLAY_NAME_MAX = 40;
 
@@ -122,6 +125,24 @@ function parseCookies(header: string | null): Record<string, string> {
 function randomToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** Six random digits, every code equally likely (rejection sampling). */
+function randomCode(): string {
+  const limit = Math.floor(0x1_0000_0000 / 1_000_000) * 1_000_000;
+  const value = new Uint32Array(1);
+  do crypto.getRandomValues(value);
+  while (value[0]! >= limit);
+  return String(value[0]! % 1_000_000).padStart(6, "0");
+}
+
+/** Equal-length hex digests compared without an early exit. */
+function sameDigest(left: string, right: string): boolean {
+  if (left.length !== right.length) return false;
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1)
+    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  return difference === 0;
 }
 
 async function sha256(text: string): Promise<string> {
@@ -289,12 +310,15 @@ export class AuthDO {
         expires_at TEXT NOT NULL
       ) WITHOUT ROWID
     `);
+    // Emailed links gave way to codes typed into the asking browser; the
+    // links' short-lived tokens have no further use.
+    this.sql.exec("DROP TABLE IF EXISTS login_tokens");
     this.sql.exec(`
-      CREATE TABLE IF NOT EXISTS login_tokens (
-        token_hash TEXT PRIMARY KEY,
-        email TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        expires_at TEXT NOT NULL
+      CREATE TABLE IF NOT EXISTS login_codes (
+        email TEXT PRIMARY KEY,
+        code_hash TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        attempts INTEGER NOT NULL
       ) WITHOUT ROWID
     `);
     this.sql.exec(`
@@ -350,10 +374,10 @@ export class AuthDO {
       return this.googleCallback(request, url);
     }
     if (route === "email/start" && method === "POST") {
-      return this.emailStart(request, url);
+      return this.emailStart(request);
     }
-    if (route === "email/callback" && method === "GET") {
-      return this.emailCallback(url);
+    if (route === "email/verify" && method === "POST") {
+      return this.emailVerify(request, url);
     }
     if (route === "logout" && method === "POST") {
       return this.logout(request, url);
@@ -669,9 +693,9 @@ export class AuthDO {
     }
   }
 
-  // --- email magic links ------------------------------------------------
+  // --- emailed sign-in codes --------------------------------------------
 
-  private async emailStart(request: Request, url: URL): Promise<Response> {
+  private async emailStart(request: Request): Promise<Response> {
     if (!enabledProviders(this.env).email) {
       return Response.json({ error: "provider-disabled" }, { status: 404 });
     }
@@ -705,19 +729,22 @@ export class AuthDO {
       day,
       emailHash,
     );
-    const token = randomToken();
+    const code = randomCode();
     this.sql.exec(
-      "DELETE FROM login_tokens WHERE expires_at <= ?",
+      "DELETE FROM login_codes WHERE expires_at <= ?",
       now.toISOString(),
     );
+    // One code per address: asking again replaces the one before, and its
+    // wrong guesses with it.
     this.sql.exec(
-      "INSERT INTO login_tokens(token_hash, email, created_at, expires_at) VALUES (?, ?, ?, ?)",
-      await sha256(token),
+      `INSERT INTO login_codes(email, code_hash, expires_at, attempts)
+       VALUES (?, ?, ?, 0)
+       ON CONFLICT(email) DO UPDATE SET code_hash = excluded.code_hash,
+         expires_at = excluded.expires_at, attempts = 0`,
       email,
-      now.toISOString(),
-      new Date(now.getTime() + AUTH_LOGIN_TOKEN_TTL_MS).toISOString(),
+      await sha256(`code:${email}:${code}`),
+      new Date(now.getTime() + AUTH_LOGIN_CODE_TTL_MS).toISOString(),
     );
-    const link = `${url.origin}/api/auth/email/callback?token=${token}`;
     try {
       const sendResponse = await this.fetchLike(
         "https://api.resend.com/emails",
@@ -732,11 +759,12 @@ export class AuthDO {
               this.env.AUTH_EMAIL_FROM ??
               "Analog Canvas <onboarding@resend.dev>",
             to: [email],
-            subject: "Sign in to Analog Canvas",
+            subject: `${code} is your Analog Canvas sign-in code`,
             text:
-              `Follow this link to sign in to Analog Canvas:\n\n${link}\n\n` +
-              "The link works once and expires in 15 minutes. If you did " +
-              "not request it, ignore this email.",
+              `Your Analog Canvas sign-in code is:\n\n${code}\n\n` +
+              "Type it into the page where you asked to sign in. It works " +
+              "once and expires in 10 minutes. If you did not ask to sign " +
+              "in, ignore this email.",
           }),
         },
       );
@@ -749,29 +777,73 @@ export class AuthDO {
     return Response.json({ sent: true }, { status: 202 });
   }
 
-  private async emailCallback(url: URL): Promise<Response> {
-    const secure = url.protocol === "https:";
-    const token = url.searchParams.get("token");
-    if (!token) return failedRedirect(url.origin, secure);
-    const tokenHash = await sha256(token);
+  /**
+   * Signs in the browser that types the emailed code, whichever browser the
+   * email was read in. A code works once; a wrong guess counts against it,
+   * and after AUTH_LOGIN_CODE_ATTEMPTS it stops working, so guessing six
+   * digits is bounded by the daily sending limit.
+   */
+  private async emailVerify(request: Request, url: URL): Promise<Response> {
+    if (!enabledProviders(this.env).email) {
+      return Response.json({ error: "provider-disabled" }, { status: 404 });
+    }
+    if (!sameOrigin(request)) {
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    }
+    const body = (await request.json().catch(() => null)) as {
+      email?: unknown;
+      code?: unknown;
+    } | null;
+    const email = normalizedEmail(body?.email);
+    // People paste codes with spaces or a dash in the middle.
+    const code =
+      typeof body?.code === "string" ? body.code.replace(/[\s-]/gu, "") : "";
+    if (!email || !/^\d{6}$/u.test(code)) {
+      return noStoreJson({ error: "invalid-code" }, 400);
+    }
     const row = this.sql
-      .exec<{ email: string; expires_at: string }>(
-        "SELECT email, expires_at FROM login_tokens WHERE token_hash = ?",
-        tokenHash,
+      .exec<{ code_hash: string; expires_at: string; attempts: number }>(
+        "SELECT code_hash, expires_at, attempts FROM login_codes WHERE email = ?",
+        email,
       )
       .toArray()[0];
-    // Single use: the token disappears whether or not it was still valid.
-    this.sql.exec("DELETE FROM login_tokens WHERE token_hash = ?", tokenHash);
     if (!row || row.expires_at <= this.now().toISOString()) {
-      return failedRedirect(url.origin, secure);
+      this.sql.exec("DELETE FROM login_codes WHERE email = ?", email);
+      return noStoreJson({ error: "expired-code" }, 400);
     }
+    if (!sameDigest(await sha256(`code:${email}:${code}`), row.code_hash)) {
+      const attempts = Number(row.attempts) + 1;
+      if (attempts >= AUTH_LOGIN_CODE_ATTEMPTS) {
+        this.sql.exec("DELETE FROM login_codes WHERE email = ?", email);
+        return noStoreJson({ error: "too-many-attempts" }, 429);
+      }
+      this.sql.exec(
+        "UPDATE login_codes SET attempts = ? WHERE email = ?",
+        attempts,
+        email,
+      );
+      return noStoreJson(
+        {
+          error: "invalid-code",
+          attemptsLeft: AUTH_LOGIN_CODE_ATTEMPTS - attempts,
+        },
+        400,
+      );
+    }
+    this.sql.exec("DELETE FROM login_codes WHERE email = ?", email);
     const user = this.upsertUser(
       "email",
-      row.email,
-      row.email,
-      row.email.split("@")[0] ?? row.email,
+      email,
+      email,
+      email.split("@")[0] ?? email,
     );
-    return this.signedInRedirect(url, user, false);
+    const token = await this.createSession(user.id);
+    const response = noStoreJson({ signedIn: true });
+    response.headers.append(
+      "Set-Cookie",
+      sessionCookie(token, url.protocol === "https:", AUTH_SESSION_TTL_SECONDS),
+    );
+    return response;
   }
 
   // --- account management ----------------------------------------------

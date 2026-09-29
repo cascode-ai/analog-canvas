@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   AUTH_DISPLAY_NAME_MAX,
   AUTH_EMAIL_DAILY_LIMIT,
+  AUTH_LOGIN_CODE_ATTEMPTS,
   AuthDO,
   sessionUserOf,
   type AuthEnv,
@@ -96,6 +97,13 @@ function resendCapture(sent: { to: string; text: string }[]): FakeRoute {
   };
 }
 
+/** The six-digit code an emailed sign-in message carries. */
+function sentCode(message: { text: string }): string {
+  const code = /\b(\d{6})\b/u.exec(message.text)?.[1];
+  if (!code) throw new Error("no sign-in code sent");
+  return code;
+}
+
 async function emailSignIn(
   auth: ReturnType<typeof harness>,
   email: string,
@@ -114,11 +122,13 @@ async function emailSignIn(
     body: JSON.stringify({ email }),
   });
   expect(start.status).toBe(202);
-  const link = sent[0]?.text.match(/https?:\/\/\S+/u)?.[0];
-  if (!link) throw new Error("no sign-in link sent");
-  const callback = await auth.call(link.slice(ORIGIN.length));
-  expect(callback.status).toBe(302);
-  const session = cookieValue(callback, "icm_session");
+  expect(sent[0]?.to).toBe(email);
+  const verified = await auth.call("/api/auth/email/verify", {
+    method: "POST",
+    body: JSON.stringify({ email, code: sentCode(sent[0]!) }),
+  });
+  expect(verified.status).toBe(200);
+  const session = cookieValue(verified, "icm_session");
   if (!session) throw new Error("no session cookie set");
   return `icm_session=${session}`;
 }
@@ -281,7 +291,7 @@ describe("providers visibility (dark ship)", () => {
   });
 });
 
-describe("email magic-link sign-in", () => {
+describe("emailed sign-in code", () => {
   it("signs in end-to-end, renames, and signs out", async () => {
     const auth = harness({
       RESEND_API_KEY: "rk",
@@ -394,37 +404,68 @@ describe("email magic-link sign-in", () => {
     expect((await me(auth, ordinaryCookie))?.isAdmin).toBe(false);
   });
 
-  it("magic links are single-use, expire, and are rate-limited", async () => {
+  it("codes are single-use, expire, bound guessing, and are rate-limited", async () => {
     const auth = harness({ RESEND_API_KEY: "rk" });
     const sent: { to: string; text: string }[] = [];
     auth.durable.fetchLike = (async (
       input: RequestInfo | URL,
       init?: RequestInit,
     ) => resendCapture(sent)(String(input), init)!) as typeof fetch;
+    const ask = (email = "user@example.com") =>
+      auth.call("/api/auth/email/start", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      });
+    const verify = (code: string, email = "user@example.com") =>
+      auth.call("/api/auth/email/verify", {
+        method: "POST",
+        body: JSON.stringify({ email, code }),
+      });
+    const codeIn = (index: number) => sentCode(sent[index]!);
 
-    const start = await auth.call("/api/auth/email/start", {
-      method: "POST",
-      body: JSON.stringify({ email: "user@example.com" }),
-    });
-    expect(start.status).toBe(202);
-    const link = sent[0]!.text.match(/https?:\/\/\S+/u)![0];
-    const path = link.slice(ORIGIN.length);
-
-    const first = await auth.call(path);
+    expect((await ask()).status).toBe(202);
+    // The email carries a code, never a link.
+    expect(sent[0]!.text).not.toMatch(/https?:\/\//u);
+    const first = await verify(codeIn(0));
+    expect(first.status).toBe(200);
     expect(cookieValue(first, "icm_session")).toBeTruthy();
-    const reused = await auth.call(path);
-    expect(reused.headers.get("location")).toContain("auth=failed");
+    const reused = await verify(codeIn(0));
+    expect(reused.status).toBe(400);
+    expect(await reused.json()).toEqual({ error: "expired-code" });
 
-    // A fresh link that has already expired by callback time fails.
-    await auth.call("/api/auth/email/start", {
-      method: "POST",
-      body: JSON.stringify({ email: "user@example.com" }),
-    });
-    const expiredLink = sent[1]!.text.match(/https?:\/\/\S+/u)![0];
-    auth.durable.now = () => new Date(Date.now() + 16 * 60 * 1000);
-    const expired = await auth.call(expiredLink.slice(ORIGIN.length));
-    expect(expired.headers.get("location")).toContain("auth=failed");
+    // Asking again replaces the code before; a code typed with a space still
+    // works, once.
+    await ask();
+    await ask();
+    expect((await verify(codeIn(1))).status).toBe(400);
+    const spaced = `${codeIn(2).slice(0, 3)} ${codeIn(2).slice(3)}`;
+    expect((await verify(spaced)).status).toBe(200);
+
+    // A code that has expired by the time it is typed fails.
+    await ask();
+    auth.durable.now = () => new Date(Date.now() + 11 * 60 * 1000);
+    const expired = await verify(codeIn(3));
+    expect(await expired.json()).toEqual({ error: "expired-code" });
     auth.durable.now = () => new Date();
+
+    // Wrong guesses count down, and the fifth ends the code, right or not.
+    await ask();
+    const right = codeIn(4);
+    const wrong = right === "000000" ? "000001" : "000000";
+    for (let left = AUTH_LOGIN_CODE_ATTEMPTS - 1; left > 0; left -= 1) {
+      const guess = await verify(wrong);
+      expect(await guess.json()).toEqual({
+        error: "invalid-code",
+        attemptsLeft: left,
+      });
+    }
+    expect((await verify(wrong)).status).toBe(429);
+    expect(await (await verify(right)).json()).toEqual({
+      error: "expired-code",
+    });
+    // A code for one address never signs in another.
+    expect((await verify(right, "other@example.com")).status).toBe(400);
+    expect((await verify("12345")).status).toBe(400);
 
     const invalid = await auth.call("/api/auth/email/start", {
       method: "POST",

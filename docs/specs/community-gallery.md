@@ -28,9 +28,13 @@ of those circuits' entry, Project and preview reads as it does for a reader.
 The Worker remembers that set for a minute per isolate; a circuit leaving the
 wall in that minute is still refused by its own public-status check. Every
 other read answers `401 {"error":"sign-in-required"}` with
-`cache-control: no-store`. The landing page shows those circuits with a
-sign-in invitation for the rest and no tags, search or filters beside them,
-and shows the sign-in prompt instead when even the list is refused. "Public"
+`cache-control: no-store`. The landing page shows the first 10 of those
+circuits in full, with no tags, search or filters beside them. The next 5
+continue the same masonry columns, each fading out, inert and hidden from
+assistive technology. Below them, "Sign in to unlock the gallery" opens the
+header's sign-in choices. No sentence above the wall counts what is hidden.
+The landing page shows the sign-in prompt instead when even the list is
+refused. "Public"
 below means published on the wall for signed-in readers. Admin and owner-only
 routes keep their own, stricter checks, and writes keep theirs.
 A reader's preview is served `private`, so a shared cache never keeps it; the
@@ -419,7 +423,7 @@ all. Otherwise both the Gallery header and the editor's top bar show the
 signed-in display name with its account menu, or Sign in. No passwords ever
 exist. The browser holds a random session token in
 an HttpOnly `SameSite=Lax` cookie (`icm_session`, 30-day TTL); the
-database stores only SHA-256 hashes of session and login tokens.
+database stores only SHA-256 hashes of session tokens and sign-in codes.
 
 - `GET /api/auth/github/start|callback` — GitHub OAuth code flow
   (secrets `GH_OAUTH_CLIENT_ID`/`GH_OAUTH_CLIENT_SECRET`; GitHub Actions
@@ -428,9 +432,13 @@ database stores only SHA-256 hashes of session and login tokens.
 - `GET /api/auth/google/start|callback` — Google OAuth code flow
   (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`); an unverified Google email
   is treated as absent.
-- `POST /api/auth/email/start` + `GET /api/auth/email/callback` — email
-  magic links via Resend (`RESEND_API_KEY`, optional `AUTH_EMAIL_FROM`);
-  links are single-use, expire in 15 minutes, and are limited to 5 per
+- `POST /api/auth/email/start` + `POST /api/auth/email/verify` — an
+  emailed six-digit sign-in code via Resend (`RESEND_API_KEY`, optional
+  `AUTH_EMAIL_FROM`), typed into the page that asked for it, so the email
+  may be read in any browser or on another device. `start` takes `{email}`;
+  `verify` takes `{email, code}` and sets the session cookie. A code is
+  single-use, expires in 10 minutes, and stops working after 5 wrong
+  guesses; asking again replaces it. Sending is limited to 5 codes per
   address per UTC day.
 - `GET /api/auth/me` — `{user}` with `id`, `displayName`, `email`,
   `provider`, `role` (`user`/`moderator`), and the per-request `isAdmin` flag.

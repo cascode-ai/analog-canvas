@@ -1492,23 +1492,12 @@
   box-shadow: 0 12px 32px rgb(15 15 15 / 12%);
 }
 
+/* Its contents are styled once for every route, in components/account.css. */
 .app-chrome-actions .account-signin-panel {
-  width: 17rem;
-}
-
-.app-chrome-actions .account-signin-panel a {
-  display: block;
-  padding: var(--icm-space-2);
-  border: 1px solid var(--icm-border);
-  border-radius: var(--icm-radius-sm);
-  color: var(--icm-text);
-  font-weight: 600;
-  text-align: center;
-  text-decoration: none;
-}
-
-.app-chrome-actions .account-signin-panel a:hover {
-  background: var(--icm-surface-hover);
+  width: 18rem;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 12px;
 }
 
 .app-chrome-actions .account-owner-badge {
