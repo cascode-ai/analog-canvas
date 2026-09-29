@@ -23,7 +23,8 @@ describe("Razavi schematic typography", () => {
     expect(rendered).not.toContain("baseline-shift");
     expect(rendered).not.toContain('font-size="76%"');
     expect(rendered).toContain("font-style:italic;font-weight:700");
-    // Supply designators are the one italic subscript in the house style.
+    // This legacy identifier AST explicitly requests italic scripts; rendering
+    // preserves that request even though new voltage defaults are upright.
     expect(rendered).toContain(
       '<tspan data-text-run="span" style="font-style:italic;font-weight:700">DD</tspan>',
     );

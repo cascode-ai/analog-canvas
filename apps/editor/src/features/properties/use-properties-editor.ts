@@ -1,5 +1,4 @@
 import {
-  formatPresentingName,
   rewriteRichTextIdentifier,
   labelTypography,
   labelTextDocument,
@@ -42,7 +41,7 @@ import type { AdditionalParameterDraft } from "./additional-parameters";
 import {
   createTextEditingSession,
   editedBoundAnnotationName,
-  editedRoleLabelFormat,
+  editedBoundAnnotationPresentation,
   proposeTextEditingCommit,
   resolveTextEditingTarget,
   textDeletionEdit,
@@ -1010,18 +1009,11 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       boundAnnotation.binding.kind !== "instance-reference" &&
       boundAnnotation.binding.kind !== "instance-value"
     ) {
-      const typography = labelTypography(options.document.presentation);
       const name = editedBoundAnnotationName(
         options.document,
         boundAnnotation,
         textEditing,
         resolveAnnotationName(options.document, boundAnnotation),
-      );
-      const roleFormat = editedRoleLabelFormat(
-        options.document,
-        boundAnnotation,
-        textEditing,
-        name,
       );
       const currentName = resolveAnnotationName(
         options.document,
@@ -1039,20 +1031,13 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
         name,
         options.document.presentation,
       );
-      const editedPresentation = roleFormat
-        ? (roleFormat.format ?? semanticContent)
-        : boundAnnotation.binding.kind === "cell-terminal-name" &&
-            !textEditing.formatEdited
-          ? semanticContent
-          : flattenRichText(textEditing.content).includes("_") ||
-              (typography.subscriptAfterFirst && !textEditing.formatEdited)
-            ? rewriteRichTextIdentifier(textEditing.content, name, {
-                underscoreSubscript:
-                  typography.subscriptAfterFirst ||
-                  typography.underscoreSubscript,
-              })
-            : textEditing.content;
-      const presentedFormat = formatPresentingName(editedPresentation, name);
+      const presentedFormat = editedBoundAnnotationPresentation(
+        options.document,
+        boundAnnotation,
+        textEditing,
+        name,
+        semanticContent,
+      );
       const nextFormatOverride = formatOverrideAllowed
         ? JSON.stringify(semanticContent) === JSON.stringify(presentedFormat)
           ? undefined

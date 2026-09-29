@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { flattenRichText } from "./rich-text.js";
+import { roleLabelFormat } from "./label-typography.js";
 import {
   canonicalPortTextDocument,
   defaultDraftTextDocument,
@@ -217,6 +218,27 @@ describe("generated voltage-node text", () => {
 });
 
 describe("drafting text", () => {
+  it.each(["VDD", "VSS", "VCC", "VEE", "VBB", "vdd", "VIN"])(
+    "shares the upright voltage suffix default for %s across creation paths",
+    (name) => {
+      const expected = voltageNodeTextDocument(name);
+      expect(defaultDraftTextDocument(name)).toEqual(expected);
+      expect(semanticTextDocument(name, "route-marker")).toEqual(expected);
+      expect(roleLabelFormat("supply", name)).toEqual(expected);
+      expect(roleLabelFormat("voltage-node", name)).toEqual(expected);
+      expect(flattenRichText(expected)).toBe(name);
+      expect(JSON.stringify(expected.runs[1])).not.toContain('"italic"');
+    },
+  );
+
+  it.each(["V_IN", "V_IN_SAM_2", "VDD_bar", "VDD'"])(
+    "keeps literal drafting characters in %s without extending role recognition",
+    (name) => {
+      expect(flattenRichText(defaultDraftTextDocument(name))).toBe(name);
+      expect(roleLabelFormat("supply", name)).toBeUndefined();
+    },
+  );
+
   it("subscripts an identifier typed into a text box", () => {
     const content = defaultDraftTextDocument("vbias");
 

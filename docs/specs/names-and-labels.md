@@ -181,6 +181,50 @@ redraws a drawing its author has already seen.
 
 ## Evidence
 
+### Refactor boundary (tracking issue #1213)
+
+Default construction and edit policy are separate responsibilities. Preserve
+the role exceptions above; two entry points applying the same exception must
+share its RichText construction. In particular, new drafting identifiers and
+route markers use the same upright power suffix as voltage labels. Explicit
+stored italic scripts are not rewritten.
+
+| Path | Current presentation authority |
+| --- | --- |
+| New Reference, Net/supply or Cell Pin label | Role-selected stored standard, otherwise drawing typography |
+| Parameter value | Live parameter projection; a stored format is usable only while its text matches |
+| Free Text or route marker | Stored RichText, initially generated from its creation rule |
+| Instance alias | Stored literal RichText; no electrical identity is inferred from it |
+| Cell/master word | Whole-word presentation, not the device-reference splitting rule |
+| Parent Cell pin | Projected child label content; explicit content bypasses generic pin typography |
+| Label without a stored display | Historical drawing-typography fallback |
+
+The current editing policy is intentionally retained: opening, applying and
+renaming can identify an unchanged standard by styled-content equality and
+regenerate it; an override equal to the fallback may be omitted. This is not
+proof of user intent. Moving to defaults-once with authoritative user edits is
+a deferred UX decision, not part of the structural refactor. Do not introduce
+a new persistent default/custom flag to support this refactor.
+
+Batch operations are explicit and distinct:
+
+- **Reset labels** reapplies the rules in its section above, retaining existing
+  locks and geometry protections. It is not a background render operation.
+- **Drawing typography settings** apply the changed options to the current
+  drawing. Existing case-conversion paths can rename electrical objects;
+  they are not pure visual formatting. Preserve this behavior pending a
+  separate product decision, including existing complement semantics.
+- Agent **arrange-labels** operates on requested Instances, eligible visible
+  unrotated/unlocked labels, and still-default positions/styles. It tries
+  bounded nearby positions to reduce collisions; it does not reset every
+  label. Its optional first-letter reference style is explicit. The existing
+  style-equality eligibility check is retained, not promoted into a general
+  definition of whether a user has edited an object.
+
+Creation, editing, rename, reset and arrangement may share construction
+primitives without sharing their authorization or target-selection policy.
+No historical Gallery rewrite is authorized by this refactor.
+
 - `packages/model/src/label-typography.test.ts`: standard looks, role
   recognition, rename following and restored hidden characters.
 - `packages/edit-engine/src/standard-label-look.test.ts` and

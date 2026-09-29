@@ -7,6 +7,7 @@ import {
   defaultDraftTextDocument,
   roleLabelFormat,
   supplyLabelFormat,
+  labelTextDocument,
 } from "@icm/model";
 import type {
   Annotation,
@@ -21,6 +22,7 @@ import { signalFlowBodyTextDocument } from "@icm/symbols";
 import {
   createTextEditingSession,
   editedBoundAnnotationName,
+  editedBoundAnnotationPresentation,
   proposeTextEditingCommit,
   editedRoleLabelFormat,
   resolveTextEditingTarget,
@@ -54,6 +56,51 @@ const draftingText = (): Extract<DraftingObject, { kind: "text" }> => ({
 });
 
 describe("unified text editing", () => {
+  it("preserves Cell fallback regeneration and authored formats as separate Apply policies", () => {
+    const document = createEmptyDocument("policy", "Policy");
+    const label: Annotation = {
+      ...annotation(),
+      content: undefined,
+      binding: { kind: "cell-terminal-name", terminalId: "pin" },
+    };
+    const content: RichTextDocument = {
+      runs: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [{ kind: "text", value: "CLK" }],
+        },
+      ],
+    };
+    const session = {
+      owner: "annotation" as const,
+      id: label.id,
+      content,
+      sizeScale: 1,
+      alignment: "middle" as const,
+      bound: true,
+      contentEdited: true,
+    };
+    expect(
+      editedBoundAnnotationPresentation(document, label, session, "CLK"),
+    ).toEqual(labelTextDocument("CLK", document.presentation));
+    expect(
+      editedBoundAnnotationPresentation(
+        document,
+        label,
+        { ...session, formatEdited: true },
+        "CLK",
+      ),
+    ).toEqual(content);
+    const netLabel: Annotation = {
+      ...label,
+      binding: { kind: "net-name", netId: "net" },
+    };
+    expect(
+      editedBoundAnnotationPresentation(document, netLabel, session, "CLK"),
+    ).toEqual(content);
+  });
+
   it("interprets bound Instance and Cell Pin edits through the same name rule", () => {
     const document = createEmptyDocument("bound", "Bound");
     document.instances.push({
@@ -552,6 +599,9 @@ describe("unified text editing", () => {
       expect(editedRoleLabelFormat(document, label, edited, renamed)).toEqual({
         format: roleLabelFormat(role, typed),
       });
+      expect(
+        editedBoundAnnotationPresentation(document, label, edited, renamed),
+      ).toEqual(roleLabelFormat(role, typed));
 
       // Restyling alone never renames, and the author's look is kept.
       const flat = { runs: [{ kind: "text" as const, value: name }] };
@@ -563,6 +613,9 @@ describe("unified text editing", () => {
       expect(editedRoleLabelFormat(document, label, restyled, name)).toEqual({
         format: flat,
       });
+      expect(
+        editedBoundAnnotationPresentation(document, label, restyled, name),
+      ).toEqual(flat);
 
       // An author's own format is not treated as the default.
       const authored = { ...label, formatOverride: flat };
