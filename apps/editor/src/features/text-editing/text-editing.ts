@@ -754,7 +754,6 @@ export function proposeTextEditingCommit(
         formatOverride: _format,
         ...rest
       } = annotation;
-      const typography = labelTypography(document.presentation);
       const name = editedBoundAnnotationName(
         document,
         annotation,
@@ -785,19 +784,9 @@ export function proposeTextEditingCommit(
           ? [{ kind: "set_instance_reference", instanceId, reference: name }]
           : [];
       const defaultContent = labelTextDocument(name, document.presentation);
-      const styled =
-        session.contentEdited &&
-        (flattenRichText(session.content).includes("_") ||
-          (typography.subscriptAfterFirst && !session.formatEdited))
-          ? rewriteRichTextIdentifier(session.content, name, {
-              underscoreSubscript:
-                typography.subscriptAfterFirst ||
-                typography.underscoreSubscript,
-            })
-          : session.content;
       const presentation = follows
         ? editedBoundAnnotationPresentation(document, annotation, session, name)
-        : formatPresentingName(styled, name);
+        : session.content;
       // An alias typed as a name, without a look of its own, is drawn the
       // way a name is (Φ2 as Φ over a subscript 2), so a drawing's labels
       // keep one look. Scripts or bars the author wrote are their own look.
