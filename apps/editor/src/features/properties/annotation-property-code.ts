@@ -199,6 +199,14 @@ export function draftingPropertyValue(
                   closed: isClosedPolyline(object),
                 }
               : {}),
+            // A line's start, bends and end, each exactly where it sits.
+            ...(object.kind === "construction-line"
+              ? {
+                  points: object.points.map(
+                    (point) => [point.x, point.y] as [number, number],
+                  ),
+                }
+              : {}),
             tangentAngles: geometry.points
               .slice(0, -1)
               .map((point, index) =>
@@ -465,6 +473,29 @@ export function parseDraftingPropertyCode(
         value.geometry.closed !== baseline.geometry?.closed
       )
         next = setPolylineClosed(next, value.geometry.closed);
+    }
+    if (
+      next.kind === "construction-line" &&
+      value.geometry?.points &&
+      JSON.stringify(value.geometry.points) !==
+        JSON.stringify(baseline.geometry?.points)
+    ) {
+      const points = value.geometry.points.map(([x, y]) => ({ x, y }));
+      // A curve keeps its bend on each segment that is still there.
+      const curveControls = next.curveControls;
+      next = {
+        ...next,
+        anchor: { kind: "free", position: points[0]! },
+        points,
+        ...(curveControls
+          ? {
+              curveControls: Array.from(
+                { length: points.length - 1 },
+                (_, index) => curveControls[index] ?? null,
+              ),
+            }
+          : {}),
+      };
     }
     if (next.kind === "floating-symbol") {
       next.transform = {

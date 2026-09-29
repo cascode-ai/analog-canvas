@@ -2,12 +2,21 @@ import {
   createEmptyDocument,
   reflectOrientation,
   SchematicDocumentSchema,
+  transformPoint,
 } from "@icm/model";
-import type { Annotation, SchematicDocument } from "@icm/model";
+import type {
+  Annotation,
+  Orientation,
+  Point,
+  Rect,
+  SchematicDocument,
+} from "@icm/model";
 import {
   defaultInstanceLabelPlacement,
   defaultInstanceParameterLabelPlacement,
   defaultVddPowerLabelPlacement,
+  instanceLabelInkBounds,
+  resolveAnnotationPresentation,
   resolveDocumentStyleProfile,
 } from "@icm/derived";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
@@ -19,6 +28,54 @@ import {
 } from "./transaction-instance-annotations.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
+
+/** The text box a label draws, read from its object anchor alone. */
+function labelBox(document: SchematicDocument, annotation: Annotation): Rect {
+  return resolveAnnotationPresentation(
+    document,
+    resolver,
+    annotation,
+    resolveDocumentStyleProfile(document.presentation),
+    {
+      documentId: document.id,
+      documentRevision: document.revision,
+      routes: new Map(),
+      endpointJoins: [],
+    },
+  ).bounds;
+}
+
+/** How far a label box's centre sits below its part's origin. */
+function boxCenterBelow(
+  document: SchematicDocument,
+  annotation: Annotation,
+  origin: Point,
+): number {
+  const box = labelBox(document, annotation);
+  return box.y + box.height / 2 - origin.y;
+}
+
+/** A symbol-space rectangle where the placed part draws it. */
+function placedBounds(
+  local: Rect,
+  position: Point,
+  orientation: Orientation,
+): Rect {
+  const corners = [
+    { x: local.x, y: local.y },
+    { x: local.x + local.width, y: local.y },
+    { x: local.x, y: local.y + local.height },
+    { x: local.x + local.width, y: local.y + local.height },
+  ].map((corner) => transformPoint(corner, position, orientation));
+  const xs = corners.map((corner) => corner.x);
+  const ys = corners.map((corner) => corner.y);
+  return {
+    x: Math.min(...xs),
+    y: Math.min(...ys),
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys),
+  };
+}
 
 function documentWithDraggedLabel(): {
   document: SchematicDocument;
@@ -303,6 +360,11 @@ describe("attached text reflection", () => {
           };
           document.annotations.push(annotation);
           const before = structuredClone(annotation);
+          const centerBefore = boxCenterBelow(
+            document,
+            annotation,
+            instance.placement.position,
+          );
           const oldPosition = instance.placement.position;
           const oldOrientation = {
             rotation: instance.placement.rotation,
@@ -326,22 +388,28 @@ describe("attached text reflection", () => {
             resolver,
           );
           if (before.anchor.kind !== "object") throw new Error("anchor");
-          const expectedOffset = {
-            x:
-              before.anchor.localOffset.x *
-              (direction === "left-right" ? -1 : 1),
-            y:
-              before.anchor.localOffset.y *
-              (direction === "top-bottom" ? -1 : 1),
-          };
-          expect(annotation.anchor).toEqual({
-            kind: "object",
-            objectId: "U1",
-            localOffset: expectedOffset,
-            fallbackPosition: {
-              x: newPosition.x + expectedOffset.x,
-              y: newPosition.y + expectedOffset.y,
-            },
+          if (annotation.anchor.kind !== "object") throw new Error("anchor");
+          // Left to right the anchor mirrors and the alignment swaps with it.
+          // Top to bottom the text box mirrors: its centre lands as far on
+          // the other side of the part's origin.
+          expect(annotation.anchor.localOffset.x).toBe(
+            before.anchor.localOffset.x * (direction === "left-right" ? -1 : 1),
+          );
+          if (direction === "left-right")
+            expect(annotation.anchor.localOffset.y).toBe(
+              before.anchor.localOffset.y,
+            );
+          else
+            expect(
+              Math.abs(
+                boxCenterBelow(document, annotation, newPosition) +
+                  centerBefore,
+              ),
+            ).toBeLessThanOrEqual(0.5);
+          expect(annotation.anchor.objectId).toBe("U1");
+          expect(annotation.anchor.fallbackPosition).toEqual({
+            x: newPosition.x + annotation.anchor.localOffset.x,
+            y: newPosition.y + annotation.anchor.localOffset.y,
           });
           expect(annotation.alignment).toBe(
             direction === "left-right" && before.alignment !== "middle"
@@ -372,4 +440,65 @@ describe("attached text reflection", () => {
       }
     },
   );
+
+  it("sets a horizontal capacitor's label as far below it as it sat above, after a top-bottom flip", () => {
+    const document = createEmptyDocument("flip", "Flipped capacitor");
+    const position = { x: 200, y: 100 };
+    const orientation = { rotation: 90, mirror: "none" } as const;
+    document.instances.push({
+      id: "C4",
+      symbolId: "capacitor",
+      reference: "C4",
+      placement: { position, ...orientation },
+      netlist: { parameters: {} },
+    });
+    const ink = instanceLabelInkBounds(resolver.resolve("capacitor")!);
+    const annotation: Annotation = {
+      id: "label-c4",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "C4" },
+      anchor: {
+        kind: "object",
+        objectId: "C4",
+        localOffset: { x: 0, y: 0 },
+        fallbackPosition: position,
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    };
+    document.annotations.push(annotation);
+    if (annotation.anchor.kind !== "object") throw new Error("anchor");
+    // The label sits 4 units above the plates.
+    const plates = placedBounds(ink, position, orientation);
+    const unplaced = labelBox(document, annotation);
+    annotation.anchor.localOffset.y = Math.round(
+      plates.y - 4 - (unplaced.y + unplaced.height),
+    );
+    annotation.anchor.fallbackPosition = {
+      x: position.x,
+      y: position.y + annotation.anchor.localOffset.y,
+    };
+    const above = labelBox(document, annotation);
+    const gapAbove = plates.y - (above.y + above.height);
+
+    const flipped = reflectOrientation(orientation, "top-bottom");
+    document.instances[0]!.placement = { position, ...flipped };
+    followAttachedAnnotations(
+      document,
+      "C4",
+      position,
+      orientation,
+      position,
+      flipped,
+      new Set(),
+      resolver,
+    );
+
+    const flippedPlates = placedBounds(ink, position, flipped);
+    const below = labelBox(document, annotation);
+    const gapBelow = below.y - (flippedPlates.y + flippedPlates.height);
+    expect(gapAbove).toBeGreaterThan(0);
+    expect(Math.abs(gapBelow - gapAbove)).toBeLessThanOrEqual(1);
+  });
 });
