@@ -105,6 +105,8 @@ import type { HierarchyFrame } from "@icm/derived";
 import {
   createEmptyProject,
   createId,
+  defaultDraftTextDocument,
+  flattenRichText,
   LINEAR_CONTROLLED_SOURCE_KINDS,
   controlledSourceExpressionSource,
 } from "@icm/model";
@@ -123,6 +125,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import { buildSvgScene } from "@icm/render-svg";
+import type { TextDraft } from "../features/text-editing/text-draft-overlay";
 import { renderCrashRequested, sceneCrashRequested } from "./crash-test-hooks";
 import { buildSceneSafely } from "./scene-safety";
 import { externalSubcircuitSymbolId, hierarchicalSymbolId } from "@icm/symbols";
@@ -389,9 +392,16 @@ import {
 } from "../features/properties/group-property-code-edits";
 import { planPropertyContactMove } from "../features/properties/property-contact-move";
 import {
+  groupBatchName,
   groupRenames,
   mergeRenamePlans,
 } from "../features/properties/group-renames";
+import {
+  groupNamingStatus,
+  planGroupNaming,
+  shownPartName,
+} from "../features/properties/group-naming";
+import { instanceDisplayEdits } from "../features/instance-display/instance-display-edits";
 import {
   batchAnnotationEdits,
   batchDraftingEdits,
@@ -1868,6 +1878,12 @@ function WorkspaceEditor({
    * so it seeds its preview from here instead of waiting for the next move.
    */
   const lastCanvasPointRef = useRef<Point | null>(null);
+  const [textDraft, setTextDraft] = useState<TextDraft | null>(null);
+  // Choosing a drawing tool leaves the text being written, as any other
+  // interaction does.
+  useEffect(() => {
+    if (tool !== "pointer") setTextDraft(null);
+  }, [tool]);
   const carriedCopyRef = useRef<{
     clipboard: SchematicClipboard;
     orientation: readonly PlacementOrientationOperation[];
@@ -3034,6 +3050,19 @@ function WorkspaceEditor({
               )?.name ??
               instance.reference ??
               instance.id,
+            // What its label shows: a display alias, or its own name.
+            shownNameOf: (instance) => {
+              const name =
+                document.netlist?.terminals.find((terminal) =>
+                  terminal.interfaceInstanceIds.includes(instance.id),
+                )?.name ?? instance.reference;
+              return name === undefined
+                ? null
+                : shownPartName(
+                    instanceLabelAnnotationFor(document, instance.id),
+                    name,
+                  );
+            },
             referenceVisible: (instance) => {
               const label = instanceLabelAnnotationFor(document, instance.id);
               return label !== undefined && label.visible !== false;
@@ -3590,18 +3619,21 @@ function WorkspaceEditor({
     inspectorSegment: draftingInspectorSegment,
     transact,
     setStatus,
-    beginTextPlacement: () =>
-      startInsertFromHook({
-        kind: "quick",
-        request: {
-          kind: "drafting-text",
-          symbolId: "text",
-          symbolName: "Text",
-          text: "Design note",
-          initialRotation: 0,
-          editAfterPlacement: true,
+    // Text is written first, where the pointer is, and placed afterwards.
+    beginTextPlacement: () => {
+      cancelAllTransientInteraction();
+      setTool("pointer");
+      setTextDraft({
+        content: defaultDraftTextDocument(""),
+        sizeScale: 1,
+        alignment: "middle",
+        position: lastCanvasPointRef.current ?? {
+          x: viewBox.x + viewBox.width / 2,
+          y: viewBox.y + viewBox.height / 2,
         },
-      }),
+      });
+      setStatus("Type the text, then Enter to place it · Esc cancels");
+    },
   });
   const {
     snapPoint: snapDraftingPoint,
@@ -4351,6 +4383,33 @@ function WorkspaceEditor({
     setBulkDrawInstanceId(null);
     setBoxPreview(null);
     setArmedVerb(null);
+    setTextDraft(null);
+  }
+
+  /** Enter in the Text tool's editor: carry what was written to the pointer. */
+  function submitTextDraft(): void {
+    const draft = textDraft;
+    if (!draft) return;
+    setTextDraft(null);
+    const text = flattenRichText(draft.content).trim();
+    if (!text) {
+      setStatus("Nothing written; text cancelled");
+      return;
+    }
+    startInsertFromHook({
+      kind: "quick",
+      request: {
+        kind: "drafting-text",
+        symbolId: "text",
+        symbolName: "Text",
+        text,
+        content: draft.content,
+        alignment: draft.alignment,
+        sizeScale: draft.sizeScale,
+        initialRotation: 0,
+        editAfterPlacement: true,
+      },
+    });
   }
 
   function selectEndpoint(candidate: WireSource): void {
@@ -7904,6 +7963,36 @@ function WorkspaceEditor({
                         reference: rename.name,
                       });
                   }
+                  // One name for them all: the part that has it, or the one
+                  // selected first that can take it, carries it; the others
+                  // show it as a display alias.
+                  const batchName = groupBatchName(value);
+                  let namingStatus: string | null = null;
+                  if (batchName !== null) {
+                    const naming = planGroupNaming({
+                      project,
+                      document,
+                      resolver,
+                      instanceIds: selectedIds,
+                      name: batchName,
+                      labelFor: instanceLabelAnnotationFor,
+                      newLabelFor: (source, instanceId) =>
+                        instanceDisplayEdits(source, resolver, [instanceId], {
+                          showReference: true,
+                        }).flatMap((edit) =>
+                          edit.kind === "upsert_schematic_annotation"
+                            ? [edit.annotation]
+                            : [],
+                        )[0],
+                    });
+                    if (!naming.ok)
+                      return { ok: false, message: naming.message };
+                    edits.push(...naming.edits);
+                    if (naming.structure.length > 0)
+                      pinPlans.push(naming.structure);
+                    if (naming.edits.length > 0 || naming.structure.length > 0)
+                      namingStatus = groupNamingStatus(batchName, naming);
+                  }
                   const structureEdits = pinPlans.length
                     ? mergeRenamePlans(pinPlans)
                     : [];
@@ -7939,7 +8028,8 @@ function WorkspaceEditor({
                   } else applied = transact(edits).ok;
                   if (applied) {
                     setStatus(
-                      `Updated shared properties on ${selectedIds.length} components`,
+                      namingStatus ??
+                        `Updated shared properties on ${selectedIds.length} components`,
                     );
                     return { ok: true };
                   }
@@ -8861,6 +8951,15 @@ function WorkspaceEditor({
                   ...(pendingComponentPlacement.text !== undefined
                     ? { draftingText: pendingComponentPlacement.text }
                     : {}),
+                  ...(pendingComponentPlacement.content
+                    ? {
+                        draftingContent: pendingComponentPlacement.content,
+                        draftingAlignment:
+                          pendingComponentPlacement.alignment ?? "middle",
+                        draftingSizeScale:
+                          pendingComponentPlacement.sizeScale ?? 1,
+                      }
+                    : {}),
                   ...(pendingComponentPlacement.polarity
                     ? { draftingPolarity: pendingComponentPlacement.polarity }
                     : {}),
@@ -9289,6 +9388,19 @@ function WorkspaceEditor({
             },
             onTextDelete: deleteTextEditing,
             onDisplayAliasChange: setTextDisplayAlias,
+          }}
+          textDraft={{
+            draft: textDraft,
+            viewBox,
+            onChange: (change) =>
+              setTextDraft((current) =>
+                current ? { ...current, ...change } : current,
+              ),
+            onSubmit: submitTextDraft,
+            onCancel: () => {
+              setTextDraft(null);
+              setStatus("Text cancelled");
+            },
           }}
         />
         {canvasContextMenu ? (

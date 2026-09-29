@@ -575,6 +575,12 @@ function portLabelPlacement(
   profile: SchematicStyleProfile,
   grid: number,
   rowOffset: number,
+  /**
+   * Above or below, half a grid step: a whole step read as the name having
+   * drifted off the Pin's tip, and the descent kept under a name above
+   * already clears its subscript.
+   */
+  verticalGap = grid / 2,
 ): InstanceLabelPlacement | null {
   const pin = resolved.definition.pins[0];
   const bounds = transformedBounds(
@@ -614,7 +620,7 @@ function portLabelPlacement(
         // Above: leave room for a subscript's descent under the baseline.
         position: {
           x,
-          y: Math.round(bounds.y - gap - fontSize * 0.3 + rowOffset),
+          y: Math.round(bounds.y - verticalGap - fontSize * 0.3 + rowOffset),
         },
         alignment: "middle",
       }
@@ -622,11 +628,27 @@ function portLabelPlacement(
         position: {
           x,
           y: Math.round(
-            bounds.y + bounds.height + gap + fontSize * 0.7 + rowOffset,
+            bounds.y + bounds.height + verticalGap + fontSize * 0.7 + rowOffset,
           ),
         },
         alignment: "middle",
       };
+}
+
+/**
+ * Where a vertical Cell Pin's name was placed from 2026-09-24 to 2026-09-29:
+ * a whole grid step above or below its artwork. Labels still sitting there
+ * count as untouched, so they keep following their Pin.
+ */
+export function previousPortLabelPlacement(
+  instance: SchematicDocument["instances"][number],
+  resolved: ResolvedSymbol,
+  profile: SchematicStyleProfile,
+  grid: number,
+): InstanceLabelPlacement | null {
+  if (instance.symbolId !== "port" && instance.symbolId !== "port-filled")
+    return null;
+  return portLabelPlacement(instance, resolved, profile, grid, 0, grid);
 }
 
 /**

@@ -17,6 +17,7 @@ import {
   defaultVddPowerLabelPlacement,
   instanceLabelInkBounds,
   instanceLabelMetrics,
+  previousPortLabelPlacement,
   resolveAnnotationPresentation,
   resolveDocumentStyleProfile,
 } from "@icm/derived";
@@ -596,5 +597,72 @@ describe("attached text reflection", () => {
       resolver,
     );
     expect(annotation).toEqual(before);
+  });
+});
+
+describe("Cell Pin names placed by the previous rule", () => {
+  it("keeps following a vertical Pin that turns, into the current placement", () => {
+    // Vertical Pin names moved half a grid step closer on 2026-09-29. A name
+    // still a whole step off is as untouched as a new one.
+    const document = createEmptyDocument("pins", "Pins");
+    const position = { x: 200, y: 100 };
+    const instance = {
+      id: "P1",
+      symbolId: "port",
+      placement: { position, rotation: 90 as const, mirror: "none" as const },
+    };
+    document.instances.push(instance);
+    const resolved = resolver.resolve("port")!;
+    const profile = resolveDocumentStyleProfile(document.presentation);
+    const previous = previousPortLabelPlacement(
+      instance,
+      resolved,
+      profile,
+      10,
+    )!;
+    const annotation: Annotation = {
+      id: "label-p1",
+      kind: "instance-label",
+      binding: { kind: "cell-terminal-name", terminalId: "cell-p1" },
+      anchor: {
+        kind: "object",
+        objectId: "P1",
+        localOffset: {
+          x: previous.position.x - position.x,
+          y: previous.position.y - position.y,
+        },
+        fallbackPosition: previous.position,
+      },
+      alignment: previous.alignment,
+      rotation: 0,
+      locked: false,
+    };
+    document.annotations.push(annotation);
+    const turned = { rotation: 270 as const, mirror: "none" as const };
+    document.instances[0]!.placement = { position, ...turned };
+    followAttachedAnnotations(
+      document,
+      "P1",
+      position,
+      { rotation: 90, mirror: "none" },
+      position,
+      turned,
+      new Set(),
+      resolver,
+    );
+    const current = defaultInstanceLabelPlacement(
+      { ...instance, placement: { position, ...turned } },
+      resolved,
+      profile,
+      10,
+      "reference",
+    )!;
+    expect(annotation.anchor).toMatchObject({
+      localOffset: {
+        x: current.position.x - position.x,
+        y: current.position.y - position.y,
+      },
+      fallbackPosition: current.position,
+    });
   });
 });

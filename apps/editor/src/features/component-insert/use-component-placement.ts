@@ -624,15 +624,23 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     }
     // The semantic-text helper turns the suffix into a true subscript. The
     // authored value is therefore "Vx"; a literal underscore would be drawn.
+    const typed = placementRequest.content;
     const object: Extract<DraftingObject, { kind: "text" }> = {
       ...createDraftText({
         id,
         position,
         content: bare
           ? { runs: [{ kind: "line-break" as const }] }
-          : preset || defaultDraftTextDocument("Vx"),
+          : typed || preset || defaultDraftTextDocument("Vx"),
         rotation: options.componentPlacementRotation,
+        ...(placementRequest.alignment
+          ? { alignment: placementRequest.alignment }
+          : {}),
       }),
+      ...(placementRequest.sizeScale !== undefined &&
+      placementRequest.sizeScale !== 1
+        ? { styleOverride: { sizeScale: placementRequest.sizeScale } }
+        : {}),
       ...(placementRequest.polarity
         ? { polarity: placementRequest.polarity }
         : {}),
@@ -642,6 +650,11 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     }
     options.cancelAllTransientInteraction();
     options.selectOnly("drafting", [object.id]);
+    // Typed first, it is already written: it lands as it reads.
+    if (typed) {
+      options.setStatus(`Added text ${id}`);
+      return;
+    }
     if (placementRequest.editAfterPlacement) {
       options.beginDraftingTextEditing(object);
       options.setStatus(`Added drafting text ${id}`);
@@ -735,6 +748,11 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
               referenceText: null,
               showValue: false,
               text: request.text,
+              ...(request.content ? { content: request.content } : {}),
+              ...(request.alignment ? { alignment: request.alignment } : {}),
+              ...(request.sizeScale !== undefined
+                ? { sizeScale: request.sizeScale }
+                : {}),
               ...(request.editAfterPlacement
                 ? { editAfterPlacement: true }
                 : {}),
@@ -756,11 +774,13 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
             : request;
     options.beginComponentPlacement(pendingRequest);
     options.setStatus(
-      request.kind === "drafting-text" && request.editAfterPlacement
-        ? "Place text: click to place and edit · R rotates · Esc cancels"
-        : request.kind === "polarity-annotation"
-          ? `Place ${request.symbolName} on the canvas · R rotates · Esc cancels`
-          : `Place ${request.symbolName} on the canvas · R rotates · Shift+R / Ctrl+R mirrors · Esc cancels`,
+      request.kind === "drafting-text" && request.content
+        ? "Place text: click where it goes · R rotates · Esc cancels"
+        : request.kind === "drafting-text" && request.editAfterPlacement
+          ? "Place text: click to place and edit · R rotates · Esc cancels"
+          : request.kind === "polarity-annotation"
+            ? `Place ${request.symbolName} on the canvas · R rotates · Esc cancels`
+            : `Place ${request.symbolName} on the canvas · R rotates · Shift+R / Ctrl+R mirrors · Esc cancels`,
     );
   };
 

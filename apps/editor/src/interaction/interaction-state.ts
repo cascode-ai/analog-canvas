@@ -1,7 +1,13 @@
 import { useReducer, useRef } from "react";
 import type { SetStateAction } from "react";
 
-import type { ComponentDefinition, Mirror, Point, Rotation } from "@icm/model";
+import type {
+  ComponentDefinition,
+  Mirror,
+  Point,
+  RichTextDocument,
+  Rotation,
+} from "@icm/model";
 import type {
   WireCornerOrder,
   WireDraftStep,
@@ -130,6 +136,14 @@ export interface PendingComponentPlacement {
   polarity?: "both" | "positive" | "negative";
   /** Initial content for drafting-text placement. */
   text?: string;
+  /**
+   * Text typed before it is placed: the preview carries it and it lands as
+   * written, with no editor opening after the click.
+   */
+  content?: RichTextDocument;
+  /** Its alignment and size, chosen while it was typed. */
+  alignment?: "start" | "middle" | "end";
+  sizeScale?: number;
   /** Plain Text opens for editing; fixed catalog presets do not. */
   editAfterPlacement?: boolean;
   /** Existing unplaced Instance being returned from the Placement Tray. */

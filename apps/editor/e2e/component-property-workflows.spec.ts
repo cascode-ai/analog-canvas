@@ -948,7 +948,8 @@ test("two Pins selected are renamed through their own name entries", async ({
   await page.getByTestId("hit-P2").click({ modifiers: ["Shift"] });
   await openSelectionShelf(page);
   const code = JSON.parse(await readComponentPropertyCode(page));
-  expect(Object.keys(code.name)).toEqual(["P1", "P2"]);
+  // They show different names; a list by part still renames each one.
+  expect(code.name).toBe("as is");
   await editComponentPropertyCode(page, (value) => {
     value.name = { P1: "Voutp", P2: "Voutn" };
   });
@@ -965,6 +966,7 @@ test("two Pins selected are renamed through their own name entries", async ({
         .sort(),
     )
     .toEqual(["Voutn", "Voutp"]);
+  // The list as written stays in the field.
   expect(JSON.parse(await readComponentPropertyCode(page)).name).toEqual({
     P1: "Voutp",
     P2: "Voutn",
@@ -1173,8 +1175,8 @@ test("Select All shows one batch code surface instead of object-specific forms",
   await expect(batch).toBeVisible();
   await expect(batch.getByText("2 selected", { exact: true })).toBeVisible();
   expect(JSON.parse(await readComponentPropertyCode(page))).toEqual({
-    // Each component by its Reference, so the batch reads who is who.
-    name: { R1: "R1", R2: "R2" },
+    // They show different names; one name written here names them all.
+    name: "as is",
     coordinate: null,
     rotation: null,
     mirror: null,
@@ -1223,6 +1225,42 @@ test("Select All shows one batch code surface instead of object-specific forms",
     { id: "R2", styleOverride: { foreground: "#dc2626" } },
   ]);
   expect(saved.documents[0].routes[0].styleOverride).toBeUndefined();
+
+  // One name for both, applied as it is typed: R1, first in the selection,
+  // is renamed to it; R2 keeps its own name and shows it as a display alias.
+  // The field then shows the name they share, so typing carries on.
+  await editComponentPropertyCode(page, (code) => {
+    code.name = "R";
+  });
+  await expect(page.getByTestId("status")).toHaveText(
+    "R1 is now R; R2 shows it as a display alias",
+  );
+  expect(JSON.parse(await readComponentPropertyCode(page)).name).toBe("R");
+  await editComponentPropertyCode(page, (code) => {
+    code.name = "R5";
+  });
+  await expect(page.getByTestId("status")).toHaveText(
+    "R is now R5; R2 shows it as a display alias",
+  );
+  for (const id of ["R1", "R2"])
+    await expect(
+      page.locator(`[data-object-id="instance-label-${id}"]`),
+    ).toHaveText("R5");
+  const named = parseSavedProject(
+    (await downloadBytes(page, "File", "Export Project File…")).toString(
+      "utf8",
+    ),
+  );
+  expect(
+    named.documents[0].instances.map(
+      (instance: { reference: string }) => instance.reference,
+    ),
+  ).toEqual(["R5", "R2"]);
+  expect(
+    named.documents[0].annotations.find(
+      (annotation: { id: string }) => annotation.id === "instance-label-R2",
+    ).binding,
+  ).toBeUndefined();
 });
 
 test("Properties keeps component and Annotation text colors independent", async ({

@@ -12,6 +12,7 @@ import {
   foldNetName,
   projectCellInterface,
   renamedLabelFormat,
+  richTextPresentsIdentifier,
   routeEnd,
   semanticTextDocument,
 } from "@icm/model";
@@ -1455,6 +1456,17 @@ export function planRenameCellTerminal(
           },
         ];
       }
+      // A written label that reads the Pin's name is an older name label
+      // and follows the Pin as a binding. One that reads anything else is
+      // the Pin's display alias, and a rename keeps it, as for a part.
+      if (
+        !annotation.binding &&
+        !richTextPresentsIdentifier(
+          annotation.content ?? { runs: [] },
+          terminal.name,
+        )
+      )
+        return [];
       const {
         content: _content,
         formatOverride: _formatOverride,

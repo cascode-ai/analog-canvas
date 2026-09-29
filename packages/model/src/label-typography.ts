@@ -214,6 +214,16 @@ export function roleLabelFormat(
   name: string,
   options: RoleLabelFormatOptions = {},
 ): RichTextDocument | undefined {
+  // A signal's complement is its standard look under one bar: a Pin or Net
+  // named VLO_bar is V̄_LO, never V over a subscript that spells out LO_bar.
+  // A device Reference has no complement (its bar is only styling), and a
+  // supply is not complemented.
+  if (role === "voltage-node" && name.length > 4 && name.endsWith("_bar")) {
+    const signal = roleLabelFormat(role, name.slice(0, -4), options);
+    return signal
+      ? { runs: [{ kind: "span", style: "overbar", children: signal.runs }] }
+      : undefined;
+  }
   if (role === "device-reference") {
     const letter = options.deviceLetter;
     if (
@@ -228,7 +238,9 @@ export function roleLabelFormat(
       ? deviceLetterReferenceTextDocument(name)
       : undefined;
   }
-  if (/^[Vv][\p{L}\p{N}]+$/u.test(name)) return voltageNodeTextDocument(name);
+  // A differential half keeps its sign in the subscript: V_in+, V_bn−.
+  if (/^[Vv][\p{L}\p{N}]+[+-]?$/u.test(name))
+    return voltageNodeTextDocument(name);
   if (GREEK_LED_NAME.test(name)) return deviceLetterReferenceTextDocument(name);
   return role === "voltage-node" && CURRENT_NAME.test(name)
     ? currentNodeTextDocument(name)

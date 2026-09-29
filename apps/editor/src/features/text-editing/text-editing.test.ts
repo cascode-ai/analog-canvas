@@ -490,6 +490,84 @@ describe("unified text editing", () => {
     expect(formatted.formatEdited).toBe(true);
   });
 
+  it("tells a Pin's name label from its display alias", () => {
+    const document = createEmptyDocument("text", "Text");
+    document.instances.push({ id: "P1", symbolId: "port", placement: null });
+    document.netlist!.terminals.push({
+      id: "terminal-ref",
+      name: "V_ref",
+      netId: "net-ref",
+      direction: "input",
+      interfaceInstanceIds: ["P1"],
+    });
+    const label = (
+      text: Partial<Pick<Annotation, "binding" | "content">>,
+    ): Annotation => ({
+      id: "label-P1",
+      kind: "instance-label",
+      ...text,
+      anchor: {
+        kind: "object",
+        objectId: "P1",
+        localOffset: { x: 10, y: 0 },
+        fallbackPosition: { x: 10, y: 0 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    const session = (object: Annotation) =>
+      createTextEditingSession({ owner: "annotation", object }, document);
+    expect(
+      session(
+        label({
+          binding: { kind: "cell-terminal-name", terminalId: "terminal-ref" },
+        }),
+      ),
+    ).toMatchObject({ cellPinTerminalId: "terminal-ref", displayAlias: false });
+    // An older written label that still reads the name names the Pin.
+    expect(
+      session(
+        label({
+          content: {
+            runs: [
+              { kind: "text", value: "V" },
+              {
+                kind: "span",
+                style: "subscript",
+                children: [{ kind: "text", value: "ref" }],
+              },
+            ],
+          },
+        }),
+      ),
+    ).toMatchObject({ cellPinTerminalId: "terminal-ref", displayAlias: false });
+    // Text of its own is the Pin's display alias, edited as free text.
+    const written = label({
+      content: { runs: [{ kind: "text", value: "Reference" }] },
+    });
+    document.annotations.push(written);
+    const alias = session(written);
+    expect(alias).toMatchObject({
+      cellPinTerminalId: "terminal-ref",
+      displayAlias: true,
+      bound: false,
+    });
+    const proposal = proposeTextEditingCommit(
+      document,
+      updateTextEditingSession(alias, {
+        content: { runs: [{ kind: "text", value: "Bias in" }] },
+      }),
+    );
+    expect(proposal).toMatchObject({
+      kind: "update",
+      edit: {
+        kind: "upsert_schematic_annotation",
+        annotation: { content: { runs: [{ kind: "text", value: "Bias in" }] } },
+      },
+    });
+  });
+
   it("does not mistake a stored voltage default for manual formatting", () => {
     const document = createEmptyDocument("text", "Text");
     document.netlist!.terminals.push({

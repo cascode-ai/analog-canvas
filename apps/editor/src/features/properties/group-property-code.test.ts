@@ -110,14 +110,14 @@ describe("batch component property code", () => {
     const source = formatGroupPropertyCode(listed);
     expect(JSON.parse(source)).toEqual({
       symbol: "resistor",
-      // Each name by its entry, which renames that component when changed.
-      names: { R1: "R1", R2: "R2" },
+      // They show different names; one name written here names them all.
+      names: "as is",
       parameters: { value: { R1: "1k", R2: "2k" } },
       // The same for both: one value, as before.
       display: { visualAnnotation: { R1: true, R2: false }, value: false },
       appearance: { color: { R1: "auto", R2: [220, 38, 38] } },
     });
-    expect(groupPropertyItemNames(listed)).toEqual({ R1: "R1", R2: "R2" });
+    expect(groupPropertyItemNames(listed)).toBe("as is");
     // One entry per component, with its own control.
     expect(
       groupPropertyCodeSpans(source, listed).map((span) => span.field.path),
@@ -207,6 +207,50 @@ describe("batch component property code", () => {
         listed,
       ),
     ).toMatchObject({ ok: true, value: { parameters: { value: "2k" } } });
+  });
+
+  it("shows the name they all show, or as is, and takes one name for all", () => {
+    const item = (key: string, shown?: string | null) => ({
+      key,
+      instanceId: key.toLowerCase(),
+      name: key,
+      ...(shown === undefined ? {} : { shown }),
+      parameters: { value: "1k" },
+      reference: true,
+      value: false,
+      foreground: "auto" as const,
+    });
+    // R2 and R3 show R1's name as a display alias; a ground shows no name.
+    const alike = {
+      ...context,
+      items: [item("R1"), item("R2", "R1"), item("R3", "R1"), item("G", null)],
+    };
+    expect(groupPropertyItemNames(alike)).toBe("R1");
+    expect(JSON.parse(formatGroupPropertyCode(alike)).names).toBe("R1");
+    const differ = { ...context, items: [item("R1"), item("R2")] };
+    const source = formatGroupPropertyCode(differ);
+    expect(JSON.parse(source).names).toBe("as is");
+    expect(parseGroupPropertyCode(source, differ)).toMatchObject({
+      ok: true,
+      value: { names: "as is" },
+    });
+    expect(
+      parseGroupPropertyCode(
+        source.replace('"names": "as is"', '"names": " R5 "'),
+        differ,
+      ),
+    ).toMatchObject({ ok: true, value: { names: "R5" } });
+    // Emptied, it leaves each its own name.
+    const emptied = parseGroupPropertyCode(
+      source.replace('"names": "as is"', '"names": ""'),
+      differ,
+    );
+    expect(emptied.ok && emptied.value.names).toBeUndefined();
+    // Nothing to name, no name field.
+    expect(
+      groupPropertyItemNames({ items: [item("G", null), item("H", null)] }),
+    ).toBe("");
+    expect(groupPropertyItemNames({ items: [item("R1")] })).toBe("");
   });
 
   it("omits an unavailable value field and rejects unsupported properties", () => {

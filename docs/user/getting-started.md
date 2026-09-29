@@ -202,10 +202,16 @@ recognize such a network, so both are placed by hand.
 ## Editing multiple components
 
 Select components together with Shift-click or a selection rectangle, then
-press `Q`. Properties shows one editable JSON block. `name` lists each
-component by its Reference; changing an entry renames that one. Every
-parameter all the selected components have is listed the same way, one entry
-per component, even across types: an NMOS and a PMOS share `w`, `l`, `nf` and
+press `Q`. Properties shows one editable JSON block. `name` shows the name
+every selected component shows, or `as is` where they differ. Write one name
+there to name them all: the component that already has that name keeps it;
+otherwise the one you selected first is renamed to it. The others keep their
+own netlist names and show it as a display alias, drawn the same way. A name
+none of them can take — another part's name, a space, the wrong first letter —
+is shown by all of them as an alias, and the status bar says who carries it.
+A list of names by Reference still renames each component by its own entry.
+Every parameter all the selected components have is listed one entry per
+component, even across types: an NMOS and a PMOS share `w`, `l`, `nf` and
 `m`. Edit an entry to change that component, or write one value in place of
 the list to set them all. A parameter that means something different on each
 type — a resistor's `value` in ohms and a capacitor's in farads — only takes
@@ -226,7 +232,10 @@ independent of the electrical name; changing a name preserves those choices.
 `Use display alias` is off by default. It turns on by itself when what you
 type cannot be the part's netlist name — a Greek letter such as `Φ2`, a space,
 another part's name, or the wrong first letter: the label shows your text and
-the netlist keeps the part's name, which the status bar tells you.
+the netlist keeps the part's name, which the status bar tells you. A Cell
+Pin's label has the same checkbox: its alias is drawn at the Pin and on the
+Cell's block in every parent, while the netlist and the parent's connections
+keep the Pin's name. Unchecking it shows the Pin's name again.
 
 A label's name and its look are separate. The name is what the netlist,
 simulation and Agents use; it is always exactly what you typed. Changing the

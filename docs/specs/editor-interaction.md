@@ -753,11 +753,24 @@ Copy allocates a unique Reference: following annotations update, aliases copy
 exactly. Old additional annotations remain user-authored content; no hidden
 second label is created.
 
+One name for several selected parts is written in the batch Properties `name`,
+which shows the name they all show or `as is` where they differ. The part that
+already has that name keeps it; otherwise the first selected part that can
+take it is renamed (a Reference through its validation, a Pin through its
+Cell). Every other part keeps its name and shows the name as a display alias
+drawn in the named part's look; a part without a label gets one. A name no
+selected part can take is shown by all of them as an alias, and a Pin never
+takes another Pin's name, which would join them. It is one transaction.
+
 For a Cell Pin, a character edit renames the terminal while a formatting-only
-edit persists a same-text annotation `formatOverride`. Its name is edited on
-the canvas and its interface direction is managed in Cell Manager; Properties
-does not repeat either control below the component code. Net naming remains a
-Net Label operation.
+edit persists a same-text annotation `formatOverride`. **Use display alias**
+works for a Pin as for a part: the label keeps literal RichText anchored to the
+Pin, the terminal keeps its name, and the parent block draws the alias at that
+pin, widening for it. A written Pin label that still presents the Pin's name is
+an older name label, not an alias: a Pin rename rebinds it and keeps an alias.
+Its name is edited on the canvas and its interface direction is managed in Cell
+Manager; Properties does not repeat either control below the component code.
+Net naming remains a Net Label operation.
 The renderer never synthesizes text from Instance IDs and no empty suppressor
 label exists. Visual annotation display is a Properties toggle for one or many
 selected components: hiding sets the annotation's optional `visible: false`
@@ -812,6 +825,7 @@ save/reopen and when the same Project is entered through Project Code:
 | Following instance label | `Instance.reference`              | Renames the Reference with its electrical validation | Stores a same-name `formatOverride`; the binding stays live           |
 | Instance display alias   | Annotation `content`              | Edits only the alias                                 | Edits only the alias; the Reference is unchanged                      |
 | Cell Pin label           | Formal terminal name              | Renames that declaration and reconciles callers      | Stores a same-name `formatOverride` and projects it to the parent pin |
+| Cell Pin display alias   | Annotation `content`              | Edits only the alias; the Pin keeps its name         | Edits only the alias, which the parent pin draws                      |
 | Net or power label       | Its name claim or formal terminal | Uses the owning Net/terminal rename path             | Retains the name and stores its presentation                          |
 | Free drafting text       | Drafting `content`                | Edits only the drawing                               | Edits only the drawing                                                |
 

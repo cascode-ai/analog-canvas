@@ -1021,7 +1021,7 @@ test("keeps unsafe formula source out of the Project", async ({ page }) => {
   await expect(page.locator('[data-role="formula"]')).toHaveCount(0);
 });
 
-test("T previews text at the pointer without creating it and Escape cancels", async ({
+test("T opens a text editor at the pointer first, then carries what was written; Escape cancels either step", async ({
   page,
 }) => {
   await page.addInitScript(() =>
@@ -1035,10 +1035,26 @@ test("T previews text at the pointer without creating it and Escape cancels", as
   const expected = await snappedCanvasPoint(canvas, point, 1);
   expect(expected.x % 10 !== 0 || expected.y % 10 !== 0).toBe(true);
 
+  // The editor opens first: nothing follows the pointer, nothing exists.
   await page.keyboard.press("t");
+  const draft = page.getByTestId("text-draft-editor");
+  const editor = draft.getByRole("textbox", { name: "Canvas text editor" });
   const preview = page.getByTestId("text-placement-preview");
+  await expect(editor).toBeVisible();
+  await expect(preview).toHaveCount(0);
+  await expect(page.locator('[data-kind="draft-text"]')).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(draft).toHaveCount(0);
+  await expect(page.getByTestId("revision")).toHaveText("0");
+
+  // Written first, the text itself then follows the pointer.
+  await page.keyboard.press("t");
+  await editor.pressSequentially("Vout");
+  await editor.press("Enter");
+  await expect(draft).toHaveCount(0);
+  await page.mouse.move(point.x, point.y);
   await expect(preview).toBeVisible();
-  await expect(preview).toHaveText("Design note");
+  await expect(preview).toHaveText("Vout");
   await expect(preview).toHaveAttribute(
     "transform",
     `translate(${expected.x} ${expected.y})`,
@@ -1066,12 +1082,11 @@ test("T previews text at the pointer without creating it and Escape cancels", as
   await expect(page.getByTestId("revision")).toHaveText("0");
   await expect(page.getByTestId("draw-tool-undo")).toBeDisabled();
 
-  // The toolbar uses the same cancellable placement, then lets a new tool take over.
+  // The toolbar opens the same editor, and a new tool takes over.
   await clickDrawTool(page, "text");
-  await canvas.hover({ position: { x: 420, y: 310 } });
-  await expect(preview).toBeVisible();
+  await expect(editor).toBeVisible();
   await clickDrawTool(page, "rectangle");
-  await expect(preview).toHaveCount(0);
+  await expect(draft).toHaveCount(0);
   await expect(page.getByTestId("revision")).toHaveText("0");
 });
 
@@ -1129,7 +1144,7 @@ async function snappedCanvasPoint(
   );
 }
 
-test("places Text at its preview after zoom and pan, then edits and undoes it", async ({
+test("places written Text at its preview after zoom and pan, and undoes it in one step", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -1147,6 +1162,12 @@ test("places Text at its preview after zoom and pan, then edits and undoes it", 
   await page.mouse.move(point.x, point.y);
   const expected = await snappedCanvasPoint(canvas, point, 5);
   await page.keyboard.press("t");
+  const draft = page
+    .getByTestId("text-draft-editor")
+    .getByRole("textbox", { name: "Canvas text editor" });
+  await draft.pressSequentially("Custom text");
+  await draft.press("Enter");
+  await page.mouse.move(point.x, point.y);
   const preview = page.getByTestId("text-placement-preview");
   await expect(preview).toHaveAttribute(
     "transform",
@@ -1171,12 +1192,11 @@ test("places Text at its preview after zoom and pan, then edits and undoes it", 
   expect(placedBounds.y).toBeCloseTo(previewBounds!.y, 1);
   expect(placedBounds.width).toBeCloseTo(previewBounds!.width, 1);
   expect(placedBounds.height).toBeCloseTo(previewBounds!.height, 1);
-  const input = page.getByRole("textbox", { name: "Canvas text editor" });
-  await expect(input).toBeVisible();
-  await input.fill("Custom text");
-  await page.getByRole("button", { name: "Apply text changes" }).click();
+  // It lands as written, with no editor opening afterwards.
+  await expect(
+    page.getByRole("textbox", { name: "Canvas text editor" }),
+  ).toHaveCount(0);
   await expect(texts).toHaveText("Custom text");
-  await expect(page.getByTestId("revision")).toHaveText("2");
 
   const project = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -1195,10 +1215,7 @@ test("places Text at its preview after zoom and pan, then edits and undoes it", 
   expect(svg).not.toContain(`rotate(90 ${expected.x} ${expected.y})`);
   expect(svg).not.toContain("text-placement-preview");
   await page.getByTestId("draw-tool-undo").click();
-  await expect(texts).toHaveText("Design note");
-  await page.getByTestId("draw-tool-undo").click();
   await expect(texts).toHaveCount(0);
-  await page.getByTestId("draw-tool-redo").click();
   await page.getByTestId("draw-tool-redo").click();
   await expect(texts).toHaveText("Custom text");
 });
@@ -2532,11 +2549,7 @@ test("authors inline fractions alongside styled text and preserves them through 
   page,
 }) => {
   await page.goto("/editor");
-  await clickDrawTool(page, "text");
-  await page.keyboard.press("r");
-  await page
-    .getByTestId("schematic-canvas")
-    .click({ position: { x: 450, y: 340 } });
+  await placeText(page);
   const editor = page.getByRole("textbox", {
     name: "Canvas text editor",
     exact: true,

@@ -1160,6 +1160,61 @@ test("manages Cell rename and lists callers", async ({ page }) => {
   await expect(canvas.locator('[data-kind="instance-label"]')).toHaveCount(0);
 });
 
+test("a Cell Pin shows a display alias, here and on its block, and keeps its name", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await createCell(page, "AliasStage");
+  await placeCellPin(page, {
+    name: "IN",
+    direction: "input",
+    position: { x: 300, y: 180 },
+  });
+  const pinLabel = page.locator('[data-object-id="instance-label-P1"]');
+  await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
+  const alias = page.getByRole("checkbox", { name: "Use display alias" });
+  await expect(alias).not.toBeChecked();
+  await alias.check();
+  await page
+    .getByRole("textbox", { name: "Canvas text editor" })
+    .fill("Bias input");
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  await expect(page.getByTestId("status")).toHaveText(
+    "Showing Bias input as a display alias; the Pin stays IN",
+  );
+  await expect(pinLabel).toHaveText("Bias input");
+  // Reopened, it is still the alias, and editing it keeps the Pin's name.
+  await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
+  await expect(alias).toBeChecked();
+  await page
+    .getByRole("textbox", { name: "Canvas text editor" })
+    .fill("Bias in");
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  await expect(pinLabel).toHaveText("Bias in");
+
+  await openTopCell(page);
+  await runCellCommand(page, "Place Cell");
+  await page
+    .getByRole("dialog", { name: "Place Hierarchical Cell" })
+    .getByRole("option", { name: /AliasStage/u })
+    .click();
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.click({ position: { x: 420, y: 180 } });
+  await page.keyboard.press("Escape");
+  // The block's pin is still IN to the netlist, drawn as the alias.
+  const pin = canvas.locator('[data-pin-name="IN"]');
+  await expect(pin).toHaveCount(1);
+  await expect(
+    canvas.locator('[data-object-id="X1"][data-symbol-id]'),
+  ).toContainText("Bias in");
+
+  // Turned off, the label names the Pin again.
+  await openCellDefinition(page, /AliasStage/u);
+  await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
+  await alias.uncheck();
+  await expect(pinLabel).toHaveText("IN");
+});
+
 test("declares and places a Cell Pin on a new local Net", async ({ page }) => {
   await page.goto("/editor");
   await createCell(page, "ReusableStage");

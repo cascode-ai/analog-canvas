@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createDesignNetlistExport } from "@icm/netlist";
 
 import { createEmptyDocument, createEmptyProject } from "@icm/model";
+import type { Annotation, RichTextDocument } from "@icm/model";
 
 import {
   createExternalSubcircuitInstance,
@@ -929,6 +930,85 @@ describe("hierarchy domain planners", () => {
         (terminal) => terminal.id,
       ),
     ).toEqual(["terminal-in", "terminal-out-a", "terminal-out-b"]);
+  });
+
+  it("keeps a Pin's display alias through a rename, and binds an older label that reads its name", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    for (const [pin, name] of [
+      ["P1", "V_ref"],
+      ["P2", "B"],
+    ] as const) {
+      document.instances.push({ id: pin, symbolId: "port", placement: null });
+      document.nets.push({
+        id: `net-${pin}`,
+        terminals: [{ instanceId: pin, pinName: "P" }],
+      });
+      document.netlist!.terminals.push({
+        id: `terminal-${pin}`,
+        name,
+        netId: `net-${pin}`,
+        direction: "input",
+        interfaceInstanceIds: [pin],
+      });
+    }
+    const written = (
+      id: string,
+      objectId: string,
+      runs: RichTextDocument["runs"],
+    ): Annotation => ({
+      id,
+      kind: "instance-label",
+      content: { runs },
+      anchor: {
+        kind: "object",
+        objectId,
+        localOffset: { x: 10, y: 0 },
+        fallbackPosition: { x: 10, y: 0 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    document.annotations.push(
+      // An older label, written V with a subscript ref: V_ref's own name.
+      written("label-P1", "P1", [
+        { kind: "text", value: "V" },
+        {
+          kind: "span",
+          style: "subscript",
+          children: [{ kind: "text", value: "ref" }],
+        },
+      ]),
+      // Text of its own: B's display alias.
+      written("label-P2", "P2", [{ kind: "text", value: "Bias" }]),
+    );
+    const childEdits = (terminalId: string, name: string) => {
+      const [edit] = planRenameCellTerminal(
+        project,
+        document.id,
+        terminalId,
+        name,
+      );
+      return edit?.kind === "transact_document" ? edit.edits : [];
+    };
+    expect(childEdits("terminal-P1", "V_bias")).toEqual([
+      {
+        kind: "update_cell_terminal",
+        terminalId: "terminal-P1",
+        name: "V_bias",
+      },
+      {
+        kind: "upsert_schematic_annotation",
+        annotation: expect.objectContaining({
+          id: "label-P1",
+          binding: { kind: "cell-terminal-name", terminalId: "terminal-P1" },
+        }),
+      },
+    ]);
+    expect(childEdits("terminal-P2", "C")).toEqual([
+      { kind: "update_cell_terminal", terminalId: "terminal-P2", name: "C" },
+    ]);
   });
 
   it("renames a Cell Pin to an existing name without merging identity or Net", () => {

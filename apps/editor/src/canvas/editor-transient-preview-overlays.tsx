@@ -7,6 +7,7 @@ import {
   type DerivedRect,
   type GridRect,
   type Point,
+  type RichTextDocument,
 } from "@icm/model";
 import {
   razaviTextbookProfile,
@@ -41,6 +42,9 @@ export function EditorPlacementPreview({
   pendingSymbolId,
   pendingSymbol,
   draftingText,
+  draftingContent,
+  draftingAlignment = "middle",
+  draftingSizeScale = 1,
   draftingPolarity,
   styleProfile = razaviTextbookProfile,
   rotation,
@@ -54,6 +58,10 @@ export function EditorPlacementPreview({
   pendingSymbolId: string | null;
   pendingSymbol?: SymbolDefinition;
   draftingText?: string;
+  /** Text typed before placing it, shown as it will land. */
+  draftingContent?: RichTextDocument;
+  draftingAlignment?: "start" | "middle" | "end";
+  draftingSizeScale?: number;
   draftingPolarity?: "both" | "positive" | "negative";
   styleProfile?: SchematicStyleProfile;
   rotation: ComponentPlacementPreviewProps["rotation"];
@@ -80,15 +88,25 @@ export function EditorPlacementPreview({
       />
     );
   }
-  if (draftingText !== undefined || draftingPolarity !== undefined) {
+  if (
+    draftingText !== undefined ||
+    draftingContent !== undefined ||
+    draftingPolarity !== undefined
+  ) {
     const barePolarity =
       draftingPolarity === "positive" || draftingPolarity === "negative";
     const content = draftingPolarity
       ? barePolarity
         ? { runs: [{ kind: "line-break" as const }] }
         : defaultDraftTextDocument("Vx")
-      : { runs: [{ kind: "text" as const, value: draftingText! }] };
-    const metrics = richTextMetrics(styleProfile, "label");
+      : (draftingContent ?? {
+          runs: [{ kind: "text" as const, value: draftingText! }],
+        });
+    const metrics = richTextMetrics(
+      styleProfile,
+      "label",
+      draftingPolarity ? 1 : draftingSizeScale,
+    );
     const polarityGeometry = draftingPolarity
       ? resolvePolarityTextGeometry(
           { x: 0, y: 0 },
@@ -125,7 +143,7 @@ export function EditorPlacementPreview({
           <text
             x={textPosition.x}
             y={baselineY}
-            textAnchor="middle"
+            textAnchor={draftingPolarity ? "middle" : draftingAlignment}
             fontSize={metrics.fontSize}
             fontFamily={styleProfile.typography.fontFamily}
             fontWeight="bold"

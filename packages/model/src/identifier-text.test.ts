@@ -7,6 +7,7 @@ import {
   richTextPresentsIdentifier,
 } from "./identifier-text.js";
 import { flattenRichText } from "./rich-text.js";
+import type { RichTextDocument } from "./schema.js";
 
 describe("electrical identifier presentation", () => {
   it.each(["M1", "M_1", "V_in", "v_In_cm", "VDD", "V_SS", "A__b"])(
@@ -77,6 +78,35 @@ describe("overbar identifier convention", () => {
       expect(richTextPresentsIdentifier(text, name)).toBe(true);
     },
   );
+
+  it("reads a bar over a subscripted name as the complement of the name it spells", () => {
+    // Reported: barring V_LO renamed the Pin VLO_bar, and the label then
+    // showed V over a subscript spelling LO_bar, because V̄_LO was not taken
+    // to present VLO_bar (only V_LO_bar).
+    const barred: RichTextDocument = {
+      runs: [
+        {
+          kind: "span",
+          style: "overbar",
+          children: [
+            { kind: "text", value: "V" },
+            {
+              kind: "span",
+              style: "subscript",
+              children: [{ kind: "text", value: "LO" }],
+            },
+          ],
+        },
+      ],
+    };
+    expect(richTextPresentsIdentifier(barred, "VLO_bar")).toBe(true);
+    expect(richTextPresentsIdentifier(barred, "V_LO_bar")).toBe(true);
+    // Unbarred, the same characters do not spell the complement.
+    const unbarred: RichTextDocument = {
+      runs: barred.runs[0]!.kind === "span" ? barred.runs[0]!.children : [],
+    };
+    expect(richTextPresentsIdentifier(unbarred, "VLO_bar")).toBe(false);
+  });
 
   it("adds one suffix for nested or partial bars and ignores empty bars", () => {
     expect(
