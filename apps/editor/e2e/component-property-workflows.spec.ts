@@ -1724,9 +1724,7 @@ test("edits the transconductance trapezoid from gm to -gmL", async ({
     componentProperties.getByLabel("Editable Canvas property code"),
   ).toBeVisible();
   await expect(
-    componentProperties.getByRole("group", {
-      name: "Property-only electrical terminals",
-    }),
+    componentProperties.getByRole("button", { name: "VDD Net options" }),
   ).toBeVisible();
   await expectComponentCodeField(page, "signalFlow", {});
   await expect(frame).toHaveCount(1);

@@ -122,51 +122,6 @@ describe("component identity properties", () => {
     expect(markup).not.toContain('aria-label="Component label"');
   });
 
-  it("offers hidden block supplies as Net choices with an explicit Auto state", () => {
-    const document = createEmptyDocument("cell", "Cell");
-    const instance: (typeof document.instances)[number] = {
-      id: "X1",
-      symbolId: "opamp",
-      placement: null,
-      reference: "X1",
-    };
-    const markup = renderToStaticMarkup(
-      <ComponentIdentityProperties
-        instance={instance}
-        revision={1}
-        targetDescription={null}
-        capacitorPlateRows={null}
-        supplyTerminals={[
-          {
-            label: "VDD Net",
-            pinName: "VDD",
-            netId: null,
-            options: [{ netId: "avdd", label: "AVDD" }],
-            autoLabel: "Auto · unresolved",
-            onChange: vi.fn(),
-          },
-          {
-            label: "VSS Net",
-            pinName: "VSS",
-            netId: "vneg",
-            options: [{ netId: "vneg", label: "VNEG" }],
-            autoLabel: "Auto · VSS",
-            onChange: vi.fn(),
-          },
-        ]}
-        modelTarget={null}
-        sourceCode={{ code: "X1", exact: false, note: null }}
-        onReferenceChange={vi.fn()}
-        onModelTargetChange={vi.fn()}
-      />,
-    );
-    expect(markup).toContain('aria-label="VDD Net options"');
-    expect(markup).toContain('aria-label="VSS Net options"');
-    expect(markup).toContain("Auto · unresolved");
-    expect(markup).toContain(">VNEG</button>");
-    expect(markup).toContain("Property-only terminal · no canvas pin or wire");
-  });
-
   it("offers one rich-editor action beside the Netlist Reference", () => {
     const document = createEmptyDocument("cell", "Cell");
     const instance: (typeof document.instances)[number] = {

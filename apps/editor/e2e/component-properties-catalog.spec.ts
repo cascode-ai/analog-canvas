@@ -94,23 +94,17 @@ for (const symbolId of componentSymbolIds) {
     }
     if (symbolId === "voltage-amplifier") {
       await expect(
-        properties.getByRole("group", {
-          name: "Property-only electrical terminals",
-        }),
-      ).toBeVisible();
-      await expect(
         properties.getByRole("button", { name: "VDD Net options" }),
       ).toBeVisible();
       await expect(
         properties.getByRole("button", { name: "VSS Net options" }),
       ).toBeVisible();
-    } else {
-      await expect(properties.locator(":scope > *")).toHaveCount(1);
-      await expect(properties.locator(":scope > :only-child")).toHaveAttribute(
-        "aria-label",
-        "Canvas property code",
-      );
     }
+    await expect(properties.locator(":scope > *")).toHaveCount(1);
+    await expect(properties.locator(":scope > :only-child")).toHaveAttribute(
+      "aria-label",
+      "Canvas property code",
+    );
   });
 }
 
@@ -300,8 +294,12 @@ test("hidden block supplies preview Nets and persist an explicit binding", async
   const properties = page.getByRole("complementary", { name: "Properties" });
   const vdd = properties.getByRole("button", { name: "VDD Net options" });
   const vss = properties.getByRole("button", { name: "VSS Net options" });
-  await expect(vdd).toContainText("Auto · unresolved");
-  await expect(vss).toContainText("Auto · net-ground");
+  await expectComponentCodeField(page, "supplies.VDD", "");
+  await vss.click();
+  await expect(
+    page.getByRole("option", { name: "Auto · net-ground" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
   await vdd.click();
   const option = page
     .getByRole("listbox", { name: "VDD Net previews" })
@@ -312,7 +310,7 @@ test("hidden block supplies preview Nets and persist an explicit binding", async
     "net-AVDD",
   );
   await option.click();
-  await expect(vdd).toContainText("AVDD");
+  await expectComponentCodeField(page, "supplies.VDD", "net-AVDD");
   await expect(page.getByTestId("net-highlight-overlay")).toHaveCount(0);
   const saved = parseSavedProject(
     (await downloadBytes(page, "File", "Export Project File…")).toString(
@@ -327,7 +325,7 @@ test("hidden block supplies preview Nets and persist an explicit binding", async
     .getByRole("listbox", { name: "VDD Net previews" })
     .getByRole("option", { name: /Auto/ })
     .click();
-  await expect(vdd).toContainText("Auto · unresolved");
+  await expectComponentCodeField(page, "supplies.VDD", "");
 });
 
 for (const symbolId of ["vcvs", "vccs"]) {

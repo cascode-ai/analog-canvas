@@ -39,6 +39,8 @@ export interface ComponentPropertyDisplayCode {
 }
 
 export interface ComponentPropertyCodeValue extends ComponentPropertyDetailsValue {
+  /** Empty Net ID selects the existing unique authored-supply fallback. */
+  supplies?: Record<string, string>;
   control?:
     | { positiveNetId: string; negativeNetId: string }
     | { instanceId: string; pinName: string; direction: "into" | "out" };
@@ -60,6 +62,16 @@ export interface ComponentPropertyCodeValue extends ComponentPropertyDetailsValu
 }
 
 export interface ComponentPropertyCodeContext {
+  supplyTerminals?: readonly {
+    pinName: string;
+    netId: string;
+    options: readonly {
+      value: string;
+      label: string;
+      baseNetIds?: readonly string[];
+      previewNetId?: string | null;
+    }[];
+  }[];
   instance: Instance;
   /** Null when this component has no independently editable instance label. */
   displayName?: string | null;
@@ -85,6 +97,7 @@ export type ComponentPropertyCodeParseResult =
   | { ok: false; message: string };
 
 const ROOT_KEYS = new Set([
+  "supplies",
   "inputs",
   "placement",
   "display",
@@ -291,6 +304,16 @@ export function componentPropertyCodeValue(
       ]),
     );
   return {
+    ...(context.supplyTerminals?.length
+      ? {
+          supplies: Object.fromEntries(
+            context.supplyTerminals.map((terminal) => [
+              terminal.pinName,
+              terminal.netId,
+            ]),
+          ),
+        }
+      : {}),
     ...(context.connection !== undefined && context.connection !== null
       ? { connection: context.connection }
       : {}),
@@ -501,6 +524,34 @@ export function parseComponentPropertyCode(
     const controlled = LINEAR_CONTROLLED_SOURCE_KINDS.has(
       context.instance.symbolId,
     );
+    let supplies: ComponentPropertyCodeValue["supplies"];
+    if (context.supplyTerminals?.length) {
+      if (!isRecord(decoded.supplies))
+        throw new Error("supplies must be an object");
+      const unknownSupply = unexpectedKey(
+        decoded.supplies,
+        new Set(context.supplyTerminals.map((terminal) => terminal.pinName)),
+        "supplies",
+      );
+      if (unknownSupply) throw new Error(unknownSupply);
+      supplies = {};
+      for (const terminal of context.supplyTerminals) {
+        const netId = decoded.supplies[terminal.pinName];
+        if (
+          typeof netId !== "string" ||
+          !terminal.options.some(
+            (option) =>
+              option.value === netId || option.baseNetIds?.includes(netId),
+          )
+        )
+          throw new Error(
+            `supplies.${terminal.pinName} must select an available Net or Auto`,
+          );
+        supplies[terminal.pinName] = netId;
+      }
+    } else if ("supplies" in decoded) {
+      throw new Error("supplies is not available for this component");
+    }
     if (!controlled && "control" in decoded)
       throw new Error(
         "Controlled-source properties are not available for this component",
@@ -544,6 +595,7 @@ export function parseComponentPropertyCode(
     return {
       ok: true,
       value: {
+        ...(supplies ? { supplies } : {}),
         ...(controlled && control
           ? {
               control,

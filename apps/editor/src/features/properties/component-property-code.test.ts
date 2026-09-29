@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { SchematicDocument } from "@icm/model";
 import { componentParameters } from "../component-insert/component-parameters";
 import { initialInstanceNetlist } from "../netlist-export/netlist-authoring";
+import { propertyCodeSpans } from "./component-property-code-assists";
 
 import {
   defaultComponentPropertyCode,
@@ -35,8 +36,66 @@ const context = {
 };
 
 describe("component property code", () => {
+  it("round-trips hidden supplies in JSON, with Auto and logical Net previews", () => {
+    const supplyContext = {
+      ...context,
+      instance: {
+        ...instance,
+        symbolId: "opamp",
+        netlist: initialInstanceNetlist("opamp", {})!,
+      },
+      supplyTerminals: [
+        {
+          pinName: "VDD",
+          netId: "physical-member",
+          options: [
+            { value: "", label: "Auto · AVDD", previewNetId: "avdd" },
+            {
+              value: "avdd",
+              label: "AVDD",
+              baseNetIds: ["avdd", "physical-member"],
+            },
+          ],
+        },
+      ],
+    };
+    const source = formatComponentPropertyCode(supplyContext);
+    expect(parseComponentPropertyCode(source, supplyContext)).toMatchObject({
+      ok: true,
+      value: { supplies: { VDD: "physical-member" } },
+    });
+    expect(
+      propertyCodeSpans(source, supplyContext).find(
+        (span) => span.field.path === "supplies.VDD",
+      )?.field.options,
+    ).toMatchObject([
+      { value: "", previewNetId: "avdd" },
+      { value: "physical-member", label: "AVDD" },
+    ]);
+    const value = JSON.parse(source);
+    value.supplies.VDD = "";
+    expect(
+      parseComponentPropertyCode(JSON.stringify(value), supplyContext),
+    ).toMatchObject({ ok: true, value: { supplies: { VDD: "" } } });
+    value.supplies.VDD = "unknown";
+    expect(
+      parseComponentPropertyCode(JSON.stringify(value), supplyContext).ok,
+    ).toBe(false);
+    value.supplies = { VCC: "" };
+    expect(
+      parseComponentPropertyCode(JSON.stringify(value), supplyContext).ok,
+    ).toBe(false);
+    expect(parseComponentPropertyCode(source, context).ok).toBe(false);
+    expect(
+      JSON.parse(defaultComponentPropertyCode(supplyContext)).supplies.VDD,
+    ).toBe("physical-member");
+  });
   it.each([
     ["opamp", "gain", "1e6"],
+    ["opamp-wide", "gain", "1e6"],
+    ["opamp-differential", "gain", "1e6"],
+    ["opamp-differential-wide", "gain", "1e6"],
+    ["differential-transconductance", "gm", "1m"],
     ["voltage-amplifier", "gain", "1"],
     ["transconductance", "gm", "1m"],
   ])(

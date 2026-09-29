@@ -59,6 +59,8 @@ export interface CanvasPropertyField {
     label: string;
     /** Optional rendered example for the expanded inline choice menu. */
     preview?: CanvasPropertyOptionPreview;
+    /** Net highlighted on hover; Auto can preview its resolved Net without binding it. */
+    previewNetId?: string | null;
   }[];
   description: string;
   /** Guidance metadata for callers that present help outside the code editor. */
