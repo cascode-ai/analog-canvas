@@ -88,6 +88,8 @@ export interface UseWireCanvasControllerOptions {
       hitTarget: SVGElement,
     ) => void;
     select: (routeId: string, segmentIndex?: number) => void;
+    /** Adds the wire to the selection, or takes it out when it is there. */
+    toggle: (routeId: string) => void;
     beginStretch: (
       event: ReactPointerEvent<SVGElement>,
       routeId: string,
@@ -149,6 +151,7 @@ export function useWireCanvasController({
   routes: {
     handlePointerDown: handleWireRoutePointerDown,
     select: selectRoute,
+    toggle: toggleRoute,
     beginStretch: beginRouteStretch,
     sourceForTarget,
   },
@@ -353,6 +356,12 @@ export function useWireCanvasController({
     event.stopPropagation();
     if (event.altKey) {
       setStatus("Snap suppressed while Alt is held");
+      return;
+    }
+    // Shift, Ctrl or Cmd composes the selection, as it does for parts: the
+    // press adds this wire or takes it out, and the wire stays where it is.
+    if (event.shiftKey || event.ctrlKey || event.metaKey) {
+      toggleRoute(routeId);
       return;
     }
     const routeRecord = routeGeometryRecords.find(

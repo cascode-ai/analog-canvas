@@ -162,6 +162,7 @@ export function RouteActionsSection({
   bulkOwnerLabel,
   defaultColor,
   highlightActive,
+  selectedWireCount = 1,
   onApply,
   onToggleHighlight,
   onDeleteWire,
@@ -174,6 +175,8 @@ export function RouteActionsSection({
   bulkOwnerLabel?: string | null;
   defaultColor: string;
   highlightActive: boolean;
+  /** How many wires are selected; the look set here applies to them all. */
+  selectedWireCount?: number;
   onApply: (value: RoutePropertyCodeValue) => { ok: boolean; message?: string };
   onToggleHighlight: () => void;
   onDeleteWire: () => void;
@@ -218,6 +221,12 @@ export function RouteActionsSection({
           onApply={onApply}
           actions={
             <div className="route-property-code-actions">
+              {selectedWireCount > 1 ? (
+                <p data-testid="route-batch-note">
+                  {selectedWireCount} wires selected: color, line style and
+                  arrow apply to all of them.
+                </p>
+              ) : null}
               <button type="button" onClick={onToggleHighlight}>
                 {highlightActive
                   ? "Clear Net highlight (H)"

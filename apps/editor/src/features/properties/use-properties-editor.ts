@@ -112,10 +112,41 @@ type TransactionResult = { ok: boolean; revision: number };
 type Route = SchematicDocument["routes"][number];
 type Instance = SchematicDocument["instances"][number];
 
+/** The edit that gives a wire these look settings, if it lacks any of them. */
+function routeStyleEdits(
+  route: Route,
+  appearance: Partial<RoutePropertyCodeValue["appearance"]>,
+): SchematicEdit[] {
+  const styleOverride = { ...(route.styleOverride ?? {}) };
+  if (appearance.color === "auto") delete styleOverride.color;
+  else if (appearance.color !== undefined)
+    styleOverride.color = appearance.color;
+  if (appearance.lineStyle === "solid") delete styleOverride.lineStyle;
+  else if (appearance.lineStyle !== undefined)
+    styleOverride.lineStyle = appearance.lineStyle;
+  if (appearance.directionArrow === "none") delete styleOverride.arrow;
+  else if (appearance.directionArrow !== undefined)
+    styleOverride.arrow = appearance.directionArrow;
+  const nextStyle =
+    Object.keys(styleOverride).length > 0 ? styleOverride : null;
+  return JSON.stringify(route.styleOverride ?? null) ===
+    JSON.stringify(nextStyle)
+    ? []
+    : [
+        {
+          kind: "set_route_style_override",
+          routeId: route.id,
+          styleOverride: nextStyle,
+        },
+      ];
+}
+
 export interface UsePropertiesEditorOptions {
   document: SchematicDocument;
   resolver: SymbolResolver;
   selectedRoute: Route | undefined;
+  /** Every selected wire; a look set on `selectedRoute` carries to them. */
+  selectedRouteIds?: readonly string[];
   selectedRouteNetLabel: Annotation | null;
   selectedRouteNetLabels: readonly Annotation[];
   selectedInstance: Instance | undefined;
@@ -569,24 +600,13 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       edits.push(...scopeEdits);
     }
 
-    const styleOverride = { ...(route.styleOverride ?? {}) };
-    if (value.appearance.color === "auto") delete styleOverride.color;
-    else styleOverride.color = value.appearance.color;
-    if (value.appearance.lineStyle === "solid") delete styleOverride.lineStyle;
-    else styleOverride.lineStyle = value.appearance.lineStyle;
-    if (value.appearance.directionArrow === "none") delete styleOverride.arrow;
-    else styleOverride.arrow = value.appearance.directionArrow;
-    const nextStyle =
-      Object.keys(styleOverride).length > 0 ? styleOverride : null;
-    if (
-      JSON.stringify(route.styleOverride ?? null) !== JSON.stringify(nextStyle)
-    ) {
-      edits.push({
-        kind: "set_route_style_override",
-        routeId: route.id,
-        styleOverride: nextStyle,
-      });
-    }
+    edits.push(...routeStyleEdits(route, value.appearance));
+    const others = otherSelectedRouteStyleEdits(
+      route,
+      current.appearance,
+      value.appearance,
+    );
+    edits.push(...others);
 
     if (edits.length === 0) return { ok: true };
     const committed =
@@ -600,8 +620,41 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       };
     }
     if (!name && existingLabel) options.replaceSelectionKind("annotation", []);
-    options.setStatus(`Updated Route ${route.id}`);
+    options.setStatus(
+      others.length > 0
+        ? `Updated Route ${route.id} and ${others.length} more selected wire${others.length === 1 ? "" : "s"}`
+        : `Updated Route ${route.id}`,
+    );
     return { ok: true };
+  };
+
+  /**
+   * The look settings changed on the wire Properties shows carry to every
+   * other selected wire, as they do for labels and drawings. Each wire keeps
+   * whatever else is its own, and its Net name is never touched.
+   */
+  const otherSelectedRouteStyleEdits = (
+    shown: Route,
+    before: RoutePropertyCodeValue["appearance"],
+    after: RoutePropertyCodeValue["appearance"],
+  ): SchematicEdit[] => {
+    const changed = {
+      ...(after.color !== before.color ? { color: after.color } : {}),
+      ...(after.lineStyle !== before.lineStyle
+        ? { lineStyle: after.lineStyle }
+        : {}),
+      ...(after.directionArrow !== before.directionArrow
+        ? { directionArrow: after.directionArrow }
+        : {}),
+    };
+    if (Object.keys(changed).length === 0) return [];
+    return (options.selectedRouteIds ?? []).flatMap((id) => {
+      if (id === shown.id) return [];
+      const route = options.document.routes.find(
+        (candidate) => candidate.id === id,
+      );
+      return route ? routeStyleEdits(route, changed) : [];
+    });
   };
 
   /**
@@ -633,23 +686,14 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
         annotation: visible ? shown : { ...label, visible: false },
       });
     }
-    const styleOverride = { ...(route.styleOverride ?? {}) };
-    if (value.appearance.color === "auto") delete styleOverride.color;
-    else styleOverride.color = value.appearance.color;
-    if (value.appearance.lineStyle === "solid") delete styleOverride.lineStyle;
-    else styleOverride.lineStyle = value.appearance.lineStyle;
-    if (value.appearance.directionArrow === "none") delete styleOverride.arrow;
-    else styleOverride.arrow = value.appearance.directionArrow;
-    const nextStyle =
-      Object.keys(styleOverride).length > 0 ? styleOverride : null;
-    if (
-      JSON.stringify(route.styleOverride ?? null) !== JSON.stringify(nextStyle)
-    )
-      edits.push({
-        kind: "set_route_style_override",
-        routeId: route.id,
-        styleOverride: nextStyle,
-      });
+    edits.push(
+      ...routeStyleEdits(route, value.appearance),
+      ...otherSelectedRouteStyleEdits(
+        route,
+        current.appearance,
+        value.appearance,
+      ),
+    );
     if (modeChanged) {
       return options.commitRailConnectionMode?.(
         route.id,

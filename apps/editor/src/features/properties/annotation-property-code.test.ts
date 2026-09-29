@@ -526,6 +526,31 @@ describe("polyline property code", () => {
       },
     });
   });
+  it("sets a drawn line's start, bends and end by coordinate", () => {
+    const line = objects.find((object) => object.kind === "construction-line")!;
+    expect(draftingPropertyValue(context(line)).geometry?.points).toEqual([
+      [100, 100],
+      [200, 100],
+    ]);
+    const result = change(line, (code) => {
+      code.geometry!.points = [
+        [120, 80],
+        [120, 160],
+        [240, 160],
+      ];
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        anchor: { kind: "free", position: { x: 120, y: 80 } },
+        points: [
+          { x: 120, y: 80 },
+          { x: 120, y: 160 },
+          { x: 240, y: 160 },
+        ],
+      },
+    });
+  });
   it("rejects closing a two-vertex line without damaging its endpoints", () => {
     const result = change(arrow, (code) => {
       code.geometry!.closed = true;
