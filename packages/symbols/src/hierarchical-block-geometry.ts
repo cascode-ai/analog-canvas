@@ -1,3 +1,4 @@
+import { flattenRichText } from "@icm/model";
 import type {
   CellSymbolPresentation,
   CellSymbolSide,
@@ -29,10 +30,15 @@ function roundUp(value: number, multiple = 20): number {
   return Math.ceil(value / multiple) * multiple;
 }
 
-function estimatedLabelWidth(name: string): number {
+function estimatedLabelWidth(terminal: HierarchicalBlockTerminal): number {
   // Geometry must not depend on the caller's style profile. This conservative
   // local estimate bounds shared RichText pin labels without persisting text.
-  return Math.max(20, name.length * 10);
+  // A Pin's display alias can be longer than its name; the body makes room
+  // for whichever is longer, so a name's own look never narrows it.
+  const shown = terminal.nameContent
+    ? flattenRichText(terminal.nameContent).length
+    : 0;
+  return Math.max(20, Math.max(terminal.name.length, shown) * 10);
 }
 
 function slotKey(side: CellSymbolSide, offset: number): string {
@@ -119,10 +125,10 @@ function bodySize(
 ): { width: number; height: number } {
   const westLabels = slots
     .filter((slot) => slot.side === "west")
-    .map((slot) => estimatedLabelWidth(slot.terminal.name));
+    .map((slot) => estimatedLabelWidth(slot.terminal));
   const eastLabels = slots
     .filter((slot) => slot.side === "east")
-    .map((slot) => estimatedLabelWidth(slot.terminal.name));
+    .map((slot) => estimatedLabelWidth(slot.terminal));
   const maxHorizontalOffset = Math.max(
     0,
     ...slots

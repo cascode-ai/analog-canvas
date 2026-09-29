@@ -22,10 +22,17 @@ export type GroupPropertyColor = "auto" | `#${string}` | "";
 export type GroupPerItem<T> = Readonly<Record<string, T>>;
 type ItemColor = "auto" | `#${string}`;
 
+/** A batch's name where the selected parts show different names. */
+export const GROUP_NAME_AS_IS = "as is";
+
 export interface GroupPropertyCodeValue {
   symbol: string;
-  /** Each component's name by its key; an entry changed renames that one. */
-  names?: GroupPerItem<string>;
+  /**
+   * The name every selected part shows, or "as is" where they differ: one
+   * name written there names them all (see `planGroupNaming`). Each part's
+   * name by its key still renames each one by its own entry.
+   */
+  names?: GroupPerItem<string> | string;
   parameters: Record<string, string | GroupPerItem<string>> | "";
   display: {
     visualAnnotation: GroupPropertyMixedValue | GroupPerItem<boolean>;
@@ -43,6 +50,11 @@ export interface GroupPropertyItem {
   instanceId: string;
   /** Its name: a Pin's name, else its Reference. */
   name: string;
+  /**
+   * The name its label shows: its display alias, else its name; null when
+   * it carries no name (a ground). Absent, it shows its name.
+   */
+  shown?: string | null;
   parameters: Readonly<Record<string, string>>;
   reference: boolean;
   /** Null when the component shows no value. */
@@ -126,6 +138,8 @@ export function groupPropertyItems(
     parametersFor: (instance: Instance) => readonly ComponentParameter[];
     parameterKeys: readonly string[];
     nameOf: (instance: Instance) => string;
+    /** The name its label shows; null when it carries none. */
+    shownNameOf?: (instance: Instance) => string | null;
     referenceVisible: (instance: Instance) => boolean;
     valueVisible: (instance: Instance) => boolean | null;
     defaultForeground: string;
@@ -138,6 +152,7 @@ export function groupPropertyItems(
       key: keys.get(instance.id)!,
       instanceId: instance.id,
       name: options.nameOf(instance),
+      ...(options.shownNameOf ? { shown: options.shownNameOf(instance) } : {}),
       parameters: Object.fromEntries(
         options.parameterKeys.map((key) => {
           const field = fields.find((candidate) => candidate.key === key);
@@ -161,14 +176,22 @@ export function groupPropertyItems(
   });
 }
 
-/** Per-item names, for reading who is who; renaming stays with one part. */
+/**
+ * The name the selected parts all show, or "as is" where they show
+ * different names; "" when there is no batch or no part carries a name.
+ */
 export function groupPropertyItemNames(
   context: Pick<GroupPropertyCodeContext, "items">,
-): GroupPerItem<string> | "" {
+): string {
   const items = context.items ?? [];
-  return items.length > 1
-    ? Object.fromEntries(items.map((item) => [item.key, item.name]))
-    : "";
+  if (items.length < 2) return "";
+  const shown = items.flatMap((item) =>
+    item.shown === null ? [] : [item.shown ?? item.name],
+  );
+  if (shown.length === 0) return "";
+  return shown.every((name) => name === shown[0])
+    ? shown[0]!
+    : GROUP_NAME_AS_IS;
 }
 
 export type GroupPropertyCodeParseResult =
@@ -249,10 +272,15 @@ export function parseGroupPropertyCode(
       ["display", "appearance", "symbol", "parameters", "names"],
       "selection",
     );
-    let names: GroupPerItem<string> | undefined;
-    if (decoded.names !== undefined && decoded.names !== "") {
+    let names: GroupPerItem<string> | string | undefined;
+    if (typeof decoded.names === "string") {
+      // One name for them all; "as is" leaves each its own.
+      if (decoded.names.trim() !== "") names = decoded.names.trim();
+    } else if (decoded.names !== undefined) {
       if (!isRecord(decoded.names))
-        throw new Error("name lists one name per selected component");
+        throw new Error(
+          "name is one name for them all, or one name per selected component",
+        );
       names = parsePerItem(decoded.names, "name", context, (raw, path) => {
         if (typeof raw !== "string" || raw.trim() === "")
           throw new Error(`${path} must be a name`);

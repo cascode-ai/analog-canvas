@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { GroupPropertyCodeValue } from "./group-property-code";
-import { groupRenames, mergeRenamePlans } from "./group-renames";
+import {
+  groupBatchName,
+  groupRenames,
+  mergeRenamePlans,
+} from "./group-renames";
 
 const item = (key: string, name: string) => ({
   key,
@@ -32,6 +36,15 @@ describe("renaming components from a batch", () => {
     expect(
       groupRenames(value({ P1: "Voutp", P2: "Voutn" }), context),
     ).toMatchObject({ ok: true, renames: [{ key: "P1" }, { key: "P2" }] });
+  });
+
+  it("leaves one name for them all to the batch name", () => {
+    const one = { ...value({}), names: "Vcont" };
+    expect(groupRenames(one, context)).toEqual({ ok: true, renames: [] });
+    expect(groupBatchName(one)).toBe("Vcont");
+    for (const kept of ["as is", "As Is", " ", ""])
+      expect(groupBatchName({ ...one, names: kept })).toBeNull();
+    expect(groupBatchName(value({ P1: "Voutp" }))).toBeNull();
   });
 
   it("refuses a swap or two entries with one name", () => {

@@ -17,6 +17,7 @@ import {
   defaultInstanceLabelPlacement,
   legacyDefaultInstanceLabelPlacement,
   legacyPortLabelPlacement,
+  previousPortLabelPlacement,
   defaultInstanceParameterLabelPlacement,
   legacyDefaultInstanceParameterLabelPlacement,
   displayableInstanceParameter,
@@ -147,8 +148,8 @@ function isCanonicalCellPinLabel(
     y: oldPosition.y + annotation.anchor.localOffset.y,
   };
   const fallbackPosition = annotation.anchor.fallbackPosition;
-  // A label the previous rule placed is just as untouched as one the current
-  // rule placed, so both keep following their Pin.
+  // A label an earlier rule placed is just as untouched as one the current
+  // rule placed, so each keeps following its Pin.
   return [
     defaultInstanceLabelPlacement(
       before,
@@ -156,6 +157,12 @@ function isCanonicalCellPinLabel(
       profile,
       document.presentation.grid,
       "reference",
+    ),
+    previousPortLabelPlacement(
+      before,
+      resolved,
+      profile,
+      document.presentation.grid,
     ),
     legacyPortLabelPlacement(
       before,

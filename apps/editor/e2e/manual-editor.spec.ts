@@ -3565,6 +3565,71 @@ test("Shift-click gathers wires, and one color change restyles all of them", asy
   await expect(second).toHaveClass(/selected/);
 });
 
+test("a bar over a Pin's V_LO names its complement and draws V̄_LO, never a subscript spelling _bar", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  const canvas = page.getByTestId("schematic-canvas");
+  await page.keyboard.press("p");
+  await canvas.hover({ position: { x: 320, y: 180 } });
+  await canvas.click({ position: { x: 320, y: 180 } });
+  await expect(page.getByTestId("status")).toContainText("Added Cell Pin Vinp");
+  await page.keyboard.press("Escape");
+  const hit = page.getByTestId("annotation-hit-instance-label-P1");
+  const editor = page.getByRole("textbox", { name: "Canvas text editor" });
+  const apply = page.getByRole("button", { name: "Apply text changes" });
+  const rendered = page.locator('[data-object-id="instance-label-P1"]');
+  const subscript = rendered.locator('[data-text-run="subscript"]');
+
+  await hit.dblclick();
+  await editor.press("ControlOrMeta+A");
+  await editor.pressSequentially("VLO");
+  await apply.click();
+  await expect(page.getByTestId("status")).toContainText(
+    "Renamed Cell Pin to VLO",
+  );
+  await expect(subscript).toHaveText("LO");
+
+  // The Pin's own standard look, barred whole.
+  await hit.dblclick();
+  await editor.press("ControlOrMeta+A");
+  await page.getByRole("button", { name: "Overbar" }).click();
+  await apply.click();
+  await expect(page.getByTestId("status")).toContainText(
+    "Renamed Cell Pin to VLO_bar",
+  );
+  await expect(rendered).toHaveText("VLO");
+  await expect(subscript).toHaveText("LO");
+  await expect(rendered.locator('[data-text-run="overbar"]')).toHaveCount(1);
+
+  // Unbarred again, then an author's look (an italic subscript) barred
+  // whole: the look is kept, and the subscript still spells LO.
+  await hit.dblclick();
+  await editor.press("ControlOrMeta+A");
+  await page.getByRole("button", { name: "Overbar" }).click();
+  await apply.click();
+  await expect(page.getByTestId("status")).toContainText(
+    "Renamed Cell Pin to VLO",
+  );
+  await hit.dblclick();
+  await editor.press("End");
+  await editor.press("Shift+ArrowLeft");
+  await editor.press("Shift+ArrowLeft");
+  await page.getByRole("button", { name: "Italic" }).click();
+  await apply.click();
+  await hit.dblclick();
+  await editor.press("ControlOrMeta+A");
+  await page.getByRole("button", { name: "Overbar" }).click();
+  await apply.click();
+  await expect(page.getByTestId("status")).toContainText(
+    "Renamed Cell Pin to VLO_bar",
+  );
+  await expect(rendered).toHaveText("VLO");
+  await expect(subscript).toHaveText("LO");
+  await expect(rendered.locator('[data-text-run="overbar"]')).toHaveCount(1);
+});
+
 test("italic over a new Pin's standard look is the author's look, kept on Apply", async ({
   page,
 }) => {

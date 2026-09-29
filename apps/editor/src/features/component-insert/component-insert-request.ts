@@ -1,4 +1,8 @@
-import type { ComponentDefinition, Rotation } from "@icm/model";
+import type {
+  ComponentDefinition,
+  RichTextDocument,
+  Rotation,
+} from "@icm/model";
 
 export interface SymbolInsertRequest {
   kind: "symbol";
@@ -41,6 +45,13 @@ export interface DraftTextAnnotationInsertRequest {
   symbolId: string;
   symbolName: string;
   text: string;
+  /**
+   * Text typed before it is placed: the preview carries it and it lands as
+   * written. Without it, plain Text opens its editor after the click.
+   */
+  content?: RichTextDocument;
+  alignment?: "start" | "middle" | "end";
+  sizeScale?: number;
   /** Open the text editor after the user chooses the placement point. */
   editAfterPlacement?: boolean;
   initialRotation: Rotation;

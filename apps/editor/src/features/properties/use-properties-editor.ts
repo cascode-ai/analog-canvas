@@ -1209,10 +1209,15 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       setTextEditing(null);
       return;
     }
+    // A Pin's display alias is its label's own text: the Pin keeps its name.
+    const pinAlias = Boolean(
+      textEditing.cellPinTerminalId && textEditing.displayAlias,
+    );
     if (
       proposal.kind === "update" &&
       proposal.edit.kind === "upsert_schematic_annotation" &&
       options.commitCellPinAnnotation &&
+      !pinAlias &&
       options.isCellPinAnnotation?.(proposal.edit.annotation) &&
       proposal.edit.annotation.kind === "instance-label" &&
       proposal.edit.annotation.anchor.kind === "object"
@@ -1242,6 +1247,13 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       options.setStatus(
         `Showing ${flattenRichText(textEditing.content).trim()} as a display alias; the netlist name stays ${proposal.aliasFor}`,
       );
+    } else if (proposal.kind === "update" && pinAlias) {
+      const pin = options.document.netlist?.terminals.find(
+        (terminal) => terminal.id === textEditing.cellPinTerminalId,
+      );
+      options.setStatus(
+        `Showing ${flattenRichText(textEditing.content).trim()} as a display alias; the Pin stays ${pin?.name ?? "as it is"}`,
+      );
     } else {
       options.setStatus(`Updated text ${proposal.id}`);
     }
@@ -1251,6 +1263,62 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
   const setTextDisplayAlias = (
     enabled: boolean,
   ): RichTextDocument | undefined => {
+    if (textEditing?.cellPinTerminalId) {
+      const annotation = options.document.annotations.find(
+        (candidate) => candidate.id === textEditing.id,
+      );
+      const pin = options.document.netlist?.terminals.find(
+        (terminal) => terminal.id === textEditing.cellPinTerminalId,
+      );
+      if (!annotation || !pin) return;
+      const {
+        binding: _binding,
+        content: _content,
+        formatOverride: _format,
+        ...rest
+      } = annotation;
+      // On, the label keeps what it shows as text of its own; off, it names
+      // the Pin again in the look a new Pin label takes.
+      const standard = roleLabelFormat("voltage-node", pin.name);
+      const content = enabled
+        ? textEditing.content
+        : (standard ??
+          labelTextDocument(pin.name, options.document.presentation));
+      const next: Annotation = {
+        ...rest,
+        sizeScale: textEditing.sizeScale,
+        alignment: textEditing.alignment,
+        ...(enabled
+          ? { content }
+          : {
+              binding: {
+                kind: "cell-terminal-name" as const,
+                terminalId: pin.id,
+              },
+              ...(standard ? { formatOverride: standard } : {}),
+            }),
+      };
+      if (
+        !options.transact([
+          { kind: "upsert_schematic_annotation", annotation: next },
+        ]).ok
+      )
+        return;
+      const {
+        bindingKind: _bindingKind,
+        contentEdited: _contentEdited,
+        formatEdited: _formatEdited,
+        ...session
+      } = textEditing;
+      setTextEditing({
+        ...session,
+        content,
+        displayAlias: enabled,
+        bound: !enabled,
+        ...(enabled ? {} : { bindingKind: "cell-terminal-name" as const }),
+      });
+      return content;
+    }
     if (!textEditing?.visualInstanceId) return;
     const labelled = options.document.instances.find(
       (instance) => instance.id === textEditing.visualInstanceId,

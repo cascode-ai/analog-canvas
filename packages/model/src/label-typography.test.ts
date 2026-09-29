@@ -314,12 +314,27 @@ it("gives V-led node names V with an upright subscript and leaves others alone",
     ["Vout", "out"],
     ["VcasP", "casP"],
     ["VCASN", "CASN"],
+    // A differential half keeps its sign in the subscript.
+    ["Vin-", "in-"],
+    ["Vbn-", "bn-"],
+    ["Vi+", "i+"],
   ] as const) {
     const format = roleLabelFormat("voltage-node", name)!;
     expect(flattenRichText(format)).toBe(name);
     expect(JSON.stringify(format)).toContain(`"value":"${subscript}"`);
   }
-  for (const name of ["OUT", "CLK", "V_ref", "Vin-", "V"])
+  expect(JSON.stringify(roleLabelFormat("supply", "Vbn-"))).toContain(
+    '"value":"bn-"',
+  );
+  // A node's complement is its standard look under one bar, not a subscript
+  // spelling out the marker.
+  const complement = roleLabelFormat("voltage-node", "VLO_bar")!;
+  expect(complement.runs).toHaveLength(1);
+  expect(complement.runs[0]).toMatchObject({ kind: "span", style: "overbar" });
+  expect(flattenRichText(complement)).toBe("VLO");
+  expect(JSON.stringify(complement)).toContain('"value":"LO"');
+  expect(roleLabelFormat("voltage-node", "OUT_bar")).toBeUndefined();
+  for (const name of ["OUT", "CLK", "V_ref", "V", "V+", "V-", "Vin+-"])
     expect(roleLabelFormat("voltage-node", name)).toBeUndefined();
 });
 

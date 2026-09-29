@@ -13,6 +13,7 @@ import {
   instanceLabelMetrics,
   isBjtSymbol,
   isMosSymbol,
+  previousPortLabelPlacement,
 } from "./instance-label-placement.js";
 import type { InstanceLabelSlot } from "./instance-label-placement.js";
 import { resolveSchematicStyleProfile } from "./style-profile.js";
@@ -228,15 +229,38 @@ describe("instance label placement", () => {
         position: { x: 120, y: 105 },
         alignment: "start",
       });
-      // Vertical Pins take the name directly above or below, centred.
+      // Vertical Pins take the name directly above or below, centred, half
+      // a grid step off the Pin: a whole step read as drifting off its tip.
       expect(placedDefaultLabel(symbolId, 90)).toEqual({
-        position: { x: 100, y: 76 },
+        position: { x: 100, y: 81 },
         alignment: "middle",
       });
       expect(placedDefaultLabel(symbolId, 270)).toEqual({
-        position: { x: 100, y: 130 },
+        position: { x: 100, y: 125 },
         alignment: "middle",
       });
+      // The rule before stays recognisable, a whole step away.
+      const resolved = resolver.resolve(symbolId)!;
+      for (const [rotation, y] of [
+        [90, 76],
+        [270, 130],
+      ] as const)
+        expect(
+          previousPortLabelPlacement(
+            {
+              id: "P1",
+              symbolId,
+              placement: {
+                position: { x: 100, y: 100 },
+                rotation,
+                mirror: "none",
+              },
+            },
+            resolved,
+            profile,
+            10,
+          ),
+        ).toEqual({ position: { x: 100, y }, alignment: "middle" });
     },
   );
 
