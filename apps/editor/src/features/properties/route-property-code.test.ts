@@ -63,6 +63,41 @@ function fixture(scope: "local" | "global" = "local") {
 }
 
 describe("Route property code", () => {
+  it("offers Cell Pin/Global only for Rails and reads an unlabeled legacy supply", () => {
+    const { document, route } = fixture();
+    route.presentation = "power-rail";
+    document.annotations = [];
+    document.connectivityEvidence = [
+      {
+        id: "legacy",
+        kind: "name-claim",
+        netId: route.netId,
+        name: "VCC",
+        scope: "global",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: route.id },
+      },
+    ];
+    const value = routePropertyCodeValue(document, route, null);
+    expect(value.net).toEqual({ name: "VCC", scope: "global" });
+    const source = serializeRoutePropertyCode(value);
+    expect(
+      routePropertyCodeAdapter(true)
+        .spans(source)
+        .find((span) => span.field.path === "net.scope")?.field,
+    ).toMatchObject({
+      label: "Connection",
+      options: [
+        { value: "local", label: "Cell Pin" },
+        { value: "global", label: "Global" },
+      ],
+    });
+    expect(
+      routePropertyCodeAdapter()
+        .spans(source)
+        .find((span) => span.field.path === "net.scope")?.field.label,
+    ).toBe("Net scope");
+  });
   it("projects an unnamed default Route as compact JSON", () => {
     const { document, route } = fixture();
     const value = routePropertyCodeValue(document, route, null);

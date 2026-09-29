@@ -32,7 +32,10 @@ export function RoutePropertyCodeEditor({
   onApply(value: RoutePropertyCodeValue): { ok: boolean; message?: string };
   actions: ReactNode;
 }) {
-  const adapter = useMemo(() => routePropertyCodeAdapter(), []);
+  const adapter = useMemo(
+    () => routePropertyCodeAdapter(route.presentation === "power-rail"),
+    [route.presentation],
+  );
   const format = (value: RoutePropertyCodeValue) =>
     serializeRoutePropertyCode(value);
   const position = resolver

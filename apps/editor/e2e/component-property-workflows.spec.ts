@@ -4,6 +4,7 @@ import { razaviProductSymbols } from "@icm/symbols";
 import { expect, test, type Locator } from "@playwright/test";
 import { createEmptyProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
+import { executeProjectTransaction } from "@icm/edit-engine";
 import {
   revealPropertiesShelf,
   awaitEditorReady,
@@ -19,6 +20,113 @@ import {
   placeComponent,
   openSelectionShelf,
 } from "./manual-editor-fixtures.js";
+
+for (const legacy of [false, true]) {
+  test(`Rail Properties switches Cell Pin and Global atomically, survives reload and undo (legacy=${legacy})`, async ({
+    page,
+  }) => {
+    const seed = createEmptyProject("rail-connection", "Rail connection");
+    const initial = executeProjectTransaction(seed, {
+      transactionId: "rail",
+      projectId: seed.id,
+      expectedStructureRevision: seed.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "transact_document",
+          documentId: seed.topDocumentId,
+          expectedRevision: 0,
+          edits: [
+            {
+              kind: "add_power_rail",
+              netId: "supply",
+              routeId: "rail",
+              startJunctionId: "left",
+              endJunctionId: "right",
+              labelId: "supply-label",
+              netName: "VCC",
+              scope: "global",
+              powerDomain: "vdd",
+              start: { x: 200, y: 200 },
+              end: { x: 400, y: 200 },
+            },
+          ],
+        },
+      ],
+    });
+    if (!initial.ok) throw new Error(JSON.stringify(initial));
+    const original = initial.project.documents[0]!;
+    if (legacy) {
+      original.annotations = [];
+      original.connectivityEvidence = ["rail", "right"].map((objectId) => ({
+        id: `legacy-${objectId}`,
+        kind: "name-claim",
+        netId: "supply",
+        name: "VCC",
+        scope: "global",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId },
+      }));
+    }
+    const load = async (content: string) => {
+      await page.getByTestId("project-file").setInputFiles({
+        name: "rail.icproj.json",
+        mimeType: "application/json",
+        buffer: Buffer.from(content),
+      });
+      await page.getByTestId("route-hit-rail").click({ force: true });
+      await openSelectionShelf(page);
+    };
+    const save = async () =>
+      parseSavedProject(
+        (await downloadBytes(page, "File", "Export Project File…")).toString(
+          "utf8",
+        ),
+      );
+    await page.goto("/editor");
+    await awaitEditorReady(page);
+    await load(serializeProject(initial.project));
+    await expectComponentCodeField(page, "net.scope", "global");
+    await editComponentPropertyCode(page, (code) => {
+      code.net.scope = "local";
+      if (!legacy) code.display.visualAnnotation = false;
+    });
+    await expectComponentCodeField(page, "net.scope", "local");
+    const local = await save();
+    expect(local.documents[0]!.netlist!.terminals).toEqual([
+      expect.objectContaining({
+        name: "VCC",
+        interfaceAnnotationId: expect.any(String),
+      }),
+    ]);
+    expect(local.documents[0]!.routes).toEqual(original.routes);
+    expect(local.documents[0]!.junctions).toEqual(original.junctions);
+    await load(serializeProject(local));
+    await expectComponentCodeField(page, "net.scope", "local");
+    await editComponentPropertyCode(page, (code) => {
+      code.net.scope = "global";
+      if (!legacy) code.display.visualAnnotation = true;
+    });
+    await expectComponentCodeField(page, "net.scope", "global");
+    const global = await save();
+    expect(global.documents[0]!.netlist!.terminals).toEqual([]);
+    expect(global.documents[0]!.nets).toEqual(original.nets);
+    expect(
+      global.documents[0]!.annotations.filter(
+        (label: SchematicDocument["annotations"][number]) =>
+          label.visible !== false,
+      ),
+    ).toEqual(original.annotations);
+    await page
+      .getByTestId("schematic-canvas")
+      .click({ position: { x: 40, y: 40 } });
+    await page.keyboard.press("Control+z");
+    const undone = await save();
+    expect(undone.documents[0]!.netlist!.terminals).toEqual(
+      local.documents[0]!.netlist!.terminals,
+    );
+  });
+}
 
 test("Cell Pin Properties edits the formal name even without a canvas label", async ({
   page,
