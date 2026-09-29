@@ -174,4 +174,59 @@ describe("startCanvasDragVisual", () => {
     );
     expect(ends(ownerOnly)).toEqual(["10", "20", "37", "62"]);
   });
+
+  it("paints a dragged wire itself while its run leaves the shared ink, and restores both", () => {
+    // Reported: dragging a Pin moved the Pin, but its wire stayed put until
+    // the drop, because only the wire's unpainted polyline moved.
+    const moving = "M 770 260 L 520 260 L 520 610";
+    const miters =
+      "M 770 261.2 L 770 260 L 768.8 260 M 521.2 610 L 520 610 L 520 608.8";
+    const other = "M 100 100 L 200 100";
+    const ink = new FakeElement({
+      "data-role": "conductor-ink",
+      d: `${moving} ${miters} ${other}`,
+      stroke: "#dc2626",
+      "stroke-width": "2",
+      "stroke-linecap": "square",
+      "stroke-linejoin": "miter",
+    });
+    const wire = new FakeElement({
+      "data-object-id": "route-1",
+      "data-net-id": "net-1",
+      points: "770,260 520,260 520,610",
+      fill: "none",
+      stroke: "none",
+    });
+    const still = new FakeElement({
+      "data-object-id": "route-2",
+      "data-net-id": "net-2",
+      points: "100,100 200,100",
+      fill: "none",
+      stroke: "none",
+    });
+    const root = {
+      querySelectorAll: () => [ink, wire, still],
+    } as unknown as ParentNode;
+
+    const visual = startCanvasDragVisual(root, ["route-1"]);
+    // The run and the miters at its two ends leave the ink; the other wire's
+    // run stays. The dragged wire is drawn in the ink's paint.
+    expect(ink.getAttribute("d")).toBe(other);
+    expect(wire.getAttribute("stroke")).toBe("#dc2626");
+    expect(wire.getAttribute("stroke-width")).toBe("2");
+    expect(wire.getAttribute("stroke-linecap")).toBe("square");
+    expect(still.getAttribute("stroke")).toBe("none");
+    visual.setObjectPolyline("route-1", [
+      { x: 830, y: 330 },
+      { x: 520, y: 330 },
+      { x: 520, y: 610 },
+    ]);
+    expect(wire.getAttribute("points")).toBe("830,330 520,330 520,610");
+
+    visual.restore();
+    expect(ink.getAttribute("d")).toBe(`${moving} ${miters} ${other}`);
+    expect(wire.getAttribute("stroke")).toBe("none");
+    expect(wire.getAttribute("stroke-width")).toBeNull();
+    expect(wire.getAttribute("points")).toBe("770,260 520,260 520,610");
+  });
 });
