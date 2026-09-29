@@ -2,9 +2,11 @@ import { parseSavedProject } from "./editor-fixtures";
 import { expect, test, type Page } from "@playwright/test";
 import { createEmptyProject, type Annotation } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
+import type { SchematicDocument } from "@icm/model";
 import {
   defaultInstanceLabelPlacement,
   defaultInstanceParameterLabelPlacement,
+  resolveAnnotationPresentation,
   resolveDocumentStyleProfile,
 } from "@icm/derived";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
@@ -96,7 +98,34 @@ async function savedDocument(page: Page) {
   );
   return project.documents[0];
 }
+/** How far below its anchor, on the baseline, a label's text box is centred. */
+function boxCenterBelowAnchor(
+  document: SchematicDocument,
+  annotation: Annotation,
+): number {
+  const { bounds, position } = resolveAnnotationPresentation(
+    document,
+    new InMemorySymbolResolver(builtInSymbols),
+    annotation,
+    resolveDocumentStyleProfile(document.presentation),
+    {
+      documentId: document.id,
+      documentRevision: document.revision,
+      routes: new Map(),
+      endpointJoins: [],
+    },
+  );
+  return bounds.y + bounds.height / 2 - position.y;
+}
+
+/**
+ * Left to right, each label's anchor mirrors and its alignment swaps.
+ * Top to bottom, its text box mirrors: the anchor sits on the baseline, so
+ * mirroring the anchor alone would move a label above the part most of a
+ * line closer to it once below.
+ */
 function checkReflected(
+  document: SchematicDocument,
   before: Annotation[],
   after: Annotation[],
   axis: "x" | "y",
@@ -105,11 +134,18 @@ function checkReflected(
   for (const original of before) {
     if (original.anchor.kind !== "object") throw new Error("anchor");
     const result = after.find((a) => a.id === original.id)!;
-    const expected = {
-      ...original.anchor.fallbackPosition,
-      [axis]: 2 * coordinate - original.anchor.fallbackPosition[axis],
-    };
-    expect(result.anchor).toMatchObject({ fallbackPosition: expected });
+    if (result.anchor.kind !== "object") throw new Error("anchor");
+    const from = original.anchor.fallbackPosition;
+    const to = result.anchor.fallbackPosition;
+    if (axis === "x") {
+      expect(to).toEqual({ x: 2 * coordinate - from.x, y: from.y });
+    } else {
+      const center = boxCenterBelowAnchor(document, original);
+      expect(to.x).toBe(from.x);
+      expect(
+        Math.abs(to.y + center - (2 * coordinate - (from.y + center))),
+      ).toBeLessThanOrEqual(0.5);
+    }
     expect(result.binding).toEqual(original.binding);
     expect(result.rotation).toBe(0);
     expect(result.alignment).toBe(
@@ -134,12 +170,18 @@ test("Properties mirror buttons carry the live MOS name and fraction value, with
   await expect(page.getByTestId("selection-shelf")).toBeVisible();
   const editor = page.getByTestId("component-property-code-editor");
   await editor.getByRole("button", { name: "Mirror top to bottom" }).click();
-  checkReflected(labels, (await savedDocument(page)).annotations, "y", 240);
+  checkReflected(
+    initial,
+    labels,
+    (await savedDocument(page)).annotations,
+    "y",
+    240,
+  );
   await editor.getByRole("button", { name: "Mirror top to bottom" }).click();
   expect((await savedDocument(page)).annotations).toEqual(initial.annotations);
   await editor.getByRole("button", { name: "Mirror left to right" }).click();
   const mirrored = await savedDocument(page);
-  checkReflected(labels, mirrored.annotations, "x", 260);
+  checkReflected(initial, labels, mirrored.annotations, "x", 260);
   const bytes = await downloadBytes(page, "File", "Export Project File…");
   await page.keyboard.press("Escape");
   await page.keyboard.press("ControlOrMeta+z");
@@ -169,6 +211,7 @@ test("multi-selection mirrors attached labels once around the group pivot", asyn
   await page.keyboard.press("Shift+R");
   await expect(page.getByTestId("status")).toContainText("as one group");
   checkReflected(
+    initial,
     initial.annotations,
     (await savedDocument(page)).annotations,
     "x",

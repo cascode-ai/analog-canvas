@@ -26,6 +26,7 @@ import {
   instanceLabelRowOffset,
   objectStyleProfile,
   placeUprightInstanceLabel,
+  resolveAnnotationPresentation,
   resolveDocumentStyleProfile,
   visibleSymbolInkBounds,
   type InstanceLabelPlacement,
@@ -480,6 +481,37 @@ export function reflowCanonicalInstanceLabelsAfterPresentationChange(
   }
 }
 
+/**
+ * The vertical offset a part's label takes when the part flips top to
+ * bottom. The text box reflects about the part's origin, not the anchor: the
+ * anchor sits on the baseline, so reflecting it alone brings a label that sat
+ * above the part most of a line closer below it, into a capacitor's plates.
+ * Only an object anchor is read, so no wire geometry is needed.
+ */
+function reflectedTextOffsetY(
+  draft: SchematicDocument,
+  resolver: SymbolResolver,
+  annotation: Annotation,
+  origin: Point,
+): number {
+  if (annotation.anchor.kind !== "object") return 0;
+  const { bounds } = resolveAnnotationPresentation(
+    draft,
+    resolver,
+    annotation,
+    resolveDocumentStyleProfile(draft.presentation),
+    {
+      documentId: draft.id,
+      documentRevision: draft.revision,
+      routes: new Map(),
+      endpointJoins: [],
+    },
+  );
+  const center = bounds.y + bounds.height / 2 - origin.y;
+  // `|| 0`: a label level with the origin stays at 0, not -0.
+  return Math.round(annotation.anchor.localOffset.y - 2 * center) || 0;
+}
+
 export function followAttachedAnnotations(
   draft: SchematicDocument,
   instanceId: string,
@@ -549,7 +581,10 @@ export function followAttachedAnnotations(
       const vertical = oldMirror.y * newMirror.y;
       const localOffset = {
         x: annotation.anchor.localOffset.x * horizontal,
-        y: annotation.anchor.localOffset.y * vertical,
+        y:
+          vertical < 0 && resolver
+            ? reflectedTextOffsetY(draft, resolver, annotation, newPosition)
+            : annotation.anchor.localOffset.y * vertical,
       };
       annotation.anchor = {
         ...annotation.anchor,
