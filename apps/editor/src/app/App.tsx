@@ -2731,6 +2731,7 @@ function WorkspaceEditor({
     document,
     resolver,
     selectedRoute,
+    selectedRouteIds: visualSelection.routeIds,
     selectedRouteNetLabel: selectedRouteNetLabel ?? null,
     selectedRouteNetLabels,
     selectedInstance,
@@ -3695,6 +3696,13 @@ function WorkspaceEditor({
     routes: {
       handlePointerDown: handleWireRoutePointerDown,
       select: selectRoute,
+      toggle: (routeId) => {
+        const removing = visualSelection.routeIds.includes(routeId);
+        selectVisualObject("route", routeId, true);
+        setStatus(
+          `${removing ? "Removed" : "Added"} wire ${routeId} ${removing ? "from" : "to"} the selection`,
+        );
+      },
       beginStretch: beginRouteStretch,
       sourceForTarget,
     },
@@ -8532,6 +8540,7 @@ function WorkspaceEditor({
                 bulkOwnerLabel: selectedMosBulkOwnerLabel,
                 defaultColor: styleProfile.foreground,
                 highlightActive: selectedHighlightIsActive,
+                selectedWireCount: visualSelection.routeIds.length,
                 onApply: applyRouteProperties,
                 onToggleHighlight: toggleHighlightedNet,
                 // The Cell-aware Delete path: a Power Rail whose label is a

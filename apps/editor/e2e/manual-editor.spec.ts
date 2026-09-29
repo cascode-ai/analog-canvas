@@ -3461,6 +3461,63 @@ test("italic over a whole label slants its subscript too, and takes it off every
   await expect(rendered).toHaveText("CLKE");
 });
 
+test("Shift-click gathers wires, and one color change restyles all of them", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 280, y: 180 });
+  await placeComponent(page, "resistor", { x: 480, y: 180 });
+  await placeComponent(page, "resistor", { x: 680, y: 180 });
+  for (const [from, to] of [
+    ["R1-2", "R2-1"],
+    ["R2-2", "R3-1"],
+  ]) {
+    await clickDrawTool(page, "wire");
+    await page.getByTestId(`terminal-${from}`).click();
+    await page.getByTestId(`terminal-${to}`).click();
+    await page.keyboard.press("Escape");
+  }
+  const first = page.getByTestId("route-hit-route-ui-1");
+  const second = page.getByTestId("route-hit-route-ui-2");
+
+  await clickRoute(page, "route-ui-1");
+  await page.keyboard.down("Shift");
+  await clickRoute(page, "route-ui-2");
+  await page.keyboard.up("Shift");
+  await expect(page.getByTestId("status")).toContainText(
+    "Added wire route-ui-2 to the selection",
+  );
+  await expect(first).toHaveClass(/selected/);
+  await expect(second).toHaveClass(/selected/);
+
+  await openSelectionShelf(page);
+  await expect(page.getByTestId("route-batch-note")).toContainText(
+    "2 wires selected",
+  );
+  await editComponentPropertyCode(page, (code) => {
+    code.color = [220, 38, 38];
+  });
+  await expect
+    .poll(async () =>
+      parseSavedProject(
+        (await downloadBytes(page, "File", "Export Project File…")).toString(
+          "utf8",
+        ),
+      ).documents[0].routes.map(
+        (route: { styleOverride?: { color?: string } }) =>
+          route.styleOverride?.color,
+      ),
+    )
+    .toEqual(["#dc2626", "#dc2626"]);
+
+  // Shift-clicking a selected wire takes it back out.
+  await page.keyboard.down("Shift");
+  await clickRoute(page, "route-ui-1");
+  await page.keyboard.up("Shift");
+  await expect(first).not.toHaveClass(/selected/);
+  await expect(second).toHaveClass(/selected/);
+});
+
 test("keeps literal text line breaks and overbars visible while editing", async ({
   page,
 }) => {
