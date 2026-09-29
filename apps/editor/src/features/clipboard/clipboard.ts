@@ -9,6 +9,7 @@ import {
   withPowerMarkerOwnership,
   createRoutingOperationPlan,
   executeTransaction,
+  followAttachedAnnotations,
   gridAlignmentDiagnostics,
   powerConnectionForSymbol,
   type OperationIdRemap,
@@ -44,6 +45,7 @@ import {
   createRoutePath,
   controlledSourceExpressionDocument,
   controlledSourceExpressionSource,
+  createEmptyDocument,
   defaultControlledSourceExpression,
   LINEAR_CONTROLLED_SOURCE_KINDS,
   rewriteRichTextPlainText,
@@ -163,6 +165,58 @@ export function copyPlacementOrientationEdits(
   });
 }
 
+/** What a copy needs to set its parts' labels the way the canvas does. */
+export interface PartLabelContext {
+  resolver: SymbolResolver;
+  /** The drawing the copy lands in: its grid and label typography. */
+  presentation: SchematicDocument["presentation"];
+}
+
+/**
+ * The copied parts' own labels after each turn and reflection, taken one at
+ * a time exactly as the Edit Engine takes a turn on the canvas: a label still
+ * where the placement rule put it is set again beside the turned part, and
+ * one the author moved turns with it. Keyed by annotation id.
+ */
+function followedPartLabels(
+  clipboard: SchematicClipboard,
+  operations: readonly PlacementOrientationOperation[],
+  labels: PartLabelContext,
+): Map<string, Annotation> {
+  const scratch: SchematicDocument = {
+    ...createEmptyDocument("copy-placement", "Copy placement"),
+    presentation: labels.presentation,
+    instances: structuredClone(clipboard.instances),
+    annotations: structuredClone(clipboard.annotations),
+  };
+  for (const operation of operations) {
+    for (const instance of scratch.instances) {
+      if (!instance.placement) continue;
+      const before = {
+        rotation: instance.placement.rotation,
+        mirror: instance.placement.mirror,
+      };
+      const next = applyOrientationOperations(before, [operation]);
+      if (next.rotation === before.rotation && next.mirror === before.mirror)
+        continue;
+      instance.placement = { ...instance.placement, ...next };
+      followAttachedAnnotations(
+        scratch,
+        instance.id,
+        instance.placement.position,
+        before,
+        instance.placement.position,
+        next,
+        new Set(),
+        labels.resolver,
+      );
+    }
+  }
+  return new Map(
+    scratch.annotations.map((annotation) => [annotation.id, annotation]),
+  );
+}
+
 /**
  * Turn or reflect the copied subgraph as ONE rigid body about the placement
  * anchor, exactly like the canvas group transform: positions, wire bends,
@@ -175,8 +229,15 @@ export function orientClipboard(
   clipboard: SchematicClipboard,
   operations: readonly PlacementOrientationOperation[],
   pivot?: Point,
+  labels?: PartLabelContext,
 ): SchematicClipboard {
   if (operations.length === 0) return clipboard;
+  const followed = labels
+    ? followedPartLabels(clipboard, operations, labels)
+    : new Map<string, Annotation>();
+  const copiedInstanceIds = new Set(
+    clipboard.instances.map((instance) => instance.id),
+  );
   const anchor = pivot ?? clipboardPlacementAnchor(clipboard) ?? { x: 0, y: 0 };
   const mapVector = (vector: Point): Point =>
     operations.reduce((current, operation) => {
@@ -245,6 +306,32 @@ export function orientClipboard(
     })),
     annotations: clipboard.annotations.map((annotation) => {
       const clone = structuredClone(annotation);
+      const label = followed.get(annotation.id);
+      const owner =
+        clone.anchor.kind === "object" &&
+        copiedInstanceIds.has(clone.anchor.objectId)
+          ? clipboard.instances.find(
+              (instance) =>
+                clone.anchor.kind === "object" &&
+                instance.id === clone.anchor.objectId,
+            )
+          : undefined;
+      if (
+        clone.anchor.kind === "object" &&
+        label?.anchor.kind === "object" &&
+        owner?.placement
+      ) {
+        // The part's own label, set where a turn on the canvas sets it.
+        const position = mapPoint(owner.placement.position);
+        clone.anchor.localOffset = label.anchor.localOffset;
+        clone.anchor.fallbackPosition = {
+          x: position.x + label.anchor.localOffset.x,
+          y: position.y + label.anchor.localOffset.y,
+        };
+        clone.alignment = label.alignment;
+        clone.rotation = label.rotation;
+        return clone;
+      }
       if (clone.anchor.kind === "free") {
         clone.anchor.position = mapPoint(clone.anchor.position);
       } else if (clone.anchor.kind === "object") {
@@ -583,7 +670,12 @@ export function clipboardPreviewDocument(
   resolver?: SymbolResolver,
   sequence = 0,
 ): SchematicDocument {
-  const oriented = orientClipboard(clipboard, orientationOperations);
+  const oriented = orientClipboard(
+    clipboard,
+    orientationOperations,
+    undefined,
+    resolver ? { resolver, presentation: base.presentation } : undefined,
+  );
   if (resolver) {
     const clearance = previewClearanceOffset(base);
     const proposal = proposePaste(
