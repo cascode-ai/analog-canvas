@@ -536,6 +536,31 @@ test("refresh restores every unsaved tab and active view without crossing browse
   await other.close();
 });
 
+test("New Circuit opens a blank tab beside the circuit this window drew, and a refresh adds none", async ({
+  page,
+}) => {
+  page.on("dialog", (dialog) => dialog.accept());
+  await page.goto("/editor?new=1");
+  await insert(page, "resistor", 240, 250);
+
+  // The Gallery's New Circuit again, in the same browser tab: the circuit
+  // drawn before stays in its own tab and the new one starts empty.
+  await page.goto("/editor?new=1");
+  await expect(page.getByRole("tab")).toHaveCount(2);
+  await expect(page.getByRole("tab").nth(1)).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.getByTestId("active-instance-count")).toHaveText("0");
+  // The request is handled, so the address no longer asks for another.
+  await expect(page).toHaveURL(/\/editor$/);
+
+  await page.reload();
+  await expect(page.getByRole("tab")).toHaveCount(2);
+  await page.getByRole("tab").first().click();
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+});
+
 for (const modifier of ["Control", "Meta", "plain"]) {
   test(`${modifier} C/V copies a wired subset into an existing project`, async ({
     page,

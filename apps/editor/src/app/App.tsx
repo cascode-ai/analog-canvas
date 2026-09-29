@@ -527,9 +527,13 @@ export function App(props: AppProps) {
           workspaceWindowId(),
           window.location.pathname + window.location.search,
           {
+            // An open request brings this window's tabs back and opens its
+            // target beside them: a Gallery entry, a Cloud Project, or a new
+            // circuit.
             allowRouteChange:
               Boolean(props.initialGalleryEntryId) ||
-              new URLSearchParams(window.location.search).has("project"),
+              new URLSearchParams(window.location.search).has("project") ||
+              new URLSearchParams(window.location.search).get("new") === "1",
           },
         ),
       )
@@ -564,6 +568,22 @@ export function App(props: AppProps) {
         />
       </WorkspaceAgentProvider>
     </EditorServicesProvider>
+  );
+}
+
+/**
+ * Takes `new=1` out of the address once the new circuit is open. The address
+ * is what the window's tabs are saved under, so a refresh then brings back
+ * what was drawn, and only a fresh New Circuit starts another.
+ */
+function forgetNewProjectRequest(): void {
+  const url = new URL(window.location.href);
+  if (url.searchParams.get("new") !== "1") return;
+  url.searchParams.delete("new");
+  window.history.replaceState(
+    window.history.state,
+    "",
+    url.pathname + url.search + url.hash,
   );
 }
 
@@ -608,6 +628,13 @@ function WorkspaceEditor({
     capabilities.simulation && requestedSimulationUi;
   const [restoringWorkspace, setRestoringWorkspace] = useState(
     restoredWorkspace !== null,
+  );
+  // Read once: the request is taken out of the address after it is handled,
+  // so a refresh brings back what was drawn instead of starting again.
+  const [bootRequestsNewProject] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("new") === "1",
   );
   const [preparedInitialProject] = useState(
     () =>
@@ -1474,14 +1501,14 @@ function WorkspaceEditor({
   const hasExplicitBootTarget =
     restoredWorkspace !== null ||
     initialGalleryEntryId !== null ||
+    bootRequestsNewProject ||
     (typeof window !== "undefined" &&
       (() => {
         const search = new URLSearchParams(window.location.search);
         return (
           search.has("example") ||
           search.has("project") ||
-          search.has("history") ||
-          search.get("new") === "1"
+          search.has("history")
         );
       })());
   useEffect(() => {
@@ -4186,6 +4213,13 @@ function WorkspaceEditor({
       ? new URLSearchParams(window.location.search).get("project")
       : null,
   );
+  // So is New Circuit: it opens a new tab beside the ones brought back,
+  // rather than showing the circuit this window drew last.
+  const restoredNewLink = useRef(
+    restoredWorkspace !== null &&
+      !restoreAfterRefresh &&
+      bootRequestsNewProject,
+  );
 
   // boot Project only; ordinary sessions never re-run these.
   const bootTargetHandled = useRef(false);
@@ -4204,8 +4238,7 @@ function WorkspaceEditor({
     const shelfProjectId = new URLSearchParams(window.location.search).get(
       "project",
     );
-    const requestsNewProject =
-      new URLSearchParams(window.location.search).get("new") === "1";
+    const requestsNewProject = bootRequestsNewProject;
     if (initialGalleryEntryId) {
       void openGalleryEntryById(initialGalleryEntryId, false, true);
       return;
@@ -5744,6 +5777,18 @@ function WorkspaceEditor({
     restoredCloudLink.current = null;
     void openCloudProjectById(cloudId, true);
   }, [restoringWorkspace]);
+  useEffect(() => {
+    if (restoringWorkspace || !restoredNewLink.current) return;
+    restoredNewLink.current = false;
+    forgetNewProjectRequest();
+    void projectTabs.open(() => createTabSession());
+    setStatus("Created a new Project");
+  }, [restoringWorkspace]);
+  useEffect(() => {
+    // A new circuit this window opened fresh is simply the working one now.
+    if (bootRequestsNewProject && !restoredNewLink.current)
+      forgetNewProjectRequest();
+  }, []);
   const [recentNativeFiles, setRecentNativeFiles] = useState<
     RecentProjectFile[]
   >([]);
