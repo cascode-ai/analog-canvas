@@ -47,8 +47,8 @@ describe("placeable catalog property code", () => {
       };
       const context = {
         instance,
-        supplyTerminals: subcircuitDescriptor(symbol.id)?.ports.flatMap(
-          (port) =>
+        supplyTerminals:
+          subcircuitDescriptor(symbol.id)?.ports.flatMap((port) =>
             port.supply
               ? [
                   {
@@ -61,7 +61,7 @@ describe("placeable catalog property code", () => {
                   },
                 ]
               : [],
-        ),
+          ) ?? [],
         referenceVisible: symbolCarriesReference(symbol.id) ? true : null,
         valueVisible: symbolSupportsValueAnnotation(symbol.id) ? true : null,
         ...(symbol.id === "vdd-port"
