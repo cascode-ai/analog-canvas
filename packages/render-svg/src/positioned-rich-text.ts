@@ -150,50 +150,23 @@ function renderSegments(
   return output;
 }
 
-/**
- * Position the one expression shape that SVG inline text cannot represent:
- * an overbar spanning a base with attached complementary sub/superscripts.
- * Each proportional-font segment receives an explicit deterministic width,
- * so Chromium and Resvg share the same attachment column and line endpoints.
- */
-export function renderPositionedOverbarScriptDocument(
-  document: RichTextDocument,
-  profile: SchematicStyleProfile,
-  options: {
-    x: number;
-    y: number;
-    fontSize: number;
-    alignment: "start" | "middle" | "end";
-    /** Paint for explicit decorations that cannot inherit from SVG text. */
-    color?: string;
-    defaultItalic?: boolean;
-    defaultBold?: boolean;
-  },
-): PositionedOverbarScript | null {
-  const outer = unwrapWholeTextStyles(document.runs, {
-    italic: options.defaultItalic ?? false,
-    bold: options.defaultBold ?? false,
-  });
-  const overbarIndexes = outer.runs.flatMap((run, index) =>
-    run.kind === "span" && run.style === "overbar" ? [index] : [],
-  );
-  if (overbarIndexes.length !== 1) return null;
+/** One barred name, measured, ready to be placed at any x on the line. */
+interface OverbarLayout {
+  width: number;
+  place(x: number): { tspans: string; decoration: string };
+}
 
-  const overbarIndex = overbarIndexes[0]!;
-  const overbar = outer.runs[overbarIndex] as Extract<
-    RichTextRun,
-    { kind: "span" }
-  >;
-  // Ordinary text may precede or follow the barred expression. It has to be
-  // rendered here rather than left to the generic path, because the generic
-  // path draws the bar with CSS `text-decoration: overline`, which SVG
-  // inherits into every nested tspan: the subscript and the superscript each
-  // grow a bar of their own, at their own size and height. That is the defect
-  // in issue #495, and it appeared the moment someone appended `=4kT` to a
-  // name that had been rendering correctly on its own.
-  const prefix = outer.runs.slice(0, overbarIndex);
-  const continuation = outer.runs.slice(overbarIndex + 1);
-  const expression = unwrapWholeTextStyles(overbar.children, outer.style);
+/**
+ * A barred name: a base with the scripts that attach to it, under one bar.
+ * Null for anything the positioned path cannot draw exactly.
+ */
+function overbarLayout(
+  overbar: Extract<RichTextRun, { kind: "span" }>,
+  outerStyle: TextStyle,
+  profile: SchematicStyleProfile,
+  options: { y: number; fontSize: number; color?: string },
+): OverbarLayout | null {
+  const expression = unwrapWholeTextStyles(overbar.children, outerStyle);
   if (expression.runs.length === 0) return null;
 
   // Take the trailing scripts, however many there are. An overbar over plain
@@ -241,65 +214,10 @@ export function renderPositionedOverbarScriptDocument(
       : 0;
   const nameWidth =
     baseWidth + attachmentGap + Math.max(subscriptWidth, superscriptWidth);
-  const metrics = {
-    fontSize: options.fontSize,
-    lineHeight: profile.typography.lineHeight,
-    subscriptScale: profile.typography.subscriptScale,
-    subscriptBaselineShiftEm: profile.typography.subscriptBaselineShiftEm,
-    subscriptHorizontalGapEm: profile.typography.subscriptHorizontalGapEm,
-  };
-  const prefixWidth =
-    prefix.length > 0
-      ? measureRichTextDocument({ runs: prefix }, metrics).width
-      : 0;
-  const continuationWidth =
-    continuation.length > 0
-      ? measureRichTextDocument({ runs: continuation }, metrics).width
-      : 0;
-  const width = prefixWidth + nameWidth + continuationWidth;
-  const startX =
-    options.alignment === "start"
-      ? options.x
-      : options.alignment === "end"
-        ? options.x - width
-        : options.x - width / 2;
-  const nameStartX = startX + prefixWidth;
-  const scriptX = nameStartX + baseWidth + attachmentGap;
   const shift =
     options.fontSize * scale * profile.typography.subscriptBaselineShiftEm;
   const superscriptY = options.y - shift;
   const subscriptY = options.y + shift;
-
-  const baseTspans = renderSegments(base, {
-    x: nameStartX,
-    y: options.y,
-    fontSize: options.fontSize,
-    scale: 1,
-    run: "base",
-    profile,
-  });
-  const subscriptTspans = renderSegments(subscript, {
-    x: scriptX,
-    y: subscriptY,
-    fontSize: options.fontSize,
-    scale,
-    run: "subscript",
-    profile,
-  });
-  const superscriptTspans = renderSegments(superscript, {
-    x: scriptX,
-    y: superscriptY,
-    fontSize: options.fontSize,
-    scale,
-    run: "superscript",
-    profile,
-  });
-  const orderedScripts = scripts
-    .map((run) =>
-      run.style === "subscript" ? subscriptTspans : superscriptTspans,
-    )
-    .join("");
-
   const glyphAscent = 0.78;
   const overbarGap = options.fontSize * 0.08;
   const baseTop = options.y - options.fontSize * glyphAscent;
@@ -310,37 +228,141 @@ export function renderPositionedOverbarScriptDocument(
     : baseTop;
   const lineY = Math.min(baseTop, superscriptTop) - overbarGap;
   const strokeWidth = Math.max(1, profile.strokes.annotation);
-  // The bar belongs to the name, so it starts after any prefix and ends where
-  // the name ends. Alignment belongs to the complete line.
-  const prefixTspans =
-    prefix.length > 0
-      ? `<tspan x="${number(startX)}" y="${number(options.y)}">${renderRichTextDocument(
-          { runs: prefix },
-          profile,
-          {
-            lineOriginX: startX,
-            fontSize: options.fontSize,
-            defaultBold: outer.style.bold,
-            defaultItalic: outer.style.italic,
-          },
-        )}</tspan>`
-      : "";
-  const continuationTspans =
-    continuation.length > 0
-      ? `<tspan x="${number(nameStartX + nameWidth)}" y="${number(options.y)}">${renderRichTextDocument(
-          { runs: continuation },
-          profile,
-          {
-            lineOriginX: nameStartX + nameWidth,
-            fontSize: options.fontSize,
-            defaultBold: outer.style.bold,
-            defaultItalic: outer.style.italic,
-          },
-        )}</tspan>`
-      : "";
+
   return {
-    width,
-    tspans: `${prefixTspans}<tspan data-text-run="overbar">${baseTspans}<tspan data-text-run="script-stack">${orderedScripts}</tspan></tspan>${continuationTspans}`,
-    decorations: `<line data-text-decoration="overbar" x1="${number(nameStartX)}" y1="${number(lineY)}" x2="${number(nameStartX + nameWidth)}" y2="${number(lineY)}" stroke="${options.color ?? profile.foreground}" stroke-width="${number(strokeWidth)}"/>`,
+    width: nameWidth,
+    place(nameStartX) {
+      const scriptX = nameStartX + baseWidth + attachmentGap;
+      const baseTspans = renderSegments(base, {
+        x: nameStartX,
+        y: options.y,
+        fontSize: options.fontSize,
+        scale: 1,
+        run: "base",
+        profile,
+      });
+      const subscriptTspans = renderSegments(subscript, {
+        x: scriptX,
+        y: subscriptY,
+        fontSize: options.fontSize,
+        scale,
+        run: "subscript",
+        profile,
+      });
+      const superscriptTspans = renderSegments(superscript, {
+        x: scriptX,
+        y: superscriptY,
+        fontSize: options.fontSize,
+        scale,
+        run: "superscript",
+        profile,
+      });
+      const orderedScripts = scripts
+        .map((run) =>
+          run.style === "subscript" ? subscriptTspans : superscriptTspans,
+        )
+        .join("");
+      // The bar belongs to the name: it spans the base and its scripts,
+      // one line from where the name starts to where it ends.
+      return {
+        tspans: `<tspan data-text-run="overbar">${baseTspans}<tspan data-text-run="script-stack">${orderedScripts}</tspan></tspan>`,
+        decoration: `<line data-text-decoration="overbar" x1="${number(nameStartX)}" y1="${number(lineY)}" x2="${number(nameStartX + nameWidth)}" y2="${number(lineY)}" stroke="${options.color ?? profile.foreground}" stroke-width="${number(strokeWidth)}"/>`,
+      };
+    },
   };
+}
+
+/**
+ * Position the expression shape that SVG inline text cannot represent: a
+ * barred name whose bar spans a base with attached sub/superscripts, and
+ * every such name on the line (I_N & EV, each under its own single bar).
+ * Each proportional-font segment receives an explicit deterministic width,
+ * so Chromium and Resvg share the same attachment column and line endpoints.
+ */
+export function renderPositionedOverbarScriptDocument(
+  document: RichTextDocument,
+  profile: SchematicStyleProfile,
+  options: {
+    x: number;
+    y: number;
+    fontSize: number;
+    alignment: "start" | "middle" | "end";
+    /** Paint for explicit decorations that cannot inherit from SVG text. */
+    color?: string;
+    defaultItalic?: boolean;
+    defaultBold?: boolean;
+  },
+): PositionedOverbarScript | null {
+  const outer = unwrapWholeTextStyles(document.runs, {
+    italic: options.defaultItalic ?? false,
+    bold: options.defaultBold ?? false,
+  });
+  // Ordinary text may precede, separate or follow the barred names. It has
+  // to be rendered here rather than left to the generic path, because the
+  // generic path draws a bar with CSS `text-decoration: overline`, which SVG
+  // inherits into every nested tspan: a subscript and a superscript each
+  // grow a bar of their own, at their own size and height. That is the
+  // defect in issue #495, and it came back for any second barred name on a
+  // line (I̅_N & E̅V̅): the whole line fell to the generic path.
+  const chunks: (
+    | { kind: "text"; runs: RichTextRun[] }
+    | { kind: "bar"; layout: OverbarLayout }
+  )[] = [];
+  for (const run of outer.runs) {
+    if (run.kind === "span" && run.style === "overbar") {
+      const layout = overbarLayout(run, outer.style, profile, options);
+      if (!layout) return null;
+      chunks.push({ kind: "bar", layout });
+      continue;
+    }
+    const last = chunks.at(-1);
+    if (last?.kind === "text") last.runs.push(run);
+    else chunks.push({ kind: "text", runs: [run] });
+  }
+  if (!chunks.some((chunk) => chunk.kind === "bar")) return null;
+
+  const metrics = {
+    fontSize: options.fontSize,
+    lineHeight: profile.typography.lineHeight,
+    subscriptScale: profile.typography.subscriptScale,
+    subscriptBaselineShiftEm: profile.typography.subscriptBaselineShiftEm,
+    subscriptHorizontalGapEm: profile.typography.subscriptHorizontalGapEm,
+  };
+  const widths = chunks.map((chunk) =>
+    chunk.kind === "bar"
+      ? chunk.layout.width
+      : measureRichTextDocument({ runs: chunk.runs }, metrics).width,
+  );
+  const width = widths.reduce((sum, value) => sum + value, 0);
+  const startX =
+    options.alignment === "start"
+      ? options.x
+      : options.alignment === "end"
+        ? options.x - width
+        : options.x - width / 2;
+  // Alignment belongs to the complete line; each piece starts where the one
+  // before it ends.
+  let x = startX;
+  let tspans = "";
+  let decorations = "";
+  chunks.forEach((chunk, index) => {
+    if (chunk.kind === "bar") {
+      const placed = chunk.layout.place(x);
+      tspans += placed.tspans;
+      decorations += placed.decoration;
+    } else {
+      tspans += `<tspan x="${number(x)}" y="${number(options.y)}">${renderRichTextDocument(
+        { runs: chunk.runs },
+        profile,
+        {
+          lineOriginX: x,
+          fontSize: options.fontSize,
+          defaultBold: outer.style.bold,
+          defaultItalic: outer.style.italic,
+        },
+      )}</tspan>`;
+    }
+    x += widths[index]!;
+  });
+  return { width, tspans, decorations };
 }

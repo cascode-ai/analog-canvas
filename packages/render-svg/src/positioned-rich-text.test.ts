@@ -489,3 +489,74 @@ describe("an overbar followed by more of the line", () => {
     expect(rendered.tspans).toContain('data-text-run="fraction"');
   });
 });
+
+describe("several barred names on one line", () => {
+  // Reported as I̅_N & E̅V̅: the second bar sent the whole line to CSS
+  // `overline`, which the subscript inherits, so N grew a short bar of its
+  // own, lower than the bar over I.
+  const twoNames: RichTextDocument = {
+    runs: [
+      {
+        kind: "span",
+        style: "overbar",
+        children: [
+          { kind: "text", value: "I" },
+          {
+            kind: "span",
+            style: "subscript",
+            children: [{ kind: "text", value: "N" }],
+          },
+        ],
+      },
+      { kind: "text", value: " & " },
+      {
+        kind: "span",
+        style: "overbar",
+        children: [{ kind: "text", value: "EV" }],
+      },
+    ],
+  };
+  const bars = (decorations: string) =>
+    [...decorations.matchAll(/<line\b[^>]*>/g)].map(
+      (match) =>
+        Object.fromEntries(
+          [...match[0].matchAll(/([\w:-]+)="([^"]*)"/g)].map((attribute) => [
+            attribute[1]!,
+            Number(attribute[2]),
+          ]),
+        ) as Record<string, number>,
+    );
+
+  it("draws one bar over each whole name, its subscript included", () => {
+    const rendered = render(twoNames);
+    const drawn = bars(rendered.decorations);
+    expect(drawn).toHaveLength(2);
+    expect(rendered.tspans).not.toContain("text-decoration");
+    const [first, second] = drawn as [
+      Record<string, number>,
+      Record<string, number>,
+    ];
+    const subscript = tagAttributes(
+      rendered.tspans,
+      "tspan",
+      'data-text-run="subscript"',
+    );
+    // The first bar runs from I to the end of its subscript N.
+    expect(first.x2).toBeCloseTo(
+      numericAttribute(subscript, "x") +
+        numericAttribute(subscript, "data-text-advance"),
+      5,
+    );
+    // Both bars sit at one height, and the second starts after " & ".
+    expect(second.y1).toBeCloseTo(first.y1!, 6);
+    expect(second.x1).toBeGreaterThan(first.x2!);
+    expect(rendered.tspans).toContain(" &amp; ");
+  });
+
+  it("lays the line out across its whole width", () => {
+    const rendered = render(twoNames, "end");
+    const drawn = bars(rendered.decorations);
+    // Right-aligned at x = 100, the line ends where the last bar ends.
+    expect(drawn.at(-1)!.x2).toBeCloseTo(100, 6);
+  });
+});
