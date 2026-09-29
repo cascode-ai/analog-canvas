@@ -181,6 +181,41 @@ export function editedRoleLabelFormat(
 }
 
 /**
+ * Existing Apply-time presentation policy shared by bound-name editors.
+ * This deliberately retains role-default regeneration and the Cell-specific
+ * fallback. It does not infer or commit an electrical name. Changing those
+ * UX rules is separate from sharing their implementation (tracking #1213).
+ */
+export function editedBoundAnnotationPresentation(
+  document: SchematicDocument,
+  annotation: Annotation,
+  session: TextEditingSession,
+  name: string,
+): RichTextDocument {
+  const fallback = labelTextDocument(name, document.presentation);
+  const role = editedRoleLabelFormat(document, annotation, session, name);
+  const typography = labelTypography(document.presentation);
+  const reference = annotation.binding?.kind === "instance-reference";
+  const regenerateCell =
+    annotation.binding?.kind === "cell-terminal-name" && !session.formatEdited;
+  const rewrite =
+    (!reference || session.contentEdited) &&
+    (flattenRichText(session.content).includes("_") ||
+      (typography.subscriptAfterFirst && !session.formatEdited));
+  const content = role
+    ? (role.format ?? fallback)
+    : regenerateCell
+      ? fallback
+      : rewrite
+        ? rewriteRichTextIdentifier(session.content, name, {
+            underscoreSubscript:
+              typography.subscriptAfterFirst || typography.underscoreSubscript,
+          })
+        : session.content;
+  return formatPresentingName(content, name);
+}
+
+/**
  * Apply the change between two visible spellings of a label to the name it
  * shows. Characters the old look hid, such as an underscore before a
  * subscript or a trailing `_bar` under an overbar, stay where they were.
@@ -750,21 +785,19 @@ export function proposeTextEditingCommit(
           ? [{ kind: "set_instance_reference", instanceId, reference: name }]
           : [];
       const defaultContent = labelTextDocument(name, document.presentation);
-      const roleFormat = follows
-        ? editedRoleLabelFormat(document, annotation, session, name)
-        : undefined;
-      const styled = roleFormat
-        ? (roleFormat.format ?? defaultContent)
-        : session.contentEdited &&
-            (flattenRichText(session.content).includes("_") ||
-              (typography.subscriptAfterFirst && !session.formatEdited))
+      const styled =
+        session.contentEdited &&
+        (flattenRichText(session.content).includes("_") ||
+          (typography.subscriptAfterFirst && !session.formatEdited))
           ? rewriteRichTextIdentifier(session.content, name, {
               underscoreSubscript:
                 typography.subscriptAfterFirst ||
                 typography.underscoreSubscript,
             })
           : session.content;
-      const presentation = formatPresentingName(styled, name);
+      const presentation = follows
+        ? editedBoundAnnotationPresentation(document, annotation, session, name)
+        : formatPresentingName(styled, name);
       // An alias typed as a name, without a look of its own, is drawn the
       // way a name is (Φ2 as Φ over a subscript 2), so a drawing's labels
       // keep one look. Scripts or bars the author wrote are their own look.
