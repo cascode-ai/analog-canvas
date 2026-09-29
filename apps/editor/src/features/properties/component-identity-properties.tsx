@@ -21,75 +21,6 @@ interface PropertyNetTerminalView {
   netId: string | null;
   options: readonly { netId: string; label: string }[];
   onChange: (netId: string | null) => void;
-  onPreviewNet?: (netId: string | null) => void;
-  /** Supply terminals use Auto; other property-only terminals use Unconnected. */
-  autoLabel?: string;
-  autoNetId?: string | null;
-}
-
-function PropertyNetTerminalControl({
-  terminal,
-}: {
-  terminal: PropertyNetTerminalView;
-}) {
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const closeRef = useRef<(() => void) | null>(null);
-  const [open, setOpen] = useState(false);
-  useEffect(() => () => closeRef.current?.(), []);
-  const selected = terminal.options.find(
-    (option) => option.netId === terminal.netId,
-  );
-  const defaultLabel = terminal.autoLabel ?? "Unconnected";
-  const openOptions = async (): Promise<void> => {
-    if (closeRef.current) {
-      closeRef.current();
-      return;
-    }
-    const { showPropertyOptionPreviewMenu } =
-      await import("./property-option-preview-menu");
-    const trigger = triggerRef.current;
-    if (!trigger?.isConnected) return;
-    setOpen(true);
-    const options = [
-      { value: "", label: defaultLabel },
-      ...terminal.options.map((option) => ({
-        value: option.netId,
-        label: option.label,
-      })),
-    ];
-    closeRef.current = showPropertyOptionPreviewMenu({
-      anchor: trigger,
-      label: terminal.label,
-      options,
-      optionEnabled: options.map(() => true),
-      value: terminal.netId ?? "",
-      onSelect: (value) => terminal.onChange(value || null),
-      onPreview: (value) =>
-        terminal.onPreviewNet?.(
-          value || (value === "" ? (terminal.autoNetId ?? null) : null),
-        ),
-      onClose: () => {
-        closeRef.current = null;
-        setOpen(false);
-      },
-    });
-  };
-  return (
-    <label>
-      {terminal.label}
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-label={`${terminal.label} options`}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => void openOptions()}
-      >
-        {selected?.label ?? defaultLabel}
-      </button>
-      <small>Property-only terminal · no canvas pin or wire</small>
-    </label>
-  );
 }
 
 const CUSTOM_MODEL_OPTION = "__custom_model__";
@@ -258,7 +189,6 @@ export function ComponentIdentityProperties({
   targetDescription,
   capacitorPlateRows,
   propertyTerminal,
-  supplyTerminals,
   modelTarget,
   sourceCode,
   onEditAnnotation,
@@ -271,7 +201,6 @@ export function ComponentIdentityProperties({
   targetDescription: string | null;
   capacitorPlateRows: readonly CapacitorPlatePropertyRow[] | null;
   propertyTerminal?: PropertyNetTerminalView | null;
-  supplyTerminals?: readonly PropertyNetTerminalView[] | null;
   modelTarget: ComponentModelTargetView | null;
   sourceCode: ComponentSourceCode;
   onEditAnnotation?: () => void;
@@ -350,7 +279,7 @@ export function ComponentIdentityProperties({
           </dl>
         </div>
       ) : null}
-      {propertyTerminal || supplyTerminals?.length ? (
+      {propertyTerminal ? (
         <div
           className="property-card property-terminal-card"
           role="group"
@@ -377,12 +306,6 @@ export function ComponentIdentityProperties({
               <small>Property-only terminal · no canvas pin or wire</small>
             </label>
           ) : null}
-          {supplyTerminals?.map((terminal) => (
-            <PropertyNetTerminalControl
-              key={terminal.pinName}
-              terminal={terminal}
-            />
-          ))}
         </div>
       ) : null}
       {modelTarget && !fieldsMovedToCode ? (

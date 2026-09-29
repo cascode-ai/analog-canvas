@@ -31,6 +31,14 @@ export function propertyCodeSpans(
   const spans: PropertyCodeSpan[] = [];
   const fields: readonly CanvasPropertyField[] = customFields ?? [
     ...CANVAS_PROPERTY_FIELDS,
+    ...(context?.supplyTerminals ?? []).map((terminal) => ({
+      path: `supplies.${terminal.pinName}`,
+      label: `${terminal.pinName} Net`,
+      kind: "choice" as const,
+      options: terminal.options,
+      description: "",
+      help: "Bind an existing Net, or Auto for the unique authored supply. No Global Net is created.",
+    })),
     ...(context && LINEAR_CONTROLLED_SOURCE_KINDS.has(context.instance.symbolId)
       ? context.instance.symbolId === "vcvs" ||
         context.instance.symbolId === "vccs"
@@ -99,15 +107,24 @@ export function propertyCodeSpans(
           );
           // A saved control can refer to any physical member of a Logical Net.
           // Keep that ID selected without appending a second choice for the same Net.
+          const netChoices = path.startsWith("supplies.")
+            ? context?.supplyTerminals?.find(
+                (terminal) => path === `supplies.${terminal.pinName}`,
+              )?.options
+            : path === "control.positiveNetId" ||
+                path === "control.negativeNetId"
+              ? context?.controlNetOptions
+              : undefined;
           const netOptions =
-            (path === "control.positiveNetId" ||
-              path === "control.negativeNetId") &&
             typeof decoded === "string"
-              ? context?.controlNetOptions?.map((option) => ({
+              ? netChoices?.map((option) => ({
+                  label: option.label,
+                  ...("previewNetId" in option
+                    ? { previewNetId: option.previewNetId as string | null }
+                    : {}),
                   value: option.baseNetIds?.includes(decoded)
                     ? decoded
                     : option.value,
-                  label: option.label,
                 }))
               : undefined;
           spans.push({

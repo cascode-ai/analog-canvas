@@ -112,6 +112,23 @@ export function planComponentPropertyCodeEdits(
   value: ComponentPropertyCodeValue,
 ): SchematicEdit[] {
   const edits: SchematicEdit[] = [];
+  for (const [pinName, selectedNetId] of Object.entries(value.supplies ?? {})) {
+    const currentNetId =
+      document.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === instance.id && terminal.pinName === pinName,
+        ),
+      )?.id ?? null;
+    const netId = selectedNetId || null;
+    if (currentNetId !== netId)
+      edits.push({
+        kind: "set_property_terminal_net",
+        instanceId: instance.id,
+        pinName,
+        netId,
+      });
+  }
   if (value.displayName !== undefined) {
     const label = instanceLabelAnnotationFor(document, instance.id);
     const controlled = LINEAR_CONTROLLED_SOURCE_KINDS.has(instance.symbolId);

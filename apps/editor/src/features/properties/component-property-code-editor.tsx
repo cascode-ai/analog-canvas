@@ -46,6 +46,7 @@ export interface ComponentPropertyCodeEditorProps {
   netName?: string | null;
   defaultForeground?: string;
   details?: ComponentPropertyCodeContext["details"];
+  supplyTerminals?: ComponentPropertyCodeContext["supplyTerminals"];
   controlPick?: {
     step: "positive" | "negative" | "current-positive" | "current-negative";
   } | null;
@@ -75,6 +76,7 @@ export function ComponentPropertyCodeEditor({
   netName,
   defaultForeground = "#000000",
   details,
+  supplyTerminals,
   controlPick,
   controlSummary,
   currentTerminalOptions,
@@ -96,6 +98,7 @@ export function ComponentPropertyCodeEditor({
       ...(connection !== undefined ? { connection } : {}),
       ...(netName !== undefined ? { netName } : {}),
       ...(details ? { details } : {}),
+      ...(supplyTerminals ? { supplyTerminals } : {}),
       ...(controlNetOptions ? { controlNetOptions } : {}),
       ...(controlDeviceOptions ? { controlDeviceOptions } : {}),
       ...(controlTerminalOptions ? { controlTerminalOptions } : {}),
@@ -109,6 +112,7 @@ export function ComponentPropertyCodeEditor({
       connection,
       netName,
       details,
+      supplyTerminals,
       controlNetOptions,
       controlDeviceOptions,
       controlTerminalOptions,

@@ -702,7 +702,8 @@ class PropertyChoiceSelect extends WidgetType {
     };
     const netControl =
       this.span.field.path === "control.positiveNetId" ||
-      this.span.field.path === "control.negativeNetId";
+      this.span.field.path === "control.negativeNetId" ||
+      this.span.field.path.startsWith("supplies.");
     if (netControl || options.some((option) => option.preview)) {
       const trigger = document.createElement("button");
       trigger.type = "button";
@@ -733,7 +734,13 @@ class PropertyChoiceSelect extends WidgetType {
           ...(netControl
             ? {
                 onPreview: (value: string | null) =>
-                  this.read().onPreviewControlNet?.(value || null),
+                  this.read().onPreviewControlNet?.(
+                    value === null
+                      ? null
+                      : (options.find((option) => option.value === value)
+                          ?.previewNetId ??
+                          (value || null)),
+                  ),
               }
             : {}),
           onClose: () => {

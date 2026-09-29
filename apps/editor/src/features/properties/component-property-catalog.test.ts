@@ -5,6 +5,7 @@ import {
   symbolSupportsValueAnnotation,
 } from "@icm/derived";
 import { expandedDeviceSymbols, razaviProductSymbols } from "@icm/symbols";
+import { subcircuitDescriptor } from "@icm/devices";
 
 import {
   componentParameters,
@@ -46,6 +47,21 @@ describe("placeable catalog property code", () => {
       };
       const context = {
         instance,
+        supplyTerminals: subcircuitDescriptor(symbol.id)?.ports.flatMap(
+          (port) =>
+            port.supply
+              ? [
+                  {
+                    pinName: port.supply,
+                    netId: "",
+                    options: [
+                      { value: "", label: "Auto" },
+                      { value: "rail", label: "AVDD" },
+                    ],
+                  },
+                ]
+              : [],
+        ),
         referenceVisible: symbolCarriesReference(symbol.id) ? true : null,
         valueVisible: symbolSupportsValueAnnotation(symbol.id) ? true : null,
         ...(symbol.id === "vdd-port"
@@ -68,6 +84,13 @@ describe("placeable catalog property code", () => {
       if (netlist)
         expect(parsed.value.parameters).toMatchObject(netlist.parameters);
       if (reference) expect(parsed.value.netlistName).toBe(reference);
+      if (context.supplyTerminals?.length) {
+        expect(parsed.value.supplies).toEqual(
+          Object.fromEntries(
+            context.supplyTerminals.map((terminal) => [terminal.pinName, ""]),
+          ),
+        );
+      } else expect(parsed.value.supplies).toBeUndefined();
 
       const projection = itemPropertyCode(source, {
         type: symbol.id,

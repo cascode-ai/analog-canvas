@@ -9,6 +9,42 @@ import { componentPropertyCodeValue } from "./component-property-code";
 import { configurableLogicGateIds } from "./logic-gate-input-count";
 
 describe("planComponentPropertyCodeEdits", () => {
+  it("binds hidden supplies with the existing terminal edit and clears to Auto without globals", () => {
+    const document = createEmptyDocument("main", "Main");
+    const instance = { id: "amp", symbolId: "opamp", placement: null };
+    document.instances.push(instance);
+    document.nets.push({ id: "avdd", terminals: [] });
+    const value = {
+      ...componentPropertyCodeValue({
+        instance,
+        referenceVisible: null,
+        valueVisible: null,
+      }),
+      supplies: { VDD: "avdd" },
+    };
+    const edits = planComponentPropertyCodeEdits(document, instance, value);
+    expect(edits).toEqual([
+      {
+        kind: "set_property_terminal_net",
+        instanceId: "amp",
+        pinName: "VDD",
+        netId: "avdd",
+      },
+    ]);
+    document.nets[0]!.terminals.push({ instanceId: "amp", pinName: "VDD" });
+    expect(planComponentPropertyCodeEdits(document, instance, value)).toEqual(
+      [],
+    );
+    value.supplies.VDD = "";
+    expect(planComponentPropertyCodeEdits(document, instance, value)).toEqual([
+      {
+        kind: "set_property_terminal_net",
+        instanceId: "amp",
+        pinName: "VDD",
+        netId: null,
+      },
+    ]);
+  });
   it("updates the control relation and gain atomically without modifying presentation", () => {
     const document = createEmptyDocument("main", "Main");
     const instance = {
