@@ -11,6 +11,7 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import { resolveVisualAnchor, type ResolvedAnchor } from "./anchor.js";
 import { resolveAnnotationText } from "./annotation-text.js";
+import { LABEL_CAP_HEIGHT_EM } from "./instance-label-placement.js";
 import {
   resolveDocumentRoutingGeometry,
   type ResolvedDocumentRoutingGeometry,
@@ -36,6 +37,13 @@ export interface AnnotationPresentation {
   readonly rotation: Rotation;
   readonly alignment: "start" | "middle" | "end";
   readonly bounds: DerivedRect;
+  /**
+   * The extent label placement keeps clear of a part: capitals above the
+   * baseline and a subscript's figures below it, with a stacked fraction's
+   * rise and any further lines. `bounds` reserves the font's whole ascent
+   * and a descender, most of it empty over capitals.
+   */
+  readonly inkBounds: DerivedRect;
 }
 
 /**
@@ -165,12 +173,35 @@ export function resolveAnnotationPresentation(
           anchor.position,
           annotation.rotation,
         );
+  const capHeight = fontSize * LABEL_CAP_HEIGHT_EM;
+  const unrotatedInk = formula
+    ? unrotatedBounds
+    : {
+        x: left,
+        y: anchor.position.y - capHeight - fractionExtraAscent,
+        width,
+        height:
+          capHeight +
+          fractionExtraAscent +
+          fontSize *
+            styleProfile.typography.subscriptScale *
+            styleProfile.typography.subscriptBaselineShiftEm +
+          Math.max(0, textLayout.height - fontSize * 1.35),
+      };
   return {
     anchor,
     position: anchor.position,
     rotation: annotation.rotation,
     alignment: annotation.alignment,
     bounds,
+    inkBounds:
+      annotation.rotation === 0
+        ? unrotatedInk
+        : rotatedAnnotationBounds(
+            unrotatedInk,
+            anchor.position,
+            annotation.rotation,
+          ),
   };
 }
 
