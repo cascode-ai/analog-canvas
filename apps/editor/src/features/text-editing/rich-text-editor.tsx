@@ -457,6 +457,7 @@ export function RichTextEditor({
   const formulaMathfieldRef = useRef<FormulaMathfieldHandle>(null);
   const selectionRangeRef = useRef<Range | null>(null);
   const editableInsertionSequenceRef = useRef(0);
+  const placeholderInsertionRef = useRef(false);
   const existingFormula = soleRichTextMathRun(content);
   const [formulaOpen, setFormulaOpen] = useState(false);
   const [formulaDraft, setFormulaDraft] = useState(
@@ -532,6 +533,11 @@ export function RichTextEditor({
   }, [sourceOnly, targetKey, disabled, refreshActiveStyles]);
 
   const sync = (): void => {
+    // The placeholder an insertion lands first is not the text. Reported, it
+    // reads a restyle as retyping, and Apply would then redraw a label's
+    // standard look over the author's italic. The inserting caller reports
+    // the finished content itself.
+    if (placeholderInsertionRef.current) return;
     if (editableRef.current)
       onChange(
         editableDocument(editableRef.current, defaultBold, defaultItalic),
@@ -570,11 +576,16 @@ export function RichTextEditor({
     // Insert one atomic node into native undo, then populate it ourselves.
     // Chromium otherwise repairs nested editable parts while inheriting nearby
     // bold/italic markup and can move a denominator outside its fraction.
-    document.execCommand(
-      "insertHTML",
-      false,
-      `<span data-rich-text-insertion="${marker}" contenteditable="false">&#xfffc;</span>`,
-    );
+    placeholderInsertionRef.current = true;
+    try {
+      document.execCommand(
+        "insertHTML",
+        false,
+        `<span data-rich-text-insertion="${marker}" contenteditable="false">&#xfffc;</span>`,
+      );
+    } finally {
+      placeholderInsertionRef.current = false;
+    }
     const inserted = editable.querySelector<HTMLElement>(
       `[data-rich-text-insertion="${marker}"]`,
     );

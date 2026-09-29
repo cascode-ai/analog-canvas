@@ -3461,6 +3461,38 @@ test("italic over a whole label slants its subscript too, and takes it off every
   await expect(rendered).toHaveText("CLKE");
 });
 
+test("italic over a new Pin's standard look is the author's look, kept on Apply", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  const canvas = page.getByTestId("schematic-canvas");
+  await page.keyboard.press("p");
+  await canvas.hover({ position: { x: 320, y: 180 } });
+  await canvas.click({ position: { x: 320, y: 180 } });
+  await expect(page.getByTestId("status")).toContainText("Added Cell Pin Vinp");
+  await page.keyboard.press("Escape");
+  const rendered = page.locator('[data-object-id="instance-label-P1"]');
+  const subscript = rendered.locator('[data-text-run="subscript"]');
+  const revision = page.getByTestId("revision");
+  const placed = Number(await revision.textContent());
+
+  // Placed as V over an upright inp. Italic over all of it restyles the
+  // name: Apply keeps that look rather than redrawing the standard one.
+  await page.getByTestId("annotation-hit-instance-label-P1").dblclick();
+  const editor = page.getByRole("textbox", { name: "Canvas text editor" });
+  await editor.press("ControlOrMeta+A");
+  await page.getByRole("button", { name: "Italic" }).click();
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  await expect(revision).toHaveText(String(placed + 1));
+  await expect(subscript).toHaveText("inp");
+  await expect(subscript.locator('[data-text-run="span"]').first()).toHaveCSS(
+    "font-style",
+    "italic",
+  );
+  await expect(rendered).toHaveText("Vinp");
+});
+
 test("keeps literal text line breaks and overbars visible while editing", async ({
   page,
 }) => {
