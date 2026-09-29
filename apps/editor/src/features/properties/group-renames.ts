@@ -1,9 +1,19 @@
 import type { ProjectStructureEdit } from "@icm/edit-engine";
 
-import type {
-  GroupPropertyCodeContext,
-  GroupPropertyCodeValue,
+import {
+  GROUP_NAME_AS_IS,
+  type GroupPropertyCodeContext,
+  type GroupPropertyCodeValue,
 } from "./group-property-code";
+
+/**
+ * The one name a batch gives all its parts, or null: "as is" and an empty
+ * name leave each part its own, as does a list of names by part.
+ */
+export function groupBatchName(value: GroupPropertyCodeValue): string | null {
+  const name = typeof value.names === "string" ? value.names.trim() : "";
+  return name && name.toLowerCase() !== GROUP_NAME_AS_IS ? name : null;
+}
 
 export interface GroupRename {
   instanceId: string;
@@ -24,9 +34,11 @@ export function groupRenames(
   value: GroupPropertyCodeValue,
   context: Pick<GroupPropertyCodeContext, "items">,
 ): GroupRenamePlan {
+  // One name for them all is a batch name, planned apart.
+  const perItem = typeof value.names === "string" ? undefined : value.names;
   const items = context.items ?? [];
   const renames = items.flatMap((item): GroupRename[] => {
-    const name = value.names?.[item.key];
+    const name = perItem?.[item.key];
     return name !== undefined && name !== item.name
       ? [{ instanceId: item.instanceId, key: item.key, name }]
       : [];

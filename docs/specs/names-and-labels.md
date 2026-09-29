@@ -196,6 +196,7 @@ stored italic scripts are not rewritten.
 | Parameter value | Live parameter projection; a stored format is usable only while its text matches |
 | Free Text or route marker | Stored RichText, initially generated from its creation rule |
 | Instance alias | Stored literal RichText; no electrical identity is inferred from it |
+| Cell Pin alias | Stored literal RichText that does not present the Pin's name; the parent pin draws it |
 | Cell/master word | Whole-word presentation, not the device-reference splitting rule |
 | Parent Cell pin | Projected child label content; explicit content bypasses generic pin typography |
 | Label without a stored display | Historical drawing-typography fallback |

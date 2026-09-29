@@ -107,6 +107,53 @@ describe("hierarchical block formal terminals", () => {
     expect(symbol?.pins[0]?.presentation?.nameContent).toEqual(authored);
   });
 
+  it("shows a Pin's display alias on the parent and makes room for it", () => {
+    const cell = (content?: RichTextDocument) =>
+      createHierarchicalBlockSymbol({
+        name: "Child",
+        netlist: {
+          name: "Child",
+          formalParameters: [],
+          terminals: [
+            {
+              id: "terminal-in",
+              name: "IN",
+              netId: "net-in",
+              direction: "input",
+              interfaceInstanceIds: ["P1"],
+            },
+          ],
+        },
+        annotations: content
+          ? [
+              {
+                id: "pin-label",
+                kind: "instance-label",
+                content,
+                anchor: {
+                  kind: "object",
+                  objectId: "P1",
+                  localOffset: { x: 10, y: 0 },
+                  fallbackPosition: { x: 10, y: 0 },
+                },
+                alignment: "start",
+                rotation: 0,
+                locked: false,
+              },
+            ]
+          : [],
+      });
+    const alias: RichTextDocument = {
+      runs: [{ kind: "text", value: "Reference input" }],
+    };
+    const named = cell();
+    const aliased = cell(alias);
+    // The netlist keeps the Pin's name; the parent draws the alias.
+    expect(aliased?.pins[0]?.name).toBe("IN");
+    expect(aliased?.pins[0]?.presentation?.nameContent).toEqual(alias);
+    expect(aliased!.viewBox.width).toBeGreaterThan(named!.viewBox.width);
+  });
+
   it("uses the current local Cell name after an imported Cell is renamed", () => {
     const symbol = createHierarchicalBlockSymbol({
       name: "Stage",

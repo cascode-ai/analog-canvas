@@ -1,5 +1,6 @@
 import {
   richTextIdentifier,
+  richTextPresentsIdentifier,
   rewriteRichTextIdentifier,
   labelTypography,
   labelTextDocument,
@@ -77,6 +78,11 @@ export interface TextEditingSession {
   plainTextKind?: "route-marker";
   /** Instance whose name or explicit display alias is being edited. */
   visualInstanceId?: string;
+  /**
+   * A Cell Pin's name label: the terminal it names, unless `displayAlias`
+   * makes it show text of its own while the Pin keeps its name.
+   */
+  cellPinTerminalId?: string;
   /** False follows/edits the electrical Reference; true owns display text. */
   displayAlias?: boolean;
   /** Symbol body text only: where and what the Symbol draws by default. */
@@ -388,6 +394,28 @@ export function createTextEditingSession(
       (!annotation.binding || annotation.binding.kind === "instance-reference")
         ? { visualInstanceId: instanceId!, displayAlias: !annotation.binding }
         : {}),
+      ...(() => {
+        // A Pin's label names its Pin, or, written with other text, shows
+        // that text as the Pin's display alias. An older written label that
+        // still reads the name is a name label.
+        const terminal =
+          annotation.kind === "instance-label" && anchor.kind === "object"
+            ? document?.netlist?.terminals.find((candidate) =>
+                annotation.binding?.kind === "cell-terminal-name"
+                  ? annotation.binding.terminalId === candidate.id
+                  : !annotation.binding &&
+                    candidate.interfaceInstanceIds.includes(anchor.objectId),
+              )
+            : undefined;
+        return terminal
+          ? {
+              cellPinTerminalId: terminal.id,
+              displayAlias:
+                !annotation.binding &&
+                !richTextPresentsIdentifier(content, terminal.name),
+            }
+          : {};
+      })(),
     };
   }
   if (target.owner === "instance-formula") {

@@ -387,9 +387,16 @@ import {
 } from "../features/properties/group-property-code-edits";
 import { planPropertyContactMove } from "../features/properties/property-contact-move";
 import {
+  groupBatchName,
   groupRenames,
   mergeRenamePlans,
 } from "../features/properties/group-renames";
+import {
+  groupNamingStatus,
+  planGroupNaming,
+  shownPartName,
+} from "../features/properties/group-naming";
+import { instanceDisplayEdits } from "../features/instance-display/instance-display-edits";
 import {
   batchAnnotationEdits,
   batchDraftingEdits,
@@ -3010,6 +3017,19 @@ function WorkspaceEditor({
               )?.name ??
               instance.reference ??
               instance.id,
+            // What its label shows: a display alias, or its own name.
+            shownNameOf: (instance) => {
+              const name =
+                document.netlist?.terminals.find((terminal) =>
+                  terminal.interfaceInstanceIds.includes(instance.id),
+                )?.name ?? instance.reference;
+              return name === undefined
+                ? null
+                : shownPartName(
+                    instanceLabelAnnotationFor(document, instance.id),
+                    name,
+                  );
+            },
             referenceVisible: (instance) => {
               const label = instanceLabelAnnotationFor(document, instance.id);
               return label !== undefined && label.visible !== false;
@@ -7915,6 +7935,36 @@ function WorkspaceEditor({
                         reference: rename.name,
                       });
                   }
+                  // One name for them all: the part that has it, or the one
+                  // selected first that can take it, carries it; the others
+                  // show it as a display alias.
+                  const batchName = groupBatchName(value);
+                  let namingStatus: string | null = null;
+                  if (batchName !== null) {
+                    const naming = planGroupNaming({
+                      project,
+                      document,
+                      resolver,
+                      instanceIds: selectedIds,
+                      name: batchName,
+                      labelFor: instanceLabelAnnotationFor,
+                      newLabelFor: (source, instanceId) =>
+                        instanceDisplayEdits(source, resolver, [instanceId], {
+                          showReference: true,
+                        }).flatMap((edit) =>
+                          edit.kind === "upsert_schematic_annotation"
+                            ? [edit.annotation]
+                            : [],
+                        )[0],
+                    });
+                    if (!naming.ok)
+                      return { ok: false, message: naming.message };
+                    edits.push(...naming.edits);
+                    if (naming.structure.length > 0)
+                      pinPlans.push(naming.structure);
+                    if (naming.edits.length > 0 || naming.structure.length > 0)
+                      namingStatus = groupNamingStatus(batchName, naming);
+                  }
                   const structureEdits = pinPlans.length
                     ? mergeRenamePlans(pinPlans)
                     : [];
@@ -7950,7 +8000,8 @@ function WorkspaceEditor({
                   } else applied = transact(edits).ok;
                   if (applied) {
                     setStatus(
-                      `Updated shared properties on ${selectedIds.length} components`,
+                      namingStatus ??
+                        `Updated shared properties on ${selectedIds.length} components`,
                     );
                     return { ok: true };
                   }
