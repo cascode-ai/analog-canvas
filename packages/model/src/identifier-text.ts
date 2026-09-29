@@ -45,8 +45,14 @@ export function richTextPresentsIdentifier(
   content: RichTextDocument,
   name: string,
 ): boolean {
+  const identifier = richTextIdentifier(content);
+  const flat = flattenRichText(content);
   return (
-    richTextIdentifier(content) === name || flattenRichText(content) === name
+    identifier === name ||
+    flat === name ||
+    // A bar spells the complement's `_bar` whether or not the subscript's
+    // separator is written: V̄_LO presents VLO_bar as well as V_LO_bar.
+    (identifier.endsWith("_bar") && `${flat}_bar` === name)
   );
 }
 

@@ -37,10 +37,10 @@ spelling, are created with a stored standard look:
 
 | Role                                             | Names                                                     | Stored look                                                             |
 | ------------------------------------------------ | --------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Supply (VDD Power, drawn rail)                   | `V` followed by letters/digits                            | Italic `V`, upright subscript rest: V_DD, V_DDH                         |
+| Supply (VDD Power, drawn rail)                   | `V` followed by letters/digits, then an optional + or −   | Italic `V`, upright subscript rest: V_DD, V_DDH                         |
 | Device Reference starting with its device letter | the device's one-letter prefix followed by letters/digits | Italic letter, upright subscript rest: M₁, R₁₂, R_L1, C_L, R_FB, M_TAIL |
 | Any other device Reference                       | letters followed by digits                                | Italic letters, upright subscript index: XU₀, OA₁                       |
-| Voltage node (Cell Pin, Bias Voltage, Net label) | `V` followed by letters/digits                            | Italic `V`, upright subscript rest: V_in, V_BP, V_casP                  |
+| Voltage node (Cell Pin, Bias Voltage, Net label) | `V` followed by letters/digits, then an optional + or −   | Italic `V`, upright subscript rest: V_in, V_BP, V_casP, V_in+, V_bn−    |
 | Current (Cell Pin, Net label)                    | `I` followed by letters/digits, except `IN…` and `IO`     | Italic `I`, upright subscript rest: I_out, I_REF, I₁                    |
 | Greek-led name (any role above)                  | a Greek letter, then Latin letters/digits                 | Italic Greek letter, upright subscript rest: Φ₁, Φ_1pp, φ_S, ω₀         |
 
@@ -51,10 +51,11 @@ The look applies whether the name was typed, connected or generated. A device
 letter is the one-letter Reference prefix a device declares (R, C, L, M, Q,
 D, V, I, S, B); a subcircuit call's `X` names how SPICE invokes it rather than
 what it is, so X-called parts and Blocks have none. Any other spelling
-(`AVDD`, a MOS named `XBIAS`, `M_1`, `CLK`, `Vin-`, an input such as `IN`,
-`INP` or `INN`, an `IO` pin) gets no standard look and is shown as written. A
-stored standard look is recognised by comparing its styled characters with
-the standard look of the label's current name; only a
+(`AVDD`, a MOS named `XBIAS`, `M_1`, `CLK`, a bare `V+`, an input such as
+`IN`, `INP` or `INN`, an `IO` pin) gets no standard look and is shown as
+written. A differential half keeps its sign in the subscript: `Vin-` is
+drawn V_in−. A stored standard look is recognised by comparing its styled
+characters with the standard look of the label's current name; only a
 label still carrying it is treated as a default. An author's own format always
 wins and is never replaced by a default: removing V_BP's subscript stores
 `VBP` drawn flat as the author's look, which later renames keep.
