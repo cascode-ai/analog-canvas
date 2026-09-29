@@ -1014,6 +1014,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
         boundAnnotation,
         textEditing,
         name,
+        semanticContent,
       );
       const nextFormatOverride = formatOverrideAllowed
         ? JSON.stringify(semanticContent) === JSON.stringify(presentedFormat)

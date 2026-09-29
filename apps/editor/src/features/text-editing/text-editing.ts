@@ -191,8 +191,8 @@ export function editedBoundAnnotationPresentation(
   annotation: Annotation,
   session: TextEditingSession,
   name: string,
+  fallback = labelTextDocument(name, document.presentation),
 ): RichTextDocument {
-  const fallback = labelTextDocument(name, document.presentation);
   const role = editedRoleLabelFormat(document, annotation, session, name);
   const typography = labelTypography(document.presentation);
   const reference = annotation.binding?.kind === "instance-reference";
@@ -785,7 +785,13 @@ export function proposeTextEditingCommit(
           : [];
       const defaultContent = labelTextDocument(name, document.presentation);
       const presentation = follows
-        ? editedBoundAnnotationPresentation(document, annotation, session, name)
+        ? editedBoundAnnotationPresentation(
+            document,
+            annotation,
+            session,
+            name,
+            defaultContent,
+          )
         : session.content;
       // An alias typed as a name, without a look of its own, is drawn the
       // way a name is (Φ2 as Φ over a subscript 2), so a drawing's labels
