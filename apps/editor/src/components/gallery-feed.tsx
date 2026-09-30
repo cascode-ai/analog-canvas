@@ -73,10 +73,13 @@ import { GalleryTagSidebar } from "./gallery-tag-sidebar";
 import { Masonry } from "./masonry";
 import type { GalleryDuplicateReport } from "../gallery-duplicates";
 
-/** Circuits a signed-out visitor sees in full. */
-const ANONYMOUS_OPEN_TILES = 10;
-/** Circuits after those, fading out under the invitation to sign in. */
-const ANONYMOUS_FADED_TILES = 5;
+/**
+ * Heights of the grey stand-in tiles behind the sign-in invitation. Signed
+ * out, the Gallery shows no circuit at all, only the shape of its wall.
+ */
+const SIGNED_OUT_TILE_HEIGHTS = [
+  190, 250, 160, 220, 270, 180, 240, 200, 160, 260, 210, 180,
+];
 
 const ShelfWall = lazy(() =>
   import("./shelf-wall").then((module) => ({ default: module.ShelfWall })),
@@ -985,8 +988,6 @@ export function GalleryFeed({
   }
 
   const entries = state.entries;
-  const anonymousWall =
-    state.status === "ready" && state.signInForMore === true;
   const needsBundledFallback =
     localhostExamplesEnabled() &&
     state.status !== "loading" &&
@@ -1023,17 +1024,6 @@ export function GalleryFeed({
         galleryEntryMatchesQuery(entry, normalizedSearchQuery),
       )
     : entries;
-  // Signed out, the wall shows its first circuits in full; the next few fade
-  // out under the invitation to sign in.
-  const wallEntries = anonymousWall
-    ? visibleEntries.slice(0, ANONYMOUS_OPEN_TILES)
-    : visibleEntries;
-  const lockedEntries = anonymousWall
-    ? visibleEntries.slice(
-        ANONYMOUS_OPEN_TILES,
-        ANONYMOUS_OPEN_TILES + ANONYMOUS_FADED_TILES,
-      )
-    : [];
 
   // A "View in Gallery" link names one circuit. The wall shows it at once: in
   // its place when the first page holds it, otherwise first on the wall,
@@ -1296,143 +1286,173 @@ export function GalleryFeed({
       ) : null}
 
       {view === "gallery" && state.status === "signed-out" ? (
-        <section className="gallery-sign-in" data-testid="gallery-sign-in">
-          <p className="gallery-status">
-            The Community Gallery is for signed-in members. Sign in (top right)
-            to browse its circuits and open them in the editor.
-          </p>
+        <section
+          className="gallery-sign-in"
+          data-testid="gallery-sign-in"
+          aria-labelledby="gallery-sign-in-title"
+        >
+          <div className="gallery-sign-in-veil" aria-hidden="true">
+            {SIGNED_OUT_TILE_HEIGHTS.map((height, index) => (
+              <span
+                key={index}
+                className="gallery-sign-in-tile"
+                style={{ height }}
+              />
+            ))}
+          </div>
+          <div className="gallery-sign-in-card">
+            <h2 id="gallery-sign-in-title">
+              The Gallery is for signed-in members
+            </h2>
+            <p>
+              Sign in to browse its circuits, open them in the editor and
+              publish your own.
+            </p>
+            <button
+              type="button"
+              className="gallery-unlock"
+              data-testid="gallery-unlock"
+              onClick={requestSignIn}
+            >
+              <svg
+                className="gallery-unlock-icon"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M7 11V8a5 5 0 0 1 9.6-2M5 11h14v10H5z M12 15v2"
+                />
+              </svg>
+              Sign in
+            </button>
+          </div>
         </section>
       ) : null}
       {view === "gallery" && state.status !== "signed-out" ? (
-        <div
-          className={
-            anonymousWall
-              ? "gallery-browser gallery-browser-wall-only"
-              : "gallery-browser"
-          }
-        >
-          {/* Signed out, the wall is its newest few circuits: nothing to
-              narrow, so no tags, search or filters beside it. */}
-          {anonymousWall ? null : (
-            <GalleryTagSidebar
-              tags={tagOptions}
-              groupCounts={tagGroupCounts}
-              countsLoading={tagCountsScope !== tagScope}
-              selected={selectedTags}
-              onChange={(tags) => updateFilters({ tags })}
-              search={searchQuery}
-              onSearchChange={(search) => updateFilters({ search })}
-              sizeFilters={sizeFilters}
-              sizeSelected={selectedParts.length}
-              onClearSizes={() => updateFilters({ parts: [] })}
-              quickFilters={
-                <>
-                  {signedIn || attentionOnly ? (
-                    <button
-                      type="button"
-                      className="gallery-sidebar-option"
-                      aria-pressed={attentionOnly}
-                      onClick={() =>
+        <div className="gallery-browser">
+          <GalleryTagSidebar
+            tags={tagOptions}
+            groupCounts={tagGroupCounts}
+            countsLoading={tagCountsScope !== tagScope}
+            selected={selectedTags}
+            onChange={(tags) => updateFilters({ tags })}
+            search={searchQuery}
+            onSearchChange={(search) => updateFilters({ search })}
+            sizeFilters={sizeFilters}
+            sizeSelected={selectedParts.length}
+            onClearSizes={() => updateFilters({ parts: [] })}
+            quickFilters={
+              <>
+                {signedIn || attentionOnly ? (
+                  <button
+                    type="button"
+                    className="gallery-sidebar-option"
+                    aria-pressed={attentionOnly}
+                    onClick={() =>
+                      updateFilters({
+                        attention: !attentionOnly,
+                        attentionKind: null,
+                      })
+                    }
+                    data-testid="gallery-filter-attention"
+                  >
+                    <span>
+                      Needs attention{signedIn && !isOwner ? " · Mine" : ""}
+                    </span>
+                    {quickCount("attention")}
+                  </button>
+                ) : null}
+                {attentionOnly ? (
+                  <label className="gallery-attention-reason">
+                    <span>Reason</span>
+                    <select
+                      value={attentionKind ?? ""}
+                      onChange={(event) =>
                         updateFilters({
-                          attention: !attentionOnly,
-                          attentionKind: null,
+                          attentionKind: event.currentTarget.value || null,
                         })
                       }
-                      data-testid="gallery-filter-attention"
+                      data-testid="gallery-filter-attention-reason"
                     >
-                      <span>
-                        Needs attention{signedIn && !isOwner ? " · Mine" : ""}
-                      </span>
-                      {quickCount("attention")}
-                    </button>
-                  ) : null}
-                  {attentionOnly ? (
-                    <label className="gallery-attention-reason">
-                      <span>Reason</span>
-                      <select
-                        value={attentionKind ?? ""}
-                        onChange={(event) =>
-                          updateFilters({
-                            attentionKind: event.currentTarget.value || null,
-                          })
-                        }
-                        data-testid="gallery-filter-attention-reason"
-                      >
-                        <option value="">Every reason</option>
-                        {GALLERY_ISSUE_KINDS.filter(
-                          (kind) =>
-                            kind === attentionKind ||
-                            (attentionKindCounts[kind] ?? 0) > 0,
-                        ).map((kind) => (
-                          <option key={kind} value={kind}>
-                            {galleryIssueKindLabel(kind)} (
-                            {(attentionKindCounts[kind] ?? 0).toLocaleString()})
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  ) : null}
+                      <option value="">Every reason</option>
+                      {GALLERY_ISSUE_KINDS.filter(
+                        (kind) =>
+                          kind === attentionKind ||
+                          (attentionKindCounts[kind] ?? 0) > 0,
+                      ).map((kind) => (
+                        <option key={kind} value={kind}>
+                          {galleryIssueKindLabel(kind)} (
+                          {(attentionKindCounts[kind] ?? 0).toLocaleString()})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+                <button
+                  type="button"
+                  className={
+                    netlistableOnly
+                      ? "gallery-tag-option gallery-tag-mark gallery-tag-selected"
+                      : "gallery-tag-option gallery-tag-mark"
+                  }
+                  data-testid="gallery-filter-netlistable"
+                  aria-pressed={netlistableOnly}
+                  title={
+                    netlistableOnly
+                      ? "Stop filtering by netlist"
+                      : "Show only circuits that extract to a netlist"
+                  }
+                  onClick={() =>
+                    updateFilters({ netlistable: !netlistableOnly })
+                  }
+                >
+                  <NetlistIcon /> <span>With netlist</span>
+                  {quickCount("netlistable")}
+                </button>
+                {signedIn || likedOnly ? (
                   <button
                     type="button"
                     className={
-                      netlistableOnly
+                      likedOnly
                         ? "gallery-tag-option gallery-tag-mark gallery-tag-selected"
                         : "gallery-tag-option gallery-tag-mark"
                     }
-                    data-testid="gallery-filter-netlistable"
-                    aria-pressed={netlistableOnly}
+                    data-testid="gallery-filter-liked"
+                    aria-pressed={likedOnly}
                     title={
-                      netlistableOnly
-                        ? "Stop filtering by netlist"
-                        : "Show only circuits that extract to a netlist"
+                      likedOnly
+                        ? "Stop filtering by your likes"
+                        : "Show only circuits you have liked"
                     }
-                    onClick={() =>
-                      updateFilters({ netlistable: !netlistableOnly })
-                    }
+                    onClick={() => updateFilters({ liked: !likedOnly })}
                   >
-                    <NetlistIcon /> <span>With netlist</span>
-                    {quickCount("netlistable")}
+                    <HeartIcon filled={true} /> <span>Liked</span>
+                    {quickCount("liked")}
                   </button>
-                  {signedIn || likedOnly ? (
-                    <button
-                      type="button"
-                      className={
-                        likedOnly
-                          ? "gallery-tag-option gallery-tag-mark gallery-tag-selected"
-                          : "gallery-tag-option gallery-tag-mark"
-                      }
-                      data-testid="gallery-filter-liked"
-                      aria-pressed={likedOnly}
-                      title={
-                        likedOnly
-                          ? "Stop filtering by your likes"
-                          : "Show only circuits you have liked"
-                      }
-                      onClick={() => updateFilters({ liked: !likedOnly })}
-                    >
-                      <HeartIcon filled={true} /> <span>Liked</span>
-                      {quickCount("liked")}
-                    </button>
-                  ) : null}
-                </>
-              }
-              adminTools={
-                isOwner ? (
-                  <Suspense fallback={null}>
-                    <GalleryDuplicateCheck
-                      onReport={setDuplicateReport}
-                      onRecycled={(ids) => {
-                        // The scan covers the whole library, while this feed may
-                        // be filtered. Let the server recalculate its counts.
-                        setRefreshSignal((signal) => signal + 1);
-                        if (ids[0]) announceGalleryChange({ entryId: ids[0] });
-                      }}
-                    />
-                  </Suspense>
-                ) : null
-              }
-            />
-          )}
+                ) : null}
+              </>
+            }
+            adminTools={
+              isOwner ? (
+                <Suspense fallback={null}>
+                  <GalleryDuplicateCheck
+                    onReport={setDuplicateReport}
+                    onRecycled={(ids) => {
+                      // The scan covers the whole library, while this feed may
+                      // be filtered. Let the server recalculate its counts.
+                      setRefreshSignal((signal) => signal + 1);
+                      if (ids[0]) announceGalleryChange({ entryId: ids[0] });
+                    }}
+                  />
+                </Suspense>
+              ) : null
+            }
+          />
           <div className="gallery-main">
             {author ? (
               <div className="gallery-filter" data-testid="gallery-filter">
@@ -1476,7 +1496,7 @@ export function GalleryFeed({
                 <Masonry
                   aria-label="Published circuits"
                   items={[
-                    ...wallEntries.map((entry) => ({
+                    ...visibleEntries.map((entry) => ({
                       key: entry.id,
                       node: (
                         <div
@@ -1674,62 +1694,8 @@ export function GalleryFeed({
                             ),
                           }))
                       : []),
-                    // Signed out, the circuits after the open ones continue
-                    // each column and fade out there: a glimpse of what
-                    // signing in opens, seen but not used.
-                    ...lockedEntries.map((entry) => ({
-                      key: `locked-${entry.id}`,
-                      node: (
-                        <div
-                          className="gallery-tile gallery-tile-locked"
-                          aria-hidden="true"
-                          inert
-                        >
-                          <TilePreview
-                            src={galleryPreviewUrl(
-                              entry.id,
-                              entry.previewRevision,
-                            )}
-                            alt=""
-                            {...(entry.previewWidth !== undefined &&
-                            entry.previewHeight !== undefined
-                              ? {
-                                  width: entry.previewWidth,
-                                  height: entry.previewHeight,
-                                }
-                              : {})}
-                          />
-                        </div>
-                      ),
-                    })),
                   ]}
                 />
-                {anonymousWall ? (
-                  <div className="gallery-locked" data-testid="gallery-locked">
-                    <button
-                      type="button"
-                      className="gallery-unlock"
-                      data-testid="gallery-unlock"
-                      onClick={requestSignIn}
-                    >
-                      <svg
-                        className="gallery-unlock-icon"
-                        viewBox="0 0 24 24"
-                        aria-hidden="true"
-                      >
-                        <path
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M7 11V8a5 5 0 0 1 9.6-2M5 11h14v10H5z M12 15v2"
-                        />
-                      </svg>
-                      Sign in to unlock the gallery
-                    </button>
-                  </div>
-                ) : null}
                 {entries.length === 0 &&
                 selectedTags.length > 0 &&
                 author === null ? (

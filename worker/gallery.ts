@@ -35,17 +35,12 @@ import {
   GALLERY_MAX_NAME_LENGTH,
   GALLERY_MAX_PROJECT_BYTES,
   GALLERY_MAX_REJECT_REASON_LENGTH,
-  GALLERY_MAX_SEARCH_LENGTH,
   sanitizeGalleryTags,
   shortId,
   wrapTags,
   type GalleryEntrySummary,
   type GalleryEnv,
 } from "./gallery-do";
-import {
-  galleryEntryMatchesQuery,
-  normalizeGallerySearchText,
-} from "../apps/editor/src/gallery-search";
 
 export * from "./gallery-do";
 
@@ -225,63 +220,6 @@ async function galleryReaderOf(
     galleryReaders.set(cookie, { expires: now + 60_000, user });
   }
   return user;
-}
-
-/**
- * Signed out, a visitor sees the wall's newest circuits, enough to fill about
- * three rows of a wide wall (these only, each with its preview and Project),
- * and is asked to sign in for the rest. The set is
- * remembered for a minute per isolate, so the wall's previews do not each ask
- * the Gallery for it again; a circuit that leaves the wall in that minute is
- * still refused by its own public-status check.
- */
-export const ANONYMOUS_GALLERY_SIZE = 24;
-let anonymousWall: {
-  expires: number;
-  entries: unknown[];
-  total: number;
-  ids: ReadonlySet<string>;
-} | null = null;
-async function anonymousGalleryWall(
-  env: GalleryEnv,
-): Promise<typeof anonymousWall> {
-  const now = Date.now();
-  if (anonymousWall && anonymousWall.expires > now) return anonymousWall;
-  const { status, payload } = await callGallery<{
-    entries?: { id?: unknown }[];
-    total?: unknown;
-  }>(env, "list", {
-    isAdmin: false,
-    attention: false,
-    attentionKind: null,
-    viewerId: "",
-    limit: String(ANONYMOUS_GALLERY_SIZE),
-    cursor: null,
-    author: null,
-    ownerUserId: null,
-    tags: [],
-    netlistable: false,
-    liked: false,
-    parts: [],
-  });
-  if (status !== 200 || !Array.isArray(payload.entries)) return null;
-  const entries = payload.entries.slice(0, ANONYMOUS_GALLERY_SIZE);
-  anonymousWall = {
-    expires: now + 60_000,
-    entries,
-    total: typeof payload.total === "number" ? payload.total : entries.length,
-    ids: new Set(
-      entries.flatMap((entry) =>
-        typeof entry.id === "string" ? [entry.id] : [],
-      ),
-    ),
-  };
-  return anonymousWall;
-}
-
-/** Test seam: forget the remembered anonymous wall. */
-export function resetAnonymousGalleryWall(): void {
-  anonymousWall = null;
 }
 
 /** A reader's copy of a cacheable response: a browser may keep it, a shared cache may not. */
@@ -1682,61 +1620,18 @@ export async function routeGalleryRequest(
   if (!url.pathname.startsWith("/api/gallery")) return null;
   const segments = url.pathname.split("/").filter(Boolean).slice(2);
   // The Community Gallery is for signed-in readers. Without a session or the
-  // read-only Gallery credential a visitor reads only the newest few circuits
-  // (the wall, and each one's preview and Project); every other read asks to
-  // sign in. Writes keep their own, stricter checks.
+  // read-only Gallery credential every read asks to sign in: the list and its
+  // search, an entry, its Project and its preview alike. Writes keep their
+  // own, stricter checks.
   if (
     (request.method === "GET" || request.method === "HEAD") &&
     !hasGalleryReadToken(request, env) &&
     !(await galleryReaderOf(request, env))
   ) {
-    const wall = await anonymousGalleryWall(env);
-    if (wall && segments.length === 0) {
-      // A search reads only the wall itself, so signed out it cannot page
-      // through the rest of the Gallery.
-      const search = url.searchParams.get("q") ?? "";
-      const entries = normalizeGallerySearchText(search)
-        ? wall.entries.filter((entry) => {
-            const summary = entry as Record<string, unknown>;
-            return galleryEntryMatchesQuery(
-              {
-                name: String(summary.name ?? ""),
-                author: String(summary.author ?? ""),
-                description:
-                  typeof summary.description === "string"
-                    ? summary.description
-                    : null,
-                tags: Array.isArray(summary.tags)
-                  ? summary.tags.filter(
-                      (tag): tag is string => typeof tag === "string",
-                    )
-                  : [],
-              },
-              search.slice(0, GALLERY_MAX_SEARCH_LENGTH),
-            );
-          })
-        : wall.entries;
-      return Response.json(
-        {
-          entries,
-          nextCursor: null,
-          total: entries === wall.entries ? wall.total : entries.length,
-          ...(entries === wall.entries ? {} : { search: search.trim() }),
-          signInForMore: true,
-        },
-        { headers: { "cache-control": "no-store" } },
-      );
-    }
-    const readsWallCircuit =
-      wall !== null &&
-      wall.ids.has(segments[0] ?? "") &&
-      (segments.length === 1 ||
-        (segments.length === 2 && segments[1] === "preview.svg"));
-    if (!readsWallCircuit)
-      return Response.json(
-        { error: "sign-in-required" },
-        { status: 401, headers: { "cache-control": "no-store" } },
-      );
+    return Response.json(
+      { error: "sign-in-required" },
+      { status: 401, headers: { "cache-control": "no-store" } },
+    );
   }
 
   if (

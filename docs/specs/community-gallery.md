@@ -17,25 +17,20 @@ restrictive content-security-policy.
 
 ## Reader access
 
-The Gallery is for signed-in readers. Every Gallery read (the list, tags,
-authors, an entry and its Project, its preview and its history) needs a
-signed-in session or the read-only Gallery credential (`GALLERY_BACKUP_TOKEN`
-as a Bearer token), with one exception: a signed-out visitor sees the wall's
-24 newest public circuits. `GET /api/gallery` then answers
-`{entries, nextCursor: null, total, signInForMore: true}` whatever it is
-asked (unfiltered and unpaged; `total` still counts the whole wall), and each
-of those circuits' entry, Project and preview reads as it does for a reader.
-The Worker remembers that set for a minute per isolate; a circuit leaving the
-wall in that minute is still refused by its own public-status check. Every
-other read answers `401 {"error":"sign-in-required"}` with
-`cache-control: no-store`. The landing page shows the first 10 of those
-circuits in full, with no tags, search or filters beside them. The next 5
-continue the same masonry columns, each fading out, inert and hidden from
-assistive technology. Below them, "Sign in to unlock the gallery" opens the
-header's sign-in choices. No sentence above the wall counts what is hidden.
-The landing page shows the sign-in prompt instead when even the list is
-refused. "Public"
-below means published on the wall for signed-in readers. Admin and owner-only
+The Gallery is for signed-in readers. Every Gallery read (the list and its
+search, tags, authors, an entry and its Project, its preview and its history)
+needs a signed-in session or the read-only Gallery credential
+(`GALLERY_BACKUP_TOKEN` as a Bearer token). Signed out, every one of them
+answers `401 {"error":"sign-in-required"}` with `cache-control: no-store`:
+a visitor sees no circuit, name or count. The landing page then shows grey
+stand-ins for the wall's tiles under a veil, with "The Gallery is for
+signed-in members" and a Sign in button that opens the header's sign-in
+choices; no tags, search or filters sit beside it. The editor's Gallery panel
+shows the same veil over grey cards, with "Sign in to insert circuits from
+the Gallery." and its own Sign in button. Agent Gallery reads made through a
+signed-out editor fail with a message saying to sign in to the editor. Built-in
+examples bundled with the editor are not Gallery content. "Public" below
+means published on the wall for signed-in readers. Admin and owner-only
 routes keep their own, stricter checks, and writes keep theirs.
 A reader's preview is served `private`, so a shared cache never keeps it; the
 Worker's edge cache keeps the immutable bytes behind the reader check. A valid

@@ -23,10 +23,8 @@ import {
   GALLERY_NETLIST_PAGE_CHARACTERS,
 } from "./gallery-do";
 import {
-  ANONYMOUS_GALLERY_SIZE,
   GALLERY_DAILY_SUBMISSION_LIMIT,
   galleryReadableDocument,
-  resetAnonymousGalleryWall,
   refreshNetlistMarks,
   GALLERY_MAX_PROJECT_BYTES,
   GalleryDO,
@@ -159,67 +157,27 @@ describe("Gallery readers", () => {
       env,
     ))!;
 
-  it("shows a visitor without a session or the read credential only the newest circuits", async () => {
-    resetAnonymousGalleryWall();
+  it("refuses every read to a visitor without a session or the read credential", async () => {
     const env = environment();
-    const cookie = await adminOf(env);
-    const ids: string[] = [];
-    for (let index = 0; index < ANONYMOUS_GALLERY_SIZE + 2; index++)
-      ids.push(await submitOne(env, `Circuit ${index}`, { cookie }));
-    const newest = ids.at(-1)!;
-    const oldest = ids[0]!;
-    const revisionOf = async (id: string) =>
-      (
-        (await (
-          await direct(env, `/api/gallery/${id}`, cookieHeaders(cookie))
-        ).json()) as { entry: { previewRevision: string } }
-      ).entry.previewRevision;
-    const refused = [
-      "/api/gallery/tags",
-      "/api/gallery/authors",
-      `/api/gallery/${newest}/versions`,
-      `/api/gallery/${oldest}`,
-      `/api/gallery/${oldest}/preview.svg?v=${await revisionOf(oldest)}`,
+    const paths = [
+      ...(await reads(env)),
+      "/api/gallery?q=circuit",
+      "/api/gallery?limit=1",
     ];
-    const newestPreview = `/api/gallery/${newest}/preview.svg?v=${await revisionOf(newest)}`;
     for (const headers of [
       undefined,
       { Authorization: "Bearer wrong" },
       { Cookie: "session=forged" },
     ]) {
       const label = JSON.stringify(headers);
-      // The wall, whatever it is asked for, is the newest few and no more.
-      for (const path of ["/api/gallery", "/api/gallery?netlistable=1"]) {
-        const wall = await direct(env, path, headers);
-        expect(wall.status, `${path} ${label}`).toBe(200);
-        expect(wall.headers.get("cache-control")).toBe("no-store");
-        const page = (await wall.json()) as {
-          entries: { id: string }[];
-          nextCursor: string | null;
-          total: number;
-          signInForMore: boolean;
-        };
-        expect(page.entries.map((entry) => entry.id)).toEqual(
-          ids.slice(-ANONYMOUS_GALLERY_SIZE).reverse(),
-        );
-        expect(page.nextCursor).toBeNull();
-        expect(page.total).toBe(ids.length);
-        expect(page.signInForMore).toBe(true);
-      }
-      // Each circuit on it opens with its preview ...
-      expect(
-        (await direct(env, `/api/gallery/${newest}`, headers)).status,
-      ).toBe(200);
-      expect((await direct(env, newestPreview, headers)).status).toBe(200);
-      // ... and every other read asks to sign in.
-      for (const path of refused) {
+      for (const path of paths) {
         const response = await direct(env, path, headers);
         expect(response.status, `${path} ${label}`).toBe(401);
         expect(response.headers.get("cache-control")).toBe("no-store");
         expect(await response.json()).toEqual({ error: "sign-in-required" });
       }
     }
-    for (const path of refused)
+    for (const path of paths)
       expect(
         (
           await routeGalleryRequest(
@@ -227,41 +185,8 @@ describe("Gallery readers", () => {
             env,
           )
         )?.status,
+        path,
       ).toBe(401);
-    resetAnonymousGalleryWall();
-  });
-
-  it("lets a signed-out search read only the newest wall", async () => {
-    resetAnonymousGalleryWall();
-    const env = environment();
-    const cookie = await adminOf(env);
-    const ids: string[] = [];
-    for (let index = 0; index < ANONYMOUS_GALLERY_SIZE + 2; index++)
-      ids.push(await submitOne(env, `Circuit ${index}`, { cookie }));
-    // The oldest circuit is the only one named for a bandgap.
-    env.gallerySql.exec(
-      "UPDATE gallery_entries SET name = 'Bandgap' WHERE id = ?",
-      ids[0]!,
-    );
-    const newest = `Circuit ${ANONYMOUS_GALLERY_SIZE + 1}`;
-    const search = async (query: string) =>
-      (await (await direct(env, `/api/gallery?q=${query}`)).json()) as {
-        entries: { name: string }[];
-        nextCursor: string | null;
-        total: number;
-        signInForMore: boolean;
-      };
-    expect(await search("bandgap")).toEqual({
-      entries: [],
-      nextCursor: null,
-      total: 0,
-      search: "bandgap",
-      signInForMore: true,
-    });
-    const found = await search(encodeURIComponent(newest));
-    expect(found.entries.map((entry) => entry.name)).toEqual([newest]);
-    expect(found).toMatchObject({ total: 1, signInForMore: true });
-    resetAnonymousGalleryWall();
   });
 
   it("serves a signed-in member and the read credential every read", async () => {

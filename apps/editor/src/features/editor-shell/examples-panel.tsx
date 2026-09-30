@@ -12,6 +12,7 @@ import {
   type GalleryFeedEntry,
 } from "../../gallery-client";
 import { galleryEntryMatchesQuery } from "../../gallery-search";
+import { requestSignIn } from "../../components/sign-in-request";
 
 const ExamplesPanelTags = lazy(() =>
   import("./examples-panel-tags").then((module) => ({
@@ -304,6 +305,31 @@ export function ExamplesPanel({
             </aside>
           ) : null}
           <div className="examples-panel-results">
+            {/* Signed out, the Gallery shows no circuit here either: grey
+            stand-ins under a veil, and the way to sign in. */}
+            {feed.status === "signed-out" ? (
+              <div
+                className="examples-panel-sign-in"
+                data-testid="examples-panel-sign-in"
+              >
+                <div className="examples-panel-sign-in-veil" aria-hidden="true">
+                  {[0, 1, 2, 3, 4, 5].map((index) => (
+                    <span key={index} className="examples-panel-sign-in-tile" />
+                  ))}
+                </div>
+                <div className="examples-panel-sign-in-card">
+                  <p>Sign in to insert circuits from the Gallery.</p>
+                  <button
+                    type="button"
+                    className="examples-panel-sign-in-button"
+                    data-testid="examples-panel-sign-in-button"
+                    onClick={requestSignIn}
+                  >
+                    Sign in
+                  </button>
+                </div>
+              </div>
+            ) : null}
             {/* Columns follow the panel's dragged width, the same way the Library
             tiles do; a separate control for the same thing is one knob too
             many. */}
@@ -339,19 +365,19 @@ export function ExamplesPanel({
                     </span>
                   </button>
                 ))
-              ) : localhostExamplesEnabled() ? (
+              ) : localhostExamplesEnabled() && feed.status !== "signed-out" ? (
                 <Suspense fallback={null}>
                   <LocalExamplesCards onOpenExample={onOpenExample} />
                 </Suspense>
               ) : null}
             </div>
-            {!showGallery && !localhostExamplesEnabled() ? (
+            {!showGallery &&
+            !localhostExamplesEnabled() &&
+            feed.status !== "signed-out" ? (
               <p className="examples-panel-empty">
-                {feed.status === "signed-out"
-                  ? "Sign in to browse the Community Gallery's circuits."
-                  : feed.status === "unavailable"
-                    ? "Gallery is unavailable. Try again later."
-                    : "No published circuits yet."}
+                {feed.status === "unavailable"
+                  ? "Gallery is unavailable. Try again later."
+                  : "No published circuits yet."}
               </p>
             ) : null}
             {/* Says "still looking" while pages remain, and only claims nothing

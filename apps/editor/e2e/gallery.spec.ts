@@ -1924,7 +1924,7 @@ test("netlist tag counts honor linked and remembered filters on first load", asy
   }
 });
 
-test("a signed-out visitor sees a sign-in prompt instead of the Gallery", async ({
+test("a signed-out visitor sees a grey wall with a way to sign in, and no circuit", async ({
   page,
 }) => {
   // The Gallery answers only signed-in readers: every read is refused.
@@ -1936,47 +1936,6 @@ test("a signed-out visitor sees a sign-in prompt instead of the Gallery", async 
       json: { error: "sign-in-required" },
     });
   });
-  await page.goto("/");
-  const prompt = page.getByTestId("gallery-sign-in");
-  await expect(prompt).toContainText("signed-in members");
-  await expect(prompt).toContainText("Sign in (top right)");
-  await expect(page.getByTestId("gallery-tag-sidebar")).toHaveCount(0);
-  await expect(page.locator('[data-testid^="gallery-tile-"]')).toHaveCount(0);
-  await expect(page.getByTestId("gallery-empty")).toHaveCount(0);
-  // The prompt says everything; no footnote promises browsing without it.
-  await expect(page.getByTestId("gallery-footnote")).toHaveCount(0);
-  expect(reads).toContain("/api/gallery");
-});
-
-test("a signed-out visitor sees the newest circuits and is asked to sign in for the rest", async ({
-  page,
-}) => {
-  // Signed out, the Worker answers the wall with its newest few circuits.
-  const newest = Array.from({ length: 24 }, (_, index) => ({
-    ...ENTRY,
-    id: `g-new-${index}`,
-    name: `Newest ${index}`,
-    createdAt: `2026-09-${String(28 - index).padStart(2, "0")}T10:00:00.000Z`,
-  }));
-  await page.route(galleryListUrl, (route) =>
-    route.fulfill({
-      json: {
-        entries: newest,
-        nextCursor: null,
-        total: 42,
-        signInForMore: true,
-      },
-    }),
-  );
-  await page.route("**/api/gallery/*/preview.svg*", (route) =>
-    route.fulfill({
-      contentType: "image/svg+xml",
-      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"/>',
-    }),
-  );
-  await page.route("**/api/gallery/tags*", (route) =>
-    route.fulfill({ status: 401, json: { error: "sign-in-required" } }),
-  );
   await page.route("**/api/auth/providers", (route) =>
     route.fulfill({ json: { github: true, google: true, email: true } }),
   );
@@ -1984,31 +1943,23 @@ test("a signed-out visitor sees the newest circuits and is asked to sign in for 
     route.fulfill({ json: { user: null } }),
   );
   await page.goto("/");
-  // The first ten open; no sentence above the wall says what is missing.
-  const tiles = page.locator("a.gallery-tile");
-  await expect(tiles).toHaveCount(10);
-  await expect(page.getByText(/newest of/u)).toHaveCount(0);
-  // Without the sidebar the wall still spans the page: several columns, not
-  // one tile-wide strip.
-  await expect
-    .poll(async () => {
-      const lefts = await tiles.evaluateAll((links) =>
-        links.map((link) => Math.round(link.getBoundingClientRect().left)),
-      );
-      return new Set(lefts).size;
-    })
-    .toBeGreaterThanOrEqual(3);
-  // The next few continue the same wall, each column fading out: seen but
-  // not usable.
-  const lockedTiles = page.locator(".masonry .gallery-tile-locked");
-  await expect(lockedTiles).toHaveCount(5);
-  await expect(
-    page.locator(".masonry .gallery-tile-locked[inert]"),
-  ).toHaveCount(5);
-  await expect(page.locator(".masonry")).toHaveCount(1);
+  const prompt = page.getByTestId("gallery-sign-in");
+  await expect(prompt).toContainText("The Gallery is for signed-in members");
+  // Grey stand-ins keep the wall's shape; none of them is a circuit.
+  await expect(prompt.locator(".gallery-sign-in-tile")).toHaveCount(12);
+  await expect(prompt.locator(".gallery-sign-in-veil")).toHaveAttribute(
+    "aria-hidden",
+    "true",
+  );
+  await expect(page.locator('[data-testid^="gallery-tile-"]')).toHaveCount(0);
+  await expect(page.locator(".masonry")).toHaveCount(0);
+  await expect(page.getByTestId("gallery-tag-sidebar")).toHaveCount(0);
+  await expect(page.getByTestId("gallery-empty")).toHaveCount(0);
+  // The prompt says everything; no footnote promises browsing without it.
+  await expect(page.getByTestId("gallery-footnote")).toHaveCount(0);
   // The invitation opens the header's sign-in choices.
   const unlock = page.getByTestId("gallery-unlock");
-  await expect(unlock).toHaveText("Sign in to unlock the gallery");
+  await expect(unlock).toHaveText("Sign in");
   // Its gradient stays under the pointer; the app-wide button hover once
   // turned it grey under the white label.
   await unlock.hover();
@@ -2017,14 +1968,50 @@ test("a signed-out visitor sees the newest circuits and is asked to sign in for 
       unlock.evaluate((element) => getComputedStyle(element).backgroundImage),
     )
     .toContain("linear-gradient");
-  await expect(page.getByTestId("account-signin")).toBeVisible();
   await expect(page.getByTestId("signin-github")).toBeHidden();
   await unlock.click();
   await expect(page.getByTestId("signin-github")).toBeVisible();
   await expect(page.getByTestId("signin-google")).toBeVisible();
-  // Nothing to narrow: no tags, search or filters beside the wall.
-  await expect(page.getByTestId("gallery-tag-sidebar")).toHaveCount(0);
-  await expect(page.getByTestId("gallery-sign-in")).toHaveCount(0);
+  // Asked once for the list and refused; no preview or entry was read.
+  expect(reads).toContain("/api/gallery");
+  expect(reads.filter((path) => path.endsWith("/preview.svg"))).toEqual([]);
+});
+
+test("signed out, the editor's Gallery panel is grey with a way to sign in", async ({
+  page,
+}) => {
+  const reads: string[] = [];
+  await page.route("**/api/gallery**", (route) => {
+    reads.push(new URL(route.request().url()).pathname);
+    return route.fulfill({
+      status: 401,
+      json: { error: "sign-in-required" },
+    });
+  });
+  await page.route("**/api/auth/providers", (route) =>
+    route.fulfill({ json: { github: true, google: true, email: true } }),
+  );
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({ json: { user: null } }),
+  );
+  await page.goto("/editor");
+  await awaitEditorReady(page);
+  await page.getByTestId("examples-toggle").click();
+  const panel = page.getByTestId("examples-panel");
+  const locked = panel.getByTestId("examples-panel-sign-in");
+  await expect(locked).toContainText(
+    "Sign in to insert circuits from the Gallery.",
+  );
+  await expect(locked.locator(".examples-panel-sign-in-tile")).toHaveCount(6);
+  await expect(panel.locator('[data-testid^="gallery-example-"]')).toHaveCount(
+    0,
+  );
+  await expect(panel.getByTestId("examples-panel-search")).toHaveCount(0);
+  await expect(page.getByTestId("signin-github")).toBeHidden();
+  await locked.getByTestId("examples-panel-sign-in-button").click();
+  await expect(page.getByTestId("signin-github")).toBeVisible();
+  expect(reads).toContain("/api/gallery");
+  expect(reads.filter((path) => path.endsWith("/preview.svg"))).toEqual([]);
 });
 
 test("a remembered narrowing loads the wall with its one early request", async ({
