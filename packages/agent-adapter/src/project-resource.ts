@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { lazyJsonSchema } from "./lazy-json-schema.js";
+
 import { AGENT_API_VERSION } from "./schema.js";
 
 const StableIdSchema = z.string().min(1).max(256);
@@ -318,13 +320,11 @@ export const AgentProjectResourceResponseSchema = z.union([
   }),
 ]);
 
-export const AgentProjectResourceRequestJsonSchema = z.toJSONSchema(
+export const agentProjectResourceRequestJsonSchema = lazyJsonSchema(
   AgentProjectResourceRequestSchema,
-  { target: "draft-2020-12", reused: "ref" },
 );
-export const AgentProjectResourceResponseJsonSchema = z.toJSONSchema(
+export const agentProjectResourceResponseJsonSchema = lazyJsonSchema(
   AgentProjectResourceResponseSchema,
-  { target: "draft-2020-12", reused: "ref" },
 );
 
 export function parseAgentProjectResourceRequest(

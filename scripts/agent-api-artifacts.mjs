@@ -2,14 +2,14 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
-  AgentCircuitRequestJsonSchema,
-  AgentCircuitResponseJsonSchema,
+  agentCircuitRequestJsonSchema,
+  agentCircuitResponseJsonSchema,
   agentCircuitOpenApi,
 } from "../packages/agent-adapter/dist/index.js";
 
 const artifacts = new Map([
-  ["agent-circuit-request.schema.json", AgentCircuitRequestJsonSchema],
-  ["agent-circuit-response.schema.json", AgentCircuitResponseJsonSchema],
+  ["agent-circuit-request.schema.json", agentCircuitRequestJsonSchema()],
+  ["agent-circuit-response.schema.json", agentCircuitResponseJsonSchema()],
   ["agent-circuit.openapi.json", agentCircuitOpenApi],
 ]);
 const check = process.argv.includes("--check");

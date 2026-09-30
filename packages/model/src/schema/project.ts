@@ -337,6 +337,17 @@ export const CircuitProjectSchema = z
     for (const document of project.documents) visit(document.id, []);
   });
 
-export const CircuitProjectJsonSchema = z.toJSONSchema(CircuitProjectSchema, {
-  target: "draft-2020-12",
-});
+function buildCircuitProjectJsonSchema() {
+  return z.toJSONSchema(CircuitProjectSchema, { target: "draft-2020-12" });
+}
+let builtCircuitProjectJsonSchema:
+  ReturnType<typeof buildCircuitProjectJsonSchema> | undefined;
+/**
+ * The Project file's JSON Schema, built on first use. Converting it at import
+ * cost every editor page and every Worker start, which has a CPU limit.
+ */
+export function circuitProjectJsonSchema(): ReturnType<
+  typeof buildCircuitProjectJsonSchema
+> {
+  return (builtCircuitProjectJsonSchema ??= buildCircuitProjectJsonSchema());
+}

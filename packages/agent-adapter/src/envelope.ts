@@ -9,6 +9,8 @@
 
 import { z } from "zod";
 
+import { lazyJsonSchema } from "./lazy-json-schema.js";
+
 /** Relay protocol version. Bumped only on an incompatible envelope change. */
 export const AGENT_SESSION_PROTOCOL_VERSION = "1.0" as const;
 
@@ -32,9 +34,8 @@ export const AgentSessionStatusResponseSchema = z.strictObject({
 export type AgentSessionStatusResponse = z.infer<
   typeof AgentSessionStatusResponseSchema
 >;
-export const AgentSessionStatusResponseJsonSchema = z.toJSONSchema(
+export const agentSessionStatusResponseJsonSchema = lazyJsonSchema(
   AgentSessionStatusResponseSchema,
-  { target: "draft-2020-12", reused: "ref" },
 );
 
 const OpaqueIdSchema = z.string().min(1);
@@ -60,9 +61,8 @@ export const AgentSessionMessageKindSchema = z.enum([
 export const AgentClaimRequestSchema = z.strictObject({
   claimCode: OpaqueIdSchema,
 });
-export const AgentClaimRequestJsonSchema = z.toJSONSchema(
+export const agentClaimRequestJsonSchema = lazyJsonSchema(
   AgentClaimRequestSchema,
-  { target: "draft-2020-12", reused: "ref" },
 );
 
 /** Durable Agent-side connector exchange. The connector is never a Circuit bearer. */
@@ -70,9 +70,8 @@ export const AgentConnectorResumeRequestSchema = z.strictObject({
   sessionId: OpaqueIdSchema,
   connectorToken: OpaqueIdSchema,
 });
-export const AgentConnectorResumeRequestJsonSchema = z.toJSONSchema(
+export const agentConnectorResumeRequestJsonSchema = lazyJsonSchema(
   AgentConnectorResumeRequestSchema,
-  { target: "draft-2020-12", reused: "ref" },
 );
 
 /** Successful claim or connector resume. Secrets are returned only once. */
@@ -88,9 +87,8 @@ export const AgentConnectionCredentialResponseSchema = z.strictObject({
   contextRevision: OpaqueIdSchema.optional(),
   documentIds: z.array(OpaqueIdSchema),
 });
-export const AgentConnectionCredentialResponseJsonSchema = z.toJSONSchema(
+export const agentConnectionCredentialResponseJsonSchema = lazyJsonSchema(
   AgentConnectionCredentialResponseSchema,
-  { target: "draft-2020-12", reused: "ref" },
 );
 
 /**
@@ -263,9 +261,8 @@ export const AgentTransportErrorResponseSchema = z.strictObject({
     message: z.string(),
   }),
 });
-export const AgentTransportErrorResponseJsonSchema = z.toJSONSchema(
+export const agentTransportErrorResponseJsonSchema = lazyJsonSchema(
   AgentTransportErrorResponseSchema,
-  { target: "draft-2020-12", reused: "ref" },
 );
 
 /**
