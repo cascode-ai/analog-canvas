@@ -983,6 +983,43 @@ describe("ERC engine", () => {
     );
   });
 
+  it("reports invalid built-in device parameters from existing documents", () => {
+    const project = emptyProject();
+    project.documents[0]!.instances = [
+      {
+        id: "V1",
+        symbolId: "voltage-source",
+        placement: {
+          position: { x: 0, y: 0 },
+          rotation: 0,
+          mirror: "none",
+        },
+        reference: "V1",
+        netlist: {
+          parameters: {
+            dc: "1",
+            waveform: "triangle",
+            madeUp: "1",
+          },
+        },
+      },
+    ];
+    const diagnostics = run(project);
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "ERC_INVALID_DEVICE_PARAMETER",
+          primary: expect.objectContaining({ objectId: "V1" }),
+        }),
+        expect.objectContaining({
+          code: "ERC_UNKNOWN_DEVICE_PARAMETER",
+          primary: expect.objectContaining({ objectId: "V1" }),
+          message: expect.stringContaining("allowed parameters"),
+        }),
+      ]),
+    );
+  });
+
   it("uses only typed binding evidence for missing and unsupported model ERC", () => {
     const project = emptyProject();
     const document = project.documents[0]!;

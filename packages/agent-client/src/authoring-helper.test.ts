@@ -84,14 +84,25 @@ describe("authoring helper compilation", () => {
           symbol,
           reference: "X9",
           position: { x: 100, y: 100 },
-          parameters: { gain: "2" },
+          parameters: {
+            [symbol === "vccs" ? "gm" : symbol === "ccvs" ? "rm" : "gain"]: "2",
+          },
           control,
         },
       ])[0]!;
       expect(transaction.command).toMatchObject({
         kind: "place-components",
         instances: [
-          { symbolId: symbol, netlist: { parameters: { gain: "2" }, control } },
+          {
+            symbolId: symbol,
+            netlist: {
+              parameters: {
+                [symbol === "vccs" ? "gm" : symbol === "ccvs" ? "rm" : "gain"]:
+                  "2",
+              },
+              control,
+            },
+          },
         ],
       });
     },
@@ -441,7 +452,7 @@ describe("authoring helper compilation", () => {
         symbol: "capacitor",
         reference: "C1",
         position: { x: 600, y: 300 },
-        parameters: { c: "1p" },
+        parameters: { value: "1p" },
       },
     ]);
     expect(transaction?.form).toBe("command");
@@ -450,7 +461,7 @@ describe("authoring helper compilation", () => {
       const edit = { instance: transaction.command.instances[0]! };
       expect(edit.instance.symbolId).toBe("capacitor");
       expect(edit.instance.reference).toBe("C1");
-      expect(edit.instance.netlist?.parameters).toEqual({ c: "1p" });
+      expect(edit.instance.netlist?.parameters).toEqual({ value: "1p" });
       expect(edit.instance.placement).toEqual({
         position: { x: 600, y: 300 },
         rotation: 0,
@@ -458,6 +469,45 @@ describe("authoring helper compilation", () => {
       });
       expect(edit.instance.id).toMatch(/^instance-alloc-/);
     }
+  });
+
+  it("rejects unknown, select and decimal parameters before placement", () => {
+    expectCompileError(
+      [
+        {
+          kind: "place-component",
+          symbol: "capacitor",
+          reference: "C2",
+          position: { x: 600, y: 300 },
+          parameters: { c: "1p" },
+        },
+      ],
+      "Unknown parameter",
+    );
+    expectCompileError(
+      [
+        {
+          kind: "place-component",
+          symbol: "voltage-source",
+          reference: "V2",
+          position: { x: 600, y: 300 },
+          parameters: { waveform: "triangle" },
+        },
+      ],
+      "must be one of: dc, pulse, sin, pwl",
+    );
+    expectCompileError(
+      [
+        {
+          kind: "place-component",
+          symbol: "nmos",
+          reference: "M2",
+          position: { x: 600, y: 300 },
+          parameters: { nf: "two" },
+        },
+      ],
+      "finite decimal number",
+    );
   });
 
   it("rejects vdd and unknown symbols at the human-fact boundary", () => {
@@ -740,6 +790,26 @@ describe("authoring helper compilation", () => {
         },
       ],
       "spice.*",
+    );
+    expectCompileError(
+      [
+        {
+          kind: "set-property",
+          target: { kind: "instance", reference: "M1" },
+          set: { madeUp: "1" },
+        },
+      ],
+      "Unknown parameter",
+    );
+    expectCompileError(
+      [
+        {
+          kind: "set-property",
+          target: { kind: "instance", reference: "M1" },
+          set: { nf: "two" },
+        },
+      ],
+      "finite decimal number",
     );
   });
 

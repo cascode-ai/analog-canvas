@@ -4,4 +4,5 @@ export * from "./reference.js";
 export * from "./reviewed-external.js";
 export * from "./validation.js";
 export * from "./parameter-expression.js";
+export * from "./parameter-validation.js";
 export * from "./ideal-analog-block-parameters.js";

@@ -15,6 +15,7 @@ import { findRouteSegmentsAtPoint } from "../route-query.js";
 import { directObjectLocator, type ObjectLocator } from "../object-locator.js";
 import type { Diagnostic, DiagnosticSeverity } from "./diagnostic.js";
 import { findExternalMasterCollisions } from "../master-names.js";
+import { deviceDescriptor, validateDeviceParameters } from "@icm/devices";
 
 /**
  * Electrical checks share endpoint assessment and the Diagnostic envelope.
@@ -226,6 +227,53 @@ export function runErcChecks(
           parameters: { instanceId: instance.id, symbolId: instance.symbolId },
         });
       } else {
+        const descriptor = deviceDescriptor(instance.symbolId, project);
+        if (descriptor && instance.netlist?.parameters) {
+          const allowed = descriptor.parameters.map(
+            (parameter) => parameter.name,
+          );
+          for (const issue of validateDeviceParameters(
+            descriptor,
+            instance.netlist.parameters,
+          )) {
+            const allowedText = allowed.length ? allowed.join(", ") : "(none)";
+            const message =
+              issue.kind === "unknown"
+                ? `Instance ${instance.reference ?? instance.id} sets unknown parameter ${issue.name}; allowed parameters: ${allowedText}`
+                : issue.kind === "duplicate"
+                  ? `Instance ${instance.reference ?? instance.id} repeats parameter ${issue.name} as ${issue.previousName} under case folding`
+                  : issue.kind === "select"
+                    ? `Instance ${instance.reference ?? instance.id} parameter ${issue.name} must be one of: ${issue.allowed.join(", ")}`
+                    : `Instance ${instance.reference ?? instance.id} parameter ${issue.name} must be a finite decimal number`;
+            diagnostics.push({
+              id: `erc:device-parameter:${document.id}:${instance.id}:${issue.kind}:${issue.name}`,
+              domain: "erc",
+              code:
+                issue.kind === "unknown"
+                  ? "ERC_UNKNOWN_DEVICE_PARAMETER"
+                  : issue.kind === "duplicate"
+                    ? "ERC_DUPLICATE_DEVICE_PARAMETER"
+                    : "ERC_INVALID_DEVICE_PARAMETER",
+              severity: "error",
+              confidence: "high",
+              gateEligible: true,
+              message,
+              primary: directObjectLocator(
+                document.id,
+                "instance",
+                instance.id,
+              ),
+              related: [],
+              parameters: {
+                instanceId: instance.id,
+                parameter: issue.name,
+                ...(issue.kind === "select"
+                  ? { allowed: issue.allowed.join(",") }
+                  : {}),
+              },
+            });
+          }
+        }
         const symbolPinNames = new Set(
           resolved.definition.pins.map((pin) => pin.name),
         );

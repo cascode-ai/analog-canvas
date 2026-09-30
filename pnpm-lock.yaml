@@ -237,6 +237,9 @@ importers:
       "@icm/agent-adapter":
         specifier: workspace:*
         version: link:../agent-adapter
+      "@icm/devices":
+        specifier: workspace:*
+        version: link:../devices
       "@icm/model":
         specifier: workspace:*
         version: link:../model

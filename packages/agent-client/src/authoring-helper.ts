@@ -4,6 +4,7 @@ import {
   type AgentSessionSnapshot,
 } from "@icm/agent-adapter";
 import { agentRazaviAuthoringCatalog } from "@icm/agent-adapter/kit";
+import { deviceDescriptor, validateDeviceParameters } from "@icm/devices";
 import {
   createDraftText,
   flattenRichText,
@@ -608,6 +609,12 @@ export function compileActions(
             );
           }
         }
+        validateActionParameters(
+          index,
+          action.kind,
+          instance.symbolId,
+          action.set,
+        );
         pushEdit(index, action.kind, {
           kind: "patch_instance_netlist_parameters",
           instanceId: instance.id,
@@ -865,6 +872,12 @@ function compilePlaceComponent(
       `Instance Reference "${action.reference}" already exists in this document`,
     );
   }
+  validateActionParameters(
+    index,
+    action.kind,
+    action.symbol,
+    action.parameters,
+  );
   const variant = action.variant ?? catalogSymbol.defaultVariantId ?? undefined;
   pushEdit(index, action.kind, {
     kind: "add_instance",
@@ -889,6 +902,52 @@ function compilePlaceComponent(
         : {}),
     },
   });
+}
+
+function validateActionParameters(
+  index: number,
+  kind: string,
+  symbolId: string,
+  parameters: Readonly<Record<string, string>> | undefined,
+): void {
+  if (!parameters) return;
+  const descriptor = deviceDescriptor(symbolId);
+  // Custom, imported and PDK symbols deliberately remain a human-fact
+  // boundary. Their parameter contracts are unavailable to this client.
+  if (!descriptor) return;
+  const issues = validateDeviceParameters(descriptor, parameters);
+  if (!issues.length) return;
+  const issue = issues[0]!;
+  const allowed = descriptor.parameters.map((parameter) => parameter.name);
+  const allowedText = allowed.length ? allowed.join(", ") : "(none)";
+  const message =
+    issue.kind === "unknown"
+      ? 'Unknown parameter "' +
+        issue.name +
+        '" for ' +
+        symbolId +
+        "; allowed parameters: " +
+        allowedText
+      : issue.kind === "duplicate"
+        ? 'Parameter "' +
+          issue.name +
+          '" duplicates "' +
+          issue.previousName +
+          '" under case folding'
+        : issue.kind === "select"
+          ? 'Parameter "' +
+            issue.name +
+            '" must be one of: ' +
+            issue.allowed.join(", ") +
+            '; received "' +
+            issue.value +
+            '"'
+          : 'Parameter "' +
+            issue.name +
+            '" must be a finite decimal number; received "' +
+            issue.value +
+            '"';
+  throw new ActionCompileError(index, kind, message);
 }
 
 /** Explicit endpoints need no client-side topology read. The existing server

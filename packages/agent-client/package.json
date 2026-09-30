@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@icm/agent-adapter": "workspace:*",
+    "@icm/devices": "workspace:*",
     "@icm/model": "workspace:*",
     "zod": "4.4.3"
   }
