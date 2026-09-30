@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyProject, flattenRichText } from "@icm/model";
+import {
+  createEmptyProject,
+  createRoutePath,
+  flattenRichText,
+} from "@icm/model";
 import {
   resolveDocumentLogicalNets,
   resolveEndpointConnection,
@@ -22,6 +26,121 @@ import {
   processTargetForShortName,
 } from "../features/netlist-export/netlist-process";
 import { executeProjectTransaction } from "@icm/edit-engine";
+import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
+
+it.each(["move", "transform"] as const)(
+  "moves a pin-connected T junction through MCP %s and restores it with shared history",
+  async (kind) => {
+    const project = createEmptyProject("project-1", "Junction");
+    const document = project.documents[0]!;
+    document.nets.push({
+      id: "net",
+      terminals: [{ instanceId: "RB", pinName: "1" }],
+    });
+    document.instances.push({
+      id: "RB",
+      symbolId: "resistor",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    const terminal = {
+      kind: "terminal" as const,
+      instanceId: "RB",
+      pinName: "1",
+    };
+    const pin = resolveEndpointConnection(
+      document,
+      new InMemorySymbolResolver(builtInSymbols),
+      terminal,
+    )!.contactPoint;
+    document.instances[0]!.placement!.position = { x: -pin.x, y: 20 - pin.y };
+    document.junctions.push(
+      { id: "J", netId: "net", position: { x: 0, y: 0 } },
+      {
+        id: "L",
+        netId: "net",
+        position: { x: -100, y: 0 },
+        role: "route-anchor",
+      },
+      {
+        id: "R",
+        netId: "net",
+        position: { x: 100, y: 0 },
+        role: "route-anchor",
+      },
+    );
+    for (const end of ["L", "R", "B"])
+      document.routes.push(
+        createRoutePath({
+          id: `wire-${end}`,
+          netId: "net",
+          start: end === "B" ? terminal : { kind: "junction", junctionId: "J" },
+          end: { kind: "junction", junctionId: end === "B" ? "J" : end },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+    const { tool, controller, client } = await folder(project);
+    const before = structuredClone(controller.document);
+    const moved = await tool(
+      kind === "move" ? "circuit_transform" : "circuit_selection",
+      {
+        actions: [
+          kind === "move"
+            ? {
+                kind: "move",
+                target: { kind: "junction", id: "J" },
+                position: { x: 40, y: 0 },
+              }
+            : {
+                kind: "transform",
+                selection: { junctionIds: ["J"] },
+                transform: { kind: "translate", delta: { x: 40, y: 0 } },
+              },
+        ],
+      },
+    );
+    expect(moved.ok, moved.message).toBe(true);
+    const after = structuredClone(controller.document);
+    expect(after.junctions.find((j) => j.id === "J")?.position).toEqual({
+      x: 40,
+      y: 0,
+    });
+    expect(after.nets).toEqual(before.nets);
+    expect(after.instances).toEqual(before.instances);
+    expect(after.routes).not.toEqual(before.routes);
+    expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+    expect(controller.document.junctions).toEqual(before.junctions);
+    expect(controller.document.routes).toEqual(before.routes);
+    expect((await client.applyActions([{ kind: "redo" }])).ok).toBe(true);
+    expect(controller.document.junctions).toEqual(after.junctions);
+    expect(controller.document.routes).toEqual(after.routes);
+    const revision = controller.document.revision;
+    const noop = await client.applyActions([
+      {
+        kind: "move",
+        target: { kind: "junction", id: "J" },
+        position: { x: 40, y: 0 },
+      },
+    ]);
+    expect(noop.ok, noop.message).toBe(true);
+    expect(controller.document.revision).toBe(revision);
+    const rejected = await client.applyActions([
+      {
+        kind: "move",
+        target: { kind: "junction", id: "J" },
+        position: { x: 60, y: 0 },
+      },
+      {
+        kind: "move",
+        target: { kind: "junction", id: "missing" },
+        position: { x: 80, y: 0 },
+      },
+    ]);
+    expect(rejected.ok).toBe(false);
+    expect(controller.document.revision).toBe(revision);
+    expect(controller.document.junctions).toEqual(after.junctions);
+  },
+);
 
 it("gives Agent-placed comparators the same isolated model as GUI placement", async () => {
   const { client, controller } = await folder();
@@ -1257,8 +1376,7 @@ it("batches different display preferences once without advancing structure revis
   );
 });
 
-async function folder() {
-  const project = createEmptyProject("project-1", "Parity");
+async function folder(project = createEmptyProject("project-1", "Parity")) {
   project.documents[0]!.id = "main";
   project.topDocumentId = "main";
   const controller = new EditorDocumentController(project);

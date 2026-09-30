@@ -70,6 +70,15 @@ const RouteNetCommandSchema = z.strictObject({
 });
 const BatchItemSchema = z.discriminatedUnion("kind", [
   RouteNetCommandSchema,
+  z
+    .strictObject({
+      kind: z.literal("move-junction"),
+      junctionId: StableIdSchema,
+      position: PointSchema,
+    })
+    .describe(
+      "Move an existing Junction and reshape every incident Route atomically; preserve connectivity and respect protected geometry.",
+    ),
   z.strictObject({
     kind: z.literal("set-port-direction"),
     target: z.discriminatedUnion("kind", [

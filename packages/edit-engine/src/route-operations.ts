@@ -758,11 +758,12 @@ export function proposeJunctionGroupTranslation(
   document: SchematicDocument,
   resolver: SymbolResolver,
   moves: readonly JunctionMoveProposal[],
+  options: { preserveBranchDirections?: boolean } = {},
 ): WireSegmentDragProposal {
   return tidyDragProposal(
     document,
     resolver,
-    proposeJunctionTranslationGeometry(document, resolver, moves),
+    proposeJunctionTranslationGeometry(document, resolver, moves, options),
   );
 }
 
@@ -770,6 +771,7 @@ function proposeJunctionTranslationGeometry(
   document: SchematicDocument,
   resolver: SymbolResolver,
   moves: readonly JunctionMoveProposal[],
+  options: { preserveBranchDirections?: boolean },
 ): WireSegmentDragProposal {
   const movedJunctions = new Map(
     moves.map((move) => [move.junctionId, move.position] as const),
@@ -780,6 +782,13 @@ function proposeJunctionTranslationGeometry(
     }
   }
   const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
+  const movedDocument = {
+    ...document,
+    junctions: document.junctions.map((junction) => ({
+      ...junction,
+      position: movedJunctions.get(junction.id) ?? junction.position,
+    })),
+  };
   const proposals = new Map<string, RouteStretchProposal>();
   for (const route of document.routes) {
     const end = routeEnd(route);
@@ -834,6 +843,15 @@ function proposeJunctionTranslationGeometry(
         "from",
         polyline.points[0]!,
         movedFrom,
+        options.preserveBranchDirections
+          ? stretchedSegmentLeads(
+              movedDocument,
+              resolver,
+              route,
+              polyline.points,
+              true,
+            )
+          : undefined,
       );
     }
     if (movedTo) {
@@ -844,6 +862,15 @@ function proposeJunctionTranslationGeometry(
         "to",
         polyline.points.at(-1)!,
         movedTo,
+        options.preserveBranchDirections
+          ? stretchedSegmentLeads(
+              movedDocument,
+              resolver,
+              route,
+              polyline.points,
+              true,
+            )
+          : undefined,
       );
     }
     proposals.set(route.id, normalizeProposal(route.id, points, modes));
@@ -1349,9 +1376,10 @@ function stretchedSegmentLeads(
   movedDocument: SchematicDocument,
   resolver: SymbolResolver,
   route: SchematicDocument["routes"][number],
-  pointCount: number,
+  originalPoints: readonly Point[],
+  preserveBranchDirections = false,
 ): { from: PinAxis; to: PinAxis; grid: number } | undefined {
-  if (pointCount !== 2) return undefined;
+  if (originalPoints.length !== 2) return undefined;
   const from = resolveEndpointConnection(movedDocument, resolver, route.start);
   const to = resolveEndpointConnection(
     movedDocument,
@@ -1359,9 +1387,24 @@ function stretchedSegmentLeads(
     routeEnd(route),
   );
   if (!from || !to) return undefined;
+  // A Junction has no symbol lead, but its branch has an authored departure.
+  // Losing that direction lets the stretched branch run back along the trunk;
+  // conductor normalization then recreates the branch at its OLD position.
+  const junctionAxis: PinAxis =
+    originalPoints[0]!.x === originalPoints[1]!.x
+      ? "vertical"
+      : originalPoints[0]!.y === originalPoints[1]!.y
+        ? "horizontal"
+        : null;
   return {
-    from: usablePinAxis(from.outward, from.contactPoint, to.contactPoint),
-    to: usablePinAxis(to.outward, to.contactPoint, from.contactPoint),
+    from:
+      preserveBranchDirections && route.start.kind === "junction"
+        ? junctionAxis
+        : usablePinAxis(from.outward, from.contactPoint, to.contactPoint),
+    to:
+      preserveBranchDirections && routeEnd(route).kind === "junction"
+        ? junctionAxis
+        : usablePinAxis(to.outward, to.contactPoint, from.contactPoint),
     grid: [from.gridLanding, to.gridLanding].some(
       (point) =>
         point.x % movedDocument.presentation.grid !== 0 ||
@@ -1496,7 +1539,7 @@ export function proposeGroupMove(
       movedDocument,
       resolver,
       route,
-      original.points.length,
+      original.points,
     );
     if (resolvedFromDelta) {
       const from = original.points[0]!;

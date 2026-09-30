@@ -646,17 +646,12 @@ describe("authoring helper compilation", () => {
     });
   });
 
-  it("compiles move, rotate, and mirror for instances and junctions", () => {
+  it("compiles move, rotate, and mirror for instances", () => {
     const [transaction] = compile([
       {
         kind: "move",
         target: { kind: "instance", reference: "M1" },
         position: { x: 10, y: 20 },
-      },
-      {
-        kind: "move",
-        target: { kind: "junction", id: "junction-1" },
-        position: { x: 1, y: 2 },
       },
       {
         kind: "rotate",
@@ -675,16 +670,32 @@ describe("authoring helper compilation", () => {
         instanceId: "instance-1",
         position: { x: 10, y: 20 },
       },
-      {
-        kind: "move_junction",
-        junctionId: "junction-1",
-        position: { x: 1, y: 2 },
-      },
       { kind: "rotate_instance", instanceId: "instance-2", rotation: 90 },
       {
         kind: "mirror_instance",
         instanceId: "instance-1",
         mirror: "horizontal",
+      },
+    ]);
+  });
+
+  it("plans a Junction move in the live editor instead of emitting an incomplete raw edit", () => {
+    const transactions = compile([
+      {
+        kind: "move",
+        target: { kind: "junction", id: "junction-1" },
+        position: { x: 20, y: 40 },
+      },
+    ]);
+    expect(transactions).toEqual([
+      {
+        form: "command",
+        actionKinds: ["move"],
+        command: {
+          kind: "move-junction",
+          junctionId: "junction-1",
+          position: { x: 20, y: 40 },
+        },
       },
     ]);
   });

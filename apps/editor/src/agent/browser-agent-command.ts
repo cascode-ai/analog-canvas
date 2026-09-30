@@ -36,6 +36,7 @@ import {
   powerConnectionForSymbol,
   type SchematicEdit,
   type TransformOperation,
+  type RoutingOperationPlan,
 } from "@icm/edit-engine";
 import {
   createCellDocument,
@@ -114,6 +115,35 @@ export interface BrowserAgentPlanningContext {
   ): string | undefined;
 }
 
+/** Check the committed geometry, not just the presence of move edits. */
+function checkedJunctionTransform(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  plan: RoutingOperationPlan,
+  junctionIds: readonly string[],
+): readonly SchematicEdit[] {
+  const gated = gateRoutingOperationPlan(document, plan, {
+    symbolResolver: resolver,
+  });
+  if (!gated.ok) throw new Error(gated.message);
+  for (const edit of plan.edits) {
+    if (edit.kind !== "move_junction" || !junctionIds.includes(edit.junctionId))
+      continue;
+    const moved = gated.evaluated.finalDocument.junctions.find(
+      (item) => item.id === edit.junctionId,
+    );
+    if (
+      !moved ||
+      moved.position.x !== edit.position.x ||
+      moved.position.y !== edit.position.y
+    )
+      throw new Error(
+        `Junction ${edit.junctionId} cannot retain the requested position after conductor normalization`,
+      );
+  }
+  return gated.edits;
+}
+
 /**
  * A part the Agent places is named as a GUI placement names it. A missing
  * Reference takes the next free one. One the netlist would refuse, with
@@ -166,6 +196,33 @@ export function planBrowserAgentCommand(
   if (!document) throw new Error("Document not found");
   const sequence = document.revision + 1;
   switch (command.kind) {
+    case "move-junction": {
+      const junction = document.junctions.find(
+        (item) => item.id === command.junctionId,
+      );
+      if (!junction)
+        throw new Error(`Junction not found: ${command.junctionId}`);
+      const plan = planRoutingTransform(
+        document,
+        resolver,
+        { instanceIds: [], routeIds: [], junctionIds: [junction.id] },
+        {
+          kind: "translate",
+          delta: {
+            x: command.position.x - junction.position.x,
+            y: command.position.y - junction.position.y,
+          },
+        },
+      );
+      const error = plan.diagnostics.find((item) => item.severity === "error");
+      if (error) throw new Error(error.message);
+      if (!plan.edits.length) return { edits: [] };
+      return {
+        edits: [
+          ...checkedJunctionTransform(document, resolver, plan, [junction.id]),
+        ],
+      };
+    }
     case "arrange-labels":
       return {
         edits: arrangeInstanceLabels(
@@ -1215,7 +1272,20 @@ export function planBrowserAgentCommand(
           });
         }
       }
-      return { edits: [...plan.edits, ...annotationEdits] };
+      const edits = [...plan.edits, ...annotationEdits];
+      return {
+        edits:
+          command.selection.junctionIds.length && edits.length
+            ? [
+                ...checkedJunctionTransform(
+                  document,
+                  resolver,
+                  { ...plan, edits },
+                  command.selection.junctionIds,
+                ),
+              ]
+            : edits,
+      };
     }
   }
 }

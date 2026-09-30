@@ -11,6 +11,7 @@ import {
 } from "./routing-operation-plan.js";
 import {
   proposeGroupMoveEdits,
+  proposeJunctionMoveEdits,
   proposeGroupReflectionEdits,
   proposeGroupRotationEdits,
 } from "./routing-planner.js";
@@ -69,6 +70,13 @@ export function planRoutingTransform(
 
   let edits: readonly SchematicEdit[];
   if (operation.kind === "translate") {
+    if (operation.delta.x === 0 && operation.delta.y === 0)
+      return createRoutingOperationPlan(document, {
+        intent: "transform",
+        affected,
+        edits: [],
+        diagnostics: [],
+      });
     const moves = affected.instances.flatMap((instanceId) => {
       const instance = document.instances.find(
         (item) => item.id === instanceId,
@@ -85,13 +93,31 @@ export function planRoutingTransform(
           ]
         : [];
     });
-    edits = proposeGroupMoveEdits(
-      document,
-      resolver,
-      moves,
-      affected.internalJunctions,
-      operation.delta,
-    ).edits;
+    edits =
+      moves.length === 0
+        ? proposeJunctionMoveEdits(
+            document,
+            resolver,
+            affected.internalJunctions.map((junctionId) => {
+              const junction = document.junctions.find(
+                (item) => item.id === junctionId,
+              )!;
+              return {
+                junctionId,
+                position: {
+                  x: junction.position.x + operation.delta.x,
+                  y: junction.position.y + operation.delta.y,
+                },
+              };
+            }),
+          ).edits
+        : proposeGroupMoveEdits(
+            document,
+            resolver,
+            moves,
+            affected.internalJunctions,
+            operation.delta,
+          ).edits;
   } else if (operation.kind === "rotate") {
     const delta = (
       operation.degrees > 180 ? operation.degrees - 360 : operation.degrees

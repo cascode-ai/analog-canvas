@@ -1,6 +1,7 @@
 import { createEmptyDocument, createRoutePath } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
+import { resolveEndpointConnection } from "@icm/derived";
 
 import { gateRoutingOperationPlan } from "./routing-operation-plan.js";
 import { planRoutingTransform } from "./routing-transform-planner.js";
@@ -8,6 +9,68 @@ import { planRoutingTransform } from "./routing-transform-planner.js";
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("routing transform planner", () => {
+  it("slides a T junction along its trunk without canonicalizing it back (#1229)", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.nets.push({ id: "net", terminals: [] });
+    document.instances.push({
+      id: "RB",
+      symbolId: "resistor",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    const terminal = {
+      kind: "terminal" as const,
+      instanceId: "RB",
+      pinName: "1",
+    };
+    const pin = resolveEndpointConnection(
+      document,
+      resolver,
+      terminal,
+    )!.contactPoint;
+    document.instances[0]!.placement!.position = { x: -pin.x, y: 20 - pin.y };
+    document.nets[0]!.terminals.push({ instanceId: "RB", pinName: "1" });
+    document.junctions.push(
+      { id: "J", netId: "net", position: { x: 0, y: 0 } },
+      {
+        id: "L",
+        netId: "net",
+        position: { x: -100, y: 0 },
+        role: "route-anchor",
+      },
+      {
+        id: "R",
+        netId: "net",
+        position: { x: 100, y: 0 },
+        role: "route-anchor",
+      },
+    );
+    for (const end of ["L", "R", "B"])
+      document.routes.push(
+        createRoutePath({
+          id: `wire-${end}`,
+          netId: "net",
+          start: end === "B" ? terminal : { kind: "junction", junctionId: "J" },
+          end: { kind: "junction", junctionId: end === "B" ? "J" : end },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+    const plan = planRoutingTransform(
+      document,
+      resolver,
+      { instanceIds: [], routeIds: [], junctionIds: ["J"] },
+      { kind: "translate", delta: { x: 40, y: 0 } },
+    );
+    const result = gateRoutingOperationPlan(document, plan, {
+      symbolResolver: resolver,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(
+      result.evaluated.finalDocument.junctions.find((item) => item.id === "J")
+        ?.position,
+    ).toEqual({ x: 40, y: 0 });
+  });
   it("translates a selected loose conductor through the shared closure", () => {
     const document = createEmptyDocument("main", "Main");
     document.nets.push({ id: "net", terminals: [] });
