@@ -389,81 +389,82 @@ export function EditorAppChrome({
             </div>
           </details>
         </div>
-        {/* The header's actions, alike in shape; Publish is the one primary. */}
-        <nav className="app-command-surface" aria-label="Editor commands">
-          <div className="menubar-row app-actions">
-            {simulationAction ? (
-              <button
-                type="button"
-                className="app-action"
-                data-testid="open-analog-simulation"
-                aria-label="Analog simulation"
-                aria-pressed={
-                  simulationState === "open" || simulationState === "maximized"
-                }
-                onClick={simulationAction}
+        <div className="app-chrome-actions">
+          {/* Simulation, Agent, and Publish are the right-side actions on both
+              wide and half-width layouts. Keeping them in one fixed group
+              leaves File, Edit, and Circuit anchored beside the brand. */}
+          {simulationAction ? (
+            <button
+              type="button"
+              className="app-action"
+              data-testid="open-analog-simulation"
+              aria-label="Analog simulation"
+              aria-pressed={
+                simulationState === "open" || simulationState === "maximized"
+              }
+              onClick={simulationAction}
+            >
+              <svg
+                className="app-action-icon"
+                viewBox="0 0 16 16"
+                aria-hidden="true"
               >
-                <svg
-                  className="app-action-icon"
-                  viewBox="0 0 16 16"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M1.5 8c1.2-4 2.6-4 3.8 0s2.6 4 3.8 0 2.6-4 3.8 0"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                  />
-                </svg>
+                <path
+                  d="M1.5 8c1.2-4 2.6-4 3.8 0s2.6 4 3.8 0 2.6-4 3.8 0"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <span className="app-action-label">
                 {simulationState === "minimized"
                   ? "Simulate · Minimized"
                   : "Simulate"}
-              </button>
-            ) : null}
-            {agentAction ? (
-              <button
-                type="button"
-                className="app-action"
-                data-testid="open-agent"
-                title={agentAction.label}
-                onClick={() => {
-                  dismissOpenCommandMenus();
-                  agentAction.execute();
-                }}
+              </span>
+            </button>
+          ) : null}
+          {agentAction ? (
+            <button
+              type="button"
+              className="app-action"
+              data-testid="open-agent"
+              title={agentAction.label}
+              onClick={() => {
+                dismissOpenCommandMenus();
+                agentAction.execute();
+              }}
+            >
+              <svg
+                className="app-action-icon"
+                viewBox="0 0 16 16"
+                aria-hidden="true"
               >
-                <svg
-                  className="app-action-icon"
-                  viewBox="0 0 16 16"
-                  aria-hidden="true"
-                >
-                  <path
-                    d="M8 1.5 9.4 6.6 14.5 8 9.4 9.4 8 14.5 6.6 9.4 1.5 8 6.6 6.6Z"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                Agent
-              </button>
-            ) : null}
-            {communityEnabled ? (
-              <button
-                type="button"
-                className="app-action app-action-primary"
-                data-testid="publish-gallery-button"
-                aria-haspopup="dialog"
-                aria-expanded={publishGalleryOpen}
-                title="Publish to Gallery"
-                onClick={onPublishGallery}
-              >
-                Publish<span className="publish-label-long"> to Gallery</span>
-              </button>
-            ) : null}
-          </div>
-        </nav>
-        <div className="app-chrome-actions">
+                <path
+                  d="M8 1.5 9.4 6.6 14.5 8 9.4 9.4 8 14.5 6.6 9.4 1.5 8 6.6 6.6Z"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="app-action-label">Agent</span>
+            </button>
+          ) : null}
+          {communityEnabled ? (
+            <button
+              type="button"
+              className="app-action app-action-primary"
+              data-testid="publish-gallery-button"
+              aria-haspopup="dialog"
+              aria-expanded={publishGalleryOpen}
+              title="Publish to Gallery"
+              onClick={onPublishGallery}
+            >
+              <span className="publish-label">Publish</span>
+              <span className="publish-label-long"> to Gallery</span>
+            </button>
+          ) : null}
           {/* Who is signed in, as the Gallery shows it; Sign in otherwise. */}
           {identityEnabled ? <AccountMenu showGalleryLinks={false} /> : null}
           {externalLinksEnabled ? (

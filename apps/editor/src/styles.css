@@ -165,7 +165,7 @@ button[aria-pressed="true"] {
 
 body {
   margin: 0;
-  min-width: 640px;
+  min-width: 0;
   height: 100dvh;
   overflow: hidden;
   background: var(--icm-chrome-bg);
@@ -193,6 +193,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  min-width: 0;
   min-height: var(--icm-menubar-h);
   padding: 0;
   border-bottom: 1px solid var(--icm-border);
@@ -207,6 +208,7 @@ body {
   justify-content: flex-start;
   gap: var(--icm-space-3);
   height: var(--icm-menubar-h);
+  min-width: 0;
   min-height: var(--icm-menubar-h);
   padding: 0 var(--icm-space-3);
 }
