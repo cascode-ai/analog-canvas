@@ -222,8 +222,10 @@ export function generateCircuitSource(
         if (!document) return [];
         const cell = ir.cells.find((cell) => cell.id === span.documentId)!;
         const card = cell.instances.find((card) => card.id === span.instanceId);
-        // Derived current sensors have no editable Canvas source body.
-        if (!card) return [];
+        // Derived current sensors have no editable Canvas source body. The 0 V
+        // source that senses a pin's current for an F or H source is such a
+        // card: it is in the Cell, but no Instance on the Canvas draws it.
+        if (!card || card.terminalCurrentSense) return [];
         if (
           !["voltage-source", "current-source"].includes(card.deviceClass) ||
           normalizeIndependentSource(card.parameters).extraParameters.length
@@ -243,14 +245,15 @@ export function generateCircuitSource(
         if (!master) return [];
         const instance = document.instances.find(
           (i) => i.id === span.instanceId,
-        )!;
+        );
+        if (!instance?.netlist) return [];
         return [
           {
             ...span,
             startOffset: span.startOffset + master.end,
             rawValue: text.slice(master.end),
             documentRevision: document.revision,
-            sourceParameters: { ...instance.netlist!.parameters },
+            sourceParameters: { ...instance.netlist.parameters },
           },
         ];
       }),
