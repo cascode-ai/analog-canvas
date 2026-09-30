@@ -920,6 +920,9 @@ test("the site lands on the full-screen gallery feed", async ({ page }) => {
   const brandMark = brand.locator(".app-brand-mark");
   await expect(brandMark).toBeVisible();
   await expect(brandMark).toHaveCSS("background-image", /icon\.svg\?v=nmos-4/);
+  const editorSwitch = page.getByTestId("gallery-editor-switch");
+  await expect(editorSwitch).toHaveText("Editor");
+  await expect(editorSwitch).toHaveAttribute("href", "/editor");
   await expect(page.locator('link[rel="icon"]')).toHaveAttribute(
     "href",
     "/icon.svg?v=nmos-4",
@@ -2002,7 +2005,28 @@ test("signed out, the editor's Gallery panel is grey with a way to sign in", asy
   await expect(locked).toContainText(
     "Sign in to insert circuits from the Gallery.",
   );
-  await expect(locked.locator(".examples-panel-sign-in-tile")).toHaveCount(6);
+  await expect(locked.locator(".examples-panel-sign-in-tile")).toHaveCount(12);
+  await expect(locked.locator(".examples-panel-sign-in-veil")).toHaveCSS(
+    "pointer-events",
+    "none",
+  );
+  await expect(locked.locator(".examples-panel-sign-in-veil")).toHaveCSS(
+    "filter",
+    "blur(10px)",
+  );
+  const panelBox = await locked.boundingBox();
+  const cardBox = await locked
+    .locator(".examples-panel-sign-in-card")
+    .boundingBox();
+  expect(panelBox).not.toBeNull();
+  expect(cardBox).not.toBeNull();
+  expect(
+    Math.abs(
+      (cardBox?.y ?? 0) +
+        (cardBox?.height ?? 0) / 2 -
+        ((panelBox?.y ?? 0) + (panelBox?.height ?? 0) / 2),
+    ),
+  ).toBeLessThanOrEqual(1);
   await expect(panel.locator('[data-testid^="gallery-example-"]')).toHaveCount(
     0,
   );
@@ -3554,6 +3578,10 @@ test("a signed-in owner renames the display name and signs out", async ({
   });
 
   await page.goto("/");
+  await expect(page.getByTestId("account-name")).toHaveText("tz");
+  await expect(page.getByTestId("account-owner")).toBeHidden();
+  await page.locator(".account-more > summary").click();
+  await expect(page.getByTestId("account-menu-name")).toHaveText("tz");
   await expect(page.getByTestId("account-owner")).toHaveText("Owner");
   await page.getByTestId("account-name").click();
   await page.getByTestId("account-rename-input").fill("Token Zhang");
@@ -3561,7 +3589,6 @@ test("a signed-in owner renames the display name and signs out", async ({
   await expect(page.getByTestId("account-name")).toHaveText("Token Zhang");
   expect(renames).toEqual(["Token Zhang"]);
 
-  await page.locator(".account-more > summary").click();
   const accountPopover = page.locator(".account-popover");
   await expect(accountPopover).toHaveCSS("position", "absolute");
   await expect(accountPopover).toHaveCSS("display", "grid");

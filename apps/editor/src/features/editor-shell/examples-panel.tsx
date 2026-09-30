@@ -328,9 +328,14 @@ export function ExamplesPanel({
                 data-testid="examples-panel-sign-in"
               >
                 <div className="examples-panel-sign-in-veil" aria-hidden="true">
-                  {[0, 1, 2, 3, 4, 5].map((index) => (
-                    <span key={index} className="examples-panel-sign-in-tile" />
-                  ))}
+                  {Array.from({ length: 12 }, (_, index) => index).map(
+                    (index) => (
+                      <span
+                        key={index}
+                        className="examples-panel-sign-in-tile"
+                      />
+                    ),
+                  )}
                 </div>
                 <div className="examples-panel-sign-in-card">
                   <p>Sign in to insert circuits from the Gallery.</p>

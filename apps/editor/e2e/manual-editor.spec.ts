@@ -5247,10 +5247,9 @@ test("keeps the production command surface compact and publishes PWA metadata", 
   page,
 }) => {
   await page.goto("/editor");
-  // The command row holds actions only; every menu of commands is a group
-  // in the header's one menu, named for the project.
-  const toolbar = page.getByRole("navigation", { name: "Editor commands" });
-  await expect(toolbar.locator("summary")).toHaveCount(0);
+  // The right action group holds simulation, Agent, and Publish; File, Edit,
+  // and Circuit remain in the left brand group.
+  const toolbar = page.locator(".app-chrome-actions");
   await expect(toolbar.getByTestId("open-analog-simulation")).toBeVisible();
   await expect(toolbar.getByTestId("open-agent")).toBeVisible();
   await expect(toolbar.getByTestId("publish-gallery-button")).toBeVisible();

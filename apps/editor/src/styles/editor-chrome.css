@@ -1388,15 +1388,10 @@
   font-weight: 600;
 }
 
-/* The actions sit together on the right, one shape; Publish is the one
-   primary action. */
-.app-chrome-main .app-command-surface {
-  margin-right: 0;
-  margin-left: auto;
-}
-
+/* The left menu group stays beside the brand while the action group occupies
+   the right edge at every width. */
 .app-chrome-main .app-chrome-actions {
-  margin-left: 0;
+  margin-left: auto;
 }
 
 .app-actions {
@@ -1418,6 +1413,10 @@
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
+}
+
+.app-action-label {
+  white-space: nowrap;
 }
 
 .app-action:hover {
@@ -1503,7 +1502,7 @@
   }
 
   .app-brand {
-    min-width: 9rem;
+    min-width: 0;
   }
 
   /* Half-width windows keep the grid toggle as a round icon button; its
@@ -1519,6 +1518,30 @@
   }
 }
 
+/* Half-screen editor chrome keeps the product mark and Gallery switch, then
+   lets the left menu group remain anchored while the actions stay on the
+   right. Support links are secondary at this width; the account name stays
+   visible while its role and full identity live behind the ellipsis menu. */
+@media (max-width: 900px) {
+  .app-chrome-main {
+    gap: var(--icm-space-2);
+    padding-inline: var(--icm-space-2);
+  }
+
+  .app-chrome-main .app-brand {
+    gap: var(--icm-space-1);
+  }
+
+  .app-chrome-main .gallery-home-link h1 {
+    display: none;
+  }
+
+  .app-chrome-main .app-chrome-actions .app-repository-link,
+  .app-chrome-main .app-chrome-actions .bug-report-link {
+    display: none;
+  }
+}
+
 @media (max-width: 860px) {
   .app-chrome-main {
     column-gap: var(--icm-space-2);
@@ -1526,23 +1549,12 @@
   }
 }
 
-/* Half-screen windows: tighten every menubar pill so File…Publish and the
+/* Half-screen windows: tighten every menubar pill so the left menus and
    right-side actions share one uncut row. */
 @media (max-width: 940px) {
-  .app-command-surface .menubar-row > button {
-    padding-inline: 0.25rem;
-  }
   .command-menu summary,
   .toolbar-button {
     padding-inline: 0.35rem;
-  }
-}
-
-/* At supported half-window widths, the variable Project name yields before
-   primary commands. Smaller windows retain the scrollable command viewport. */
-@media (min-width: 720px) and (max-width: 940px) {
-  .app-command-surface {
-    flex-shrink: 0;
   }
 }
 
@@ -1586,6 +1598,109 @@
   overflow: hidden;
   font-weight: 600;
   text-overflow: ellipsis;
+}
+
+/* On phone widths the two secondary actions keep their affordance through
+   their icons. The primary Publish label remains explicit. */
+@media (max-width: 760px) {
+  .app-chrome-actions {
+    gap: var(--icm-space-1);
+  }
+
+  .app-chrome-actions .app-action:not(.app-action-primary) {
+    width: 2.25rem;
+    padding-inline: 0;
+    justify-content: center;
+  }
+
+  .app-chrome-actions .app-action-label {
+    display: none;
+  }
+}
+
+/* Keep the complete header usable on a phone: turn Gallery into its icon,
+   keep the three menus compact, and leave the Z mark at the viewport edge. */
+@media (max-width: 560px) {
+  .app-chrome-main {
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding-inline: 4px;
+  }
+
+  .app-chrome-main .app-brand {
+    flex: 1 1 auto;
+    width: auto;
+    gap: 0;
+    overflow: visible;
+  }
+
+  .app-chrome-main .app-chrome-actions {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    justify-content: flex-end;
+    margin-left: 0;
+  }
+
+  .app-chrome-main .header-gallery-link {
+    gap: 0;
+    padding-inline: 8px;
+  }
+
+  .app-chrome-main .header-gallery-link > span {
+    display: none;
+  }
+
+  .app-chrome-main .command-menu summary,
+  .app-chrome-main .project-menu > summary {
+    padding-inline: 2px;
+    font-size: var(--icm-font-xs);
+  }
+
+  .app-chrome-main .app-action-primary {
+    padding-inline: 8px;
+  }
+
+  .app-chrome-main .account-more > summary {
+    padding-inline: 4px;
+  }
+
+  .app-chrome-actions .account-name {
+    display: none;
+  }
+}
+
+@media (max-width: 360px) {
+  .app-chrome-main {
+    gap: 2px;
+    padding-inline: 2px;
+  }
+
+  .app-chrome-main .app-brand-mark {
+    width: 18px;
+    height: 18px;
+  }
+
+  .app-chrome-main .header-gallery-link {
+    display: none;
+  }
+
+  .app-chrome-main .app-action-primary {
+    padding-inline: 4px;
+  }
+
+  .app-chrome-actions .app-action:not(.app-action-primary) {
+    width: 2rem;
+  }
+
+  .app-chrome-actions .account-more > summary {
+    padding-inline: 2px;
+  }
+
+  .app-chrome-actions .tokenzhang-link-icon {
+    width: 14px;
+    height: 14px;
+  }
 }
 
 /* The account (or Sign in) widens the right side. Its role chip yields
@@ -1660,6 +1775,19 @@
   color: var(--icm-accent);
   font-size: var(--icm-font-xs);
   font-weight: 700;
+}
+
+.app-chrome-actions .account-menu-identity {
+  display: grid;
+  gap: 4px;
+  padding: 6px 8px 8px;
+  border-bottom: 1px solid var(--icm-border);
+}
+
+.app-chrome-actions .account-menu-identity strong {
+  overflow-wrap: anywhere;
+  font-size: var(--icm-font-sm);
+  font-weight: 650;
 }
 
 .app-chrome-actions .account-rename-input {

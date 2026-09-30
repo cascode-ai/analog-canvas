@@ -37,6 +37,39 @@
   min-height: var(--icm-control-h);
 }
 
+/* Mirror the editor's blue Gallery switch so the two top-level views have
+   the same left-side route affordance. */
+.gallery-editor-link {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  height: var(--icm-control-h);
+  padding: 0 11px 0 9px;
+  border-radius: 999px;
+  color: var(--icm-accent);
+  background: var(--icm-accent-soft);
+  font-size: var(--icm-font-sm);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.gallery-editor-link:hover {
+  color: #fff;
+  background: var(--icm-accent);
+}
+
+.gallery-editor-link:focus-visible {
+  outline: 2px solid var(--icm-accent);
+  outline-offset: 2px;
+}
+
+.gallery-editor-link svg {
+  width: 15px;
+  height: 15px;
+}
+
 .gallery-actions .account-owner-badge,
 .gallery-actions .account-link,
 .gallery-actions .account-signout,
@@ -219,6 +252,19 @@
   box-shadow:
     0 0 0 1px rgb(15 15 15 / 3%),
     0 12px 32px rgb(15 15 15 / 12%);
+}
+
+.account-menu-identity {
+  display: grid;
+  gap: 4px;
+  padding: 6px 8px 8px;
+  border-bottom: 1px solid var(--icm-border);
+}
+
+.account-menu-identity strong {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 650;
 }
 
 .review-shell {

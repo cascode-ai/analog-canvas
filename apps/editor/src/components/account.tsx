@@ -213,8 +213,11 @@ export interface AccountMenuViewProps {
 /** Self-loading account area shared by Gallery and Editor chrome. */
 export function AccountMenu({
   showGalleryLinks = true,
+  alwaysVisible = false,
 }: {
   showGalleryLinks?: boolean;
+  /** Keep the account affordance mounted while identity data is loading. */
+  alwaysVisible?: boolean;
 }) {
   const [state, setState] = useState<AccountState | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -233,7 +236,16 @@ export function AccountMenu({
     };
   }, []);
 
-  if (!state) return null;
+  if (!state) return alwaysVisible ? <AccountMenuFallback /> : null;
+  if (
+    alwaysVisible &&
+    !state.user &&
+    !state.providers.github &&
+    !state.providers.google &&
+    !state.providers.email
+  ) {
+    return <AccountMenuFallback />;
+  }
   return (
     <Suspense fallback={null}>
       <AccountMenuView
@@ -264,5 +276,21 @@ export function AccountMenu({
         }}
       />
     </Suspense>
+  );
+}
+
+function AccountMenuFallback() {
+  return (
+    <details className="account-signin account-menu-fallback">
+      <summary aria-label="Account menu">
+        <span aria-hidden="true">⋯</span>
+      </summary>
+      <div className="account-popover">
+        <div className="account-menu-identity">
+          <strong>Account</strong>
+          <span>Sign in to manage your account.</span>
+        </div>
+      </div>
+    </details>
   );
 }

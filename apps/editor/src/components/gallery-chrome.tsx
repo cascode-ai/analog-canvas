@@ -28,6 +28,24 @@ export function GalleryChrome({
           <span className="app-brand-mark" aria-hidden="true" />
           <h1>Analog Canvas</h1>
         </a>
+        <a
+          className="gallery-editor-link"
+          href="/editor"
+          data-testid="gallery-editor-switch"
+          title="Open the editor"
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path
+              d="m9.9 2.6 3.5 3.5-6.8 6.8-4.1.7.7-4.1 6.7-6.9Zm-1.6 1.6 3.5 3.5M3.2 12.8l2.5-.4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span>Editor</span>
+        </a>
         <div className="app-brand-copy">
           <p>{subtitle}</p>
         </div>

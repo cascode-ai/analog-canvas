@@ -113,18 +113,26 @@ export default function AccountMenuView({
             lines and the header became unreadable. */}
         <details className="account-more">
           <summary aria-label="Account menu">
-            {user.isAdmin ? (
-              <span className="account-owner-badge" data-testid="account-owner">
-                Owner
-              </span>
-            ) : user.role === "moderator" ? (
-              <span className="account-owner-badge" data-testid="account-mod">
-                Moderator
-              </span>
-            ) : null}
             <span aria-hidden="true">⋯</span>
           </summary>
           <div className="account-popover">
+            <div className="account-menu-identity">
+              <strong data-testid="account-menu-name">
+                {user.displayName}
+              </strong>
+              {user.isAdmin ? (
+                <span
+                  className="account-owner-badge"
+                  data-testid="account-owner"
+                >
+                  Owner
+                </span>
+              ) : user.role === "moderator" ? (
+                <span className="account-owner-badge" data-testid="account-mod">
+                  Moderator
+                </span>
+              ) : null}
+            </div>
             {showGalleryLinks && (user.isAdmin || user.role === "moderator") ? (
               <a
                 className="account-link"

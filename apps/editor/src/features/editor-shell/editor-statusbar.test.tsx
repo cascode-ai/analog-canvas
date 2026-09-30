@@ -35,6 +35,8 @@ describe("editor statusbar", () => {
     expect(markup).toContain("Saved locally");
     expect(markup).toContain('aria-label="Current zoom"');
     expect(markup).toContain('data-testid="statusbar-change-log"');
+    expect(markup).toContain('title="Active tool: Wire"');
+    expect(markup).toContain('aria-label="Active tool: Wire"');
     expect(markup).toContain(
       'href="https://github.com/cascode-ai/analog-canvas/commits/main"',
     );
@@ -250,6 +252,11 @@ describe("editor statusbar", () => {
       expect(markup).not.toContain("2 errors");
       expect(markup).not.toContain("No issues");
       expect(markup).toContain(`data-check-status="${checkStatus}"`);
+      if (checkStatus === "unchecked") {
+        expect(markup).toContain(
+          "No check has run — open Issues and choose Check and Save",
+        );
+      }
     },
   );
 
