@@ -154,11 +154,22 @@ current Net ID/name, one member pin, an explicit list of pins to join, or a
 frozen import-reference `sourceNetId`. An import ID is not a current Net ID.
 It reuses the visible connectivity/MST and atomic wire planners, skipping already
 connected components. Optional `trunk:{start,end}` specifies one straight
-horizontal/vertical trunk; otherwise follow the shared guide tree. This is not
-an obstacle autorouter: conflicting taps or excess expanded edits reject the
-whole operation. Ordinary crossings without a Junction remain legal. It does
-not move devices, infer bulk wiring or override import-reference shorts/scope
-conflicts; place missing devices and fix those facts first.
+horizontal/vertical trunk; otherwise follow the shared guide tree. A wire never
+passes over another Net's pin, through a part (its own included) or along its
+drawn leads, or onto another Net's wire, since each would read as a connection
+the netlist does not have. Each guide wire takes the cheapest of a few simple
+paths that avoids them: the plain L, a short lead out of a pin, or a detour
+along a free row or column. When none does, or a pin already sits on another
+Net's wire, the whole operation is refused and the message names the pin, part
+or Route in the way; move parts apart or give a trunk. A trunk and its branches
+are checked the same way and refused, not bent. This is not a general
+autorouter: conflicting taps or excess expanded edits also reject the whole
+operation. Ordinary crossings without a Junction remain legal. It does not move
+devices, infer bulk wiring or override import-reference shorts/scope conflicts;
+place missing devices and fix those facts first. A structural SPICE import lays
+its Cell Pins around the devices, each lead facing them: supplies (`VDD`,
+`VCC` and the like) above, grounds (`VSS`, `GND`, `0`) below, outputs (`out`,
+`vout`, or a Net only drains and collectors drive) right, the rest left.
 Several `route-net` actions can share one atomic command batch; each resolves
 against the preceding private result. The total expanded edit limit still
 applies, and any invalid later target leaves the whole batch unapplied.
