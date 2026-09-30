@@ -124,9 +124,9 @@ export function deriveGalleryPanelView(
 }
 
 /**
- * Insert from Gallery, docked beside the canvas: Gallery circuits to place in
- * this drawing. Browsing the Gallery itself is the header's Gallery; the
- * panel links there. Every card carries a preview of the circuit itself: a
+ * The Gallery panel is docked beside the canvas and provides circuits to
+ * place in this drawing. Browsing the Gallery itself is the header's Gallery.
+ * Every card carries a preview of the circuit itself: a
  * name and a sentence do not tell you whether a circuit is the one you want
  * to borrow from.
  *
@@ -251,19 +251,6 @@ export function ExamplesPanel({
       data-open={open ? "true" : "false"}
     >
       <div className="shapes-panel-body">
-        <div className="examples-panel-header">
-          <h2 className="examples-panel-title">Insert from Gallery</h2>
-          <a
-            className="examples-panel-open-gallery"
-            href="/"
-            target="_blank"
-            rel="noopener"
-            data-testid="examples-panel-open-gallery"
-            title="Open the Community Gallery in a new tab"
-          >
-            Open Gallery ↗
-          </a>
-        </div>
         {showGallery ? (
           <div className="examples-panel-controls">
             <input
