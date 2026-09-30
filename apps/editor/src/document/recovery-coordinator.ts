@@ -62,6 +62,11 @@ export interface RecoveryGenerationSummary {
   review: "valid" | "corrupt" | "unsupported-schema";
   /** Top-document revision at the time of the snapshot, when known. */
   revision: number | null;
+  /**
+   * The Project's structure revision at the snapshot, which moves on every
+   * edit anywhere in it; `null` for copies stored before it was recorded.
+   */
+  structureRevision: number | null;
   /** `null` means the field predates this additive recovery metadata. */
   unsavedAtSnapshot: boolean | null;
   /** Whether the snapshot clears the meaningful-content threshold. */
@@ -162,6 +167,12 @@ export interface CreateRecoveryCoordinatorOptions {
   getSessionStorage?: () => RecoverySessionStorage | null;
   createId?: () => string;
   now?: () => string;
+  /**
+   * The working copies this window has open in any tab. Retention never
+   * evicts their latest copy, so unsaved work in a background tab is as safe
+   * as in the active one.
+   */
+  openWorkingCopyIds?: () => readonly string[];
 }
 
 function randomId(prefix: string): string {
@@ -195,6 +206,8 @@ function summarizeGeneration(
         : "unsupported-schema",
     revision:
       review.status === "valid" ? (readTopRevision(record) ?? null) : null,
+    structureRevision:
+      review.status === "valid" ? (record.structureRevision ?? null) : null,
     unsavedAtSnapshot: record.unsavedAtSnapshot ?? null,
     meaningfulContent:
       review.status === "valid" &&
@@ -230,6 +243,8 @@ export function createRecoveryCoordinator(
   let state: RecoveryState = "idle";
   let sessions: RecoverySessionSummary[] = [];
   let recordCounter = 0;
+  // Said once each time open work outgrows the store, not on every write.
+  let overCapacityNoticed = false;
 
   function publishState(next: RecoveryState): void {
     if (state === next) return;
@@ -268,9 +283,18 @@ export function createRecoveryCoordinator(
         );
         return;
       }
-      const outcome = await store.writeRecord(record);
+      const outcome = await store.writeRecord(
+        record,
+        options.openWorkingCopyIds?.() ?? [],
+      );
       if (outcome.status === "stored" || outcome.status === "unchanged") {
         publishState("stored");
+        if (outcome.overCapacity && !overCapacityNoticed) {
+          events.onNotice?.(
+            "Unsaved work in your open tabs is more than this browser keeps for recovery (12 MB). Every open tab still has its copy, but save to Cloud or download the Projects you need.",
+          );
+        }
+        overCapacityNoticed = outcome.overCapacity;
         return;
       }
       if (outcome.status === "rejected-too-large") {
@@ -306,6 +330,7 @@ export function createRecoveryCoordinator(
       projectSchemaVersion: CURRENT_PROJECT_FILE_VERSION,
       topDocumentId: project.topDocumentId,
       documentRevisions,
+      structureRevision: project.structureRevision,
       source: currentSource,
       updatedAt: now(),
       projectText: (options.serializeProject ?? serializeProject)(project),
@@ -479,6 +504,8 @@ export interface UseRecoveryCoordinatorOptions {
   serializeProject?: (project: CircuitProject) => string;
   store?: BrowserRecoveryStore;
   delayMs?: number;
+  /** The working copies of every open tab; read at each write. */
+  openWorkingCopyIds?: () => readonly string[];
 }
 
 export interface UseRecoveryCoordinatorResult {
@@ -515,9 +542,12 @@ export function useRecoveryCoordinator(
   const [ready, setReady] = useState(false);
   const noticeRef = useRef(onNotice);
   noticeRef.current = onNotice;
+  const openWorkingCopyIdsRef = useRef(options.openWorkingCopyIds);
+  openWorkingCopyIdsRef.current = options.openWorkingCopyIds;
 
   const [coordinator] = useState(() =>
     createRecoveryCoordinator({
+      openWorkingCopyIds: () => openWorkingCopyIdsRef.current?.() ?? [],
       ...(options.serializeProject === undefined
         ? {}
         : { serializeProject: options.serializeProject }),

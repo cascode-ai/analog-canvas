@@ -793,7 +793,11 @@ function WorkspaceEditor({
     deleteSession: deleteRecoverySession,
   } = useRecoveryCoordinator(setStatus, {
     serializeProject: snapshotSerializer.serialize,
+    // Every tab's copy is kept while the tab is open, not only the active
+    // one's: a third edited tab once evicted the first one's unsaved work.
+    openWorkingCopyIds: () => openWorkingCopyIdsRef.current(),
   });
+  const openWorkingCopyIdsRef = useRef<() => readonly string[]>(() => []);
   const [agentStartupRecovery] = useState(() => {
     if (
       !capabilities.agent ||
@@ -5102,6 +5106,13 @@ function WorkspaceEditor({
         closeSearch();
         return;
       }
+      if (event.key === "Escape" && recoveryDialogOpen) {
+        // This router runs first, at window level: close the dialog here, as
+        // for Search, or Escape never reaches the dialog's own handler.
+        event.preventDefault();
+        setRecoveryDialogOpen(false);
+        return;
+      }
       if (event.key === "Escape" && selectionFilterOpen) {
         event.preventDefault();
         setSelectionFilterOpen(false);
@@ -5793,6 +5804,8 @@ function WorkspaceEditor({
     },
     onError: (message) => setStatus(message),
   });
+  openWorkingCopyIdsRef.current = () =>
+    projectTabs.entries().map(({ session }) => session.recovery.workingCopyId);
   useEffect(() => {
     // Runs once the next tab's Project is the one rendered, so the copy is
     // prepared against, and placed into, that Project.

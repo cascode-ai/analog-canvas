@@ -6,8 +6,8 @@ import { serializeProject } from "@icm/project-protocol";
 
 import {
   BROWSER_RECOVERY_FORMAT,
+  BROWSER_RECOVERY_MAX_CLOSED_SESSIONS,
   BROWSER_RECOVERY_MAX_RECORD_BYTES,
-  BROWSER_RECOVERY_MAX_SESSIONS,
   BROWSER_RECOVERY_MAX_TOTAL_BYTES,
   browserRecoveryByteLength,
   browserRecoveryRecordKey,
@@ -417,110 +417,164 @@ describe("rotateBrowserRecoverySession", () => {
   });
 });
 
+/**
+ * A record of `bytes` Project text. Each working copy holds its own Project
+ * unless `projectId` says otherwise.
+ */
 function bigRecord(
   workingCopyId: string,
   recordId: string,
   updatedAt: string,
   bytes: number,
+  projectId = `project-${workingCopyId}`,
 ) {
   return finalizeBrowserRecoveryRecord(
     draft({
       recordId,
       workingCopyId,
       updatedAt,
+      projectId,
       projectText: "y".repeat(bytes),
     }),
   );
 }
 
+function copy(
+  workingCopyId: string,
+  updatedAt: string,
+  options: { bytes?: number; projectId?: string; previousAt?: string } = {},
+) {
+  const bytes = options.bytes ?? 100;
+  return session(workingCopyId, {
+    latest: bigRecord(
+      workingCopyId,
+      `${workingCopyId}-latest`,
+      updatedAt,
+      bytes,
+      options.projectId,
+    ),
+    ...(options.previousAt
+      ? {
+          previous: bigRecord(
+            workingCopyId,
+            `${workingCopyId}-previous`,
+            options.previousAt,
+            bytes,
+            options.projectId,
+          ),
+        }
+      : {}),
+  });
+}
+
 describe("planBrowserRecoveryRetention", () => {
-  it("keeps the active session plus the newest other session", () => {
-    const active = session("copy-active", {
-      latest: bigRecord(
-        "copy-active",
-        "record-active",
-        "2026-08-14T10:00:00.000Z",
-        100,
-      ),
-    });
-    const recent = session("copy-recent", {
-      latest: bigRecord(
-        "copy-recent",
-        "record-recent",
-        "2026-08-14T09:00:00.000Z",
-        100,
-      ),
-    });
-    const stale = session("copy-stale", {
-      latest: bigRecord(
-        "copy-stale",
-        "record-stale",
-        "2026-08-13T09:00:00.000Z",
-        100,
-      ),
-      previous: bigRecord(
-        "copy-stale",
-        "record-stale-prev",
-        "2026-08-13T08:00:00.000Z",
-        100,
-      ),
-    });
+  it("keeps every open working copy, however many tabs are open", () => {
+    // Issue #1250: a third edited tab evicted the first tab's unsaved copy.
+    const open = ["tab-a", "tab-b", "tab-c", "tab-d"];
     const plan = planBrowserRecoveryRetention(
-      [stale, active, recent],
-      "copy-active",
+      open.map((id, index) =>
+        copy(id, `2026-09-30T1${index}:00:00.000Z`, {
+          previousAt: `2026-09-30T0${index}:00:00.000Z`,
+        }),
+      ),
+      new Set(open),
     );
-    expect(plan.sessions.map((entry) => entry.workingCopyId)).toEqual([
-      "copy-active",
-      "copy-recent",
-    ]);
-    expect(plan.deleteRecordIds).toEqual(["record-stale", "record-stale-prev"]);
+    expect(plan.deleteRecordIds).toEqual([]);
+    expect(plan.sessions.map((entry) => entry.workingCopyId).sort()).toEqual(
+      open,
+    );
+    expect(plan.overCapacity).toBe(false);
   });
 
-  it("keeps the active session even when it is the oldest", () => {
-    const active = session("copy-active", {
-      latest: bigRecord(
-        "copy-active",
-        "record-active",
-        "2026-08-12T10:00:00.000Z",
-        100,
-      ),
-    });
-    const newer = session("copy-newer", {
-      latest: bigRecord(
-        "copy-newer",
-        "record-newer",
-        "2026-08-14T10:00:00.000Z",
-        100,
-      ),
-    });
-    const newest = session("copy-newest", {
-      latest: bigRecord(
-        "copy-newest",
-        "record-newest",
-        "2026-08-14T11:00:00.000Z",
-        100,
-      ),
-    });
+  it("keeps closed copies of other Projects beside the open ones", () => {
     const plan = planBrowserRecoveryRetention(
-      [active, newer, newest],
-      "copy-active",
+      [
+        copy("open", "2026-09-30T12:00:00.000Z"),
+        copy("closed-1", "2026-09-29T12:00:00.000Z"),
+        copy("closed-2", "2026-09-28T12:00:00.000Z"),
+      ],
+      new Set(["open"]),
     );
     expect(plan.sessions.map((entry) => entry.workingCopyId)).toEqual([
-      "copy-newest",
-      "copy-active",
+      "open",
+      "closed-1",
+      "closed-2",
     ]);
-    expect(plan.deleteRecordIds).toEqual(["record-newer"]);
+    expect(plan.deleteRecordIds).toEqual([]);
+  });
+
+  it("keeps one closed copy per Project, so restores cannot push another Project out", () => {
+    // One Project restored twice left three sessions of it; the unrelated
+    // Project's only copy must survive them.
+    const plan = planBrowserRecoveryRetention(
+      [
+        copy("restored-again", "2026-09-30T15:49:00.000Z", {
+          projectId: "project-dut",
+        }),
+        copy("restored", "2026-09-30T15:20:00.000Z", {
+          projectId: "project-dut",
+        }),
+        copy("original", "2026-09-30T14:00:00.000Z", {
+          projectId: "project-dut",
+          previousAt: "2026-09-30T13:00:00.000Z",
+        }),
+        copy("other", "2026-09-29T09:00:00.000Z"),
+      ],
+      new Set(),
+    );
+    expect(plan.sessions.map((entry) => entry.workingCopyId)).toEqual([
+      "restored-again",
+      "other",
+    ]);
+    expect(plan.deleteRecordIds).toEqual([
+      "restored-latest",
+      "original-latest",
+      "original-previous",
+    ]);
+  });
+
+  it("never drops an open copy for a newer copy of the same Project", () => {
+    const plan = planBrowserRecoveryRetention(
+      [
+        copy("closed-newer", "2026-09-30T12:00:00.000Z", {
+          projectId: "project-p",
+        }),
+        copy("open-older", "2026-09-30T10:00:00.000Z", {
+          projectId: "project-p",
+        }),
+      ],
+      new Set(["open-older"]),
+    );
+    expect(plan.sessions.map((entry) => entry.workingCopyId)).toEqual([
+      "closed-newer",
+      "open-older",
+    ]);
+    expect(plan.deleteRecordIds).toEqual([]);
+  });
+
+  it("keeps at most the newest closed sessions", () => {
+    const closed = Array.from(
+      { length: BROWSER_RECOVERY_MAX_CLOSED_SESSIONS + 2 },
+      (_, index) =>
+        copy(
+          `closed-${String(index).padStart(2, "0")}`,
+          new Date(Date.UTC(2026, 8, 1, index)).toISOString(),
+        ),
+    );
+    const plan = planBrowserRecoveryRetention(closed, new Set());
+    expect(plan.sessions).toHaveLength(BROWSER_RECOVERY_MAX_CLOSED_SESSIONS);
+    expect(plan.deleteRecordIds).toEqual([
+      "closed-01-latest",
+      "closed-00-latest",
+    ]);
   });
 
   it("breaks recency ties deterministically", () => {
     const stamp = "2026-08-14T10:00:00.000Z";
-    const a = session("copy-a", {
-      latest: bigRecord("copy-a", "record-a", stamp, 100),
-    });
-    const b = session("copy-b", {
-      latest: bigRecord("copy-b", "record-b", stamp, 100),
-    });
-    const plan = planBrowserRecoveryRetention([b, a], "copy-c");
+    const plan = planBrowserRecoveryRetention(
+      [copy("copy-b", stamp), copy("copy-a", stamp)],
+      new Set(["copy-c"]),
+    );
     expect(plan.sessions.map((entry) => entry.workingCopyId)).toEqual([
       "copy-a",
       "copy-b",
@@ -528,173 +582,82 @@ describe("planBrowserRecoveryRetention", () => {
     expect(plan.deleteRecordIds).toEqual([]);
   });
 
-  it("drops the oldest inactive previous generation first for the total cap", () => {
+  it("drops closed previous generations first, oldest first, for the byte cap", () => {
     const bytes = BROWSER_RECOVERY_MAX_RECORD_BYTES;
-    const activeLatest = bigRecord(
-      "copy-active",
-      "record-active-latest",
-      "2026-08-14T12:00:00.000Z",
-      bytes,
-    );
-    const activePrevious = bigRecord(
-      "copy-active",
-      "record-active-previous",
-      "2026-08-14T11:00:00.000Z",
-      bytes,
-    );
-    const inactiveLatest = bigRecord(
-      "copy-old",
-      "record-old-latest",
-      "2026-08-14T10:00:00.000Z",
-      bytes,
-    );
-    const inactivePrevious = bigRecord(
-      "copy-old",
-      "record-old-previous",
-      "2026-08-14T09:00:00.000Z",
-      bytes,
-    );
     const plan = planBrowserRecoveryRetention(
       [
-        session("copy-active", {
-          latest: activeLatest,
-          previous: activePrevious,
+        copy("open", "2026-08-14T12:00:00.000Z", {
+          bytes,
+          previousAt: "2026-08-14T08:00:00.000Z",
         }),
-        session("copy-old", {
-          latest: inactiveLatest,
-          previous: inactivePrevious,
+        copy("closed", "2026-08-14T11:00:00.000Z", {
+          bytes,
+          previousAt: "2026-08-14T10:00:00.000Z",
         }),
       ],
-      "copy-active",
+      new Set(["open"]),
     );
-    expect(plan.deleteRecordIds).toEqual(["record-old-previous"]);
+    expect(plan.deleteRecordIds).toEqual(["closed-previous"]);
     expect(
-      plan.sessions.find((entry) => entry.workingCopyId === "copy-old")
-        ?.previous,
-    ).toBeNull();
+      plan.sessions.find((entry) => entry.workingCopyId === "open")?.previous
+        ?.recordId,
+    ).toBe("open-previous");
+    expect(plan.overCapacity).toBe(false);
   });
 
-  it("prefers the inactive previous generation even when it is newer", () => {
+  it("drops a whole closed session before any open latest copy", () => {
     const bytes = BROWSER_RECOVERY_MAX_RECORD_BYTES;
-    const activeLatest = bigRecord(
-      "copy-active",
-      "record-active-latest",
-      "2026-08-14T12:00:00.000Z",
-      bytes,
-    );
-    const activePrevious = bigRecord(
-      "copy-active",
-      "record-active-previous",
-      "2026-08-14T09:00:00.000Z",
-      bytes,
-    );
-    const inactiveLatest = bigRecord(
-      "copy-old",
-      "record-old-latest",
-      "2026-08-14T11:00:00.000Z",
-      bytes,
-    );
-    const inactivePrevious = bigRecord(
-      "copy-old",
-      "record-old-previous",
-      "2026-08-14T10:00:00.000Z",
-      bytes,
-    );
     const plan = planBrowserRecoveryRetention(
       [
-        session("copy-active", {
-          latest: activeLatest,
-          previous: activePrevious,
-        }),
-        session("copy-old", {
-          latest: inactiveLatest,
-          previous: inactivePrevious,
-        }),
+        copy("open-a", "2026-08-14T12:00:00.000Z", { bytes }),
+        copy("open-b", "2026-08-14T11:00:00.000Z", { bytes }),
+        copy("closed", "2026-08-14T13:00:00.000Z", { bytes }),
+        copy("closed-old", "2026-08-14T09:00:00.000Z", { bytes }),
       ],
-      "copy-active",
+      new Set(["open-a", "open-b"]),
     );
-    expect(plan.deleteRecordIds).toEqual(["record-old-previous"]);
-    expect(
-      plan.sessions.find((entry) => entry.workingCopyId === "copy-active")
-        ?.previous?.recordId,
-    ).toBe("record-active-previous");
+    expect(plan.deleteRecordIds).toEqual(["closed-old-latest"]);
+    expect(plan.overCapacity).toBe(false);
   });
 
-  it("keeps records that fit exactly under the caps", () => {
+  it("keeps records that fit exactly under the cap", () => {
     const bytes = BROWSER_RECOVERY_MAX_TOTAL_BYTES / 3;
-    const activeLatest = bigRecord(
-      "copy-active",
-      "record-active-latest",
-      "2026-08-14T12:00:00.000Z",
-      bytes,
-    );
-    const activePrevious = bigRecord(
-      "copy-active",
-      "record-active-previous",
-      "2026-08-14T11:00:00.000Z",
-      bytes,
-    );
-    const inactiveLatest = bigRecord(
-      "copy-old",
-      "record-old-latest",
-      "2026-08-14T10:00:00.000Z",
-      bytes,
-    );
     const plan = planBrowserRecoveryRetention(
       [
-        session("copy-active", {
-          latest: activeLatest,
-          previous: activePrevious,
+        copy("open", "2026-08-14T12:00:00.000Z", {
+          bytes,
+          previousAt: "2026-08-14T11:00:00.000Z",
         }),
-        session("copy-old", { latest: inactiveLatest }),
+        copy("closed", "2026-08-14T10:00:00.000Z", { bytes }),
       ],
-      "copy-active",
+      new Set(["open"]),
     );
     expect(plan.deleteRecordIds).toEqual([]);
     expect(plan.sessions).toHaveLength(2);
+    expect(plan.overCapacity).toBe(false);
   });
 
-  it("never plans deletion of the active latest record", () => {
+  it("keeps every open latest copy when they alone exceed the cap, and says so", () => {
     const bytes = BROWSER_RECOVERY_MAX_RECORD_BYTES;
-    const activeLatest = bigRecord(
-      "copy-active",
-      "record-active-latest",
-      "2026-08-14T12:00:00.000Z",
-      bytes,
-    );
-    const activePrevious = bigRecord(
-      "copy-active",
-      "record-active-previous",
-      "2026-08-14T11:00:00.000Z",
-      bytes,
-    );
-    const inactiveLatest = bigRecord(
-      "copy-old",
-      "record-old-latest",
-      "2026-08-14T10:00:00.000Z",
-      bytes,
-    );
-    const inactivePrevious = bigRecord(
-      "copy-old",
-      "record-old-previous",
-      "2026-08-14T09:00:00.000Z",
-      bytes,
-    );
+    const open = ["open-a", "open-b", "open-c", "open-d"];
     const plan = planBrowserRecoveryRetention(
       [
-        session("copy-active", {
-          latest: activeLatest,
-          previous: activePrevious,
-        }),
-        session("copy-old", {
-          latest: inactiveLatest,
-          previous: inactivePrevious,
-        }),
+        ...open.map((id, index) =>
+          copy(id, `2026-08-14T1${index}:00:00.000Z`, {
+            bytes,
+            previousAt: `2026-08-14T0${index}:00:00.000Z`,
+          }),
+        ),
+        copy("closed", "2026-08-14T15:00:00.000Z", { bytes }),
       ],
-      "copy-active",
+      new Set(open),
     );
-    expect(plan.deleteRecordIds).not.toContain("record-active-latest");
-    expect(plan.deleteRecordIds).toEqual(["record-old-previous"]);
-    expect(plan.sessions).toHaveLength(BROWSER_RECOVERY_MAX_SESSIONS);
+    for (const id of open)
+      expect(plan.deleteRecordIds).not.toContain(`${id}-latest`);
+    expect(plan.deleteRecordIds).toContain("closed-latest");
+    expect(plan.sessions.map((entry) => entry.workingCopyId).sort()).toEqual(
+      open,
+    );
+    expect(plan.overCapacity).toBe(true);
   });
 });

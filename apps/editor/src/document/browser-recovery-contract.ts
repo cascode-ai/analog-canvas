@@ -13,7 +13,8 @@
 //   unsupported-schema, where unsupported-schema bytes stay exportable raw
 //   data instead of being treated as corrupt;
 // - latest/previous generation rotation with identical-text deduplication;
-// - deterministic retention planning for the two-session and total-byte caps.
+// - deterministic retention planning: open working copies are protected, one
+//   copy is kept per Project, and a total-byte cap bounds the rest.
 //
 // Storage (WP-1) and React coordination (WP-2) build on these functions; they
 // must not re-implement the rules independently.
@@ -26,8 +27,11 @@ import type { CircuitProject } from "@icm/model";
 
 export const BROWSER_RECOVERY_FORMAT = "analog-canvas-browser-recovery-v2";
 
-/** Maximum number of retained working-copy sessions (including the active one). */
-export const BROWSER_RECOVERY_MAX_SESSIONS = 2;
+/**
+ * Most sessions kept for working copies no editor has open. Open ones are
+ * never counted against it: bytes, not a count, bound unsaved work.
+ */
+export const BROWSER_RECOVERY_MAX_CLOSED_SESSIONS = 20;
 
 /** Maximum UTF-8 byte length of one recovery record's Project text. */
 export const BROWSER_RECOVERY_MAX_RECORD_BYTES = 4 * 1024 * 1024;
@@ -73,6 +77,12 @@ export interface BrowserRecoveryRecordV2 {
   projectSchemaVersion: number;
   topDocumentId: string;
   documentRevisions: Record<string, number>;
+  /**
+   * The Project's structure revision, which moves on every edit anywhere in
+   * it. Two copies of one Project are told apart by it: a Cell's own
+   * revision stands still while the rest of the Project changes.
+   */
+  structureRevision?: number;
   source: BrowserRecoverySource;
   updatedAt: string;
   /** UTF-8 byte length of `projectText`; always recomputed, never trusted. */
@@ -94,6 +104,7 @@ export interface BrowserRecoveryRecordDraft {
   projectSchemaVersion: number;
   topDocumentId: string;
   documentRevisions: Record<string, number>;
+  structureRevision?: number;
   source: BrowserRecoverySource;
   updatedAt: string;
   projectText: string;
@@ -132,6 +143,9 @@ export function finalizeBrowserRecoveryRecord(
     projectSchemaVersion: draft.projectSchemaVersion,
     topDocumentId: draft.topDocumentId,
     documentRevisions: draft.documentRevisions,
+    ...(draft.structureRevision === undefined
+      ? {}
+      : { structureRevision: draft.structureRevision }),
     source: draft.source,
     updatedAt: draft.updatedAt,
     byteLength: browserRecoveryByteLength(draft.projectText),
@@ -252,6 +266,14 @@ export function decodeBrowserRecoveryRecord(
     }
   }
   if (
+    raw.structureRevision !== undefined &&
+    (typeof raw.structureRevision !== "number" ||
+      !Number.isInteger(raw.structureRevision) ||
+      raw.structureRevision < 0)
+  ) {
+    return corrupt("structureRevision is not a revision");
+  }
+  if (
     raw.unsavedAtSnapshot !== undefined &&
     typeof raw.unsavedAtSnapshot !== "boolean"
   ) {
@@ -283,6 +305,9 @@ export function decodeBrowserRecoveryRecord(
     projectSchemaVersion: raw.projectSchemaVersion as number,
     topDocumentId: raw.topDocumentId as string,
     documentRevisions: raw.documentRevisions as Record<string, number>,
+    ...(raw.structureRevision === undefined
+      ? {}
+      : { structureRevision: raw.structureRevision as number }),
     source: source as BrowserRecoverySource,
     updatedAt: raw.updatedAt as string,
     byteLength: browserRecoveryByteLength(projectText),
@@ -468,6 +493,11 @@ export interface BrowserRecoveryRetentionPlan {
   sessions: BrowserRecoverySession[];
   /** Record ids to delete from the store. */
   deleteRecordIds: string[];
+  /**
+   * The protected copies alone exceed the total byte cap. They are all kept,
+   * and the editor says that not all unsaved work fits.
+   */
+  overCapacity: boolean;
 }
 
 function sessionRecency(session: BrowserRecoverySession): number {
@@ -477,89 +507,94 @@ function sessionRecency(session: BrowserRecoverySession): number {
   return Math.max(...stamps);
 }
 
-function recordBytes(record: BrowserRecoveryRecordV2): number {
-  return browserRecoveryByteLength(record.projectText);
+function recordBytes(record: BrowserRecoveryRecordV2 | null): number {
+  return record ? browserRecoveryByteLength(record.projectText) : 0;
+}
+
+function sessionProjectId(session: BrowserRecoverySession): string {
+  return session.latest?.projectId ?? session.previous?.projectId ?? "";
 }
 
 /**
- * Plan bounded retention over all owned records. The active session is always
- * kept; beyond it, keep the most recently updated sessions up to the
- * two-session cap (oldest inactive session is pruned first). If the survivors
- * still exceed the total byte cap, drop `previous` generations — inactive
- * sessions first, oldest first — and only then the active session's
- * `previous`. With each record capped at 4 MB, dropping `previous`
- * generations brings the total to at most the 12 MB cap, so an active
- * session's `latest` is never pruned here.
+ * Plan retention over all owned records, by three rules in order:
+ *
+ * - A protected session, a working copy some editor tab has open (every tab,
+ *   not only the active one), keeps its `latest` whatever else happens:
+ *   unsaved work that is still open is never evicted to make room.
+ * - One copy per Project: a session no tab has open is dropped once a more
+ *   recent session holds the same Project, so restoring or reloading one
+ *   Project cannot push another Project's only copy out. At most
+ *   {@link BROWSER_RECOVERY_MAX_CLOSED_SESSIONS} closed sessions stay.
+ * - Bytes bound the rest. Over the total cap, `previous` generations go
+ *   first (closed sessions, then open ones, oldest first), then whole closed
+ *   sessions, oldest first. When the open copies alone exceed the cap they
+ *   are all kept and the plan says so.
  */
 export function planBrowserRecoveryRetention(
   sessions: BrowserRecoverySession[],
-  activeWorkingCopyId: string,
+  protectedWorkingCopyIds: ReadonlySet<string>,
 ): BrowserRecoveryRetentionPlan {
   const deleteRecordIds: string[] = [];
-  const withRecords = sessions.filter(
-    (session) => session.latest !== null || session.previous !== null,
-  );
-  const ordered = [...withRecords].sort((a, b) => {
-    const recency = sessionRecency(b) - sessionRecency(a);
-    if (recency !== 0) return recency;
-    return a.workingCopyId < b.workingCopyId
-      ? -1
-      : a.workingCopyId > b.workingCopyId
-        ? 1
-        : 0;
-  });
-  const active = ordered.find(
-    (session) => session.workingCopyId === activeWorkingCopyId,
-  );
-  const inactive = ordered.filter((session) => session !== active);
-  // Oldest inactive session is pruned first; the active session always stays.
-  const inactiveQuota =
-    active === undefined
-      ? BROWSER_RECOVERY_MAX_SESSIONS
-      : BROWSER_RECOVERY_MAX_SESSIONS - 1;
-  const dropped = new Set(inactive.slice(inactiveQuota));
-  const kept = ordered.filter((session) => !dropped.has(session));
-  for (const session of dropped) {
+  const drop = (session: BrowserRecoverySession): void => {
     for (const record of [session.latest, session.previous]) {
       if (record !== null) deleteRecordIds.push(record.recordId);
     }
+  };
+  const isProtected = (session: BrowserRecoverySession): boolean =>
+    protectedWorkingCopyIds.has(session.workingCopyId);
+  const ordered = sessions
+    .filter((session) => session.latest !== null || session.previous !== null)
+    .sort((a, b) => {
+      const recency = sessionRecency(b) - sessionRecency(a);
+      if (recency !== 0) return recency;
+      return a.workingCopyId < b.workingCopyId
+        ? -1
+        : a.workingCopyId > b.workingCopyId
+          ? 1
+          : 0;
+    });
+
+  // Newest first: the first session seen for a Project is its copy.
+  const seenProjects = new Set<string>();
+  let closedKept = 0;
+  const survivors: BrowserRecoverySession[] = [];
+  for (const session of ordered) {
+    const projectId = sessionProjectId(session);
+    if (!isProtected(session)) {
+      if (
+        seenProjects.has(projectId) ||
+        closedKept >= BROWSER_RECOVERY_MAX_CLOSED_SESSIONS
+      ) {
+        drop(session);
+        continue;
+      }
+      closedKept += 1;
+    }
+    seenProjects.add(projectId);
+    survivors.push({ ...session });
   }
 
-  // Byte-cap pruning, category by category, oldest within each category
-  // first: inactive `previous`, then the active `previous`, then (defensively,
-  // unreachable while records respect the 4 MB cap) inactive `latest`. The
-  // active `latest` is never pruned here.
-  const recordDropOrder: BrowserRecoveryRecordV2[] = [];
-  const inactiveKeptOldestFirst = [
-    ...kept.filter((session) => session !== active),
-  ].reverse();
-  for (const session of inactiveKeptOldestFirst) {
-    if (session.previous !== null) recordDropOrder.push(session.previous);
-  }
-  if (active !== undefined && active.previous !== null) {
-    recordDropOrder.push(active.previous);
-  }
-  for (const session of inactiveKeptOldestFirst) {
-    if (session.latest !== null) recordDropOrder.push(session.latest);
-  }
-
-  const survivors = kept.map((session) => ({ ...session }));
   let total = survivors.reduce(
     (sum, session) =>
-      sum +
-      (session.latest ? recordBytes(session.latest) : 0) +
-      (session.previous ? recordBytes(session.previous) : 0),
+      sum + recordBytes(session.latest) + recordBytes(session.previous),
     0,
   );
-  for (const record of recordDropOrder) {
+  const oldestFirst = [...survivors].reverse();
+  const closed = oldestFirst.filter((session) => !isProtected(session));
+  const open = oldestFirst.filter(isProtected);
+  const dropOrder: Array<{
+    session: BrowserRecoverySession;
+    generation: "latest" | "previous";
+  }> = [
+    ...closed.map((session) => ({ session, generation: "previous" as const })),
+    ...open.map((session) => ({ session, generation: "previous" as const })),
+    ...closed.map((session) => ({ session, generation: "latest" as const })),
+  ];
+  for (const { session, generation } of dropOrder) {
     if (total <= BROWSER_RECOVERY_MAX_TOTAL_BYTES) break;
-    const session = survivors.find(
-      (candidate) => candidate.workingCopyId === record.workingCopyId,
-    );
-    if (session === undefined) continue;
-    if (session.latest === record) session.latest = null;
-    else if (session.previous === record) session.previous = null;
-    else continue;
+    const record = session[generation];
+    if (record === null) continue;
+    session[generation] = null;
     deleteRecordIds.push(record.recordId);
     total -= recordBytes(record);
   }
@@ -569,5 +604,6 @@ export function planBrowserRecoveryRetention(
       (session) => session.latest !== null || session.previous !== null,
     ),
     deleteRecordIds,
+    overCapacity: total > BROWSER_RECOVERY_MAX_TOTAL_BYTES,
   };
 }
