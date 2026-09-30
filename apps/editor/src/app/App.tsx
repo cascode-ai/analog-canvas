@@ -7372,7 +7372,12 @@ function WorkspaceEditor({
           />
         ) : (
           <Suspense
-            fallback={<aside className="shapes-panel" aria-label="Gallery" />}
+            fallback={
+              <aside
+                className="shapes-panel"
+                aria-label="Insert from Gallery"
+              />
+            }
           >
             <ExamplesPanel
               open={visibleLibraryPanelOpen}

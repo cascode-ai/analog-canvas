@@ -5086,7 +5086,7 @@ test("keeps panel tooltips visible and exposes panel keyboard shortcuts", async 
   await expect(gallery).toHaveAttribute("aria-keyshortcuts", "G");
   await gallery.hover();
   const tooltip = page.getByRole("tooltip");
-  await expect(tooltip).toContainText("circuit gallery");
+  await expect(tooltip).toContainText("Insert a circuit from the Gallery");
   await expect(tooltip).toContainText("(G)");
   const tooltipBounds = await tooltip.boundingBox();
   expect(tooltipBounds).not.toBeNull();

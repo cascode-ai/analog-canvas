@@ -1,3 +1,29 @@
+.examples-panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--icm-space-2);
+  padding: 0 var(--icm-space-2);
+}
+
+.examples-panel-title {
+  margin: 0;
+  font-size: var(--icm-font-sm);
+  font-weight: 600;
+}
+
+.examples-panel-open-gallery {
+  flex: 0 0 auto;
+  color: var(--icm-accent);
+  font-size: var(--icm-font-xs);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.examples-panel-open-gallery:hover {
+  text-decoration: underline;
+}
+
 .examples-panel-controls {
   display: flex;
   flex-wrap: wrap;
@@ -48,17 +74,16 @@
   user-select: none;
   -webkit-mask-image: linear-gradient(
     to bottom,
-    rgb(0 0 0 / 80%),
-    rgb(0 0 0 / 10%)
+    rgb(0 0 0 / 100%),
+    rgb(0 0 0 / 25%)
   );
-  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 80%), rgb(0 0 0 / 10%));
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 100%), rgb(0 0 0 / 25%));
 }
 
 .examples-panel-sign-in-tile {
   height: 132px;
-  border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-md);
-  background: var(--icm-surface-muted);
+  background: color-mix(in srgb, var(--icm-text-muted) 22%, transparent);
 }
 
 .examples-panel-sign-in-card {

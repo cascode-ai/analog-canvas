@@ -25,8 +25,8 @@ answers `401 {"error":"sign-in-required"}` with `cache-control: no-store`:
 a visitor sees no circuit, name or count. The landing page then shows grey
 stand-ins for the wall's tiles under a veil, with "The Gallery is for
 signed-in members" and a Sign in button that opens the header's sign-in
-choices; no tags, search or filters sit beside it. The editor's Gallery panel
-shows the same veil over grey cards, with "Sign in to insert circuits from
+choices; no tags, search or filters sit beside it. The editor's Insert from
+Gallery panel shows the same veil over grey cards, with "Sign in to insert circuits from
 the Gallery." and its own Sign in button. Agent Gallery reads made through a
 signed-out editor fail with a message saying to sign in to the editor. Built-in
 examples bundled with the editor are not Gallery content. "Public" below
@@ -103,13 +103,14 @@ asks the AuthDO once.
   edit of a word (`stgae` finds `stage`; words under four letters must match
   exactly). The search narrows the wall before its cursor, total, contributors
   and filter counts, so an older match comes back on the first page, and the
-  response echoes it as `search`. The wall and the Editor's Gallery panel send
+  response echoes it as `search`. The wall and the editor's Insert from
+  Gallery panel send
   the same query a quarter second after typing pauses; until an echoed answer
   arrives they narrow what they have loaded by the same rule, and they read no
   older pages for words the server has not been asked yet. A server that
   answers without `search` did not search, and the page walk with counts
-  marked “so far” remains the fallback. Signed out, a search reads only the
-  newest wall, so it cannot enumerate the Gallery.
+  marked “so far” remains the fallback. Signed out, a search is refused like
+  every other read.
 - `GET /api/gallery/<id>` — one public entry with its canonical
   `projectText`.
 - `GET /api/gallery/<id>/preview.svg?v=<previewRevision>&render=formula-label-v5` — the
@@ -135,9 +136,12 @@ asks the AuthDO once.
   convenience: a browser that refuses it loses only the memory, never the wall.
 - `/` serves the full-screen feed; each tile links to `/g/<id>`, which the
   editor opens through the ordinary protocol boundary. `/editor` is the
-  plain editor; `/editor?example=<id>` opens a bundled example. The
-  editor's Examples panel reads the same gallery list and opens entries
-  through the same path as `/g/<id>`. While the gallery is empty or
+  plain editor; `/editor?example=<id>` opens a bundled example. One thing
+  in the editor is called Gallery: the blue entry beside the wordmark, which
+  leaves for `/` through the editor's guard for unsaved work, as the wordmark
+  does. The toolbar's Insert (G) opens the Insert from Gallery panel, which
+  reads the same gallery list, inserts entries through the same path as
+  `/g/<id>`, and links to the Gallery itself ("Open Gallery ↗", a new tab). While the gallery is empty or
   unreachable, the feed and the panel both fall back to the bundled
   Library examples, so neither surface is ever blank. The landing feed loads
   its renderer, symbol catalogue, and bundled Projects only after the remote

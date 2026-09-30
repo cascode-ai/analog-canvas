@@ -578,13 +578,13 @@
   user-select: none;
   -webkit-mask-image: linear-gradient(
     to bottom,
-    rgb(0 0 0 / 80%),
-    rgb(0 0 0 / 10%) 90%
+    rgb(0 0 0 / 100%),
+    rgb(0 0 0 / 25%) 95%
   );
   mask-image: linear-gradient(
     to bottom,
-    rgb(0 0 0 / 80%),
-    rgb(0 0 0 / 10%) 90%
+    rgb(0 0 0 / 100%),
+    rgb(0 0 0 / 25%) 95%
   );
 }
 
@@ -592,9 +592,8 @@
   display: block;
   break-inside: avoid;
   margin-bottom: 16px;
-  border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-md, 10px);
-  background: var(--icm-surface-muted);
+  background: color-mix(in srgb, var(--icm-text-muted) 22%, transparent);
 }
 
 .gallery-sign-in-card {

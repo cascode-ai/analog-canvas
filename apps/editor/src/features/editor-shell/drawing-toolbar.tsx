@@ -162,12 +162,12 @@ export function DrawingToolbar({
         {communityEnabled ? (
           <ImmediatePanelButton
             testId="examples-toggle"
-            label="Circuit gallery"
+            label="Insert from Gallery"
             shortcut="G"
             tooltip={
               examplesOpen
-                ? "Hide the circuit gallery"
-                : "Show the circuit gallery"
+                ? "Hide Insert from Gallery"
+                : "Insert a circuit from the Gallery"
             }
             pressed={examplesOpen}
             controls="examples-panel"
@@ -175,7 +175,7 @@ export function DrawingToolbar({
             onClick={onToggleExamples}
           >
             <ToolIcon name="examples" />
-            <span>Gallery</span>
+            <span>Insert</span>
           </ImmediatePanelButton>
         ) : null}
         <ImmediatePanelButton

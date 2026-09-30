@@ -147,6 +147,21 @@ export function EditorAppChrome({
     mirrorLeftRight.enabled ||
     mirrorTopBottom.enabled ||
     alignmentActions.length > 0;
+  // A plain click leaves through the editor's own guard for unsaved work; a
+  // modified click opens the Gallery in another tab as any link would.
+  const openGallery = (event: MouseEvent<HTMLAnchorElement>): void => {
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
+    event.preventDefault();
+    if (communityEnabled) onOpenGallery();
+  };
   return (
     <header className="app-chrome">
       <div className="app-chrome-main">
@@ -164,23 +179,31 @@ export function EditorAppChrome({
                 ? "Back to the gallery"
                 : "Desktop preview · Save projects to local files"
             }
-            onClick={(event) => {
-              if (
-                event.button !== 0 ||
-                event.metaKey ||
-                event.ctrlKey ||
-                event.shiftKey ||
-                event.altKey
-              ) {
-                return;
-              }
-              event.preventDefault();
-              if (communityEnabled) onOpenGallery();
-            }}
+            onClick={openGallery}
           >
             <span className="app-brand-mark" aria-hidden="true" />
             <h1 title="Analog Canvas">Analog Canvas</h1>
           </a>
+          {/* The one thing called Gallery: where circuits are browsed,
+              liked and opened. Inserting one into this drawing is the
+              toolbar's Insert. */}
+          {communityEnabled ? (
+            <a
+              className="header-gallery-link"
+              href="/"
+              data-testid="header-gallery-link"
+              title="Browse the Community Gallery"
+              onClick={openGallery}
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <rect x="1.5" y="1.5" width="5.5" height="7" rx="1.2" />
+                <rect x="9" y="1.5" width="5.5" height="4.5" rx="1.2" />
+                <rect x="1.5" y="10.5" width="5.5" height="4" rx="1.2" />
+                <rect x="9" y="8" width="5.5" height="6.5" rx="1.2" />
+              </svg>
+              <span>Gallery</span>
+            </a>
+          ) : null}
           {/* Three menus. File holds the project itself (its name, the
               open projects) and the file commands. */}
           <ProjectMenu
