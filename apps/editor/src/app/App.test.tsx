@@ -114,12 +114,34 @@ describe("editor shell", () => {
     expect(markup).toContain('data-testid="hierarchy-entry"');
     expect(markup).not.toContain('data-testid="edit-manage-cells"');
     expect(markup).not.toContain('data-testid="cell-command-menu"');
-    expect(markup).toContain(">Hierarchy</button>");
+    expect(markup).toContain(">Cell Manager…</button>");
     expect(markup).toContain("Project name");
     expect(markup).toContain("Current Cell");
     expect(markup).toContain("Edit Device Data…");
+    // Three header menus: File (the project and its file commands), Edit,
+    // and Circuit (Hierarchy and Netlist); the command row keeps actions.
+    const menu = (testId: string) => {
+      const start = markup.indexOf(`data-testid="${testId}"`);
+      expect(start).toBeGreaterThan(-1);
+      return markup.slice(start, markup.indexOf("</details>", start));
+    };
+    expect(menu("project-menu")).toContain(
+      '<span class="project-menu-title">File</span>',
+    );
+    expect(menu("project-menu")).toContain('role="group" aria-label="File"');
+    expect(menu("edit-menu")).toContain('role="group" aria-label="Edit"');
+    for (const group of ["Hierarchy", "Netlist"])
+      expect(menu("circuit-menu")).toContain(
+        `role="group" aria-label="${group}"`,
+      );
+    const commandRow = markup.slice(
+      markup.indexOf('aria-label="Editor commands"'),
+      markup.indexOf("</nav>"),
+    );
+    expect(commandRow).not.toContain("<summary");
+    expect(commandRow).toContain('data-testid="publish-gallery-button"');
     const netlistStart = markup.indexOf('aria-label="Netlist"');
-    const netlistEnd = markup.indexOf("</details>", netlistStart);
+    const netlistEnd = markup.indexOf("</div>", netlistStart);
     const netlistMenu = markup.slice(netlistStart, netlistEnd);
     expect(netlistStart).toBeGreaterThan(-1);
     expect(netlistMenu).toContain("Copy Netlist");
@@ -200,7 +222,10 @@ describe("editor shell", () => {
     expect(markup).toContain('data-testid="editor-report-bug"');
     expect(markup).toContain("Report bug");
     expect(markup).toContain('data-testid="editor-repository-link"');
+    // GitHub and the credit stay in view in the header.
     expect(markup).toContain('aria-label="GitHub repository"');
+    expect(markup).toContain('class="tokenzhang-credit"');
+    expect(markup).not.toContain('data-testid="app-more-menu"');
     expect(markup).toContain(
       'href="https://github.com/cascode-ai/analog-canvas"',
     );

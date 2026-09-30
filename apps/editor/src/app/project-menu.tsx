@@ -1,6 +1,10 @@
-import { useRef, type KeyboardEvent } from "react";
+import { useRef, type KeyboardEvent, type ReactNode } from "react";
+
+import { dismissOpenCommandMenus } from "./editor-runtime-helpers";
 
 export interface ProjectMenuProps {
+  /** The menu's name in the header; the project's name is its tooltip. */
+  label?: string;
   name: string;
   nameDraft: string | null;
   documentName: string;
@@ -15,10 +19,14 @@ export interface ProjectMenuProps {
     busy: boolean;
     onSelect(id: string): void;
   };
+  /** Commands below the project's details: the header's File group. */
+  children?: ReactNode;
+  onOpen?(): void;
 }
 
-/** Fixed-size header entrance; full names and publication context live inside. */
+/** The header's File menu: the project's details above its file commands. */
 export function ProjectMenu({
+  label,
   name,
   nameDraft,
   documentName,
@@ -28,6 +36,8 @@ export function ProjectMenu({
   onNameCommit,
   onNameCancel,
   projects,
+  children,
+  onOpen,
 }: ProjectMenuProps) {
   const menu = useRef<HTMLDetailsElement>(null);
   const cancelNameOnBlur = useRef(false);
@@ -60,18 +70,18 @@ export function ProjectMenu({
   return (
     <details
       className="command-menu project-menu"
+      name="editor-command-menu"
       data-testid="project-menu"
       ref={menu}
       onKeyDown={(event) => {
         if (event.key === "Escape") close();
       }}
+      onToggle={(event) => {
+        if (event.currentTarget.open) onOpen?.();
+      }}
     >
-      <summary
-        aria-label="Project"
-        title={name}
-        data-testid="project-menu-toggle"
-      >
-        Project
+      <summary title={name} data-testid="project-menu-toggle">
+        <span className="project-menu-title">{label ?? name}</span>
         {dirty ? (
           <span
             className="project-unsaved-indicator"
@@ -175,6 +185,20 @@ export function ProjectMenu({
               </div>
             ) : null}
           </dl>
+        ) : null}
+        {children ? (
+          <div
+            className="project-menu-commands"
+            onClick={(event) => {
+              // A command done closes the menu, as the old menus did; a
+              // submenu or an inline confirmation keeps it open itself.
+              const target = event.target;
+              if (target instanceof Element && target.closest("button"))
+                dismissOpenCommandMenus();
+            }}
+          >
+            {children}
+          </div>
         ) : null}
       </div>
     </details>

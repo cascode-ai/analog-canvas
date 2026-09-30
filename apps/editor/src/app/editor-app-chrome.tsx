@@ -1,4 +1,4 @@
-import { type ReactNode, type ComponentProps } from "react";
+import { type ReactNode, type ComponentProps, type MouseEvent } from "react";
 
 import { BugReportLink } from "../components/bug-report-link";
 import { ProjectMenu, type ProjectMenuProps } from "./project-menu";
@@ -11,6 +11,13 @@ import { ToolIcon } from "../features/editor-shell/tool-icon";
 import { HierarchyToolbar } from "../features/hierarchy/hierarchy-toolbar";
 import type { EdgeAlignmentMode } from "../features/selection/align-selection";
 import { dismissOpenCommandMenus } from "./editor-runtime-helpers";
+
+/** A command done closes its menu, as the menus always did. */
+function closeMenuAfterCommand(event: MouseEvent<HTMLDivElement>): void {
+  const target = event.target;
+  if (target instanceof Element && target.closest("button"))
+    dismissOpenCommandMenus();
+}
 
 interface CommandAction {
   enabled: boolean;
@@ -174,7 +181,10 @@ export function EditorAppChrome({
             <span className="app-brand-mark" aria-hidden="true" />
             <h1 title="Analog Canvas">Analog Canvas</h1>
           </a>
+          {/* Three menus. File holds the project itself (its name, the
+              open projects) and the file commands. */}
           <ProjectMenu
+            label="File"
             name={projectName}
             nameDraft={projectNameDraft}
             documentName={documentName}
@@ -184,36 +194,25 @@ export function EditorAppChrome({
             onNameCommit={onProjectNameCommit}
             onNameCancel={onProjectNameCancel}
             {...(projectChoices ? { projects: projectChoices } : {})}
-          />
-          <button
-            type="button"
-            className="toolbar-button hierarchy-entry"
-            data-testid="hierarchy-entry"
-            aria-haspopup="dialog"
-            aria-expanded={cellManagerOpen}
-            onClick={onManageCells}
+            onOpen={() => {
+              fileCommands.nativeFiles?.refresh();
+              if (fileCommands.cloudEnabled !== false)
+                fileCommands.onRefreshCloudProjects();
+            }}
           >
-            Hierarchy
-          </button>
-        </div>
-        <nav
-          className="app-command-surface"
-          aria-label="Editor commands"
-          onClick={(event) => {
-            const target = event.target;
-            if (
-              target instanceof Element &&
-              target.closest(".command-popover button")
-            ) {
-              dismissOpenCommandMenus();
-            }
-          }}
-        >
-          <div className="menubar-row">
-            <FileCommandMenu {...fileCommands} />
-            <details className="command-menu" name="editor-command-menu">
-              <summary>Edit</summary>
-              <div className="command-popover">
+            <FileCommandMenu {...fileCommands} embedded />
+          </ProjectMenu>
+          <details
+            className="command-menu"
+            name="editor-command-menu"
+            data-testid="edit-menu"
+          >
+            <summary>Edit</summary>
+            <div
+              className="command-popover header-menu-popover"
+              onClick={closeMenuAfterCommand}
+            >
+              <div className="command-section" role="group" aria-label="Edit">
                 <button type="button" onClick={onInsertComponent}>
                   Insert component… (I)
                 </button>
@@ -299,12 +298,44 @@ export function EditorAppChrome({
                   Choose Selectable Objects… (Ctrl+Shift+F)
                 </button>
               </div>
-            </details>
-            <details className="command-menu" name="editor-command-menu">
-              <summary aria-label="Netlist" title="Netlist commands">
-                <span>Netlist</span>
-              </summary>
-              <div className="command-popover">
+            </div>
+          </details>
+          <details
+            className="command-menu"
+            name="editor-command-menu"
+            data-testid="circuit-menu"
+          >
+            <summary>Circuit</summary>
+            <div
+              className="command-popover header-menu-popover"
+              onClick={closeMenuAfterCommand}
+            >
+              <div
+                className="command-section"
+                role="group"
+                aria-label="Hierarchy"
+              >
+                <span className="command-section-title" aria-hidden="true">
+                  Hierarchy
+                </span>
+                <button
+                  type="button"
+                  data-testid="hierarchy-entry"
+                  aria-haspopup="dialog"
+                  aria-expanded={cellManagerOpen}
+                  onClick={onManageCells}
+                >
+                  Cell Manager…
+                </button>
+              </div>
+              <div
+                className="command-section"
+                role="group"
+                aria-label="Netlist"
+              >
+                <span className="command-section-title" aria-hidden="true">
+                  Netlist
+                </span>
                 <button
                   type="button"
                   data-testid="copy-netlist"
@@ -332,7 +363,12 @@ export function EditorAppChrome({
                   Review Netlist Issues…
                 </button>
               </div>
-            </details>
+            </div>
+          </details>
+        </div>
+        {/* The header's actions, alike in shape; Publish is the one primary. */}
+        <nav className="app-command-surface" aria-label="Editor commands">
+          <div className="menubar-row app-actions">
             {simulationAction ? (
               <button
                 type="button"
@@ -358,8 +394,8 @@ export function EditorAppChrome({
                   />
                 </svg>
                 {simulationState === "minimized"
-                  ? "Simulation · Minimized"
-                  : "Simulation"}
+                  ? "Simulate · Minimized"
+                  : "Simulate"}
               </button>
             ) : null}
             {agentAction ? (
@@ -389,9 +425,6 @@ export function EditorAppChrome({
                 Agent
               </button>
             ) : null}
-            {/* Publishing is the primary narrow-window action. Keeping it
-                immediately after the compact menus makes it visible before
-                the command row needs horizontal scrolling. */}
             {communityEnabled ? (
               <button
                 type="button"

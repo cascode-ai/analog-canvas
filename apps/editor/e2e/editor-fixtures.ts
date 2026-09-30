@@ -62,16 +62,30 @@ export async function awaitRecoveryStoreReady(page: Page): Promise<void> {
   });
 }
 
+/**
+ * Open one group of editor commands. The header has three menus: File (the
+ * project and its file commands), Edit, and Circuit (Hierarchy and Netlist).
+ */
 export async function openMenu(page: Page, name: string): Promise<Locator> {
-  const summary =
-    name === "Netlist"
-      ? page.locator('summary[aria-label="Netlist"]')
-      : page.locator("summary", { hasText: name }).filter({
-          hasText: new RegExp(`^${name}$`, "u"),
-        });
-  const details = summary.locator("..");
-  if ((await details.getAttribute("open")) === null) await summary.click();
-  return details;
+  const menuTestId =
+    name === "File"
+      ? "project-menu"
+      : name === "Edit"
+        ? "edit-menu"
+        : "circuit-menu";
+  const menu = page.getByTestId(menuTestId);
+  if ((await menu.getAttribute("open")) === null)
+    await menu.locator(":scope > summary").click();
+  return menu.getByRole("group", { name, exact: true });
+}
+
+/** Open the Cell Manager from the header's menu. */
+export async function openCellManager(page: Page): Promise<void> {
+  await (
+    await openMenu(page, "Hierarchy")
+  )
+    .getByTestId("hierarchy-entry")
+    .click();
 }
 
 export async function clickCommand(
