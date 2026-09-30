@@ -5723,8 +5723,20 @@ function WorkspaceEditor({
       setRestoringWorkspace(false);
     }
   }, [restoredTabs.error]);
+  // New Circuit's blank tab joins the ones brought back and is the open one
+  // from the first paint: the circuit drawn last is never shown in its place,
+  // and a file opened at once lands in the blank tab, not over that circuit.
+  const [initialTabs] = useState(() => {
+    if (!restoredTabs.value || !restoredNewLink.current)
+      return restoredTabs.value;
+    const id = createId("tab");
+    return {
+      activeId: id,
+      tabs: [...restoredTabs.value.tabs, { id, session: createTabSession() }],
+    };
+  });
   const projectTabs = useProjectTabs<TabSession>({
-    initial: restoredTabs.value,
+    initial: initialTabs,
     persist: persistTabs,
     capture: captureTabSession,
     restore: restoreTabSession,
@@ -5867,8 +5879,8 @@ function WorkspaceEditor({
     if (restoringWorkspace || !restoredNewLink.current) return;
     restoredNewLink.current = false;
     forgetNewProjectRequest();
-    void projectTabs.open(() => createTabSession());
-    setStatus("Created a new Project");
+    // Tabs that could not be restored leave their message standing.
+    if (restoredTabs.value) setStatus("Created a new Project");
   }, [restoringWorkspace]);
   useEffect(() => {
     // A new circuit this window opened fresh is simply the working one now.

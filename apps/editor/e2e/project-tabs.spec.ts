@@ -559,6 +559,45 @@ test("New Circuit opens a blank tab beside the circuit this window drew, and a r
   await expect(page.getByRole("tab")).toHaveCount(2);
   await page.getByRole("tab").first().click();
   await expect(page.getByTestId("active-instance-count")).toHaveText("1");
+
+  // The blank tab is the open one from the start: the circuit brought back
+  // beside it is never shown, and a file opened at once lands in the blank
+  // tab, not over that unsaved circuit.
+  await page.addInitScript(() => {
+    const seen = window as unknown as { drawnTabShown?: boolean };
+    new MutationObserver(() => {
+      const first = document.querySelector('[role="tab"]');
+      if (first?.getAttribute("aria-selected") === "true")
+        seen.drawnTabShown = true;
+    }).observe(document, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["aria-selected"],
+    });
+  });
+  await page.goto("/editor?new=1");
+  await page.getByTestId("project-file").setInputFiles({
+    name: "opened.icproj.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      serializeProject(createEmptyProject("project-opened", "Opened")),
+    ),
+  });
+  await expect(page.getByRole("tab")).toHaveCount(3);
+  await expect(page.getByRole("tab").nth(2)).toContainText("Opened");
+  await expect(page.getByRole("tab").nth(2)).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.locator(".replace-guard-dialog")).toHaveCount(0);
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { drawnTabShown?: boolean }).drawnTabShown,
+    ),
+  ).toBeUndefined();
+  await page.getByRole("tab").first().click();
+  await expect(page.getByTestId("active-instance-count")).toHaveText("1");
 });
 
 for (const modifier of ["Control", "Meta", "plain"]) {
