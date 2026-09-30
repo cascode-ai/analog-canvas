@@ -953,6 +953,46 @@ it("says how far a placement batch over the edit limit expands and how much of i
   );
 });
 
+it("explains how to split an over-limit delete selection", async () => {
+  const project = createEmptyProject("project-1", "Delete limit");
+  const document = project.documents[0]!;
+  document.nets.push({ id: "delete-net", terminals: [] });
+  document.junctions.push(
+    ...Array.from({ length: 70 }, (_, index) => ({
+      id: `delete-junction-${index}`,
+      netId: "delete-net",
+      position: { x: index * 10, y: 0 },
+      role: "route-anchor" as const,
+    })),
+  );
+  const { client, controller } = await folder(project);
+  const junctionIds = controller.document.junctions.map(
+    (junction) => junction.id,
+  );
+  const rejected = await client.applyActions([
+    {
+      kind: "delete-selection",
+      selection: { junctionIds },
+    },
+  ]);
+  expect(rejected).toMatchObject({ ok: false, code: "LIMIT_EXCEEDED" });
+  expect(rejected.message).toContain("Split the selection by object class");
+  expect(rejected.message).toContain("junctions=70");
+  const limit = rejected.diagnostics?.[0]?.parameters as
+    | {
+        expandedEdits: number;
+        maxTransactionEdits: number;
+        selectedJunctions: number;
+      }
+    | undefined;
+  expect(limit).toMatchObject({
+    maxTransactionEdits: 64,
+    selectedJunctions: 70,
+  });
+  expect(limit?.expandedEdits).toBeGreaterThan(64);
+  expect(controller.document.junctions).toHaveLength(70);
+});
+
 it("defaults a native VDD name and rejects unused or non-Port direction targets", async () => {
   const { controller } = await folder();
   const instance = {
