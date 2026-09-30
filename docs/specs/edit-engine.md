@@ -322,9 +322,11 @@ schema → document identity → revision → preflight → candidate apply
 ```
 
 `STALE_REVISION`, `DOCUMENT_MISMATCH`, and validation errors are typed failures.
-Undo and redo require a `DocumentHistory` session. They restore prior validated
-Document content while creating a new monotonically increasing revision; they
-never decrement or reuse a revision. A new normal edit clears the redo stack.
+Undo and redo require a history owner. The Editor uses one chronological
+Project-working-copy history for both document and structural transactions;
+standalone Document consumers may use `DocumentHistory`. Restoration creates
+monotonically increasing live revisions, never historical revision numbers.
+A new committed edit clears redo; rejected, dry-run and no-op edits do not.
 
 ## Persistence boundary
 
@@ -363,9 +365,20 @@ protocol exposes only `upsert_schematic_annotation` and
 
 ## Session history
 
-[DocumentHistory](../../packages/edit-engine/src/history.ts) retains at most
-64 undo or redo snapshots per opened Document by default; callers may supply a
-different positive limit. This is session memory, not persisted Project data.
+[EditorDocumentController](../../apps/editor/src/document/document-controller.ts)
+retains at most 64 entries per undo/redo stack for each open Project working
+copy. GUI Undo follows commit order across Cells, without changing the viewed
+Cell unless that Cell disappears. Agent Undo cannot skip a newer entry for a
+different Cell; a rejection names that Cell. Structural Agent Undo also checks
+`expectedStructureRevision`. Whole-Project replacement starts a new history;
+switching Cells or working-copy tabs does not. Model definitions and dependencies
+restore with the operation, while document revision high-water marks survive
+Cell deletion and restoration. Failed execution/restoration preserves history.
+
+[DocumentHistory](../../packages/edit-engine/src/history.ts) remains available
+for standalone document consumers with a default limit of 64 and a configurable
+positive limit; it is not a second history authority inside the Editor.
+History is session memory, not persisted Project data.
 [History tests](../../packages/edit-engine/src/history.test.ts) protect that
 boundary. Persistent history and compaction are not implemented; their
 acceptance question belongs in the [roadmap](../roadmap/README.md#deferred-contract-questions).

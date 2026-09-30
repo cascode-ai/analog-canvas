@@ -443,6 +443,52 @@ test("keeps a chosen simulation Cell independent of later default Top changes", 
   expect(after.simulationFolders).toEqual(before.simulationFolders);
 });
 
+test("keeps drawing edits between structural edits in the same undo/redo timeline", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await createCell(page, "HistoryA");
+  const first = await page.getByTestId("active-document-id").innerText();
+  await placeComponent(page, "resistor", { x: 300, y: 200 });
+  await page.keyboard.press("Escape");
+  await createCell(page, "HistoryB");
+  const snapshot = async () =>
+    parseSavedProject(
+      (await downloadBytes(page, "File", "Export Project File…")).toString(
+        "utf8",
+      ),
+    );
+  await page.getByTestId("draw-tool-undo").click();
+  let project = await snapshot();
+  expect(
+    project.documents.some(
+      (item: { name: string }) => item.name === "HistoryB",
+    ),
+  ).toBe(false);
+  expect(
+    project.documents.find((item: { id: string }) => item.id === first)
+      .instances,
+  ).toHaveLength(1);
+  await page.getByTestId("draw-tool-undo").click();
+  project = await snapshot();
+  expect(
+    project.documents.find((item: { id: string }) => item.id === first)
+      .instances,
+  ).toHaveLength(0);
+  await page.getByTestId("draw-tool-redo").click();
+  await page.getByTestId("draw-tool-redo").click();
+  project = await snapshot();
+  expect(
+    project.documents.some(
+      (item: { name: string }) => item.name === "HistoryB",
+    ),
+  ).toBe(true);
+  expect(
+    project.documents.find((item: { id: string }) => item.id === first)
+      .instances,
+  ).toHaveLength(1);
+});
+
 test("sets a Cell as default Top without changing its circuit and supports Undo", async ({
   page,
 }) => {

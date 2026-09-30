@@ -45,6 +45,7 @@ export interface AgentHostTransactionRequest {
   transactionId: string;
   documentId: string;
   expectedRevision: number;
+  expectedStructureRevision?: number;
   actor: { kind: "agent"; id: string };
   dryRun?: boolean;
   edits: readonly SchematicEdit[];

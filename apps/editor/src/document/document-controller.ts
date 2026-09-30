@@ -3,7 +3,8 @@ import { useRef, useState } from "react";
 
 import {
   DEFAULT_DOCUMENT_HISTORY_LIMIT,
-  DocumentHistory,
+  executeTransaction,
+  shareEqualDocumentStructure,
   executeProjectTransaction,
   rejectTransaction,
   diffDocumentObjectIds,
@@ -31,28 +32,6 @@ import {
 
 type ProjectSymbolResolver = ReturnType<typeof createProjectSymbolResolver>;
 
-const SYMBOL_DEFINITION_EDIT_KINDS = new Set<SchematicEdit["kind"]>([
-  "create_cell_interface",
-  "add_cell_terminal",
-  "update_cell_terminal",
-  "remove_cell_terminal",
-  "reorder_cell_terminals",
-  "set_cell_symbol_presentation",
-  "upsert_schematic_annotation",
-  "remove_schematic_annotation",
-]);
-
-function transactionMayChangeSymbolDefinitions(
-  edits: readonly SchematicEdit[],
-): boolean {
-  return edits.some(
-    (edit) =>
-      SYMBOL_DEFINITION_EDIT_KINDS.has(edit.kind) ||
-      edit.kind === "undo" ||
-      edit.kind === "redo",
-  );
-}
-
 function documentSymbolDefinitionChanged(
   before: SchematicDocument,
   after: SchematicDocument,
@@ -76,12 +55,13 @@ function documentSymbolDefinitionChanged(
  * A complete authenticated transaction envelope accepted by
  * {@link EditorDocumentController.dispatchTransaction}. Both human and Agent
  * entry points build one of these; the actor identifies the origin. This is the
- * single write envelope that reaches `DocumentHistory`.
+ * single write envelope that reaches the Edit Engine.
  */
 export interface EditorTransactionRequest {
   transactionId: string;
   documentId: string;
   expectedRevision: number;
+  expectedStructureRevision?: number;
   actor: EditActor;
   dryRun?: boolean;
   edits: readonly SchematicEdit[];
@@ -97,30 +77,40 @@ export interface DocumentControllerSnapshot {
   projectSessionId: string;
 }
 
+interface ProjectHistoryEntry {
+  project: CircuitProject;
+  documentId: string;
+  structural: boolean;
+}
+
 /**
- * Owns the editor's one mutable document-history graph. React receives only
- * immutable snapshots; all committed model changes still pass through
- * DocumentHistory and the validated Project replacement helper.
+ * One bounded chronological history per open Project working copy. Document
+ * and structural transactions keep their executors, not separate undo stacks.
  */
 export class EditorDocumentController {
   private projectValue: CircuitProject;
   private activeDocumentIdValue: string;
   private resolverValue: ProjectSymbolResolver;
-  private historyValue: DocumentHistory;
-  private histories: Map<string, DocumentHistory>;
-  private readonly projectUndoStack: Array<{
-    project: CircuitProject;
-    activeDocumentId: string;
-  }> = [];
-  private readonly projectRedoStack: Array<{
-    project: CircuitProject;
-    activeDocumentId: string;
-  }> = [];
-  private readonly componentHistory = new WeakMap<
-    object,
-    ComponentDefinition
-  >();
+  private readonly undoStack: ProjectHistoryEntry[] = [];
+  private readonly redoStack: ProjectHistoryEntry[] = [];
+  // Retain revision high-water marks for deleted/recreated Cells too.
+  private readonly documentRevisions = new Map<string, number>();
   private readonly availableComponents = new Map<string, ComponentDefinition>();
+  private transactionCounter = 0;
+  private projectSessionCounter = 1;
+  private readonly liveResolver = {
+    resolve: (id: string, variant?: string) =>
+      this.resolverValue.resolve(id, variant),
+  };
+
+  constructor(initialProject: CircuitProject) {
+    this.projectValue = withProjectComponentDefinitions(
+      CircuitProjectSchema.parse(structuredClone(initialProject)),
+    );
+    this.activeDocumentIdValue = this.projectValue.topDocumentId;
+    this.resolverValue = this.projectResolver(this.projectValue);
+    this.rememberRevisions();
+  }
 
   /** An insertion candidate is not Project content until a real instance is placed. */
   offerComponentDefinition(value: ComponentDefinition): void {
@@ -145,64 +135,31 @@ export class EditorDocumentController {
       ...[...this.availableComponents.values()].map((item) => item.symbol),
     ]);
   }
-  private readonly liveResolver = {
-    resolve: (id: string, variant?: string) =>
-      this.resolverValue.resolve(id, variant),
-  };
-  private transactionCounter = 0;
-  private projectSessionCounter = 1;
-
-  constructor(initialProject: CircuitProject) {
-    this.projectValue = withProjectComponentDefinitions(
-      CircuitProjectSchema.parse(structuredClone(initialProject)),
-    );
-    this.activeDocumentIdValue = this.projectValue.topDocumentId;
-    this.resolverValue = createProjectSymbolResolver(
-      this.projectValue,
-      builtInSymbols,
-    );
-    const document = resolveActiveDocument(
-      this.projectValue,
-      this.activeDocumentIdValue,
-    );
-    this.historyValue = new DocumentHistory(document, {
-      symbolResolver: this.liveResolver,
-    });
-    this.histories = new Map([[document.id, this.historyValue]]);
-  }
 
   get project(): CircuitProject {
     return this.projectValue;
   }
-
   get document(): SchematicDocument {
     return resolveActiveDocument(this.projectValue, this.activeDocumentIdValue);
   }
-
   get activeDocumentId(): string {
     return this.activeDocumentIdValue;
   }
-
   get resolver(): ProjectSymbolResolver {
     return this.resolverValue;
   }
-
   get canUndo(): boolean {
-    return this.historyValue.canUndo || this.projectUndoStack.length > 0;
+    return this.undoStack.length > 0;
   }
-
   get canRedo(): boolean {
-    return this.historyValue.canRedo || this.projectRedoStack.length > 0;
+    return this.redoStack.length > 0;
   }
-
   get transactionsIssued(): number {
     return this.transactionCounter;
   }
-
   get projectSessionId(): string {
     return `${this.projectValue.id}:${this.projectSessionCounter}`;
   }
-
   snapshot(): DocumentControllerSnapshot {
     return {
       project: this.project,
@@ -216,84 +173,100 @@ export class EditorDocumentController {
   }
 
   openDocument(documentId: string): SchematicDocument | null {
-    if (documentId === this.activeDocumentIdValue) return this.document;
     const document = this.projectValue.documents.find(
-      (candidate) => candidate.id === documentId,
+      (item) => item.id === documentId,
     );
     if (!document) return null;
-
-    const existingHistory = this.histories.get(document.id);
-    this.historyValue =
-      existingHistory?.document.revision === document.revision
-        ? existingHistory
-        : new DocumentHistory(document, {
-            symbolResolver: this.liveResolver,
-          });
-    this.histories.set(document.id, this.historyValue);
     this.activeDocumentIdValue = document.id;
     return document;
   }
 
   replaceProject(nextProject: CircuitProject): SchematicDocument {
-    this.projectSessionCounter += 1;
-    this.projectValue = withProjectComponentDefinitions(
+    const parsed = withProjectComponentDefinitions(
       CircuitProjectSchema.parse(structuredClone(nextProject)),
     );
+    this.projectSessionCounter += 1;
     this.availableComponents.clear();
-    this.activeDocumentIdValue = this.projectValue.topDocumentId;
-    this.resolverValue = this.projectResolver(this.projectValue);
-    const document = this.document;
-    this.historyValue = new DocumentHistory(document, {
-      symbolResolver: this.liveResolver,
-    });
-    this.histories = new Map([[document.id, this.historyValue]]);
-    this.projectUndoStack.length = 0;
-    this.projectRedoStack.length = 0;
-    return document;
+    this.projectValue = parsed;
+    this.activeDocumentIdValue = parsed.topDocumentId;
+    this.resolverValue = this.projectResolver(parsed);
+    this.undoStack.length = 0;
+    this.redoStack.length = 0;
+    this.documentRevisions.clear();
+    this.rememberRevisions();
+    return this.document;
   }
 
-  /**
-   * Commit a validated structural update within the current Project session.
-   * Adding a child Document changes the symbol resolver and invalidates every
-   * DocumentHistory context, so histories are deliberately rebuilt while the
-   * active Document and recovery/session identity remain stable.
-   */
+  private rememberRevisions(): void {
+    for (const document of this.projectValue.documents)
+      this.documentRevisions.set(
+        document.id,
+        Math.max(
+          document.revision,
+          this.documentRevisions.get(document.id) ?? 0,
+        ),
+      );
+  }
+
+  private record(
+    project: CircuitProject,
+    documentId: string,
+    structural: boolean,
+  ): void {
+    this.undoStack.push({ project, documentId, structural });
+    if (this.undoStack.length > DEFAULT_DOCUMENT_HISTORY_LIMIT)
+      this.undoStack.shift();
+    this.redoStack.length = 0;
+    this.rememberRevisions();
+  }
+
+  /** Share immutable document objects after whole-Project validation cloned them. */
+  private shareDocuments(
+    before: CircuitProject,
+    after: CircuitProject,
+  ): CircuitProject {
+    const originals = new Map(
+      before.documents.map((document) => [document.id, document]),
+    );
+    return {
+      ...after,
+      documents: after.documents.map((document) => {
+        const original = originals.get(document.id);
+        return original
+          ? shareEqualDocumentStructure(original, document)
+          : document;
+      }),
+    };
+  }
+
   commitProjectStructure(
     nextProject: CircuitProject,
     activeDocumentId = this.activeDocumentIdValue,
   ): SchematicDocument {
-    const parsed = withProjectComponentDefinitions(
-      CircuitProjectSchema.parse(structuredClone(nextProject)),
+    const before = this.projectValue;
+    const parsed = this.shareDocuments(
+      before,
+      withProjectComponentDefinitions(
+        CircuitProjectSchema.parse(structuredClone(nextProject)),
+      ),
     );
-    if (parsed.id !== this.projectValue.id) {
+    if (parsed.id !== before.id)
       throw new Error(
-        `Structural commit cannot replace Project ${this.projectValue.id} with ${parsed.id}`,
+        `Structural commit cannot replace Project ${before.id} with ${parsed.id}`,
       );
-    }
-    if (
-      !parsed.documents.some((document) => document.id === activeDocumentId)
-    ) {
+    if (!parsed.documents.some((document) => document.id === activeDocumentId))
       throw new Error(
         `Document ${activeDocumentId} is not present in the Project`,
       );
-    }
-    if (parsed.structureRevision !== this.projectValue.structureRevision + 1) {
+    if (parsed.structureRevision !== before.structureRevision + 1)
       throw new Error(
-        `Structural commit must advance Project revision ${this.projectValue.structureRevision} to ${this.projectValue.structureRevision + 1}`,
+        `Structural commit must advance Project revision ${before.structureRevision} to ${before.structureRevision + 1}`,
       );
-    }
-    this.projectUndoStack.push({
-      project: this.projectValue,
-      activeDocumentId: this.activeDocumentIdValue,
-    });
-    if (this.projectUndoStack.length > DEFAULT_DOCUMENT_HISTORY_LIMIT) {
-      this.projectUndoStack.shift();
-    }
-    this.projectRedoStack.length = 0;
+    const resolver = this.projectResolver(parsed);
     this.projectValue = parsed;
     this.activeDocumentIdValue = activeDocumentId;
-    this.resolverValue = this.projectResolver(this.projectValue);
-    this.resetHistoriesFromProject();
+    this.resolverValue = resolver;
+    this.record(before, activeDocumentId, true);
     return this.document;
   }
 
@@ -302,342 +275,321 @@ export class EditorDocumentController {
     activeDocumentId = this.activeDocumentIdValue,
   ): ProjectTransactionResult {
     const result = executeProjectTransaction(this.projectValue, request);
-    if (result.ok && result.applied) {
+    if (result.ok && result.applied)
       this.commitProjectStructure(result.project, activeDocumentId);
-    }
     return result;
   }
 
   transact(edits: readonly SchematicEdit[]): EditTransactionResult {
     this.transactionCounter += 1;
-    if (
-      edits.length === 1 &&
-      (edits[0]?.kind === "undo" || edits[0]?.kind === "redo")
-    ) {
-      const kind = edits[0].kind;
-      const documentHistoryAvailable =
-        kind === "undo" ? this.historyValue.canUndo : this.historyValue.canRedo;
-      if (!documentHistoryAvailable) {
-        return this.restoreProjectHistory(kind);
-      }
-    }
+    // GUI undo follows the working copy's timeline, regardless of the viewed Cell.
+    const edit = edits.length === 1 ? edits[0] : undefined;
+    const entry =
+      edit?.kind === "undo"
+        ? this.undoStack.at(-1)
+        : edit?.kind === "redo"
+          ? this.redoStack.at(-1)
+          : undefined;
+    const document =
+      this.projectValue.documents.find(
+        (item) => item.id === entry?.documentId,
+      ) ?? this.document;
     return this.dispatchTransaction({
       transactionId: `transaction-ui-${this.transactionCounter}`,
-      documentId: this.activeDocumentIdValue,
-      expectedRevision: this.historyValue.document.revision,
+      documentId: document.id,
+      expectedRevision: document.revision,
+      expectedStructureRevision: this.projectValue.structureRevision,
       actor: { kind: "human", id: "human-local" },
       edits,
     });
   }
 
-  /**
-   * The single write path for both human and Agent transactions. Selects the
-   * matching per-Document history (without retargeting the active Document),
-   * dispatches through {@link DocumentHistory.transact}, and on a successful
-   * commit replaces the Project document. Ordinary drawing edits preserve the
-   * resolver because built-in and hierarchical symbol definitions did not
-   * change; definition-level edits and their undo/redo rebuild it. `dryRun`
-   * mutates no history, Project, resolver, or undo state. Opening or viewing
-   * another Document neither retargets nor cancels an explicit dispatch.
-   *
-   * Unexpected runtime exceptions from the engine or from post-commit Project
-   * re-validation are converted into typed `INTERNAL_ERROR` rejections: the
-   * Project and revision keep their previous values and the histories are
-   * rebuilt from that unchanged Project, so a later transaction continues from
-   * a consistent state.
-   */
+  /** Validate the complete candidate before either Project or history changes. */
   dispatchTransaction(
     request: EditorTransactionRequest,
   ): EditTransactionResult {
-    if (
-      request.edits.some(
-        (edit) =>
-          edit.kind === "add_cell_terminal" ||
-          edit.kind === "update_cell_terminal" ||
-          edit.kind === "remove_cell_terminal" ||
-          edit.kind === "reorder_cell_terminals",
-      )
-    ) {
-      return rejectTransaction(
-        this.document,
-        "EDIT_PRECONDITION",
-        "Cell interface edits require a Project structural transaction",
-      );
-    }
-    const history = this.historyForDocument(request.documentId);
-    if (!history) {
+    const document = this.projectValue.documents.find(
+      (item) => item.id === request.documentId,
+    );
+    if (!document)
       return rejectTransaction(
         this.document,
         "OBJECT_NOT_FOUND",
         `Document ${request.documentId} is not present in the Project`,
       );
-    }
-    const historyEdit =
-      request.edits.length === 1 ? request.edits[0] : undefined;
     if (
-      historyEdit &&
-      (historyEdit.kind === "undo" || historyEdit.kind === "redo") &&
-      !(historyEdit.kind === "undo" ? history.canUndo : history.canRedo)
-    ) {
-      if (request.expectedRevision !== history.document.revision)
-        return rejectTransaction(
-          history.document,
-          "STALE_REVISION",
-          "Refresh before changing shared history",
-        );
-      return this.restoreProjectHistory(
-        historyEdit.kind,
-        request.documentId,
-        request.dryRun ?? false,
+      request.edits.some((edit) =>
+        [
+          "add_cell_terminal",
+          "update_cell_terminal",
+          "remove_cell_terminal",
+          "reorder_cell_terminals",
+        ].includes(edit.kind),
+      )
+    )
+      return rejectTransaction(
+        document,
+        "EDIT_PRECONDITION",
+        "Cell interface edits require a Project structural transaction",
       );
-    }
-    // History snapshots preserve object identity through structural sharing.
-    // Associate their classes before removal, without keeping unused classes
-    // in the live Project or accidentally reusing them for a fresh insertion.
-    const currentDefinitions = new Map(
-      (this.projectValue.componentDefinitions ?? []).map((definition) => [
-        definition.symbol.id,
-        definition,
-      ]),
-    );
-    for (const object of [
-      ...history.document.instances,
-      ...(history.document.drafting?.objects ?? []),
-    ]) {
-      if (!("symbolId" in object)) continue;
-      const definition = currentDefinitions.get(object.symbolId);
-      if (definition) this.componentHistory.set(object, definition);
-    }
     let result: EditTransactionResult;
     try {
-      result = history.transact(request);
+      // expectedStructureRevision is a controller fence, not a Document edit field.
+      const { expectedStructureRevision: _, ...envelope } = request;
+      result = executeTransaction(document, envelope, {
+        symbolResolver: this.liveResolver,
+      });
     } catch (error) {
-      this.resetHistoriesFromProject();
       return rejectTransaction(
-        this.document,
+        document,
         "INTERNAL_ERROR",
-        `Transaction failed with an internal error: ${
-          error instanceof Error ? error.message : "unknown failure"
-        }`,
+        `Transaction failed with an internal error: ${error instanceof Error ? error.message : "unknown failure"}`,
       );
     }
-    if (result.ok && result.applied) {
-      const previousProject = this.projectValue;
-      const previousDocument = previousProject.documents.find(
-        (document) => document.id === request.documentId,
-      )!;
-      try {
-        const definitions = new Map(currentDefinitions);
-        for (const [id, definition] of this.availableComponents) {
-          if (!definitions.has(id)) definitions.set(id, definition);
-        }
-        if (historyEdit?.kind === "undo" || historyEdit?.kind === "redo") {
-          for (const object of [
-            ...result.document.instances,
-            ...(result.document.drafting?.objects ?? []),
-          ]) {
-            const definition = this.componentHistory.get(object);
-            if (definition && !currentDefinitions.has(definition.symbol.id))
-              definitions.set(definition.symbol.id, definition);
-          }
-        }
-        this.projectValue = withProjectComponentDefinitions(
+    if (!result.ok && result.error.code === "HISTORY_CONTEXT_REQUIRED") {
+      if (
+        request.edits.length !== 1 ||
+        (request.edits[0]?.kind !== "undo" && request.edits[0]?.kind !== "redo")
+      )
+        return result;
+      return this.restoreHistory(request, request.edits[0].kind);
+    }
+    if (!result.ok || !result.applied) return result;
+    if (
+      JSON.stringify({ ...result.document, revision: document.revision }) ===
+      JSON.stringify(document)
+    )
+      return {
+        ...result,
+        applied: false,
+        revision: document.revision,
+        proposedRevision: document.revision,
+        document,
+        diff: {
+          ...result.diff,
+          toRevision: document.revision,
+          changedObjectIds: [],
+        },
+      };
+    const before = this.projectValue;
+    try {
+      const definitions = new Map(
+        (before.componentDefinitions ?? []).map((item) => [
+          item.symbol.id,
+          item,
+        ]),
+      );
+      for (const [id, definition] of this.availableComponents)
+        if (!definitions.has(id)) definitions.set(id, definition);
+      const next = this.shareDocuments(
+        before,
+        withProjectComponentDefinitions(
           replaceProjectDocument(
-            {
-              ...this.projectValue,
-              componentDefinitions: [...definitions.values()],
-            },
+            { ...before, componentDefinitions: [...definitions.values()] },
             result.document,
           ),
-        );
-
-        if (
-          [
-            ...new Set([
-              ...(previousProject.componentDefinitions ?? []).map(
-                (definition) => definition.symbol.id,
-              ),
-              ...(this.projectValue.componentDefinitions ?? []).map(
-                (definition) => definition.symbol.id,
-              ),
-            ]),
-          ].some((id) => {
-            const next =
-              this.projectValue.componentDefinitions?.find(
-                (definition) => definition.symbol.id === id,
-              )?.symbol ??
-              builtInSymbols.find((definition) => definition.id === id);
-            return (
-              JSON.stringify(next) !==
-              JSON.stringify(this.resolverValue.resolve(id)?.definition)
-            );
-          }) ||
-          (transactionMayChangeSymbolDefinitions(request.edits) &&
-            documentSymbolDefinitionChanged(previousDocument, result.document))
-        ) {
-          this.resolverValue = this.projectResolver(this.projectValue);
-        }
-        if (
-          !request.edits.some(
-            (edit) => edit.kind === "undo" || edit.kind === "redo",
-          )
-        ) {
-          this.projectRedoStack.length = 0;
-        }
-      } catch (error) {
-        this.projectValue = previousProject;
-        this.resetHistoriesFromProject();
-        return rejectTransaction(
-          this.document,
-          "INTERNAL_ERROR",
-          `Committed document could not be re-validated into a Project: ${
-            error instanceof Error ? error.message : "unknown failure"
-          }`,
-        );
-      }
+        ),
+      );
+      const resolver = this.needsResolver(before, next)
+        ? this.projectResolver(next)
+        : this.resolverValue;
+      this.projectValue = next;
+      this.resolverValue = resolver;
+      this.record(before, request.documentId, false);
+      return {
+        ...result,
+        document: next.documents.find(
+          (item) => item.id === request.documentId,
+        )!,
+      };
+    } catch (error) {
+      return rejectTransaction(
+        document,
+        "INTERNAL_ERROR",
+        `Committed document could not be re-validated into a Project: ${error instanceof Error ? error.message : "unknown failure"}`,
+      );
     }
-    return result;
   }
 
-  private restoreProjectHistory(
+  private needsResolver(
+    before: CircuitProject,
+    after: CircuitProject,
+  ): boolean {
+    const definitions = new Map(
+      (after.componentDefinitions ?? []).map((item) => [
+        item.symbol.id,
+        item.symbol,
+      ]),
+    );
+    const ids = new Set([
+      ...(before.componentDefinitions ?? []).map((item) => item.symbol.id),
+      ...definitions.keys(),
+    ]);
+    if (
+      [...ids].some(
+        (id) =>
+          JSON.stringify(
+            definitions.get(id) ??
+              builtInSymbols.find((item) => item.id === id),
+          ) !== JSON.stringify(this.resolverValue.resolve(id)?.definition),
+      ) ||
+      before.documents.length !== after.documents.length
+    )
+      return true;
+    return after.documents.some((document) => {
+      const previous = before.documents.find((item) => item.id === document.id);
+      return !previous || documentSymbolDefinitionChanged(previous, document);
+    });
+  }
+
+  private restoreHistory(
+    request: EditorTransactionRequest,
     kind: "undo" | "redo",
-    documentId = this.activeDocumentIdValue,
-    dryRun = false,
   ): EditTransactionResult {
-    const sourceStack =
-      kind === "undo" ? this.projectUndoStack : this.projectRedoStack;
-    const destinationStack =
-      kind === "undo" ? this.projectRedoStack : this.projectUndoStack;
-    const target = sourceStack.at(-1);
-    if (!target) {
+    const source = kind === "undo" ? this.undoStack : this.redoStack;
+    const destination = kind === "undo" ? this.redoStack : this.undoStack;
+    const entry = source.at(-1);
+    const before = this.projectValue;
+    const document = before.documents.find(
+      (item) => item.id === request.documentId,
+    )!;
+    if (!entry)
       return rejectTransaction(
-        this.document,
+        document,
         "HISTORY_EMPTY",
         `No ${kind} state is available`,
       );
-    }
-
-    const before = this.projectValue;
-    const currentById = new Map(
-      before.documents.map((document) => [document.id, document]),
-    );
-    const restored = CircuitProjectSchema.parse({
-      ...structuredClone(target.project),
-      structureRevision: before.structureRevision + 1,
-      documents: target.project.documents.map((document) => {
-        const current = currentById.get(document.id);
-        return current
-          ? { ...structuredClone(document), revision: current.revision + 1 }
-          : structuredClone(document);
-      }),
-    });
-    const proposedDocument =
-      restored.documents.find((item) => item.id === documentId) ??
-      restored.documents.find((item) => item.id === restored.topDocumentId)!;
-    const previousDocument = before.documents.find(
-      (item) => item.id === documentId,
-    )!;
-    const documentIds = [
-      ...new Set(
-        [...before.documents, ...restored.documents].map((item) => item.id),
-      ),
-    ];
-    const changedIds = [
-      ...new Set(
-        documentIds.flatMap((id) =>
-          diffDocumentObjectIds(
-            before.documents.find((item) => item.id === id),
-            restored.documents.find((item) => item.id === id),
-          ),
+    // Never skip a newer entry just because the Agent targeted another Cell.
+    const historyDocumentId = before.documents.some(
+      (item) => item.id === entry.documentId,
+    )
+      ? entry.documentId
+      : before.topDocumentId;
+    if (
+      request.actor.kind === "agent" &&
+      request.documentId !== historyDocumentId
+    )
+      return rejectTransaction(
+        document,
+        "EDIT_PRECONDITION",
+        `Project history is chronological; the next ${kind} belongs to Cell ${historyDocumentId}`,
+      );
+    if (
+      entry.structural &&
+      request.actor.kind === "agent" &&
+      request.expectedStructureRevision !== before.structureRevision
+    )
+      return rejectTransaction(
+        document,
+        "STALE_REVISION",
+        "Refresh Project structureRevision before changing structural history",
+      );
+    try {
+      const current = new Map(before.documents.map((item) => [item.id, item]));
+      const restored = this.shareDocuments(
+        entry.project,
+        CircuitProjectSchema.parse({
+          ...entry.project,
+          structureRevision:
+            before.structureRevision + (entry.structural ? 1 : 0),
+          documents: entry.project.documents.map((saved) => {
+            const live = current.get(saved.id);
+            // Revisions identify live versions, never the historical snapshot.
+            const unchanged =
+              live &&
+              JSON.stringify({ ...live, revision: 0 }) ===
+                JSON.stringify({ ...saved, revision: 0 });
+            return unchanged
+              ? live
+              : {
+                  ...saved,
+                  revision:
+                    Math.max(
+                      saved.revision,
+                      this.documentRevisions.get(saved.id) ?? 0,
+                    ) + 1,
+                };
+          }),
+        }),
+      );
+      const restoredDocument =
+        restored.documents.find((item) => item.id === request.documentId) ??
+        restored.documents.find((item) => item.id === restored.topDocumentId)!;
+      const changedDocumentIds = [
+        ...new Set(
+          [...before.documents, ...restored.documents].map((item) => item.id),
         ),
-      ),
-    ];
-    if (dryRun)
+      ].filter(
+        (id) =>
+          JSON.stringify(before.documents.find((item) => item.id === id)) !==
+          JSON.stringify(restored.documents.find((item) => item.id === id)),
+      );
+      const changedObjectIds = [
+        ...new Set(
+          changedDocumentIds.flatMap((id) => [
+            id,
+            ...diffDocumentObjectIds(
+              before.documents.find((item) => item.id === id),
+              restored.documents.find((item) => item.id === id),
+            ),
+          ]),
+        ),
+      ];
+      const diff = {
+        documentId: restoredDocument.id,
+        fromRevision: document.revision,
+        toRevision: restoredDocument.revision,
+        editKinds: [kind],
+        changedObjectIds,
+      };
+      if (request.dryRun)
+        return {
+          ok: true,
+          applied: false,
+          revision: document.revision,
+          proposedRevision: restoredDocument.revision,
+          document,
+          diff,
+          diagnostics: [],
+        };
+      const resolver =
+        entry.structural || this.needsResolver(before, restored)
+          ? this.projectResolver(restored)
+          : this.resolverValue;
+      // All potentially throwing preparation precedes the history cursor change.
+      this.projectValue = restored;
+      this.resolverValue = resolver;
+      if (
+        !restored.documents.some(
+          (item) => item.id === this.activeDocumentIdValue,
+        )
+      )
+        this.activeDocumentIdValue = restored.topDocumentId;
+      source.pop();
+      destination.push({
+        project: before,
+        documentId: entry.documentId,
+        structural: entry.structural,
+      });
+      if (destination.length > DEFAULT_DOCUMENT_HISTORY_LIMIT)
+        destination.shift();
+      this.rememberRevisions();
       return {
         ok: true,
-        applied: false,
-        revision: previousDocument.revision,
-        proposedRevision: proposedDocument.revision,
-        document: previousDocument,
+        applied: true,
+        revision: restoredDocument.revision,
+        proposedRevision: restoredDocument.revision,
+        document: restoredDocument,
+        diff,
         diagnostics: [],
-        diff: {
-          documentId,
-          fromRevision: previousDocument.revision,
-          toRevision: proposedDocument.revision,
-          editKinds: [kind],
-          changedObjectIds: changedIds,
-        },
       };
-    sourceStack.pop();
-    destinationStack.push({
-      project: before,
-      activeDocumentId: this.activeDocumentIdValue,
-    });
-    if (destinationStack.length > DEFAULT_DOCUMENT_HISTORY_LIMIT) {
-      destinationStack.shift();
+    } catch (error) {
+      return rejectTransaction(
+        document,
+        "INTERNAL_ERROR",
+        `History restoration failed: ${error instanceof Error ? error.message : "unknown failure"}`,
+      );
     }
-    this.projectValue = restored;
-    this.activeDocumentIdValue = restored.documents.some(
-      (document) => document.id === target.activeDocumentId,
-    )
-      ? target.activeDocumentId
-      : restored.topDocumentId;
-    this.resolverValue = this.projectResolver(restored);
-    this.resetHistoriesFromProject();
-    const document =
-      restored.documents.find((item) => item.id === documentId) ??
-      this.document;
-    return {
-      ok: true,
-      applied: true,
-      revision: document.revision,
-      proposedRevision: document.revision,
-      document,
-      diff: {
-        documentId: document.id,
-        fromRevision:
-          before.documents.find((candidate) => candidate.id === document.id)
-            ?.revision ?? document.revision,
-        toRevision: document.revision,
-        editKinds: [kind],
-        changedObjectIds: changedIds,
-      },
-      diagnostics: [],
-    };
-  }
-
-  /**
-   * Rebuild every history from the current (unchanged) Project after an
-   * internal error. The undo history is deliberately sacrificed here: the
-   * histories may hold a partially applied document, and model consistency
-   * outranks undo depth on this rare path.
-   */
-  private resetHistoriesFromProject(): void {
-    const document = this.document;
-    this.historyValue = new DocumentHistory(document, {
-      symbolResolver: this.liveResolver,
-    });
-    this.histories = new Map([[document.id, this.historyValue]]);
-  }
-
-  /**
-   * Returns the per-Document history for `documentId`, creating one at the
-   * Project's current revision if the Document has never been opened. Returns
-   * `null` when the Document is absent so the caller can produce a typed error.
-   * Never changes the active Document.
-   */
-  private historyForDocument(documentId: string): DocumentHistory | null {
-    const existing = this.histories.get(documentId);
-    if (existing) return existing;
-    const document = this.projectValue.documents.find(
-      (candidate) => candidate.id === documentId,
-    );
-    if (!document) return null;
-    const history = new DocumentHistory(document, {
-      symbolResolver: this.liveResolver,
-    });
-    this.histories.set(documentId, history);
-    return history;
   }
 }
 

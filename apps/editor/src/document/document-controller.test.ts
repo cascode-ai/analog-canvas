@@ -43,7 +43,7 @@ describe("EditorDocumentController", () => {
     expect(controller.activeDocumentId).toBe(source.topDocumentId);
   });
 
-  it("commits through DocumentHistory and replaces exactly the active document", () => {
+  it("commits through the Edit Engine and replaces exactly the active document", () => {
     const controller = new EditorDocumentController(hierarchicalProject());
     const childBefore = controller.project.documents.find(
       (document) => document.id === "document-child",
@@ -63,7 +63,7 @@ describe("EditorDocumentController", () => {
     expect(controller.canUndo).toBe(true);
   });
 
-  it("preserves independent undo histories while switching documents", () => {
+  it("undoes chronologically across Cells without changing the viewed Cell", () => {
     const controller = new EditorDocumentController(hierarchicalProject());
     controller.transact([{ kind: "add_instance", instance: instance("Rtop") }]);
     expect(controller.openDocument("document-child")?.name).toBe("child");
@@ -74,11 +74,14 @@ describe("EditorDocumentController", () => {
     controller.openDocument(controller.project.topDocumentId);
     expect(controller.canUndo).toBe(true);
     controller.transact([{ kind: "undo" }]);
-    expect(controller.document.instances).toEqual([]);
+    expect(controller.document.instances).toContainEqual(instance("Rtop"));
 
     controller.openDocument("document-child");
-    expect(controller.document.instances).toContainEqual(instance("Rchild"));
+    expect(controller.document.instances).toEqual([]);
     expect(controller.canUndo).toBe(true);
+    controller.transact([{ kind: "undo" }]);
+    expect(controller.activeDocumentId).toBe("document-child");
+    expect(controller.project.documents[0]!.instances).toEqual([]);
   });
 
   it("re-derives resolved diagnostics across undo and redo revisions", () => {

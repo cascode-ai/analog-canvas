@@ -57,7 +57,10 @@ crossing is rejected even with a qualifier: a Junction there would short Nets.
 
 `copy` follows GUI copy for internal wires and references. `detach-move` leaves
 wires behind; `unplace` retains electrical facts in the Placement Tray.
-`undo`/`redo` share Editor history, not a private Agent stack. Routine layout
+`undo`/`redo` share one chronological Editor Project history, not a private Agent
+or per-Cell stack. They cannot skip newer work on another Cell; the rejection
+names the Cell to inspect. Structural history also requires current
+`expectedStructureRevision` (the shared client supplies it). Routine layout
 work should use move/transform/align rather than reset; choose a `reset-cell`
 mode deliberately when discarding drawing state.
 
