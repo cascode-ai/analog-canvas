@@ -13,6 +13,7 @@ describe("optional expected-netlist verification", () => {
       operation: "read-netlist",
       ok: true,
       structureRevision: 5,
+      cells: [],
       netlist: {
         format: "spice",
         status: "ready",
@@ -62,6 +63,7 @@ describe("optional expected-netlist verification", () => {
       operation: "read-netlist",
       ok: true,
       structureRevision: 9,
+      cells: [],
       netlist: {
         format: "spice",
         status: "ready",

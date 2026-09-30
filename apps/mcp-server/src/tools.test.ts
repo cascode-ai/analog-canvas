@@ -503,6 +503,7 @@ describe("mcp tool surface", () => {
                   operation: "read-netlist",
                   ok: true,
                   structureRevision: 5,
+                  cells: [],
                   netlist: {
                     format: "spice",
                     status: "ready",

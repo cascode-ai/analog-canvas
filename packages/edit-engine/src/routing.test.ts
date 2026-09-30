@@ -253,7 +253,11 @@ describe("routing Edit Engine", () => {
     });
     expect(missingInstance).toBe("Instance missing does not exist");
 
-    document.instances.push({ id: "R1", symbolId: "resistor" });
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: null,
+    });
     const missingLanding = proposeWireIntent(document, resolver, {
       id: "agent-missing-landing",
       from: {
