@@ -157,6 +157,11 @@ do not perform GUI drag-to-connect snapping. `terminalConnectivityChanged` in
 ordinary transaction receipts compares document-local terminal equivalence;
 it does not assert unchanged parameters, bulk or hierarchy. Omitted means unknown.
 Use reset-placement only for intentional redraw, with its documented effects.
+`clear-drawing` and `reset-placement` both remove every wire. A Net or supply
+label drawn on a wire stays where it was drawn, now free, so the netlist keeps
+its name; a current or voltage marker drawn on a wire goes with the wire. A
+supply rail's own label stays as well: it carries the supply's name and, for a
+local rail, the Cell's supply Pin. The receipt lists every label it moved.
 `delete` uses the GUI selection-deletion planner, including owned displays and
 formal interface declarations. `delete-selection` deletes multiple explicit
 object IDs in one transaction. They are nested in `selection`, one list per

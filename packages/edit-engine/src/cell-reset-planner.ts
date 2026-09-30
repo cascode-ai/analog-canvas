@@ -2,6 +2,7 @@ import type { CircuitProject } from "@icm/model";
 
 import type { SchematicEdit } from "./edit-schema.js";
 import { orphanedCellResetJunctionIds } from "./cell-reset-junctions.js";
+import { routeAnchoredAnnotationIds } from "./transaction-cell-reset.js";
 import type { EditDiagnostic } from "./transaction-result.js";
 
 export type CellResetIntent =
@@ -44,6 +45,25 @@ function routeOwnedEvidenceIds(
   );
 }
 
+/** Labels drawn on a wire outlive it; markers drawn on it do not. */
+function wireLabelNote(document: ReturnType<typeof requireDocument>): string {
+  const onWires = document.annotations.filter(
+    (annotation) => annotation.anchor.kind === "route",
+  );
+  const markers = onWires.filter(
+    (annotation) => annotation.kind === "route-marker",
+  ).length;
+  const labels = onWires.length - markers;
+  return [
+    labels
+      ? `; keep ${labels} wire ${labels === 1 ? "label" : "labels"} where drawn, now free`
+      : "",
+    markers
+      ? `; remove ${markers} wire ${markers === 1 ? "marker" : "markers"}`
+      : "",
+  ].join("");
+}
+
 /**
  * Build the reviewable impact for one Cell-local reset. Execution remains in
  * the ordinary typed edit transaction, so revision checks and Document Undo
@@ -74,10 +94,11 @@ export function planCellReset(
       ...orphanedJunctions,
       ...document.routes.map((route) => route.id),
       ...routeOwnedEvidenceIds(document),
+      ...routeAnchoredAnnotationIds(document),
       ...(document.drafting?.objects.map((object) => object.id) ?? []),
     ]);
     edit = { kind: "clear_cell_drawing" };
-    summary = `Remove ${document.routes.length} Route geometries, ${orphanedJunctions.size} unreferenced Junctions and ${document.drafting?.objects.length ?? 0} drafting objects; retain Instances, Nets, ports, and semantic annotations`;
+    summary = `Remove ${document.routes.length} Route geometries, ${orphanedJunctions.size} unreferenced Junctions and ${document.drafting?.objects.length ?? 0} drafting objects; retain Instances, Nets, ports, and semantic annotations${wireLabelNote(document)}`;
   } else if (intent === "reset-placement") {
     const orphanedJunctions = orphanedCellResetJunctionIds(document, intent);
     const placedInstances = document.instances.filter(
@@ -88,11 +109,12 @@ export function planCellReset(
       ...placedInstances.map((instance) => instance.id),
       ...document.routes.map((route) => route.id),
       ...routeOwnedEvidenceIds(document),
+      ...routeAnchoredAnnotationIds(document),
       ...document.layoutGroups.map((group) => group.id),
       ...document.constraints.map((constraint) => constraint.id),
     ]);
     edit = { kind: "reset_cell_placement" };
-    summary = `Return ${placedInstances.length} Instances to the tray and remove ${document.routes.length} Route geometries and ${orphanedJunctions.size} unreferenced Junctions; retain devices, Nets, and formal interface`;
+    summary = `Return ${placedInstances.length} Instances to the tray and remove ${document.routes.length} Route geometries and ${orphanedJunctions.size} unreferenced Junctions; retain devices, Nets, and formal interface${wireLabelNote(document)}`;
   } else {
     const cellPinInstanceIds = new Set(
       document.netlist?.terminals.flatMap(

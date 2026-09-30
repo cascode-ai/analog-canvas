@@ -1,4 +1,9 @@
+import {
+  resolveDocumentRoutingGeometry,
+  resolveVisualAnchor,
+} from "@icm/derived";
 import type { SchematicDocument } from "@icm/model";
+import type { SymbolResolver } from "@icm/symbols";
 
 import type { EditTransaction } from "./edit-schema.js";
 import { orphanedCellResetJunctionIds } from "./cell-reset-junctions.js";
@@ -16,20 +21,70 @@ export interface CellResetEditContext {
   draft: SchematicDocument;
   changedObjectIds: Set<string>;
   deferNetPrune(netId: string): void;
+  resolver?: SymbolResolver;
 }
 
 export type CellResetEditOutcome = AppliedEditMutation & {
   readonly geometryChanged: true;
 };
 
+/**
+ * Both resets that remove every Route keep the circuit's names. A Net or
+ * supply label drawn on a wire stays where it was drawn, now free, so its
+ * name claim survives. A current or voltage marker drawn on a wire goes with
+ * the wire.
+ */
+function releaseRouteAnchoredAnnotations(
+  draft: SchematicDocument,
+  changedObjectIds: Set<string>,
+  resolver: SymbolResolver | undefined,
+): void {
+  if (
+    !draft.annotations.some((annotation) => annotation.anchor.kind === "route")
+  )
+    return;
+  const geometry = resolver
+    ? resolveDocumentRoutingGeometry(draft, resolver)
+    : undefined;
+  draft.annotations = draft.annotations.flatMap((annotation) => {
+    const anchor = annotation.anchor;
+    if (anchor.kind !== "route") return [annotation];
+    changedObjectIds.add(annotation.id);
+    if (annotation.kind === "route-marker") return [];
+    const position =
+      resolver && geometry
+        ? resolveVisualAnchor(draft, resolver, anchor, geometry).position
+        : anchor.fallbackPosition;
+    return [
+      {
+        ...annotation,
+        anchor: {
+          kind: "free" as const,
+          position: { x: Math.round(position.x), y: Math.round(position.y) },
+        },
+      },
+    ];
+  });
+}
+
+/** The labels and markers a reset that removes every Route re-anchors or removes. */
+export function routeAnchoredAnnotationIds(
+  document: SchematicDocument,
+): readonly string[] {
+  return document.annotations.flatMap((annotation) =>
+    annotation.anchor.kind === "route" ? [annotation.id] : [],
+  );
+}
+
 export function applyCellResetEdit(
   edit: CellResetEdit,
   context: CellResetEditContext,
 ): CellResetEditOutcome {
-  const { draft, changedObjectIds, deferNetPrune } = context;
+  const { draft, changedObjectIds, deferNetPrune, resolver } = context;
 
   switch (edit.kind) {
     case "clear_cell_drawing": {
+      releaseRouteAnchoredAnnotations(draft, changedObjectIds, resolver);
       const orphanedJunctions = orphanedCellResetJunctionIds(
         draft,
         "clear-drawing",
@@ -60,6 +115,7 @@ export function applyCellResetEdit(
       };
     }
     case "reset_cell_placement": {
+      releaseRouteAnchoredAnnotations(draft, changedObjectIds, resolver);
       const orphanedJunctions = orphanedCellResetJunctionIds(
         draft,
         "reset-placement",

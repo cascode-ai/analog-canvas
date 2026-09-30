@@ -153,7 +153,10 @@ atomic, browser-editor lifecycle edits planned by `cell-reset-planner.ts`:
 `clear_cell_drawing` removes only Route/drafting geometry,
 `reset_cell_placement` returns Instances to the tray and removes placement
 geometry/intent, and `reset_cell_body` removes non-interface content while
-retaining formal terminals and their marker/Net projection. Each advances the
+retaining formal terminals and their marker/Net projection. The two resets that
+remove every Route keep the circuit's names: a Net or power label anchored to a
+removed Route is re-anchored free at its resolved position, so its name claim
+survives, and a route marker is removed with its Route. Each advances the
 Document revision once and is restored by one Undo. The public Agent surface
 accepts these lifecycle edits, directly or through its `reset-cell` command,
 under the connectivity edit permission.
