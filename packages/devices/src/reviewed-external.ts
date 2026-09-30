@@ -59,6 +59,8 @@ export interface ReviewedExternalDeviceBinding {
     | "inductor"
     | "npn"
     | "pnp";
+  /** Additional Canvas symbols that share this reviewed wrapper interface. */
+  readonly compatibleSymbolIds?: readonly string[];
   readonly deviceClass: "mos" | "resistor" | "capacitor" | "inductor" | "bjt";
   readonly terminals: readonly ReviewedExternalTerminalBinding[];
   readonly parameters: readonly ReviewedExternalParameterBinding[];
@@ -258,6 +260,7 @@ const sky130VaractorBinding = (): ReviewedExternalDeviceBinding => ({
   masterName: "sky130_fd_pr__cap_var_lvt",
   invocationKind: "external-subcircuit",
   symbolId: "capacitor",
+  compatibleSymbolIds: ["variable-capacitor"],
   deviceClass: "capacitor",
   terminals: [
     { targetName: "C0", pinName: "1", interaction: "canvas" },
@@ -495,8 +498,20 @@ export function reviewedExternalModelSuggestions(
   symbolId: string,
 ): readonly string[] {
   return reviewedExternalDeviceBindings
-    .filter((binding) => binding.symbolId === symbolId)
+    .filter((binding) =>
+      reviewedExternalBindingSupportsSymbol(binding, symbolId),
+    )
     .map((binding) => binding.masterName);
+}
+
+export function reviewedExternalBindingSupportsSymbol(
+  binding: ReviewedExternalDeviceBinding,
+  symbolId: string,
+): boolean {
+  return (
+    binding.symbolId === symbolId ||
+    binding.compatibleSymbolIds?.includes(symbolId) === true
+  );
 }
 
 /** Reviewed SKY130 plain-um input to the canonical Project length spelling. */

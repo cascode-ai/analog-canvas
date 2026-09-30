@@ -21,6 +21,7 @@ import {
   deviceDescriptor,
   resolveReviewedExternalBinding,
   reviewedExternalBindingForMaster,
+  reviewedExternalBindingSupportsSymbol,
 } from "@icm/devices";
 import {
   builtInSymbols,
@@ -460,7 +461,7 @@ export function planSetDeviceModelTarget(
   }
 
   if (targetBinding) {
-    if (targetBinding.symbolId !== sourceSymbolId) {
+    if (!reviewedExternalBindingSupportsSymbol(targetBinding, sourceSymbolId)) {
       throw new Error(
         `${normalizedName} is not compatible with the selected ${sourceSymbolId}`,
       );
@@ -493,12 +494,15 @@ export function planSetDeviceModelTarget(
           definition.name,
           definition.terminals.map((terminal) => terminal.name),
         );
-    if (!verified || verified.symbolId !== sourceSymbolId) {
+    if (
+      !verified ||
+      !reviewedExternalBindingSupportsSymbol(verified, sourceSymbolId)
+    ) {
       throw new Error(
         `Existing external definition ${definition.name} does not match its reviewed public terminal order`,
       );
     }
-    const symbolId = verified.symbolId;
+    const symbolId = sourceSymbolId;
     const documentEdits: DocumentEdits = removedPropertyTerminalEdits(
       document,
       instanceId,
