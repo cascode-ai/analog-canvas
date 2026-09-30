@@ -5,6 +5,7 @@ import {
 } from "@icm/model";
 import {
   deviceDescriptor,
+  reviewedExternalBindingForMaster,
   reviewedExternalBindingForTerminalCount,
   sky130MicrometresToProjectLength,
 } from "@icm/devices";
@@ -194,6 +195,20 @@ function symbolFor(
       return { symbolId: "nmos", pinNames: ["D", "G", "S", "B"] };
     if (instance.terminals.length === 4 && modelType === "pmos")
       return { symbolId: "pmos", pinNames: ["D", "G", "S", "B"] };
+    // A reviewed SKY130 MOS written as a plain M card, as this product
+    // exports a MOS bound to the model by name, has no .model card. The
+    // reviewed table still says which transistor it is.
+    const reviewed =
+      modelType === undefined && instance.terminals.length === 4
+        ? reviewedExternalBindingForMaster(instance.target.modelName)
+        : undefined;
+    if (
+      reviewed &&
+      (["nmos", "pmos", "ndmos", "pdmos"] as const).some(
+        (symbolId) => symbolId === reviewed.symbolId,
+      )
+    )
+      return { symbolId: reviewed.symbolId, pinNames: ["D", "G", "S", "B"] };
     return null;
   }
   if (instance.target.kind === "opaque") {
@@ -308,6 +323,25 @@ function importProvenance(
   }
 }
 
+/**
+ * A device card naming a model no .model card declares cannot say what it
+ * is. The symbol catalog is not what is missing, so say what is.
+ */
+function undeclaredModelMessage(
+  instance: CircuitInstanceIR,
+  modelTypeByName: ReadonlyMap<string, string>,
+): string | undefined {
+  if (instance.target.kind !== "model") return undefined;
+  const model = instance.target.modelName;
+  if (modelTypeByName.has(model.toLowerCase())) return undefined;
+  const types =
+    { 2: ["d"], 3: ["npn", "pnp"], 4: ["nmos", "pmos"] }[
+      instance.terminals.length
+    ] ?? [];
+  if (!types.length) return undefined;
+  return `${instance.name} uses model ${model}, which no .model card declares, so its device type is unknown. Add ${types.map((type) => `".model ${model} ${type}"`).join(" or ")}.`;
+}
+
 function importInstance(
   instance: CircuitInstanceIR,
   diagnostics: SpiceDiagnostic[],
@@ -321,7 +355,8 @@ function importInstance(
         "SPICE_IMPORT_UNSUPPORTED_SYMBOL",
         "error",
         "import",
-        `Unsupported SPICE device ${instance.name} (${targetDescription(instance, symbolMappings)}): the approved Razavi catalog has no symbol. Add and review a Razavi symbol mapping before importing.`,
+        undeclaredModelMessage(instance, modelTypeByName) ??
+          `Unsupported SPICE device ${instance.name} (${targetDescription(instance, symbolMappings)}): the approved Razavi catalog has no symbol. Add and review a Razavi symbol mapping before importing.`,
         instance.sourceRef,
       ),
     );
