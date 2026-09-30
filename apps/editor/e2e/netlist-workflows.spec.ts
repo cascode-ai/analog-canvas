@@ -205,7 +205,7 @@ R7 IN OUT 10k
   });
 
   await expect(page.getByTestId("status")).toContainText(
-    "Imported 1 Documents",
+    "Imported 1 Document and",
   );
   // The import draws every device: nothing waits off-sheet in a tray.
   await expect(
@@ -246,7 +246,7 @@ test("preserves the original import reference through portable save and distingu
     buffer: Buffer.from(source),
   });
   await expect(page.getByTestId("status")).toContainText(
-    "Imported 1 Documents",
+    "Imported 1 Document and",
   );
   await expect(page.getByTestId("flightline")).toHaveCount(2);
   const first = parseSavedProject(
